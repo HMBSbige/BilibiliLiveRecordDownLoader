@@ -13,4 +13,9 @@
     <PackageReference Include="ReactiveUI.WPF" Version="11.5.26" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\BilibiliLiveRecordDownLoader.BilibiliApi\BilibiliLiveRecordDownLoader.BilibiliApi.csproj" />
+    <ProjectReference Include="..\BilibiliLiveRecordDownLoader.Http\BilibiliLiveRecordDownLoader.Http.csproj" />
+  </ItemGroup>
+
 </Project>

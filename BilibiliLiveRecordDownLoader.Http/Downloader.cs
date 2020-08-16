@@ -23,21 +23,33 @@ namespace BilibiliLiveRecordDownLoader.Http
 
         public string UserAgent { get; set; } = @"Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko";
 
+        public string Cookie { get; set; }
+
         public Downloader()
         {
             ServicePointManager.DefaultConnectionLimit = 10000;
             _tasksDone = 0;
             _httpClientPool = new ObjectPool<HttpClient>(10, () =>
             {
+                var httpHandler = new HttpClientHandler();
+                if (!string.IsNullOrEmpty(Cookie))
+                {
+                    httpHandler = new HttpClientHandler { UseCookies = false, UseDefaultCredentials = false };
+                }
+
                 // GetResponseAsync deadlocks for some reason so switched to HttpClient instead
-                var client = new HttpClient(new RetryHandler(new HttpClientHandler(), 10))
+                var client = new HttpClient(new RetryHandler(httpHandler, 10), true)
                 {
                     MaxResponseContentBufferSize = (int)_responseLength,
                     DefaultRequestVersion = new Version(2, 0)
                 };
-                client.DefaultRequestHeaders.Add(@"User-Agent", UserAgent);
 
-                //client.MaxResponseContentBufferSize = partSize;
+                if (!string.IsNullOrEmpty(Cookie))
+                {
+                    client.DefaultRequestHeaders.Add(@"Cookie", Cookie);
+                }
+
+                client.DefaultRequestHeaders.Add(@"User-Agent", UserAgent);
                 client.DefaultRequestHeaders.ConnectionClose = false;
                 client.Timeout = Timeout.InfiniteTimeSpan;
 
