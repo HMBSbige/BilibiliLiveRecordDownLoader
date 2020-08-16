@@ -8,8 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="ReactiveUI.Events.WPF" Version="11.5.17" />
-    <PackageReference Include="ReactiveUI.WPF" Version="11.5.17" />
+    <PackageReference Include="Microsoft-WindowsAPICodePack-Shell" Version="1.1.4" />
+    <PackageReference Include="ReactiveUI.Events.WPF" Version="11.5.26" />
+    <PackageReference Include="ReactiveUI.WPF" Version="11.5.26" />
   </ItemGroup>
 
 </Project>
