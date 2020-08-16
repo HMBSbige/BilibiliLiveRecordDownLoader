@@ -5,6 +5,7 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <Languages>latest</Languages>
     <UseWPF>true</UseWPF>
+    <ApplicationIcon>Resources\Asaki.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

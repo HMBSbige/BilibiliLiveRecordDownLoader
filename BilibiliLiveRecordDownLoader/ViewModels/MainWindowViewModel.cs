@@ -9,6 +9,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 {
     public class MainWindowViewModel : ReactiveObject, IDisposable
     {
+        #region 字段
+
         private long _roomId;
         private string _imageUri;
         private string _name;
@@ -17,6 +19,10 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         private string _mainDir;
         private string _diskUsageProgressBarText;
         private double _diskUsageProgressBarValue;
+
+        #endregion
+
+        #region 属性
 
         public long RoomId
         {
@@ -66,11 +72,21 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             set => this.RaiseAndSetIfChanged(ref _diskUsageProgressBarValue, value);
         }
 
+        #endregion
+
+        #region Monitor
+
         private readonly IDisposable _diskMonitor;
         private readonly IDisposable _roomIdMonitor;
 
+        #endregion
+
+        #region Command
+
         public ReactiveCommand<Unit, Unit> SelectMainDirCommand { get; }
         public ReactiveCommand<Unit, Unit> OpenMainDirCommand { get; }
+
+        #endregion
 
         public MainWindowViewModel()
         {
