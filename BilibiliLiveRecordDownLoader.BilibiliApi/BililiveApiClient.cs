@@ -37,7 +37,7 @@ namespace BilibiliLiveRecordDownLoader.BilibiliApi
         public async Task<LiveRecordUrlMessage> GetLiveRecordUrl(string rid, CancellationToken token = default)
         {
             var url = $@"https://api.live.bilibili.com/xlive/web-room/v1/record/getLiveRecordUrl?rid={rid}&platform=html5";
-            var jsonStream = await GetStreamAsync(url, token);
+            await using var jsonStream = await GetStreamAsync(url, token);
             var json = await JsonSerializer.DeserializeAsync<LiveRecordUrlMessage>(jsonStream, cancellationToken: token);
             return json;
         }
@@ -52,7 +52,7 @@ namespace BilibiliLiveRecordDownLoader.BilibiliApi
         public async Task<LiveRecordListMessage> GetLiveRecordList(long roomId, long page = 1, long pageSize = 20, CancellationToken token = default)
         {
             var url = $@"https://api.live.bilibili.com/xlive/web-room/v1/record/getList?room_id={roomId}&page={page}&page_size={pageSize}";
-            var jsonStream = await GetStreamAsync(url, token);
+            await using var jsonStream = await GetStreamAsync(url, token);
             var json = await JsonSerializer.DeserializeAsync<LiveRecordListMessage>(jsonStream, cancellationToken: token);
             return json;
         }
@@ -66,7 +66,7 @@ namespace BilibiliLiveRecordDownLoader.BilibiliApi
         public async Task<RoomInitMessage> GetRoomInit(long roomId, CancellationToken token = default)
         {
             var url = $@"https://api.live.bilibili.com/room/v1/Room/room_init?id={roomId}";
-            var jsonStream = await GetStreamAsync(url, token);
+            await using var jsonStream = await GetStreamAsync(url, token);
             var json = await JsonSerializer.DeserializeAsync<RoomInitMessage>(jsonStream, cancellationToken: token);
             return json;
         }
@@ -80,7 +80,7 @@ namespace BilibiliLiveRecordDownLoader.BilibiliApi
         public async Task<AnchorInfoMessage> GetAnchorInfo(long roomId, CancellationToken token = default)
         {
             var url = $@"https://api.live.bilibili.com/live_user/v1/UserInfo/get_anchor_in_room?roomid={roomId}";
-            var jsonStream = await GetStreamAsync(url, token);
+            await using var jsonStream = await GetStreamAsync(url, token);
             var json = await JsonSerializer.DeserializeAsync<AnchorInfoMessage>(jsonStream, cancellationToken: token);
             return json;
         }
