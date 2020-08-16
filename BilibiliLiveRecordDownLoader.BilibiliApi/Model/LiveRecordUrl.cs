@@ -6,18 +6,23 @@ namespace BilibiliLiveRecordDownLoader.BilibiliApi.Model
     public class LiveRecordUrl
     {
         /// <summary>
-        /// 正常返回 0
+        /// 下载地址
         /// </summary>
-        public long code { get; set; }
+        public string url { get; set; }
 
         /// <summary>
-        /// 正常返回 "0"，否则返回错误信息
+        /// 视频大小，单位字节（Byte）
         /// </summary>
-        public string message { get; set; }
+        public long size { get; set; }
 
         /// <summary>
-        /// 视频信息
+        /// 视频长度，单位毫秒
         /// </summary>
-        public RecordData data { get; set; }
+        public long length { get; set; }
+
+        /// <summary>
+        /// 备用下载地址，通常为 null
+        /// </summary>
+        public string backup_url { get; set; }
     }
 }

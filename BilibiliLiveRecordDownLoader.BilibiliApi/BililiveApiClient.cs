@@ -34,11 +34,11 @@ namespace BilibiliLiveRecordDownLoader.BilibiliApi
         /// </summary>
         /// <param name="rid">视频id</param>
         /// <param name="token"></param>
-        public async Task<LiveRecordUrl> GetLiveRecordUrl(string rid, CancellationToken token = default)
+        public async Task<LiveRecordUrlMessage> GetLiveRecordUrl(string rid, CancellationToken token = default)
         {
             var url = $@"https://api.live.bilibili.com/xlive/web-room/v1/record/getLiveRecordUrl?rid={rid}&platform=html5";
             var jsonStream = await GetStreamAsync(url, token);
-            var json = await JsonSerializer.DeserializeAsync<LiveRecordUrl>(jsonStream, cancellationToken: token);
+            var json = await JsonSerializer.DeserializeAsync<LiveRecordUrlMessage>(jsonStream, cancellationToken: token);
             return json;
         }
 
@@ -49,25 +49,39 @@ namespace BilibiliLiveRecordDownLoader.BilibiliApi
         /// <param name="page">页数</param>
         /// <param name="pageSize">每页大小</param>
         /// <param name="token"></param>
-        public async Task<LiveRecordList> GetLiveRecordList(long roomId, long page = 1, long pageSize = 20, CancellationToken token = default)
+        public async Task<LiveRecordListMessage> GetLiveRecordList(long roomId, long page = 1, long pageSize = 20, CancellationToken token = default)
         {
             var url = $@"https://api.live.bilibili.com/xlive/web-room/v1/record/getList?room_id={roomId}&page={page}&page_size={pageSize}";
             var jsonStream = await GetStreamAsync(url, token);
-            var json = await JsonSerializer.DeserializeAsync<LiveRecordList>(jsonStream, cancellationToken: token);
+            var json = await JsonSerializer.DeserializeAsync<LiveRecordListMessage>(jsonStream, cancellationToken: token);
             return json;
         }
 
         /// <summary>
         /// 获取房间信息
         /// </summary>
-        /// <param name="roomId"></param>
+        /// <param name="roomId">房间号（允许短号）</param>
         /// <param name="token"></param>
         /// <returns></returns>
-        public async Task<RoomInit> GetRoomInit(long roomId, CancellationToken token = default)
+        public async Task<RoomInitMessage> GetRoomInit(long roomId, CancellationToken token = default)
         {
             var url = $@"https://api.live.bilibili.com/room/v1/Room/room_init?id={roomId}";
             var jsonStream = await GetStreamAsync(url, token);
-            var json = await JsonSerializer.DeserializeAsync<RoomInit>(jsonStream, cancellationToken: token);
+            var json = await JsonSerializer.DeserializeAsync<RoomInitMessage>(jsonStream, cancellationToken: token);
+            return json;
+        }
+
+        /// <summary>
+        /// 获取直播间主播信息
+        /// </summary>
+        /// <param name="roomId">房间号（允许短号）</param>
+        /// <param name="token"></param>
+        /// <returns></returns>
+        public async Task<AnchorInfoMessage> GetAnchorInfo(long roomId, CancellationToken token = default)
+        {
+            var url = $@"https://api.live.bilibili.com/live_user/v1/UserInfo/get_anchor_in_room?roomid={roomId}";
+            var jsonStream = await GetStreamAsync(url, token);
+            var json = await JsonSerializer.DeserializeAsync<AnchorInfoMessage>(jsonStream, cancellationToken: token);
             return json;
         }
 

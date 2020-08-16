@@ -66,5 +66,19 @@ namespace UnitTest
                 Assert.IsTrue((data.end_timestamp - data.start_timestamp) * 1000 >= data.length);
             }
         }
+
+        [TestMethod]
+        public async Task GetAnchorInfoTest()
+        {
+            using var client = new BililiveApiClient();
+            var json = await client.GetAnchorInfo(732);
+            Assert.AreEqual(json.code, 0);
+            Assert.AreEqual(json.msg, @"success");
+            Assert.AreEqual(json.message, @"success");
+            Assert.AreEqual(json.data.info.uid, 194484313);
+            Assert.AreEqual(json.data.info.uname, @"Asaki大人");
+            Assert.IsTrue(json.data.info.face.StartsWith(@"https://"));
+            Assert.AreEqual(json.data.info.platform_user_level, 6);
+        }
     }
 }

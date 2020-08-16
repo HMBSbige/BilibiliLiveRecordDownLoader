@@ -3,7 +3,7 @@
 namespace BilibiliLiveRecordDownLoader.BilibiliApi.Model
 {
     [Serializable]
-    public class RoomInit
+    public class LiveRecordUrlMessage
     {
         /// <summary>
         /// 正常返回 0
@@ -11,18 +11,13 @@ namespace BilibiliLiveRecordDownLoader.BilibiliApi.Model
         public long code { get; set; }
 
         /// <summary>
-        /// 正常返回 "ok"，否则返回错误信息
-        /// </summary>
-        public string msg { get; set; }
-
-        /// <summary>
-        /// 正常返回 "ok"，否则返回错误信息
+        /// 正常返回 "0"，否则返回错误信息
         /// </summary>
         public string message { get; set; }
 
         /// <summary>
-        /// 房间信息
+        /// 视频信息
         /// </summary>
-        public RoomInitData data { get; set; }
+        public LiveRecordUrlData data { get; set; }
     }
 }

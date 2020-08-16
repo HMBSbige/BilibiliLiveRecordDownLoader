@@ -13,6 +13,6 @@ namespace BilibiliLiveRecordDownLoader.BilibiliApi.Model
         /// <summary>
         /// 回放视频列表
         /// </summary>
-        public RecordList[] list { get; set; }
+        public LiveRecordList[] list { get; set; }
     }
 }
