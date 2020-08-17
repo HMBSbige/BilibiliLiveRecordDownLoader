@@ -5,6 +5,9 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:reactiveUi="http://reactiveui.net"
     xmlns:viewModels="clr-namespace:BilibiliLiveRecordDownLoader.ViewModels"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
     Title="BilibiliLiveRecordDownLoader"
     Height="550" Width="900">
     <Grid>
@@ -31,13 +34,17 @@
                         </Grid.ColumnDefinitions>
                         <Image Grid.RowSpan="3" x:Name="FaceImage"
                                Height="100" Width="100" Margin="0,0,10,0"
+                               d:Source="https://i1.hdslb.com/bfs/face/d14fb85fd5f92761700ff9971a3d923f180598c1.jpg"
                                RenderOptions.BitmapScalingMode="HighQuality"
                                RenderOptions.EdgeMode="Aliased" />
                         <TextBlock Grid.Row="0" Grid.Column="1" x:Name="NameTextBlock" VerticalAlignment="Center"
+                                   d:Text="AA"
                                    FontSize="16" TextOptions.TextFormattingMode="Display"  />
                         <TextBlock Grid.Row="1" Grid.Column="1" x:Name="UIdTextBlock" VerticalAlignment="Center"
+                                   d:Text="111"
                                    FontSize="16" TextOptions.TextFormattingMode="Display" />
                         <TextBlock Grid.Row="2" Grid.Column="1" x:Name="LvTextBlock" VerticalAlignment="Center"
+                                   d:Text="Lv6"
                                    FontSize="16" TextOptions.TextFormattingMode="Display" />
                     </Grid>
                     <Border />

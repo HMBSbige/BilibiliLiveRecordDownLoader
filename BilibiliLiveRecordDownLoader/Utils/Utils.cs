@@ -1,5 +1,9 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using System.IO;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.Utils
 {
@@ -88,5 +92,43 @@ namespace BilibiliLiveRecordDownLoader.Utils
             }
             return false;
         }
+
+        public static string GetExecutablePath()
+        {
+            var p = Process.GetCurrentProcess();
+            if (p.MainModule != null)
+            {
+                var res = p.MainModule.FileName;
+                return res;
+            }
+
+            var dllPath = GetDllPath();
+            return Path.Combine(Path.GetDirectoryName(dllPath) ?? throw new InvalidOperationException(), $@"{Path.GetFileNameWithoutExtension(dllPath)}.exe");
+        }
+
+        public static string GetDllPath()
+        {
+            return Assembly.GetExecutingAssembly().Location;
+        }
+
+        public static string EnsureDir(string path)
+        {
+            try
+            {
+                if (!Directory.Exists(path))
+                {
+                    Directory.CreateDirectory(path);
+                    return Path.GetFullPath(path);
+                }
+            }
+            catch
+            {
+                // ignored
+            }
+            return Path.GetDirectoryName(GetExecutablePath());
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void NoWarning(this Task _) { }
     }
 }

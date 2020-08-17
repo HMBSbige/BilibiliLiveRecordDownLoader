@@ -16,7 +16,7 @@ namespace BilibiliLiveRecordDownLoader
 
             this.WhenActivated(disposableRegistration =>
             {
-                this.Bind(ViewModel, vm => vm.RoomId, v => v.RoomIdTextBox.Text)
+                this.Bind(ViewModel, vm => vm.Config.RoomId, v => v.RoomIdTextBox.Text)
                 .DisposeWith(disposableRegistration);
 
                 this.OneWayBind(ViewModel,
@@ -40,7 +40,7 @@ namespace BilibiliLiveRecordDownLoader
                 i => $@"Lv{i}")
                 .DisposeWith(disposableRegistration);
 
-                this.Bind(ViewModel, vm => vm.MainDir, v => v.MainDirTextBox.Text)
+                this.Bind(ViewModel, vm => vm.Config.MainDir, v => v.MainDirTextBox.Text)
                 .DisposeWith(disposableRegistration);
 
                 this.OneWayBind(ViewModel,

@@ -175,7 +175,10 @@ namespace BilibiliLiveRecordDownLoader.Http
         {
             try
             {
-                path = Path.GetDirectoryName(Path.GetFullPath(path));
+                if (!Directory.Exists(path))
+                {
+                    Directory.CreateDirectory(path);
+                }
             }
             catch
             {

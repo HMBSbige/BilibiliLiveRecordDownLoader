@@ -1,7 +1,9 @@
 ﻿using System;
+using System.IO;
 using System.Reactive;
 using System.Reactive.Linq;
 using BilibiliLiveRecordDownLoader.BilibiliApi;
+using BilibiliLiveRecordDownLoader.Utils;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using ReactiveUI;
 
@@ -11,24 +13,16 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
     {
         #region 字段
 
-        private long _roomId;
         private string _imageUri;
         private string _name;
         private long _uid;
         private long _level;
-        private string _mainDir;
         private string _diskUsageProgressBarText;
         private double _diskUsageProgressBarValue;
 
         #endregion
 
         #region 属性
-
-        public long RoomId
-        {
-            get => _roomId;
-            set => this.RaiseAndSetIfChanged(ref _roomId, value);
-        }
 
         public string ImageUri
         {
@@ -52,12 +46,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         {
             get => _level;
             set => this.RaiseAndSetIfChanged(ref _level, value);
-        }
-
-        public string MainDir
-        {
-            get => _mainDir;
-            set => this.RaiseAndSetIfChanged(ref _mainDir, value);
         }
 
         public string DiskUsageProgressBarText
@@ -88,11 +76,14 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
         #endregion
 
+        public readonly ConfigViewModel Config;
+
         public MainWindowViewModel()
         {
-            RoomId = 732;
+            Config = new ConfigViewModel(Directory.GetCurrentDirectory());
+            Config.LoadAsync().NoWarning();
 
-            _roomIdMonitor = this.WhenAnyValue(x => x.RoomId)
+            _roomIdMonitor = this.WhenAnyValue(x => x.Config.RoomId)
                     .Throttle(TimeSpan.FromMilliseconds(1000))
                     .DistinctUntilChanged()
                     .Where(i => i > 0)
@@ -117,22 +108,22 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 AddToMostRecentlyUsedList = false,
                 EnsurePathExists = true,
                 NavigateToShortcut = true,
-                InitialDirectory = MainDir
+                InitialDirectory = Config.MainDir
             };
             if (dlg.ShowDialog() == CommonFileDialogResult.Ok)
             {
-                MainDir = dlg.FileName;
+                Config.MainDir = dlg.FileName;
             }
         }
 
         private void OpenDirectory()
         {
-            Utils.Utils.OpenDir(MainDir);
+            Utils.Utils.OpenDir(Config.MainDir);
         }
 
         private void GetDiskUsage(long _)
         {
-            var (availableFreeSpace, totalSize) = Utils.Utils.GetDiskUsage(MainDir);
+            var (availableFreeSpace, totalSize) = Utils.Utils.GetDiskUsage(Config.MainDir);
             if (totalSize != 0)
             {
                 DiskUsageProgressBarText = $@"已使用 {Utils.Utils.CountSize(totalSize - availableFreeSpace)}/{Utils.Utils.CountSize(totalSize)} 剩余 {Utils.Utils.CountSize(availableFreeSpace)}";
