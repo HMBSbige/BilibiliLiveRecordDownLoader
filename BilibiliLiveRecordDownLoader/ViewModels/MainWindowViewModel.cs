@@ -162,6 +162,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         {
             _diskMonitor?.Dispose();
             _roomIdMonitor?.Dispose();
+            Config?.Dispose();
         }
     }
 }

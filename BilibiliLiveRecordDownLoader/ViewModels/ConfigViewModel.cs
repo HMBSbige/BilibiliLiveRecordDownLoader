@@ -13,7 +13,7 @@ using ReactiveUI;
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
     [Serializable]
-    public class ConfigViewModel : ReactiveObject
+    public class ConfigViewModel : ReactiveObject, IDisposable
     {
         #region 字段
 
@@ -38,6 +38,9 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
         #endregion
 
+        private IDisposable _roomIdMonitor;
+        private IDisposable _mainDirMonitor;
+
         private static readonly ReaderWriterLockSlim Lock = new ReaderWriterLockSlim();
 
         private static readonly JsonSerializerOptions Options = new JsonSerializerOptions
@@ -56,12 +59,12 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             MainDir = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
             _path = Path.Combine(Utils.Utils.EnsureDir(path), _filename);
 
-            this.WhenAnyValue(x => x.RoomId)
+            _roomIdMonitor = this.WhenAnyValue(x => x.RoomId)
                     .Throttle(TimeSpan.FromSeconds(1))
                     .DistinctUntilChanged()
                     .Subscribe(async _ => { await SaveAsync(); });
 
-            this.WhenAnyValue(x => x.MainDir)
+            _mainDirMonitor = this.WhenAnyValue(x => x.MainDir)
                     .Throttle(TimeSpan.FromSeconds(1))
                     .DistinctUntilChanged()
                     .Subscribe(async _ => { await SaveAsync(); });
@@ -117,6 +120,12 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         {
             config.RoomId = RoomId;
             config.MainDir = MainDir;
+        }
+
+        public void Dispose()
+        {
+            _roomIdMonitor?.Dispose();
+            _mainDirMonitor?.Dispose();
         }
     }
 }
