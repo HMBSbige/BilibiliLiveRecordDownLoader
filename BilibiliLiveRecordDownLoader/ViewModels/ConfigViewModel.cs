@@ -2,7 +2,6 @@
 using System.Diagnostics;
 using System.IO;
 using System.Reactive.Linq;
-using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Threading;
@@ -56,25 +55,28 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         public ConfigViewModel(string path)
         {
             _roomId = 732;
-            MainDir = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+            _mainDir = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+
             _path = Path.Combine(Utils.Utils.EnsureDir(path), _filename);
 
             _roomIdMonitor = this.WhenAnyValue(x => x.RoomId)
                     .Throttle(TimeSpan.FromSeconds(1))
                     .DistinctUntilChanged()
+                    .Where(_ => !Lock.IsWriteLockHeld)
                     .Subscribe(async _ => { await SaveAsync(); });
 
             _mainDirMonitor = this.WhenAnyValue(x => x.MainDir)
                     .Throttle(TimeSpan.FromSeconds(1))
                     .DistinctUntilChanged()
+                    .Where(_ => !Lock.IsWriteLockHeld)
                     .Subscribe(async _ => { await SaveAsync(); });
         }
 
         public async Task SaveAsync(CancellationToken token = default)
         {
-            Lock.EnterWriteLock();
             try
             {
+                Lock.EnterWriteLock();
                 await using var stream = new MemoryStream();
 
                 var config = new Config();
@@ -82,9 +84,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
                 await JsonSerializer.SerializeAsync(stream, config, config.GetType(), Options, token);
                 stream.Position = 0;
-                using var reader = new StreamReader(stream);
-                var str = await reader.ReadToEndAsync();
-                await File.WriteAllTextAsync(_path, str, Encoding.UTF8, token);
+                await using var fs = new FileStream(_path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, true);
+                await stream.CopyToAsync(fs, token);
             }
             catch (Exception ex)
             {
@@ -100,13 +101,24 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         {
             try
             {
-                await using var fs = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, true);
+                Lock.EnterReadLock();
+
+                await using var fs = new FileStream(_path, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete, 4096, true);
+
                 var config = await JsonSerializer.DeserializeAsync<Config>(fs, Options, token);
+
                 CopyFrom(config);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine(ex);
+                RoomId = 732;
+                MainDir = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+            }
+            finally
+            {
+                Lock.ExitReadLock();
             }
         }
 
