@@ -100,7 +100,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         {
             try
             {
-                await using var fs = File.OpenRead(_path);
+                await using var fs = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, true);
                 var config = await JsonSerializer.DeserializeAsync<Config>(fs, Options, token);
                 CopyFrom(config);
             }

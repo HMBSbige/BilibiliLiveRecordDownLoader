@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Threading.Tasks;
+using BilibiliLiveRecordDownLoader.FlvProcessor;
 using BilibiliLiveRecordDownLoader.Http;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.WindowsAPICodePack.Shell;
@@ -25,6 +26,19 @@ namespace UnitTest
             Assert.AreEqual(new FileInfo(outFile).Length, 1594447);
 
             File.Delete(outFile);
+        }
+
+        [TestMethod]
+        public void TestFlvMerge()
+        {
+            const string f1 = @"";
+            const string f2 = @"";
+            const string outfile = @"";
+
+            var flv = new FlvMerger();
+            flv.Add(f1);
+            flv.Add(f2);
+            flv.Merge(outfile);
         }
     }
 }
