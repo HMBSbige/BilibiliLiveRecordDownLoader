@@ -37,12 +37,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
         #endregion
 
-        private IDisposable _roomIdMonitor;
-        private IDisposable _mainDirMonitor;
+        private IDisposable _configMonitor;
 
         private static readonly ReaderWriterLockSlim Lock = new ReaderWriterLockSlim();
 
-        private static readonly JsonSerializerOptions Options = new JsonSerializerOptions
+        private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
         {
             WriteIndented = true,
             Encoder = JavaScriptEncoder.Default
@@ -59,13 +58,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
             _path = Path.Combine(Utils.Utils.EnsureDir(path), _filename);
 
-            _roomIdMonitor = this.WhenAnyValue(x => x.RoomId)
-                    .Throttle(TimeSpan.FromSeconds(1))
-                    .DistinctUntilChanged()
-                    .Where(_ => !Lock.IsWriteLockHeld)
-                    .Subscribe(async _ => { await SaveAsync(); });
-
-            _mainDirMonitor = this.WhenAnyValue(x => x.MainDir)
+            _configMonitor = this.WhenAnyValue(x => x.RoomId, x => x.MainDir)
                     .Throttle(TimeSpan.FromSeconds(1))
                     .DistinctUntilChanged()
                     .Where(_ => !Lock.IsWriteLockHeld)
@@ -82,9 +75,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 var config = new Config();
                 CopyTo(config);
 
-                await JsonSerializer.SerializeAsync(stream, config, config.GetType(), Options, token);
+                await JsonSerializer.SerializeAsync(stream, config, JsonOptions, token);
+
                 stream.Position = 0;
-                await using var fs = new FileStream(_path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, true);
+
+                await using var fs = new FileStream(_path, FileMode.Create, FileAccess.Write,
+                FileShare.None, 4096, true);
+
                 await stream.CopyToAsync(fs, token);
             }
             catch (Exception ex)
@@ -106,7 +103,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 await using var fs = new FileStream(_path, FileMode.Open, FileAccess.Read,
                 FileShare.ReadWrite | FileShare.Delete, 4096, true);
 
-                var config = await JsonSerializer.DeserializeAsync<Config>(fs, Options, token);
+                var config = await JsonSerializer.DeserializeAsync<Config>(fs, cancellationToken: token);
 
                 CopyFrom(config);
             }
@@ -136,8 +133,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
         public void Dispose()
         {
-            _roomIdMonitor?.Dispose();
-            _mainDirMonitor?.Dispose();
+            _configMonitor?.Dispose();
         }
     }
 }
