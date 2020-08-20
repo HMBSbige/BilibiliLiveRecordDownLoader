@@ -39,13 +39,13 @@
                                RenderOptions.EdgeMode="Aliased" />
                         <TextBlock Grid.Row="0" Grid.Column="1" x:Name="NameTextBlock" VerticalAlignment="Center"
                                    d:Text="AA"
-                                   FontSize="16" TextOptions.TextFormattingMode="Display"  />
+                                   FontSize="16" />
                         <TextBlock Grid.Row="1" Grid.Column="1" x:Name="UIdTextBlock" VerticalAlignment="Center"
                                    d:Text="111"
-                                   FontSize="16" TextOptions.TextFormattingMode="Display" />
+                                   FontSize="16" />
                         <TextBlock Grid.Row="2" Grid.Column="1" x:Name="LvTextBlock" VerticalAlignment="Center"
                                    d:Text="Lv6"
-                                   FontSize="16" TextOptions.TextFormattingMode="Display" />
+                                   FontSize="16" />
                     </Grid>
                     <Border />
                 </DockPanel>
