@@ -1,7 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using BilibiliLiveRecordDownLoader.BilibiliApi;
 using BilibiliLiveRecordDownLoader.Utils;
 using Microsoft.WindowsAPICodePack.Dialogs;
@@ -77,6 +81,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         #endregion
 
         public readonly ConfigViewModel Config;
+        private readonly ObservableAsPropertyHelper<IEnumerable<LiveRecordListViewModel>> _liveRecordList;
+        public IEnumerable<LiveRecordListViewModel> LiveRecordList => _liveRecordList.Value;
 
         public MainWindowViewModel()
         {
@@ -93,6 +99,14 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             _diskMonitor = Observable.Interval(TimeSpan.FromSeconds(1))
                     .ObserveOn(RxApp.MainThreadScheduler)
                     .Subscribe(GetDiskUsage);
+
+            _liveRecordList = this.WhenAnyValue(x => x.Config.RoomId)
+                    .Throttle(TimeSpan.FromMilliseconds(1000))
+                    .DistinctUntilChanged()
+                    .Where(i => i > 0)
+                    .SelectMany(GetRecordList)
+                    .ObserveOn(RxApp.MainThreadScheduler)
+                    .ToProperty(this, nameof(LiveRecordList), deferSubscription: true);
 
             SelectMainDirCommand = ReactiveCommand.Create(SelectDirectory);
             OpenMainDirCommand = ReactiveCommand.Create(OpenDirectory);
@@ -156,6 +170,34 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             {
                 // ignored
             }
+        }
+
+        private static async Task<IEnumerable<LiveRecordListViewModel>> GetRecordList(long roomId, CancellationToken token)
+        {
+            try
+            {
+                using var client = new BililiveApiClient();
+                var roomInitMessage = await client.GetRoomInit(roomId, token);
+                if (roomInitMessage != null && roomInitMessage.code == 0
+                    && roomInitMessage.data != null && roomInitMessage.data.room_id > 0)
+                {
+                    var listMessage = await client.GetLiveRecordList(roomInitMessage.data.room_id, 1, 1, token);
+                    if (listMessage?.data != null && listMessage.data.count > 0)
+                    {
+                        var count = listMessage.data.count;
+                        listMessage = await client.GetLiveRecordList(roomInitMessage.data.room_id, 1, count, token);
+                        if (listMessage?.data?.list != null && listMessage.data?.list.Length > 0)
+                        {
+                            return listMessage.data?.list.Select(x => new LiveRecordListViewModel(x));
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // ignored
+            }
+            return Array.Empty<LiveRecordListViewModel>();
         }
 
         public void Dispose()

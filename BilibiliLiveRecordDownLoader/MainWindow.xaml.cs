@@ -14,46 +14,37 @@ namespace BilibiliLiveRecordDownLoader
             InitializeComponent();
             ViewModel = new MainWindowViewModel();
 
-            this.WhenActivated(disposableRegistration =>
+            this.WhenActivated(d =>
             {
-                this.Bind(ViewModel, vm => vm.Config.RoomId, v => v.RoomIdTextBox.Text)
-                        .DisposeWith(disposableRegistration);
+                this.Bind(ViewModel, vm => vm.Config.RoomId, v => v.RoomIdTextBox.Text).DisposeWith(d);
 
                 this.OneWayBind(ViewModel, vm => vm.ImageUri, v => v.FaceImage.Source,
-                                url => url == null ? null : new BitmapImage(new Uri(url)))
-                        .DisposeWith(disposableRegistration);
+                                url => url == null ? null : new BitmapImage(new Uri(url))).DisposeWith(d);
 
-                this.OneWayBind(ViewModel, vm => vm.Name, v => v.NameTextBlock.Text)
-                        .DisposeWith(disposableRegistration);
+                this.OneWayBind(ViewModel, vm => vm.Name, v => v.NameTextBlock.Text).DisposeWith(d);
 
-                this.OneWayBind(ViewModel, vm => vm.Uid, v => v.UIdTextBlock.Text).DisposeWith(disposableRegistration);
+                this.OneWayBind(ViewModel, vm => vm.Uid, v => v.UIdTextBlock.Text).DisposeWith(d);
 
-                this.OneWayBind(ViewModel, vm => vm.Level, v => v.LvTextBlock.Text, i => $@"Lv{i}")
-                        .DisposeWith(disposableRegistration);
+                this.OneWayBind(ViewModel, vm => vm.Level, v => v.LvTextBlock.Text, i => $@"Lv{i}").DisposeWith(d);
 
-                this.Bind(ViewModel, vm => vm.Config.MainDir, v => v.MainDirTextBox.Text)
-                        .DisposeWith(disposableRegistration);
+                this.Bind(ViewModel, vm => vm.Config.MainDir, v => v.MainDirTextBox.Text).DisposeWith(d);
 
-                this.OneWayBind(ViewModel, vm => vm.DiskUsageProgressBarText, v => v.DiskUsageProgressBarTextBlock.Text)
-                        .DisposeWith(disposableRegistration);
+                this.OneWayBind(ViewModel, vm => vm.DiskUsageProgressBarText, v => v.DiskUsageProgressBarTextBlock.Text).DisposeWith(d);
 
-                this.OneWayBind(ViewModel, vm => vm.DiskUsageProgressBarValue, v => v.DiskUsageProgressBar.Value)
-                        .DisposeWith(disposableRegistration);
+                this.OneWayBind(ViewModel, vm => vm.DiskUsageProgressBarValue, v => v.DiskUsageProgressBar.Value).DisposeWith(d);
 
                 this.OneWayBind(ViewModel, vm => vm.DiskUsageProgressBarValue, v => v.DiskUsageProgressBar.Foreground,
                                 p => p > 90
                                         ? new SolidColorBrush(Colors.Red)
-                                        : new SolidColorBrush(Color.FromRgb(38, 160, 218)))
-                        .DisposeWith(disposableRegistration);
+                                        : new SolidColorBrush(Color.FromRgb(38, 160, 218))).DisposeWith(d);
 
-                this.BindCommand(ViewModel, viewModel => viewModel.SelectMainDirCommand,
-                                view => view.SelectMainDirButton)
-                        .DisposeWith(disposableRegistration);
+                this.BindCommand(ViewModel, viewModel => viewModel.SelectMainDirCommand, view => view.SelectMainDirButton).DisposeWith(d);
 
-                this.BindCommand(ViewModel, viewModel => viewModel.OpenMainDirCommand, view => view.OpenMainDirButton)
-                        .DisposeWith(disposableRegistration);
+                this.BindCommand(ViewModel, viewModel => viewModel.OpenMainDirCommand, view => view.OpenMainDirButton).DisposeWith(d);
 
-                ViewModel.DisposeWith(disposableRegistration);
+                this.OneWayBind(ViewModel, vm => vm.LiveRecordList, v => v.LiveRecordListDataGrid.ItemsSource).DisposeWith(d);
+
+                ViewModel.DisposeWith(d);
             });
         }
     }

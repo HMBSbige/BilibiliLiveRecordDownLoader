@@ -7,9 +7,10 @@
     xmlns:viewModels="clr-namespace:BilibiliLiveRecordDownLoader.ViewModels"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:Syncfusion="http://schemas.syncfusion.com/wpf"
     mc:Ignorable="d"
     Title="BilibiliLiveRecordDownLoader"
-    Height="550" Width="900">
+    Height="638" Width="1120">
     <Grid>
         <TabControl>
             <TabItem Header="直播回放">
@@ -47,7 +48,50 @@
                                    d:Text="Lv6"
                                    FontSize="16" />
                     </Grid>
-                    <Border />
+                    <Syncfusion:SfDataGrid 
+                                x:Name="LiveRecordListDataGrid"
+                                ColumnSizer="Auto"
+                                AutoGenerateColumns="False"
+                                RowSelectionBrush="LightGray"
+                                CurrentCellBorderBrush="Transparent"
+                                CurrentCellBorderThickness="2"
+                                BorderThickness="1,1,1,0"
+
+                                SelectionUnit="Row" SelectionMode="Single"
+                                AllowEditing="False" AddNewRowPosition="None"
+                                AllowResizingColumns="True"
+                                AllowDeleting="False"
+                                AllowDraggingRows="False" AllowDraggingColumns="True" AllowDrop="False"
+                                AllowGrouping="False" ShowGroupDropArea="False"
+                                AllowSorting="True" AllowFiltering="False" ShowSortNumbers="True"
+                                ShowToolTip="True"
+                                ShowRowHeader="False"
+
+                                EnableDataVirtualization="True"
+                                ScrollMode="None" CanMaintainScrollPosition="True" ShowBusyIndicator="True"
+                    >
+
+                        <Syncfusion:SfDataGrid.Columns>
+                            <Syncfusion:GridTextColumn MappingName="Rid" HeaderText="视频 Id" />
+                            <Syncfusion:GridTextColumn MappingName="Title" HeaderText="标题" />
+                            <Syncfusion:GridTextColumn MappingName="AreaName" HeaderText="分区名" />
+                            <Syncfusion:GridTextColumn MappingName="ParentAreaName" HeaderText="主分区名" />
+
+                            <Syncfusion:GridDateTimeColumn MappingName="StartTime" HeaderText="开始时间"
+                                                           AllowNullValue="True" Pattern="FullDateTime" />
+
+                            <Syncfusion:GridDateTimeColumn MappingName="EndTime" HeaderText="结束时间"
+                                                           AllowNullValue="True" Pattern="FullDateTime" />
+
+                            <Syncfusion:GridNumericColumn MappingName="Online" HeaderText="人气峰值" NumberDecimalDigits="0" TextAlignment="Left" />
+                            <Syncfusion:GridNumericColumn MappingName="DanmuNum" HeaderText="弹幕数" NumberDecimalDigits="0" TextAlignment="Left" />
+                            <Syncfusion:GridDateTimeColumn MappingName="Length" HeaderText="视频长度"
+                                                           AllowNullValue="True" Pattern="LongTime" />
+                            
+                            
+                        </Syncfusion:SfDataGrid.Columns>
+
+                    </Syncfusion:SfDataGrid>
                 </DockPanel>
             </TabItem>
             <TabItem Header="设置">
