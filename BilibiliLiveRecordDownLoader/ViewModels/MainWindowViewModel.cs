@@ -26,6 +26,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         private long _roomId;
         private long _shortRoomId;
         private long _recordCount;
+        private bool _isLiveRecordBusy;
+        private bool _triggerLiveRecordListQuery;
 
         #endregion
 
@@ -85,6 +87,18 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             set => this.RaiseAndSetIfChanged(ref _recordCount, value);
         }
 
+        public bool IsLiveRecordBusy
+        {
+            get => _isLiveRecordBusy;
+            set => this.RaiseAndSetIfChanged(ref _isLiveRecordBusy, value);
+        }
+
+        public bool TriggerLiveRecordListQuery
+        {
+            get => _triggerLiveRecordListQuery;
+            set => this.RaiseAndSetIfChanged(ref _triggerLiveRecordListQuery, value);
+        }
+
         #endregion
 
         #region Monitor
@@ -110,10 +124,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             Config = new ConfigViewModel(Directory.GetCurrentDirectory());
             Config.LoadAsync().NoWarning();
 
-            _roomIdMonitor = this.WhenAnyValue(x => x.Config.RoomId)
+            _roomIdMonitor = this.WhenAnyValue(x => x.Config.RoomId, x => x.TriggerLiveRecordListQuery)
                     .Throttle(TimeSpan.FromMilliseconds(1000))
                     .DistinctUntilChanged()
-                    .Where(i => i > 0)
+                    .Where(i => i.Item1 > 0)
+                    .Select(i => i.Item1)
                     .ObserveOn(RxApp.MainThreadScheduler)
                     .Subscribe(GetAnchorInfo);
 
@@ -121,10 +136,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                     .ObserveOn(RxApp.MainThreadScheduler)
                     .Subscribe(GetDiskUsage);
 
-            _liveRecordList = this.WhenAnyValue(x => x.Config.RoomId)
+            _liveRecordList = this.WhenAnyValue(x => x.Config.RoomId, x => x.TriggerLiveRecordListQuery)
                     .Throttle(TimeSpan.FromMilliseconds(1000))
                     .DistinctUntilChanged()
-                    .Where(i => i > 0)
+                    .Where(i => i.Item1 > 0)
+                    .Select(i => i.Item1)
                     .SelectMany(GetRecordList)
                     .ObserveOn(RxApp.MainThreadScheduler)
                     .ToProperty(this, nameof(LiveRecordList), deferSubscription: true);
@@ -197,10 +213,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         {
             try
             {
+                IsLiveRecordBusy = true;
                 using var client = new BililiveApiClient();
                 var roomInitMessage = await client.GetRoomInit(roomId, token);
                 if (roomInitMessage != null && roomInitMessage.code == 0
-                    && roomInitMessage.data != null && roomInitMessage.data.room_id > 0)
+                                            && roomInitMessage.data != null && roomInitMessage.data.room_id > 0)
                 {
                     RoomId = roomInitMessage.data.room_id;
                     ShortRoomId = roomInitMessage.data.short_id;
@@ -220,6 +237,10 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             catch
             {
                 // ignored
+            }
+            finally
+            {
+                IsLiveRecordBusy = false;
             }
             return Array.Empty<LiveRecordListViewModel>();
         }

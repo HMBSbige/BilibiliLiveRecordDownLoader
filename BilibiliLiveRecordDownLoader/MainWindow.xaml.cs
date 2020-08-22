@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
+using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using BilibiliLiveRecordDownLoader.ViewModels;
@@ -18,6 +20,12 @@ namespace BilibiliLiveRecordDownLoader
             this.WhenActivated(d =>
             {
                 this.Bind(ViewModel, vm => vm.Config.RoomId, v => v.RoomIdTextBox.Text).DisposeWith(d);
+
+                RoomIdTextBox.Events().KeyUp.Subscribe(args =>
+                {
+                    if (args.Key != Key.Enter) return;
+                    ViewModel.TriggerLiveRecordListQuery = !ViewModel.TriggerLiveRecordListQuery;
+                });
 
                 this.OneWayBind(ViewModel, vm => vm.ImageUri, v => v.FaceImage.Source,
                                 url => url == null ? null : new BitmapImage(new Uri(url))).DisposeWith(d);
@@ -58,6 +66,11 @@ namespace BilibiliLiveRecordDownLoader
                 ViewModel.WhenAnyValue(x => x.RecordCount)
                         .ObserveOn(RxApp.MainThreadScheduler)
                         .Subscribe(i => RecordCountTextBlock.Text = $@"列表总数: {i}")
+                        .DisposeWith(d);
+
+                ViewModel.WhenAnyValue(x => x.IsLiveRecordBusy)
+                        .ObserveOn(RxApp.MainThreadScheduler)
+                        .Subscribe(b => LiveRecordBusyIndicator.IsBusy = b)
                         .DisposeWith(d);
 
                 ViewModel.DisposeWith(d);

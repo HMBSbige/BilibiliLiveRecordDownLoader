@@ -24,7 +24,7 @@
                         <TextBlock Text="房间号：" VerticalAlignment="Center" />
                         <TextBox x:Name="RoomIdTextBox" Grid.Column="1" VerticalContentAlignment="Center" />
                     </Grid>
-                    <Grid DockPanel.Dock="Top" Margin="5">
+                    <Grid DockPanel.Dock="Top" Margin="5" Height="100">
                         <Grid.RowDefinitions>
                             <RowDefinition />
                             <RowDefinition />
@@ -34,9 +34,10 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition />
                             <ColumnDefinition />
+                            <ColumnDefinition Width="100"/>
                         </Grid.ColumnDefinitions>
                         <Image Grid.RowSpan="3" x:Name="FaceImage"
-                               Height="100" Width="100" Margin="0,0,10,0"
+                               Width="100" Margin="0,0,10,0"
                                d:Source="https://i1.hdslb.com/bfs/face/d14fb85fd5f92761700ff9971a3d923f180598c1.jpg"
                                RenderOptions.BitmapScalingMode="HighQuality"
                                RenderOptions.EdgeMode="Aliased" />
@@ -60,6 +61,13 @@
                         <TextBlock Grid.Row="2" Grid.Column="2" x:Name="RecordCountTextBlock" VerticalAlignment="Center"
                                    d:Text="100"
                                    FontSize="16" />
+
+                        <Grid Grid.Row="0" Grid.Column="3" Grid.RowSpan="3" >
+                            <Syncfusion:SfBusyIndicator
+                            x:Name="LiveRecordBusyIndicator"
+                            d:IsBusy="True"
+                            Header="加载中..." AnimationType="DoubleRing" />
+                        </Grid>
                     </Grid>
                     <Syncfusion:SfDataGrid 
                                 x:Name="LiveRecordListDataGrid"
