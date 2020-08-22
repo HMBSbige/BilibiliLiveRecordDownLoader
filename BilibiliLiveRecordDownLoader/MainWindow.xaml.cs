@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Reactive.Disposables;
+using System.Reactive.Linq;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using BilibiliLiveRecordDownLoader.ViewModels;
@@ -23,7 +24,7 @@ namespace BilibiliLiveRecordDownLoader
 
                 this.OneWayBind(ViewModel, vm => vm.Name, v => v.NameTextBlock.Text).DisposeWith(d);
 
-                this.OneWayBind(ViewModel, vm => vm.Uid, v => v.UIdTextBlock.Text).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.Uid, v => v.UIdTextBlock.Text, i => $@"uid: {i}").DisposeWith(d);
 
                 this.OneWayBind(ViewModel, vm => vm.Level, v => v.LvTextBlock.Text, i => $@"Lv{i}").DisposeWith(d);
 
@@ -43,6 +44,21 @@ namespace BilibiliLiveRecordDownLoader
                 this.BindCommand(ViewModel, viewModel => viewModel.OpenMainDirCommand, view => view.OpenMainDirButton).DisposeWith(d);
 
                 this.OneWayBind(ViewModel, vm => vm.LiveRecordList, v => v.LiveRecordListDataGrid.ItemsSource).DisposeWith(d);
+
+                ViewModel.WhenAnyValue(x => x.RoomId)
+                         .ObserveOn(RxApp.MainThreadScheduler)
+                         .Subscribe(i => RoomIdTextBlock.Text = $@"房间号: {i}")
+                         .DisposeWith(d);
+
+                ViewModel.WhenAnyValue(x => x.ShortRoomId)
+                        .ObserveOn(RxApp.MainThreadScheduler)
+                        .Subscribe(i => ShortRoomIdTextBlock.Text = $@"短号: {i}")
+                        .DisposeWith(d);
+
+                ViewModel.WhenAnyValue(x => x.RecordCount)
+                        .ObserveOn(RxApp.MainThreadScheduler)
+                        .Subscribe(i => RecordCountTextBlock.Text = $@"列表总数: {i}")
+                        .DisposeWith(d);
 
                 ViewModel.DisposeWith(d);
             });

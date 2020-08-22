@@ -10,6 +10,7 @@
     xmlns:Syncfusion="http://schemas.syncfusion.com/wpf"
     mc:Ignorable="d"
     Title="BilibiliLiveRecordDownLoader"
+    MinHeight="300" MinWidth="400"
     Height="638" Width="1120">
     <Grid>
         <TabControl>
@@ -32,12 +33,14 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition />
+                            <ColumnDefinition />
                         </Grid.ColumnDefinitions>
                         <Image Grid.RowSpan="3" x:Name="FaceImage"
                                Height="100" Width="100" Margin="0,0,10,0"
                                d:Source="https://i1.hdslb.com/bfs/face/d14fb85fd5f92761700ff9971a3d923f180598c1.jpg"
                                RenderOptions.BitmapScalingMode="HighQuality"
                                RenderOptions.EdgeMode="Aliased" />
+
                         <TextBlock Grid.Row="0" Grid.Column="1" x:Name="NameTextBlock" VerticalAlignment="Center"
                                    d:Text="AA"
                                    FontSize="16" />
@@ -46,6 +49,16 @@
                                    FontSize="16" />
                         <TextBlock Grid.Row="2" Grid.Column="1" x:Name="LvTextBlock" VerticalAlignment="Center"
                                    d:Text="Lv6"
+                                   FontSize="16" />
+
+                        <TextBlock Grid.Row="0" Grid.Column="2" x:Name="RoomIdTextBlock" VerticalAlignment="Center"
+                                   d:Text="6154037"
+                                   FontSize="16" />
+                        <TextBlock Grid.Row="1" Grid.Column="2" x:Name="ShortRoomIdTextBlock" VerticalAlignment="Center"
+                                   d:Text="732"
+                                   FontSize="16" />
+                        <TextBlock Grid.Row="2" Grid.Column="2" x:Name="RecordCountTextBlock" VerticalAlignment="Center"
+                                   d:Text="100"
                                    FontSize="16" />
                     </Grid>
                     <Syncfusion:SfDataGrid 

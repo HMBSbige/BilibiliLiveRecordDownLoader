@@ -23,6 +23,9 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         private long _level;
         private string _diskUsageProgressBarText;
         private double _diskUsageProgressBarValue;
+        private long _roomId;
+        private long _shortRoomId;
+        private long _recordCount;
 
         #endregion
 
@@ -62,6 +65,24 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         {
             get => _diskUsageProgressBarValue;
             set => this.RaiseAndSetIfChanged(ref _diskUsageProgressBarValue, value);
+        }
+
+        public long RoomId
+        {
+            get => _roomId;
+            set => this.RaiseAndSetIfChanged(ref _roomId, value);
+        }
+
+        public long ShortRoomId
+        {
+            get => _shortRoomId;
+            set => this.RaiseAndSetIfChanged(ref _shortRoomId, value);
+        }
+
+        public long RecordCount
+        {
+            get => _recordCount;
+            set => this.RaiseAndSetIfChanged(ref _recordCount, value);
         }
 
         #endregion
@@ -172,7 +193,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             }
         }
 
-        private static async Task<IEnumerable<LiveRecordListViewModel>> GetRecordList(long roomId, CancellationToken token)
+        private async Task<IEnumerable<LiveRecordListViewModel>> GetRecordList(long roomId, CancellationToken token)
         {
             try
             {
@@ -181,10 +202,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 if (roomInitMessage != null && roomInitMessage.code == 0
                     && roomInitMessage.data != null && roomInitMessage.data.room_id > 0)
                 {
+                    RoomId = roomInitMessage.data.room_id;
+                    ShortRoomId = roomInitMessage.data.short_id;
                     var listMessage = await client.GetLiveRecordList(roomInitMessage.data.room_id, 1, 1, token);
                     if (listMessage?.data != null && listMessage.data.count > 0)
                     {
                         var count = listMessage.data.count;
+                        RecordCount = count;
                         listMessage = await client.GetLiveRecordList(roomInitMessage.data.room_id, 1, count, token);
                         if (listMessage?.data?.list != null && listMessage.data?.list.Length > 0)
                         {
