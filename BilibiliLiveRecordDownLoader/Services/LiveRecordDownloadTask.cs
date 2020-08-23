@@ -14,7 +14,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 {
     public class LiveRecordDownloadTask
     {
-        private const double ThreadsCount = 32.0;
+        public double ThreadsCount { get; set; } = 8.0;
 
         private readonly string _id;
         private readonly DateTime _startTime;

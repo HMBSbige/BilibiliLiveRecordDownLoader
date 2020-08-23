@@ -24,7 +24,11 @@ namespace BilibiliLiveRecordDownLoader
             {
                 ViewModel.DisposeWith(d);
 
-                this.Bind(ViewModel, vm => vm.Config.RoomId, v => v.RoomIdTextBox.Text).DisposeWith(d);
+                this.Bind(ViewModel,
+                    vm => vm.Config.RoomId,
+                    v => v.RoomIdTextBox.Text,
+                    x => $@"{x}",
+                    x => long.TryParse(x, out var v) ? v : 732).DisposeWith(d);
 
                 RoomIdTextBox.Events().KeyUp.Subscribe(args =>
                 {
@@ -134,6 +138,11 @@ namespace BilibiliLiveRecordDownLoader
 
                 #endregion
 
+                this.Bind(ViewModel,
+                    vm => vm.Config.DownloadThreads,
+                    v => v.ThreadsTextBox.Text,
+                    x => $@"{x}",
+                    x => byte.TryParse(x, out var v) ? v : (byte)8).DisposeWith(d);
             });
         }
 

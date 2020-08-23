@@ -357,7 +357,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                     if (info?.Record is LiveRecordListViewModel liveRecord)
                     {
                         var root = Path.Combine(Config.MainDir, $@"{RoomId}", @"Replay");
-                        DownloadTaskPool.Download(liveRecord, root).NoWarning(); //Async
+                        DownloadTaskPool.Download(liveRecord, root, Config.DownloadThreads).NoWarning(); //Async
                     }
                 }
                 catch (Exception ex)

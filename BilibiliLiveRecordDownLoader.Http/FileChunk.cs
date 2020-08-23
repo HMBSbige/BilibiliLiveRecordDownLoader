@@ -5,11 +5,11 @@ namespace BilibiliLiveRecordDownLoader.Http
 {
     public class FileChunk
     {
-        public int Start { get; set; }
-        public int End { get; set; }
+        public long Start { get; set; }
+        public long End { get; set; }
         public string TempFileName { get; }
 
-        public FileChunk(int startByte, int endByte, string tempPath)
+        public FileChunk(long startByte, long endByte, string tempPath)
         {
             TempFileName = Path.Combine(tempPath, Guid.NewGuid().ToString());
             using var _ = File.Create(TempFileName);

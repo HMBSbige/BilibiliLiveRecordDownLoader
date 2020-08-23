@@ -20,13 +20,15 @@ namespace BilibiliLiveRecordDownLoader.Services
         /// <summary>
         /// record 开始/停止下载
         /// </summary>
-        public async Task Download(LiveRecordListViewModel record, string path)
+        public async Task Download(LiveRecordListViewModel record, string path, double threads)
         {
             var id = record.Rid;
             var startTime = record.StartTime;
 
             var t = _list.GetOrAdd(id, new LiveRecordDownloadTask(id, startTime, this, path));
             this.RaisePropertyChanged(nameof(HasTaskRunning));
+
+            t.ThreadsCount = threads;
 
             record.Attach(t);
             await record.StartOrStop();

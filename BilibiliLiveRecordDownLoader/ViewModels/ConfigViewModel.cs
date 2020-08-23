@@ -18,6 +18,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
         private long _roomId;
         private string _mainDir;
+        private byte _downloadThreads;
 
         #endregion
 
@@ -33,6 +34,12 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         {
             get => _mainDir;
             set => this.RaiseAndSetIfChanged(ref _mainDir, value);
+        }
+
+        public byte DownloadThreads
+        {
+            get => Math.Max((byte)1, _downloadThreads);
+            set => this.RaiseAndSetIfChanged(ref _downloadThreads, value);
         }
 
         #endregion
@@ -53,12 +60,9 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
         public ConfigViewModel(string path)
         {
-            _roomId = 732;
-            _mainDir = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
-
             _path = Path.Combine(Utils.Utils.EnsureDir(path), _filename);
 
-            _configMonitor = this.WhenAnyValue(x => x.RoomId, x => x.MainDir)
+            _configMonitor = this.WhenAnyValue(x => x.RoomId, x => x.MainDir, x => x.DownloadThreads)
                     .Throttle(TimeSpan.FromSeconds(1))
                     .DistinctUntilChanged()
                     .Where(_ => !Lock.IsWriteLockHeld)
@@ -112,6 +116,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 Debug.WriteLine(ex);
                 RoomId = 732;
                 MainDir = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+                DownloadThreads = 8;
             }
             finally
             {
@@ -123,12 +128,14 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         {
             RoomId = config.RoomId;
             MainDir = config.MainDir;
+            DownloadThreads = config.DownloadThreads;
         }
 
         public void CopyTo(Config config)
         {
             config.RoomId = RoomId;
             config.MainDir = MainDir;
+            config.DownloadThreads = DownloadThreads;
         }
 
         public void Dispose()

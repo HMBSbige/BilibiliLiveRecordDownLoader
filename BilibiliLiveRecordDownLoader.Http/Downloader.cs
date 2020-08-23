@@ -130,23 +130,23 @@ namespace BilibiliLiveRecordDownLoader.Http
         private static List<FileChunk> GetChunkList(long partSize, long responseLength, string tempPath)
         {
             //Variable to hold the old loop end
-            var previous = 0;
+            var previous = 0L;
             var pieces = new List<FileChunk>();
 
             //Loop to add all the events to the queue
-            for (var i = (int)partSize; i <= responseLength; i += (int)partSize)
+            for (var i = partSize; i <= responseLength; i += partSize)
             {
                 Debug.WriteLine(@"Writing Chunks...");
-                if (i + partSize < responseLength)
+                if (i < responseLength - partSize)
                 {
                     //Start and end values for the chunk
                     var start = previous;
-                    var current_end = i;
+                    var currentEnd = i;
 
-                    pieces.Add(new FileChunk(start, current_end, tempPath));
+                    pieces.Add(new FileChunk(start, currentEnd, tempPath));
 
                     //Set the start of the next loop to be the current end
-                    previous = current_end;
+                    previous = currentEnd;
                 }
                 else
                 {
@@ -154,7 +154,7 @@ namespace BilibiliLiveRecordDownLoader.Http
                     var start = previous;
                     var currentEnd = i;
 
-                    pieces.Add(new FileChunk(start, (int)responseLength, tempPath));
+                    pieces.Add(new FileChunk(start, responseLength, tempPath));
 
                     //Set the start of the next loop to be the current end
                     previous = currentEnd;

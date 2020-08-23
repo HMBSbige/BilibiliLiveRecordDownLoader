@@ -172,7 +172,7 @@
             </TabItem>
             <TabItem Header="设置">
                 <StackPanel>
-                    <GroupBox Header="根目录" DockPanel.Dock="Top" Margin="3">
+                    <GroupBox Header="根目录" Margin="3">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition />
@@ -189,6 +189,20 @@
                             </Grid>
                             <Button x:Name="SelectMainDirButton" Grid.Row="0" Grid.Column="1" Content="选择目录" Margin="3" Padding="3" />
                             <Button x:Name="OpenMainDirButton" Grid.Row="1" Grid.Column="1" Content="打开目录" Margin="3" Padding="3" />
+                        </Grid>
+                    </GroupBox>
+                    <GroupBox Header="下载设置" Margin="3">
+                        <Grid Margin="5">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="30" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="单个文件下载线程数：" VerticalAlignment="Center" />
+                            <TextBox x:Name="ThreadsTextBox" Grid.Column="1" 
+                                VerticalContentAlignment="Center"
+                                Text="8" 
+                                MaxLength="3"
+                                />
                         </Grid>
                     </GroupBox>
                 </StackPanel>
