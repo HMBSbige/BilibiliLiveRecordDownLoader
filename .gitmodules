@@ -1,0 +1,3 @@
+[submodule "Infrastructure/SingleInstance"]
+	path = Infrastructure/SingleInstance
+	url = https://github.com/HMBSbige/SingleInstance
