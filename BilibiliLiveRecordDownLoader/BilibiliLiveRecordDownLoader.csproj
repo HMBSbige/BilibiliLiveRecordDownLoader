@@ -32,4 +32,12 @@
     <Resource Include="Resources\Asaki.ico" />
   </ItemGroup>
 
+  <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
+    <Exec Command="cd &quot;$(ProjectDir)&quot; &#xD;&#xA;&#xD;&#xA;SyncfusionLicenseRegister.bat PreBuild App.xaml.cs" />
+  </Target>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="cd &quot;$(ProjectDir)&quot; &#xD;&#xA;&#xD;&#xA;SyncfusionLicenseRegister.bat PostBuild App.xaml.cs" />
+  </Target>
+
 </Project>

@@ -46,6 +46,8 @@ namespace BilibiliLiveRecordDownLoader
                 Current.Shutdown();
             });
 
+            Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(@"##SyncfusionLicense##");
+
             Locator.CurrentMutable.RegisterViewsForViewModels(Assembly.GetCallingAssembly());
 
             MainWindow = new MainWindow();
