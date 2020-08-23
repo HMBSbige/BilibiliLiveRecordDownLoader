@@ -115,7 +115,7 @@ namespace BilibiliLiveRecordDownLoader.Http
             request.Headers.Range = new RangeHeaderValue(piece.Start, piece.End);
 
             //Send the request
-            var downloadTask = wcObj.Value.SendAsync(request, HttpCompletionOption.ResponseContentRead, token);
+            var downloadTask = wcObj.Value.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
 
             //Use interlocked to increment Tasks done by one
             Interlocked.Add(ref _tasksDone, 1);
@@ -193,6 +193,8 @@ namespace BilibiliLiveRecordDownLoader.Http
 
         public async Task DownloadFile(string url, double parts, string outFile, string tempPath = null, Action<double> onUpdate = null, CancellationToken token = default)
         {
+            _tasksDone = 0;
+
             EventfulConcurrentQueue<FileChunk> asyncTasks;
 
             _responseLength = await GetContentLengthAsync(url, token);
@@ -244,11 +246,11 @@ namespace BilibiliLiveRecordDownLoader.Http
                 var writeStream = new ActionBlock<Tuple<Task<HttpResponseMessage>, FileChunk>>(async task =>
                 {
                     var (response, fileChunk) = task;
-                    await using var streamToRead = await response.Result.Content.ReadAsStreamAsync();
+                    await using var streamToRead = await (await response).Content.ReadAsStreamAsync();
                     await using var fileToWriteTo = File.Open(fileChunk.TempFileName, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
 
                     fileToWriteTo.Position = 0;
-                    await streamToRead.CopyToAsync(fileToWriteTo, (int)partSize, token);
+                    await streamToRead.CopyToAsync(fileToWriteTo, 81920, token);
 
                     Interlocked.Add(ref _tasksDone, 1);
                     asyncTasks.TryDequeue(out fileChunk);

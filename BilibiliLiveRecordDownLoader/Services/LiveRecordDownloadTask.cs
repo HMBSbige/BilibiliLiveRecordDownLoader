@@ -57,7 +57,6 @@ namespace BilibiliLiveRecordDownLoader.Services
             try
             {
                 _cts = new CancellationTokenSource();
-                var downloader = new Downloader();
 
                 using var client = new BililiveApiClient();
                 var message = await client.GetLiveRecordUrl(_id, _cts.Token);
@@ -69,6 +68,8 @@ namespace BilibiliLiveRecordDownLoader.Services
                             .Select(x => string.IsNullOrEmpty(x.url) ? x.backup_url : x.url).ToArray();
 
                     _progress.OnNext(0.0);
+
+                    var downloader = new Downloader();
 
                     for (var i = 0; i < l.Length; ++i)
                     {
@@ -109,7 +110,7 @@ namespace BilibiliLiveRecordDownLoader.Services
                         Utils.Utils.DeleteFiles(RecordPath);
                     }
 
-                    _progress.OnNext(100.0);
+                    _progress.OnNext(1.0);
                 }
             }
             catch (Exception ex)
