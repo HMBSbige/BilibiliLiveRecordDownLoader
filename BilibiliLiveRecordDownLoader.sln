@@ -11,7 +11,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BilibiliLiveRecordDownLoade
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BilibiliLiveRecordDownLoader.BilibiliApi", "BilibiliLiveRecordDownLoader.BilibiliApi\BilibiliLiveRecordDownLoader.BilibiliApi.csproj", "{495DD80E-FCE7-46C9-B3E3-2DEA6415836D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BilibiliLiveRecordDownLoader.FlvProcessor", "BilibiliLiveRecordDownLoader.FlvProcessor\BilibiliLiveRecordDownLoader.FlvProcessor.csproj", "{730D37CA-5458-4171-ADBB-1D7379B9FD4E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BilibiliLiveRecordDownLoader.FlvProcessor", "BilibiliLiveRecordDownLoader.FlvProcessor\BilibiliLiveRecordDownLoader.FlvProcessor.csproj", "{730D37CA-5458-4171-ADBB-1D7379B9FD4E}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SingleInstance", "Infrastructure\SingleInstance\SingleInstance.csproj", "{3DD917E5-087A-4CE7-B7FF-CB633E5E103A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -39,6 +41,10 @@ Global
 		{730D37CA-5458-4171-ADBB-1D7379B9FD4E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{730D37CA-5458-4171-ADBB-1D7379B9FD4E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{730D37CA-5458-4171-ADBB-1D7379B9FD4E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3DD917E5-087A-4CE7-B7FF-CB633E5E103A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3DD917E5-087A-4CE7-B7FF-CB633E5E103A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3DD917E5-087A-4CE7-B7FF-CB633E5E103A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3DD917E5-087A-4CE7-B7FF-CB633E5E103A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
