@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI;
+using Syncfusion.UI.Xaml.Grid;
 
 namespace BilibiliLiveRecordDownLoader
 {
@@ -19,20 +20,22 @@ namespace BilibiliLiveRecordDownLoader
 
             this.WhenActivated(d =>
             {
+                ViewModel.DisposeWith(d);
+
                 this.Bind(ViewModel, vm => vm.Config.RoomId, v => v.RoomIdTextBox.Text).DisposeWith(d);
 
                 RoomIdTextBox.Events().KeyUp.Subscribe(args =>
                 {
                     if (args.Key != Key.Enter) return;
                     ViewModel.TriggerLiveRecordListQuery = !ViewModel.TriggerLiveRecordListQuery;
-                });
+                }).DisposeWith(d);
 
                 this.OneWayBind(ViewModel, vm => vm.ImageUri, v => v.FaceImage.Source,
                                 url => url == null ? null : new BitmapImage(new Uri(url))).DisposeWith(d);
 
                 this.OneWayBind(ViewModel, vm => vm.Name, v => v.NameTextBlock.Text).DisposeWith(d);
 
-                this.OneWayBind(ViewModel, vm => vm.Uid, v => v.UIdTextBlock.Text, i => $@"uid: {i}").DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.Uid, v => v.UIdTextBlock.Text, i => $@"UID: {i}").DisposeWith(d);
 
                 this.OneWayBind(ViewModel, vm => vm.Level, v => v.LvTextBlock.Text, i => $@"Lv{i}").DisposeWith(d);
 
@@ -73,7 +76,27 @@ namespace BilibiliLiveRecordDownLoader
                         .Subscribe(b => LiveRecordBusyIndicator.IsBusy = b)
                         .DisposeWith(d);
 
-                ViewModel.DisposeWith(d);
+                this.BindCommand(ViewModel, vm => vm.CopyLiveRecordDownloadUrlCommand, v => v.CopyLiveRecordDownloadUrlMenuItem).DisposeWith(d);
+                this.BindCommand(ViewModel, vm => vm.OpenLiveRecordUrlCommand, v => v.OpenLiveRecordUrlMenuItem).DisposeWith(d);
+                this.BindCommand(ViewModel, vm => vm.DownLoadCommand, v => v.DownLoadMenuItem).DisposeWith(d);
+                this.BindCommand(ViewModel, vm => vm.OpenDirCommand, v => v.OpenDirMenuItem).DisposeWith(d);
+
+                Observable.FromEventPattern(LiveRecordListDataGrid, nameof(LiveRecordListDataGrid.GridContextMenuOpening))
+                .Subscribe(args =>
+                {
+                    if (args.EventArgs is GridContextMenuEventArgs a
+                    && a.ContextMenuInfo is GridRecordContextMenuInfo info
+                    && info.Record is LiveRecordListViewModel record
+                    && record.IsDownloading)
+                    {
+                        DownLoadMenuItem.Header = @"停止下载";
+                    }
+                    else
+                    {
+                        DownLoadMenuItem.Header = @"下载";
+                    }
+                }).DisposeWith(d);
+
             });
         }
     }

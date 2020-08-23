@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using System.Windows;
 
 namespace BilibiliLiveRecordDownLoader.Utils
 {
@@ -130,5 +131,17 @@ namespace BilibiliLiveRecordDownLoader.Utils
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void NoWarning(this Task _) { }
+
+        public static void CopyToClipboard(object obj)
+        {
+            try
+            {
+                Clipboard.SetDataObject(obj);
+            }
+            catch
+            {
+                // ignored
+            }
+        }
     }
 }

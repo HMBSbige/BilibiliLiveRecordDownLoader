@@ -46,7 +46,7 @@
                                    d:Text="AA"
                                    FontSize="16" />
                         <TextBlock Grid.Row="1" Grid.Column="1" x:Name="UIdTextBlock" VerticalAlignment="Center"
-                                   d:Text="111"
+                                   d:Text="UID"
                                    FontSize="16" />
                         <TextBlock Grid.Row="2" Grid.Column="1" x:Name="LvTextBlock" VerticalAlignment="Center"
                                    d:Text="Lv6"
@@ -91,6 +91,15 @@
                                 EnableDataVirtualization="True"
                                 ScrollMode="None" CanMaintainScrollPosition="True" ShowBusyIndicator="True"
                     >
+                        <Syncfusion:SfDataGrid.RecordContextMenu>
+                            <ContextMenu>
+                                <MenuItem x:Name="DownLoadMenuItem" Header="下载" CommandParameter="{Binding }" />
+                                <MenuItem x:Name="CopyLiveRecordDownloadUrlMenuItem" Header="复制下载地址" CommandParameter="{Binding }" />
+                                <Separator />
+                                <MenuItem x:Name="OpenDirMenuItem" Header="打开目录" CommandParameter="{Binding }" />
+                                <MenuItem x:Name="OpenLiveRecordUrlMenuItem" Header="打开回放地址" CommandParameter="{Binding }" />
+                            </ContextMenu>
+                        </Syncfusion:SfDataGrid.RecordContextMenu>
 
                         <Syncfusion:SfDataGrid.Columns>
                             <Syncfusion:GridTextColumn MappingName="Rid" HeaderText="视频 Id" />
@@ -108,8 +117,23 @@
                             <Syncfusion:GridNumericColumn MappingName="DanmuNum" HeaderText="弹幕数" NumberDecimalDigits="0" TextAlignment="Left" />
                             <Syncfusion:GridDateTimeColumn MappingName="Length" HeaderText="视频长度"
                                                            AllowNullValue="True" Pattern="LongTime" />
-                            
-                            
+
+                            <Syncfusion:GridTemplateColumn MappingName="DownloadProgress" HeaderText="下载进度">
+                                <Syncfusion:GridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <ProgressBar x:Name="progressBar" Background="Transparent" Minimum="0"
+                                                         Maximum="1" BorderThickness="0"
+                                                         Value="{Binding Path=DownloadProgress, Mode=OneWay,UpdateSourceTrigger=PropertyChanged}" />
+                                            <TextBlock
+                                                Text="{Binding Path=DownloadProgress, Mode=OneWay,UpdateSourceTrigger=PropertyChanged ,StringFormat={}{0:P2} }"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center" TextAlignment="Center" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </Syncfusion:GridTemplateColumn.CellTemplate>
+                            </Syncfusion:GridTemplateColumn>
+
                         </Syncfusion:SfDataGrid.Columns>
 
                     </Syncfusion:SfDataGrid>

@@ -86,6 +86,8 @@ namespace BilibiliLiveRecordDownLoader.Http
         private static void CombineMultipleFilesIntoSingleFile(IReadOnlyCollection<FileChunk> files, string outputFilePath)
         {
             Debug.WriteLine($@"Number of files: {files.Count}.");
+            var dir = Path.GetDirectoryName(outputFilePath);
+            EnsureDirectory(ref dir);
             using var outputStream = File.Create(outputFilePath);
             foreach (var inputFilePath in files)
             {
@@ -102,7 +104,7 @@ namespace BilibiliLiveRecordDownLoader.Http
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private Tuple<Task<HttpResponseMessage>, FileChunk> GetStreamTask(FileChunk piece, Uri uri, EventfulConcurrentQueue<FileChunk> asyncTasks)
+        private Tuple<Task<HttpResponseMessage>, FileChunk> GetStreamTask(FileChunk piece, Uri uri, EventfulConcurrentQueue<FileChunk> asyncTasks, CancellationToken token)
         {
             using var wcObj = _httpClientPool.Get();
             Debug.WriteLine(@"Streaming");
@@ -113,7 +115,7 @@ namespace BilibiliLiveRecordDownLoader.Http
             request.Headers.Range = new RangeHeaderValue(piece.Start, piece.End);
 
             //Send the request
-            var downloadTask = wcObj.Value.SendAsync(request, HttpCompletionOption.ResponseContentRead, CancellationToken.None);
+            var downloadTask = wcObj.Value.SendAsync(request, HttpCompletionOption.ResponseContentRead, token);
 
             //Use interlocked to increment Tasks done by one
             Interlocked.Add(ref _tasksDone, 1);
@@ -124,6 +126,7 @@ namespace BilibiliLiveRecordDownLoader.Http
             return returnTuple;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static List<FileChunk> GetChunkList(long partSize, long responseLength, string tempPath)
         {
             //Variable to hold the old loop end
@@ -161,16 +164,18 @@ namespace BilibiliLiveRecordDownLoader.Http
             return pieces;
         }
 
-        private async Task<long> GetContentLengthAsync(string url)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private async Task<long> GetContentLengthAsync(string url, CancellationToken token)
         {
             using var client = new HttpClient();
             client.DefaultRequestHeaders.Add(@"User-Agent", UserAgent);
-            var result = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, url));
+            var result = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, url), token);
 
             var str = result.Content.Headers.First(h => h.Key.Equals(@"Content-Length")).Value.First();
             return long.Parse(str);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void EnsureDirectory(ref string path)
         {
             try
@@ -186,11 +191,11 @@ namespace BilibiliLiveRecordDownLoader.Http
             }
         }
 
-        public async Task DownloadFile(string url, double parts, string outFile, string tempPath = null, Action<double> onUpdate = null)
+        public async Task DownloadFile(string url, double parts, string outFile, string tempPath = null, Action<double> onUpdate = null, CancellationToken token = default)
         {
             EventfulConcurrentQueue<FileChunk> asyncTasks;
 
-            _responseLength = await GetContentLengthAsync(url);
+            _responseLength = await GetContentLengthAsync(url, token);
 
             var partSize = (long)Math.Round(_responseLength / parts);
 
@@ -231,20 +236,19 @@ namespace BilibiliLiveRecordDownLoader.Http
                 //Gets the request stream from the file chunk 
                 var getStream = new TransformBlock<FileChunk, Tuple<Task<HttpResponseMessage>, FileChunk>>(piece =>
                 {
-                    var newTask = GetStreamTask(piece, uri, asyncTasks);
+                    var newTask = GetStreamTask(piece, uri, asyncTasks, token);
                     return newTask;
                 }, multi);
 
                 //Writes the request stream to a temp file
-                var writeStream = new ActionBlock<Tuple<Task<HttpResponseMessage>, FileChunk>>(async (task) =>
+                var writeStream = new ActionBlock<Tuple<Task<HttpResponseMessage>, FileChunk>>(async task =>
                 {
                     var (response, fileChunk) = task;
                     await using var streamToRead = await response.Result.Content.ReadAsStreamAsync();
-                    await using var fileToWriteTo = File.Open(fileChunk.TempFileName, FileMode.OpenOrCreate,
-                            FileAccess.ReadWrite, FileShare.ReadWrite);
+                    await using var fileToWriteTo = File.Open(fileChunk.TempFileName, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
 
                     fileToWriteTo.Position = 0;
-                    await streamToRead.CopyToAsync(fileToWriteTo, (int)partSize, CancellationToken.None);
+                    await streamToRead.CopyToAsync(fileToWriteTo, (int)partSize, token);
 
                     Interlocked.Add(ref _tasksDone, 1);
                     asyncTasks.TryDequeue(out fileChunk);
@@ -268,7 +272,7 @@ namespace BilibiliLiveRecordDownLoader.Http
                     {
                         CombineMultipleFilesIntoSingleFile(pieces, outFile);
                     }
-                }, CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Current);
+                }, token, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Current);
             }
             catch
             {

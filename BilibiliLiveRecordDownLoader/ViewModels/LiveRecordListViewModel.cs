@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Reactive.Linq;
+using System.Threading.Tasks;
 using BilibiliLiveRecordDownLoader.BilibiliApi.Model;
+using BilibiliLiveRecordDownLoader.Services;
 using ReactiveUI;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
@@ -18,6 +21,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         private long _online;
         private long _danmuNum;
         private TimeSpan _length;
+        private double _downloadProgress;
 
         #endregion
 
@@ -113,11 +117,47 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             set => this.RaiseAndSetIfChanged(ref _length, value);
         }
 
+        /// <summary>
+        /// 下载进度
+        /// </summary>
+        public double DownloadProgress
+        {
+            get => _downloadProgress;
+            set => this.RaiseAndSetIfChanged(ref _downloadProgress, value);
+        }
+
         #endregion
+
+        private LiveRecordDownloadTask LiveRecordDownloadTask { get; set; }
+        private IDisposable _progressMonitor;
+
+        public bool IsDownloading => LiveRecordDownloadTask?.IsDownloading ?? false;
 
         public LiveRecordListViewModel(LiveRecordList data)
         {
             CopyFrom(data);
+            _downloadProgress = 0.0;
+        }
+
+        /// <summary>
+        /// 开始或停止下载
+        /// </summary>
+        /// <returns></returns>
+        public async Task StartOrStop()
+        {
+            if (LiveRecordDownloadTask != null)
+            {
+                await LiveRecordDownloadTask.StartOrStop();
+            }
+        }
+
+        public void Attach(LiveRecordDownloadTask t)
+        {
+            _progressMonitor?.Dispose();
+            LiveRecordDownloadTask = t;
+            _progressMonitor = LiveRecordDownloadTask.ProgressUpdated
+                .ObserveOn(RxApp.MainThreadScheduler)
+                .Subscribe(d => { DownloadProgress = d; });
         }
 
         public void CopyFrom(LiveRecordList data)
@@ -136,12 +176,26 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
         private static DateTime ToDateTime(long timestamp)
         {
-            return DateTimeOffset.FromUnixTimeSeconds(timestamp).ToLocalTime().DateTime;
+            try
+            {
+                return DateTimeOffset.FromUnixTimeSeconds(timestamp).ToLocalTime().DateTime;
+            }
+            catch
+            {
+                return DateTime.MinValue;
+            }
         }
 
         private static TimeSpan ToTimeSpan(long length)
         {
-            return TimeSpan.FromMilliseconds(length);
+            try
+            {
+                return TimeSpan.FromMilliseconds(length);
+            }
+            catch
+            {
+                return TimeSpan.Zero;
+            }
         }
     }
 }

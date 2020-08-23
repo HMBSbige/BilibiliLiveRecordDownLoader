@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reactive;
@@ -7,9 +8,11 @@ using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using BilibiliLiveRecordDownLoader.BilibiliApi;
+using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using ReactiveUI;
+using Syncfusion.UI.Xaml.Grid;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
@@ -112,10 +115,17 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
         public ReactiveCommand<Unit, Unit> SelectMainDirCommand { get; }
         public ReactiveCommand<Unit, Unit> OpenMainDirCommand { get; }
+        public ReactiveCommand<GridRecordContextMenuInfo, Unit> CopyLiveRecordDownloadUrlCommand { get; }
+        public ReactiveCommand<GridRecordContextMenuInfo, Unit> OpenLiveRecordUrlCommand { get; }
+        public ReactiveCommand<GridRecordContextMenuInfo, Unit> DownLoadCommand { get; }
+        public ReactiveCommand<GridRecordContextMenuInfo, Unit> OpenDirCommand { get; }
 
         #endregion
 
         public readonly ConfigViewModel Config;
+
+        private readonly DownloadTaskPool _downloadTaskPool = new DownloadTaskPool();
+
         private readonly ObservableAsPropertyHelper<IEnumerable<LiveRecordListViewModel>> _liveRecordList;
         public IEnumerable<LiveRecordListViewModel> LiveRecordList => _liveRecordList.Value;
 
@@ -125,7 +135,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             Config.LoadAsync().NoWarning();
 
             _roomIdMonitor = this.WhenAnyValue(x => x.Config.RoomId, x => x.TriggerLiveRecordListQuery)
-                    .Throttle(TimeSpan.FromMilliseconds(1000))
+                    .Throttle(TimeSpan.FromMilliseconds(800))
                     .DistinctUntilChanged()
                     .Where(i => i.Item1 > 0)
                     .Select(i => i.Item1)
@@ -137,7 +147,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                     .Subscribe(GetDiskUsage);
 
             _liveRecordList = this.WhenAnyValue(x => x.Config.RoomId, x => x.TriggerLiveRecordListQuery)
-                    .Throttle(TimeSpan.FromMilliseconds(1000))
+                    .Throttle(TimeSpan.FromMilliseconds(800))
                     .DistinctUntilChanged()
                     .Where(i => i.Item1 > 0)
                     .Select(i => i.Item1)
@@ -147,6 +157,10 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
             SelectMainDirCommand = ReactiveCommand.Create(SelectDirectory);
             OpenMainDirCommand = ReactiveCommand.Create(OpenDirectory);
+            CopyLiveRecordDownloadUrlCommand = ReactiveCommand.CreateFromTask<GridRecordContextMenuInfo>(CopyLiveRecordDownloadUrl);
+            OpenLiveRecordUrlCommand = ReactiveCommand.CreateFromTask<GridRecordContextMenuInfo>(OpenLiveRecordUrl);
+            OpenDirCommand = ReactiveCommand.CreateFromTask<GridRecordContextMenuInfo>(OpenDir);
+            DownLoadCommand = ReactiveCommand.CreateFromTask<GridRecordContextMenuInfo>(Download);
         }
 
         private void SelectDirectory()
@@ -214,10 +228,16 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             try
             {
                 IsLiveRecordBusy = true;
+                RoomId = 0;
+                ShortRoomId = 0;
+                RecordCount = 0;
+
                 using var client = new BililiveApiClient();
                 var roomInitMessage = await client.GetRoomInit(roomId, token);
-                if (roomInitMessage != null && roomInitMessage.code == 0
-                                            && roomInitMessage.data != null && roomInitMessage.data.room_id > 0)
+                if (roomInitMessage != null
+                    && roomInitMessage.code == 0
+                    && roomInitMessage.data != null
+                    && roomInitMessage.data.room_id > 0)
                 {
                     RoomId = roomInitMessage.data.room_id;
                     ShortRoomId = roomInitMessage.data.short_id;
@@ -229,7 +249,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                         listMessage = await client.GetLiveRecordList(roomInitMessage.data.room_id, 1, count, token);
                         if (listMessage?.data?.list != null && listMessage.data?.list.Length > 0)
                         {
-                            return listMessage.data?.list.Select(x => new LiveRecordListViewModel(x));
+                            var list = listMessage.data?.list.Select(x =>
+                            {
+                                var record = new LiveRecordListViewModel(x);
+                                _downloadTaskPool.Attach(record);
+                                return record;
+                            });
+                            return list;
                         }
                     }
                 }
@@ -243,6 +269,85 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 IsLiveRecordBusy = false;
             }
             return Array.Empty<LiveRecordListViewModel>();
+        }
+
+        private static async Task CopyLiveRecordDownloadUrl(GridRecordContextMenuInfo info)
+        {
+            try
+            {
+                if (info?.Record is LiveRecordListViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
+                {
+                    using var client = new BililiveApiClient();
+                    var message = await client.GetLiveRecordUrl(liveRecord.Rid);
+                    var list = message?.data?.list;
+                    if (list != null && list.Length > 0)
+                    {
+                        Utils.Utils.CopyToClipboard(string.Join(Environment.NewLine,
+                                list.Where(x => !string.IsNullOrEmpty(x.url) || !string.IsNullOrEmpty(x.backup_url))
+                                        .Select(x => string.IsNullOrEmpty(x.url) ? x.backup_url : x.url)
+                        ));
+                    }
+                }
+            }
+            catch
+            {
+                // ignored
+            }
+        }
+
+        private static async Task OpenLiveRecordUrl(GridRecordContextMenuInfo info)
+        {
+            try
+            {
+                await Task.Yield();
+                if (info?.Record is LiveRecordListViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
+                {
+                    Utils.Utils.OpenUrl($@"https://live.bilibili.com/record/{liveRecord.Rid}");
+                }
+            }
+            catch
+            {
+                // ignored
+            }
+        }
+
+        private async Task OpenDir(GridRecordContextMenuInfo info)
+        {
+            try
+            {
+                await Task.Yield();
+                if (info?.Record is LiveRecordListViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
+                {
+                    var root = Path.Combine(Config.MainDir, $@"{RoomId}", @"Replay");
+                    var path = Path.Combine(root, liveRecord.Rid);
+                    if (!Utils.Utils.OpenDir(path))
+                    {
+                        Directory.CreateDirectory(root);
+                        Utils.Utils.OpenDir(root);
+                    }
+                }
+            }
+            catch
+            {
+                // ignored
+            }
+        }
+
+        private async Task Download(GridRecordContextMenuInfo info)
+        {
+            try
+            {
+                await Task.CompletedTask;
+                if (info?.Record is LiveRecordListViewModel liveRecord)
+                {
+                    var root = Path.Combine(Config.MainDir, $@"{RoomId}", @"Replay");
+                    _downloadTaskPool.Download(liveRecord, root).NoWarning(); //Async
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
         }
 
         public void Dispose()
