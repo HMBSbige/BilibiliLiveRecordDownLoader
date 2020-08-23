@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI;
+using Syncfusion.Data.Extensions;
 
 namespace BilibiliLiveRecordDownLoader.Services
 {
@@ -24,7 +25,7 @@ namespace BilibiliLiveRecordDownLoader.Services
             var id = record.Rid;
             var startTime = record.StartTime;
 
-            var t = _list.GetOrAdd(id, new LiveRecordDownloadTask(id, startTime,this, path));
+            var t = _list.GetOrAdd(id, new LiveRecordDownloadTask(id, startTime, this, path));
             this.RaisePropertyChanged(nameof(HasTaskRunning));
 
             record.Attach(t);
@@ -44,6 +45,14 @@ namespace BilibiliLiveRecordDownLoader.Services
         {
             _list.TryRemove(id, out _);
             this.RaisePropertyChanged(nameof(HasTaskRunning));
+        }
+
+        public void StopAll()
+        {
+            while (HasTaskRunning)
+            {
+                _list.Values.ForEach(x => x.Stop());
+            }
         }
     }
 }

@@ -8,11 +8,27 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:Syncfusion="http://schemas.syncfusion.com/wpf"
+    xmlns:tb="http://www.hardcodet.net/taskbar"
     mc:Ignorable="d"
+    x:Name="Window"
     Title="BilibiliLiveRecordDownLoader"
     MinHeight="300" MinWidth="400"
-    Height="638" Width="1120">
+    Height="700" Width="1200">
+
     <Grid>
+        <tb:TaskbarIcon x:Name="NotifyIcon"
+                        Visibility="Visible"
+                        ToolTipText="BilibiliLiveRecordDownLoader"
+                        IconSource="../Resources/Asaki.ico"
+                        MenuActivation="RightClick"
+                        >
+            <tb:TaskbarIcon.ContextMenu>
+                <ContextMenu>
+                    <MenuItem x:Name="ShowMenuItem" Header="显示主窗口(_S)" />
+                    <MenuItem x:Name="ExitMenuItem" Header="退出(_X)" />
+                </ContextMenu>
+            </tb:TaskbarIcon.ContextMenu>
+        </tb:TaskbarIcon>
         <TabControl>
             <TabItem Header="直播回放">
                 <DockPanel>
@@ -34,6 +50,7 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition />
                             <ColumnDefinition />
+                            <ColumnDefinition Width="100"/>
                             <ColumnDefinition Width="100"/>
                             <ColumnDefinition Width="100"/>
                         </Grid.ColumnDefinitions>
@@ -77,6 +94,11 @@
                                 Header="加载中..." AnimationType="DoubleRing" />
                         </Grid>
 
+                        <Grid Grid.Row="0" Grid.Column="5" Grid.RowSpan="3">
+                            <Syncfusion:SfBusyIndicator
+                                IsBusy="True"
+                                Header="运行中..." AnimationType="Clock" />
+                        </Grid>
                     </Grid>
                     <Syncfusion:SfDataGrid 
                                 x:Name="LiveRecordListDataGrid"

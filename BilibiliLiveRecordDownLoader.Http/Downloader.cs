@@ -281,11 +281,22 @@ namespace BilibiliLiveRecordDownLoader.Http
                 //Delete the temp files if there's an error
                 foreach (var piece in pieces)
                 {
+                    var i = 0;
+                    Start:
                     try
                     {
+                        ++i;
                         File.Delete(piece.TempFileName);
                     }
-                    catch (FileNotFoundException) { }
+                    catch (Exception) when (i < 3)
+                    {
+                        await Task.Delay(1000);
+                        goto Start;
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine(ex);
+                    }
                 }
             }
         }

@@ -120,14 +120,14 @@ namespace BilibiliLiveRecordDownLoader.Services
             }
             finally
             {
+                _parent.Remove(_id);
                 _progress.OnCompleted();
                 _cts?.Dispose();
                 _cts = null;
-                _parent.Remove(_id);
             }
         }
 
-        private void Stop()
+        public void Stop()
         {
             _cts?.Cancel();
         }

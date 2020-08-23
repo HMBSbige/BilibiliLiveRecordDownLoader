@@ -7,7 +7,9 @@ using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using BilibiliLiveRecordDownLoader.BilibiliApi;
+using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
 using Microsoft.WindowsAPICodePack.Dialogs;
@@ -119,7 +121,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         public ReactiveCommand<GridRecordContextMenuInfo, Unit> OpenLiveRecordUrlCommand { get; }
         public ReactiveCommand<GridRecordContextMenuInfo, Unit> DownLoadCommand { get; }
         public ReactiveCommand<GridRecordContextMenuInfo, Unit> OpenDirCommand { get; }
-
+        public ReactiveCommand<Unit, Unit> ShowWindowCommand { get; }
+        public ReactiveCommand<Unit, Unit> ExitCommand { get; }
         #endregion
 
         public readonly ConfigViewModel Config;
@@ -129,8 +132,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         private readonly ObservableAsPropertyHelper<IEnumerable<LiveRecordListViewModel>> _liveRecordList;
         public IEnumerable<LiveRecordListViewModel> LiveRecordList => _liveRecordList.Value;
 
-        public MainWindowViewModel()
+        private readonly MainWindow _window;
+
+        public MainWindowViewModel(MainWindow window)
         {
+            _window = window;
             Config = new ConfigViewModel(Directory.GetCurrentDirectory());
             Config.LoadAsync().NoWarning();
 
@@ -161,6 +167,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             OpenLiveRecordUrlCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo, Unit>(OpenLiveRecordUrl);
             OpenDirCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo, Unit>(OpenDir);
             DownLoadCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo, Unit>(Download);
+            ShowWindowCommand = ReactiveCommand.Create(ShowWindow);
+            ExitCommand = ReactiveCommand.CreateFromObservable(Exit);
         }
 
         private void SelectDirectory()
@@ -356,6 +364,29 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 {
                     Debug.WriteLine(ex);
                 }
+            });
+        }
+
+        private void ShowWindow()
+        {
+            _window?.ShowWindow();
+        }
+
+        private IObservable<Unit> Exit()
+        {
+            return Observable.Start(() =>
+            {
+                var msg0 = DownloadTaskPool.HasTaskRunning ? $@"有回放正在下载{Environment.NewLine}" : string.Empty;
+                if (MessageBox.Show($@"{msg0}确定退出？", nameof(BilibiliLiveRecordDownLoader), MessageBoxButton.OKCancel,
+                        MessageBoxImage.Question, MessageBoxResult.Cancel) != MessageBoxResult.OK)
+                {
+                    return;
+                }
+
+                DownloadTaskPool.StopAll();
+
+                _window.CloseReason = CloseReason.Unknown;
+                _window.Dispatcher?.InvokeAsync(() => { _window.Close(); });
             });
         }
 

@@ -3,8 +3,10 @@ using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI;
 using Syncfusion.UI.Xaml.Grid;
@@ -16,7 +18,7 @@ namespace BilibiliLiveRecordDownLoader
         public MainWindow()
         {
             InitializeComponent();
-            ViewModel = new MainWindowViewModel();
+            ViewModel = new MainWindowViewModel(this);
 
             this.WhenActivated(d =>
             {
@@ -102,7 +104,61 @@ namespace BilibiliLiveRecordDownLoader
                     }
                 }).DisposeWith(d);
 
+                this.BindCommand(ViewModel, vm => vm.ShowWindowCommand, v => v.NotifyIcon, nameof(NotifyIcon.TrayMouseDoubleClick)).DisposeWith(d);
+
+                this.BindCommand(ViewModel, vm => vm.ShowWindowCommand, v => v.ShowMenuItem).DisposeWith(d);
+                this.BindCommand(ViewModel, vm => vm.ExitCommand, v => v.ExitMenuItem).DisposeWith(d);
+
+                #region CloseReasonHack
+
+                if (PresentationSource.FromDependencyObject(this) is HwndSource source)
+                {
+                    source.AddHook(WindowProc);
+                }
+
+                this.Events().Closing.Subscribe(e =>
+                {
+                    switch (CloseReason)
+                    {
+                        case CloseReason.Unknown:
+                        case CloseReason.Logoff:
+                            break;
+                        case CloseReason.User:
+                        {
+                            Visibility = Visibility.Hidden;
+                            e.Cancel = true;
+                            break;
+                        }
+                    }
+                }).DisposeWith(d);
+
+                #endregion
+
             });
         }
+
+        #region CloseReasonHack
+
+        public CloseReason CloseReason = CloseReason.Unknown;
+
+        private IntPtr WindowProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            switch (msg)
+            {
+                case 0x11:
+                case 0x16:
+                    CloseReason = CloseReason.Logoff;
+                    break;
+                case 0x112:
+                    if (((ushort)wParam & 0xfff0) == 0xf060)
+                    {
+                        CloseReason = CloseReason.User;
+                    }
+                    break;
+            }
+            return IntPtr.Zero;
+        }
+
+        #endregion
     }
 }
