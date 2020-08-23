@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -8,6 +7,7 @@ using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
 using BilibiliLiveRecordDownLoader.BilibiliApi;
+using BilibiliLiveRecordDownLoader.FlvProcessor;
 using BilibiliLiveRecordDownLoader.Http;
 
 namespace BilibiliLiveRecordDownLoader.Services
@@ -17,7 +17,8 @@ namespace BilibiliLiveRecordDownLoader.Services
         private const double ThreadsCount = 32.0;
 
         private readonly string _id;
-        private readonly ConcurrentDictionary<string, LiveRecordDownloadTask> _parent;
+        private readonly DateTime _startTime;
+        private readonly DownloadTaskPool _parent;
         private readonly string _root;
         private string RecordPath => Path.Combine(_root, _id);
 
@@ -28,9 +29,10 @@ namespace BilibiliLiveRecordDownLoader.Services
 
         public bool IsDownloading => _cts != null && !_cts.IsCancellationRequested;
 
-        public LiveRecordDownloadTask(string id, ConcurrentDictionary<string, LiveRecordDownloadTask> parent, string path)
+        public LiveRecordDownloadTask(string id, DateTime startTime, DownloadTaskPool parent, string path)
         {
             _id = id;
+            _startTime = startTime;
             _parent = parent;
             _root = path;
         }
@@ -87,7 +89,27 @@ namespace BilibiliLiveRecordDownLoader.Services
                                 d => { _progress.OnNext((d + i) / l.Length); }, _cts.Token);
                     }
 
+                    //Merge flv
+                    _progress.OnNext(0.99);
 
+                    var filename = _startTime == default ? _id : $@"{_startTime:yyyyMMdd_HHmmss}";
+                    var mergeFlv = Path.Combine(_root, $@"{filename}.flv");
+                    if (l.Length > 1)
+                    {
+                        var flv = new FlvMerger();
+                        flv.AddRange(Enumerable.Range(1, l.Length).Select(i => Path.Combine(RecordPath, $@"{i}.flv")));
+
+                        flv.Merge(mergeFlv);
+                        Utils.Utils.DeleteFiles(RecordPath);
+                    }
+                    else if (l.Length == 1)
+                    {
+                        var inputFile = Path.Combine(RecordPath, @"1.flv");
+                        File.Move(inputFile, mergeFlv, true);
+                        Utils.Utils.DeleteFiles(RecordPath);
+                    }
+
+                    _progress.OnNext(100.0);
                 }
             }
             catch (Exception ex)
@@ -100,7 +122,7 @@ namespace BilibiliLiveRecordDownLoader.Services
                 _progress.OnCompleted();
                 _cts?.Dispose();
                 _cts = null;
-                _parent.TryRemove(_id, out _);
+                _parent.Remove(_id);
             }
         }
 

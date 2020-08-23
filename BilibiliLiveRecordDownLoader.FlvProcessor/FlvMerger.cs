@@ -24,6 +24,11 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor
             Files.Add(path);
         }
 
+        public void AddRange(IEnumerable<string> path)
+        {
+            Files.AddRange(path);
+        }
+
         public void Merge(string path)
         {
             using var outFile = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None);

@@ -143,5 +143,19 @@ namespace BilibiliLiveRecordDownLoader.Utils
                 // ignored
             }
         }
+
+        public static bool DeleteFiles(string path)
+        {
+            try
+            {
+                var di = new DirectoryInfo(path);
+                di.Delete(true);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
     }
 }

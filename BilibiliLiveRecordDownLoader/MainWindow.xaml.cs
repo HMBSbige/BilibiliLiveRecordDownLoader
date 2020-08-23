@@ -76,6 +76,11 @@ namespace BilibiliLiveRecordDownLoader
                         .Subscribe(b => LiveRecordBusyIndicator.IsBusy = b)
                         .DisposeWith(d);
 
+                ViewModel.WhenAnyValue(x => x.DownloadTaskPool.HasTaskRunning)
+                        .ObserveOn(RxApp.MainThreadScheduler)
+                        .Subscribe(b => DownloadLiveRecordBusyIndicator.IsBusy = b)
+                        .DisposeWith(d);
+
                 this.BindCommand(ViewModel, vm => vm.CopyLiveRecordDownloadUrlCommand, v => v.CopyLiveRecordDownloadUrlMenuItem).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.OpenLiveRecordUrlCommand, v => v.OpenLiveRecordUrlMenuItem).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.DownLoadCommand, v => v.DownLoadMenuItem).DisposeWith(d);

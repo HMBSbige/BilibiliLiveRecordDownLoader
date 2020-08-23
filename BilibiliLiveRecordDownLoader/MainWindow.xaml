@@ -35,6 +35,7 @@
                             <ColumnDefinition />
                             <ColumnDefinition />
                             <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="100"/>
                         </Grid.ColumnDefinitions>
                         <Image Grid.RowSpan="3" x:Name="FaceImage"
                                Width="100" Margin="0,0,10,0"
@@ -61,13 +62,21 @@
                         <TextBlock Grid.Row="2" Grid.Column="2" x:Name="RecordCountTextBlock" VerticalAlignment="Center"
                                    d:Text="100"
                                    FontSize="16" />
-
-                        <Grid Grid.Row="0" Grid.Column="3" Grid.RowSpan="3" >
+                       
+                        <Grid Grid.Row="0" Grid.Column="3" Grid.RowSpan="3">
                             <Syncfusion:SfBusyIndicator
-                            x:Name="LiveRecordBusyIndicator"
-                            d:IsBusy="True"
-                            Header="加载中..." AnimationType="DoubleRing" />
+                                x:Name="DownloadLiveRecordBusyIndicator"
+                                d:IsBusy="True"
+                                Header="下载中..." AnimationType="GPS" />
                         </Grid>
+
+                        <Grid Grid.Row="0" Grid.Column="4" Grid.RowSpan="3">
+                            <Syncfusion:SfBusyIndicator
+                                x:Name="LiveRecordBusyIndicator"
+                                d:IsBusy="True"
+                                Header="加载中..." AnimationType="DoubleRing" />
+                        </Grid>
+
                     </Grid>
                     <Syncfusion:SfDataGrid 
                                 x:Name="LiveRecordListDataGrid"

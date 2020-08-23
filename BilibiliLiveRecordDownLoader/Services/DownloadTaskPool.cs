@@ -1,10 +1,11 @@
 ﻿using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using BilibiliLiveRecordDownLoader.ViewModels;
+using ReactiveUI;
 
 namespace BilibiliLiveRecordDownLoader.Services
 {
-    public class DownloadTaskPool
+    public class DownloadTaskPool : ReactiveObject
     {
         private readonly ConcurrentDictionary<string, LiveRecordDownloadTask> _list;
 
@@ -21,7 +22,11 @@ namespace BilibiliLiveRecordDownLoader.Services
         public async Task Download(LiveRecordListViewModel record, string path)
         {
             var id = record.Rid;
-            var t = _list.GetOrAdd(id, new LiveRecordDownloadTask(id, _list, path));
+            var startTime = record.StartTime;
+
+            var t = _list.GetOrAdd(id, new LiveRecordDownloadTask(id, startTime,this, path));
+            this.RaisePropertyChanged(nameof(HasTaskRunning));
+
             record.Attach(t);
             await record.StartOrStop();
         }
@@ -33,6 +38,12 @@ namespace BilibiliLiveRecordDownLoader.Services
             {
                 record.Attach(t);
             }
+        }
+
+        public void Remove(string id)
+        {
+            _list.TryRemove(id, out _);
+            this.RaisePropertyChanged(nameof(HasTaskRunning));
         }
     }
 }

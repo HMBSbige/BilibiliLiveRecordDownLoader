@@ -124,7 +124,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
         public readonly ConfigViewModel Config;
 
-        private readonly DownloadTaskPool _downloadTaskPool = new DownloadTaskPool();
+        public readonly DownloadTaskPool DownloadTaskPool = new DownloadTaskPool();
 
         private readonly ObservableAsPropertyHelper<IEnumerable<LiveRecordListViewModel>> _liveRecordList;
         public IEnumerable<LiveRecordListViewModel> LiveRecordList => _liveRecordList.Value;
@@ -252,7 +252,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                             var list = listMessage.data?.list.Select(x =>
                             {
                                 var record = new LiveRecordListViewModel(x);
-                                _downloadTaskPool.Attach(record);
+                                DownloadTaskPool.Attach(record);
                                 return record;
                             });
                             return list;
@@ -341,7 +341,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 if (info?.Record is LiveRecordListViewModel liveRecord)
                 {
                     var root = Path.Combine(Config.MainDir, $@"{RoomId}", @"Replay");
-                    _downloadTaskPool.Download(liveRecord, root).NoWarning(); //Async
+                    DownloadTaskPool.Download(liveRecord, root).NoWarning(); //Async
                 }
             }
             catch (Exception ex)
