@@ -156,11 +156,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                     .ToProperty(this, nameof(LiveRecordList), deferSubscription: true);
 
             SelectMainDirCommand = ReactiveCommand.Create(SelectDirectory);
-            OpenMainDirCommand = ReactiveCommand.Create(OpenDirectory);
+            OpenMainDirCommand = ReactiveCommand.CreateFromObservable(OpenDirectory);
             CopyLiveRecordDownloadUrlCommand = ReactiveCommand.CreateFromTask<GridRecordContextMenuInfo>(CopyLiveRecordDownloadUrl);
-            OpenLiveRecordUrlCommand = ReactiveCommand.CreateFromTask<GridRecordContextMenuInfo>(OpenLiveRecordUrl);
-            OpenDirCommand = ReactiveCommand.CreateFromTask<GridRecordContextMenuInfo>(OpenDir);
-            DownLoadCommand = ReactiveCommand.CreateFromTask<GridRecordContextMenuInfo>(Download);
+            OpenLiveRecordUrlCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo, Unit>(OpenLiveRecordUrl);
+            OpenDirCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo, Unit>(OpenDir);
+            DownLoadCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo, Unit>(Download);
         }
 
         private void SelectDirectory()
@@ -181,9 +181,12 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             }
         }
 
-        private void OpenDirectory()
+        private IObservable<Unit> OpenDirectory()
         {
-            Utils.Utils.OpenDir(Config.MainDir);
+            return Observable.Start(() =>
+            {
+                Utils.Utils.OpenDir(Config.MainDir);
+            });
         }
 
         private void GetDiskUsage(long _)
@@ -295,59 +298,65 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             }
         }
 
-        private static async Task OpenLiveRecordUrl(GridRecordContextMenuInfo info)
+        private static IObservable<Unit> OpenLiveRecordUrl(GridRecordContextMenuInfo info)
         {
-            try
+            return Observable.Start(() =>
             {
-                await Task.Yield();
-                if (info?.Record is LiveRecordListViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
+                try
                 {
-                    Utils.Utils.OpenUrl($@"https://live.bilibili.com/record/{liveRecord.Rid}");
-                }
-            }
-            catch
-            {
-                // ignored
-            }
-        }
-
-        private async Task OpenDir(GridRecordContextMenuInfo info)
-        {
-            try
-            {
-                await Task.Yield();
-                if (info?.Record is LiveRecordListViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
-                {
-                    var root = Path.Combine(Config.MainDir, $@"{RoomId}", @"Replay");
-                    var path = Path.Combine(root, liveRecord.Rid);
-                    if (!Utils.Utils.OpenDir(path))
+                    if (info?.Record is LiveRecordListViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
                     {
-                        Directory.CreateDirectory(root);
-                        Utils.Utils.OpenDir(root);
+                        Utils.Utils.OpenUrl($@"https://live.bilibili.com/record/{liveRecord.Rid}");
                     }
                 }
-            }
-            catch
-            {
-                // ignored
-            }
+                catch
+                {
+                    // ignored
+                }
+            });
         }
 
-        private async Task Download(GridRecordContextMenuInfo info)
+        private IObservable<Unit> OpenDir(GridRecordContextMenuInfo info)
         {
-            try
+            return Observable.Start(() =>
             {
-                await Task.CompletedTask;
-                if (info?.Record is LiveRecordListViewModel liveRecord)
+                try
                 {
-                    var root = Path.Combine(Config.MainDir, $@"{RoomId}", @"Replay");
-                    DownloadTaskPool.Download(liveRecord, root).NoWarning(); //Async
+                    if (info?.Record is LiveRecordListViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
+                    {
+                        var root = Path.Combine(Config.MainDir, $@"{RoomId}", @"Replay");
+                        var path = Path.Combine(root, liveRecord.Rid);
+                        if (!Utils.Utils.OpenDir(path))
+                        {
+                            Directory.CreateDirectory(root);
+                            Utils.Utils.OpenDir(root);
+                        }
+                    }
                 }
-            }
-            catch (Exception ex)
+                catch
+                {
+                    // ignored
+                }
+            });
+        }
+
+        private IObservable<Unit> Download(GridRecordContextMenuInfo info)
+        {
+            return Observable.Start(() =>
             {
-                Debug.WriteLine(ex);
-            }
+                try
+                {
+                    if (info?.Record is LiveRecordListViewModel liveRecord)
+                    {
+                        var root = Path.Combine(Config.MainDir, $@"{RoomId}", @"Replay");
+                        DownloadTaskPool.Download(liveRecord, root).NoWarning(); //Async
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(ex);
+                }
+            });
         }
 
         public void Dispose()
