@@ -1,4 +1,6 @@
 # BilibiliLiveRecordDownLoader
+![GitHub CI](https://github.com/HMBSbige/BilibiliLiveRecordDownLoader/workflows/GitHub%20CI/badge.svg)
+
 Bilibili 直播回放下载
 
 ## 主要功能
@@ -10,4 +12,6 @@ Bilibili 直播回放下载
 ![](Build/preview.png)
 
 ## 下载
-https://github.com/HMBSbige/BilibiliLiveRecordDownLoader/releases
+[正式版](https://github.com/HMBSbige/BilibiliLiveRecordDownLoader/releases)
+
+[测试版](https://github.com/HMBSbige/BilibiliLiveRecordDownLoader/actions)
