@@ -11,8 +11,9 @@
     xmlns:tb="http://www.hardcodet.net/taskbar"
     mc:Ignorable="d"
     x:Name="Window"
+    WindowStartupLocation="CenterScreen"
     Title="BilibiliLiveRecordDownLoader"
-    MinHeight="300" MinWidth="400"
+    MinHeight="600" MinWidth="800"
     Height="700" Width="1200">
 
     <Grid>
