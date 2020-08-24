@@ -1,0 +1,87 @@
+name: GitHub CI
+on: [push, pull_request]
+
+jobs:
+
+  build:
+    name: Build
+    runs-on: windows-latest
+    env: 
+      SyncfusionLicenseKey: ${{ secrets.SyncfusionLicenseKey }}
+      Netcore_tfm: netcoreapp3.1
+      Configuration: Release
+      ProjectName: BilibiliLiveRecordDownLoader
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+
+    - name: Get tag name
+      uses: olegtarasov/get-tag@v2
+
+    - name: Build .NET Core
+      shell: pwsh
+      run: |
+        .\build.ps1 core
+        New-Item -ItemType Directory -Path C:\builtfiles -Force > $null
+        7z a -mx9 C:\builtfiles\$env:ProjectName-netcore-${{ env.GITHUB_TAG_NAME }}.7z $env:ProjectName\bin\$env:Configuration\$env:Netcore_tfm\publish\
+        echo "::set-env name=NETCORE_SHA256::$(.\Build\getSHA256.ps1 C:\builtfiles\$env:ProjectName-netcore-${{ env.GITHUB_TAG_NAME }}.7z)"
+
+    - name: Build .NET Core x64
+      shell: pwsh
+      run: |
+        .\build.ps1 core-x64
+        New-Item -ItemType Directory -Path C:\builtfiles -Force > $null
+        7z a -mx9 C:\builtfiles\$env:ProjectName-Win64-${{ env.GITHUB_TAG_NAME }}.7z $env:ProjectName\bin\$env:Configuration\$env:Netcore_tfm\win-x64\publish\
+        echo "::set-env name=NETCORE64_SHA256::$(.\Build\getSHA256.ps1 C:\builtfiles\$env:ProjectName-Win64-${{ env.GITHUB_TAG_NAME }}.7z)"
+
+    - name: Build .NET Core x86
+      shell: pwsh
+      run: |
+        .\build.ps1 core-x86
+        New-Item -ItemType Directory -Path C:\builtfiles -Force > $null
+        7z a -mx9 C:\builtfiles\$env:ProjectName-Win32-${{ env.GITHUB_TAG_NAME }}.7z $env:ProjectName\bin\$env:Configuration\$env:Netcore_tfm\win-x86\publish\
+        echo "::set-env name=NETCORE86_SHA256::$(.\Build\getSHA256.ps1 C:\builtfiles\$env:ProjectName-Win32-${{ env.GITHUB_TAG_NAME }}.7z)"
+
+    - name: Upload .NET Core
+      uses: actions/upload-artifact@v2
+      with:
+        name: ${{ env.ProjectName }}-netcore
+        path: ${{ env.ProjectName }}\bin\${{ env.Configuration }}\${{ env.Netcore_tfm }}\publish\
+
+    - name: Upload .NET Core x64
+      uses: actions/upload-artifact@v2
+      with:
+        name: ${{ env.ProjectName }}-Win64
+        path: ${{ env.ProjectName }}\bin\${{ env.Configuration }}\${{ env.Netcore_tfm }}\win-x64\publish\
+
+    - name: Upload .NET Core x86
+      uses: actions/upload-artifact@v2
+      with:
+        name: ${{ env.ProjectName }}-Win32
+        path: ${{ env.ProjectName }}\bin\${{ env.Configuration }}\${{ env.Netcore_tfm }}\win-x86\publish\
+
+    - name: Create a new GitHub release if a new tag is pushed
+      uses: softprops/action-gh-release@v1
+      with:
+        name: v${{ env.GITHUB_TAG_NAME }}
+        prerelease: true
+        draft: false
+        files: |
+          C:\builtfiles\${{ env.ProjectName }}-netcore-${{ env.GITHUB_TAG_NAME }}.7z
+          C:\builtfiles\${{ env.ProjectName }}-Win64-${{ env.GITHUB_TAG_NAME }}.7z
+          C:\builtfiles\${{ env.ProjectName }}-Win32-${{ env.GITHUB_TAG_NAME }}.7z
+        body: |
+          ## 更新日志：
+          * 这是 GitHub Actions 自动化部署，更新日志应该很快会手动更新
+          
+          ## 文件校验
+          | 文件名 | SHA256 |
+          | :- | :- |
+          | <sub>${{ env.ProjectName }}-netcore-${{ env.GITHUB_TAG_NAME }}.7z</sub> | <sub>${{ env.NETCORE_SHA256 }}</sub> |
+          | <sub>${{ env.ProjectName }}-Win64-${{ env.GITHUB_TAG_NAME }}.7z</sub> | <sub>${{ env.NETCORE64_SHA256 }}</sub> |
+          | <sub>${{ env.ProjectName }}-Win32-${{ env.GITHUB_TAG_NAME }}.7z</sub> | <sub>${{ env.NETCORE86_SHA256 }}</sub> |
+      if: startsWith(github.ref, 'refs/tags/')
+      env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
