@@ -110,6 +110,7 @@
                                 CurrentCellBorderThickness="2"
                                 BorderThickness="1,1,1,0"
 
+                                AllowResizingHiddenColumns="True"
                                 SelectionUnit="Row" SelectionMode="Single"
                                 AllowEditing="False" AddNewRowPosition="None"
                                 AllowResizingColumns="True"

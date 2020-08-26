@@ -1,19 +1,21 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using BilibiliLiveRecordDownLoader.BilibiliApi;
+using BilibiliLiveRecordDownLoader.BilibiliApi.Model;
 using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
+using DynamicData;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using ReactiveUI;
+using Syncfusion.Data.Extensions;
 using Syncfusion.UI.Xaml.Grid;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
@@ -129,8 +131,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
         public readonly DownloadTaskPool DownloadTaskPool = new DownloadTaskPool();
 
-        private readonly ObservableAsPropertyHelper<IEnumerable<LiveRecordListViewModel>> _liveRecordList;
-        public IEnumerable<LiveRecordListViewModel> LiveRecordList => _liveRecordList.Value;
+        private SourceList<LiveRecordList> LiveRecordSourceList { get; } = new SourceList<LiveRecordList>();
+        public readonly ReadOnlyObservableCollection<LiveRecordListViewModel> LiveRecordList;
 
         private readonly MainWindow _window;
 
@@ -152,14 +154,30 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                     .ObserveOn(RxApp.MainThreadScheduler)
                     .Subscribe(GetDiskUsage);
 
-            _liveRecordList = this.WhenAnyValue(x => x.Config.RoomId, x => x.TriggerLiveRecordListQuery)
-                    .Throttle(TimeSpan.FromMilliseconds(800))
-                    .DistinctUntilChanged()
-                    .Where(i => i.Item1 > 0)
-                    .Select(i => i.Item1)
-                    .SelectMany(GetRecordList)
-                    .ObserveOn(RxApp.MainThreadScheduler)
-                    .ToProperty(this, nameof(LiveRecordList), deferSubscription: true);
+            LiveRecordSourceList.Connect()
+                    .Transform(x =>
+                    {
+                        var record = new LiveRecordListViewModel(x);
+                        DownloadTaskPool.Attach(record);
+                        return record;
+                    })
+                    .ObserveOnDispatcher()
+                    .Bind(out LiveRecordList)
+                    .DisposeMany()
+                    .Subscribe(_ =>
+                    {
+                        var dataGrid = _window.LiveRecordListDataGrid;
+                        dataGrid.GridColumnSizer.ResetAutoCalculationforAllColumns();
+                        dataGrid.Columns.ForEach(c => c.Width = double.NaN);
+                        dataGrid.GridColumnSizer.Refresh();
+                    });
+
+            this.WhenAnyValue(x => x.Config.RoomId, x => x.TriggerLiveRecordListQuery)
+                .Throttle(TimeSpan.FromMilliseconds(800))
+                .DistinctUntilChanged()
+                .Where(i => i.Item1 > 0)
+                .Select(i => i.Item1)
+                .Subscribe(GetRecordList);
 
             SelectMainDirCommand = ReactiveCommand.Create(SelectDirectory);
             OpenMainDirCommand = ReactiveCommand.CreateFromObservable(OpenDirectory);
@@ -234,7 +252,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             }
         }
 
-        private async Task<IEnumerable<LiveRecordListViewModel>> GetRecordList(long roomId, CancellationToken token)
+        private async void GetRecordList(long roomId)
         {
             try
             {
@@ -242,9 +260,10 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 RoomId = 0;
                 ShortRoomId = 0;
                 RecordCount = 0;
+                LiveRecordSourceList.Clear();
 
                 using var client = new BililiveApiClient();
-                var roomInitMessage = await client.GetRoomInit(roomId, token);
+                var roomInitMessage = await client.GetRoomInit(roomId);
                 if (roomInitMessage != null
                     && roomInitMessage.code == 0
                     && roomInitMessage.data != null
@@ -252,21 +271,19 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 {
                     RoomId = roomInitMessage.data.room_id;
                     ShortRoomId = roomInitMessage.data.short_id;
-                    var listMessage = await client.GetLiveRecordList(roomInitMessage.data.room_id, 1, 1, token);
+                    var listMessage = await client.GetLiveRecordList(roomInitMessage.data.room_id, 1, 1);
                     if (listMessage?.data != null && listMessage.data.count > 0)
                     {
                         var count = listMessage.data.count;
                         RecordCount = count;
-                        listMessage = await client.GetLiveRecordList(roomInitMessage.data.room_id, 1, count, token);
+                        listMessage = await client.GetLiveRecordList(roomInitMessage.data.room_id, 1, count);
                         if (listMessage?.data?.list != null && listMessage.data?.list.Length > 0)
                         {
-                            var list = listMessage.data?.list.Select(x =>
+                            var list = listMessage.data?.list;
+                            if (list != null)
                             {
-                                var record = new LiveRecordListViewModel(x);
-                                DownloadTaskPool.Attach(record);
-                                return record;
-                            });
-                            return list;
+                                LiveRecordSourceList.AddRange(list);
+                            }
                         }
                     }
                 }
@@ -279,7 +296,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             {
                 IsLiveRecordBusy = false;
             }
-            return Array.Empty<LiveRecordListViewModel>();
         }
 
         private static async Task CopyLiveRecordDownloadUrl(GridRecordContextMenuInfo info)
