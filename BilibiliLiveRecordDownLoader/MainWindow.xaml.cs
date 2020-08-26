@@ -8,6 +8,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.ViewModels;
+using BilibiliLiveRecordDownLoader.Views;
 using ReactiveUI;
 using Syncfusion.UI.Xaml.Grid;
 
@@ -19,6 +20,8 @@ namespace BilibiliLiveRecordDownLoader
         {
             InitializeComponent();
             ViewModel = new MainWindowViewModel(this);
+
+            LiveRecordListDataGrid.GridColumnSizer = new GridColumnSizerExt(LiveRecordListDataGrid);
 
             this.WhenActivated(d =>
             {

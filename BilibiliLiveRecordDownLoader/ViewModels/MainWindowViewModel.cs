@@ -135,6 +135,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         public readonly ReadOnlyObservableCollection<LiveRecordListViewModel> LiveRecordList;
 
         private readonly MainWindow _window;
+        private bool _isInitData = true;
 
         public MainWindowViewModel(MainWindow window)
         {
@@ -170,6 +171,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                         dataGrid.GridColumnSizer.ResetAutoCalculationforAllColumns();
                         dataGrid.Columns.ForEach(c => c.Width = double.NaN);
                         dataGrid.GridColumnSizer.Refresh();
+
+                        if (!_isInitData) return;
+                        _window.SizeToContent = SizeToContent.Width;
+                        _window.SizeToContent = SizeToContent.Manual;
+                        _isInitData = false;
                     });
 
             this.WhenAnyValue(x => x.Config.RoomId, x => x.TriggerLiveRecordListQuery)
