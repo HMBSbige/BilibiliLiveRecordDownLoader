@@ -1,4 +1,4 @@
-﻿<reactiveUi:ReactiveWindow
+<reactiveUi:ReactiveWindow
     x:TypeArguments="viewModels:MainWindowViewModel"
     x:Class="BilibiliLiveRecordDownLoader.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -148,8 +148,8 @@
 
                             <Syncfusion:GridNumericColumn MappingName="Online" HeaderText="人气峰值" NumberDecimalDigits="0" TextAlignment="Left" />
                             <Syncfusion:GridNumericColumn MappingName="DanmuNum" HeaderText="弹幕数" NumberDecimalDigits="0" TextAlignment="Left" />
-                            <Syncfusion:GridDateTimeColumn MappingName="Length" HeaderText="视频长度"
-                                                           AllowNullValue="True" Pattern="LongTime" />
+
+                            <Syncfusion:GridTimeSpanColumn MappingName="Length" HeaderText="视频长度" Format="h:m:s" />
 
                             <Syncfusion:GridTemplateColumn MappingName="DownloadProgress" HeaderText="下载进度">
                                 <Syncfusion:GridTemplateColumn.CellTemplate>
