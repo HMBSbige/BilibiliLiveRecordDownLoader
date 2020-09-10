@@ -1,4 +1,4 @@
-<reactiveUi:ReactiveWindow
+﻿<reactiveUi:ReactiveWindow
     x:TypeArguments="viewModels:MainWindowViewModel"
     x:Class="BilibiliLiveRecordDownLoader.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -84,6 +84,7 @@
                         <Grid Grid.Row="0" Grid.Column="3" Grid.RowSpan="3">
                             <Syncfusion:SfBusyIndicator
                                 x:Name="DownloadLiveRecordBusyIndicator"
+                                Background="Transparent"
                                 d:IsBusy="True"
                                 Header="下载中..." AnimationType="GPS" />
                         </Grid>
@@ -91,12 +92,14 @@
                         <Grid Grid.Row="0" Grid.Column="4" Grid.RowSpan="3">
                             <Syncfusion:SfBusyIndicator
                                 x:Name="LiveRecordBusyIndicator"
+                                Background="Transparent"
                                 d:IsBusy="True"
                                 Header="加载中..." AnimationType="DoubleRing" />
                         </Grid>
 
                         <Grid Grid.Row="0" Grid.Column="5" Grid.RowSpan="3">
                             <Syncfusion:SfBusyIndicator
+                                Background="Transparent"
                                 IsBusy="True"
                                 Header="运行中..." AnimationType="Clock" />
                         </Grid>
@@ -186,7 +189,7 @@
                             </Grid.ColumnDefinitions>
                             <TextBox x:Name="MainDirTextBox" Grid.Row="0" Grid.Column="0" IsReadOnly="True" Margin="3" VerticalContentAlignment="Center" />
                             <Grid Grid.Row="1" Grid.Column="0" Margin="3">
-                                <ProgressBar x:Name="DiskUsageProgressBar" />
+                                <Syncfusion:SfLinearProgressBar x:Name="DiskUsageProgressBar" d:Progress="68" Height="23.5" IndicatorPadding="3" />
                                 <TextBlock x:Name="DiskUsageProgressBarTextBlock" HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Grid>
                             <Button x:Name="SelectMainDirButton" Grid.Row="0" Grid.Column="1" Content="选择目录" Margin="3" Padding="3" />

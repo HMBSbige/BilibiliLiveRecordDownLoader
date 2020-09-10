@@ -20,6 +20,7 @@
     <PackageReference Include="ReactiveUI.WPF" Version="11.5.26" />
     <PackageReference Include="Syncfusion.SfBusyIndicator.WPF" Version="18.2.0.54" />
     <PackageReference Include="Syncfusion.SfGrid.WPF" Version="18.2.0.54" />
+    <PackageReference Include="Syncfusion.SfProgressBar.WPF" Version="18.2.0.54" />
   </ItemGroup>
 
   <ItemGroup>
