@@ -196,7 +196,7 @@
                                 <ColumnDefinition />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBox x:Name="MainDirTextBox" Grid.Row="0" Grid.Column="0" IsReadOnly="True" Margin="3" VerticalContentAlignment="Center" />
+                            <TextBox x:Name="MainDirTextBox" Grid.Row="0" Grid.Column="0" IsReadOnly="True" Margin="3" VerticalContentAlignment="Center" d:Text="D:\Video" />
                             <Grid Grid.Row="1" Grid.Column="0" Margin="3">
                                 <Syncfusion:SfLinearProgressBar x:Name="DiskUsageProgressBar" d:Progress="68" Height="23.5" IndicatorPadding="3" />
                                 <TextBlock x:Name="DiskUsageProgressBarTextBlock" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -212,11 +212,7 @@
                                 <ColumnDefinition Width="30" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="单个文件下载线程数：" VerticalAlignment="Center" />
-                            <TextBox x:Name="ThreadsTextBox" Grid.Column="1" 
-                                VerticalContentAlignment="Center"
-                                Text="8" 
-                                MaxLength="3"
-                                />
+                            <Syncfusion:IntegerTextBox Grid.Column="1" x:Name="ThreadsTextBox"  MinValue="1" MaxValue="128" NullValue="8" UseNullOption="True" />
                         </Grid>
                     </GroupBox>
                 </StackPanel>

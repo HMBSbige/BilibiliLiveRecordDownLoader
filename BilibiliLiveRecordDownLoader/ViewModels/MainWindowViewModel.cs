@@ -139,6 +139,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
         private bool _isInitData = true;
 
+        private const long PageSize = 200;
+
         public MainWindowViewModel(MainWindow window,
             ILogger logger,
             IConfigService configService)
@@ -295,19 +297,24 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 {
                     RoomId = roomInitMessage.data.room_id;
                     ShortRoomId = roomInitMessage.data.short_id;
-                    var listMessage = await client.GetLiveRecordList(roomInitMessage.data.room_id, 1, 1);
-                    if (listMessage?.data != null && listMessage.data.count > 0)
+                    RecordCount = long.MaxValue;
+                    var currentPage = 0;
+                    while (currentPage < Math.Ceiling((double)RecordCount / PageSize))
                     {
-                        var count = listMessage.data.count;
-                        RecordCount = count;
-                        listMessage = await client.GetLiveRecordList(roomInitMessage.data.room_id, 1, count);
-                        if (listMessage?.data?.list != null && listMessage.data?.list.Length > 0)
+                        var listMessage = await client.GetLiveRecordList(roomInitMessage.data.room_id, ++currentPage, PageSize);
+                        if (listMessage?.data != null && listMessage.data.count > 0)
                         {
+                            RecordCount = listMessage.data.count;
                             var list = listMessage.data?.list;
                             if (list != null)
                             {
                                 LiveRecordSourceList.AddRange(list);
                             }
+                        }
+                        else
+                        {
+                            _logger.LogWarning(@"加载列表出错");
+                            break;
                         }
                     }
                 }

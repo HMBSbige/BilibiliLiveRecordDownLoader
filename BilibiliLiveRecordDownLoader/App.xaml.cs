@@ -97,7 +97,7 @@ namespace BilibiliLiveRecordDownLoader
                     .MinimumLevel.Debug()
                     .WriteTo.Debug(outputTemplate: outputTemplate)
 #else
-				.MinimumLevel.Information()
+                    .MinimumLevel.Information()
 #endif
                     .MinimumLevel.Override(@"Microsoft", LogEventLevel.Information)
                     .Enrich.FromLogContext()

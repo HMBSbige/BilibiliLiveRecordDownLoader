@@ -141,9 +141,9 @@ namespace BilibiliLiveRecordDownLoader
 
                 this.Bind(ViewModel,
                     vm => vm.ConfigService.Config.DownloadThreads,
-                    v => v.ThreadsTextBox.Text,
-                    x => $@"{x}",
-                    x => byte.TryParse(x, out var v) ? v : (byte)8).DisposeWith(d);
+                    v => v.ThreadsTextBox.Value,
+                    x => x,
+                    x => x.HasValue ? Convert.ToByte(x.Value) : (byte)8).DisposeWith(d);
             });
         }
 
