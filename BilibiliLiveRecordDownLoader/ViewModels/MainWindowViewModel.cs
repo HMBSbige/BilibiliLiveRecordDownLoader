@@ -1,4 +1,13 @@
-﻿using System;
+﻿using BilibiliLiveRecordDownLoader.BilibiliApi;
+using BilibiliLiveRecordDownLoader.BilibiliApi.Model;
+using BilibiliLiveRecordDownLoader.Services;
+using BilibiliLiveRecordDownLoader.Utils;
+using DynamicData;
+using Microsoft.WindowsAPICodePack.Dialogs;
+using ReactiveUI;
+using Syncfusion.Data.Extensions;
+using Syncfusion.UI.Xaml.Grid;
+using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
@@ -7,16 +16,7 @@ using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 using System.Windows;
-using BilibiliLiveRecordDownLoader.BilibiliApi;
-using BilibiliLiveRecordDownLoader.BilibiliApi.Model;
-using BilibiliLiveRecordDownLoader.Enums;
-using BilibiliLiveRecordDownLoader.Services;
-using BilibiliLiveRecordDownLoader.Utils;
-using DynamicData;
-using Microsoft.WindowsAPICodePack.Dialogs;
-using ReactiveUI;
-using Syncfusion.Data.Extensions;
-using Syncfusion.UI.Xaml.Grid;
+using System.Windows.Forms;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
@@ -172,7 +172,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                         dataGrid.Columns.ForEach(c => c.Width = double.NaN);
                         dataGrid.GridColumnSizer.Refresh();
 
-                        if (!_isInitData) return;
+                        if (!_isInitData)
+                        {
+                            return;
+                        }
+
                         _window.SizeToContent = SizeToContent.Width;
                         _window.SizeToContent = SizeToContent.Manual;
                         _isInitData = false;
@@ -192,7 +196,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             OpenDirCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo, Unit>(OpenDir);
             DownLoadCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo, Unit>(Download);
             ShowWindowCommand = ReactiveCommand.Create(ShowWindow);
-            ExitCommand = ReactiveCommand.CreateFromObservable(Exit);
+            ExitCommand = ReactiveCommand.Create(Exit);
         }
 
         private void SelectDirectory()
@@ -244,7 +248,10 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 using var client = new BililiveApiClient();
                 var msg = await client.GetAnchorInfo(roomId);
 
-                if (msg.code != 0 || msg.data?.info == null) return;
+                if (msg.code != 0 || msg.data?.info == null)
+                {
+                    return;
+                }
 
                 var info = msg.data.info;
                 ImageUri = info.face;
@@ -394,22 +401,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             _window?.ShowWindow();
         }
 
-        private IObservable<Unit> Exit()
+        private void Exit()
         {
-            return Observable.Start(() =>
-            {
-                var msg0 = DownloadTaskPool.HasTaskRunning ? $@"有回放正在下载{Environment.NewLine}" : string.Empty;
-                if (MessageBox.Show($@"{msg0}确定退出？", nameof(BilibiliLiveRecordDownLoader), MessageBoxButton.OKCancel,
-                        MessageBoxImage.Question, MessageBoxResult.Cancel) != MessageBoxResult.OK)
-                {
-                    return;
-                }
-
-                DownloadTaskPool.StopAll();
-
-                _window.CloseReason = CloseReason.Unknown;
-                _window.Dispatcher?.InvokeAsync(() => { _window.Close(); });
-            });
+            DownloadTaskPool.StopAll();
+            _window.CloseReason = CloseReason.ApplicationExitCall;
+            _window.Close();
         }
 
         public void Dispose()

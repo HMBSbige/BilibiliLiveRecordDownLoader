@@ -31,9 +31,9 @@ namespace UnitTest
         [TestMethod]
         public void TestFlvMerge()
         {
-            const string f1 = @"";
-            const string f2 = @"";
-            const string outfile = @"";
+            const string f1 = @"C:\Users\Bruce\Downloads\1.flv";
+            const string f2 = @"C:\Users\Bruce\Downloads\2.flv";
+            const string outfile = @"C:\Users\Bruce\Downloads\test1.flv";
 
             var flv = new FlvMerger();
             flv.Add(f1);

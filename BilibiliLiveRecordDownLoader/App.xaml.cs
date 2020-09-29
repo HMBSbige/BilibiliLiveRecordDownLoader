@@ -1,13 +1,14 @@
-﻿using System;
+﻿using BilibiliLiveRecordDownLoader.Utils;
+using ReactiveUI;
+using Splat;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reactive.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Windows;
-using BilibiliLiveRecordDownLoader.Utils;
-using ReactiveUI;
-using Splat;
 
 namespace BilibiliLiveRecordDownLoader
 {
@@ -28,7 +29,7 @@ namespace BilibiliLiveRecordDownLoader
                 return;
             }
 
-            singleInstance.ArgumentsReceived.Subscribe(SingleInstance_ArgumentsReceived);
+            singleInstance.ArgumentsReceived.ObserveOnDispatcher().Subscribe(SingleInstance_ArgumentsReceived);
             singleInstance.ListenForArgumentsFromSuccessiveInstances();
 
             Current.Events().Exit.Subscribe(args =>
@@ -37,7 +38,10 @@ namespace BilibiliLiveRecordDownLoader
             });
             Current.Events().DispatcherUnhandledException.Subscribe(args =>
             {
-                if (Interlocked.Increment(ref _exited) != 1) return;
+                if (Interlocked.Increment(ref _exited) != 1)
+                {
+                    return;
+                }
 
                 MessageBox.Show($@"未捕获异常：{args.Exception}", nameof(BilibiliLiveRecordDownLoader), MessageBoxButton.OK, MessageBoxImage.Error);
 
@@ -58,7 +62,7 @@ namespace BilibiliLiveRecordDownLoader
         {
             if (args.Contains(Constants.ParameterShow))
             {
-                Dispatcher?.InvokeAsync(() => { MainWindow?.ShowWindow(); });
+                MainWindow?.ShowWindow();
             }
         }
     }

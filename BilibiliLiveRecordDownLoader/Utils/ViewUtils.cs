@@ -6,11 +6,17 @@ namespace BilibiliLiveRecordDownLoader.Utils
     {
         public static void ShowWindow(this Window window)
         {
-            window.Visibility = Visibility.Visible;
+            window.Show();
 
-            Win32.UnMinimize(window);
+            if (window.WindowState == WindowState.Minimized)
+            {
+                window.WindowState = WindowState.Normal;
+            }
 
-            if (window.Topmost) return;
+            if (window.Topmost)
+            {
+                return;
+            }
 
             window.Topmost = true;
             window.Topmost = false;

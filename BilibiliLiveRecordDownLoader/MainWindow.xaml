@@ -9,13 +9,19 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:Syncfusion="http://schemas.syncfusion.com/wpf"
     xmlns:tb="http://www.hardcodet.net/taskbar"
+    xmlns:sfSkinManager="clr-namespace:Syncfusion.SfSkinManager;assembly=Syncfusion.SfSkinManager.WPF"
+    xmlns:system="clr-namespace:System;assembly=System.Runtime"
     mc:Ignorable="d"
     x:Name="Window"
     WindowStartupLocation="CenterScreen"
     Title="BilibiliLiveRecordDownLoader"
     MinHeight="600" MinWidth="800"
-    Height="700" Width="1200">
-
+    Height="700" Width="1200"
+    sfSkinManager:SfSkinManager.VisualStyle="VisualStudio2015"
+    >
+    <Window.Resources>
+        <system:Double x:Key="MenuItemFontSize">14</system:Double>
+    </Window.Resources>
     <Grid>
         <tb:TaskbarIcon x:Name="NotifyIcon"
                         Visibility="Visible"
@@ -24,7 +30,8 @@
                         MenuActivation="RightClick"
                         >
             <tb:TaskbarIcon.ContextMenu>
-                <ContextMenu>
+                <ContextMenu sfSkinManager:SfSkinManager.VisualStyle="VisualStudio2015"
+                             FontSize="{StaticResource MenuItemFontSize}">
                     <MenuItem x:Name="ShowMenuItem" Header="显示主窗口(_S)" />
                     <MenuItem x:Name="ExitMenuItem" Header="退出(_X)" />
                 </ContextMenu>
@@ -104,7 +111,8 @@
                                 Header="运行中..." AnimationType="Clock" />
                         </Grid>
                     </Grid>
-                    <Syncfusion:SfDataGrid 
+                    <Syncfusion:SfDataGrid
+                                FontFamily="Microsoft YaHei UI"
                                 x:Name="LiveRecordListDataGrid"
                                 ColumnSizer="Auto"
                                 AutoGenerateColumns="False"
@@ -157,13 +165,14 @@
                             <Syncfusion:GridTemplateColumn MappingName="DownloadProgress" HeaderText="下载进度">
                                 <Syncfusion:GridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Grid>
+                                        <Grid Margin="-1">
                                             <ProgressBar x:Name="progressBar" Background="Transparent" Minimum="0"
                                                          Maximum="1" BorderThickness="0"
                                                          Value="{Binding Path=DownloadProgress, Mode=OneWay,UpdateSourceTrigger=PropertyChanged}" />
                                             <TextBlock
                                                 Text="{Binding Path=DownloadProgress, Mode=OneWay,UpdateSourceTrigger=PropertyChanged ,StringFormat={}{0:P2} }"
                                                 HorizontalAlignment="Center"
+                                                Foreground="Black"
                                                 VerticalAlignment="Center" TextAlignment="Center" />
                                         </Grid>
                                     </DataTemplate>
