@@ -1,14 +1,17 @@
-﻿using System;
+﻿using BilibiliLiveRecordDownLoader.BilibiliApi.Model;
+using BilibiliLiveRecordDownLoader.Services;
+using Microsoft.Extensions.Logging;
+using ReactiveUI;
+using System;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
-using BilibiliLiveRecordDownLoader.BilibiliApi.Model;
-using BilibiliLiveRecordDownLoader.Services;
-using ReactiveUI;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
     public class LiveRecordListViewModel : ReactiveObject
     {
+        private readonly ILogger _logger;
+
         #region 字段
 
         private string _rid;
@@ -133,8 +136,9 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
         public bool IsDownloading => LiveRecordDownloadTask?.IsDownloading ?? false;
 
-        public LiveRecordListViewModel(LiveRecordList data)
+        public LiveRecordListViewModel(ILogger logger, LiveRecordList data)
         {
+            _logger = logger;
             CopyFrom(data);
             _downloadProgress = 0.0;
         }
@@ -157,7 +161,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             LiveRecordDownloadTask = t;
             _progressMonitor = LiveRecordDownloadTask.ProgressUpdated
                 .ObserveOn(RxApp.MainThreadScheduler)
-                .Subscribe(d => { DownloadProgress = d; });
+                .Subscribe(d => { DownloadProgress = d; },
+                ex =>
+                {
+                    _logger.LogWarning(ex, @"下载回放出错");
+                });
         }
 
         public void CopyFrom(LiveRecordList data)

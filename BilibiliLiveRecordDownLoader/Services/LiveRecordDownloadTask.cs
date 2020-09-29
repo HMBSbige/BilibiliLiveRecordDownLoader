@@ -1,14 +1,13 @@
-﻿using System;
-using System.Diagnostics;
+﻿using BilibiliLiveRecordDownLoader.BilibiliApi;
+using BilibiliLiveRecordDownLoader.FlvProcessor;
+using BilibiliLiveRecordDownLoader.Http;
+using System;
 using System.IO;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
-using BilibiliLiveRecordDownLoader.BilibiliApi;
-using BilibiliLiveRecordDownLoader.FlvProcessor;
-using BilibiliLiveRecordDownLoader.Http;
 
 namespace BilibiliLiveRecordDownLoader.Services
 {
@@ -115,8 +114,7 @@ namespace BilibiliLiveRecordDownLoader.Services
             }
             catch (Exception ex)
             {
-                Debug.WriteLine(ex);
-                // _progress.OnError(ex);
+                _progress.OnError(ex);
             }
             finally
             {

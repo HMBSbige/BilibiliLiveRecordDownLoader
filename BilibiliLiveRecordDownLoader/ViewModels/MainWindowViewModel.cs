@@ -11,7 +11,6 @@ using Syncfusion.Data.Extensions;
 using Syncfusion.UI.Xaml.Grid;
 using System;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reactive;
@@ -165,7 +164,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             LiveRecordSourceList.Connect()
                     .Transform(x =>
                     {
-                        var record = new LiveRecordListViewModel(x);
+                        var record = new LiveRecordListViewModel(logger, x);
                         DownloadTaskPool.Attach(record);
                         return record;
                     })
@@ -403,7 +402,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine(ex);
+                    _logger.LogError(ex, @"下载回放出错");
                 }
             });
         }

@@ -101,7 +101,7 @@ namespace BilibiliLiveRecordDownLoader
 #endif
                     .MinimumLevel.Override(@"Microsoft", LogEventLevel.Information)
                     .Enrich.FromLogContext()
-                    .WriteTo.Async(c => c.File(@"Logs/TCPingInfoView.log",
+                    .WriteTo.Async(c => c.File(@"Logs/BilibiliLiveRecordDownLoader.log",
                             outputTemplate: outputTemplate,
                             rollOnFileSizeLimit: true,
                             retainedFileCountLimit: 2,
