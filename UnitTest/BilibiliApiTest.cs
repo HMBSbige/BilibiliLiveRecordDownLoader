@@ -8,7 +8,7 @@ namespace UnitTest
     public class BilibiliApiTest
     {
         [TestMethod]
-        public async Task GetLiveRecordUrlTest()
+        public async Task GetLiveRecordUrlTestAsync()
         {
             using var client = new BililiveApiClient();
             var json = await client.GetLiveRecordUrl(@"R1nx411c7b1"); // 视频链接会过期
@@ -20,7 +20,7 @@ namespace UnitTest
         }
 
         [TestMethod]
-        public async Task GetRoomInitTest()
+        public async Task GetRoomInitTestAsync()
         {
             using var client = new BililiveApiClient();
             var json = await client.GetRoomInit(732);
@@ -33,7 +33,7 @@ namespace UnitTest
         }
 
         [TestMethod]
-        public async Task GetLiveRecordListTest()
+        public async Task GetLiveRecordListTestAsync()
         {
             using var client = new BililiveApiClient();
             var json = await client.GetLiveRecordList(6154037);
@@ -68,7 +68,7 @@ namespace UnitTest
         }
 
         [TestMethod]
-        public async Task GetAnchorInfoTest()
+        public async Task GetAnchorInfoTestAsync()
         {
             using var client = new BililiveApiClient();
             var json = await client.GetAnchorInfo(732);

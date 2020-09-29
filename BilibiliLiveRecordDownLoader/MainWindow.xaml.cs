@@ -1,5 +1,7 @@
-﻿using BilibiliLiveRecordDownLoader.ViewModels;
+﻿using BilibiliLiveRecordDownLoader.Interfaces;
+using BilibiliLiveRecordDownLoader.ViewModels;
 using BilibiliLiveRecordDownLoader.Views;
+using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using Syncfusion.UI.Xaml.Grid;
 using System;
@@ -16,10 +18,11 @@ namespace BilibiliLiveRecordDownLoader
 {
     public partial class MainWindow
     {
-        public MainWindow()
+        public MainWindow(ILogger<MainWindow> logger,
+            IConfigService configService)
         {
             InitializeComponent();
-            ViewModel = new MainWindowViewModel(this);
+            ViewModel = new MainWindowViewModel(this, logger, configService);
 
             LiveRecordListDataGrid.GridColumnSizer = new GridColumnSizerExt(LiveRecordListDataGrid);
 
@@ -28,7 +31,7 @@ namespace BilibiliLiveRecordDownLoader
                 ViewModel.DisposeWith(d);
 
                 this.Bind(ViewModel,
-                    vm => vm.Config.RoomId,
+                    vm => vm.ConfigService.Config.RoomId,
                     v => v.RoomIdTextBox.Text,
                     x => $@"{x}",
                     x => long.TryParse(x, out var v) ? v : 732).DisposeWith(d);
@@ -52,7 +55,7 @@ namespace BilibiliLiveRecordDownLoader
 
                 this.OneWayBind(ViewModel, vm => vm.Level, v => v.LvTextBlock.Text, i => $@"Lv{i}").DisposeWith(d);
 
-                this.Bind(ViewModel, vm => vm.Config.MainDir, v => v.MainDirTextBox.Text).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.ConfigService.Config.MainDir, v => v.MainDirTextBox.Text).DisposeWith(d);
 
                 this.OneWayBind(ViewModel, vm => vm.DiskUsageProgressBarText, v => v.DiskUsageProgressBarTextBlock.Text).DisposeWith(d);
 
@@ -137,7 +140,7 @@ namespace BilibiliLiveRecordDownLoader
                 #endregion
 
                 this.Bind(ViewModel,
-                    vm => vm.Config.DownloadThreads,
+                    vm => vm.ConfigService.Config.DownloadThreads,
                     v => v.ThreadsTextBox.Text,
                     x => $@"{x}",
                     x => byte.TryParse(x, out var v) ? v : (byte)8).DisposeWith(d);

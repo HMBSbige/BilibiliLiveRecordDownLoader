@@ -1,8 +1,10 @@
 ﻿using BilibiliLiveRecordDownLoader.BilibiliApi;
 using BilibiliLiveRecordDownLoader.BilibiliApi.Model;
+using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
 using DynamicData;
+using Microsoft.Extensions.Logging;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using ReactiveUI;
 using Syncfusion.Data.Extensions;
@@ -127,29 +129,34 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         public ReactiveCommand<Unit, Unit> ExitCommand { get; }
         #endregion
 
-        public readonly ConfigViewModel Config;
+        private readonly MainWindow _window;
+        private readonly ILogger _logger;
+        public readonly IConfigService ConfigService;
 
         public readonly DownloadTaskPool DownloadTaskPool = new DownloadTaskPool();
 
         private SourceList<LiveRecordList> LiveRecordSourceList { get; } = new SourceList<LiveRecordList>();
         public readonly ReadOnlyObservableCollection<LiveRecordListViewModel> LiveRecordList;
 
-        private readonly MainWindow _window;
         private bool _isInitData = true;
 
-        public MainWindowViewModel(MainWindow window)
+        public MainWindowViewModel(MainWindow window,
+            ILogger logger,
+            IConfigService configService)
         {
             _window = window;
-            Config = new ConfigViewModel(Directory.GetCurrentDirectory());
-            Config.LoadAsync().NoWarning();
+            _logger = logger;
+            ConfigService = configService;
 
-            _roomIdMonitor = this.WhenAnyValue(x => x.Config.RoomId, x => x.TriggerLiveRecordListQuery)
+            InitAsync().NoWarning();
+
+            _roomIdMonitor = this.WhenAnyValue(x => x.ConfigService.Config.RoomId, x => x.TriggerLiveRecordListQuery)
                     .Throttle(TimeSpan.FromMilliseconds(800))
                     .DistinctUntilChanged()
                     .Where(i => i.Item1 > 0)
                     .Select(i => i.Item1)
                     .ObserveOn(RxApp.MainThreadScheduler)
-                    .Subscribe(GetAnchorInfo);
+                    .Subscribe(i => GetAnchorInfoAsync(i).NoWarning());
 
             _diskMonitor = Observable.Interval(TimeSpan.FromSeconds(1))
                     .ObserveOn(RxApp.MainThreadScheduler)
@@ -182,21 +189,26 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                         _isInitData = false;
                     });
 
-            this.WhenAnyValue(x => x.Config.RoomId, x => x.TriggerLiveRecordListQuery)
+            this.WhenAnyValue(x => x.ConfigService.Config.RoomId, x => x.TriggerLiveRecordListQuery)
                 .Throttle(TimeSpan.FromMilliseconds(800))
                 .DistinctUntilChanged()
                 .Where(i => i.Item1 > 0)
                 .Select(i => i.Item1)
-                .Subscribe(GetRecordList);
+                .Subscribe(i => GetRecordListAsync(i).NoWarning());
 
             SelectMainDirCommand = ReactiveCommand.Create(SelectDirectory);
             OpenMainDirCommand = ReactiveCommand.CreateFromObservable(OpenDirectory);
-            CopyLiveRecordDownloadUrlCommand = ReactiveCommand.CreateFromTask<GridRecordContextMenuInfo>(CopyLiveRecordDownloadUrl);
+            CopyLiveRecordDownloadUrlCommand = ReactiveCommand.CreateFromTask<GridRecordContextMenuInfo>(CopyLiveRecordDownloadUrlAsync);
             OpenLiveRecordUrlCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo, Unit>(OpenLiveRecordUrl);
             OpenDirCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo, Unit>(OpenDir);
             DownLoadCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo, Unit>(Download);
             ShowWindowCommand = ReactiveCommand.Create(ShowWindow);
             ExitCommand = ReactiveCommand.Create(Exit);
+        }
+
+        private async Task InitAsync()
+        {
+            await ConfigService.LoadAsync(default);
         }
 
         private void SelectDirectory()
@@ -209,11 +221,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 AddToMostRecentlyUsedList = false,
                 EnsurePathExists = true,
                 NavigateToShortcut = true,
-                InitialDirectory = Config.MainDir
+                InitialDirectory = ConfigService.Config.MainDir
             };
             if (dlg.ShowDialog() == CommonFileDialogResult.Ok)
             {
-                Config.MainDir = dlg.FileName;
+                ConfigService.Config.MainDir = dlg.FileName;
             }
         }
 
@@ -221,13 +233,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         {
             return Observable.Start(() =>
             {
-                Utils.Utils.OpenDir(Config.MainDir);
+                Utils.Utils.OpenDir(ConfigService.Config.MainDir);
             });
         }
 
         private void GetDiskUsage(long _)
         {
-            var (availableFreeSpace, totalSize) = Utils.Utils.GetDiskUsage(Config.MainDir);
+            var (availableFreeSpace, totalSize) = Utils.Utils.GetDiskUsage(ConfigService.Config.MainDir);
             if (totalSize != 0)
             {
                 DiskUsageProgressBarText = $@"已使用 {Utils.Utils.CountSize(totalSize - availableFreeSpace)}/{Utils.Utils.CountSize(totalSize)} 剩余 {Utils.Utils.CountSize(availableFreeSpace)}";
@@ -241,7 +253,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             }
         }
 
-        private async void GetAnchorInfo(long roomId)
+        private async Task GetAnchorInfoAsync(long roomId)
         {
             try
             {
@@ -265,7 +277,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             }
         }
 
-        private async void GetRecordList(long roomId)
+        private async Task GetRecordListAsync(long roomId)
         {
             try
             {
@@ -311,7 +323,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             }
         }
 
-        private static async Task CopyLiveRecordDownloadUrl(GridRecordContextMenuInfo info)
+        private static async Task CopyLiveRecordDownloadUrlAsync(GridRecordContextMenuInfo info)
         {
             try
             {
@@ -361,7 +373,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 {
                     if (info?.Record is LiveRecordListViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
                     {
-                        var root = Path.Combine(Config.MainDir, $@"{RoomId}", @"Replay");
+                        var root = Path.Combine(ConfigService.Config.MainDir, $@"{RoomId}", @"Replay");
                         var path = Path.Combine(root, liveRecord.Rid);
                         if (!Utils.Utils.OpenDir(path))
                         {
@@ -385,8 +397,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 {
                     if (info?.Record is LiveRecordListViewModel liveRecord)
                     {
-                        var root = Path.Combine(Config.MainDir, $@"{RoomId}", @"Replay");
-                        DownloadTaskPool.Download(liveRecord, root, Config.DownloadThreads).NoWarning(); //Async
+                        var root = Path.Combine(ConfigService.Config.MainDir, $@"{RoomId}", @"Replay");
+                        DownloadTaskPool.DownloadAsync(liveRecord, root, ConfigService.Config.DownloadThreads).NoWarning(); //Async
                     }
                 }
                 catch (Exception ex)
@@ -412,7 +424,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         {
             _diskMonitor?.Dispose();
             _roomIdMonitor?.Dispose();
-            Config?.Dispose();
+            ConfigService?.Dispose();
         }
     }
 }

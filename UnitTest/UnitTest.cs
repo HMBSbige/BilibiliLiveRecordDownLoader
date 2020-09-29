@@ -12,7 +12,7 @@ namespace UnitTest
     public class UnitTest
     {
         [TestMethod]
-        public async Task TestDownload()
+        public async Task TestDownloadAsync()
         {
             const string url = @"https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/Image_created_with_a_mobile_phone.png/1200px-Image_created_with_a_mobile_phone.png";
             const string filename = @"test.png";

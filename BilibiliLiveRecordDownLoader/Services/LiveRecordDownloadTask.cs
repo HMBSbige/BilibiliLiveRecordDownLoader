@@ -40,7 +40,7 @@ namespace BilibiliLiveRecordDownLoader.Services
         /// <summary>
         /// 开始或停止下载
         /// </summary>
-        public async Task StartOrStop()
+        public async Task StartOrStopAsync()
         {
             if (IsDownloading)
             {
@@ -48,11 +48,11 @@ namespace BilibiliLiveRecordDownLoader.Services
             }
             else
             {
-                await Start();
+                await StartAsync();
             }
         }
 
-        private async Task Start()
+        private async Task StartAsync()
         {
             try
             {

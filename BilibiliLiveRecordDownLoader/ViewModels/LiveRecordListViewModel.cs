@@ -143,11 +143,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         /// 开始或停止下载
         /// </summary>
         /// <returns></returns>
-        public async Task StartOrStop()
+        public async Task StartOrStopAsync()
         {
             if (LiveRecordDownloadTask != null)
             {
-                await LiveRecordDownloadTask.StartOrStop();
+                await LiveRecordDownloadTask.StartOrStopAsync();
             }
         }
 
