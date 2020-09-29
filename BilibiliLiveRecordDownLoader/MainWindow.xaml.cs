@@ -18,6 +18,8 @@ namespace BilibiliLiveRecordDownLoader
 {
     public partial class MainWindow
     {
+        private IDisposable _logServices;
+
         public MainWindow(ILogger<MainWindow> logger,
             IConfigService configService)
         {
@@ -27,8 +29,6 @@ namespace BilibiliLiveRecordDownLoader
             this.WhenActivated(d =>
             {
                 ViewModel.DisposeWith(d);
-
-                logger.LogDebug(@"MainWindow Activated");
 
                 this.Bind(ViewModel,
                     vm => vm.ConfigService.Config.RoomId,
@@ -42,7 +42,6 @@ namespace BilibiliLiveRecordDownLoader
                     {
                         return;
                     }
-
                     ViewModel.TriggerLiveRecordListQuery = !ViewModel.TriggerLiveRecordListQuery;
                 }).DisposeWith(d);
 
@@ -145,6 +144,18 @@ namespace BilibiliLiveRecordDownLoader
                     x => x,
                     x => x.HasValue ? Convert.ToByte(x.Value) : (byte)8).DisposeWith(d);
 
+                Observable.FromEventPattern(LogTextBox, nameof(LogTextBox.TextChanged)).Subscribe(args =>
+                {
+                    if (LogTextBox.LineCount > 200)
+                    {
+                        _logServices?.Dispose();
+                        LogTextBox.Clear();
+                        _logServices = CreateLogService();
+                    }
+                });
+
+                _logServices = CreateLogService();
+
                 LiveRecordListDataGrid.Events().Loaded.Subscribe(args =>
                 {
                     LiveRecordListDataGrid.GridColumnSizer = new GridColumnSizerExt(LiveRecordListDataGrid);
@@ -208,5 +219,15 @@ namespace BilibiliLiveRecordDownLoader
         }
 
         #endregion
+
+        private IDisposable CreateLogService()
+        {
+            return ((App)System.Windows.Application.Current).SubjectMemorySink.LogSubject
+                    .ObserveOnDispatcher()
+                    .Subscribe(str =>
+                    {
+                        LogTextBox.AppendText(str);
+                    });
+        }
     }
 }

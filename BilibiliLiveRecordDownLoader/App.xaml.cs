@@ -23,6 +23,8 @@ namespace BilibiliLiveRecordDownLoader
 
         public IServiceProvider ServiceProvider { get; private set; }
 
+        public SubjectMemorySink SubjectMemorySink { get; } = new SubjectMemorySink(Constants.OutputTemplate);
+
         private void Application_Startup(object sender, StartupEventArgs e)
         {
             Directory.SetCurrentDirectory(Path.GetDirectoryName(Utils.Utils.GetExecutablePath()));
@@ -104,6 +106,7 @@ namespace BilibiliLiveRecordDownLoader
                             rollOnFileSizeLimit: true,
                             retainedFileCountLimit: 2,
                             fileSizeLimitBytes: Constants.MaxLogFileSize))
+                    .WriteTo.Sink(SubjectMemorySink)
                     .CreateLogger();
 
             services.AddSingleton<MainWindow>();
