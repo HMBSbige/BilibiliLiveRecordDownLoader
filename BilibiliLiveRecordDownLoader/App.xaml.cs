@@ -90,19 +90,17 @@ namespace BilibiliLiveRecordDownLoader
 
         private void ConfigureServices(IServiceCollection services)
         {
-            const string outputTemplate =
-                    @"[{Timestamp:yyyy-MM-dd HH:mm:ss}] [{Level}] {Message:lj}{NewLine}{Exception}";
             Log.Logger = new LoggerConfiguration()
 #if DEBUG
                     .MinimumLevel.Debug()
-                    .WriteTo.Debug(outputTemplate: outputTemplate)
+                    .WriteTo.Debug(outputTemplate: Constants.OutputTemplate)
 #else
                     .MinimumLevel.Information()
 #endif
                     .MinimumLevel.Override(@"Microsoft", LogEventLevel.Information)
                     .Enrich.FromLogContext()
-                    .WriteTo.Async(c => c.File(@"Logs/BilibiliLiveRecordDownLoader.log",
-                            outputTemplate: outputTemplate,
+                    .WriteTo.Async(c => c.File(Constants.LogFile,
+                            outputTemplate: Constants.OutputTemplate,
                             rollOnFileSizeLimit: true,
                             retainedFileCountLimit: 2,
                             fileSizeLimitBytes: Constants.MaxLogFileSize))

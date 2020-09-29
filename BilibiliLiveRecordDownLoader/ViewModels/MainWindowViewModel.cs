@@ -319,9 +319,9 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // ignored
+                _logger.LogError(ex, @"加载列表出错");
             }
             finally
             {

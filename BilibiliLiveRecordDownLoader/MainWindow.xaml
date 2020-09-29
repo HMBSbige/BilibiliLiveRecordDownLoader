@@ -37,7 +37,7 @@
                 </ContextMenu>
             </tb:TaskbarIcon.ContextMenu>
         </tb:TaskbarIcon>
-        <TabControl>
+        <TabControl FontSize="14">
             <TabItem Header="直播回放">
                 <DockPanel>
                     <Grid Margin="5" DockPanel.Dock="Top">
@@ -184,6 +184,9 @@
                     </Syncfusion:SfDataGrid>
                 </DockPanel>
             </TabItem>
+            <TabItem Header="日志">
+                <TextBox x:Name="LogTextBox" IsReadOnly="True" Opacity="1" d:Text="日志&#13;LogTextBox" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+            </TabItem>
             <TabItem Header="设置">
                 <StackPanel>
                     <GroupBox Header="根目录" Margin="3">
@@ -196,7 +199,7 @@
                                 <ColumnDefinition />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBox x:Name="MainDirTextBox" Grid.Row="0" Grid.Column="0" IsReadOnly="True" Margin="3" VerticalContentAlignment="Center" d:Text="D:\Video" />
+                            <TextBox x:Name="MainDirTextBox" Grid.Row="0" Grid.Column="0" IsReadOnly="True" Margin="3" VerticalContentAlignment="Center" d:Text="D:\Video" Opacity="1"/>
                             <Grid Grid.Row="1" Grid.Column="0" Margin="3">
                                 <Syncfusion:SfLinearProgressBar x:Name="DiskUsageProgressBar" d:Progress="68" Height="23.5" IndicatorPadding="3" />
                                 <TextBlock x:Name="DiskUsageProgressBarTextBlock" HorizontalAlignment="Center" VerticalAlignment="Center" />

@@ -24,11 +24,11 @@ namespace BilibiliLiveRecordDownLoader
             InitializeComponent();
             ViewModel = new MainWindowViewModel(this, logger, configService);
 
-            LiveRecordListDataGrid.GridColumnSizer = new GridColumnSizerExt(LiveRecordListDataGrid);
-
             this.WhenActivated(d =>
             {
                 ViewModel.DisposeWith(d);
+
+                logger.LogDebug(@"MainWindow Activated");
 
                 this.Bind(ViewModel,
                     vm => vm.ConfigService.Config.RoomId,
@@ -144,6 +144,11 @@ namespace BilibiliLiveRecordDownLoader
                     v => v.ThreadsTextBox.Value,
                     x => x,
                     x => x.HasValue ? Convert.ToByte(x.Value) : (byte)8).DisposeWith(d);
+
+                LiveRecordListDataGrid.Events().Loaded.Subscribe(args =>
+                {
+                    LiveRecordListDataGrid.GridColumnSizer = new GridColumnSizerExt(LiveRecordListDataGrid);
+                });
             });
         }
 

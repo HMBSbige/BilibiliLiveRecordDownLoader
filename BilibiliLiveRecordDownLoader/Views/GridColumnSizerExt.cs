@@ -1,6 +1,6 @@
-﻿using System.Linq;
+﻿using Syncfusion.UI.Xaml.Grid;
+using System.Linq;
 using System.Windows;
-using Syncfusion.UI.Xaml.Grid;
 
 namespace BilibiliLiveRecordDownLoader.Views
 {
@@ -15,9 +15,13 @@ namespace BilibiliLiveRecordDownLoader.Views
             if (column is GridDateTimeColumn)
             {
                 var clientSize = new Size(double.MaxValue, DataGrid.RowHeight);
-                length = DataGrid.View.Records.Where(recordEntry => recordEntry?.Data != null)
-                        .Select(recordEntry => GetDisplayText(column, recordEntry.Data))
-                        .Select(text => MeasureText(clientSize, text, column, null, GridQueryBounds.Width).Width).Prepend(length).Max();
+                if (DataGrid.View != null)
+                {
+                    length = DataGrid.View.Records.Where(recordEntry => recordEntry?.Data != null)
+                            .Select(recordEntry => GetDisplayText(column, recordEntry.Data))
+                            .Select(text => MeasureText(clientSize, text, column, null, GridQueryBounds.Width).Width)
+                            .Prepend(length).Max();
+                }
             }
 
             return length;
