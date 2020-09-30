@@ -1,15 +1,10 @@
 ﻿using System;
 
-namespace BilibiliLiveRecordDownLoader.BilibiliApi.Model
+namespace BilibiliLiveRecordDownLoader.BilibiliApi.Model.LiveRecordUrl
 {
     [Serializable]
-    public class LiveRecordUrl
+    public class LiveRecordUrlData
     {
-        /// <summary>
-        /// 下载地址
-        /// </summary>
-        public string url { get; set; }
-
         /// <summary>
         /// 视频大小，单位字节（Byte）
         /// </summary>
@@ -21,8 +16,8 @@ namespace BilibiliLiveRecordDownLoader.BilibiliApi.Model
         public long length { get; set; }
 
         /// <summary>
-        /// 备用下载地址，通常为 null
+        /// 分段视频信息
         /// </summary>
-        public string backup_url { get; set; }
+        public LiveRecordUrl[] list { get; set; }
     }
 }

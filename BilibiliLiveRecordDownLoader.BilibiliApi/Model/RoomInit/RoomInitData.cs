@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace BilibiliLiveRecordDownLoader.BilibiliApi.Model
+namespace BilibiliLiveRecordDownLoader.BilibiliApi.Model.RoomInit
 {
     [Serializable]
     public class RoomInitData

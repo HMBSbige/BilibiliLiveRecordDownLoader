@@ -1,28 +1,28 @@
 ﻿using System;
 
-namespace BilibiliLiveRecordDownLoader.BilibiliApi.Model
+namespace BilibiliLiveRecordDownLoader.BilibiliApi.Model.RoomInit
 {
     [Serializable]
-    public class AnchorInfoMessage
+    public class RoomInitMessage
     {
         /// <summary>
         /// 正常返回 0
         /// </summary>
-        public int code { get; set; }
+        public long code { get; set; }
 
         /// <summary>
-        /// 正常返回 "success"，否则返回错误信息
+        /// 正常返回 "ok"，否则返回错误信息
         /// </summary>
         public string msg { get; set; }
 
         /// <summary>
-        /// 正常返回 "success"，否则返回错误信息
+        /// 正常返回 "ok"，否则返回错误信息
         /// </summary>
         public string message { get; set; }
 
         /// <summary>
-        /// 主播信息
+        /// 房间信息
         /// </summary>
-        public AnchorInfoData data { get; set; }
+        public RoomInitData data { get; set; }
     }
 }

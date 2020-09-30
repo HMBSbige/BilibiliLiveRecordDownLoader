@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace BilibiliLiveRecordDownLoader.BilibiliApi.Model
+namespace BilibiliLiveRecordDownLoader.BilibiliApi.Model.LiveRecordList
 {
     [Serializable]
     public class LiveRecordList
