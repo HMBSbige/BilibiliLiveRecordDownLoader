@@ -1,4 +1,4 @@
-﻿using BilibiliLiveRecordDownLoader.BilibiliApi.Model.LiveRecordList;
+﻿using BilibiliApi.Model.LiveRecordList;
 using BilibiliLiveRecordDownLoader.Services;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace BilibiliLiveRecordDownLoader.BilibiliApi.Model.DanmuConf
+namespace BilibiliApi.Model.DanmuConf
 {
     [Serializable]
     public class DanmuConfData

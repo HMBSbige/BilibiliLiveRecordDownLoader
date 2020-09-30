@@ -1,4 +1,4 @@
-﻿using BilibiliLiveRecordDownLoader.BilibiliApi;
+﻿using BilibiliApi;
 using BilibiliLiveRecordDownLoader.FlvProcessor;
 using BilibiliLiveRecordDownLoader.Http;
 using System;

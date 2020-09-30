@@ -1,5 +1,5 @@
-﻿using BilibiliLiveRecordDownLoader.BilibiliApi;
-using BilibiliLiveRecordDownLoader.BilibiliApi.Model.LiveRecordList;
+﻿using BilibiliApi;
+using BilibiliApi.Model.LiveRecordList;
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;

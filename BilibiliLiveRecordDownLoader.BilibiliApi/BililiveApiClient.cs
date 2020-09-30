@@ -1,8 +1,8 @@
-﻿using BilibiliLiveRecordDownLoader.BilibiliApi.Model.AnchorInfo;
-using BilibiliLiveRecordDownLoader.BilibiliApi.Model.DanmuConf;
-using BilibiliLiveRecordDownLoader.BilibiliApi.Model.LiveRecordList;
-using BilibiliLiveRecordDownLoader.BilibiliApi.Model.LiveRecordUrl;
-using BilibiliLiveRecordDownLoader.BilibiliApi.Model.RoomInit;
+﻿using BilibiliApi.Model.AnchorInfo;
+using BilibiliApi.Model.DanmuConf;
+using BilibiliApi.Model.LiveRecordList;
+using BilibiliApi.Model.LiveRecordUrl;
+using BilibiliApi.Model.RoomInit;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -11,7 +11,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace BilibiliLiveRecordDownLoader.BilibiliApi
+namespace BilibiliApi
 {
     public class BililiveApiClient : IDisposable
     {

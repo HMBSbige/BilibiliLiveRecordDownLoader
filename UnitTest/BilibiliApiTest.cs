@@ -1,4 +1,4 @@
-﻿using BilibiliLiveRecordDownLoader.BilibiliApi;
+﻿using BilibiliApi;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Threading.Tasks;
 

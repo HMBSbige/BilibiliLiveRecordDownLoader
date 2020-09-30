@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace BilibiliLiveRecordDownLoader.BilibiliApi.Model.AnchorInfo
+namespace BilibiliApi.Model.AnchorInfo
 {
     [Serializable]
     public class AnchorInfo
