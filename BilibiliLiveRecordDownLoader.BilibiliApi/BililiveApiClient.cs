@@ -1,4 +1,5 @@
 ﻿using BilibiliLiveRecordDownLoader.BilibiliApi.Model.AnchorInfo;
+using BilibiliLiveRecordDownLoader.BilibiliApi.Model.DanmuConf;
 using BilibiliLiveRecordDownLoader.BilibiliApi.Model.LiveRecordList;
 using BilibiliLiveRecordDownLoader.BilibiliApi.Model.LiveRecordUrl;
 using BilibiliLiveRecordDownLoader.BilibiliApi.Model.RoomInit;
@@ -14,7 +15,7 @@ namespace BilibiliLiveRecordDownLoader.BilibiliApi
 {
     public class BililiveApiClient : IDisposable
     {
-        public string UserAgent { get; set; } = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.135 Safari/537.36";
+        public string UserAgent { get; set; } = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.121 Safari/537.36";
 
         public string Cookie { get; set; }
 
@@ -85,6 +86,20 @@ namespace BilibiliLiveRecordDownLoader.BilibiliApi
             var url = $@"https://api.live.bilibili.com/live_user/v1/UserInfo/get_anchor_in_room?roomid={roomId}";
             await using var jsonStream = await GetStreamAsync(url, token);
             var json = await JsonSerializer.DeserializeAsync<AnchorInfoMessage>(jsonStream, cancellationToken: token);
+            return json;
+        }
+
+        /// <summary>
+        /// 获取弹幕服务器地址
+        /// </summary>
+        /// <param name="roomId">房间号（理论上不允许短号，目前实测任意都可以）</param>
+        /// <param name="token"></param>
+        /// <returns></returns>
+        public async Task<DanmuConfMessage> GetDanmuConf(long roomId, CancellationToken token = default)
+        {
+            var url = $@"https://api.live.bilibili.com/room/v1/Danmu/getConf?room_id={roomId}";
+            await using var jsonStream = await GetStreamAsync(url, token);
+            var json = await JsonSerializer.DeserializeAsync<DanmuConfMessage>(jsonStream, cancellationToken: token);
             return json;
         }
 

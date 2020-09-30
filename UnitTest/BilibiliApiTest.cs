@@ -1,6 +1,6 @@
-﻿using System.Threading.Tasks;
-using BilibiliLiveRecordDownLoader.BilibiliApi;
+﻿using BilibiliLiveRecordDownLoader.BilibiliApi;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Threading.Tasks;
 
 namespace UnitTest
 {
@@ -79,6 +79,21 @@ namespace UnitTest
             Assert.AreEqual(json.data.info.uname, @"Asaki大人");
             Assert.IsTrue(json.data.info.face.StartsWith(@"https://"));
             Assert.AreEqual(json.data.info.platform_user_level, 6);
+        }
+
+        [TestMethod]
+        public async Task GetDanmuConfTestAsync()
+        {
+            using var client = new BililiveApiClient();
+            var json = await client.GetDanmuConf(6154037);
+            Assert.AreEqual(json.code, 0);
+            Assert.AreEqual(json.msg, @"ok");
+            Assert.AreEqual(json.message, @"ok");
+            Assert.AreEqual(json.data.port, 2243);
+            Assert.AreEqual(json.data.host, @"broadcastlv.chat.bilibili.com");
+            Assert.IsTrue(json.data.host_server_list.Length > 0);
+            Assert.IsTrue(json.data.server_list.Length > 0);
+            Assert.IsTrue(!string.IsNullOrWhiteSpace(json.data.token));
         }
     }
 }
