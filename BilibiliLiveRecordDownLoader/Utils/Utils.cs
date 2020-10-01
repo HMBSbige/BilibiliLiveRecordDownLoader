@@ -2,8 +2,6 @@
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
 using System.Windows;
 
 namespace BilibiliLiveRecordDownLoader.Utils
@@ -49,7 +47,10 @@ namespace BilibiliLiveRecordDownLoader.Utils
                 var allDrives = DriveInfo.GetDrives();
                 foreach (var d in allDrives)
                 {
-                    if (d.Name != Path.GetPathRoot(path)) continue;
+                    if (d.Name != Path.GetPathRoot(path))
+                    {
+                        continue;
+                    }
 
                     if (d.IsReady)
                     {
@@ -129,9 +130,6 @@ namespace BilibiliLiveRecordDownLoader.Utils
             return Path.GetDirectoryName(GetExecutablePath());
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void NoWarning(this Task _) { }
-
         public static void CopyToClipboard(object obj)
         {
             try
@@ -169,7 +167,10 @@ namespace BilibiliLiveRecordDownLoader.Utils
                 {
                     hash1 = ((hash1 << 5) + hash1) ^ str[i];
                     if (i == str.Length - 1)
+                    {
                         break;
+                    }
+
                     hash2 = ((hash2 << 5) + hash2) ^ str[i + 1];
                 }
 

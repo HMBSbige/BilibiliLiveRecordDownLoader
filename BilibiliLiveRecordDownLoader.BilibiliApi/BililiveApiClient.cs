@@ -4,7 +4,6 @@ using BilibiliApi.Model.LiveRecordList;
 using BilibiliApi.Model.LiveRecordUrl;
 using BilibiliApi.Model.RoomInit;
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Text.Json;
@@ -103,28 +102,13 @@ namespace BilibiliApi
             return json;
         }
 
-        public async Task<Stream> GetStreamAsync(string url, CancellationToken token = default)
+        private async Task<Stream> GetStreamAsync(string url, CancellationToken token = default)
         {
             await SemaphoreSlim.WaitAsync(token);
             try
             {
                 var stream = await _httpClient.GetStreamAsync(url);
                 return stream;
-            }
-            finally
-            {
-                SemaphoreSlim.Release();
-            }
-        }
-
-        public async Task<string> GetStringAsync(string url, CancellationToken token = default)
-        {
-            await SemaphoreSlim.WaitAsync(token);
-            try
-            {
-                var str = await _httpClient.GetStringAsync(url);
-                Debug.WriteLine(str);
-                return str;
             }
             finally
             {
