@@ -44,9 +44,9 @@ namespace BilibiliApi
 
         private static readonly ArrayPool<byte> BytePool = ArrayPool<byte>.Shared;
 
-        private const int BufferSize = 2 * 1024;
+        private const int BufferSize = 1024;
 
-        public TcpDanmuClient(ILogger<TcpDanmuClient> logger)
+        public TcpDanmuClient(ILogger logger)
         {
             _logger = logger;
         }
@@ -58,9 +58,9 @@ namespace BilibiliApi
                 throw new ObjectDisposedException(nameof(TcpDanmuClient));
             }
 
-            _cts = new CancellationTokenSource();
-
             await StopAsync();
+
+            _cts = new CancellationTokenSource();
 
             await GetServerAsync(_cts.Token);
 
