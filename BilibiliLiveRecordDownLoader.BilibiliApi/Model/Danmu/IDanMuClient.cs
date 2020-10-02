@@ -14,7 +14,7 @@ namespace BilibiliApi.Model.Danmu
         /// 连接失败重试间隔
         /// </summary>
         TimeSpan RetryInterval { get; set; }
-        IObservable<Danmu> Received { get; }
+        IObservable<DanmuPacket> Received { get; }
         ValueTask StartAsync();
         ValueTask StopAsync();
     }

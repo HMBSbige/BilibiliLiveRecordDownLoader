@@ -22,10 +22,10 @@ namespace BilibiliApi
 
         public long RoomId { get; set; }
 
-        public TimeSpan RetryInterval { get; set; } = TimeSpan.FromSeconds(10);
+        public TimeSpan RetryInterval { get; set; } = TimeSpan.FromSeconds(2);
 
-        private readonly Subject<Danmu> _danMuSubj = new Subject<Danmu>();
-        public IObservable<Danmu> Received => _danMuSubj.AsObservable();
+        private readonly Subject<DanmuPacket> _danMuSubj = new Subject<DanmuPacket>();
+        public IObservable<DanmuPacket> Received => _danMuSubj.AsObservable();
 
         private string _host;
         private ushort _port;
@@ -114,7 +114,7 @@ namespace BilibiliApi
         {
             while (!TcpConnected && !token.IsCancellationRequested)
             {
-                _logger.LogInformation($@"[{RoomId}] 正在连接弹幕服务器...");
+                _logger.LogInformation($@"[{RoomId}] 正在连接弹幕服务器 {_host}:{_port}");
 
                 if (!await ConnectAsync(token))
                 {
@@ -350,6 +350,11 @@ namespace BilibiliApi
 
         private void EmitDanmu(in DanmuPacket packet)
         {
+            if (packet == null)
+            {
+                return;
+            }
+#if DEBUG
             switch (packet.Operation)
             {
                 case 3:
@@ -375,6 +380,8 @@ namespace BilibiliApi
                     break;
                 }
             }
+#endif
+            _danMuSubj.OnNext(packet);
         }
 
         private void ResetClient()

@@ -4,7 +4,7 @@ using System.Buffers.Binary;
 
 namespace BilibiliApi.Model.Danmu
 {
-    internal class DanmuPacket
+    public class DanmuPacket
     {
         /// <summary>
         /// 消息总长度，HeaderLength + bytes(Body).Length
