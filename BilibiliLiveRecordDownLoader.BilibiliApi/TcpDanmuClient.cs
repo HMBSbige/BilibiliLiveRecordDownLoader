@@ -364,14 +364,9 @@ namespace BilibiliApi
                     break;
                 }
                 case 5:
-                {
-                    _logger.LogDebug($@"收到弹幕[{packet.Operation}]: {Encoding.UTF8.GetString(packet.Body.Span)}");
-                    break;
-                }
                 case 8:
                 {
-                    // 进房回应
-                    _logger.LogDebug($@"收到弹幕[{packet.Operation}]: {Encoding.UTF8.GetString(packet.Body.Span)}");
+                    _logger.LogDebug(@"收到弹幕[{0}]:{1}", packet.Operation, Encoding.UTF8.GetString(packet.Body.Span));
                     break;
                 }
                 default:

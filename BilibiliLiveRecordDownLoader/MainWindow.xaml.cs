@@ -146,7 +146,7 @@ namespace BilibiliLiveRecordDownLoader
 
                 Observable.FromEventPattern(LogTextBox, nameof(LogTextBox.TextChanged)).Subscribe(args =>
                 {
-                    if (LogTextBox.LineCount > 200)
+                    if (LogTextBox.LineCount > 2000)
                     {
                         _logServices?.Dispose();
                         LogTextBox.Clear();
