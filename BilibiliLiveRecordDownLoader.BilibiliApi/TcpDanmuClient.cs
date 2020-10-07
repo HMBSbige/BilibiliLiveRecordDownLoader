@@ -1,4 +1,5 @@
-﻿using BilibiliApi.Model.Danmu;
+﻿using BilibiliApi.Enums;
+using BilibiliApi.Model.Danmu;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Buffers;
@@ -138,7 +139,7 @@ namespace BilibiliApi
                 await _client.ConnectAsync(_host, _port);
                 var netStream = _client.GetStream();
 
-                await JoinChannelAsync(netStream, token);
+                await AuthAsync(netStream, token);
 
                 _heartBeatTask = Observable.Interval(TimeSpan.FromSeconds(30))
                     .Subscribe(_ => SendHeartbeatAsync(netStream, token).NoWarning());
@@ -152,7 +153,7 @@ namespace BilibiliApi
             }
         }
 
-        private static async ValueTask SendDataAsync(Stream stream, int action, string body, CancellationToken token)
+        private static async ValueTask SendDataAsync(Stream stream, Operation operation, string body, CancellationToken token)
         {
             var data = Encoding.UTF8.GetBytes(body);
             var packet = new DanmuPacket
@@ -160,7 +161,7 @@ namespace BilibiliApi
                 PacketLength = data.Length + 16,
                 HeaderLength = 16,
                 ProtocolVersion = 1,
-                Operation = action,
+                Operation = operation,
                 SequenceId = 1,
                 Body = data
             };
@@ -178,10 +179,10 @@ namespace BilibiliApi
             }
         }
 
-        private async ValueTask JoinChannelAsync(Stream stream, CancellationToken token)
+        private async ValueTask AuthAsync(Stream stream, CancellationToken token)
         {
             var json = @$"{{""roomid"":{RoomId},""uid"":0,""protover"":2,""key"":""{_token}""}}";
-            await SendDataAsync(stream, 7, json, token);
+            await SendDataAsync(stream, Operation.Auth, json, token);
         }
 
         private async ValueTask SendHeartbeatAsync(Stream stream, CancellationToken token)
@@ -189,7 +190,7 @@ namespace BilibiliApi
             try
             {
                 _logger.LogDebug(@"发送心跳包");
-                await SendDataAsync(stream, 2, string.Empty, token);
+                await SendDataAsync(stream, Operation.Heartbeat, string.Empty, token);
             }
             catch (Exception ex)
             {
@@ -357,14 +358,13 @@ namespace BilibiliApi
 #if DEBUG
             switch (packet.Operation)
             {
-                case 3:
+                case Operation.HeartbeatReply:
                 {
-                    // 心跳回应
                     _logger.LogDebug($@"收到弹幕[{packet.Operation}] 人气值: {BinaryPrimitives.ReadUInt32BigEndian(packet.Body.Span)}");
                     break;
                 }
-                case 5:
-                case 8:
+                case Operation.SendMsgReply:
+                case Operation.AuthReply:
                 {
                     _logger.LogDebug(@"收到弹幕[{0}]:{1}", packet.Operation, Encoding.UTF8.GetString(packet.Body.Span));
                     break;

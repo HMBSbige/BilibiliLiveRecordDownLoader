@@ -1,4 +1,5 @@
-﻿using System;
+﻿using BilibiliApi.Enums;
+using System;
 using System.Buffers;
 using System.Buffers.Binary;
 
@@ -24,7 +25,7 @@ namespace BilibiliApi.Model.Danmu
         /// <summary>
         /// 消息类型
         /// </summary>
-        public int Operation { get; set; }
+        public Operation Operation { get; set; }
 
         /// <summary>
         /// 参数
@@ -43,7 +44,7 @@ namespace BilibiliApi.Model.Danmu
             BinaryPrimitives.WriteInt32BigEndian(res.Span, PacketLength);
             BinaryPrimitives.WriteInt16BigEndian(res.Span.Slice(4), HeaderLength);
             BinaryPrimitives.WriteInt16BigEndian(res.Span.Slice(6), ProtocolVersion);
-            BinaryPrimitives.WriteInt32BigEndian(res.Span.Slice(8), Operation);
+            BinaryPrimitives.WriteInt32BigEndian(res.Span.Slice(8), (int)Operation);
             BinaryPrimitives.WriteInt32BigEndian(res.Span.Slice(12), SequenceId);
             Body.CopyTo(res.Slice(HeaderLength));
 
@@ -54,7 +55,7 @@ namespace BilibiliApi.Model.Danmu
         {
             HeaderLength = BinaryPrimitives.ReadInt16BigEndian(buffer.Span);
             ProtocolVersion = BinaryPrimitives.ReadInt16BigEndian(buffer.Span.Slice(2));
-            Operation = BinaryPrimitives.ReadInt32BigEndian(buffer.Span.Slice(4));
+            Operation = (Operation)BinaryPrimitives.ReadInt32BigEndian(buffer.Span.Slice(4));
             SequenceId = BinaryPrimitives.ReadInt32BigEndian(buffer.Span.Slice(8));
             Body = buffer.Slice(HeaderLength - 4, PacketLength - HeaderLength);
         }
@@ -83,7 +84,7 @@ namespace BilibiliApi.Model.Danmu
             PacketLength = packetLength;
             HeaderLength = headerLength;
             ProtocolVersion = version;
-            Operation = operation;
+            Operation = (Operation)operation;
             SequenceId = seqId;
 
             // TODO .NET 5.0
