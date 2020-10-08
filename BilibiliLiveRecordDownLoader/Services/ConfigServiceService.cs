@@ -1,4 +1,4 @@
-﻿using BilibiliApi;
+﻿using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models;
 using Microsoft.Extensions.Logging;

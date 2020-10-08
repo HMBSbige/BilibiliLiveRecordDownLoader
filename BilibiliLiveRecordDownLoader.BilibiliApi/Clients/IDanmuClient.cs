@@ -1,7 +1,8 @@
-﻿using System;
+﻿using BilibiliApi.Model.Danmu;
+using System;
 using System.Threading.Tasks;
 
-namespace BilibiliApi.Model.Danmu
+namespace BilibiliApi.Clients
 {
     public interface IDanmuClient : IAsyncDisposable
     {

@@ -1,4 +1,4 @@
-﻿using BilibiliApi;
+﻿using BilibiliApi.Clients;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Threading.Tasks;
 

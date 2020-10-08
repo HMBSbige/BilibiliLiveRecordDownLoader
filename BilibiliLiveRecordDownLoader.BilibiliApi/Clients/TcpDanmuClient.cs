@@ -1,5 +1,6 @@
 ﻿using BilibiliApi.Enums;
 using BilibiliApi.Model.Danmu;
+using BilibiliApi.Utils;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Buffers;
@@ -15,7 +16,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace BilibiliApi
+namespace BilibiliApi.Clients
 {
     public class TcpDanmuClient : IDanmuClient
     {

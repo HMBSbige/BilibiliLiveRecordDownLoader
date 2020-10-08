@@ -1,7 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
-namespace BilibiliApi
+namespace BilibiliApi.Utils
 {
     public static class Utils
     {
