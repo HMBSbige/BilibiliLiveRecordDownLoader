@@ -1,5 +1,6 @@
 ﻿using BilibiliApi.Enums;
 using BilibiliApi.Model.Danmu;
+using BilibiliApi.Model.DanmuConf;
 using BilibiliApi.Utils;
 using Microsoft.Extensions.Logging;
 using System;
@@ -29,16 +30,18 @@ namespace BilibiliApi.Clients
         private readonly Subject<DanmuPacket> _danMuSubj = new Subject<DanmuPacket>();
         public IObservable<DanmuPacket> Received => _danMuSubj.AsObservable();
 
-        private string _host;
-        private ushort _port;
+        protected string Host;
+        protected ushort Port;
+        protected virtual string Server => $@"{Host}:{Port}";
         private string _token;
 
         private const string DefaultHost = @"broadcastlv.chat.bilibili.com";
-        private const ushort DefaultPort = 2243;
+        protected virtual ushort DefaultPort => 2243;
         private const string DefaultToken = @"";
 
         private TcpClient _client;
-        private bool TcpConnected => _client?.Connected ?? false;
+        private NetworkStream _netStream;
+        protected virtual bool ClientConnected => _client?.Connected ?? false;
 
         private IDisposable _heartBeatTask;
 
@@ -53,11 +56,34 @@ namespace BilibiliApi.Clients
             _logger = logger;
         }
 
-        public async ValueTask StartAsync()
+        protected virtual ushort GetPort(HostServerList server)
+        {
+            return server.port;
+        }
+
+        protected virtual async ValueTask SendAsync(ReadOnlyMemory<byte> buffer, CancellationToken token)
+        {
+            await _netStream.WriteAsync(buffer, token);
+            await _netStream.FlushAsync(token);
+        }
+
+        protected virtual async ValueTask<int> ReceiveAsync(Memory<byte> buffer, CancellationToken token)
+        {
+            return await _netStream.ReadAsync(buffer, token);
+        }
+
+        protected virtual async ValueTask ClientHandshakeAsync(CancellationToken token)
+        {
+            _client = new TcpClient();
+            await _client.ConnectAsync(Host, Port);
+            _netStream = _client.GetStream();
+        }
+
+        public virtual async ValueTask StartAsync()
         {
             if (_isDisposed)
             {
-                throw new ObjectDisposedException(nameof(TcpDanmuClient));
+                throw new ObjectDisposedException(GetType().FullName);
             }
 
             await StopAsync();
@@ -77,8 +103,8 @@ namespace BilibiliApi.Clients
                 var conf = await client.GetDanmuConf(RoomId, token);
                 _token = conf.data.token;
 
-                _host = conf.data.host_server_list.First().host;
-                _port = conf.data.host_server_list.First().port;
+                Host = conf.data.host_server_list.First().host;
+                Port = GetPort(conf.data.host_server_list.First());
             }
             catch (Exception ex)
             {
@@ -86,14 +112,14 @@ namespace BilibiliApi.Clients
             }
             finally
             {
-                if (string.IsNullOrWhiteSpace(_host))
+                if (string.IsNullOrWhiteSpace(Host))
                 {
-                    _host = DefaultHost;
+                    Host = DefaultHost;
                 }
 
-                if (_port == 0)
+                if (Port == 0)
                 {
-                    _port = DefaultPort;
+                    Port = DefaultPort;
                 }
 
                 _token ??= DefaultToken;
@@ -114,9 +140,9 @@ namespace BilibiliApi.Clients
 
         private async ValueTask ConnectWithRetryAsync(CancellationToken token)
         {
-            while (!TcpConnected && !token.IsCancellationRequested)
+            while (!ClientConnected && !token.IsCancellationRequested)
             {
-                _logger.LogInformation($@"[{RoomId}] 正在连接弹幕服务器 {_host}:{_port}");
+                _logger.LogInformation($@"[{RoomId}] 正在连接弹幕服务器 {Server}");
 
                 if (!await ConnectAsync(token))
                 {
@@ -126,7 +152,7 @@ namespace BilibiliApi.Clients
 
                 _logger.LogInformation($@"[{RoomId}] 连接弹幕服务器成功");
 
-                ProcessDanMuAsync(_client.GetStream(), token).NoWarning();
+                ProcessDanMuAsync(token).NoWarning();
 
                 break;
             }
@@ -136,14 +162,12 @@ namespace BilibiliApi.Clients
         {
             try
             {
-                _client = new TcpClient();
-                await _client.ConnectAsync(_host, _port);
-                var netStream = _client.GetStream();
+                await ClientHandshakeAsync(token);
 
-                await AuthAsync(netStream, token);
+                await AuthAsync(token);
 
                 _heartBeatTask = Observable.Interval(TimeSpan.FromSeconds(30))
-                    .Subscribe(_ => SendHeartbeatAsync(netStream, token).NoWarning());
+                    .Subscribe(_ => SendHeartbeatAsync(token).NoWarning());
 
                 return true;
             }
@@ -154,7 +178,7 @@ namespace BilibiliApi.Clients
             }
         }
 
-        private static async ValueTask SendDataAsync(Stream stream, Operation operation, string body, CancellationToken token)
+        private async ValueTask SendDataAsync(Operation operation, string body, CancellationToken token)
         {
             var data = Encoding.UTF8.GetBytes(body);
             var packet = new DanmuPacket
@@ -171,8 +195,7 @@ namespace BilibiliApi.Clients
             {
                 var buffer = packet.ToMemory(bytes);
 
-                await stream.WriteAsync(buffer, token);
-                await stream.FlushAsync(token);
+                await SendAsync(buffer, token);
             }
             finally
             {
@@ -180,18 +203,18 @@ namespace BilibiliApi.Clients
             }
         }
 
-        private async ValueTask AuthAsync(Stream stream, CancellationToken token)
+        private async ValueTask AuthAsync(CancellationToken token)
         {
             var json = @$"{{""roomid"":{RoomId},""uid"":0,""protover"":2,""key"":""{_token}""}}";
-            await SendDataAsync(stream, Operation.Auth, json, token);
+            await SendDataAsync(Operation.Auth, json, token);
         }
 
-        private async ValueTask SendHeartbeatAsync(Stream stream, CancellationToken token)
+        private async ValueTask SendHeartbeatAsync(CancellationToken token)
         {
             try
             {
                 _logger.LogDebug(@"发送心跳包");
-                await SendDataAsync(stream, Operation.Heartbeat, string.Empty, token);
+                await SendDataAsync(Operation.Heartbeat, string.Empty, token);
             }
             catch (Exception ex)
             {
@@ -199,12 +222,12 @@ namespace BilibiliApi.Clients
             }
         }
 
-        private async ValueTask ProcessDanMuAsync(Stream stream, CancellationToken token)
+        private async ValueTask ProcessDanMuAsync(CancellationToken token)
         {
             try
             {
                 var pipe = new Pipe();
-                var writing = FillPipeAsync(stream, pipe.Writer, token);
+                var writing = FillPipeAsync(pipe.Writer, token);
                 var reading = ReadPipeAsync(pipe.Reader, token);
                 await reading;
                 await writing;
@@ -223,7 +246,7 @@ namespace BilibiliApi.Clients
             }
         }
 
-        private async ValueTask FillPipeAsync(Stream stream, PipeWriter writer, CancellationToken token)
+        private async ValueTask FillPipeAsync(PipeWriter writer, CancellationToken token)
         {
             try
             {
@@ -231,7 +254,7 @@ namespace BilibiliApi.Clients
                 {
                     var memory = writer.GetMemory(BufferSize);
 
-                    var bytesRead = await stream.ReadAsync(memory, token);
+                    var bytesRead = await ReceiveAsync(memory, token);
 
                     _logger.LogDebug($@"收到 {bytesRead} 字节");
 
@@ -380,13 +403,13 @@ namespace BilibiliApi.Clients
             _danMuSubj.OnNext(packet);
         }
 
-        private void ResetClient()
+        protected virtual void ResetClient()
         {
             _client?.Dispose();
             _heartBeatTask?.Dispose();
         }
 
-        public ValueTask StopAsync()
+        public virtual ValueTask StopAsync()
         {
             _cts?.Cancel();
             ResetClient();
@@ -395,7 +418,7 @@ namespace BilibiliApi.Clients
 
         private volatile bool _isDisposed;
 
-        public async ValueTask DisposeAsync()
+        public virtual async ValueTask DisposeAsync()
         {
             if (_isDisposed)
             {
