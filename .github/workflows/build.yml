@@ -47,13 +47,6 @@ jobs:
         7z rn "C:\builtfiles\$env:ProjectName-Win32-${{ env.GIT_TAG_NAME }}.7z" publish $env:ProjectName
         echo "NETCORE86_SHA256=$(.\Build\getSHA256.ps1 C:\builtfiles\$env:ProjectName-Win32-${{ env.GIT_TAG_NAME }}.7z)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-    - name: Output SHA256
-      shell: pwsh
-      run: |
-        Write-Host ${{ env.NETCORE_SHA256 }}
-        Write-Host ${{ env.NETCORE64_SHA256 }}
-        Write-Host ${{ env.NETCORE86_SHA256 }}
-
     - name: Upload .NET Core
       uses: actions/upload-artifact@v2
       with:
