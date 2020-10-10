@@ -1,4 +1,5 @@
-﻿using System;
+﻿using SafeObjectPool;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -11,7 +12,6 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
-using SafeObjectPool;
 
 namespace BilibiliLiveRecordDownLoader.Http
 {
@@ -31,17 +31,16 @@ namespace BilibiliLiveRecordDownLoader.Http
             _tasksDone = 0;
             _httpClientPool = new ObjectPool<HttpClient>(10, () =>
             {
-                var httpHandler = new HttpClientHandler();
+                var httpHandler = new SocketsHttpHandler();
                 if (!string.IsNullOrEmpty(Cookie))
                 {
-                    httpHandler = new HttpClientHandler { UseCookies = false, UseDefaultCredentials = false };
+                    httpHandler.UseCookies = false;
                 }
 
                 // GetResponseAsync deadlocks for some reason so switched to HttpClient instead
                 var client = new HttpClient(new RetryHandler(httpHandler, 10), true)
                 {
-                    MaxResponseContentBufferSize = (int)_responseLength,
-                    DefaultRequestVersion = new Version(2, 0)
+                    MaxResponseContentBufferSize = (int)_responseLength
                 };
 
                 if (!string.IsNullOrEmpty(Cookie))
@@ -282,7 +281,7 @@ namespace BilibiliLiveRecordDownLoader.Http
                 foreach (var piece in pieces)
                 {
                     var i = 0;
-                    Start:
+Start:
                     try
                     {
                         ++i;

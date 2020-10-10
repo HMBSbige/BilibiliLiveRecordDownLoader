@@ -1,4 +1,5 @@
-﻿using System.Net.Http;
+﻿using System.Net;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -15,6 +16,7 @@ namespace BilibiliLiveRecordDownLoader.Http
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            request.Version = HttpVersion.Version20;
             HttpResponseMessage response = null;
 
             for (var i = 0; i < _maxRetries; ++i)

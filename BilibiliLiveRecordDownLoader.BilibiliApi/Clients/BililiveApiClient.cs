@@ -1,8 +1,9 @@
-﻿using BilibiliApi.Model.AnchorInfo;
+using BilibiliApi.Model.AnchorInfo;
 using BilibiliApi.Model.DanmuConf;
 using BilibiliApi.Model.LiveRecordList;
 using BilibiliApi.Model.LiveRecordUrl;
 using BilibiliApi.Model.RoomInit;
+using BilibiliApi.Utils;
 using System;
 using System.IO;
 using System.Net.Http;
@@ -121,15 +122,14 @@ namespace BilibiliApi.Clients
             HttpClient client;
             if (string.IsNullOrEmpty(Cookie))
             {
-                client = new HttpClient();
+                client = new HttpClient(new ForceHttp2Handler(new SocketsHttpHandler()), true);
             }
             else
             {
-                client = new HttpClient(new HttpClientHandler { UseCookies = false, UseDefaultCredentials = false }, true);
+                client = new HttpClient(new ForceHttp2Handler(new SocketsHttpHandler { UseCookies = false }), true);
                 client.DefaultRequestHeaders.Add(@"Cookie", Cookie);
             }
 
-            client.DefaultRequestVersion = new Version(2, 0);
             client.Timeout = TimeSpan.FromSeconds(10);
             client.DefaultRequestHeaders.Add(@"Accept", @"application/json, text/javascript, */*; q=0.01");
             client.DefaultRequestHeaders.Add(@"Referer", @"https://live.bilibili.com/");
