@@ -264,7 +264,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
                 if (msg.code != 0 || msg.data?.info == null)
                 {
-                    return;
+                    throw new ArgumentException($@"获取主播信息出错，可能不存在该房间号[{roomId}]的主播");
                 }
 
                 var info = msg.data.info;
@@ -273,9 +273,21 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 Uid = info.uid;
                 Level = info.platform_user_level;
             }
-            catch
+            catch (Exception ex)
             {
-                // ignored
+                ImageUri = null;
+                Name = string.Empty;
+                Uid = 0;
+                Level = 0;
+
+                if (ex is ArgumentException)
+                {
+                    _logger.LogWarning(ex.Message);
+                }
+                else
+                {
+                    _logger.LogError(ex, @"获取主播信息出错");
+                }
             }
         }
 
