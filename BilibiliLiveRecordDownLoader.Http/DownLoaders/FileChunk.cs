@@ -11,7 +11,6 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
         public FileChunk(long startByte, long endByte, string tempPath)
         {
             TempFileName = Path.Combine(tempPath, Path.GetRandomFileName());
-            using var _ = File.Create(TempFileName);
             Start = startByte;
             End = endByte;
         }

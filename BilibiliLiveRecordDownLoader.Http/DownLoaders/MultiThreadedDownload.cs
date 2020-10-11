@@ -1,7 +1,8 @@
-﻿using System;
+﻿using BilibiliLiveRecordDownLoader.Http.HttpPolicy;
+using Microsoft.Extensions.ObjectPool;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -11,8 +12,6 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
-using BilibiliLiveRecordDownLoader.Http.HttpPolicy;
-using Microsoft.Extensions.ObjectPool;
 
 namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 {
@@ -42,10 +41,9 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
                 httpHandler.UseCookies = false;
             }
 
-            // GetResponseAsync deadlocks for some reason so switched to HttpClient instead
             var client = new HttpClient(new RetryHandler(httpHandler, 10), true)
             {
-                MaxResponseContentBufferSize = (int)_responseLength
+                MaxResponseContentBufferSize = _responseLength
             };
 
             if (!string.IsNullOrEmpty(Cookie))
@@ -106,10 +104,16 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
             }
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private Tuple<Task<HttpResponseMessage>, FileChunk> GetStreamTask(FileChunk piece, Uri uri, EventfulConcurrentQueue<FileChunk> asyncTasks, CancellationToken token)
+        private static async Task<Stream> GetStreamAsync(Task<HttpResponseMessage> getTask)
         {
-            var wcObj = _httpClientPool.Get();
+            var response = await getTask;
+            return await response.Content.ReadAsStreamAsync();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private Tuple<Task<Stream>, FileChunk> GetStreamTask(FileChunk piece, Uri uri, EventfulConcurrentQueue<FileChunk> asyncTasks, CancellationToken token)
+        {
+            var client = _httpClientPool.Get();
             try
             {
                 Debug.WriteLine(@"Streaming");
@@ -120,19 +124,21 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
                 request.Headers.Range = new RangeHeaderValue(piece.Start, piece.End);
 
                 //Send the request
-                var downloadTask = wcObj.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+                var responseTask = client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+
+                var stream = GetStreamAsync(responseTask);
 
                 //Use interlocked to increment Tasks done by one
                 Interlocked.Add(ref _tasksDone, 1);
                 asyncTasks.Enqueue(piece);
 
-                var returnTuple = new Tuple<Task<HttpResponseMessage>, FileChunk>(downloadTask, piece);
+                var returnTuple = new Tuple<Task<Stream>, FileChunk>(stream, piece);
 
                 return returnTuple;
             }
             finally
             {
-                _httpClientPool.Return(wcObj);
+                _httpClientPool.Return(client);
             }
         }
 
@@ -177,9 +183,10 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private async Task<long> GetContentLengthAsync(string url, CancellationToken token)
         {
-            using var client = new HttpClient();
+            using var client = new HttpClient(new RetryHandler(new SocketsHttpHandler(), 3), true);
             client.DefaultRequestHeaders.Add(@"User-Agent", UserAgent);
-            var result = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, url), token);
+
+            var result = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, token);
 
             var str = result.Content.Headers.First(h => h.Key.Equals(@"Content-Length")).Value.First();
             return long.Parse(str);
@@ -217,9 +224,8 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 
             var uri = new Uri(url);
 
-
-            Debug.WriteLine($@"{_responseLength.ToString(CultureInfo.InvariantCulture)} total size");
-            Debug.WriteLine($@"{partSize.ToString(CultureInfo.InvariantCulture)} part size");
+            Debug.WriteLine($@"{_responseLength} total size");
+            Debug.WriteLine($@"{partSize} part size");
 
             //Set max threads to those supported by system
             SetMaxThreads();
@@ -231,13 +237,14 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
                 {
                     progress.ProgressUpdated.Subscribe(onUpdate);
                 }
+
                 //Using custom concurrent queue to implement Enqueue and Dequeue Events
                 asyncTasks = GetTaskList(progress, parts);
 
                 Debug.WriteLine(@"Chunks done");
 
                 var getFileChunk = new TransformManyBlock<IEnumerable<FileChunk>, FileChunk>(
-                chunk => chunk, new ExecutionDataflowBlockOptions());
+                        chunk => chunk, new ExecutionDataflowBlockOptions());
 
                 var multi = new ExecutionDataflowBlockOptions
                 {
@@ -246,21 +253,20 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
                 };
 
                 //Gets the request stream from the file chunk 
-                var getStream = new TransformBlock<FileChunk, Tuple<Task<HttpResponseMessage>, FileChunk>>(piece =>
+                var getStream = new TransformBlock<FileChunk, Tuple<Task<Stream>, FileChunk>>(piece =>
                 {
                     var newTask = GetStreamTask(piece, uri, asyncTasks, token);
                     return newTask;
                 }, multi);
 
                 //Writes the request stream to a temp file
-                var writeStream = new ActionBlock<Tuple<Task<HttpResponseMessage>, FileChunk>>(async task =>
+                var writeStream = new ActionBlock<Tuple<Task<Stream>, FileChunk>>(async task =>
                 {
-                    var (response, fileChunk) = task;
-                    await using var streamToRead = await (await response).Content.ReadAsStreamAsync();
-                    await using var fileToWriteTo = File.Open(fileChunk.TempFileName, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
+                    var (streamTask, fileChunk) = task;
+                    await using var stream = await streamTask;
+                    await using var fileToWriteTo = new FileStream(fileChunk.TempFileName, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None, 81920, true);
 
-                    fileToWriteTo.Position = 0;
-                    await streamToRead.CopyToAsync(fileToWriteTo, 81920, token);
+                    await stream.CopyToAsync(fileToWriteTo, 81920, token);
 
                     Interlocked.Add(ref _tasksDone, 1);
                     asyncTasks.TryDequeue(out fileChunk);
