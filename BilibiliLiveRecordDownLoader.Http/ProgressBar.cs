@@ -1,11 +1,10 @@
 ﻿using System;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
-using ReactiveUI;
 
 namespace BilibiliLiveRecordDownLoader.Http
 {
-    public class ProgressBar : ReactiveObject, IDisposable
+    public class ProgressBar : IDisposable
     {
         private readonly Subject<double> _progress = new Subject<double>();
         public IObservable<double> ProgressUpdated => _progress.AsObservable();

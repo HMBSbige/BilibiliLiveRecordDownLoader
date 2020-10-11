@@ -25,10 +25,10 @@
     <PackageReference Include="Serilog.Sinks.Async" Version="1.4.0" />
     <PackageReference Include="Serilog.Sinks.Debug" Version="1.0.1" Condition=" '$(Configuration)' == 'Debug' " />
     <PackageReference Include="Serilog.Sinks.File" Version="4.1.0" />
-    <PackageReference Include="Syncfusion.SfBusyIndicator.WPF" Version="18.2.0.59" />
-    <PackageReference Include="Syncfusion.SfGrid.WPF" Version="18.2.0.59" />
-    <PackageReference Include="Syncfusion.SfProgressBar.WPF" Version="18.2.0.59" />
-    <PackageReference Include="Syncfusion.Themes.VisualStudio2015.WPF" Version="18.2.0.59" />
+    <PackageReference Include="Syncfusion.SfBusyIndicator.WPF" Version="18.3.0.38" />
+    <PackageReference Include="Syncfusion.SfGrid.WPF" Version="18.3.0.38" />
+    <PackageReference Include="Syncfusion.SfProgressBar.WPF" Version="18.3.0.38" />
+    <PackageReference Include="Syncfusion.Themes.VisualStudio2015.WPF" Version="18.3.0.38" />
     <PackageReference Include="System.IO.FileSystem.Primitives" Version="4.3.0" />
     <PackageReference Include="System.Runtime.Handles" Version="4.3.0" />
     <PackageReference Include="System.Text.Encoding.Extensions" Version="4.3.0" />
