@@ -1,7 +1,6 @@
-﻿using System;
-using System.IO;
+﻿using System.IO;
 
-namespace BilibiliLiveRecordDownLoader.Http
+namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 {
     public class FileChunk
     {
@@ -11,7 +10,7 @@ namespace BilibiliLiveRecordDownLoader.Http
 
         public FileChunk(long startByte, long endByte, string tempPath)
         {
-            TempFileName = Path.Combine(tempPath, Guid.NewGuid().ToString());
+            TempFileName = Path.Combine(tempPath, Path.GetRandomFileName());
             using var _ = File.Create(TempFileName);
             Start = startByte;
             End = endByte;

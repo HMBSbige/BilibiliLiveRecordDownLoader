@@ -1,10 +1,10 @@
-﻿using System;
-using System.IO;
-using System.Threading.Tasks;
-using BilibiliLiveRecordDownLoader.FlvProcessor;
-using BilibiliLiveRecordDownLoader.Http;
+﻿using BilibiliLiveRecordDownLoader.FlvProcessor;
+using BilibiliLiveRecordDownLoader.Http.DownLoaders;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.WindowsAPICodePack.Shell;
+using System;
+using System.IO;
+using System.Threading.Tasks;
 
 namespace UnitTest
 {
@@ -19,7 +19,7 @@ namespace UnitTest
             var path = KnownFolders.Downloads.Path;
             var outFile = Path.Combine(path, filename);
 
-            var downloader = new Downloader();
+            var downloader = new MultiThreadedDownload();
             await downloader.DownloadFile(url, 4, outFile, path, Console.WriteLine);
 
             Assert.IsTrue(File.Exists(outFile));

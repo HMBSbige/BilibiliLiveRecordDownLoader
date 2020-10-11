@@ -1,6 +1,6 @@
 ﻿using BilibiliApi.Clients;
 using BilibiliLiveRecordDownLoader.FlvProcessor;
-using BilibiliLiveRecordDownLoader.Http;
+using BilibiliLiveRecordDownLoader.Http.DownLoaders;
 using System;
 using System.IO;
 using System.Linq;
@@ -68,7 +68,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 
                     _progress.OnNext(0.0);
 
-                    var downloader = new Downloader();
+                    var downloader = new MultiThreadedDownload();
 
                     for (var i = 0; i < l.Length; ++i)
                     {

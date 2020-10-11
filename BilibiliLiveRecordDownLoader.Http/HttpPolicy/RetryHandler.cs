@@ -3,7 +3,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace BilibiliLiveRecordDownLoader.Http
+namespace BilibiliLiveRecordDownLoader.Http.HttpPolicy
 {
     public class RetryHandler : DelegatingHandler
     {

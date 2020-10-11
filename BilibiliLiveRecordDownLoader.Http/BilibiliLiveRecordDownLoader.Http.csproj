@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="SafeObjectPool" Version="2.3.1" />
+    <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="3.1.8" />
     <PackageReference Include="System.Reactive" Version="4.4.1" />
   </ItemGroup>
 

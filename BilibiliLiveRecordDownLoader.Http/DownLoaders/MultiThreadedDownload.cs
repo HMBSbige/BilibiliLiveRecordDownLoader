@@ -1,5 +1,4 @@
-﻿using SafeObjectPool;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -12,10 +11,12 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
+using BilibiliLiveRecordDownLoader.Http.HttpPolicy;
+using Microsoft.Extensions.ObjectPool;
 
-namespace BilibiliLiveRecordDownLoader.Http
+namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 {
-    public class Downloader
+    public class MultiThreadedDownload
     {
         private int _tasksDone;
         private long _responseLength;
@@ -25,35 +26,38 @@ namespace BilibiliLiveRecordDownLoader.Http
 
         public string Cookie { get; set; }
 
-        public Downloader()
+        public MultiThreadedDownload()
         {
             ServicePointManager.DefaultConnectionLimit = 10000;
             _tasksDone = 0;
-            _httpClientPool = new ObjectPool<HttpClient>(10, () =>
+            var policy = new PooledHttpClientPolicy(CreateNewClient);
+            _httpClientPool = new DefaultObjectPool<HttpClient>(policy, 10);
+        }
+
+        private HttpClient CreateNewClient()
+        {
+            var httpHandler = new SocketsHttpHandler();
+            if (!string.IsNullOrEmpty(Cookie))
             {
-                var httpHandler = new SocketsHttpHandler();
-                if (!string.IsNullOrEmpty(Cookie))
-                {
-                    httpHandler.UseCookies = false;
-                }
+                httpHandler.UseCookies = false;
+            }
 
-                // GetResponseAsync deadlocks for some reason so switched to HttpClient instead
-                var client = new HttpClient(new RetryHandler(httpHandler, 10), true)
-                {
-                    MaxResponseContentBufferSize = (int)_responseLength
-                };
+            // GetResponseAsync deadlocks for some reason so switched to HttpClient instead
+            var client = new HttpClient(new RetryHandler(httpHandler, 10), true)
+            {
+                MaxResponseContentBufferSize = (int)_responseLength
+            };
 
-                if (!string.IsNullOrEmpty(Cookie))
-                {
-                    client.DefaultRequestHeaders.Add(@"Cookie", Cookie);
-                }
+            if (!string.IsNullOrEmpty(Cookie))
+            {
+                client.DefaultRequestHeaders.Add(@"Cookie", Cookie);
+            }
 
-                client.DefaultRequestHeaders.Add(@"User-Agent", UserAgent);
-                client.DefaultRequestHeaders.ConnectionClose = false;
-                client.Timeout = Timeout.InfiniteTimeSpan;
+            client.DefaultRequestHeaders.Add(@"User-Agent", UserAgent);
+            client.DefaultRequestHeaders.ConnectionClose = false;
+            client.Timeout = Timeout.InfiniteTimeSpan;
 
-                return client;
-            });
+            return client;
         }
 
         private static void SetMaxThreads()
@@ -105,24 +109,31 @@ namespace BilibiliLiveRecordDownLoader.Http
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private Tuple<Task<HttpResponseMessage>, FileChunk> GetStreamTask(FileChunk piece, Uri uri, EventfulConcurrentQueue<FileChunk> asyncTasks, CancellationToken token)
         {
-            using var wcObj = _httpClientPool.Get();
-            Debug.WriteLine(@"Streaming");
+            var wcObj = _httpClientPool.Get();
+            try
+            {
+                Debug.WriteLine(@"Streaming");
 
-            //Open a http request with the range
-            var request = new HttpRequestMessage { RequestUri = uri };
-            request.Headers.ConnectionClose = false;
-            request.Headers.Range = new RangeHeaderValue(piece.Start, piece.End);
+                //Open a http request with the range
+                var request = new HttpRequestMessage { RequestUri = uri };
+                request.Headers.ConnectionClose = false;
+                request.Headers.Range = new RangeHeaderValue(piece.Start, piece.End);
 
-            //Send the request
-            var downloadTask = wcObj.Value.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+                //Send the request
+                var downloadTask = wcObj.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
 
-            //Use interlocked to increment Tasks done by one
-            Interlocked.Add(ref _tasksDone, 1);
-            asyncTasks.Enqueue(piece);
+                //Use interlocked to increment Tasks done by one
+                Interlocked.Add(ref _tasksDone, 1);
+                asyncTasks.Enqueue(piece);
 
-            var returnTuple = new Tuple<Task<HttpResponseMessage>, FileChunk>(downloadTask, piece);
+                var returnTuple = new Tuple<Task<HttpResponseMessage>, FileChunk>(downloadTask, piece);
 
-            return returnTuple;
+                return returnTuple;
+            }
+            finally
+            {
+                _httpClientPool.Return(wcObj);
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

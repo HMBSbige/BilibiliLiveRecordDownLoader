@@ -2,7 +2,7 @@
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 
-namespace BilibiliLiveRecordDownLoader.Http
+namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 {
     public class ProgressBar : IDisposable
     {
