@@ -1,5 +1,5 @@
 # BilibiliLiveRecordDownLoader
-![GitHub CI](https://github.com/HMBSbige/BilibiliLiveRecordDownLoader/workflows/GitHub%20CI/badge.svg)
+[![GitHub CI](https://github.com/HMBSbige/BilibiliLiveRecordDownLoader/workflows/GitHub%20CI/badge.svg)](https://github.com/HMBSbige/BilibiliLiveRecordDownLoader/actions)
 
 Bilibili 直播回放下载
 
