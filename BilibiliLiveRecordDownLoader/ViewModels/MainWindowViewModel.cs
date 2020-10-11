@@ -1,4 +1,4 @@
-using BilibiliApi.Clients;
+﻿using BilibiliApi.Clients;
 using BilibiliApi.Model.LiveRecordList;
 using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Interfaces;
@@ -264,7 +264,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
                 if (msg.code != 0 || msg.data?.info == null)
                 {
-                    throw new ArgumentException($@"获取主播信息出错，可能不存在该房间号[{roomId}]的主播");
+                    throw new ArgumentException($@"[{roomId}]获取主播信息出错，可能该房间号的主播不存在");
                 }
 
                 var info = msg.data.info;
@@ -286,7 +286,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 }
                 else
                 {
-                    _logger.LogError(ex, @"获取主播信息出错");
+                    _logger.LogError(ex, @"[{0}]获取主播信息出错", roomId);
                 }
             }
         }
@@ -326,7 +326,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                         }
                         else
                         {
-                            _logger.LogWarning(@"加载列表出错，可能该直播间不支持直播回放");
+                            _logger.LogWarning(@"[{0}]加载列表出错，可能该直播间无直播回放", roomId);
                             RecordCount = 0;
                             break;
                         }
@@ -335,7 +335,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, @"加载直播回放列表出错");
+                _logger.LogError(ex, @"[{0}]加载直播回放列表出错", roomId);
                 RecordCount = 0;
             }
             finally

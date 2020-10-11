@@ -1,4 +1,4 @@
-<reactiveUi:ReactiveWindow
+﻿<reactiveUi:ReactiveWindow
     x:TypeArguments="viewModels:MainWindowViewModel"
     x:Class="BilibiliLiveRecordDownLoader.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -26,14 +26,14 @@
         <tb:TaskbarIcon x:Name="NotifyIcon"
                         Visibility="Visible"
                         ToolTipText="BilibiliLiveRecordDownLoader"
-                        IconSource="../Resources/Asaki.ico"
+                        IconSource="Resources/Asaki.ico"
                         MenuActivation="RightClick"
                         >
             <tb:TaskbarIcon.ContextMenu>
                 <ContextMenu sfSkinManager:SfSkinManager.VisualStyle="VisualStudio2015"
                              FontSize="{StaticResource MenuItemFontSize}">
-                    <MenuItem x:Name="ShowMenuItem" Header="显示主窗口(_S)" />
-                    <MenuItem x:Name="ExitMenuItem" Header="退出(_X)" />
+                    <MenuItem x:Name="ShowMenuItem" Header="显示主窗口(_S)" FocusVisualStyle="{x:Null}"/>
+                    <MenuItem x:Name="ExitMenuItem" Header="退出(_X)" FocusVisualStyle="{x:Null}" />
                 </ContextMenu>
             </tb:TaskbarIcon.ContextMenu>
         </tb:TaskbarIcon>
@@ -43,7 +43,7 @@
                     <Grid Margin="5" DockPanel.Dock="Top">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition />
+                            <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="房间号：" VerticalAlignment="Center" />
                         <TextBox x:Name="RoomIdTextBox" Grid.Column="1" VerticalContentAlignment="Center" />
