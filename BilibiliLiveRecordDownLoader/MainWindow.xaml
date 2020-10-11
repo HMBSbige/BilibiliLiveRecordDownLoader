@@ -1,4 +1,4 @@
-﻿<reactiveUi:ReactiveWindow
+<reactiveUi:ReactiveWindow
     x:TypeArguments="viewModels:MainWindowViewModel"
     x:Class="BilibiliLiveRecordDownLoader.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -185,7 +185,9 @@
                 </DockPanel>
             </TabItem>
             <TabItem Header="日志">
-                <TextBox x:Name="LogTextBox" IsReadOnly="True" Opacity="1" d:Text="日志&#13;LogTextBox" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+                <TextBox x:Name="LogTextBox" IsReadOnly="True" Opacity="1" d:Text="日志&#13;LogTextBox"
+                         VerticalContentAlignment="Top"
+                         HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
             </TabItem>
             <TabItem Header="设置">
                 <StackPanel>
@@ -215,7 +217,7 @@
                                 <ColumnDefinition Width="30" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="单个文件下载线程数：" VerticalAlignment="Center" />
-                            <Syncfusion:IntegerTextBox Grid.Column="1" x:Name="ThreadsTextBox"  MinValue="1" MaxValue="128" NullValue="8" UseNullOption="True" />
+                            <Syncfusion:IntegerTextBox Grid.Column="1" x:Name="ThreadsTextBox" MinValue="1" MaxValue="128" NullValue="8" UseNullOption="True" />
                         </Grid>
                     </GroupBox>
                 </StackPanel>

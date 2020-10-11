@@ -314,7 +314,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                         }
                         else
                         {
-                            _logger.LogWarning(@"加载列表出错");
+                            _logger.LogWarning(@"加载列表出错，可能该直播间不支持直播回放");
+                            RecordCount = 0;
                             break;
                         }
                     }
@@ -322,7 +323,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, @"加载列表出错");
+                _logger.LogError(ex, @"加载直播回放列表出错");
+                RecordCount = 0;
             }
             finally
             {
