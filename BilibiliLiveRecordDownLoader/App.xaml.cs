@@ -1,4 +1,4 @@
-﻿using BilibiliLiveRecordDownLoader.Interfaces;
+using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
 using Microsoft.Extensions.DependencyInjection;
@@ -103,8 +103,7 @@ namespace BilibiliLiveRecordDownLoader
                     .Enrich.FromLogContext()
                     .WriteTo.Async(c => c.File(Constants.LogFile,
                             outputTemplate: Constants.OutputTemplate,
-                            rollOnFileSizeLimit: true,
-                            retainedFileCountLimit: 2,
+                            rollingInterval: RollingInterval.Day,
                             fileSizeLimitBytes: Constants.MaxLogFileSize))
                     .WriteTo.Sink(SubjectMemorySink)
                     .CreateLogger();
