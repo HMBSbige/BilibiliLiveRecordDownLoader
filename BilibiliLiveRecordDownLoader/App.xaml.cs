@@ -1,4 +1,4 @@
-using BilibiliLiveRecordDownLoader.Interfaces;
+﻿using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
 using Microsoft.Extensions.DependencyInjection;

@@ -41,10 +41,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
                 httpHandler.UseCookies = false;
             }
 
-            var client = new HttpClient(new RetryHandler(httpHandler, 10), true)
-            {
-                MaxResponseContentBufferSize = _responseLength
-            };
+            var client = new HttpClient(new RetryHandler(httpHandler, 10), true);
 
             if (!string.IsNullOrEmpty(Cookie))
             {
@@ -183,13 +180,20 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private async Task<long> GetContentLengthAsync(string url, CancellationToken token)
         {
-            using var client = new HttpClient(new RetryHandler(new SocketsHttpHandler(), 3), true);
-            client.DefaultRequestHeaders.Add(@"User-Agent", UserAgent);
+            var client = _httpClientPool.Get();
+            try
+            {
+                client.DefaultRequestHeaders.Add(@"User-Agent", UserAgent);
 
-            var result = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, token);
+                var result = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, token);
 
-            var str = result.Content.Headers.First(h => h.Key.Equals(@"Content-Length")).Value.First();
-            return long.Parse(str);
+                var str = result.Content.Headers.First(h => h.Key.Equals(@"Content-Length")).Value.First();
+                return long.Parse(str);
+            }
+            finally
+            {
+                _httpClientPool.Return(client);
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
