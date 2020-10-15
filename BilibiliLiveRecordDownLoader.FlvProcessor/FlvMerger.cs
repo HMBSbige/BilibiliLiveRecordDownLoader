@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
@@ -40,10 +40,10 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor
 
         public void Merge(string path)
         {
-            using var outFile = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+            using var outFile = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, BufferSize, FileOptions.None);
 
             // 读 Header
-            using var f0 = File.OpenRead(Files.First());
+            using var f0 = new FileStream(Files.First(), FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, FileOptions.RandomAccess);
             var headerLength = ReadInt32BigEndian(f0, 5);
 
             // 写 header
@@ -67,7 +67,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor
             {
                 var currentTimestamp = 0u;
 
-                using var fs = File.OpenRead(fileName);
+                using var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, FileOptions.RandomAccess);
 
                 if (fileNum > 0)
                 {
@@ -83,17 +83,25 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor
                     {
                         currentTimestamp = GetTimeStamp(fs, i + 8);
 
-                        Span<byte> buffer = new byte[8 + 4];
-                        fs.Position = i;
-                        fs.Read(buffer);
-
-                        if (fileNum > 0) //不是第一个文件的话，重写时间戳
+                        var buffer = ArrayPool.Rent(8 + 4);
+                        try
                         {
-                            var b = GetTimeStamp(currentTimestamp + timestamp);
-                            b.CopyTo(buffer.Slice(8));
-                        }
+                            var span = buffer.AsSpan(0, 8 + 4);
 
-                        outFile.Write(buffer);
+                            fs.Position = i;
+                            fs.Read(span);
+
+                            if (fileNum > 0) //不是第一个文件的话，重写时间戳
+                            {
+                                GetTimeStamp(currentTimestamp + timestamp, span.Slice(8));
+                            }
+
+                            outFile.Write(span);
+                        }
+                        finally
+                        {
+                            ArrayPool.Return(buffer);
+                        }
 
                         if (fs.Length >= i + tagSize)
                         {
@@ -114,72 +122,127 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor
         private static void FixDuration(Stream file, int offset, int size, double duration)
         {
             file.Position = offset;
-            Span<byte> b = stackalloc byte[size];
-            file.Read(b);
-
-            var i = offset + b.IndexOf(特征.Span) + 特征.Length;
-
-            Span<byte> outBytes = stackalloc byte[sizeof(double)];
-            BitConverter.TryWriteBytes(outBytes, duration);
-            if (BitConverter.IsLittleEndian)
+            var b = ArrayPool.Rent(size + sizeof(double));
+            try
             {
-                outBytes.Reverse();
-            }
+                var span = b.AsSpan(0, size);
 
-            file.Position = i;
-            file.Write(outBytes);
+                file.Read(span);
+
+                var i = offset + span.IndexOf(特征.Span) + 特征.Length;
+
+                var outBytes = b.AsSpan(size, sizeof(double));
+                BitConverter.TryWriteBytes(outBytes, duration);
+
+                if (BitConverter.IsLittleEndian)
+                {
+                    outBytes.Reverse();
+                }
+
+                file.Position = i;
+                file.Write(outBytes);
+            }
+            finally
+            {
+                ArrayPool.Return(b);
+            }
         }
 
         private void CopyFixedSize(Stream source, Stream dst, int size)
         {
-            Span<byte> buffer = stackalloc byte[BufferSize];
-            while (true)
+            var buffer = ArrayPool.Rent(Math.Min(BufferSize, size));
+            try
             {
-                var shouldRead = Math.Min(size, BufferSize);
-
-                var read = source.Read(buffer.Slice(0, shouldRead));
-                if (read <= 0)
+                var span = buffer.AsSpan();
+                while (true)
                 {
-                    break;
+                    var shouldRead = Math.Min(size, span.Length);
+
+                    var read = source.Read(span.Slice(0, shouldRead));
+                    if (read <= 0)
+                    {
+                        break;
+                    }
+                    size -= read;
+                    dst.Write(span.Slice(0, read));
                 }
-                size -= read;
-                dst.Write(buffer.Slice(0, read));
+            }
+            finally
+            {
+                ArrayPool.Return(buffer);
             }
         }
 
         private static int ReadInt32BigEndian(Stream fs, int offset)
         {
             var origin = fs.Position;
-
             fs.Position = offset;
-            Span<byte> buffer = stackalloc byte[4];
-            fs.Read(buffer);
 
-            fs.Position = origin;
+            var buffer = ArrayPool.Rent(4);
+            try
+            {
+                var span = buffer.AsSpan(0, 4);
+                fs.Read(span);
 
-            return BinaryPrimitives.ReadInt32BigEndian(buffer);
+                fs.Position = origin;
+
+                return BinaryPrimitives.ReadInt32BigEndian(span);
+            }
+            finally
+            {
+                ArrayPool.Return(buffer);
+            }
         }
 
         private static uint GetTimeStamp(Stream fs, int offset)
         {
             var origin = fs.Position;
-
             fs.Position = offset;
-            Span<byte> buffer = stackalloc byte[4];
-            fs.Read(buffer);
+            var buffer = ArrayPool.Rent(4);
+            try
+            {
+                var span = buffer.AsSpan(0, 4);
+                fs.Read(span);
 
-            fs.Position = origin;
+                fs.Position = origin;
 
-            var m = BinaryPrimitives.ReadUInt32BigEndian(buffer);
+                var m = BinaryPrimitives.ReadUInt32BigEndian(span);
 
-            return ((m & 0xFF) << 24) | (m >> 8);
+                return ((m & 0xFF) << 24) | (m >> 8);
+            }
+            finally
+            {
+                ArrayPool.Return(buffer);
+            }
         }
 
-        private static Span<byte> GetTimeStamp(uint timeStamp)
+        private static void GetTimeStamp(uint timeStamp, Span<byte> result)
         {
-            Span<byte> b = stackalloc byte[4];
-            BitConverter.TryWriteBytes(b, timeStamp);
-            return BitConverter.IsLittleEndian ? new[] { b[2], b[1], b[0], b[3] } : new[] { b[1], b[2], b[3], b[0] };
+            var bytes = ArrayPool.Rent(4);
+            try
+            {
+                var span = bytes.AsSpan(0, 4);
+                BitConverter.TryWriteBytes(span, timeStamp);
+
+                if (BitConverter.IsLittleEndian)
+                {
+                    result[0] = span[2];
+                    result[1] = span[1];
+                    result[2] = span[0];
+                    result[3] = span[3];
+                }
+                else
+                {
+                    result[0] = span[1];
+                    result[1] = span[2];
+                    result[2] = span[3];
+                    result[3] = span[0];
+                }
+            }
+            finally
+            {
+                ArrayPool.Return(bytes);
+            }
         }
 
         #endregion
@@ -188,10 +251,10 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor
 
         public async ValueTask MergeAsync(string path, CancellationToken token)
         {
-            await using var outFile = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, BufferSize, true);
+            await using var outFile = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, BufferSize, FileOptions.None);
 
             // 读 Header
-            await using var f0 = new FileStream(Files.First(), FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, true);
+            await using var f0 = new FileStream(Files.First(), FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, FileOptions.RandomAccess);
             var headerLength = await ReadInt32BigEndianAsync(f0, 5, token);
 
             // 写 header
@@ -215,7 +278,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor
             {
                 var currentTimestamp = 0u;
 
-                await using var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, true);
+                await using var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, FileOptions.RandomAccess);
 
                 if (fileNum > 0)
                 {
@@ -297,7 +360,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor
 
         private async ValueTask CopyFixedSizeAsync(Stream source, Stream dst, int size, CancellationToken token)
         {
-            var buffer = ArrayPool.Rent(BufferSize);
+            var buffer = ArrayPool.Rent(Math.Min(BufferSize, size));
             try
             {
                 var memory = buffer.AsMemory();
@@ -361,35 +424,6 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor
             finally
             {
                 ArrayPool.Return(buffer);
-            }
-        }
-
-        private static void GetTimeStamp(uint timeStamp, Span<byte> result)
-        {
-            var bytes = ArrayPool.Rent(4);
-            try
-            {
-                var span = bytes.AsSpan(0, 4);
-                BitConverter.TryWriteBytes(span, timeStamp);
-
-                if (BitConverter.IsLittleEndian)
-                {
-                    result[0] = span[2];
-                    result[1] = span[1];
-                    result[2] = span[0];
-                    result[3] = span[3];
-                }
-                else
-                {
-                    result[0] = span[1];
-                    result[1] = span[2];
-                    result[2] = span[3];
-                    result[3] = span[0];
-                }
-            }
-            finally
-            {
-                ArrayPool.Return(bytes);
             }
         }
 
