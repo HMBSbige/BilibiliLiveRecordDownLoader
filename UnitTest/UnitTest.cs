@@ -3,6 +3,7 @@ using BilibiliLiveRecordDownLoader.Http.DownLoaders;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.WindowsAPICodePack.Shell;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -31,6 +32,9 @@ namespace UnitTest
         [TestMethod]
         public void TestFlvMerge()
         {
+            var sw = new Stopwatch();
+            sw.Start();
+
             const string f1 = @"C:\Users\Bruce\Downloads\1.flv";
             const string f2 = @"C:\Users\Bruce\Downloads\2.flv";
             const string outfile = @"C:\Users\Bruce\Downloads\test1.flv";
@@ -39,6 +43,30 @@ namespace UnitTest
             flv.Add(f1);
             flv.Add(f2);
             flv.Merge(outfile);
+
+            sw.Stop();
+
+            Console.WriteLine(sw.Elapsed.TotalSeconds);
+        }
+
+        [TestMethod]
+        public async Task TestFlvMergeAsync()
+        {
+            var sw = new Stopwatch();
+            sw.Start();
+
+            const string f1 = @"C:\Users\Bruce\Downloads\1.flv";
+            const string f2 = @"C:\Users\Bruce\Downloads\2.flv";
+            const string outfile = @"C:\Users\Bruce\Downloads\test2.flv";
+
+            var flv = new FlvMerger();
+            flv.Add(f1);
+            flv.Add(f2);
+            await flv.MergeAsync(outfile, default);
+
+            sw.Stop();
+
+            Console.WriteLine(sw.Elapsed.TotalSeconds);
         }
     }
 }
