@@ -4,7 +4,6 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.FlvProcessor
@@ -16,6 +15,8 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor
         public int BufferSize { get; set; } = 4 * 1024;
 
         public List<string> Files { get; }
+
+        public bool Async { get; set; } = false;
 
         private static readonly ArrayPool<byte> ArrayPool = ArrayPool<byte>.Shared;
 
@@ -40,10 +41,10 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor
 
         public void Merge(string path)
         {
-            using var outFile = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, BufferSize, FileOptions.None);
+            using var outFile = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, BufferSize, Async);
 
             // 读 Header
-            using var f0 = new FileStream(Files.First(), FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, FileOptions.RandomAccess);
+            using var f0 = new FileStream(Files.First(), FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
             var headerLength = ReadInt32BigEndian(f0, 5);
 
             // 写 header
@@ -67,7 +68,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor
             {
                 var currentTimestamp = 0u;
 
-                using var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, FileOptions.RandomAccess);
+                using var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
 
                 if (fileNum > 0)
                 {
@@ -249,25 +250,25 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor
 
         #region 异步
 
-        public async ValueTask MergeAsync(string path, CancellationToken token)
+        public async ValueTask MergeAsync(string path)
         {
-            await using var outFile = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, BufferSize, FileOptions.None);
+            await using var outFile = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, BufferSize, Async);
 
             // 读 Header
-            await using var f0 = new FileStream(Files.First(), FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, FileOptions.RandomAccess);
-            var headerLength = await ReadInt32BigEndianAsync(f0, 5, token);
+            await using var f0 = new FileStream(Files.First(), FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
+            var headerLength = ReadInt32BigEndian(f0, 5);
 
             // 写 header
-            await CopyFixedSizeAsync(f0, outFile, headerLength, token);
+            CopyFixedSize(f0, outFile, headerLength);
             var i = headerLength;
 
             // 读 MetaData
-            var metaDataSize = await ReadInt32BigEndianAsync(f0, i + 4, token);
+            var metaDataSize = ReadInt32BigEndian(f0, i + 4);
             if (metaDataSize >> 24 == 0x12)
             {
                 metaDataSize &= 0x00FFFFFF;
                 // 写 MetaData
-                await CopyFixedSizeAsync(f0, outFile, metaDataSize + TagHeaderSize, token);
+                CopyFixedSize(f0, outFile, metaDataSize + TagHeaderSize);
                 i += metaDataSize + TagHeaderSize;
             }
 
@@ -278,35 +279,36 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor
             {
                 var currentTimestamp = 0u;
 
-                await using var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, FileOptions.RandomAccess);
+                await using var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
 
                 if (fileNum > 0)
                 {
-                    i = await ReadInt32BigEndianAsync(fs, 5, token);
+                    i = ReadInt32BigEndian(fs, 5);
                 }
 
                 while (i + TagHeaderSize < fs.Length)
                 {
-                    var h = await ReadInt32BigEndianAsync(fs, i + 4, token);
+                    var h = ReadInt32BigEndian(fs, i + 4);
                     var tagSize = (h & 0x00FFFFFF) + TagHeaderSize;
 
                     if (h >> 24 != 0x12) // 跳过 MetaData
                     {
-                        currentTimestamp = await GetTimeStampAsync(fs, i + 8, token);
+                        currentTimestamp = GetTimeStamp(fs, i + 8);
 
                         var buffer = ArrayPool.Rent(8 + 4);
                         try
                         {
                             var memory = buffer.AsMemory(0, 8 + 4);
+
                             fs.Position = i;
-                            await fs.ReadAsync(memory, token);
+                            fs.Read(memory.Span);
 
                             if (fileNum > 0) //不是第一个文件的话，重写时间戳
                             {
                                 GetTimeStamp(currentTimestamp + timestamp, memory.Span.Slice(8));
                             }
 
-                            await outFile.WriteAsync(memory, token);
+                            outFile.Write(memory.Span);
                         }
                         finally
                         {
@@ -315,7 +317,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor
 
                         if (fs.Length >= i + tagSize)
                         {
-                            await CopyFixedSizeAsync(fs, outFile, tagSize - 8 - 4, token);
+                            CopyFixedSize(fs, outFile, tagSize - 8 - 4);
                         }
                     }
                     i += tagSize;
@@ -326,105 +328,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor
                 ++fileNum;
             }
 
-            await FixDurationAsync(outFile, headerLength, metaDataSize + TagHeaderSize, timestamp / 1000.0, token);
-        }
-
-        private static async ValueTask FixDurationAsync(Stream file, int offset, int size, double duration, CancellationToken token)
-        {
-            file.Position = offset;
-            var b = ArrayPool.Rent(size + sizeof(double));
-            try
-            {
-                var bMemory = b.AsMemory(0, size);
-
-                await file.ReadAsync(bMemory, token);
-
-                var i = offset + bMemory.Span.IndexOf(特征.Span) + 特征.Length;
-
-                var outBytes = b.AsMemory(size, sizeof(double));
-                BitConverter.TryWriteBytes(outBytes.Span, duration);
-
-                if (BitConverter.IsLittleEndian)
-                {
-                    outBytes.Span.Reverse();
-                }
-
-                file.Position = i;
-                await file.WriteAsync(outBytes, token);
-            }
-            finally
-            {
-                ArrayPool.Return(b);
-            }
-        }
-
-        private async ValueTask CopyFixedSizeAsync(Stream source, Stream dst, int size, CancellationToken token)
-        {
-            var buffer = ArrayPool.Rent(Math.Min(BufferSize, size));
-            try
-            {
-                var memory = buffer.AsMemory();
-                while (true)
-                {
-                    var shouldRead = Math.Min(size, memory.Length);
-
-                    var read = await source.ReadAsync(memory.Slice(0, shouldRead), token);
-                    if (read <= 0)
-                    {
-                        break;
-                    }
-
-                    size -= read;
-                    await dst.WriteAsync(memory.Slice(0, read), token);
-                }
-            }
-            finally
-            {
-                ArrayPool.Return(buffer);
-            }
-        }
-
-        private static async ValueTask<int> ReadInt32BigEndianAsync(Stream fs, int offset, CancellationToken token)
-        {
-            var origin = fs.Position;
-            fs.Position = offset;
-
-            var buffer = ArrayPool.Rent(4);
-            try
-            {
-                var memory = buffer.AsMemory(0, 4);
-                await fs.ReadAsync(memory, token);
-
-                fs.Position = origin;
-
-                return BinaryPrimitives.ReadInt32BigEndian(memory.Span);
-            }
-            finally
-            {
-                ArrayPool.Return(buffer);
-            }
-        }
-
-        private static async ValueTask<uint> GetTimeStampAsync(Stream fs, int offset, CancellationToken token)
-        {
-            var origin = fs.Position;
-            fs.Position = offset;
-            var buffer = ArrayPool.Rent(4);
-            try
-            {
-                var memory = buffer.AsMemory(0, 4);
-                await fs.ReadAsync(memory, token);
-
-                fs.Position = origin;
-
-                var m = BinaryPrimitives.ReadUInt32BigEndian(memory.Span);
-
-                return ((m & 0xFF) << 24) | (m >> 8);
-            }
-            finally
-            {
-                ArrayPool.Return(buffer);
-            }
+            FixDuration(outFile, headerLength, metaDataSize + TagHeaderSize, timestamp / 1000.0);
         }
 
         #endregion

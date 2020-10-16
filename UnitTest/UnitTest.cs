@@ -62,7 +62,7 @@ namespace UnitTest
             var flv = new FlvMerger();
             flv.Add(f1);
             flv.Add(f2);
-            await flv.MergeAsync(outfile, default);
+            await flv.MergeAsync(outfile);
 
             sw.Stop();
 

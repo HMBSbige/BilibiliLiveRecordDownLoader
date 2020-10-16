@@ -99,7 +99,7 @@ namespace BilibiliLiveRecordDownLoader.Services
                         var flv = new FlvMerger();
                         flv.AddRange(Enumerable.Range(1, l.Length).Select(i => Path.Combine(RecordPath, $@"{i}.flv")));
 
-                        flv.Merge(mergeFlv);
+                        await flv.MergeAsync(mergeFlv);
                         Utils.Utils.DeleteFiles(RecordPath);
                     }
                     else if (l.Length == 1)
