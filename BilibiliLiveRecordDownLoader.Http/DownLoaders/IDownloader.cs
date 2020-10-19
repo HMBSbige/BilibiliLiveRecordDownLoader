@@ -9,12 +9,12 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
         /// <summary>
         /// 进度，[0.0,1.0]
         /// </summary>
-        public IObservable<double> ProgressUpdated { get; set; }
+        public IObservable<double> ProgressUpdated { get; }
 
         /// <summary>
         /// 当前下载速度，单位字节
         /// </summary>
-        public IObservable<long> CurrentSpeed { get; set; }
+        public IObservable<long> CurrentSpeed { get; }
 
         /// <summary>
         /// UA，默认应该是
