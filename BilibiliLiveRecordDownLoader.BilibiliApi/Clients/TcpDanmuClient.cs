@@ -83,7 +83,7 @@ namespace BilibiliApi.Clients
         {
             if (_isDisposed)
             {
-                throw new ObjectDisposedException(GetType().FullName);
+                throw new ObjectDisposedException(GetType().Name);
             }
 
             await StopAsync();
