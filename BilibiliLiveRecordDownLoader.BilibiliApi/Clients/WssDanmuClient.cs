@@ -7,13 +7,13 @@ using System.Threading.Tasks;
 
 namespace BilibiliApi.Clients
 {
-    public class WssDanmuClient : TcpDanmuClient
+    public class WssDanmuClient : DanmuClientBase
     {
-        private ClientWebSocket _client;
         protected override string Server => $@"wss://{Host}:{Port}/sub";
         protected override ushort DefaultPort => 443;
-
         protected override bool ClientConnected => _client?.State == WebSocketState.Open;
+
+        private ClientWebSocket _client;
 
         public WssDanmuClient(ILogger logger) : base(logger) { }
 
