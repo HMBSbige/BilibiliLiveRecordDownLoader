@@ -15,7 +15,7 @@ using System.Threading.Tasks;
 namespace BilibiliLiveRecordDownLoader.Services
 {
     [Serializable]
-    public class ConfigServiceService : ReactiveObject, IConfigService
+    public class ConfigService : ReactiveObject, IConfigService
     {
         private Config _config;
 
@@ -39,7 +39,7 @@ namespace BilibiliLiveRecordDownLoader.Services
             Encoder = JavaScriptEncoder.Default
         };
 
-        public ConfigServiceService(ILogger<ConfigServiceService> logger)
+        public ConfigService(ILogger<ConfigService> logger)
         {
             _logger = logger;
             _configMonitor = this.WhenAnyValue(x => x.Config,

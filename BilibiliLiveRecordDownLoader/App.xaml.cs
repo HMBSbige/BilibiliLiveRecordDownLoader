@@ -2,16 +2,13 @@
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
 using Microsoft.Extensions.DependencyInjection;
-using ReactiveUI;
 using Serilog;
 using Serilog.Events;
-using Splat;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reactive.Linq;
-using System.Reflection;
 using System.Threading;
 using System.Windows;
 
@@ -71,8 +68,6 @@ namespace BilibiliLiveRecordDownLoader
 
             Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(@"##SyncfusionLicense##");
 
-            Locator.CurrentMutable.RegisterViewsForViewModels(Assembly.GetCallingAssembly());
-
             var serviceCollection = new ServiceCollection();
             ConfigureServices(serviceCollection);
 
@@ -109,7 +104,7 @@ namespace BilibiliLiveRecordDownLoader
                     .CreateLogger();
 
             services.AddSingleton<MainWindow>();
-            services.AddSingleton(typeof(IConfigService), typeof(ConfigServiceService));
+            services.AddSingleton(typeof(IConfigService), typeof(ConfigService));
             services.AddLogging(c => c.AddSerilog());
         }
     }
