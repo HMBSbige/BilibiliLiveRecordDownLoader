@@ -2,8 +2,11 @@
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
 using Microsoft.Extensions.DependencyInjection;
+using ReactiveUI;
 using Serilog;
 using Serilog.Events;
+using Splat;
+using Splat.Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -18,14 +21,12 @@ namespace BilibiliLiveRecordDownLoader
     {
         private static int _exited;
 
-        public IServiceProvider ServiceProvider { get; private set; }
-
         public SubjectMemorySink SubjectMemorySink { get; } = new SubjectMemorySink(Constants.OutputTemplate);
 
         private void Application_Startup(object sender, StartupEventArgs e)
         {
             Directory.SetCurrentDirectory(Path.GetDirectoryName(Utils.Utils.GetExecutablePath()));
-            const string identifier = @"Global\BilibiliLiveRecordDownLoader";
+            var identifier = $@"Global\{nameof(BilibiliLiveRecordDownLoader)}";
 
             var singleInstance = new SingleInstance.SingleInstance(identifier);
             if (!singleInstance.IsFirstInstance)
@@ -68,12 +69,9 @@ namespace BilibiliLiveRecordDownLoader
 
             Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(@"##SyncfusionLicense##");
 
-            var serviceCollection = new ServiceCollection();
-            ConfigureServices(serviceCollection);
+            Register();
 
-            ServiceProvider = serviceCollection.BuildServiceProvider();
-
-            MainWindow = ServiceProvider.GetRequiredService<MainWindow>();
+            MainWindow = Locator.Current.GetService<MainWindow>();
             MainWindow.ShowWindow();
         }
 
@@ -87,25 +85,39 @@ namespace BilibiliLiveRecordDownLoader
 
         private void ConfigureServices(IServiceCollection services)
         {
-            Log.Logger = new LoggerConfiguration()
-#if DEBUG
-                    .MinimumLevel.Debug()
-                    .WriteTo.Debug(outputTemplate: Constants.OutputTemplate)
-#else
-                    .MinimumLevel.Information()
-#endif
-                    .MinimumLevel.Override(@"Microsoft", LogEventLevel.Information)
-                    .Enrich.FromLogContext()
-                    .WriteTo.Async(c => c.File(Constants.LogFile,
-                            outputTemplate: Constants.OutputTemplate,
-                            rollingInterval: RollingInterval.Day,
-                            fileSizeLimitBytes: Constants.MaxLogFileSize))
-                    .WriteTo.Sink(SubjectMemorySink)
-                    .CreateLogger();
-
             services.AddSingleton<MainWindow>();
             services.AddSingleton(typeof(IConfigService), typeof(ConfigService));
             services.AddLogging(c => c.AddSerilog());
+        }
+
+        private void Register()
+        {
+            Log.Logger = new LoggerConfiguration()
+#if DEBUG
+                .MinimumLevel.Debug()
+                .WriteTo.Debug(outputTemplate: Constants.OutputTemplate)
+#else
+                .MinimumLevel.Information()
+#endif
+                .MinimumLevel.Override(@"Microsoft", LogEventLevel.Information)
+                .Enrich.FromLogContext()
+                .WriteTo.Async(c => c.File(Constants.LogFile,
+                        outputTemplate: Constants.OutputTemplate,
+                        rollingInterval: RollingInterval.Day,
+                        fileSizeLimitBytes: Constants.MaxLogFileSize))
+                .WriteTo.Sink(SubjectMemorySink)
+                .CreateLogger();
+
+            var services = new ServiceCollection();
+
+            services.UseMicrosoftDependencyResolver();
+            Locator.CurrentMutable.InitializeSplat();
+            Locator.CurrentMutable.InitializeReactiveUI();
+
+            ConfigureServices(services);
+
+            var container = services.BuildServiceProvider();
+            container.UseMicrosoftDependencyResolver();
         }
     }
 }
