@@ -7,9 +7,9 @@ dotnet --version
 $exe = 'BilibiliLiveRecordDownLoader.exe'
 $netcore_tfm = 'netcoreapp3.1'
 $configuration = 'Release'
-$output_dir = "BilibiliLiveRecordDownLoader\bin\$configuration"
-$dllpatcher_dir = 'Build\DotNetDllPathPatcher'
-$proj_path = 'BilibiliLiveRecordDownLoader\BilibiliLiveRecordDownLoader.csproj'
+$output_dir = "$PSScriptRoot\BilibiliLiveRecordDownLoader\bin\$configuration"
+$dllpatcher_dir = "$PSScriptRoot\Build\DotNetDllPathPatcher"
+$proj_path = "$PSScriptRoot\BilibiliLiveRecordDownLoader\BilibiliLiveRecordDownLoader.csproj"
 
 $buildCore    = $buildtfm -eq 'all' -or $buildtfm -eq 'core'
 $buildCoreX86 = $buildtfm -eq 'all' -or $buildtfm -eq 'core-x86'
