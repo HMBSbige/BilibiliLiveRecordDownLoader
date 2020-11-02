@@ -1,7 +1,9 @@
 ﻿using BilibiliApi.Clients;
 using BilibiliLiveRecordDownLoader.FlvProcessor;
 using BilibiliLiveRecordDownLoader.Http.DownLoaders;
+using Splat;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reactive.Linq;
@@ -13,7 +15,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 {
     public class LiveRecordDownloadTask
     {
-        public double ThreadsCount { get; set; } = 8.0;
+        public ushort ThreadsCount { get; set; } = 8;
 
         private readonly string _id;
         private readonly DateTime _startTime;
@@ -68,8 +70,6 @@ namespace BilibiliLiveRecordDownLoader.Services
 
                     _progress.OnNext(0.0);
 
-                    var downloader = new MultiThreadedDownload();
-
                     for (var i = 0; i < l.Length; ++i)
                     {
                         if (_cts.Token.IsCancellationRequested)
@@ -85,8 +85,20 @@ namespace BilibiliLiveRecordDownLoader.Services
                             continue;
                         }
 
-                        await downloader.DownloadFile(url, ThreadsCount, outfile, RecordPath,
-                                d => { _progress.OnNext((d + i) / l.Length); }, _cts.Token);
+                        var downloader = Locator.Current.GetService<IDownloader>();
+                        downloader.Target = new Uri(url);
+                        downloader.Threads = ThreadsCount;
+                        downloader.OutFileName = outfile;
+                        downloader.TempDir = RecordPath;
+
+                        using var d1 = downloader.CurrentSpeed.Subscribe(d => { Debug.WriteLine($@"{d:F2} Bytes/s"); });
+                        using var d2 = downloader.ProgressUpdated.Subscribe(d =>
+                        {
+                            // ReSharper disable once AccessToModifiedClosure
+                            _progress.OnNext((d + i) / l.Length);
+                        });
+
+                        await downloader.DownloadAsync(_cts.Token);
                     }
 
                     //Merge flv

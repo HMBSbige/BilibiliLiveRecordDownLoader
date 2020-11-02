@@ -5,6 +5,7 @@ using Punchclock;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -24,12 +25,14 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
         private readonly ILogger _logger;
 
         private long _fileSize;
+        private long _current;
+        private long _last;
+
         private readonly BehaviorSubject<double> _progressUpdated = new BehaviorSubject<double>(0.0);
         public IObservable<double> ProgressUpdated => _progressUpdated.AsObservable();
 
-        //TODO
-        private readonly BehaviorSubject<long> _currentSpeed = new BehaviorSubject<long>(0);
-        public IObservable<long> CurrentSpeed => _currentSpeed.AsObservable();
+        private readonly BehaviorSubject<double> _currentSpeed = new BehaviorSubject<double>(0);
+        public IObservable<double> CurrentSpeed => _currentSpeed.AsObservable();
 
         public string UserAgent { get; set; } = @"Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko";
 
@@ -54,7 +57,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
             }
         }
 
-        public MultiThreadedDownloader(ILogger logger)
+        public MultiThreadedDownloader(ILogger<MultiThreadedDownloader> logger)
         {
             _logger = logger;
 
@@ -110,6 +113,9 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
             }
         }
 
+        /// <summary>
+        /// 开始下载，若获取大小失败，则会抛出异常
+        /// </summary>
         public async ValueTask DownloadAsync(CancellationToken token)
         {
             _fileSize = await GetContentLengthAsync(token); //总大小
@@ -117,9 +123,19 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
             TempDir = EnsureDirectory(TempDir);
             var list = GetFileRangeList();
 
-            using var opQueue = new OperationQueue(1);
+            var opQueue = new OperationQueue(1);
+            _current = 0;
+            _last = 0;
             try
             {
+                var sw = Stopwatch.StartNew();
+                using var monitorSpeed = Observable.Interval(TimeSpan.FromSeconds(1)).Subscribe(_ =>
+                {
+                    var last = Interlocked.Read(ref _last);
+                    _currentSpeed.OnNext(last / sw.Elapsed.TotalSeconds);
+                    sw.Restart();
+                    Interlocked.Add(ref _last, -last);
+                });
                 await list.Select(info =>
                 {
                     // ReSharper disable once AccessToDisposedClosure
@@ -128,6 +144,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
                             .SelectMany(res => WriteToFileAsync(res.Item1, res.Item2, token));
                 }).Merge();
 
+                _current = 0;
                 await MergeFilesAsync(list, token);
             }
             catch (OperationCanceledException)
@@ -223,7 +240,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
             token.ThrowIfCancellationRequested();
 
             await using var fs = File.OpenWrite(tempFileName);
-            await CopyStreamAsyncWithProgress(stream, fs, token);
+            await CopyStreamAsyncWithProgress(stream, fs, true, token);
             return Unit.Default;
         }
 
@@ -236,11 +253,12 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
             var path = Path.Combine(dir, Path.GetFileName(OutFileName) ?? Path.GetRandomFileName());
 
             await using var outFileStream = File.Create(path);
+
             foreach (var file in files)
             {
                 await using (var inputFileStream = File.OpenRead(file.FileName))
                 {
-                    await CopyStreamAsyncWithProgress(inputFileStream, outFileStream, token);
+                    await CopyStreamAsyncWithProgress(inputFileStream, outFileStream, false, token);
                 }
                 await DeleteFileWithRetryAsync(file.FileName, 3);
             }
@@ -269,21 +287,18 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
             }
         }
 
-        private async ValueTask CopyStreamAsyncWithProgress(Stream from, Stream to, CancellationToken token, int bufferSize = 81920)
+        private async ValueTask CopyStreamAsyncWithProgress(Stream from, Stream to, bool reportSpeed, CancellationToken token, int bufferSize = 81920)
         {
             var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
             try
             {
-                var size = 0.0;
-                _progressUpdated.OnNext(size);
                 while (true)
                 {
                     var length = await from.ReadAsync(buffer.AsMemory(), token);
                     if (length != 0)
                     {
                         await to.WriteAsync(buffer.AsMemory(0, length), token);
-                        size += length;
-                        _progressUpdated.OnNext(size / _fileSize);
+                        ReportProgress(length, reportSpeed);
                     }
                     else
                     {
@@ -295,6 +310,16 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
             {
                 ArrayPool<byte>.Shared.Return(buffer);
             }
+        }
+
+        private void ReportProgress(long length, bool reportSpeed)
+        {
+            if (reportSpeed)
+            {
+                Interlocked.Add(ref _last, length);
+            }
+            Interlocked.Add(ref _current, length);
+            _progressUpdated.OnNext(Interlocked.Read(ref _current) / (double)_fileSize);
         }
 
         public ValueTask DisposeAsync()

@@ -14,7 +14,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
         /// <summary>
         /// 当前下载速度，单位字节
         /// </summary>
-        public IObservable<long> CurrentSpeed { get; }
+        public IObservable<double> CurrentSpeed { get; }
 
         /// <summary>
         /// UA，默认应该是

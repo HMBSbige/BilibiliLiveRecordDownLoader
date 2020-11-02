@@ -14,6 +14,7 @@ using System.Linq;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Windows;
+using BilibiliLiveRecordDownLoader.Http.DownLoaders;
 
 namespace BilibiliLiveRecordDownLoader
 {
@@ -87,6 +88,7 @@ namespace BilibiliLiveRecordDownLoader
         {
             services.AddSingleton<MainWindow>();
             services.AddSingleton(typeof(IConfigService), typeof(ConfigService));
+            services.AddTransient(typeof(IDownloader), typeof(MultiThreadedDownloader));
             services.AddLogging(c => c.AddSerilog());
         }
 
