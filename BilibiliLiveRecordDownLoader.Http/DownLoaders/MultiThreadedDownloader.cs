@@ -1,6 +1,7 @@
 ﻿using BilibiliLiveRecordDownLoader.Http.HttpPolicy;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
+using Punchclock;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -8,8 +9,10 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Reactive;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using System.Reactive.Threading.Tasks;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,9 +22,11 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
     {
         private readonly ILogger _logger;
 
+        //TODO
         private readonly BehaviorSubject<double> _progressUpdated = new BehaviorSubject<double>(0.0);
         public IObservable<double> ProgressUpdated => _progressUpdated.AsObservable();
 
+        //TODO
         private readonly BehaviorSubject<long> _currentSpeed = new BehaviorSubject<long>(0);
         public IObservable<long> CurrentSpeed => _currentSpeed.AsObservable();
 
@@ -86,6 +91,8 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
         /// <returns></returns>
         private async ValueTask<long> GetContentLengthAsync(CancellationToken token)
         {
+            token.ThrowIfCancellationRequested();
+
             var client = _httpClientPool.Get();
             try
             {
@@ -109,7 +116,42 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
             TempDir = EnsureDirectory(TempDir);
             var list = GetFileRangeList(length);
 
+            using var opQueue = new OperationQueue(1);
+            try
+            {
+                await list.Select(info =>
+                {
+                    // ReSharper disable once AccessToDisposedClosure
+                    return opQueue.Enqueue(1, () => GetStreamAsync(info, token))
+                            .ToObservable()
+                            .SelectMany(res => WriteToFileAsync(res.Item1, res.Item2, token));
+                }).Merge();
 
+                await MergeFilesAsync(list, token);
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation($@"下载已取消：{Target}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, @"下载出错");
+#pragma warning disable 4014
+                // ReSharper disable once MethodSupportsCancellation
+                Task.Run(async () =>
+#pragma warning restore 4014
+                {
+                    foreach (var range in list)
+                    {
+                        await DeleteFileWithRetryAsync(range.FileName, 3);
+                    }
+                });
+            }
+            finally
+            {
+                await opQueue.ShutdownQueue();
+                opQueue.Dispose();
+            }
         }
 
         private static string EnsureDirectory(string path)
@@ -130,7 +172,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 
         private string GetTempFileName() => Path.Combine(TempDir, Path.GetRandomFileName());
 
-        private IEnumerable<FileRange> GetFileRangeList(long length)
+        private List<FileRange> GetFileRangeList(long length)
         {
             var list = new List<FileRange>();
 
@@ -142,7 +184,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 
             for (var i = 1; i < parts; ++i)
             {
-                var range = new RangeHeaderValue((i - 1) * partSize, i * partSize);
+                var range = new RangeHeaderValue((i - 1) * partSize, i * partSize - 1);
                 list.Add(new FileRange { FileName = GetTempFileName(), Range = range });
             }
 
@@ -150,6 +192,80 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
             list.Add(new FileRange { FileName = GetTempFileName(), Range = last });
 
             return list;
+        }
+
+        private async Task<(Stream, string)> GetStreamAsync(FileRange info, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+
+            var client = _httpClientPool.Get();
+            try
+            {
+                var request = new HttpRequestMessage { RequestUri = Target };
+                request.Headers.ConnectionClose = false;
+                request.Headers.Range = info.Range;
+
+                var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+
+                var stream = await response.Content.ReadAsStreamAsync();
+
+                return (stream, info.FileName);
+            }
+            finally
+            {
+                _httpClientPool.Return(client);
+            }
+        }
+
+        private async Task<Unit> WriteToFileAsync(Stream stream, string tempFileName, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+
+            await using var fs = File.OpenWrite(tempFileName);
+            await stream.CopyToAsync(fs, token);
+            return Unit.Default;
+        }
+
+        private async ValueTask MergeFilesAsync(IEnumerable<FileRange> files, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+
+            var dir = Path.GetDirectoryName(OutFileName);
+            dir = EnsureDirectory(dir);
+            var path = Path.Combine(dir, Path.GetFileName(OutFileName) ?? Path.GetRandomFileName());
+
+            await using var outFileStream = File.Create(path);
+            foreach (var file in files)
+            {
+                await using (var inputFileStream = File.OpenRead(file.FileName))
+                {
+                    await inputFileStream.CopyToAsync(outFileStream, token);
+                }
+                await DeleteFileWithRetryAsync(file.FileName, 3);
+            }
+        }
+
+        private async ValueTask DeleteFileWithRetryAsync(string filename, byte retryTime)
+        {
+            var i = 0;
+            while (true)
+            {
+                try
+                {
+                    File.Delete(filename);
+                }
+                catch (Exception) when (i < retryTime)
+                {
+                    ++i;
+                    await Task.Delay(TimeSpan.FromSeconds(1));
+                    continue;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, $@"删除 {filename} 出错");
+                }
+                break;
+            }
         }
 
         public ValueTask DisposeAsync()
