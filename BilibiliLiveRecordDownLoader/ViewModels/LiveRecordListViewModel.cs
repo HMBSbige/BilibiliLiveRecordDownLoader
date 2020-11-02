@@ -164,7 +164,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 .Subscribe(d => { DownloadProgress = d; },
                 ex =>
                 {
-                    _logger.LogWarning(ex, @"下载回放出错");
+                    _logger.LogError(ex, @"下载回放出错");
                 });
         }
 

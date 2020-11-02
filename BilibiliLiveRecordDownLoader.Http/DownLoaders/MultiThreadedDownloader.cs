@@ -154,6 +154,12 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
             catch (Exception ex)
             {
                 _logger.LogError(ex, @"下载出错");
+            }
+            finally
+            {
+                await opQueue.ShutdownQueue();
+                opQueue.Dispose();
+
 #pragma warning disable 4014
                 // ReSharper disable once MethodSupportsCancellation
                 Task.Run(async () =>
@@ -164,11 +170,6 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
                         await DeleteFileWithRetryAsync(range.FileName, 3);
                     }
                 });
-            }
-            finally
-            {
-                await opQueue.ShutdownQueue();
-                opQueue.Dispose();
             }
         }
 

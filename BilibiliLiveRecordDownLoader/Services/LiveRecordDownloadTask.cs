@@ -124,6 +124,10 @@ namespace BilibiliLiveRecordDownLoader.Services
                     _progress.OnNext(1.0);
                 }
             }
+            catch (OperationCanceledException)
+            {
+
+            }
             catch (Exception ex)
             {
                 _progress.OnError(ex);
