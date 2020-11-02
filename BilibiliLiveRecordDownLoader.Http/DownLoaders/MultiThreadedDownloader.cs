@@ -167,7 +167,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
                 {
                     foreach (var range in list)
                     {
-                        await DeleteFileWithRetryAsync(range.FileName, 3);
+                        await DeleteFileWithRetryAsync(range.FileName);
                     }
                 });
             }
@@ -254,18 +254,25 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
             var path = Path.Combine(dir, Path.GetFileName(OutFileName) ?? Path.GetRandomFileName());
 
             await using var outFileStream = File.Create(path);
-
-            foreach (var file in files)
+            try
             {
-                await using (var inputFileStream = File.OpenRead(file.FileName))
+                foreach (var file in files)
                 {
-                    await CopyStreamAsyncWithProgress(inputFileStream, outFileStream, false, token);
+                    await using (var inputFileStream = File.OpenRead(file.FileName))
+                    {
+                        await CopyStreamAsyncWithProgress(inputFileStream, outFileStream, false, token);
+                    }
+                    await DeleteFileWithRetryAsync(file.FileName);
                 }
-                await DeleteFileWithRetryAsync(file.FileName, 3);
+            }
+            catch (Exception)
+            {
+                await DeleteFileWithRetryAsync(path);
+                throw;
             }
         }
 
-        private async ValueTask DeleteFileWithRetryAsync(string filename, byte retryTime)
+        private async ValueTask DeleteFileWithRetryAsync(string filename, byte retryTime = 3)
         {
             var i = 0;
             while (true)

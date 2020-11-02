@@ -85,7 +85,7 @@ namespace BilibiliLiveRecordDownLoader.Services
                             continue;
                         }
 
-                        var downloader = Locator.Current.GetService<IDownloader>();
+                        await using var downloader = Locator.Current.GetService<IDownloader>();
                         downloader.Target = new Uri(url);
                         downloader.Threads = ThreadsCount;
                         downloader.OutFileName = outfile;
