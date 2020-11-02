@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
 using Punchclock;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -22,7 +23,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
     {
         private readonly ILogger _logger;
 
-        //TODO
+        private long _fileSize;
         private readonly BehaviorSubject<double> _progressUpdated = new BehaviorSubject<double>(0.0);
         public IObservable<double> ProgressUpdated => _progressUpdated.AsObservable();
 
@@ -111,10 +112,10 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 
         public async ValueTask DownloadAsync(CancellationToken token)
         {
-            var length = await GetContentLengthAsync(token); //总大小
+            _fileSize = await GetContentLengthAsync(token); //总大小
 
             TempDir = EnsureDirectory(TempDir);
-            var list = GetFileRangeList(length);
+            var list = GetFileRangeList();
 
             using var opQueue = new OperationQueue(1);
             try
@@ -172,14 +173,14 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 
         private string GetTempFileName() => Path.Combine(TempDir, Path.GetRandomFileName());
 
-        private List<FileRange> GetFileRangeList(long length)
+        private List<FileRange> GetFileRangeList()
         {
             var list = new List<FileRange>();
 
             var parts = Threads; //线程数
-            var partSize = length / parts; //每块大小
+            var partSize = _fileSize / parts; //每块大小
 
-            _logger.LogDebug($@"总大小：{length} ({Target})");
+            _logger.LogDebug($@"总大小：{_fileSize} ({Target})");
             _logger.LogDebug($@"每块大小：{partSize} ({Target})");
 
             for (var i = 1; i < parts; ++i)
@@ -188,7 +189,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
                 list.Add(new FileRange { FileName = GetTempFileName(), Range = range });
             }
 
-            var last = new RangeHeaderValue((parts - 1) * partSize, length);
+            var last = new RangeHeaderValue((parts - 1) * partSize, _fileSize);
             list.Add(new FileRange { FileName = GetTempFileName(), Range = last });
 
             return list;
@@ -222,7 +223,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
             token.ThrowIfCancellationRequested();
 
             await using var fs = File.OpenWrite(tempFileName);
-            await stream.CopyToAsync(fs, token);
+            await CopyStreamAsyncWithProgress(stream, fs, token);
             return Unit.Default;
         }
 
@@ -239,7 +240,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
             {
                 await using (var inputFileStream = File.OpenRead(file.FileName))
                 {
-                    await inputFileStream.CopyToAsync(outFileStream, token);
+                    await CopyStreamAsyncWithProgress(inputFileStream, outFileStream, token);
                 }
                 await DeleteFileWithRetryAsync(file.FileName, 3);
             }
@@ -265,6 +266,34 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
                     _logger.LogError(ex, $@"删除 {filename} 出错");
                 }
                 break;
+            }
+        }
+
+        private async ValueTask CopyStreamAsyncWithProgress(Stream from, Stream to, CancellationToken token, int bufferSize = 81920)
+        {
+            var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+            try
+            {
+                var size = 0.0;
+                _progressUpdated.OnNext(size);
+                while (true)
+                {
+                    var length = await from.ReadAsync(buffer.AsMemory(), token);
+                    if (length != 0)
+                    {
+                        await to.WriteAsync(buffer.AsMemory(0, length), token);
+                        size += length;
+                        _progressUpdated.OnNext(size / _fileSize);
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
             }
         }
 
