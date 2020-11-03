@@ -15,7 +15,7 @@ namespace UnitTest
         {
             var should = new byte[] { 0x46, 0x4c, 0x56, 0x01, 0x05, 0x00, 0x00, 0x00, 0x09 };
 
-            IBytesStruct header = new FlvHeader();
+            var header = new FlvHeader();
 
             var b = ArrayPool<byte>.Shared.Rent(header.Size);
             try
@@ -26,6 +26,17 @@ namespace UnitTest
             {
                 ArrayPool<byte>.Shared.Return(b);
             }
+
+            header.Signature = string.Empty;
+            header.Version = 0x00;
+            header.Flags = HeaderFlags.Audio;
+            header.HeaderSize = 114514;
+
+            header.Read(should);
+            Assert.AreEqual(header.Signature, @"FLV");
+            Assert.AreEqual(header.Version, 0x01);
+            Assert.AreEqual(header.Flags, HeaderFlags.VideoAndAudio);
+            Assert.AreEqual(header.HeaderSize, 9u);
         }
 
         [TestMethod]
@@ -48,6 +59,12 @@ namespace UnitTest
             {
                 ArrayPool<byte>.Shared.Return(b);
             }
+
+            info.PayloadSize = 114514;
+            info.PacketType = PacketType.AMF_Metadata;
+            info.Read(should);
+            Assert.AreEqual(info.PayloadSize, (uint)((1 << 24) - 1));
+            Assert.AreEqual(info.PacketType, PacketType.VideoPayload);
         }
 
         [TestMethod]
@@ -73,10 +90,9 @@ namespace UnitTest
         {
             var should = new byte[] { 0xC7, 0x00, 0x42, 0x9F };
 
-            var info = new Timestamp
+            var info = new FlvTimestamp
             {
-                Lower = 0x12C7_0042,
-                Upper = 0x9F
+                Data = 0x9FC7_0042
             };
 
             var b = ArrayPool<byte>.Shared.Rent(info.Size);
@@ -88,6 +104,10 @@ namespace UnitTest
             {
                 ArrayPool<byte>.Shared.Return(b);
             }
+
+            info.Data = 114514;
+            info.Read(should);
+            Assert.AreEqual(info.Data, 0x9FC7_0042);
         }
 
         [TestMethod]
@@ -107,7 +127,7 @@ namespace UnitTest
             {
                 SizeofPreviousPacket = 114514,
                 PayloadInfo = { PayloadSize = (1 << 24) - 1, PacketType = PacketType.VideoPayload },
-                Timestamp = { Lower = 0x12C7_0042, Upper = 0x9F }
+                Timestamp = { Data = 0x9FC7_0042 }
             };
 
             var b = ArrayPool<byte>.Shared.Rent(info.Size);
@@ -119,6 +139,15 @@ namespace UnitTest
             {
                 ArrayPool<byte>.Shared.Return(b);
             }
+
+            info.SizeofPreviousPacket = 1919810;
+            info.PayloadInfo = new FlvTagPayloadInfo();
+            info.Timestamp = new FlvTimestamp();
+            info.Read(should);
+            Assert.AreEqual(info.SizeofPreviousPacket, 114514u);
+            Assert.AreEqual(info.PayloadInfo.PayloadSize, (uint)((1 << 24) - 1));
+            Assert.AreEqual(info.PayloadInfo.PacketType, PacketType.VideoPayload);
+            Assert.AreEqual(info.Timestamp.Data, 0x9FC7_0042);
         }
     }
 }

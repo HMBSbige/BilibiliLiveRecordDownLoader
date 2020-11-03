@@ -3,19 +3,11 @@ using System.Buffers.Binary;
 
 namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagHeaders
 {
-    public class Timestamp : IBytesStruct
+    public class FlvTimestamp : IBytesStruct
     {
         #region Field
 
-        /// <summary>
-        /// For first packet set to NULL
-        /// </summary>
-        public uint Lower = 0;
-
-        /// <summary>
-        /// Extension to create a uint32_be value
-        /// </summary>
-        public byte Upper = 0;
+        public uint Data;
 
         #endregion
 
@@ -25,19 +17,21 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagHeaders
         {
             var res = array.Slice(0, Size);
 
-            BinaryPrimitives.WriteUInt32BigEndian(res.Span, Lower);
+            BinaryPrimitives.WriteUInt32BigEndian(res.Span, Data);
 
+            var upper = res.Span[0];
             res.Span[0] = res.Span[1];
             res.Span[1] = res.Span[2];
             res.Span[2] = res.Span[3];
-            res.Span[3] = Upper;
+            res.Span[3] = upper;
 
             return res;
         }
 
         public void Read(Memory<byte> buffer)
         {
-            throw new NotImplementedException();
+            var a = BinaryPrimitives.ReadUInt32BigEndian(buffer.Span);
+            Data = ((a & 0xFF) << 24) | (a >> 8);
         }
     }
 }

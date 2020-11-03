@@ -11,14 +11,14 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagHeaders
         /// For first packet set to NULL
         /// uint32_be
         /// </summary>
-        public uint SizeofPreviousPacket = 0;
+        public uint SizeofPreviousPacket;
 
         public FlvTagPayloadInfo PayloadInfo = new FlvTagPayloadInfo();
 
         /// <summary>
         /// 单位微秒
         /// </summary>
-        public Timestamp Timestamp = new Timestamp();
+        public FlvTimestamp Timestamp = new FlvTimestamp();
 
         /// <summary>
         /// For first stream of same type set to NULL
@@ -44,7 +44,9 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagHeaders
 
         public void Read(Memory<byte> buffer)
         {
-            throw new NotImplementedException();
+            SizeofPreviousPacket = BinaryPrimitives.ReadUInt32BigEndian(buffer.Span);
+            PayloadInfo.Read(buffer.Slice(4));
+            Timestamp.Read(buffer.Slice(8));
         }
     }
 }
