@@ -11,12 +11,12 @@ namespace UnitTest
         public async Task GetLiveRecordUrlTestAsync()
         {
             using var client = new BililiveApiClient();
-            var json = await client.GetLiveRecordUrl(@"R1nx411c7b1"); // 视频链接会过期
+            var json = await client.GetLiveRecordUrl(@"R1zx411c75j"); // 视频链接会过期
             Assert.AreEqual(json.code, 0);
             Assert.AreEqual(json.message, @"0");
-            Assert.AreEqual(json.data.size, 13584350482);
-            Assert.AreEqual(json.data.length, 18097042);
-            Assert.AreEqual(json.data.list.Length, 11);
+            Assert.IsTrue(json.data.size > 0);
+            Assert.IsTrue(json.data.length > 0);
+            Assert.IsTrue(json.data.list.Length > 0);
         }
 
         [TestMethod]
