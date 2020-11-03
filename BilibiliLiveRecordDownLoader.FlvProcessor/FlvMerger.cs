@@ -20,6 +20,9 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor
 
         private static readonly ArrayPool<byte> ArrayPool = ArrayPool<byte>.Shared;
 
+        /// <summary>
+        /// {ECMA}{duration}\0
+        /// </summary>
         private static readonly Memory<byte> 特征 = new byte[] { 0x08, 0x64, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6F, 0x6E, 0x00 };
 
         public FlvMerger()

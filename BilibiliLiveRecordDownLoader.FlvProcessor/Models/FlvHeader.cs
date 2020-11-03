@@ -12,12 +12,12 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models
         /// <summary>
         /// Always "FLV"
         /// </summary>
-        public const string Signature = @"FLV";
+        public string Signature = @"FLV";
 
         /// <summary>
         /// Only 0x01 is valid
         /// </summary>
-        public const byte Version = 0x01;
+        public byte Version = 0x01;
 
         /// <summary>
         /// Bitmask: 0x04 is audio, 0x01 is video (so 0x05 is audio+video)
@@ -28,7 +28,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models
         /// Used to skip a newer expanded header
         /// uint32_be
         /// </summary>
-        public const uint HeaderSize = 9;
+        public uint HeaderSize = 9;
 
         #endregion
 
@@ -44,6 +44,14 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models
             BinaryPrimitives.WriteUInt32BigEndian(res.Span.Slice(5, 4), HeaderSize);
 
             return res;
+        }
+
+        public void Read(Memory<byte> buffer)
+        {
+            Signature = Encoding.UTF8.GetString(buffer.Slice(0, 3).Span);
+            Version = buffer.Span[3];
+            Flags = (HeaderFlags)buffer.Span[4];
+            HeaderSize = BinaryPrimitives.ReadUInt32BigEndian(buffer.Slice(5, 4).Span);
         }
     }
 }

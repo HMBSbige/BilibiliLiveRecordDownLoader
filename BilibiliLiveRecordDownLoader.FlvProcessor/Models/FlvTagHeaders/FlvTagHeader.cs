@@ -41,5 +41,10 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagHeaders
 
             return res;
         }
+
+        public void Read(Memory<byte> buffer)
+        {
+            throw new NotImplementedException();
+        }
     }
 }
