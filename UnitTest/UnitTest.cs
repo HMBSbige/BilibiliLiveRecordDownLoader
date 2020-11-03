@@ -54,34 +54,14 @@ namespace UnitTest
         }
 
         [TestMethod]
-        public void TestFlvMerge()
-        {
-            var sw = new Stopwatch();
-            sw.Start();
-
-            const string f1 = @"C:\Users\Bruce\Downloads\1.flv";
-            const string f2 = @"C:\Users\Bruce\Downloads\2.flv";
-            const string outfile = @"F:\test1.flv";
-
-            var flv = new FlvMerger();
-            flv.Add(f1);
-            flv.Add(f2);
-            flv.Merge(outfile);
-
-            sw.Stop();
-
-            Console.WriteLine(sw.Elapsed.TotalSeconds);
-        }
-
-        [TestMethod]
         public async Task TestFlvMergeAsync()
         {
             var sw = new Stopwatch();
             sw.Start();
 
-            const string f1 = @"C:\Users\Bruce\Downloads\1.flv";
-            const string f2 = @"C:\Users\Bruce\Downloads\2.flv";
-            const string outfile = @"F:\test2.flv";
+            var f1 = Path.Combine(KnownFolders.Downloads.Path, @"1.flv");
+            var f2 = Path.Combine(KnownFolders.Downloads.Path, @"2.flv");
+            var outfile = Path.Combine(KnownFolders.Downloads.Path, @"test.flv");
 
             var flv = new FlvMerger();
             flv.Add(f1);

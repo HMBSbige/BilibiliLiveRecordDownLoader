@@ -40,89 +40,6 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor
             Files.AddRange(path);
         }
 
-        #region 同步
-
-        public void Merge(string path)
-        {
-            using var outFile = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, BufferSize, Async);
-
-            // 读 Header
-            using var f0 = new FileStream(Files.First(), FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
-            var headerLength = ReadInt32BigEndian(f0, 5);
-
-            // 写 header
-            CopyFixedSize(f0, outFile, headerLength);
-            var i = headerLength;
-
-            // 读 MetaData
-            var metaDataSize = ReadInt32BigEndian(f0, i + 4);
-            if (metaDataSize >> 24 == 0x12)
-            {
-                metaDataSize &= 0x00FFFFFF;
-                // 写 MetaData
-                CopyFixedSize(f0, outFile, metaDataSize + TagHeaderSize);
-                i += metaDataSize + TagHeaderSize;
-            }
-
-            var timestamp = 0u;
-            var fileNum = 0u;
-
-            foreach (var fileName in Files)
-            {
-                var currentTimestamp = 0u;
-
-                using var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
-
-                if (fileNum > 0)
-                {
-                    i = ReadInt32BigEndian(fs, 5);
-                }
-
-                while (i + TagHeaderSize < fs.Length)
-                {
-                    var h = ReadInt32BigEndian(fs, i + 4);
-                    var tagSize = (h & 0x00FFFFFF) + TagHeaderSize;
-
-                    if (h >> 24 != 0x12) // 跳过 MetaData
-                    {
-                        currentTimestamp = GetTimeStamp(fs, i + 8);
-
-                        var buffer = ArrayPool.Rent(8 + 4);
-                        try
-                        {
-                            var span = buffer.AsSpan(0, 8 + 4);
-
-                            fs.Position = i;
-                            fs.Read(span);
-
-                            if (fileNum > 0) //不是第一个文件的话，重写时间戳
-                            {
-                                GetTimeStamp(currentTimestamp + timestamp, span.Slice(8));
-                            }
-
-                            outFile.Write(span);
-                        }
-                        finally
-                        {
-                            ArrayPool.Return(buffer);
-                        }
-
-                        if (fs.Length >= i + tagSize)
-                        {
-                            CopyFixedSize(fs, outFile, tagSize - 8 - 4);
-                        }
-                    }
-                    i += tagSize;
-                }
-
-                i = 0;
-                timestamp += currentTimestamp;
-                ++fileNum;
-            }
-
-            FixDuration(outFile, headerLength, metaDataSize + TagHeaderSize, timestamp / 1000.0);
-        }
-
         private static void FixDuration(Stream file, int offset, int size, double duration)
         {
             file.Position = offset;
@@ -249,10 +166,6 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor
             }
         }
 
-        #endregion
-
-        #region 异步
-
         public async ValueTask MergeAsync(string path)
         {
             await using var outFile = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, BufferSize, Async);
@@ -333,7 +246,5 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor
 
             FixDuration(outFile, headerLength, metaDataSize + TagHeaderSize, timestamp / 1000.0);
         }
-
-        #endregion
     }
 }
