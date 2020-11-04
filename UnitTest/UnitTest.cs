@@ -1,4 +1,4 @@
-﻿using BilibiliLiveRecordDownLoader.FlvProcessor;
+﻿using BilibiliLiveRecordDownLoader.FlvProcessor.Clients;
 using BilibiliLiveRecordDownLoader.Http.DownLoaders;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;

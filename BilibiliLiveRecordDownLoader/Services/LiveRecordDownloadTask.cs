@@ -1,5 +1,5 @@
 ﻿using BilibiliApi.Clients;
-using BilibiliLiveRecordDownLoader.FlvProcessor;
+using BilibiliLiveRecordDownLoader.FlvProcessor.Clients;
 using BilibiliLiveRecordDownLoader.Http.DownLoaders;
 using Splat;
 using System;

@@ -6,7 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace BilibiliLiveRecordDownLoader.FlvProcessor
+namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 {
     public class FlvMerger
     {

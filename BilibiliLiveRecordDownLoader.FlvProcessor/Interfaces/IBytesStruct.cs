@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models
+namespace BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces
 {
     public interface IBytesStruct
     {
