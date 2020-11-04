@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces
 {
-    public interface IFlvMerger
+    public interface IFlvMerger : IAsyncDisposable
     {
         /// <summary>
         /// 进度，[0.0,1.0]
