@@ -10,7 +10,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces
         /// <summary>
         /// 进度，[0.0,1.0]
         /// </summary>
-        public IObservable<double> ProgressUpdated { get; }
+        public double Progress { get; }
 
         /// <summary>
         /// 当前下载速度，单位字节

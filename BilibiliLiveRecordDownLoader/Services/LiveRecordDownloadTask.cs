@@ -62,73 +62,77 @@ namespace BilibiliLiveRecordDownLoader.Services
                 var message = await client.GetLiveRecordUrl(_id, _cts.Token);
 
                 var list = message?.data?.list;
-                if (list != null)
+                if (list == null)
                 {
-                    var l = list.Where(x => !string.IsNullOrEmpty(x.url) || !string.IsNullOrEmpty(x.backup_url))
-                            .Select(x => string.IsNullOrEmpty(x.url) ? x.backup_url : x.url).ToArray();
-
-                    _progress.OnNext(0.0);
-
-                    for (var i = 0; i < l.Length; ++i)
-                    {
-                        if (_cts.Token.IsCancellationRequested)
-                        {
-                            throw new TaskCanceledException(@"下载已取消！");
-                        }
-
-                        var url = l[i];
-                        var outfile = Path.Combine(RecordPath, $@"{i + 1}.flv");
-                        if (File.Exists(outfile))
-                        {
-                            _progress.OnNext((1.0 + i) / l.Length);
-                            continue;
-                        }
-
-                        await using var downloader = Locator.Current.GetService<IDownloader>();
-                        downloader.Target = new Uri(url);
-                        downloader.Threads = ThreadsCount;
-                        downloader.OutFileName = outfile;
-                        downloader.TempDir = RecordPath;
-
-                        //using var d1 = downloader.CurrentSpeed.DistinctUntilChanged().Subscribe(d => { Debug.WriteLine($@"{d:F2} Bytes/s"); });
-                        using var d2 = downloader.ProgressUpdated
-                            .DistinctUntilChanged()
-                            .Subscribe(d =>
-                            {
-                                // ReSharper disable once AccessToModifiedClosure
-                                _progress.OnNext((d + i) / l.Length);
-                            });
-
-                        await downloader.DownloadAsync(_cts.Token);
-                    }
-
-                    //Merge flv
-
-                    var filename = _startTime == default ? _id : $@"{_startTime:yyyyMMdd_HHmmss}";
-                    var mergeFlv = Path.Combine(_root, $@"{filename}.flv");
-                    if (l.Length > 1)
-                    {
-                        await using var flv = Locator.Current.GetService<IFlvMerger>();
-                        flv.AddRange(Enumerable.Range(1, l.Length).Select(i => Path.Combine(RecordPath, $@"{i}.flv")));
-
-                        //using var d1 = flv.CurrentSpeed.DistinctUntilChanged().Subscribe(d => { Debug.WriteLine($@"{d:F2} Bytes/s"); });
-                        using var d2 = flv.ProgressUpdated
-                            .DistinctUntilChanged()
-                            .Subscribe(d =>
-                            {
-                                _progress.OnNext(d);
-                            });
-
-                        await flv.MergeAsync(mergeFlv, _cts.Token);
-                        Utils.Utils.DeleteFiles(RecordPath);
-                    }
-                    else if (l.Length == 1)
-                    {
-                        var inputFile = Path.Combine(RecordPath, @"1.flv");
-                        File.Move(inputFile, mergeFlv, true);
-                        Utils.Utils.DeleteFiles(RecordPath);
-                    }
+                    return;
                 }
+
+                var l = list.Where(x => !string.IsNullOrEmpty(x.url) || !string.IsNullOrEmpty(x.backup_url))
+                        .Select(x => string.IsNullOrEmpty(x.url) ? x.backup_url : x.url).ToArray();
+
+                _progress.OnNext(0.0);
+
+                for (var i = 0; i < l.Length; ++i)
+                {
+                    if (_cts.Token.IsCancellationRequested)
+                    {
+                        throw new TaskCanceledException(@"下载已取消！");
+                    }
+
+                    var url = l[i];
+                    var outfile = Path.Combine(RecordPath, $@"{i + 1}.flv");
+                    if (File.Exists(outfile))
+                    {
+                        _progress.OnNext((1.0 + i) / l.Length);
+                        continue;
+                    }
+
+                    await using var downloader = Locator.Current.GetService<IDownloader>();
+                    downloader.Target = new Uri(url);
+                    downloader.Threads = ThreadsCount;
+                    downloader.OutFileName = outfile;
+                    downloader.TempDir = RecordPath;
+
+                    using var d2 = Observable.Interval(TimeSpan.FromSeconds(0.2))
+                        .DistinctUntilChanged()
+                        .Subscribe(_ =>
+                        {
+                            // ReSharper disable once AccessToModifiedClosure
+                            // ReSharper disable once AccessToDisposedClosure
+                            _progress.OnNext((downloader.Progress + i) / l.Length);
+                        });
+
+                    await downloader.DownloadAsync(_cts.Token);
+                }
+
+                //Merge flv
+
+                var filename = _startTime == default ? _id : $@"{_startTime:yyyyMMdd_HHmmss}";
+                var mergeFlv = Path.Combine(_root, $@"{filename}.flv");
+                if (l.Length > 1)
+                {
+                    await using var flv = Locator.Current.GetService<IFlvMerger>();
+                    flv.AddRange(Enumerable.Range(1, l.Length).Select(i => Path.Combine(RecordPath, $@"{i}.flv")));
+
+                    using var d2 = Observable.Interval(TimeSpan.FromSeconds(0.1))
+                        .DistinctUntilChanged()
+                        .Subscribe(_ =>
+                        {
+                            // ReSharper disable once AccessToDisposedClosure
+                            _progress.OnNext(flv.Progress);
+                        });
+
+                    await flv.MergeAsync(mergeFlv, _cts.Token);
+                    Utils.Utils.DeleteFiles(RecordPath);
+                }
+                else if (l.Length == 1)
+                {
+                    var inputFile = Path.Combine(RecordPath, @"1.flv");
+                    File.Move(inputFile, mergeFlv, true);
+                    Utils.Utils.DeleteFiles(RecordPath);
+                }
+
+                _progress.OnNext(1.0);
             }
             catch (OperationCanceledException)
             {

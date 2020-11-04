@@ -28,8 +28,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
         private long _current;
         private long _last;
 
-        private readonly BehaviorSubject<double> _progressUpdated = new BehaviorSubject<double>(0.0);
-        public IObservable<double> ProgressUpdated => _progressUpdated.AsObservable();
+        public double Progress => Interlocked.Read(ref _current) / (double)_fileSize;
 
         private readonly BehaviorSubject<double> _currentSpeed = new BehaviorSubject<double>(0.0);
         public IObservable<double> CurrentSpeed => _currentSpeed.AsObservable();
@@ -136,10 +135,6 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
                     sw.Restart();
                     Interlocked.Add(ref _last, -last);
                 });
-                using var progressMonitor = Observable.Interval(TimeSpan.FromSeconds(0.2)).Subscribe(_ =>
-                {
-                    _progressUpdated.OnNext(Interlocked.Read(ref _current) / (double)_fileSize);
-                });
 
                 await list.Select(info =>
                 {
@@ -151,8 +146,6 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 
                 _current = 0;
                 await MergeFilesAsync(list, token);
-
-                _progressUpdated.OnNext(1.0);
             }
             catch (OperationCanceledException)
             {
@@ -338,7 +331,6 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 
         public ValueTask DisposeAsync()
         {
-            _progressUpdated.OnCompleted();
             _currentSpeed.OnCompleted();
 
             return default;

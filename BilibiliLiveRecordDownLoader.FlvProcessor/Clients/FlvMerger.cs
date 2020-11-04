@@ -26,8 +26,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
         private long _current;
         private long _last;
 
-        private readonly BehaviorSubject<double> _progressUpdated = new BehaviorSubject<double>(0.0);
-        public IObservable<double> ProgressUpdated => _progressUpdated.AsObservable();
+        public double Progress => Interlocked.Read(ref _current) / (double)_fileSize;
 
         private readonly BehaviorSubject<double> _currentSpeed = new BehaviorSubject<double>(0.0);
         public IObservable<double> CurrentSpeed => _currentSpeed.AsObservable();
@@ -67,10 +66,6 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
                 _currentSpeed.OnNext(last / sw.Elapsed.TotalSeconds);
                 sw.Restart();
                 Interlocked.Add(ref _last, -last);
-            });
-            using var progressMonitor = Observable.Interval(TimeSpan.FromSeconds(0.1)).Subscribe(_ =>
-            {
-                _progressUpdated.OnNext(Interlocked.Read(ref _current) / (double)_fileSize);
             });
 
             await using var outFile = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, BufferSize, IsAsync);
@@ -181,8 +176,6 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
             }
 
             FixDuration(outFile, header.Size, (int)metadata.PayloadInfo.PayloadSize + metadata.Size, timestamp / 1000.0);
-
-            _progressUpdated.OnNext(1.0);
         }
 
         private void CopyFixedSize(Stream source, Stream dst, int size, CancellationToken token)
@@ -268,7 +261,6 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 
         public ValueTask DisposeAsync()
         {
-            _progressUpdated.OnCompleted();
             _currentSpeed.OnCompleted();
 
             return default;
