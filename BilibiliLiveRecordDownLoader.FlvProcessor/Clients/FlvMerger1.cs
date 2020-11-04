@@ -62,7 +62,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 
                     // 读 Header
                     f0.Read(memory.Span);
-                    header.Read(memory);
+                    header.Read(memory.Span);
 
                     // 写 header
                     outFile.Write(memory.Span);

@@ -47,12 +47,12 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models
             return res;
         }
 
-        public void Read(Memory<byte> buffer)
+        public void Read(Span<byte> buffer)
         {
-            Signature = Encoding.UTF8.GetString(buffer.Slice(0, 3).Span);
-            Version = buffer.Span[3];
-            Flags = (HeaderFlags)buffer.Span[4];
-            HeaderSize = BinaryPrimitives.ReadUInt32BigEndian(buffer.Slice(5, 4).Span);
+            Signature = Encoding.UTF8.GetString(buffer.Slice(0, 3));
+            Version = buffer[3];
+            Flags = (HeaderFlags)buffer[4];
+            HeaderSize = BinaryPrimitives.ReadUInt32BigEndian(buffer.Slice(5, 4));
         }
     }
 }

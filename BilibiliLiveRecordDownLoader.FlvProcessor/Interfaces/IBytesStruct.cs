@@ -11,7 +11,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces
 
         Memory<byte> ToMemory(Memory<byte> array);
 
-        public void Read(Memory<byte> buffer) { }
+        void Read(Span<byte> buffer);
         //ReadOnlySequence<byte> Read(in ReadOnlySequence<byte> sequence);
     }
 }

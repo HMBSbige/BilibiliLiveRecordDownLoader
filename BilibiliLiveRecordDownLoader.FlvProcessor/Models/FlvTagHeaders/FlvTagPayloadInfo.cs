@@ -34,9 +34,9 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagHeaders
             return res;
         }
 
-        public void Read(Memory<byte> buffer)
+        public void Read(Span<byte> buffer)
         {
-            PayloadSize = BinaryPrimitives.ReadUInt32BigEndian(buffer.Span);
+            PayloadSize = BinaryPrimitives.ReadUInt32BigEndian(buffer);
             PacketType = (PacketType)(PayloadSize >> 24);
             PayloadSize &= 0x00FFFFFF;
         }

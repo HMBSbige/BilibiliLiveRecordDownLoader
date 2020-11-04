@@ -13,5 +13,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagHeaders
             res.Span.Fill(0);
             return res;
         }
+
+        public void Read(Span<byte> buffer) { }
     }
 }

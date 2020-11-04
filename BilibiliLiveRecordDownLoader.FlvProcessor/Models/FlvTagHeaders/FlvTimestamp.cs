@@ -29,9 +29,9 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagHeaders
             return res;
         }
 
-        public void Read(Memory<byte> buffer)
+        public void Read(Span<byte> buffer)
         {
-            var a = BinaryPrimitives.ReadUInt32BigEndian(buffer.Span);
+            var a = BinaryPrimitives.ReadUInt32BigEndian(buffer);
             Data = ((a & 0xFF) << 24) | (a >> 8);
         }
     }
