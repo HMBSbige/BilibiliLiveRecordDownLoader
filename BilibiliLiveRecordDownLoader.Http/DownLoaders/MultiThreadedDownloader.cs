@@ -31,7 +31,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
         private readonly BehaviorSubject<double> _progressUpdated = new BehaviorSubject<double>(0.0);
         public IObservable<double> ProgressUpdated => _progressUpdated.AsObservable();
 
-        private readonly BehaviorSubject<double> _currentSpeed = new BehaviorSubject<double>(0);
+        private readonly BehaviorSubject<double> _currentSpeed = new BehaviorSubject<double>(0.0);
         public IObservable<double> CurrentSpeed => _currentSpeed.AsObservable();
 
         public string UserAgent { get; set; } = @"Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko";
