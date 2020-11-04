@@ -63,10 +63,10 @@ namespace UnitTest
             var f2 = Path.Combine(KnownFolders.Downloads.Path, @"2.flv");
             var outfile = Path.Combine(KnownFolders.Downloads.Path, @"test.flv");
 
-            var flv = new FlvMerger();
+            var flv = new FlvMerger(NullLogger<FlvMerger>.Instance);
             flv.Add(f1);
             flv.Add(f2);
-            await flv.MergeAsync(outfile);
+            await flv.MergeAsync(outfile, default);
 
             sw.Stop();
 

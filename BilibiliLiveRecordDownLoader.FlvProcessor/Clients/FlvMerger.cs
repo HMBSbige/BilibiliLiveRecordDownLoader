@@ -1,81 +1,197 @@
-﻿using System;
+﻿using BilibiliLiveRecordDownLoader.FlvProcessor.Enums;
+using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
+using BilibiliLiveRecordDownLoader.FlvProcessor.Models;
+using BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagHeaders;
+using Microsoft.Extensions.Logging;
+using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 {
-    public class FlvMerger
+    public class FlvMerger : IFlvMerger
     {
-        private const int TagHeaderSize = 4 + 1 + 3 + 3 + 1 + 3;
-
-        public int BufferSize { get; set; } = 4 * 1024;
-
-        public List<string> Files { get; }
-
-        public bool Async { get; set; } = false;
-
+        private readonly ILogger _logger;
         private static readonly ArrayPool<byte> ArrayPool = ArrayPool<byte>.Shared;
 
-        /// <summary>
-        /// {ECMA}{duration}\0
-        /// </summary>
-        private static readonly Memory<byte> 特征 = new byte[] { 0x08, 0x64, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6F, 0x6E, 0x00 };
+        private long _fileSize;
+        private long _current;
+        private long _last;
 
-        public FlvMerger()
+        private readonly BehaviorSubject<double> _progressUpdated = new BehaviorSubject<double>(0.0);
+        public IObservable<double> ProgressUpdated => _progressUpdated.AsObservable();
+
+        private readonly BehaviorSubject<double> _currentSpeed = new BehaviorSubject<double>(0.0);
+        public IObservable<double> CurrentSpeed => _currentSpeed.AsObservable();
+
+        public int BufferSize { get; set; } = 4096;
+
+        public bool IsAsync { get; set; } = false;
+
+        private readonly List<string> _files = new List<string>();
+        public IEnumerable<string> Files => _files;
+
+        public FlvMerger(ILogger<FlvMerger> logger)
         {
-            Files = new List<string>();
+            _logger = logger;
         }
 
         public void Add(string path)
         {
-            Files.Add(path);
+            _files.Add(path);
         }
 
         public void AddRange(IEnumerable<string> path)
         {
-            Files.AddRange(path);
+            _files.AddRange(path);
         }
 
-        private static void FixDuration(Stream file, int offset, int size, double duration)
+        public async ValueTask MergeAsync(string path, CancellationToken token)
         {
-            file.Position = offset;
-            var b = ArrayPool.Rent(size + sizeof(double));
-            try
+            token.ThrowIfCancellationRequested();
+
+            _fileSize = Files.Sum(file => new FileInfo(file).Length);
+
+            var sw = Stopwatch.StartNew();
+            using var speedMonitor = Observable.Interval(TimeSpan.FromSeconds(1)).Subscribe(_ =>
             {
-                var span = b.AsSpan(0, size);
+                var last = Interlocked.Read(ref _last);
+                _currentSpeed.OnNext(last / sw.Elapsed.TotalSeconds);
+                sw.Restart();
+                Interlocked.Add(ref _last, -last);
+            });
+            using var progressMonitor = Observable.Interval(TimeSpan.FromSeconds(0.1)).Subscribe(_ =>
+            {
+                _progressUpdated.OnNext(Interlocked.Read(ref _current) / (double)_fileSize);
+            });
 
-                file.Read(span);
+            await using var outFile = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, BufferSize, IsAsync);
 
-                var i = offset + span.IndexOf(特征.Span) + 特征.Length;
+            var header = new FlvHeader();
+            var metadata = new FlvTagHeader();
 
-                var outBytes = b.AsSpan(size, sizeof(double));
-                BitConverter.TryWriteBytes(outBytes, duration);
-
-                if (BitConverter.IsLittleEndian)
+            await using (var f0 = new FileStream(Files.First(), FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize))
+            {
+                var headerBuffer = ArrayPool.Rent(header.Size);
+                try
                 {
-                    outBytes.Reverse();
+                    var memory = headerBuffer.AsMemory(0, header.Size);
+
+                    // 读 Header
+                    f0.Read(memory.Span);
+                    header.Read(memory.Span);
+                    _logger.LogDebug($@"{header.Signature} {header.Version} {header.Flags} {header.HeaderSize}");
+
+                    // 写 header
+                    WriteWithProgress(outFile, memory.Span, token);
+                }
+                finally
+                {
+                    ArrayPool.Return(headerBuffer);
                 }
 
-                file.Position = i;
-                file.Write(outBytes);
+                var metadataBuffer = ArrayPool.Rent(metadata.Size);
+                try
+                {
+                    var memory = headerBuffer.AsMemory(0, metadata.Size);
+
+                    // 读 Metadata
+                    f0.Read(memory.Span);
+                    metadata.Read(memory.Span);
+
+                    if (metadata.PayloadInfo.PacketType == PacketType.AMF_Metadata)
+                    {
+                        // 写 MetaData
+                        WriteWithProgress(outFile, memory.Span, token);
+                        CopyFixedSize(f0, outFile, (int)metadata.PayloadInfo.PayloadSize, token);
+                    }
+                    else
+                    {
+                        //TODO: 写自定义 MetaData
+                        _logger.LogWarning(@"First packet is not a metadata packet");
+                    }
+                }
+                finally
+                {
+                    ArrayPool.Return(metadataBuffer);
+                }
             }
-            finally
+
+            var timestamp = 0u;
+            var allRead = 0L;
+
+            var tagHeader = new FlvTagHeader(); // 循环内每次 new 一个 tag 的话开销过大
+
+            foreach (var file in Files)
             {
-                ArrayPool.Return(b);
+                var currentTimestamp = 0u;
+                var read = 0L;
+
+                await using var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
+                var length = fs.Length;
+
+                fs.Seek(header.Size, SeekOrigin.Begin);
+
+                while (read + tagHeader.Size < length)
+                {
+                    var tagHeaderBuffer = ArrayPool.Rent(tagHeader.Size);
+                    try
+                    {
+                        var memory = tagHeaderBuffer.AsMemory(0, tagHeader.Size);
+                        fs.Read(memory.Span);
+                        tagHeader.Read(memory.Span);
+
+                        if (tagHeader.PayloadInfo.PacketType != PacketType.AMF_Metadata)
+                        {
+                            // 重写时间戳
+                            currentTimestamp = tagHeader.Timestamp.Data;
+                            tagHeader.Timestamp.Data += timestamp;
+
+                            // 写 tag header
+                            WriteWithProgress(outFile, tagHeader.ToMemory(memory).Span, token);
+
+                            // 复制 Payload
+                            CopyFixedSize(fs, outFile, (int)tagHeader.PayloadInfo.PayloadSize, token);
+                        }
+                        else
+                        {
+                            currentTimestamp = 0u;
+                            fs.Seek(tagHeader.PayloadInfo.PayloadSize, SeekOrigin.Current);
+                        }
+                    }
+                    finally
+                    {
+                        ArrayPool.Return(tagHeaderBuffer);
+                    }
+
+                    read += tagHeader.Size + tagHeader.PayloadInfo.PayloadSize;
+                }
+
+                timestamp += currentTimestamp;
+                allRead += read;
+                Interlocked.Exchange(ref _current, allRead);
             }
+
+            FixDuration(outFile, header.Size, (int)metadata.PayloadInfo.PayloadSize + metadata.Size, timestamp / 1000.0);
+
+            _progressUpdated.OnNext(1.0);
         }
 
-        private void CopyFixedSize(Stream source, Stream dst, int size)
+        private void CopyFixedSize(Stream source, Stream dst, int size, CancellationToken token)
         {
             var buffer = ArrayPool.Rent(Math.Min(BufferSize, size));
             try
             {
                 var span = buffer.AsSpan();
-                while (true)
+                while (size > 0)
                 {
                     var shouldRead = Math.Min(size, span.Length);
 
@@ -84,8 +200,9 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
                     {
                         break;
                     }
+
                     size -= read;
-                    dst.Write(span.Slice(0, read));
+                    WriteWithProgress(dst, span.Slice(0, read), token);
                 }
             }
             finally
@@ -94,157 +211,67 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
             }
         }
 
-        private static int ReadInt32BigEndian(Stream fs, int offset)
+        private void WriteWithProgress(Stream dst, ReadOnlySpan<byte> buffer, CancellationToken token)
         {
-            var origin = fs.Position;
-            fs.Position = offset;
+            token.ThrowIfCancellationRequested();
 
-            var buffer = ArrayPool.Rent(4);
+            dst.Write(buffer);
+            ReportProgress(buffer.Length);
+        }
+
+        private void ReportProgress(long length)
+        {
+            Interlocked.Add(ref _last, length);
+            Interlocked.Add(ref _current, length);
+        }
+
+        /// <summary>
+        /// {sizeof("duration")}{duration}{double}
+        /// </summary>
+        private static readonly Memory<byte> 特征duration = new byte[] { 0x08, 0x64, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6F, 0x6E, 0x00 };
+
+        private void FixDuration(Stream file, int offset, int size, double duration)
+        {
+            file.Seek(offset, SeekOrigin.Begin);
+
+            const int durationSize = sizeof(double);
+
+            var b = ArrayPool.Rent(size + durationSize);
             try
             {
-                var span = buffer.AsSpan(0, 4);
-                fs.Read(span);
+                var span = b.AsSpan(0, size);
 
-                fs.Position = origin;
+                file.Read(span);
 
-                return BinaryPrimitives.ReadInt32BigEndian(span);
+                var index = span.IndexOf(特征duration.Span);
+                if (index < 0)
+                {
+                    _logger.LogWarning(@"找不到 duration 字段");
+                    return;
+                }
+
+                var i = offset + span.IndexOf(特征duration.Span) + 特征duration.Length;
+
+                var outBytes = b.AsSpan(size, durationSize);
+
+                // TODO:.NET 5.0 BinaryPrimitives.WriteDoubleBigEndian(outBytes, duration);
+                BinaryPrimitives.TryWriteInt64BigEndian(outBytes, BitConverter.DoubleToInt64Bits(duration));
+
+                file.Seek(i, SeekOrigin.Begin);
+                WriteWithProgress(file, outBytes, default);
             }
             finally
             {
-                ArrayPool.Return(buffer);
+                ArrayPool.Return(b);
             }
         }
 
-        private static uint GetTimeStamp(Stream fs, int offset)
+        public ValueTask DisposeAsync()
         {
-            var origin = fs.Position;
-            fs.Position = offset;
-            var buffer = ArrayPool.Rent(4);
-            try
-            {
-                var span = buffer.AsSpan(0, 4);
-                fs.Read(span);
+            _progressUpdated.OnCompleted();
+            _currentSpeed.OnCompleted();
 
-                fs.Position = origin;
-
-                var m = BinaryPrimitives.ReadUInt32BigEndian(span);
-
-                return ((m & 0xFF) << 24) | (m >> 8);
-            }
-            finally
-            {
-                ArrayPool.Return(buffer);
-            }
-        }
-
-        private static void GetTimeStamp(uint timeStamp, Span<byte> result)
-        {
-            var bytes = ArrayPool.Rent(4);
-            try
-            {
-                var span = bytes.AsSpan(0, 4);
-                BitConverter.TryWriteBytes(span, timeStamp);
-
-                if (BitConverter.IsLittleEndian)
-                {
-                    result[0] = span[2];
-                    result[1] = span[1];
-                    result[2] = span[0];
-                    result[3] = span[3];
-                }
-                else
-                {
-                    result[0] = span[1];
-                    result[1] = span[2];
-                    result[2] = span[3];
-                    result[3] = span[0];
-                }
-            }
-            finally
-            {
-                ArrayPool.Return(bytes);
-            }
-        }
-
-        public async ValueTask MergeAsync(string path)
-        {
-            await using var outFile = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, BufferSize, Async);
-
-            // 读 Header
-            await using var f0 = new FileStream(Files.First(), FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
-            var headerLength = ReadInt32BigEndian(f0, 5);
-
-            // 写 header
-            CopyFixedSize(f0, outFile, headerLength);
-            var i = headerLength;
-
-            // 读 MetaData
-            var metaDataSize = ReadInt32BigEndian(f0, i + 4);
-            if (metaDataSize >> 24 == 0x12)
-            {
-                metaDataSize &= 0x00FFFFFF;
-                // 写 MetaData
-                CopyFixedSize(f0, outFile, metaDataSize + TagHeaderSize);
-                i += metaDataSize + TagHeaderSize;
-            }
-
-            var timestamp = 0u;
-            var fileNum = 0u;
-
-            foreach (var fileName in Files)
-            {
-                var currentTimestamp = 0u;
-
-                await using var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
-
-                if (fileNum > 0)
-                {
-                    i = ReadInt32BigEndian(fs, 5);
-                }
-
-                while (i + TagHeaderSize < fs.Length)
-                {
-                    var h = ReadInt32BigEndian(fs, i + 4);
-                    var tagSize = (h & 0x00FFFFFF) + TagHeaderSize;
-
-                    if (h >> 24 != 0x12) // 跳过 MetaData
-                    {
-                        currentTimestamp = GetTimeStamp(fs, i + 8);
-
-                        var buffer = ArrayPool.Rent(8 + 4);
-                        try
-                        {
-                            var memory = buffer.AsMemory(0, 8 + 4);
-
-                            fs.Position = i;
-                            fs.Read(memory.Span);
-
-                            if (fileNum > 0) //不是第一个文件的话，重写时间戳
-                            {
-                                GetTimeStamp(currentTimestamp + timestamp, memory.Span.Slice(8));
-                            }
-
-                            outFile.Write(memory.Span);
-                        }
-                        finally
-                        {
-                            ArrayPool.Return(buffer);
-                        }
-
-                        if (fs.Length >= i + tagSize)
-                        {
-                            CopyFixedSize(fs, outFile, tagSize - 8 - 4);
-                        }
-                    }
-                    i += tagSize;
-                }
-
-                i = 0;
-                timestamp += currentTimestamp;
-                ++fileNum;
-            }
-
-            FixDuration(outFile, headerLength, metaDataSize + TagHeaderSize, timestamp / 1000.0);
+            return default;
         }
     }
 }

@@ -1,9 +1,8 @@
 ﻿using BilibiliApi.Clients;
-using BilibiliLiveRecordDownLoader.FlvProcessor.Clients;
+using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
 using BilibiliLiveRecordDownLoader.Http.DownLoaders;
 using Splat;
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reactive.Linq;
@@ -91,27 +90,36 @@ namespace BilibiliLiveRecordDownLoader.Services
                         downloader.OutFileName = outfile;
                         downloader.TempDir = RecordPath;
 
-                        using var d1 = downloader.CurrentSpeed.Subscribe(d => { Debug.WriteLine($@"{d:F2} Bytes/s"); });
-                        using var d2 = downloader.ProgressUpdated.Subscribe(d =>
-                        {
-                            // ReSharper disable once AccessToModifiedClosure
-                            _progress.OnNext((d + i) / l.Length);
-                        });
+                        //using var d1 = downloader.CurrentSpeed.DistinctUntilChanged().Subscribe(d => { Debug.WriteLine($@"{d:F2} Bytes/s"); });
+                        using var d2 = downloader.ProgressUpdated
+                            .DistinctUntilChanged()
+                            .Subscribe(d =>
+                            {
+                                // ReSharper disable once AccessToModifiedClosure
+                                _progress.OnNext((d + i) / l.Length);
+                            });
 
                         await downloader.DownloadAsync(_cts.Token);
                     }
 
                     //Merge flv
-                    _progress.OnNext(0.99);
 
                     var filename = _startTime == default ? _id : $@"{_startTime:yyyyMMdd_HHmmss}";
                     var mergeFlv = Path.Combine(_root, $@"{filename}.flv");
                     if (l.Length > 1)
                     {
-                        var flv = new FlvMerger();
+                        await using var flv = Locator.Current.GetService<IFlvMerger>();
                         flv.AddRange(Enumerable.Range(1, l.Length).Select(i => Path.Combine(RecordPath, $@"{i}.flv")));
 
-                        await flv.MergeAsync(mergeFlv);
+                        //using var d1 = flv.CurrentSpeed.DistinctUntilChanged().Subscribe(d => { Debug.WriteLine($@"{d:F2} Bytes/s"); });
+                        using var d2 = flv.ProgressUpdated
+                            .DistinctUntilChanged()
+                            .Subscribe(d =>
+                            {
+                                _progress.OnNext(d);
+                            });
+
+                        await flv.MergeAsync(mergeFlv, _cts.Token);
                         Utils.Utils.DeleteFiles(RecordPath);
                     }
                     else if (l.Length == 1)
@@ -120,8 +128,6 @@ namespace BilibiliLiveRecordDownLoader.Services
                         File.Move(inputFile, mergeFlv, true);
                         Utils.Utils.DeleteFiles(RecordPath);
                     }
-
-                    _progress.OnNext(1.0);
                 }
             }
             catch (OperationCanceledException)

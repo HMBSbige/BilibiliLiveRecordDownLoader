@@ -129,13 +129,18 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
             try
             {
                 var sw = Stopwatch.StartNew();
-                using var monitorSpeed = Observable.Interval(TimeSpan.FromSeconds(1)).Subscribe(_ =>
+                using var speedMonitor = Observable.Interval(TimeSpan.FromSeconds(1)).Subscribe(_ =>
                 {
                     var last = Interlocked.Read(ref _last);
                     _currentSpeed.OnNext(last / sw.Elapsed.TotalSeconds);
                     sw.Restart();
                     Interlocked.Add(ref _last, -last);
                 });
+                using var progressMonitor = Observable.Interval(TimeSpan.FromSeconds(0.2)).Subscribe(_ =>
+                {
+                    _progressUpdated.OnNext(Interlocked.Read(ref _current) / (double)_fileSize);
+                });
+
                 await list.Select(info =>
                 {
                     // ReSharper disable once AccessToDisposedClosure
@@ -146,6 +151,8 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 
                 _current = 0;
                 await MergeFilesAsync(list, token);
+
+                _progressUpdated.OnNext(1.0);
             }
             catch (OperationCanceledException)
             {
@@ -327,7 +334,6 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
                 Interlocked.Add(ref _last, length);
             }
             Interlocked.Add(ref _current, length);
-            _progressUpdated.OnNext(Interlocked.Read(ref _current) / (double)_fileSize);
         }
 
         public ValueTask DisposeAsync()
