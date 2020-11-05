@@ -24,53 +24,73 @@ namespace UnitTest
                     .ToUpperInvariant();
         }
 
+        private static async Task<string> DownloadAsync()
+        {
+            const string url = @"https://www.mediacollege.com/video-gallery/testclips/4sec.flv";
+            var filename = Path.ChangeExtension(Path.GetTempFileName(), @"flv");
+            const string sha256 = @"9657166E7865880954FD6BEE8A7F9E2BBF2F32D7729BB8184A2AA2BA1261FAB6";
+            var path = KnownFolders.Downloads.Path;
+            var outFile = Path.Combine(path, filename);
+            try
+            {
+                await using var downloader = new MultiThreadedDownloader(NullLogger<MultiThreadedDownloader>.Instance)
+                {
+                    Target = new Uri(url),
+                    Threads = 4,
+                    OutFileName = outFile,
+                    TempDir = path
+                };
+
+                //downloader.ProgressUpdated.Subscribe(i => { Console.WriteLine($@"{i * 100:F2}%"); });
+                //downloader.CurrentSpeed.Subscribe(i => { Console.WriteLine($@"{i} Bytes/s"); });
+
+                await downloader.DownloadAsync(default);
+
+                Assert.IsTrue(File.Exists(outFile));
+                Assert.AreEqual(CalculateSHA256(outFile), sha256);
+
+                return outFile;
+            }
+            catch (Exception)
+            {
+                File.Delete(outFile);
+                throw;
+            }
+        }
+
         [TestMethod]
         public async Task TestDownloadAsync()
         {
-            const string url = @"https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/Image_created_with_a_mobile_phone.png/1200px-Image_created_with_a_mobile_phone.png";
-            var filename = Path.ChangeExtension(Path.GetTempFileName(), @"png");
-            const string sha256 = @"179B41F1B27111836AC73F13B4C42F1034863AA0F4B00C8282D60C13711D7B9E";
-            var path = KnownFolders.Downloads.Path;
-            var outFile = Path.Combine(path, filename);
-
-            await using var downloader = new MultiThreadedDownloader(NullLogger<MultiThreadedDownloader>.Instance)
-            {
-                Target = new Uri(url),
-                Threads = 4,
-                OutFileName = outFile,
-                TempDir = path
-            };
-
-            //downloader.ProgressUpdated.Subscribe(i => { Console.WriteLine($@"{i * 100:F2}%"); });
-            //downloader.CurrentSpeed.Subscribe(i => { Console.WriteLine($@"{i} Bytes/s"); });
-
-            await downloader.DownloadAsync(default);
-
-            Assert.IsTrue(File.Exists(outFile));
-            Assert.AreEqual(new FileInfo(outFile).Length, 1594447);
-            Assert.AreEqual(CalculateSHA256(outFile), sha256);
-
+            var outFile = await DownloadAsync();
             File.Delete(outFile);
         }
 
         [TestMethod]
         public async Task TestFlvMergeAsync()
         {
-            var sw = new Stopwatch();
-            sw.Start();
+            const string sha256 = @"1FA16CA4A31343F43262E90E31EF63C8247574B14F4764D1BFB37AFDEDF3EB84";
 
-            var f1 = Path.Combine(KnownFolders.Downloads.Path, @"1.flv");
-            var f2 = Path.Combine(KnownFolders.Downloads.Path, @"2.flv");
-            var outfile = Path.Combine(KnownFolders.Downloads.Path, @"test.flv");
+            var outFile = await DownloadAsync();
+            var outFlv = Path.Combine(KnownFolders.Downloads.Path, @"test.flv");
+            try
+            {
+                var flvMerger = new FlvMerger(NullLogger<FlvMerger>.Instance);
+                flvMerger.Add(outFile);
+                flvMerger.Add(outFile);
 
-            var flv = new FlvMerger(NullLogger<FlvMerger>.Instance);
-            flv.Add(f1);
-            flv.Add(f2);
-            await flv.MergeAsync(outfile, default);
+                var sw = Stopwatch.StartNew();
+                await flvMerger.MergeAsync(outFlv, default);
+                sw.Stop();
+                Console.WriteLine(sw.Elapsed.TotalSeconds);
 
-            sw.Stop();
-
-            Console.WriteLine(sw.Elapsed.TotalSeconds);
+                Assert.IsTrue(File.Exists(outFlv));
+                Assert.AreEqual(CalculateSHA256(outFlv), sha256);
+            }
+            finally
+            {
+                File.Delete(outFile);
+                File.Delete(outFlv);
+            }
         }
     }
 }
