@@ -46,7 +46,7 @@ namespace BilibiliApi.Clients
 
         private const int BufferSize = 1024;
 
-        public DanmuClientBase(ILogger logger)
+        protected DanmuClientBase(ILogger logger)
         {
             _logger = logger;
         }
