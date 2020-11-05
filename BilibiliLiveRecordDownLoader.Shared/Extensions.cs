@@ -1,12 +1,19 @@
 ﻿using Microsoft.Extensions.ObjectPool;
 using System;
-using System.Buffers;
 using System.Reactive.Disposables;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.Shared
 {
     public static class Extensions
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void NoWarning(this Task _) { }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void NoWarning(this ValueTask _) { }
+
         public static int GetDeterministicHashCode(this string str)
         {
             unchecked
@@ -27,13 +34,6 @@ namespace BilibiliLiveRecordDownLoader.Shared
 
                 return hash1 + hash2 * 1566083941;
             }
-        }
-
-        public static IDisposable CreateArray<T>(this ArrayPool<T> arrayPool, int minimumLength, out T[] res)
-        {
-            var b = arrayPool.Rent(minimumLength);
-            res = b;
-            return Disposable.Create(() => { arrayPool.Return(b); });
         }
 
         public static IDisposable GetObject<T>(this ObjectPool<T> objectPool, out T res) where T : class
