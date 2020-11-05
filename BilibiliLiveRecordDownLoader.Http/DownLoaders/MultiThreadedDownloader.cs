@@ -1,4 +1,4 @@
-﻿using BilibiliLiveRecordDownLoader.Http.HttpPolicy;
+﻿using BilibiliLiveRecordDownLoader.Shared.HttpPolicy;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
 using Punchclock;

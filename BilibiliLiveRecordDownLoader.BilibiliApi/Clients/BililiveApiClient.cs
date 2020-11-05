@@ -1,9 +1,9 @@
-using BilibiliApi.Model.AnchorInfo;
+﻿using BilibiliApi.Model.AnchorInfo;
 using BilibiliApi.Model.DanmuConf;
 using BilibiliApi.Model.LiveRecordList;
 using BilibiliApi.Model.LiveRecordUrl;
 using BilibiliApi.Model.RoomInit;
-using BilibiliApi.Utils;
+using BilibiliLiveRecordDownLoader.Shared.HttpPolicy;
 using System;
 using System.IO;
 using System.Net.Http;

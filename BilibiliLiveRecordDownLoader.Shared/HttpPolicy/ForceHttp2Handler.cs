@@ -3,7 +3,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace BilibiliApi.Utils
+namespace BilibiliLiveRecordDownLoader.Shared.HttpPolicy
 {
     public class ForceHttp2Handler : DelegatingHandler
     {

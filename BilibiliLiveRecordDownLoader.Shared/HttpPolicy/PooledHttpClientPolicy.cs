@@ -1,8 +1,8 @@
-﻿using Microsoft.Extensions.ObjectPool;
-using System;
+﻿using System;
 using System.Net.Http;
+using Microsoft.Extensions.ObjectPool;
 
-namespace BilibiliLiveRecordDownLoader.Http.HttpPolicy
+namespace BilibiliLiveRecordDownLoader.Shared.HttpPolicy
 {
     public class PooledHttpClientPolicy : PooledObjectPolicy<HttpClient>
     {
