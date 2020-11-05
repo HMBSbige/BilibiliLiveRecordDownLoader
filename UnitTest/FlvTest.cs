@@ -14,7 +14,7 @@ namespace UnitTest
         [TestMethod]
         public void TestFlvHeader()
         {
-            var should = new byte[] { 0x46, 0x4c, 0x56, 0x01, 0x05, 0x00, 0x00, 0x00, 0x09 };
+            var should = new byte[] { 0x46, 0x4c, 0x56, 0x01, 0x05, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 0x00 };
 
             var header = new FlvHeader();
 
@@ -33,6 +33,7 @@ namespace UnitTest
             Assert.AreEqual(header.Version, 0x01);
             Assert.AreEqual(header.Flags, HeaderFlags.VideoAndAudio);
             Assert.AreEqual(header.HeaderSize, 9u);
+            Assert.AreEqual(header.Reserved, 0u);
         }
 
         [TestMethod]
@@ -94,7 +95,6 @@ namespace UnitTest
         {
             var should = new byte[]
             {
-                0x00, 0x01, 0xBF, 0x52,
                 0x09,
                 0xFF, 0xFF, 0xFF,
                 0xC7, 0x00, 0x42,
@@ -104,7 +104,6 @@ namespace UnitTest
 
             var info = new FlvTagHeader
             {
-                SizeofPreviousPacket = 114514,
                 PayloadInfo = { PayloadSize = (1 << 24) - 1, PacketType = PacketType.VideoPayload },
                 Timestamp = { Data = 0x9FC7_0042 }
             };
@@ -114,11 +113,9 @@ namespace UnitTest
                 Assert.IsTrue(info.ToMemory(memory.Memory).Span.SequenceEqual(should));
             }
 
-            info.SizeofPreviousPacket = 1919810;
             info.PayloadInfo = new FlvTagPayloadInfo();
             info.Timestamp = new FlvTimestamp();
             info.Read(should);
-            Assert.AreEqual(info.SizeofPreviousPacket, 114514u);
             Assert.AreEqual(info.PayloadInfo.PayloadSize, (uint)((1 << 24) - 1));
             Assert.AreEqual(info.PayloadInfo.PacketType, PacketType.VideoPayload);
             Assert.AreEqual(info.Timestamp.Data, 0x9FC7_0042);

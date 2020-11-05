@@ -97,9 +97,11 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 
                     if (metadata.PayloadInfo.PacketType == PacketType.AMF_Metadata)
                     {
-                        // 写 MetaData
+                        // 写 MetaData header
                         WriteWithProgress(outFile, memory.Span, token);
-                        CopyFixedSize(f0, outFile, (int)metadata.PayloadInfo.PayloadSize, token);
+
+                        // 写 MetaData payload 和  MetaData size
+                        CopyFixedSize(f0, outFile, (int)metadata.PayloadInfo.PayloadSize + sizeof(uint), token);
                     }
                     else
                     {
@@ -124,7 +126,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 
                 fs.Seek(header.Size, SeekOrigin.Begin);
 
-                while (read + tagHeader.Size < length)
+                while (read < length)
                 {
                     using (var tagHeaderBuffer = MemoryPool<byte>.Shared.Rent(tagHeader.Size))
                     {
@@ -141,17 +143,17 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
                             // 写 tag header
                             WriteWithProgress(outFile, tagHeader.ToMemory(memory).Span, token);
 
-                            // 复制 Payload
-                            CopyFixedSize(fs, outFile, (int)tagHeader.PayloadInfo.PayloadSize, token);
+                            // 复制 Payload 和 tag 大小
+                            CopyFixedSize(fs, outFile, (int)tagHeader.PayloadInfo.PayloadSize + sizeof(uint), token);
                         }
                         else
                         {
                             currentTimestamp = 0u;
-                            fs.Seek(tagHeader.PayloadInfo.PayloadSize, SeekOrigin.Current);
+                            fs.Seek((int)tagHeader.PayloadInfo.PayloadSize + sizeof(uint), SeekOrigin.Current);
                         }
                     }
 
-                    read += tagHeader.Size + tagHeader.PayloadInfo.PayloadSize;
+                    read += tagHeader.Size + (int)tagHeader.PayloadInfo.PayloadSize;
                 }
 
                 timestamp += currentTimestamp;

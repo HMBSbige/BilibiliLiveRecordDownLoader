@@ -31,9 +31,11 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models
         /// </summary>
         public uint HeaderSize = 9;
 
+        public uint Reserved => 0;
+
         #endregion
 
-        public int Size => 9;
+        public int Size => 13;
 
         public Memory<byte> ToMemory(Memory<byte> array)
         {
@@ -43,6 +45,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models
             res.Span[3] = Version;
             res.Span[4] = (byte)Flags;
             BinaryPrimitives.WriteUInt32BigEndian(res.Span.Slice(5, 4), HeaderSize);
+            BinaryPrimitives.WriteUInt32BigEndian(res.Span.Slice(9, 4), Reserved);
 
             return res;
         }
