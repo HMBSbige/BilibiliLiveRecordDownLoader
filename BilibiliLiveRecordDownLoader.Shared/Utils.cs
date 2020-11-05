@@ -1,7 +1,7 @@
 ﻿using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
-namespace BilibiliApi.Utils
+namespace BilibiliLiveRecordDownLoader.Shared
 {
     public static class Utils
     {

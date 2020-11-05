@@ -1,7 +1,7 @@
 ﻿using BilibiliApi.Enums;
 using BilibiliApi.Model.Danmu;
 using BilibiliApi.Model.DanmuConf;
-using BilibiliApi.Utils;
+using BilibiliLiveRecordDownLoader.Shared;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Buffers;

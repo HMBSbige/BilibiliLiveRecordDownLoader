@@ -15,9 +15,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\BilibiliLiveRecordDownLoader.BilibiliApi\BilibiliLiveRecordDownLoader.BilibiliApi.csproj" />
-    <ProjectReference Include="..\BilibiliLiveRecordDownLoader.FlvProcessor\BilibiliLiveRecordDownLoader.FlvProcessor.csproj" />
-    <ProjectReference Include="..\BilibiliLiveRecordDownLoader.Http\BilibiliLiveRecordDownLoader.Http.csproj" />
     <ProjectReference Include="..\BilibiliLiveRecordDownLoader\BilibiliLiveRecordDownLoader.csproj" />
   </ItemGroup>
 

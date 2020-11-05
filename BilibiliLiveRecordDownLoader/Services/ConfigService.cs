@@ -1,6 +1,6 @@
-﻿using BilibiliApi.Utils;
-using BilibiliLiveRecordDownLoader.Interfaces;
+﻿using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models;
+using BilibiliLiveRecordDownLoader.Shared;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.Threading;
 using ReactiveUI;

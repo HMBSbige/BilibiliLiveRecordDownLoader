@@ -2,8 +2,8 @@
 {
     public enum HeaderFlags : byte
     {
-        Video = 0x01,
-        Audio = 0x04,
-        VideoAndAudio = 0x05,
+        Video = 0b0001,
+        Audio = 0b0100,
+        VideoAndAudio = 0b0101,
     }
 }

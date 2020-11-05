@@ -1,8 +1,8 @@
 ﻿using BilibiliApi.Clients;
 using BilibiliApi.Model.LiveRecordList;
-using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Services;
+using BilibiliLiveRecordDownLoader.Shared;
 using BilibiliLiveRecordDownLoader.Utils;
 using DynamicData;
 using Microsoft.Extensions.Logging;
