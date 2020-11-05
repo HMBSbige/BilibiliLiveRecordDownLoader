@@ -44,8 +44,6 @@ namespace BilibiliApi.Clients
 
         private CancellationTokenSource _cts;
 
-        private static readonly ArrayPool<byte> BytePool = ArrayPool<byte>.Shared;
-
         private const int BufferSize = 1024;
 
         public DanmuClientBase(ILogger logger)
@@ -172,17 +170,12 @@ namespace BilibiliApi.Clients
                 SequenceId = 1,
                 Body = data
             };
-            var bytes = BytePool.Rent(packet.PacketLength);
-            try
-            {
-                var buffer = packet.ToMemory(bytes);
 
-                await SendAsync(buffer, token);
-            }
-            finally
-            {
-                BytePool.Return(bytes);
-            }
+            using var memory = MemoryPool<byte>.Shared.Rent(packet.PacketLength);
+
+            var buffer = packet.ToMemory(memory.Memory);
+
+            await SendAsync(buffer, token);
         }
 
         private async ValueTask AuthAsync(CancellationToken token)
@@ -309,39 +302,28 @@ namespace BilibiliApi.Clients
 
                         await using var deflate = new DeflateStream(ms, CompressionMode.Decompress);
 
-                        var header = BytePool.Rent(4);
-                        try
+
+                        using var header = MemoryPool<byte>.Shared.Rent(4);
+                        while (true)
                         {
-                            while (true)
+                            var headerLength = await deflate.ReadAsync(header.Memory.Slice(0, 4), token);
+
+                            if (headerLength < 4)
                             {
-                                var headerLength = await deflate.ReadAsync(header.AsMemory(0, 4), token);
-
-                                if (headerLength < 4)
-                                {
-                                    break;
-                                }
-
-                                var packetLength = BinaryPrimitives.ReadInt32BigEndian(header);
-                                var remainSize = packetLength - headerLength;
-                                var subBuffer = BytePool.Rent(remainSize);
-                                try
-                                {
-                                    await deflate.ReadAsync(subBuffer.AsMemory(0, remainSize), token);
-
-                                    var subPacket = new DanmuPacket { PacketLength = packetLength };
-                                    subPacket.ReadDanMu(subBuffer);
-
-                                    await ProcessDanMuPacketAsync(subPacket, token);
-                                }
-                                finally
-                                {
-                                    BytePool.Return(subBuffer);
-                                }
+                                break;
                             }
-                        }
-                        finally
-                        {
-                            BytePool.Return(header);
+
+                            var packetLength = BinaryPrimitives.ReadInt32BigEndian(header.Memory.Span);
+                            var remainSize = packetLength - headerLength;
+
+                            using var subBuffer = MemoryPool<byte>.Shared.Rent(remainSize);
+
+                            await deflate.ReadAsync(subBuffer.Memory.Slice(0, remainSize), token);
+
+                            var subPacket = new DanmuPacket { PacketLength = packetLength };
+                            subPacket.ReadDanMu(subBuffer.Memory);
+
+                            await ProcessDanMuPacketAsync(subPacket, token);
                         }
 
                         break;

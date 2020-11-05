@@ -20,7 +20,6 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
     public class FlvMerger : IFlvMerger
     {
         private readonly ILogger _logger;
-        private static readonly ArrayPool<byte> ArrayPool = ArrayPool<byte>.Shared;
 
         private long _fileSize;
         private long _current;
@@ -75,10 +74,9 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 
             await using (var f0 = new FileStream(Files.First(), FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize))
             {
-                var headerBuffer = ArrayPool.Rent(header.Size);
-                try
+                using (var headerBuffer = MemoryPool<byte>.Shared.Rent(header.Size))
                 {
-                    var memory = headerBuffer.AsMemory(0, header.Size);
+                    var memory = headerBuffer.Memory.Slice(0, header.Size);
 
                     // 读 Header
                     f0.Read(memory.Span);
@@ -88,15 +86,10 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
                     // 写 header
                     WriteWithProgress(outFile, memory.Span, token);
                 }
-                finally
-                {
-                    ArrayPool.Return(headerBuffer);
-                }
 
-                var metadataBuffer = ArrayPool.Rent(metadata.Size);
-                try
+                using (var metadataBuffer = MemoryPool<byte>.Shared.Rent(metadata.Size))
                 {
-                    var memory = headerBuffer.AsMemory(0, metadata.Size);
+                    var memory = metadataBuffer.Memory.Slice(0, metadata.Size);
 
                     // 读 Metadata
                     f0.Read(memory.Span);
@@ -113,10 +106,6 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
                         //TODO: 写自定义 MetaData
                         _logger.LogWarning(@"First packet is not a metadata packet");
                     }
-                }
-                finally
-                {
-                    ArrayPool.Return(metadataBuffer);
                 }
             }
 
@@ -137,10 +126,9 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 
                 while (read + tagHeader.Size < length)
                 {
-                    var tagHeaderBuffer = ArrayPool.Rent(tagHeader.Size);
-                    try
+                    using (var tagHeaderBuffer = MemoryPool<byte>.Shared.Rent(tagHeader.Size))
                     {
-                        var memory = tagHeaderBuffer.AsMemory(0, tagHeader.Size);
+                        var memory = tagHeaderBuffer.Memory.Slice(0, tagHeader.Size);
                         fs.Read(memory.Span);
                         tagHeader.Read(memory.Span);
 
@@ -162,10 +150,6 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
                             fs.Seek(tagHeader.PayloadInfo.PayloadSize, SeekOrigin.Current);
                         }
                     }
-                    finally
-                    {
-                        ArrayPool.Return(tagHeaderBuffer);
-                    }
 
                     read += tagHeader.Size + tagHeader.PayloadInfo.PayloadSize;
                 }
@@ -180,27 +164,21 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 
         private void CopyFixedSize(Stream source, Stream dst, int size, CancellationToken token)
         {
-            var buffer = ArrayPool.Rent(Math.Min(BufferSize, size));
-            try
+            using var memory = MemoryPool<byte>.Shared.Rent(Math.Min(BufferSize, size));
+
+            var span = memory.Memory.Span;
+            while (size > 0)
             {
-                var span = buffer.AsSpan();
-                while (size > 0)
+                var shouldRead = Math.Min(size, span.Length);
+
+                var read = source.Read(span.Slice(0, shouldRead));
+                if (read <= 0)
                 {
-                    var shouldRead = Math.Min(size, span.Length);
-
-                    var read = source.Read(span.Slice(0, shouldRead));
-                    if (read <= 0)
-                    {
-                        break;
-                    }
-
-                    size -= read;
-                    WriteWithProgress(dst, span.Slice(0, read), token);
+                    break;
                 }
-            }
-            finally
-            {
-                ArrayPool.Return(buffer);
+
+                size -= read;
+                WriteWithProgress(dst, span.Slice(0, read), token);
             }
         }
 
@@ -229,34 +207,28 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 
             const int durationSize = sizeof(double);
 
-            var b = ArrayPool.Rent(size + durationSize);
-            try
+            using var memory = MemoryPool<byte>.Shared.Rent(size + durationSize);
+
+            var span = memory.Memory.Slice(0, size).Span;
+
+            file.Read(span);
+
+            var index = span.IndexOf(特征duration.Span);
+            if (index < 0)
             {
-                var span = b.AsSpan(0, size);
-
-                file.Read(span);
-
-                var index = span.IndexOf(特征duration.Span);
-                if (index < 0)
-                {
-                    _logger.LogWarning(@"找不到 duration 字段");
-                    return;
-                }
-
-                var i = offset + span.IndexOf(特征duration.Span) + 特征duration.Length;
-
-                var outBytes = b.AsSpan(size, durationSize);
-
-                // TODO:.NET 5.0 BinaryPrimitives.WriteDoubleBigEndian(outBytes, duration);
-                BinaryPrimitives.TryWriteInt64BigEndian(outBytes, BitConverter.DoubleToInt64Bits(duration));
-
-                file.Seek(i, SeekOrigin.Begin);
-                WriteWithProgress(file, outBytes, default);
+                _logger.LogWarning(@"找不到 duration 字段");
+                return;
             }
-            finally
-            {
-                ArrayPool.Return(b);
-            }
+
+            var i = offset + span.IndexOf(特征duration.Span) + 特征duration.Length;
+
+            var outBytes = memory.Memory.Slice(size, durationSize).Span;
+
+            // TODO:.NET 5.0 BinaryPrimitives.WriteDoubleBigEndian(outBytes, duration);
+            BinaryPrimitives.TryWriteInt64BigEndian(outBytes, BitConverter.DoubleToInt64Bits(duration));
+
+            file.Seek(i, SeekOrigin.Begin);
+            WriteWithProgress(file, outBytes, default);
         }
 
         public ValueTask DisposeAsync()

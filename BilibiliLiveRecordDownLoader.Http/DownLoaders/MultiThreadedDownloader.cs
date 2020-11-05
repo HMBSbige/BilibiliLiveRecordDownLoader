@@ -297,26 +297,19 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 
         private async ValueTask CopyStreamAsyncWithProgress(Stream from, Stream to, bool reportSpeed, CancellationToken token, int bufferSize = 81920)
         {
-            var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
-            try
+            using var memory = MemoryPool<byte>.Shared.Rent(bufferSize);
+            while (true)
             {
-                while (true)
+                var length = await from.ReadAsync(memory.Memory, token);
+                if (length != 0)
                 {
-                    var length = await from.ReadAsync(buffer.AsMemory(), token);
-                    if (length != 0)
-                    {
-                        await to.WriteAsync(buffer.AsMemory(0, length), token);
-                        ReportProgress(length, reportSpeed);
-                    }
-                    else
-                    {
-                        break;
-                    }
+                    await to.WriteAsync(memory.Memory.Slice(0, length), token);
+                    ReportProgress(length, reportSpeed);
                 }
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(buffer);
+                else
+                {
+                    break;
+                }
             }
         }
 

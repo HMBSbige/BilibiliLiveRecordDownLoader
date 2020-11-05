@@ -1,4 +1,8 @@
-﻿namespace BilibiliLiveRecordDownLoader.Shared
+﻿using System;
+using System.Buffers;
+using System.Reactive.Disposables;
+
+namespace BilibiliLiveRecordDownLoader.Shared
 {
     public static class Extensions
     {
@@ -22,6 +26,13 @@
 
                 return hash1 + hash2 * 1566083941;
             }
+        }
+
+        public static IDisposable CreateArray<T>(this ArrayPool<T> arrayPool, int minimumLength, out T[] res)
+        {
+            var b = arrayPool.Rent(minimumLength);
+            res = b;
+            return Disposable.Create(() => { arrayPool.Return(b); });
         }
     }
 }

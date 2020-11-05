@@ -18,14 +18,9 @@ namespace UnitTest
 
             var header = new FlvHeader();
 
-            var b = ArrayPool<byte>.Shared.Rent(header.Size);
-            try
+            using (var memory = MemoryPool<byte>.Shared.Rent(header.Size))
             {
-                Assert.IsTrue(header.ToMemory(b).Span.SequenceEqual(should));
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(b);
+                Assert.IsTrue(header.ToMemory(memory.Memory).Span.SequenceEqual(should));
             }
 
             header.Signature = string.Empty;
@@ -51,14 +46,9 @@ namespace UnitTest
                 PacketType = PacketType.VideoPayload
             };
 
-            var b = ArrayPool<byte>.Shared.Rent(info.Size);
-            try
+            using (var memory = MemoryPool<byte>.Shared.Rent(info.Size))
             {
-                Assert.IsTrue(info.ToMemory(b).Span.SequenceEqual(should));
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(b);
+                Assert.IsTrue(info.ToMemory(memory.Memory).Span.SequenceEqual(should));
             }
 
             info.PayloadSize = 114514;
@@ -75,15 +65,8 @@ namespace UnitTest
 
             IBytesStruct info = new StreamId();
 
-            var b = ArrayPool<byte>.Shared.Rent(info.Size);
-            try
-            {
-                Assert.IsTrue(info.ToMemory(b).Span.SequenceEqual(should));
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(b);
-            }
+            using var memory = MemoryPool<byte>.Shared.Rent(info.Size);
+            Assert.IsTrue(info.ToMemory(memory.Memory).Span.SequenceEqual(should));
         }
 
         [TestMethod]
@@ -96,14 +79,9 @@ namespace UnitTest
                 Data = 0x9FC7_0042
             };
 
-            var b = ArrayPool<byte>.Shared.Rent(info.Size);
-            try
+            using (var memory = MemoryPool<byte>.Shared.Rent(info.Size))
             {
-                Assert.IsTrue(info.ToMemory(b).Span.SequenceEqual(should));
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(b);
+                Assert.IsTrue(info.ToMemory(memory.Memory).Span.SequenceEqual(should));
             }
 
             info.Data = 114514;
@@ -131,14 +109,9 @@ namespace UnitTest
                 Timestamp = { Data = 0x9FC7_0042 }
             };
 
-            var b = ArrayPool<byte>.Shared.Rent(info.Size);
-            try
+            using (var memory = MemoryPool<byte>.Shared.Rent(info.Size))
             {
-                Assert.IsTrue(info.ToMemory(b).Span.SequenceEqual(should));
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(b);
+                Assert.IsTrue(info.ToMemory(memory.Memory).Span.SequenceEqual(should));
             }
 
             info.SizeofPreviousPacket = 1919810;

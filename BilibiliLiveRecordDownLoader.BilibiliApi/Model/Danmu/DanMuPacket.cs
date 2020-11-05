@@ -37,9 +37,9 @@ namespace BilibiliApi.Model.Danmu
         /// </summary>
         public Memory<byte> Body { get; set; }
 
-        public Memory<byte> ToMemory(byte[] array)
+        public Memory<byte> ToMemory(Memory<byte> array)
         {
-            var res = new Memory<byte>(array, 0, PacketLength);
+            var res = array.Slice(0, PacketLength);
 
             BinaryPrimitives.WriteInt32BigEndian(res.Span, PacketLength);
             BinaryPrimitives.WriteInt16BigEndian(res.Span.Slice(4), HeaderLength);
