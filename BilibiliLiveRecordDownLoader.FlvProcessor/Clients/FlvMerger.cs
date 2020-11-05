@@ -115,45 +115,54 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
             var allRead = 0L;
 
             var tagHeader = new FlvTagHeader(); // 循环内每次 new 一个 tag 的话开销过大
+            using var tagHeaderBuffer = MemoryPool<byte>.Shared.Rent(tagHeader.Size);
+            var tagHeaderMemory = tagHeaderBuffer.Memory.Slice(0, tagHeader.Size);
 
             foreach (var file in Files)
             {
                 var currentTimestamp = 0u;
-                var read = 0L;
 
                 await using var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
                 var length = fs.Length;
 
                 fs.Seek(header.Size, SeekOrigin.Begin);
+                long read = header.Size;
 
                 while (read < length)
                 {
-                    using (var tagHeaderBuffer = MemoryPool<byte>.Shared.Rent(tagHeader.Size))
-                    {
-                        var memory = tagHeaderBuffer.Memory.Slice(0, tagHeader.Size);
-                        fs.Read(memory.Span);
-                        tagHeader.Read(memory.Span);
+                    fs.Read(tagHeaderMemory.Span);
+                    tagHeader.Read(tagHeaderMemory.Span);
 
-                        if (tagHeader.PayloadInfo.PacketType != PacketType.AMF_Metadata)
+                    currentTimestamp = Math.Max(currentTimestamp, tagHeader.Timestamp.Data);
+
+                    switch (tagHeader.PayloadInfo.PacketType)
+                    {
+                        case PacketType.AMF_Metadata:
+                        {
+                            fs.Seek((int)tagHeader.PayloadInfo.PayloadSize + sizeof(uint), SeekOrigin.Current);
+                            break;
+                        }
+                        case PacketType.AudioPayload:
+                        case PacketType.VideoPayload:
                         {
                             // 重写时间戳
-                            currentTimestamp = tagHeader.Timestamp.Data;
                             tagHeader.Timestamp.Data += timestamp;
 
                             // 写 tag header
-                            WriteWithProgress(outFile, tagHeader.ToMemory(memory).Span, token);
+                            WriteWithProgress(outFile, tagHeader.ToMemory(tagHeaderMemory).Span, token);
 
                             // 复制 Payload 和 tag 大小
                             CopyFixedSize(fs, outFile, (int)tagHeader.PayloadInfo.PayloadSize + sizeof(uint), token);
+                            break;
                         }
-                        else
+                        default:
                         {
-                            currentTimestamp = 0u;
-                            fs.Seek((int)tagHeader.PayloadInfo.PayloadSize + sizeof(uint), SeekOrigin.Current);
+                            _logger.LogWarning($@"Unsupported tag type: {tagHeader.PayloadInfo.PacketType}");
+                            break;
                         }
                     }
 
-                    read += tagHeader.Size + (int)tagHeader.PayloadInfo.PayloadSize;
+                    read += tagHeader.Size + (int)tagHeader.PayloadInfo.PayloadSize + sizeof(uint);
                 }
 
                 timestamp += currentTimestamp;
@@ -161,7 +170,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
                 Interlocked.Exchange(ref _current, allRead);
             }
 
-            FixDuration(outFile, header.Size, (int)metadata.PayloadInfo.PayloadSize + metadata.Size, timestamp / 1000.0);
+            FixDuration(outFile, header.Size, (int)metadata.PayloadInfo.PayloadSize + metadata.Size + sizeof(uint), timestamp / 1000.0);
         }
 
         private void CopyFixedSize(Stream source, Stream dst, int size, CancellationToken token)
