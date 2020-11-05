@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.ObjectPool;
+using System;
 using System.Buffers;
 using System.Reactive.Disposables;
 
@@ -33,6 +34,13 @@ namespace BilibiliLiveRecordDownLoader.Shared
             var b = arrayPool.Rent(minimumLength);
             res = b;
             return Disposable.Create(() => { arrayPool.Return(b); });
+        }
+
+        public static IDisposable GetObject<T>(this ObjectPool<T> objectPool, out T res) where T : class
+        {
+            var b = objectPool.Get();
+            res = b;
+            return Disposable.Create(() => { objectPool.Return(b); });
         }
     }
 }

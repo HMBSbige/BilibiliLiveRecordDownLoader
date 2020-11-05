@@ -1,4 +1,5 @@
-﻿using BilibiliLiveRecordDownLoader.Shared.HttpPolicy;
+﻿using BilibiliLiveRecordDownLoader.Shared;
+using BilibiliLiveRecordDownLoader.Shared.HttpPolicy;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
 using Punchclock;
@@ -96,8 +97,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
         {
             token.ThrowIfCancellationRequested();
 
-            var client = _httpClientPool.Get();
-            try
+            using (_httpClientPool.GetObject(out var client))
             {
                 client.DefaultRequestHeaders.Add(@"User-Agent", UserAgent);
 
@@ -105,10 +105,6 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 
                 var str = result.Content.Headers.First(h => h.Key.Equals(@"Content-Length")).Value.First();
                 return long.Parse(str);
-            }
-            finally
-            {
-                _httpClientPool.Return(client);
             }
         }
 
@@ -216,9 +212,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
         private async Task<(Stream, string)> GetStreamAsync(FileRange info, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
-
-            var client = _httpClientPool.Get();
-            try
+            using (_httpClientPool.GetObject(out var client))
             {
                 var request = new HttpRequestMessage { RequestUri = Target };
                 request.Headers.ConnectionClose = false;
@@ -229,10 +223,6 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
                 var stream = await response.Content.ReadAsStreamAsync();
 
                 return (stream, info.FileName);
-            }
-            finally
-            {
-                _httpClientPool.Return(client);
             }
         }
 
