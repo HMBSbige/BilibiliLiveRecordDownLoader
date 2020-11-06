@@ -170,7 +170,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
                 Interlocked.Exchange(ref _current, allRead);
             }
 
-            FixDuration(outFile, header.Size, (int)metadata.PayloadInfo.PayloadSize + metadata.Size + sizeof(uint), timestamp / 1000.0);
+            FixDuration(outFile, header.Size, (int)metadata.PayloadInfo.PayloadSize + metadata.Size + sizeof(uint), TimeSpan.FromMilliseconds(timestamp).TotalSeconds);
         }
 
         private void CopyFixedSize(Stream source, Stream dst, int size, CancellationToken token)
@@ -236,7 +236,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
             var outBytes = memory.Memory.Slice(size, durationSize).Span;
 
             // TODO:.NET 5.0 BinaryPrimitives.WriteDoubleBigEndian(outBytes, duration);
-            BinaryPrimitives.TryWriteInt64BigEndian(outBytes, BitConverter.DoubleToInt64Bits(duration));
+            BinaryPrimitives.WriteInt64BigEndian(outBytes, BitConverter.DoubleToInt64Bits(duration));
 
             file.Seek(i, SeekOrigin.Begin);
             WriteWithProgress(file, outBytes, default);

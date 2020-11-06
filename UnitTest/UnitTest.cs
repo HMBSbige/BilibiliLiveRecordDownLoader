@@ -27,7 +27,7 @@ namespace UnitTest
         private static async Task<string> DownloadAsync()
         {
             const string url = @"https://www.mediacollege.com/video-gallery/testclips/4sec.flv";
-            var filename = Path.ChangeExtension(Path.GetTempFileName(), @"flv");
+            var filename = Path.ChangeExtension(Path.GetRandomFileName(), @"flv");
             const string sha256 = @"9657166E7865880954FD6BEE8A7F9E2BBF2F32D7729BB8184A2AA2BA1261FAB6";
             var path = KnownFolders.Downloads.Path;
             var outFile = Path.Combine(path, filename);
@@ -56,13 +56,6 @@ namespace UnitTest
                 File.Delete(outFile);
                 throw;
             }
-        }
-
-        [TestMethod]
-        public async Task TestDownloadAsync()
-        {
-            var outFile = await DownloadAsync();
-            File.Delete(outFile);
         }
 
         [TestMethod]
