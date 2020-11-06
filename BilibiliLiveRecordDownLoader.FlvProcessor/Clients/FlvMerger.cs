@@ -1,7 +1,8 @@
-﻿using BilibiliLiveRecordDownLoader.FlvProcessor.Enums;
+using BilibiliLiveRecordDownLoader.FlvProcessor.Enums;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Models;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagHeaders;
+using BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Buffers;
@@ -70,7 +71,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
             await using var outFile = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, BufferSize, IsAsync);
 
             var header = new FlvHeader();
-            var metadata = new FlvTagHeader();
+            var metadataHeader = new FlvTagHeader();
 
             await using (var f0 = new FileStream(Files.First(), FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize))
             {
@@ -87,26 +88,45 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
                     WriteWithProgress(outFile, memory.Span, token);
                 }
 
-                using (var metadataBuffer = MemoryPool<byte>.Shared.Rent(metadata.Size))
+                using (var metadataHeaderBuffer = MemoryPool<byte>.Shared.Rent(metadataHeader.Size))
                 {
-                    var memory = metadataBuffer.Memory.Slice(0, metadata.Size);
+                    var memory = metadataHeaderBuffer.Memory.Slice(0, metadataHeader.Size);
 
                     // 读 Metadata
                     f0.Read(memory.Span);
-                    metadata.Read(memory.Span);
+                    metadataHeader.Read(memory.Span);
 
-                    if (metadata.PayloadInfo.PacketType == PacketType.AMF_Metadata)
+                    if (metadataHeader.PayloadInfo.PacketType == PacketType.AMF_Metadata)
                     {
                         // 写 MetaData header
                         WriteWithProgress(outFile, memory.Span, token);
 
                         // 写 MetaData payload 和  MetaData size
-                        CopyFixedSize(f0, outFile, (int)metadata.PayloadInfo.PayloadSize + sizeof(uint), token);
+                        CopyFixedSize(f0, outFile, (int)metadataHeader.PayloadInfo.PayloadSize + sizeof(uint), token);
                     }
                     else
                     {
-                        //TODO: 写自定义 MetaData
                         _logger.LogWarning(@"First packet is not a metadata packet");
+                        metadataHeader.Timestamp.Data = 0;
+                        metadataHeader.PayloadInfo.PacketType = PacketType.AMF_Metadata;
+                        var metadata = new AMFMetadata();
+                        metadataHeader.PayloadInfo.PayloadSize = (uint)metadata.Size;
+
+                        // 写 MetaData header
+                        WriteWithProgress(outFile, metadataHeader.ToMemory(metadataHeaderBuffer.Memory).Span, token);
+
+                        // 写 MetaData payload
+                        using (var metadataBuffer = MemoryPool<byte>.Shared.Rent(metadata.Size))
+                        {
+                            WriteWithProgress(outFile, metadata.ToMemory(metadataBuffer.Memory).Span, token);
+                        }
+
+                        // 写 MetaData size
+                        using (var metadataSizeBuffer = MemoryPool<byte>.Shared.Rent(sizeof(uint)))
+                        {
+                            BinaryPrimitives.WriteUInt32BigEndian(metadataSizeBuffer.Memory.Span, (uint)metadata.Size + (uint)metadataHeader.Size);
+                            WriteWithProgress(outFile, metadataSizeBuffer.Memory.Slice(0, sizeof(uint)).Span, token);
+                        }
                     }
                 }
             }
@@ -170,7 +190,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
                 Interlocked.Exchange(ref _current, allRead);
             }
 
-            FixDuration(outFile, header.Size, (int)metadata.PayloadInfo.PayloadSize + metadata.Size + sizeof(uint), TimeSpan.FromMilliseconds(timestamp).TotalSeconds);
+            FixDuration(outFile, header.Size, (int)metadataHeader.PayloadInfo.PayloadSize + metadataHeader.Size + sizeof(uint), TimeSpan.FromMilliseconds(timestamp).TotalSeconds);
         }
 
         private void CopyFixedSize(Stream source, Stream dst, int size, CancellationToken token)
