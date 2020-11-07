@@ -1,22 +1,13 @@
-﻿using System;
+﻿using BilibiliLiveRecordDownLoader.Shared.Interfaces;
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces
 {
-    public interface IFlvMerger : IAsyncDisposable
+    public interface IFlvMerger : IAsyncDisposable, IProgress
     {
-        /// <summary>
-        /// 进度，[0.0,1.0]
-        /// </summary>
-        public double Progress { get; }
-
-        /// <summary>
-        /// 当前下载速度，单位字节
-        /// </summary>
-        public IObservable<double> CurrentSpeed { get; }
-
         public int BufferSize { get; set; }
 
         /// <summary>

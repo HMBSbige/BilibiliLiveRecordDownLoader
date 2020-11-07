@@ -1,21 +1,12 @@
-﻿using System;
+﻿using BilibiliLiveRecordDownLoader.Shared.Interfaces;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 {
-    public interface IDownloader : IAsyncDisposable
+    public interface IDownloader : IAsyncDisposable, IProgress
     {
-        /// <summary>
-        /// 进度，[0.0,1.0]
-        /// </summary>
-        public double Progress { get; }
-
-        /// <summary>
-        /// 当前下载速度，单位字节
-        /// </summary>
-        public IObservable<double> CurrentSpeed { get; }
-
         /// <summary>
         /// UA，默认应该是
         /// Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko
