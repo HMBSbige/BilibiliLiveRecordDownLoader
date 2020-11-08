@@ -1,4 +1,5 @@
-﻿using BilibiliLiveRecordDownLoader.FlvProcessor.Enums;
+﻿using BilibiliLiveRecordDownLoader.FlvProcessor;
+using BilibiliLiveRecordDownLoader.FlvProcessor.Enums;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Models;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagHeaders;
@@ -123,7 +124,7 @@ namespace UnitTest
         }
 
         [TestMethod]
-        public void MetadataTest()
+        public void TestMetadata()
         {
             var should = new byte[]
             {
@@ -186,6 +187,18 @@ namespace UnitTest
             Assert.AreEqual(metaData.Data[@"audiodatarate"], 16.0);
             Assert.AreEqual(metaData.Data[@"framerate"], 25.0);
             Assert.AreEqual(metaData.Data[@"creationdate"], "Sun Jul 03 20:09:17 2005\n");
+        }
+
+        [TestMethod]
+        public void TestFlvHeaderFlag()
+        {
+            Assert.AreEqual(HeaderFlags.Video, ((byte)0b0000_0001).ToFlvHeaderFlags());
+            Assert.AreEqual(HeaderFlags.Audio, ((byte)0b0000_0100).ToFlvHeaderFlags());
+            Assert.AreEqual(HeaderFlags.VideoAndAudio, ((byte)0b0000_0101).ToFlvHeaderFlags());
+
+            Assert.AreEqual(HeaderFlags.Video, ((byte) 0b1111_1011).ToFlvHeaderFlags());
+            Assert.AreEqual(HeaderFlags.Audio, ((byte) 0b1111_1110).ToFlvHeaderFlags());
+            Assert.AreEqual(HeaderFlags.VideoAndAudio, ((byte) 0b1111_1111).ToFlvHeaderFlags());
         }
     }
 }

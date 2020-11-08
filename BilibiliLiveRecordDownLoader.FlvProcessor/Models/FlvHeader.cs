@@ -54,7 +54,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models
         {
             Signature = Encoding.UTF8.GetString(buffer.Slice(0, 3));
             Version = buffer[3];
-            Flags = (HeaderFlags)buffer[4];
+            Flags = buffer[4].ToFlvHeaderFlags();
             HeaderSize = BinaryPrimitives.ReadUInt32BigEndian(buffer.Slice(5, 4));
         }
     }
