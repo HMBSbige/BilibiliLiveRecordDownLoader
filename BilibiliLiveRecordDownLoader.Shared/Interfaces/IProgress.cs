@@ -7,11 +7,16 @@ namespace BilibiliLiveRecordDownLoader.Shared.Interfaces
         /// <summary>
         /// 进度，[0.0,1.0]
         /// </summary>
-        public double Progress { get; }
+        double Progress { get; }
 
         /// <summary>
         /// 当前下载速度，单位字节
         /// </summary>
-        public IObservable<double> CurrentSpeed { get; }
+        IObservable<double> CurrentSpeed { get; }
+
+        /// <summary>
+        /// 当前状态
+        /// </summary>
+        IObservable<string> Status { get; }
     }
 }

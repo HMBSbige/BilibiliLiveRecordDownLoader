@@ -34,6 +34,9 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
         private readonly BehaviorSubject<double> _currentSpeed = new BehaviorSubject<double>(0.0);
         public IObservable<double> CurrentSpeed => _currentSpeed.AsObservable();
 
+        private readonly BehaviorSubject<string> _status = new BehaviorSubject<string>(string.Empty);
+        public IObservable<string> Status => _status.AsObservable();
+
         public string UserAgent { get; set; } = @"Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko";
 
         public string Cookie { get; set; }
@@ -113,6 +116,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
         /// </summary>
         public async ValueTask DownloadAsync(CancellationToken token)
         {
+            _status.OnNext(@"正在获取下载文件大小...");
             _fileSize = await GetContentLengthAsync(token); //总大小
 
             TempDir = EnsureDirectory(TempDir);
@@ -132,6 +136,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
                     Interlocked.Add(ref _last, -last);
                 });
 
+                _status.OnNext(@"正在下载...");
                 await list.Select(info =>
                 {
                     // ReSharper disable once AccessToDisposedClosure
@@ -140,16 +145,19 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
                             .SelectMany(res => WriteToFileAsync(res.Item1, res.Item2, token));
                 }).Merge();
 
+                _status.OnNext(@"下载完成，正在合并文件...");
                 _current = 0;
                 await MergeFilesAsync(list, token);
             }
             catch (OperationCanceledException)
             {
                 _logger.LogInformation($@"下载已取消：{Target}");
+                _status.OnNext(@"下载已取消");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, @"下载出错");
+                _status.OnNext(@"下载出错");
             }
             finally
             {
@@ -315,6 +323,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
         public ValueTask DisposeAsync()
         {
             _currentSpeed.OnCompleted();
+            _status.OnCompleted();
 
             return default;
         }

@@ -196,9 +196,12 @@ namespace UnitTest
             Assert.AreEqual(HeaderFlags.Audio, ((byte)0b0000_0100).ToFlvHeaderFlags());
             Assert.AreEqual(HeaderFlags.VideoAndAudio, ((byte)0b0000_0101).ToFlvHeaderFlags());
 
-            Assert.AreEqual(HeaderFlags.Video, ((byte) 0b1111_1011).ToFlvHeaderFlags());
-            Assert.AreEqual(HeaderFlags.Audio, ((byte) 0b1111_1110).ToFlvHeaderFlags());
-            Assert.AreEqual(HeaderFlags.VideoAndAudio, ((byte) 0b1111_1111).ToFlvHeaderFlags());
+            Assert.AreEqual(HeaderFlags.Video, ((byte)0b1111_1011).ToFlvHeaderFlags());
+            Assert.AreEqual(HeaderFlags.Audio, ((byte)0b1111_1110).ToFlvHeaderFlags());
+            Assert.AreEqual(HeaderFlags.VideoAndAudio, ((byte)0b1111_1111).ToFlvHeaderFlags());
+            Assert.AreNotEqual(HeaderFlags.Video, ((byte)0b0000_0000).ToFlvHeaderFlags());
+            Assert.AreNotEqual(HeaderFlags.Audio, ((byte)0b0000_0000).ToFlvHeaderFlags());
+            Assert.AreNotEqual(HeaderFlags.VideoAndAudio, ((byte)0b0000_0000).ToFlvHeaderFlags());
         }
     }
 }

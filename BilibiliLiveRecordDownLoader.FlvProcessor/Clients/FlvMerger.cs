@@ -1,4 +1,4 @@
-using BilibiliLiveRecordDownLoader.FlvProcessor.Enums;
+﻿using BilibiliLiveRecordDownLoader.FlvProcessor.Enums;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Models;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagHeaders;
@@ -30,6 +30,9 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 
         private readonly BehaviorSubject<double> _currentSpeed = new BehaviorSubject<double>(0.0);
         public IObservable<double> CurrentSpeed => _currentSpeed.AsObservable();
+
+        private readonly BehaviorSubject<string> _status = new BehaviorSubject<string>(string.Empty);
+        public IObservable<string> Status => _status.AsObservable();
 
         public int BufferSize { get; set; } = 4096;
 
@@ -79,12 +82,12 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
                 {
                     var memory = headerBuffer.Memory.Slice(0, header.Size);
 
-                    // 读 Header
+                    _status.OnNext(@"读 Header");
                     f0.Read(memory.Span);
                     header.Read(memory.Span);
                     _logger.LogDebug($@"{header.Signature} {header.Version} {header.Flags} {header.HeaderSize}");
 
-                    // 写 header
+                    _status.OnNext(@"写 Header");
                     WriteWithProgress(outFile, memory.Span, token);
                 }
 
@@ -92,16 +95,16 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
                 {
                     var memory = metadataHeaderBuffer.Memory.Slice(0, metadataHeader.Size);
 
-                    // 读 Metadata
+                    _status.OnNext(@"读 Metadata");
                     f0.Read(memory.Span);
                     metadataHeader.Read(memory.Span);
 
                     if (metadataHeader.PayloadInfo.PacketType == PacketType.AMF_Metadata)
                     {
-                        // 写 MetaData header
+                        _status.OnNext(@"写 MetaData header");
                         WriteWithProgress(outFile, memory.Span, token);
 
-                        // 写 MetaData payload 和  MetaData size
+                        _status.OnNext(@"写 MetaData payload 和 MetaData size");
                         CopyFixedSize(f0, outFile, (int)metadataHeader.PayloadInfo.PayloadSize + sizeof(uint), token);
                     }
                     else
@@ -112,16 +115,16 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
                         var metadata = new AMFMetadata();
                         metadataHeader.PayloadInfo.PayloadSize = (uint)metadata.Size;
 
-                        // 写 MetaData header
+                        _status.OnNext(@"写 MetaData header");
                         WriteWithProgress(outFile, metadataHeader.ToMemory(metadataHeaderBuffer.Memory).Span, token);
 
-                        // 写 MetaData payload
+                        _status.OnNext(@"写 MetaData payload");
                         using (var metadataBuffer = MemoryPool<byte>.Shared.Rent(metadata.Size))
                         {
                             WriteWithProgress(outFile, metadata.ToMemory(metadataBuffer.Memory).Span, token);
                         }
 
-                        // 写 MetaData size
+                        _status.OnNext(@"写 MetaData size");
                         using (var metadataSizeBuffer = MemoryPool<byte>.Shared.Rent(sizeof(uint)))
                         {
                             BinaryPrimitives.WriteUInt32BigEndian(metadataSizeBuffer.Memory.Span, (uint)metadata.Size + (uint)metadataHeader.Size);
@@ -138,8 +141,11 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
             using var tagHeaderBuffer = MemoryPool<byte>.Shared.Rent(tagHeader.Size);
             var tagHeaderMemory = tagHeaderBuffer.Memory.Slice(0, tagHeader.Size);
 
+            var i = 0ul;
             foreach (var file in Files)
             {
+                ++i;
+                _status.OnNext($@"正在合并 Flv ({i}/{_files.Count})");
                 var currentTimestamp = 0u;
 
                 await using var fs = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
@@ -190,7 +196,9 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
                 Interlocked.Exchange(ref _current, allRead);
             }
 
+            _status.OnNext(@"正在修复时长...");
             FixDuration(outFile, header.Size, (int)metadataHeader.PayloadInfo.PayloadSize + metadataHeader.Size + sizeof(uint), TimeSpan.FromMilliseconds(timestamp).TotalSeconds);
+            _status.OnNext(@"已完成 Flv 合并");
         }
 
         private void CopyFixedSize(Stream source, Stream dst, int size, CancellationToken token)
@@ -265,6 +273,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
         public ValueTask DisposeAsync()
         {
             _currentSpeed.OnCompleted();
+            _status.OnCompleted();
 
             return default;
         }
