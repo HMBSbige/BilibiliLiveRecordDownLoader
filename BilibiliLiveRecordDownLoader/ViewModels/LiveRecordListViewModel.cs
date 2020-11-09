@@ -186,7 +186,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         {
             try
             {
-                return DateTimeOffset.FromUnixTimeSeconds(timestamp).ToLocalTime().DateTime;
+                return DateTime.UnixEpoch.Add(TimeSpan.FromSeconds(timestamp)).ToLocalTime();
             }
             catch
             {

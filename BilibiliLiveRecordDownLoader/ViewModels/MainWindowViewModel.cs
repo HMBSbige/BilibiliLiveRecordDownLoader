@@ -153,15 +153,17 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             InitAsync().NoWarning();
 
             _roomIdMonitor = this.WhenAnyValue(x => x.ConfigService.Config.RoomId, x => x.TriggerLiveRecordListQuery)
-                    .Throttle(TimeSpan.FromMilliseconds(800))
+                    .Throttle(TimeSpan.FromMilliseconds(800), RxApp.MainThreadScheduler)
                     .DistinctUntilChanged()
                     .Where(i => i.Item1 > 0)
                     .Select(i => i.Item1)
-                    .ObserveOn(RxApp.MainThreadScheduler)
-                    .Subscribe(i => GetAnchorInfoAsync(i).NoWarning());
+                    .Subscribe(i =>
+                    {
+                        GetAnchorInfoAsync(i).NoWarning();
+                        GetRecordListAsync(i).NoWarning();
+                    });
 
-            _diskMonitor = Observable.Interval(TimeSpan.FromSeconds(1))
-                    .ObserveOn(RxApp.MainThreadScheduler)
+            _diskMonitor = Observable.Interval(TimeSpan.FromSeconds(1), RxApp.MainThreadScheduler)
                     .Subscribe(GetDiskUsage);
 
             LiveRecordSourceList.Connect()
@@ -190,13 +192,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                         _window.SizeToContent = SizeToContent.Manual;
                         _isInitData = false;
                     });
-
-            this.WhenAnyValue(x => x.ConfigService.Config.RoomId, x => x.TriggerLiveRecordListQuery)
-                .Throttle(TimeSpan.FromMilliseconds(800))
-                .DistinctUntilChanged()
-                .Where(i => i.Item1 > 0)
-                .Select(i => i.Item1)
-                .Subscribe(i => GetRecordListAsync(i).NoWarning());
 
             SelectMainDirCommand = ReactiveCommand.Create(SelectDirectory);
             OpenMainDirCommand = ReactiveCommand.CreateFromObservable(OpenDirectory);

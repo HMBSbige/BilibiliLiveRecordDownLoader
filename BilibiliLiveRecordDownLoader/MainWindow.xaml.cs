@@ -45,13 +45,9 @@ namespace BilibiliLiveRecordDownLoader
                     ViewModel.TriggerLiveRecordListQuery = !ViewModel.TriggerLiveRecordListQuery;
                 }).DisposeWith(d);
 
-                this.OneWayBind(ViewModel, vm => vm.ImageUri, v => v.FaceImage.Source,
-                                url => url == null ? null : new BitmapImage(new Uri(url))).DisposeWith(d);
-
+                this.OneWayBind(ViewModel, vm => vm.ImageUri, v => v.FaceImage.Source, url => url == null ? null : new BitmapImage(new Uri(url))).DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.Name, v => v.NameTextBlock.Text).DisposeWith(d);
-
                 this.OneWayBind(ViewModel, vm => vm.Uid, v => v.UIdTextBlock.Text, i => $@"UID: {i}").DisposeWith(d);
-
                 this.OneWayBind(ViewModel, vm => vm.Level, v => v.LvTextBlock.Text, i => $@"Lv{i}").DisposeWith(d);
 
                 this.Bind(ViewModel, vm => vm.ConfigService.Config.MainDir, v => v.MainDirTextBox.Text).DisposeWith(d);
@@ -71,30 +67,11 @@ namespace BilibiliLiveRecordDownLoader
 
                 this.OneWayBind(ViewModel, vm => vm.LiveRecordList, v => v.LiveRecordListDataGrid.ItemsSource).DisposeWith(d);
 
-                ViewModel.WhenAnyValue(x => x.RoomId)
-                         .ObserveOn(RxApp.MainThreadScheduler)
-                         .Subscribe(i => RoomIdTextBlock.Text = $@"房间号: {i}")
-                         .DisposeWith(d);
-
-                ViewModel.WhenAnyValue(x => x.ShortRoomId)
-                        .ObserveOn(RxApp.MainThreadScheduler)
-                        .Subscribe(i => ShortRoomIdTextBlock.Text = $@"短号: {i}")
-                        .DisposeWith(d);
-
-                ViewModel.WhenAnyValue(x => x.RecordCount)
-                        .ObserveOn(RxApp.MainThreadScheduler)
-                        .Subscribe(i => RecordCountTextBlock.Text = $@"列表总数: {i}")
-                        .DisposeWith(d);
-
-                ViewModel.WhenAnyValue(x => x.IsLiveRecordBusy)
-                        .ObserveOn(RxApp.MainThreadScheduler)
-                        .Subscribe(b => LiveRecordBusyIndicator.IsBusy = b)
-                        .DisposeWith(d);
-
-                ViewModel.WhenAnyValue(x => x.DownloadTaskPool.HasTaskRunning)
-                        .ObserveOn(RxApp.MainThreadScheduler)
-                        .Subscribe(b => DownloadLiveRecordBusyIndicator.IsBusy = b)
-                        .DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.RoomId, v => v.RoomIdTextBlock.Text, i => $@"房间号: {i}").DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.ShortRoomId, v => v.ShortRoomIdTextBlock.Text, i => $@"短号: {i}").DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.RecordCount, v => v.RecordCountTextBlock.Text, i => $@"列表总数: {i}").DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.IsLiveRecordBusy, v => v.LiveRecordBusyIndicator.IsBusy).DisposeWith(d);
+                this.OneWayBind(ViewModel, vm => vm.DownloadTaskPool.HasTaskRunning, v => v.DownloadLiveRecordBusyIndicator.IsBusy).DisposeWith(d);
 
                 this.BindCommand(ViewModel, vm => vm.CopyLiveRecordDownloadUrlCommand, v => v.CopyLiveRecordDownloadUrlMenuItem).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.OpenLiveRecordUrlCommand, v => v.OpenLiveRecordUrlMenuItem).DisposeWith(d);
