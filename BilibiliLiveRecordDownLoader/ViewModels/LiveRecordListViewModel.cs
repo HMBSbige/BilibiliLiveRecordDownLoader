@@ -1,16 +1,11 @@
 ﻿using BilibiliApi.Model.LiveRecordList;
-using BilibiliLiveRecordDownLoader.Services;
-using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using System;
-using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
     public class LiveRecordListViewModel : ReactiveObject
     {
-        private readonly ILogger _logger;
-
         #region 字段
 
         private string _rid;
@@ -120,26 +115,9 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
         #endregion
 
-        private LiveRecordDownloadTask LiveRecordDownloadTask { get; set; }
-
-        public bool IsDownloading => LiveRecordDownloadTask?.IsDownloading ?? false;
-
-        public LiveRecordListViewModel(ILogger logger, LiveRecordList data)
+        public LiveRecordListViewModel(LiveRecordList data)
         {
-            _logger = logger;
             CopyFrom(data);
-        }
-
-        /// <summary>
-        /// 开始或停止下载
-        /// </summary>
-        /// <returns></returns>
-        public async Task StartOrStopAsync()
-        {
-            if (LiveRecordDownloadTask != null)
-            {
-                await LiveRecordDownloadTask.StartOrStopAsync();
-            }
         }
 
         public void CopyFrom(LiveRecordList data)

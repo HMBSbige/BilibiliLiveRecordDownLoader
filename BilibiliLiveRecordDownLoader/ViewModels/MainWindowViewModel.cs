@@ -1,13 +1,13 @@
 ﻿using BilibiliApi.Clients;
 using BilibiliApi.Model.LiveRecordList;
 using BilibiliLiveRecordDownLoader.Interfaces;
-using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Shared;
-using BilibiliLiveRecordDownLoader.Shared.Interfaces;
 using BilibiliLiveRecordDownLoader.Utils;
+using BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels;
 using DynamicData;
 using Microsoft.Extensions.Logging;
 using Microsoft.WindowsAPICodePack.Dialogs;
+using Punchclock;
 using ReactiveUI;
 using Syncfusion.Data.Extensions;
 using Syncfusion.UI.Xaml.Grid;
@@ -129,19 +129,21 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         public ReactiveCommand<GridRecordContextMenuInfo, Unit> OpenDirCommand { get; }
         public ReactiveCommand<Unit, Unit> ShowWindowCommand { get; }
         public ReactiveCommand<Unit, Unit> ExitCommand { get; }
+        public ReactiveCommand<GridRecordContextMenuInfo, Unit> StopTaskCommand { get; }
+
         #endregion
 
         private readonly MainWindow _window;
         private readonly ILogger _logger;
         public readonly IConfigService ConfigService;
 
-        public readonly DownloadTaskPool DownloadTaskPool = new DownloadTaskPool();
-
         private SourceList<LiveRecordList> LiveRecordSourceList { get; } = new SourceList<LiveRecordList>();
         public readonly ReadOnlyObservableCollection<LiveRecordListViewModel> LiveRecordList;
 
         private SourceList<TaskListViewModel> TaskSourceList { get; } = new SourceList<TaskListViewModel>();
         public readonly ReadOnlyObservableCollection<TaskListViewModel> TaskList;
+
+        private readonly OperationQueue _liveRecordDownloadTaskQueue = new OperationQueue(1);
 
         private bool _isInitData = true;
 
@@ -172,7 +174,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                     .Subscribe(GetDiskUsage);
 
             LiveRecordSourceList.Connect()
-                    .Transform(x => new LiveRecordListViewModel(logger, x))
+                    .Transform(x => new LiveRecordListViewModel(x))
                     .ObserveOnDispatcher()
                     .Bind(out LiveRecordList)
                     .DisposeMany()
@@ -207,6 +209,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             DownLoadCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo, Unit>(Download);
             ShowWindowCommand = ReactiveCommand.Create(ShowWindow);
             ExitCommand = ReactiveCommand.Create(Exit);
+            StopTaskCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo, Unit>(StopTask);
         }
 
         private async Task InitAsync()
@@ -420,7 +423,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                     if (info?.Record is LiveRecordListViewModel liveRecord)
                     {
                         var root = Path.Combine(ConfigService.Config.MainDir, $@"{RoomId}", @"Replay");
-                        DownloadTaskPool.DownloadAsync(liveRecord, root, ConfigService.Config.DownloadThreads).NoWarning(); //Async
+                        var task = new LiveRecordDownloadTaskViewModel(_logger, liveRecord, root, ConfigService.Config.DownloadThreads);
+                        AddTask(task);
                     }
                 }
                 catch (Exception ex)
@@ -430,14 +434,38 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             });
         }
 
-        private void AddTask(IProgress task, string description)
+        private void AddTask(TaskListViewModel task)
         {
-            if (TaskSourceList.Items.Any(x => x.Description == description))
+            if (TaskSourceList.Items.Any(x => x.Description == task.Description))
             {
+                _logger.LogWarning($@"添加重复任务：{task.Description}");
                 return;
             }
-            var t = new TaskListViewModel(_logger, task, description);
-            TaskSourceList.Add(t);
+            TaskSourceList.Add(task);
+            _liveRecordDownloadTaskQueue.Enqueue(1, () => task.StartAsync().AsTask()).NoWarning();
+        }
+
+        private IObservable<Unit> StopTask(GridRecordContextMenuInfo info)
+        {
+            return Observable.Start(() =>
+            {
+                try
+                {
+                    if (info?.Record is TaskListViewModel task)
+                    {
+                        task.Stop();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, @"停止任务出错");
+                }
+            });
+        }
+
+        private void StopAllTask()
+        {
+            TaskSourceList.Items.ForEach(t => t.Stop());
         }
 
         private void ShowWindow()
@@ -447,7 +475,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
         private void Exit()
         {
-            DownloadTaskPool.StopAll();
+            StopAllTask();
             _window.CloseReason = CloseReason.ApplicationExitCall;
             _window.Close();
         }

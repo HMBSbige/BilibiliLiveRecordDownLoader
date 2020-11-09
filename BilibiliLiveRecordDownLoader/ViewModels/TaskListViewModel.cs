@@ -1,14 +1,11 @@
-﻿using BilibiliLiveRecordDownLoader.Shared.Interfaces;
-using Microsoft.Extensions.Logging;
+﻿using BilibiliLiveRecordDownLoader.Interfaces;
 using ReactiveUI;
-using System.Threading;
+using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
-    public class TaskListViewModel : MyReactiveObject
+    public abstract class TaskListViewModel : MyReactiveObject, ITask
     {
-        private readonly ILogger _logger;
-
         #region 字段
 
         private double _progress;
@@ -20,36 +17,24 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
         #region 属性
 
-        /// <summary>
-        /// 描述
-        /// </summary>
         public string Description
         {
             get => _description;
             set => this.RaiseAndSetIfChanged(ref _description, value);
         }
 
-        /// <summary>
-        /// 进度，[0.0,1.0]
-        /// </summary>
         public double Progress
         {
             get => _progress;
             set => this.RaiseAndSetIfChanged(ref _progress, value);
         }
 
-        /// <summary>
-        /// 速度
-        /// </summary>
         public string Speed
         {
             get => _speed;
             set => this.RaiseAndSetIfChanged(ref _speed, value);
         }
 
-        /// <summary>
-        /// 状态
-        /// </summary>
         public string Status
         {
             get => _status;
@@ -58,14 +43,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
         #endregion
 
-        private IProgress _task;
-        private CancellationTokenSource _cts = new CancellationTokenSource();
+        public abstract ValueTask StartAsync();
 
-        public TaskListViewModel(ILogger logger, IProgress task, string description)
-        {
-            _logger = logger;
-            _task = task;
-            Description = description;
-        }
+        public abstract void Stop();
     }
 }

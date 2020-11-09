@@ -60,7 +60,6 @@
                             <ColumnDefinition />
                             <ColumnDefinition Width="100"/>
                             <ColumnDefinition Width="100"/>
-                            <ColumnDefinition Width="100"/>
                         </Grid.ColumnDefinitions>
                         <Image Grid.RowSpan="3" x:Name="FaceImage"
                                Width="100" Margin="0,0,10,0"
@@ -87,16 +86,8 @@
                         <TextBlock Grid.Row="2" Grid.Column="2" x:Name="RecordCountTextBlock" VerticalAlignment="Center"
                                    d:Text="100"
                                    FontSize="16" />
-                       
-                        <Grid Grid.Row="0" Grid.Column="3" Grid.RowSpan="3">
-                            <Syncfusion:SfBusyIndicator
-                                x:Name="DownloadLiveRecordBusyIndicator"
-                                Background="Transparent"
-                                d:IsBusy="True"
-                                Header="下载中..." AnimationType="GPS" />
-                        </Grid>
 
-                        <Grid Grid.Row="0" Grid.Column="4" Grid.RowSpan="3">
+                        <Grid Grid.Row="0" Grid.Column="3" Grid.RowSpan="3">
                             <Syncfusion:SfBusyIndicator
                                 x:Name="LiveRecordBusyIndicator"
                                 Background="Transparent"
@@ -104,7 +95,7 @@
                                 Header="加载中..." AnimationType="DoubleRing" />
                         </Grid>
 
-                        <Grid Grid.Row="0" Grid.Column="5" Grid.RowSpan="3">
+                        <Grid Grid.Row="0" Grid.Column="4" Grid.RowSpan="3">
                             <Syncfusion:SfBusyIndicator
                                 Background="Transparent"
                                 IsBusy="True"
@@ -137,7 +128,7 @@
                     >
                         <Syncfusion:SfDataGrid.RecordContextMenu>
                             <ContextMenu>
-                                <MenuItem x:Name="DownLoadMenuItem" Header="下载" CommandParameter="{Binding }" />
+                                <MenuItem x:Name="DownLoadMenuItem" Header="加入下载队列" CommandParameter="{Binding }" />
                                 <MenuItem x:Name="CopyLiveRecordDownloadUrlMenuItem" Header="复制下载地址" CommandParameter="{Binding }" />
                                 <Separator />
                                 <MenuItem x:Name="OpenDirMenuItem" Header="打开目录" CommandParameter="{Binding }" />
@@ -171,7 +162,7 @@
                 <Syncfusion:SfDataGrid
                     FontFamily="Microsoft YaHei UI"
                     x:Name="TaskListDataGrid"
-                    ColumnSizer="Auto"
+                    ColumnSizer="AutoWithLastColumnFill"
                     AutoGenerateColumns="False"
                     RowSelectionBrush="LightGray"
                     CurrentCellBorderBrush="Transparent"
@@ -191,10 +182,17 @@
 
                     EnableDataVirtualization="True"
                     ScrollMode="None" CanMaintainScrollPosition="True" ShowBusyIndicator="True">
+                    
+                    <Syncfusion:SfDataGrid.RecordContextMenu>
+                        <ContextMenu>
+                            <MenuItem x:Name="StopTaskMenuItem" Header="停止任务" CommandParameter="{Binding }" />
+                        </ContextMenu>
+                    </Syncfusion:SfDataGrid.RecordContextMenu>
+                    
                     <Syncfusion:SfDataGrid.Columns>
+
                         <Syncfusion:GridTextColumn MappingName="Description" HeaderText="任务描述" />
                         <Syncfusion:GridTextColumn MappingName="Speed" HeaderText="速度" />
-                        <Syncfusion:GridTextColumn MappingName="Status" HeaderText="状态" />
 
                         <Syncfusion:GridTemplateColumn MappingName="Progress" HeaderText="进度">
                             <Syncfusion:GridTemplateColumn.CellTemplate>
@@ -212,7 +210,9 @@
                                 </DataTemplate>
                             </Syncfusion:GridTemplateColumn.CellTemplate>
                         </Syncfusion:GridTemplateColumn>
-                        
+
+                        <Syncfusion:GridTextColumn MappingName="Status" HeaderText="状态" />
+
                     </Syncfusion:SfDataGrid.Columns>
                 </Syncfusion:SfDataGrid>
             </TabItem>

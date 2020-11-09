@@ -70,8 +70,6 @@ namespace BilibiliLiveRecordDownLoader
                 this.OneWayBind(ViewModel, vm => vm.ShortRoomId, v => v.ShortRoomIdTextBlock.Text, i => $@"短号: {i}").DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.RecordCount, v => v.RecordCountTextBlock.Text, i => $@"列表总数: {i}").DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.IsLiveRecordBusy, v => v.LiveRecordBusyIndicator.IsBusy).DisposeWith(d);
-                //TODO
-                this.OneWayBind(ViewModel, vm => vm.DownloadTaskPool.HasTaskRunning, v => v.DownloadLiveRecordBusyIndicator.IsBusy).DisposeWith(d);
 
                 this.BindCommand(ViewModel, vm => vm.CopyLiveRecordDownloadUrlCommand, v => v.CopyLiveRecordDownloadUrlMenuItem).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.OpenLiveRecordUrlCommand, v => v.OpenLiveRecordUrlMenuItem).DisposeWith(d);
@@ -82,6 +80,32 @@ namespace BilibiliLiveRecordDownLoader
 
                 this.BindCommand(ViewModel, vm => vm.ShowWindowCommand, v => v.ShowMenuItem).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.ExitCommand, v => v.ExitMenuItem).DisposeWith(d);
+
+                this.OneWayBind(ViewModel, vm => vm.TaskList, v => v.TaskListDataGrid.ItemsSource).DisposeWith(d);
+                this.BindCommand(ViewModel, vm => vm.StopTaskCommand, v => v.StopTaskMenuItem).DisposeWith(d);
+
+                this.Bind(ViewModel,
+                    vm => vm.ConfigService.Config.DownloadThreads,
+                    v => v.ThreadsTextBox.Value,
+                    x => x,
+                    x => x.HasValue ? Convert.ToByte(x.Value) : (byte)8).DisposeWith(d);
+
+                Observable.FromEventPattern(LogTextBox, nameof(LogTextBox.TextChanged)).Subscribe(args =>
+                {
+                    if (LogTextBox.LineCount > 2000)
+                    {
+                        _logServices?.Dispose();
+                        LogTextBox.Clear();
+                        _logServices = CreateLogService();
+                    }
+                }).DisposeWith(d);
+
+                _logServices = CreateLogService();
+
+                LiveRecordListDataGrid.Events().Loaded.Subscribe(args =>
+                {
+                    LiveRecordListDataGrid.GridColumnSizer = new GridColumnSizerExt(LiveRecordListDataGrid);
+                }).DisposeWith(d);
 
                 #region CloseReasonHack
 
@@ -98,31 +122,6 @@ namespace BilibiliLiveRecordDownLoader
                         }).DisposeWith(d);
 
                 #endregion
-
-                this.Bind(ViewModel,
-                    vm => vm.ConfigService.Config.DownloadThreads,
-                    v => v.ThreadsTextBox.Value,
-                    x => x,
-                    x => x.HasValue ? Convert.ToByte(x.Value) : (byte)8).DisposeWith(d);
-
-                Observable.FromEventPattern(LogTextBox, nameof(LogTextBox.TextChanged)).Subscribe(args =>
-                {
-                    if (LogTextBox.LineCount > 2000)
-                    {
-                        _logServices?.Dispose();
-                        LogTextBox.Clear();
-                        _logServices = CreateLogService();
-                    }
-                });
-
-                _logServices = CreateLogService();
-
-                LiveRecordListDataGrid.Events().Loaded.Subscribe(args =>
-                {
-                    LiveRecordListDataGrid.GridColumnSizer = new GridColumnSizerExt(LiveRecordListDataGrid);
-                });
-
-                this.OneWayBind(ViewModel, vm => vm.TaskList, v => v.TaskListDataGrid.ItemsSource).DisposeWith(d);
             });
         }
 

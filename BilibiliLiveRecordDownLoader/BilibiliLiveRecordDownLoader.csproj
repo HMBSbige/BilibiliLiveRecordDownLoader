@@ -19,6 +19,7 @@
     <PackageReference Include="Microsoft-WindowsAPICodePack-Shell" Version="1.1.4" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="3.1.9" />
     <PackageReference Include="Microsoft.VisualStudio.Threading" Version="16.8.55" />
+    <PackageReference Include="Punchclock" Version="3.3.2" />
     <PackageReference Include="ReactiveUI.Events.WPF" Version="12.1.5" />
     <PackageReference Include="ReactiveUI.WPF" Version="12.1.5" />
     <PackageReference Include="Serilog" Version="2.10.0" />
