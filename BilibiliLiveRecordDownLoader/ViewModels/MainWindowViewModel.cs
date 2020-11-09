@@ -3,6 +3,7 @@ using BilibiliApi.Model.LiveRecordList;
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Shared;
+using BilibiliLiveRecordDownLoader.Shared.Interfaces;
 using BilibiliLiveRecordDownLoader.Utils;
 using DynamicData;
 using Microsoft.Extensions.Logging;
@@ -19,6 +20,7 @@ using System.Reactive.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Forms;
+using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
@@ -138,6 +140,9 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         private SourceList<LiveRecordList> LiveRecordSourceList { get; } = new SourceList<LiveRecordList>();
         public readonly ReadOnlyObservableCollection<LiveRecordListViewModel> LiveRecordList;
 
+        private SourceList<TaskListViewModel> TaskSourceList { get; } = new SourceList<TaskListViewModel>();
+        public readonly ReadOnlyObservableCollection<TaskListViewModel> TaskList;
+
         private bool _isInitData = true;
 
         private const long PageSize = 200;
@@ -167,12 +172,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                     .Subscribe(GetDiskUsage);
 
             LiveRecordSourceList.Connect()
-                    .Transform(x =>
-                    {
-                        var record = new LiveRecordListViewModel(logger, x);
-                        DownloadTaskPool.Attach(record);
-                        return record;
-                    })
+                    .Transform(x => new LiveRecordListViewModel(logger, x))
                     .ObserveOnDispatcher()
                     .Bind(out LiveRecordList)
                     .DisposeMany()
@@ -192,6 +192,12 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                         _window.SizeToContent = SizeToContent.Manual;
                         _isInitData = false;
                     });
+
+            TaskSourceList.Connect()
+                    .ObserveOnDispatcher()
+                    .Bind(out TaskList)
+                    .DisposeMany()
+                    .Subscribe();
 
             SelectMainDirCommand = ReactiveCommand.Create(SelectDirectory);
             OpenMainDirCommand = ReactiveCommand.CreateFromObservable(OpenDirectory);
@@ -422,6 +428,16 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                     _logger.LogError(ex, @"下载回放出错");
                 }
             });
+        }
+
+        private void AddTask(IProgress task, string description)
+        {
+            if (TaskSourceList.Items.Any(x => x.Description == description))
+            {
+                return;
+            }
+            var t = new TaskListViewModel(_logger, task, description);
+            TaskSourceList.Add(t);
         }
 
         private void ShowWindow()

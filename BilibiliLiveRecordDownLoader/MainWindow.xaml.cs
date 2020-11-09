@@ -3,7 +3,6 @@ using BilibiliLiveRecordDownLoader.ViewModels;
 using BilibiliLiveRecordDownLoader.Views;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
-using Syncfusion.UI.Xaml.Grid;
 using System;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
@@ -71,28 +70,13 @@ namespace BilibiliLiveRecordDownLoader
                 this.OneWayBind(ViewModel, vm => vm.ShortRoomId, v => v.ShortRoomIdTextBlock.Text, i => $@"短号: {i}").DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.RecordCount, v => v.RecordCountTextBlock.Text, i => $@"列表总数: {i}").DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.IsLiveRecordBusy, v => v.LiveRecordBusyIndicator.IsBusy).DisposeWith(d);
+                //TODO
                 this.OneWayBind(ViewModel, vm => vm.DownloadTaskPool.HasTaskRunning, v => v.DownloadLiveRecordBusyIndicator.IsBusy).DisposeWith(d);
 
                 this.BindCommand(ViewModel, vm => vm.CopyLiveRecordDownloadUrlCommand, v => v.CopyLiveRecordDownloadUrlMenuItem).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.OpenLiveRecordUrlCommand, v => v.OpenLiveRecordUrlMenuItem).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.DownLoadCommand, v => v.DownLoadMenuItem).DisposeWith(d);
                 this.BindCommand(ViewModel, vm => vm.OpenDirCommand, v => v.OpenDirMenuItem).DisposeWith(d);
-
-                Observable.FromEventPattern(LiveRecordListDataGrid, nameof(LiveRecordListDataGrid.GridContextMenuOpening))
-                .Subscribe(args =>
-                {
-                    if (args.EventArgs is GridContextMenuEventArgs a
-                    && a.ContextMenuInfo is GridRecordContextMenuInfo info
-                    && info.Record is LiveRecordListViewModel record
-                    && record.IsDownloading)
-                    {
-                        DownLoadMenuItem.Header = @"停止下载";
-                    }
-                    else
-                    {
-                        DownLoadMenuItem.Header = @"下载";
-                    }
-                }).DisposeWith(d);
 
                 this.BindCommand(ViewModel, vm => vm.ShowWindowCommand, v => v.NotifyIcon, nameof(NotifyIcon.TrayLeftMouseUp)).DisposeWith(d);
 
@@ -137,6 +121,8 @@ namespace BilibiliLiveRecordDownLoader
                 {
                     LiveRecordListDataGrid.GridColumnSizer = new GridColumnSizerExt(LiveRecordListDataGrid);
                 });
+
+                this.OneWayBind(ViewModel, vm => vm.TaskList, v => v.TaskListDataGrid.ItemsSource).DisposeWith(d);
             });
         }
 

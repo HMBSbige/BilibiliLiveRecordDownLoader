@@ -3,7 +3,6 @@ using BilibiliLiveRecordDownLoader.Services;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using System;
-using System.Reactive.Linq;
 using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
@@ -24,7 +23,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         private long _online;
         private long _danmuNum;
         private TimeSpan _length;
-        private double _downloadProgress;
 
         #endregion
 
@@ -120,19 +118,9 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             set => this.RaiseAndSetIfChanged(ref _length, value);
         }
 
-        /// <summary>
-        /// 下载进度
-        /// </summary>
-        public double DownloadProgress
-        {
-            get => _downloadProgress;
-            set => this.RaiseAndSetIfChanged(ref _downloadProgress, value);
-        }
-
         #endregion
 
         private LiveRecordDownloadTask LiveRecordDownloadTask { get; set; }
-        private IDisposable _progressMonitor;
 
         public bool IsDownloading => LiveRecordDownloadTask?.IsDownloading ?? false;
 
@@ -140,7 +128,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         {
             _logger = logger;
             CopyFrom(data);
-            _downloadProgress = 0.0;
         }
 
         /// <summary>
@@ -153,19 +140,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             {
                 await LiveRecordDownloadTask.StartOrStopAsync();
             }
-        }
-
-        public void Attach(LiveRecordDownloadTask t)
-        {
-            _progressMonitor?.Dispose();
-            LiveRecordDownloadTask = t;
-            _progressMonitor = LiveRecordDownloadTask.ProgressUpdated
-                .ObserveOn(RxApp.MainThreadScheduler)
-                .Subscribe(d => { DownloadProgress = d; },
-                ex =>
-                {
-                    _logger.LogError(ex, @"下载回放出错");
-                });
         }
 
         public void CopyFrom(LiveRecordList data)

@@ -1,8 +1,8 @@
-﻿using System.Collections.Concurrent;
-using System.Threading.Tasks;
-using BilibiliLiveRecordDownLoader.ViewModels;
+﻿using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI;
 using Syncfusion.Data.Extensions;
+using System.Collections.Concurrent;
+using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.Services
 {
@@ -30,17 +30,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 
             t.ThreadsCount = threads;
 
-            record.Attach(t);
             await record.StartOrStopAsync();
-        }
-
-        public void Attach(LiveRecordListViewModel record)
-        {
-            var id = record.Rid;
-            if (_list.TryGetValue(id, out var t))
-            {
-                record.Attach(t);
-            }
         }
 
         public void Remove(string id)

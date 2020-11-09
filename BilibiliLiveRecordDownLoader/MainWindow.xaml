@@ -162,27 +162,59 @@
 
                             <Syncfusion:GridTimeSpanColumn MappingName="Length" HeaderText="视频长度" Format="h:m:s" />
 
-                            <Syncfusion:GridTemplateColumn MappingName="DownloadProgress" HeaderText="下载进度">
-                                <Syncfusion:GridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="-1">
-                                            <ProgressBar x:Name="progressBar" Background="Transparent" Minimum="0"
-                                                         Maximum="1" BorderThickness="0"
-                                                         Value="{Binding Path=DownloadProgress, Mode=OneWay,UpdateSourceTrigger=PropertyChanged}" />
-                                            <TextBlock
-                                                Text="{Binding Path=DownloadProgress, Mode=OneWay,UpdateSourceTrigger=PropertyChanged ,StringFormat={}{0:P2} }"
-                                                HorizontalAlignment="Center"
-                                                Foreground="Black"
-                                                VerticalAlignment="Center" TextAlignment="Center" />
-                                        </Grid>
-                                    </DataTemplate>
-                                </Syncfusion:GridTemplateColumn.CellTemplate>
-                            </Syncfusion:GridTemplateColumn>
-
                         </Syncfusion:SfDataGrid.Columns>
 
                     </Syncfusion:SfDataGrid>
                 </DockPanel>
+            </TabItem>
+            <TabItem Header="任务列表">
+                <Syncfusion:SfDataGrid
+                    FontFamily="Microsoft YaHei UI"
+                    x:Name="TaskListDataGrid"
+                    ColumnSizer="Auto"
+                    AutoGenerateColumns="False"
+                    RowSelectionBrush="LightGray"
+                    CurrentCellBorderBrush="Transparent"
+                    CurrentCellBorderThickness="2"
+                    BorderThickness="1,1,1,0"
+
+                    AllowResizingHiddenColumns="True"
+                    SelectionUnit="Row" SelectionMode="Single"
+                    AllowEditing="False" AddNewRowPosition="None"
+                    AllowResizingColumns="True"
+                    AllowDeleting="False"
+                    AllowDraggingRows="False" AllowDraggingColumns="True" AllowDrop="False"
+                    AllowGrouping="False" ShowGroupDropArea="False"
+                    AllowSorting="True" AllowFiltering="False" ShowSortNumbers="True"
+                    ShowToolTip="True"
+                    ShowRowHeader="False"
+
+                    EnableDataVirtualization="True"
+                    ScrollMode="None" CanMaintainScrollPosition="True" ShowBusyIndicator="True">
+                    <Syncfusion:SfDataGrid.Columns>
+                        <Syncfusion:GridTextColumn MappingName="Description" HeaderText="任务描述" />
+                        <Syncfusion:GridTextColumn MappingName="Speed" HeaderText="速度" />
+                        <Syncfusion:GridTextColumn MappingName="Status" HeaderText="状态" />
+
+                        <Syncfusion:GridTemplateColumn MappingName="Progress" HeaderText="进度">
+                            <Syncfusion:GridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="-1">
+                                        <ProgressBar x:Name="progressBar" Background="Transparent" Minimum="0"
+                                                     Maximum="1" BorderThickness="0"
+                                                     Value="{Binding Path=Progress, Mode=OneWay,UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock
+                                            Text="{Binding Path=Progress, Mode=OneWay,UpdateSourceTrigger=PropertyChanged ,StringFormat={}{0:P2} }"
+                                            HorizontalAlignment="Center"
+                                            Foreground="Black"
+                                            VerticalAlignment="Center" TextAlignment="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </Syncfusion:GridTemplateColumn.CellTemplate>
+                        </Syncfusion:GridTemplateColumn>
+                        
+                    </Syncfusion:SfDataGrid.Columns>
+                </Syncfusion:SfDataGrid>
             </TabItem>
             <TabItem Header="日志">
                 <TextBox x:Name="LogTextBox" IsReadOnly="True" Opacity="1" d:Text="日志&#13;LogTextBox"
