@@ -86,8 +86,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
             {
                 case AMF0.Number:
                 {
-                    // TODO:.NET 5.0 value = BinaryPrimitives.ReadDoubleBigEndian(buffer);;
-                    value = BitConverter.Int64BitsToDouble(BinaryPrimitives.ReadInt64BigEndian(buffer));
+                    value = BinaryPrimitives.ReadDoubleBigEndian(buffer);
                     buffer = buffer.Slice(sizeof(double));
                     break;
                 }
@@ -139,8 +138,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
                 }
                 case AMF0.Date:
                 {
-                    // TODO:.NET 5.0 value = BinaryPrimitives.ReadDoubleBigEndian(buffer);
-                    var datetime = BitConverter.Int64BitsToDouble(BinaryPrimitives.ReadInt64BigEndian(buffer));
+                    var datetime = BinaryPrimitives.ReadDoubleBigEndian(buffer);
                     var localDateTimeOffset = BinaryPrimitives.ReadInt16BigEndian(buffer);
 
                     value = DateTime.UnixEpoch.AddMilliseconds(datetime).AddMinutes(-localDateTimeOffset);
@@ -174,8 +172,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
                 case double number:
                 {
                     array[0] = (byte)AMF0.Number;
-                    // TODO:.NET 5.0 BinaryPrimitives.WriteDoubleBigEndian(array.Slice(1), number);
-                    BinaryPrimitives.WriteInt64BigEndian(array.Slice(1), BitConverter.DoubleToInt64Bits(number));
+                    BinaryPrimitives.WriteDoubleBigEndian(array.Slice(1), number);
                     return Count(number);
                 }
                 case bool b:
@@ -248,8 +245,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
                     array[0] = (byte)AMF0.Date;
 
                     var time = dataTime.ToUniversalTime().Subtract(DateTime.UnixEpoch).TotalMilliseconds;
-                    // TODO:.NET 5.0 BinaryPrimitives.WriteDoubleBigEndian(array.Slice(1), time);
-                    BinaryPrimitives.WriteInt64BigEndian(array.Slice(1), BitConverter.DoubleToInt64Bits(time));
+                    BinaryPrimitives.WriteDoubleBigEndian(array.Slice(1), time);
 
                     BinaryPrimitives.WriteInt16BigEndian(array.Slice(1 + sizeof(double)), 0);
 

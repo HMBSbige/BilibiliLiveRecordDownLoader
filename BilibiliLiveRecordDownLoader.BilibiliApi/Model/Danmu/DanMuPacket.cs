@@ -87,8 +87,7 @@ namespace BilibiliApi.Model.Danmu
             Operation = (Operation)operation;
             SequenceId = seqId;
 
-            // TODO .NET 5.0
-            Body = sequence.Slice(HeaderLength, PacketLength - HeaderLength).ToArray();
+            Body = reader.UnreadSequence.Slice(0, PacketLength - HeaderLength).ToArray();
 
             return sequence.Slice(packetLength);
         }

@@ -263,8 +263,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 
             var outBytes = memory.Memory.Slice(size, durationSize).Span;
 
-            // TODO:.NET 5.0 BinaryPrimitives.WriteDoubleBigEndian(outBytes, duration);
-            BinaryPrimitives.WriteInt64BigEndian(outBytes, BitConverter.DoubleToInt64Bits(duration));
+            BinaryPrimitives.WriteDoubleBigEndian(outBytes, duration);
 
             file.Seek(i, SeekOrigin.Begin);
             WriteWithProgress(file, outBytes, default);
