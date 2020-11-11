@@ -1,18 +1,17 @@
 name: GitHub CI
 on: [push, pull_request]
+env:
+  ProjectName: BilibiliLiveRecordDownLoader
 
 jobs:
-
   build:
     name: Build
     runs-on: windows-latest
-    env: 
+    env:
       SyncfusionLicenseKey: ${{ secrets.SyncfusionLicenseKey }}
       DOTNET_SDK_VERSION: 5.0.100
       NET_TFM: net5.0-windows10.0.19041.0
       Configuration: Release
-      ProjectName: BilibiliLiveRecordDownLoader
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -24,38 +23,21 @@ jobs:
       with:
         dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
 
-    - name: Get tag name
-      uses: olegtarasov/get-tag@v2
-
     - name: Build .NET App
       shell: pwsh
-      run: |
-        .\build.ps1 app
-        New-Item -ItemType Directory -Path C:\builtfiles -Force > $null
-        7z a -mx9 "C:\builtfiles\$env:ProjectName-netcore-${{ env.GIT_TAG_NAME }}.7z" ".\$env:ProjectName\bin\$env:Configuration\$env:NET_TFM\publish\"
-        7z rn "C:\builtfiles\$env:ProjectName-netcore-${{ env.GIT_TAG_NAME }}.7z" publish $env:ProjectName
-        echo "NETCORE_SHA256=$(.\Build\GetSHA256\GetSHA256.ps1 C:\builtfiles\$env:ProjectName-netcore-${{ env.GIT_TAG_NAME }}.7z)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      run: .\build.ps1 app
 
     - name: Build x64
       shell: pwsh
-      run: |
-        .\build.ps1 x64
-        New-Item -ItemType Directory -Path C:\builtfiles -Force > $null
-        7z a -mx9 "C:\builtfiles\$env:ProjectName-Win64-${{ env.GIT_TAG_NAME }}.7z" ".\$env:ProjectName\bin\$env:Configuration\$env:NET_TFM\win-x64\publish\"
-        7z rn "C:\builtfiles\$env:ProjectName-Win64-${{ env.GIT_TAG_NAME }}.7z" publish $env:ProjectName
-        echo "NETCORE64_SHA256=$(.\Build\GetSHA256\GetSHA256.ps1 C:\builtfiles\$env:ProjectName-Win64-${{ env.GIT_TAG_NAME }}.7z)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      run: .\build.ps1 x64
 
     - name: Build x86
       shell: pwsh
-      run: |
-        .\build.ps1 x86
-        New-Item -ItemType Directory -Path C:\builtfiles -Force > $null
-        7z a -mx9 "C:\builtfiles\$env:ProjectName-Win32-${{ env.GIT_TAG_NAME }}.7z" ".\$env:ProjectName\bin\$env:Configuration\$env:NET_TFM\win-x86\publish\"
-        7z rn "C:\builtfiles\$env:ProjectName-Win32-${{ env.GIT_TAG_NAME }}.7z" publish $env:ProjectName
-        echo "NETCORE86_SHA256=$(.\Build\GetSHA256\GetSHA256.ps1 C:\builtfiles\$env:ProjectName-Win32-${{ env.GIT_TAG_NAME }}.7z)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      run: .\build.ps1 x86
 
     - name: Upload .NET App
       continue-on-error: true
+      if: ${{ !startsWith(github.ref, 'refs/tags/') }}
       uses: actions/upload-artifact@v2
       with:
         name: ${{ env.ProjectName }}-netcore
@@ -63,6 +45,7 @@ jobs:
 
     - name: Upload x64
       continue-on-error: true
+      if: ${{ !startsWith(github.ref, 'refs/tags/') }}
       uses: actions/upload-artifact@v2
       with:
         name: ${{ env.ProjectName }}-Win64
@@ -70,31 +53,64 @@ jobs:
 
     - name: Upload x86
       continue-on-error: true
+      if: ${{ !startsWith(github.ref, 'refs/tags/') }}
       uses: actions/upload-artifact@v2
       with:
         name: ${{ env.ProjectName }}-Win32
         path: ${{ env.ProjectName }}\bin\${{ env.Configuration }}\${{ env.NET_TFM }}\win-x86\publish\
 
+    - name: Get tag
+      if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
+      id: tag
+      uses: dawidd6/action-get-tag@v1
+
+    - name: Package .NET App
+      if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Path C:\builtfiles -Force > $null
+        7z a -mx9 "C:\builtfiles\$env:ProjectName-netcore-${{ steps.tag.outputs.tag }}.7z" ".\$env:ProjectName\bin\$env:Configuration\$env:NET_TFM\publish\"
+        7z rn "C:\builtfiles\$env:ProjectName-netcore-${{ steps.tag.outputs.tag }}.7z" publish $env:ProjectName
+        echo "NETCORE_SHA256=$(.\Build\GetSHA256\GetSHA256.ps1 C:\builtfiles\$env:ProjectName-netcore-${{ steps.tag.outputs.tag }}.7z)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+    - name: Package x64
+      if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Path C:\builtfiles -Force > $null
+        7z a -mx9 "C:\builtfiles\$env:ProjectName-Win64-${{ steps.tag.outputs.tag }}.7z" ".\$env:ProjectName\bin\$env:Configuration\$env:NET_TFM\win-x64\publish\"
+        7z rn "C:\builtfiles\$env:ProjectName-Win64-${{ steps.tag.outputs.tag }}.7z" publish $env:ProjectName
+        echo "NETCORE64_SHA256=$(.\Build\GetSHA256\GetSHA256.ps1 C:\builtfiles\$env:ProjectName-Win64-${{ steps.tag.outputs.tag }}.7z)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+    - name: Package x86
+      if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Path C:\builtfiles -Force > $null
+        7z a -mx9 "C:\builtfiles\$env:ProjectName-Win32-${{ steps.tag.outputs.tag }}.7z" ".\$env:ProjectName\bin\$env:Configuration\$env:NET_TFM\win-x86\publish\"
+        7z rn "C:\builtfiles\$env:ProjectName-Win32-${{ steps.tag.outputs.tag }}.7z" publish $env:ProjectName
+        echo "NETCORE86_SHA256=$(.\Build\GetSHA256\GetSHA256.ps1 C:\builtfiles\$env:ProjectName-Win32-${{ steps.tag.outputs.tag }}.7z)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
     - name: Create a new GitHub release if a new tag is pushed
-      if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1
+      if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
       env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
       with:
-        name: v${{ env.GIT_TAG_NAME }}
+        name: v${{ steps.tag.outputs.tag }}
         prerelease: true
         draft: false
         files: |
-          C:\builtfiles\${{ env.ProjectName }}-netcore-${{ env.GIT_TAG_NAME }}.7z
-          C:\builtfiles\${{ env.ProjectName }}-Win64-${{ env.GIT_TAG_NAME }}.7z
-          C:\builtfiles\${{ env.ProjectName }}-Win32-${{ env.GIT_TAG_NAME }}.7z
+          C:\builtfiles\${{ env.ProjectName }}-netcore-${{ steps.tag.outputs.tag }}.7z
+          C:\builtfiles\${{ env.ProjectName }}-Win64-${{ steps.tag.outputs.tag }}.7z
+          C:\builtfiles\${{ env.ProjectName }}-Win32-${{ steps.tag.outputs.tag }}.7z
         body: |
           ## 更新日志：
           * 这是 GitHub Actions 自动化部署，更新日志应该很快会手动更新
-          
+
           ## 文件校验
           | 文件名 | SHA256 |
           | :- | :- |
-          | <sub>${{ env.ProjectName }}-netcore-${{ env.GIT_TAG_NAME }}.7z</sub> | <sub>${{ env.NETCORE_SHA256 }}</sub> |
-          | <sub>${{ env.ProjectName }}-Win64-${{ env.GIT_TAG_NAME }}.7z</sub> | <sub>${{ env.NETCORE64_SHA256 }}</sub> |
-          | <sub>${{ env.ProjectName }}-Win32-${{ env.GIT_TAG_NAME }}.7z</sub> | <sub>${{ env.NETCORE86_SHA256 }}</sub> |
+          | <sub>${{ env.ProjectName }}-netcore-${{ steps.tag.outputs.tag }}.7z</sub> | <sub>${{ env.NETCORE_SHA256 }}</sub> |
+          | <sub>${{ env.ProjectName }}-Win64-${{ steps.tag.outputs.tag }}.7z</sub> | <sub>${{ env.NETCORE64_SHA256 }}</sub> |
+          | <sub>${{ env.ProjectName }}-Win32-${{ steps.tag.outputs.tag }}.7z</sub> | <sub>${{ env.NETCORE86_SHA256 }}</sub> |
