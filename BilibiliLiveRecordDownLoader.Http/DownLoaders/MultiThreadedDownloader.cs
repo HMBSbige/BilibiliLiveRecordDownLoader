@@ -164,16 +164,13 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
                 await opQueue.ShutdownQueue();
                 opQueue.Dispose();
 
-#pragma warning disable 4014
-                // ReSharper disable once MethodSupportsCancellation
                 Task.Run(async () =>
-#pragma warning restore 4014
                 {
                     foreach (var range in list)
                     {
                         await DeleteFileWithRetryAsync(range.FileName);
                     }
-                });
+                }, CancellationToken.None).NoWarning();
             }
         }
 
@@ -228,7 +225,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 
                 var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
 
-                var stream = await response.Content.ReadAsStreamAsync();
+                var stream = await response.Content.ReadAsStreamAsync(token);
 
                 return (stream, info.FileName);
             }

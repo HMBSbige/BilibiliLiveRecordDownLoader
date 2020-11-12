@@ -86,7 +86,7 @@ namespace BilibiliLiveRecordDownLoader
             }
         }
 
-        private void ConfigureServices(IServiceCollection services)
+        private static void ConfigureServices(IServiceCollection services)
         {
             services.AddSingleton<MainWindow>();
             services.AddSingleton(typeof(IConfigService), typeof(ConfigService));
