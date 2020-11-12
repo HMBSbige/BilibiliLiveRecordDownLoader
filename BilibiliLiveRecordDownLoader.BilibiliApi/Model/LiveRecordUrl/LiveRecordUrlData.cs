@@ -1,8 +1,5 @@
-﻿using System;
-
-namespace BilibiliApi.Model.LiveRecordUrl
+﻿namespace BilibiliApi.Model.LiveRecordUrl
 {
-    [Serializable]
     public class LiveRecordUrlData
     {
         /// <summary>
@@ -18,6 +15,6 @@ namespace BilibiliApi.Model.LiveRecordUrl
         /// <summary>
         /// 分段视频信息
         /// </summary>
-        public LiveRecordUrl[] list { get; set; }
+        public LiveRecordUrl[]? list { get; set; }
     }
 }

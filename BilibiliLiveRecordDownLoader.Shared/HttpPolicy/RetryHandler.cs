@@ -7,9 +7,9 @@ namespace BilibiliLiveRecordDownLoader.Shared.HttpPolicy
 {
     public class RetryHandler : DelegatingHandler
     {
-        private readonly int _maxRetries;
+        private readonly uint _maxRetries;
 
-        public RetryHandler(HttpMessageHandler innerHandler, int maxRetries) : base(innerHandler)
+        public RetryHandler(HttpMessageHandler innerHandler, uint maxRetries) : base(innerHandler)
         {
             _maxRetries = maxRetries;
         }
@@ -17,7 +17,7 @@ namespace BilibiliLiveRecordDownLoader.Shared.HttpPolicy
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             request.Version = HttpVersion.Version20;
-            HttpResponseMessage response = null;
+            HttpResponseMessage? response = null;
 
             for (var i = 0; i < _maxRetries; ++i)
             {
@@ -28,7 +28,7 @@ namespace BilibiliLiveRecordDownLoader.Shared.HttpPolicy
                 }
             }
 
-            return response;
+            return response!;
         }
     }
 }

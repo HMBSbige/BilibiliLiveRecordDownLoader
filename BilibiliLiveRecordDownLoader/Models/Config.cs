@@ -9,7 +9,7 @@ namespace BilibiliLiveRecordDownLoader.Models
         #region 字段
 
         private long _roomId;
-        private string _mainDir;
+        private string? _mainDir;
         private byte _downloadThreads;
 
         #endregion
@@ -22,7 +22,7 @@ namespace BilibiliLiveRecordDownLoader.Models
             set => this.RaiseAndSetIfChanged(ref _roomId, value);
         }
 
-        public string MainDir
+        public string? MainDir
         {
             get => _mainDir;
             set => this.RaiseAndSetIfChanged(ref _mainDir, value);

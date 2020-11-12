@@ -16,12 +16,12 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
         /// <summary>
         /// 手动设置的 Cookie
         /// </summary>
-        string Cookie { get; set; }
+        string? Cookie { get; set; }
 
         /// <summary>
         /// 下载目标
         /// </summary>
-        Uri Target { get; set; }
+        Uri? Target { get; set; }
 
         /// <summary>
         /// 线程数
@@ -36,7 +36,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
         /// <summary>
         /// 输出文件名，包括路径
         /// </summary>
-        string OutFileName { get; set; }
+        string? OutFileName { get; set; }
 
         /// <summary>
         /// 下载

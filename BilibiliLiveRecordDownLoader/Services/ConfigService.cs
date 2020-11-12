@@ -14,12 +14,11 @@ using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.Services
 {
-    [Serializable]
     public class ConfigService : ReactiveObject, IConfigService
     {
-        private Config _config;
+        private Config? _config;
 
-        public Config Config
+        public Config? Config
         {
             get => _config;
             private set => this.RaiseAndSetIfChanged(ref _config, value);
@@ -29,7 +28,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 
         private readonly ILogger _logger;
 
-        private IDisposable _configMonitor;
+        private readonly IDisposable _configMonitor;
 
         private readonly AsyncReaderWriterLock _lock = new AsyncReaderWriterLock();
 
@@ -42,10 +41,11 @@ namespace BilibiliLiveRecordDownLoader.Services
         public ConfigService(ILogger<ConfigService> logger)
         {
             _logger = logger;
-            _configMonitor = this.WhenAnyValue(x => x.Config,
-                x => x.Config.RoomId,
-                x => x.Config.MainDir,
-                x => x.Config.DownloadThreads)
+            _configMonitor = this.WhenAnyValue(
+                    x => x.Config,
+                    x => x.Config!.RoomId,
+                    x => x.Config!.MainDir,
+                    x => x.Config!.DownloadThreads)
                 .Throttle(TimeSpan.FromSeconds(1))
                 .DistinctUntilChanged()
                 .Where(v => v.Item1 != null && !_lock.IsWriteLockHeld)
@@ -108,7 +108,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 
         public void Dispose()
         {
-            _configMonitor?.Dispose();
+            _configMonitor.Dispose();
         }
     }
 }

@@ -6,7 +6,7 @@ namespace BilibiliApi.Utils
 {
     public static class DanmuExtension
     {
-        public static bool? IsStreaming(this IDanmu danmu)
+        public static bool? IsStreaming(this IDanmu? danmu)
         {
             if (danmu is StreamStatusDanmu streamStatusDanmu)
             {
@@ -15,11 +15,11 @@ namespace BilibiliApi.Utils
             return null;
         }
 
-        public static string TitleChanged(this IDanmu danmu)
+        public static string? TitleChanged(this IDanmu? danmu)
         {
             if (danmu is RoomChangeDanmu roomChangeDanmu)
             {
-                return roomChangeDanmu.Title;
+                return roomChangeDanmu.Title ?? string.Empty;
             }
             return null;
         }

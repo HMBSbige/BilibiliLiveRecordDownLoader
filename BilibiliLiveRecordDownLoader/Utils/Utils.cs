@@ -1,5 +1,4 @@
-﻿using System;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Windows;
@@ -98,14 +97,14 @@ namespace BilibiliLiveRecordDownLoader.Utils
         public static string GetExecutablePath()
         {
             var p = Process.GetCurrentProcess();
-            if (p.MainModule != null)
+            var res = p.MainModule?.FileName;
+            if (res != null)
             {
-                var res = p.MainModule.FileName;
                 return res;
             }
 
             var dllPath = GetDllPath();
-            return Path.Combine(Path.GetDirectoryName(dllPath) ?? throw new InvalidOperationException(), $@"{Path.GetFileNameWithoutExtension(dllPath)}.exe");
+            return Path.ChangeExtension(dllPath, @"exe");
         }
 
         public static string GetDllPath()

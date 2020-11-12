@@ -13,8 +13,8 @@ namespace BilibiliApi.Clients
         protected override ushort DefaultPort => 2243;
         protected override bool ClientConnected => _client?.Connected ?? false;
 
-        private TcpClient _client;
-        private NetworkStream _netStream;
+        private TcpClient? _client;
+        private NetworkStream? _netStream;
 
         public TcpDanmuClient(ILogger logger) : base(logger) { }
 
@@ -26,19 +26,19 @@ namespace BilibiliApi.Clients
         protected override async ValueTask ClientHandshakeAsync(CancellationToken token)
         {
             _client = new TcpClient();
-            await _client.ConnectAsync(Host, Port);
+            await _client.ConnectAsync(Host!, Port, token);
             _netStream = _client.GetStream();
         }
 
         protected override async ValueTask SendAsync(ReadOnlyMemory<byte> buffer, CancellationToken token)
         {
-            await _netStream.WriteAsync(buffer, token);
+            await _netStream!.WriteAsync(buffer, token);
             await _netStream.FlushAsync(token);
         }
 
         protected override async ValueTask<int> ReceiveAsync(Memory<byte> buffer, CancellationToken token)
         {
-            return await _netStream.ReadAsync(buffer, token);
+            return await _netStream!.ReadAsync(buffer, token);
         }
 
         protected override void ResetClient()

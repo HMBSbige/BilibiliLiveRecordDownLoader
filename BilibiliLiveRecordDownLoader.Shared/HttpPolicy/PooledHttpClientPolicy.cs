@@ -1,6 +1,6 @@
-﻿using System;
+﻿using Microsoft.Extensions.ObjectPool;
+using System;
 using System.Net.Http;
-using Microsoft.Extensions.ObjectPool;
 
 namespace BilibiliLiveRecordDownLoader.Shared.HttpPolicy
 {
@@ -10,7 +10,7 @@ namespace BilibiliLiveRecordDownLoader.Shared.HttpPolicy
 
         public PooledHttpClientPolicy(Func<HttpClient> httpClientGenerator)
         {
-            _httpClientGenerator = httpClientGenerator ?? (() => new HttpClient());
+            _httpClientGenerator = httpClientGenerator;
         }
 
         public override HttpClient Create()

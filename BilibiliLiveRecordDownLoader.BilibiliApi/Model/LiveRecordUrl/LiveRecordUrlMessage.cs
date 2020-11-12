@@ -1,8 +1,5 @@
-﻿using System;
-
-namespace BilibiliApi.Model.LiveRecordUrl
+﻿namespace BilibiliApi.Model.LiveRecordUrl
 {
-    [Serializable]
     public class LiveRecordUrlMessage
     {
         /// <summary>
@@ -13,11 +10,11 @@ namespace BilibiliApi.Model.LiveRecordUrl
         /// <summary>
         /// 正常返回 "0"，否则返回错误信息
         /// </summary>
-        public string message { get; set; }
+        public string? message { get; set; }
 
         /// <summary>
         /// 视频信息
         /// </summary>
-        public LiveRecordUrlData data { get; set; }
+        public LiveRecordUrlData? data { get; set; }
     }
 }

@@ -11,7 +11,7 @@ namespace UnitTest
         public async Task GetLiveRecordUrlTestAsync()
         {
             using var client = new BililiveApiClient();
-            var json = await client.GetLiveRecordUrl(@"R1zx411c75j"); // 视频链接会过期
+            var json = await client.GetLiveRecordUrlAsync(@"R1zx411c75j"); // 视频链接会过期
             Assert.AreEqual(json.code, 0);
             Assert.AreEqual(json.message, @"0");
             Assert.IsTrue(json.data.size > 0);
@@ -23,7 +23,7 @@ namespace UnitTest
         public async Task GetRoomInitTestAsync()
         {
             using var client = new BililiveApiClient();
-            var json = await client.GetRoomInit(732);
+            var json = await client.GetRoomInitAsync(732);
             Assert.AreEqual(json.code, 0);
             Assert.AreEqual(json.msg, @"ok");
             Assert.AreEqual(json.message, @"ok");
@@ -36,13 +36,13 @@ namespace UnitTest
         public async Task GetLiveRecordListTestAsync()
         {
             using var client = new BililiveApiClient();
-            var json = await client.GetLiveRecordList(6154037);
+            var json = await client.GetLiveRecordListAsync(6154037);
             Assert.AreEqual(json.code, 0);
             Assert.AreEqual(json.message, @"0");
 
             var all = json.data.count;
             Assert.IsTrue(all > 0);
-            json = await client.GetLiveRecordList(6154037, 1, all);
+            json = await client.GetLiveRecordListAsync(6154037, 1, all);
 
             Assert.AreEqual(json.code, 0);
             Assert.AreEqual(json.message, @"0");
@@ -71,7 +71,7 @@ namespace UnitTest
         public async Task GetAnchorInfoTestAsync()
         {
             using var client = new BililiveApiClient();
-            var json = await client.GetAnchorInfo(732);
+            var json = await client.GetAnchorInfoAsync(732);
             Assert.AreEqual(json.code, 0);
             Assert.AreEqual(json.msg, @"success");
             Assert.AreEqual(json.message, @"success");
@@ -85,7 +85,7 @@ namespace UnitTest
         public async Task GetDanmuConfTestAsync()
         {
             using var client = new BililiveApiClient();
-            var json = await client.GetDanmuConf(6154037);
+            var json = await client.GetDanmuConfAsync(6154037);
             Assert.AreEqual(json.code, 0);
             Assert.AreEqual(json.msg, @"ok");
             Assert.AreEqual(json.message, @"ok");

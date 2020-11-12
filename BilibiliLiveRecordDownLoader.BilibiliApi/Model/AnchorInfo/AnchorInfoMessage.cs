@@ -1,8 +1,5 @@
-﻿using System;
-
-namespace BilibiliApi.Model.AnchorInfo
+﻿namespace BilibiliApi.Model.AnchorInfo
 {
-    [Serializable]
     public class AnchorInfoMessage
     {
         /// <summary>
@@ -13,16 +10,16 @@ namespace BilibiliApi.Model.AnchorInfo
         /// <summary>
         /// 正常返回 "success"，否则返回错误信息
         /// </summary>
-        public string msg { get; set; }
+        public string? msg { get; set; }
 
         /// <summary>
         /// 正常返回 "success"，否则返回错误信息
         /// </summary>
-        public string message { get; set; }
+        public string? message { get; set; }
 
         /// <summary>
         /// 主播信息
         /// </summary>
-        public AnchorInfoData data { get; set; }
+        public AnchorInfoData? data { get; set; }
     }
 }

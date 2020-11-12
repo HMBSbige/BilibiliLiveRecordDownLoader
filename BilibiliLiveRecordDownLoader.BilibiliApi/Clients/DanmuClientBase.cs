@@ -29,10 +29,10 @@ namespace BilibiliApi.Clients
         private readonly Subject<DanmuPacket> _danMuSubj = new Subject<DanmuPacket>();
         public IObservable<DanmuPacket> Received => _danMuSubj.AsObservable();
 
-        protected string Host;
+        protected string? Host;
         protected ushort Port;
         protected abstract string Server { get; }
-        private string _token;
+        private string? _token;
 
         private const string DefaultHost = @"broadcastlv.chat.bilibili.com";
         protected abstract ushort DefaultPort { get; }
@@ -40,9 +40,9 @@ namespace BilibiliApi.Clients
 
         protected abstract bool ClientConnected { get; }
 
-        private IDisposable _heartBeatTask;
+        private IDisposable? _heartBeatTask;
 
-        private CancellationTokenSource _cts;
+        private CancellationTokenSource? _cts;
 
         private const int BufferSize = 1024;
 
@@ -80,10 +80,14 @@ namespace BilibiliApi.Clients
             try
             {
                 using var client = new BililiveApiClient();
-                var conf = await client.GetDanmuConf(RoomId, token);
-                _token = conf.data.token;
+                var conf = await client.GetDanmuConfAsync(RoomId, token);
+                if (conf is null)
+                {
+                    throw new Exception(@"Empty json response");
+                }
 
-                Host = conf.data.host_server_list.First().host;
+                _token = conf.data!.token;
+                Host = conf.data.host_server_list!.First().host;
                 Port = GetPort(conf.data.host_server_list.First());
             }
             catch (Exception ex)
@@ -339,10 +343,6 @@ namespace BilibiliApi.Clients
 
         private void EmitDanmu(in DanmuPacket packet)
         {
-            if (packet == null)
-            {
-                return;
-            }
 #if DEBUG
             switch (packet.Operation)
             {

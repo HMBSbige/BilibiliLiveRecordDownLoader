@@ -13,7 +13,7 @@ namespace BilibiliApi.Clients
         protected override ushort DefaultPort => 443;
         protected override bool ClientConnected => _client?.State == WebSocketState.Open;
 
-        private ClientWebSocket _client;
+        private ClientWebSocket? _client;
 
         public WssDanmuClient(ILogger logger) : base(logger) { }
 
@@ -30,12 +30,12 @@ namespace BilibiliApi.Clients
 
         protected override async ValueTask SendAsync(ReadOnlyMemory<byte> buffer, CancellationToken token)
         {
-            await _client.SendAsync(buffer, WebSocketMessageType.Binary, true, token);
+            await _client!.SendAsync(buffer, WebSocketMessageType.Binary, true, token);
         }
 
         protected override async ValueTask<int> ReceiveAsync(Memory<byte> buffer, CancellationToken token)
         {
-            var rcvResult = await _client.ReceiveAsync(buffer, token);
+            var rcvResult = await _client!.ReceiveAsync(buffer, token);
             return rcvResult.Count;
         }
 

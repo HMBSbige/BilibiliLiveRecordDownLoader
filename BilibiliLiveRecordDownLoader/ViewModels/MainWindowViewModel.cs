@@ -264,7 +264,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             try
             {
                 using var client = new BililiveApiClient();
-                var msg = await client.GetAnchorInfo(roomId);
+                var msg = await client.GetAnchorInfoAsync(roomId);
 
                 if (msg.code != 0 || msg.data?.info == null)
                 {
@@ -306,7 +306,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 LiveRecordSourceList.Clear();
 
                 using var client = new BililiveApiClient();
-                var roomInitMessage = await client.GetRoomInit(roomId);
+                var roomInitMessage = await client.GetRoomInitAsync(roomId);
                 if (roomInitMessage != null
                     && roomInitMessage.code == 0
                     && roomInitMessage.data != null
@@ -318,7 +318,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                     var currentPage = 0;
                     while (currentPage < Math.Ceiling((double)RecordCount / PageSize))
                     {
-                        var listMessage = await client.GetLiveRecordList(roomInitMessage.data.room_id, ++currentPage, PageSize);
+                        var listMessage = await client.GetLiveRecordListAsync(roomInitMessage.data.room_id, ++currentPage, PageSize);
                         if (listMessage?.data != null && listMessage.data.count > 0)
                         {
                             RecordCount = listMessage.data.count;
@@ -355,7 +355,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 if (info?.Record is LiveRecordListViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
                 {
                     using var client = new BililiveApiClient();
-                    var message = await client.GetLiveRecordUrl(liveRecord.Rid);
+                    var message = await client.GetLiveRecordUrlAsync(liveRecord.Rid);
                     var list = message?.data?.list;
                     if (list != null && list.Length > 0)
                     {

@@ -1,8 +1,5 @@
-﻿using System;
-
-namespace BilibiliApi.Model.LiveRecordList
+﻿namespace BilibiliApi.Model.LiveRecordList
 {
-    [Serializable]
     public class LiveRecordListData
     {
         /// <summary>
@@ -13,6 +10,6 @@ namespace BilibiliApi.Model.LiveRecordList
         /// <summary>
         /// 回放视频列表
         /// </summary>
-        public LiveRecordList[] list { get; set; }
+        public LiveRecordList[]? list { get; set; }
     }
 }

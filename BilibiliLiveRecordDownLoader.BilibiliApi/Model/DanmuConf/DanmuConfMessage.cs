@@ -1,8 +1,5 @@
-﻿using System;
-
-namespace BilibiliApi.Model.DanmuConf
+﻿namespace BilibiliApi.Model.DanmuConf
 {
-    [Serializable]
     public class DanmuConfMessage
     {
         /// <summary>
@@ -13,16 +10,16 @@ namespace BilibiliApi.Model.DanmuConf
         /// <summary>
         /// 正常返回 "ok"，否则返回错误信息
         /// </summary>
-        public string msg { get; set; }
+        public string? msg { get; set; }
 
         /// <summary>
         /// 正常返回 "ok"，否则返回错误信息
         /// </summary>
-        public string message { get; set; }
+        public string? message { get; set; }
 
         /// <summary>
         /// 弹幕服务器信息
         /// </summary>
-        public DanmuConfData data { get; set; }
+        public DanmuConfData? data { get; set; }
     }
 }

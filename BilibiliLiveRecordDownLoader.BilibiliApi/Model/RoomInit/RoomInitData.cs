@@ -1,8 +1,5 @@
-﻿using System;
-
-namespace BilibiliApi.Model.RoomInit
+﻿namespace BilibiliApi.Model.RoomInit
 {
-    [Serializable]
     public class RoomInitData
     {
         /// <summary>

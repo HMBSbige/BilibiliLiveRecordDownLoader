@@ -32,7 +32,7 @@ namespace BilibiliApi.Utils
             return new DanmuBase { Cmd = DanmuCommand.Unknown };
         }
 
-        public static IDanmu ParseJson(Span<byte> body)
+        public static IDanmu? ParseJson(Span<byte> body)
         {
             var json = Encoding.UTF8.GetString(body);
             using var document = JsonDocument.Parse(json);
@@ -49,7 +49,7 @@ namespace BilibiliApi.Utils
                 }
                 case @"PREPARING":
                 {
-                    var roomId = long.Parse(root.GetProperty(@"roomid").GetString());
+                    var roomId = long.Parse(root.GetProperty(@"roomid").GetString()!);
                     return new StreamStatusDanmu { Cmd = DanmuCommand.PREPARING, RoomId = roomId };
                 }
                 case @"ROOM_CHANGE":

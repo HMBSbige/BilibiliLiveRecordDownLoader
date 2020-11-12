@@ -12,8 +12,8 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
     {
         #region Data
 
-        private Dictionary<string, object> _data;
-        public IDictionary<string, object> Data => _data;
+        private Dictionary<string, object?> _data;
+        public IDictionary<string, object?> Data => _data;
 
         #endregion
 
@@ -21,7 +21,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
 
         public AMFMetadata()
         {
-            _data = new Dictionary<string, object>
+            _data = new Dictionary<string, object?>
             {
                 [@"duration"] = 0.0
             };
@@ -46,7 +46,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
             if (value is string name && name == @"onMetaData")
             {
                 Decode(buffer, out value);
-                if (value is Dictionary<string, object> d)
+                if (value is Dictionary<string, object?> d)
                 {
                     _data = d;
                     if (!_data.ContainsKey(@"duration"))
@@ -76,7 +76,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
             return buffer;
         }
 
-        private static Span<byte> Decode(Span<byte> buffer, out object value)
+        private static Span<byte> Decode(Span<byte> buffer, out object? value)
         {
             var type = (AMF0)buffer[0];
             value = null;
@@ -103,7 +103,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
                 }
                 case AMF0.Object:
                 {
-                    var o = new Dictionary<string, object>();
+                    var o = new Dictionary<string, object?>();
                     while (buffer[0] != 0 || buffer[1] != 0 || buffer[2] != 9)
                     {
                         buffer = DecodeString(buffer, out var key);
@@ -127,7 +127,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
                 case AMF0.StrictArray:
                 {
                     var length = BinaryPrimitives.ReadUInt32BigEndian(buffer);
-                    var list = new List<object>(Math.Max(0, (int)length));
+                    var list = new List<object?>(Math.Max(0, (int)length));
                     for (var i = 0u; i < length; ++i)
                     {
                         buffer = Decode(buffer, out var v);
@@ -165,7 +165,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
             return buffer;
         }
 
-        private int Encode(Span<byte> array, object value)
+        private int Encode(Span<byte> array, object? value)
         {
             switch (value)
             {
@@ -197,7 +197,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
                     Encoding.UTF8.GetBytes(str, array.Slice(1 + sizeof(ushort)));
                     return 1 + strCount + sizeof(ushort);
                 }
-                case Dictionary<string, object> o:
+                case Dictionary<string, object?> o:
                 {
                     int current;
                     if (UseArray)
@@ -229,7 +229,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
                     span[2] = 9;
                     return current + 3;
                 }
-                case List<object> list:
+                case List<object?> list:
                 {
                     array[0] = (byte)AMF0.StrictArray;
                     BinaryPrimitives.WriteUInt32BigEndian(array.Slice(1), (uint)list.Count);
@@ -251,6 +251,10 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
 
                     return Count(dataTime);
                 }
+                case null:
+                {
+                    return 0;
+                }
                 default:
                 {
                     throw new NotSupportedException($@"{value.GetType().FullName} is not supported");
@@ -258,7 +262,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
             }
         }
 
-        private int Count(object value)
+        private int Count(object? value)
         {
             switch (value)
             {
@@ -279,7 +283,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
                     }
                     return 1 + sizeof(ushort) + strCount;
                 }
-                case Dictionary<string, object> o:
+                case Dictionary<string, object?> o:
                 {
                     var count = UseArray ? 1 + 4 + 3 : 1 + 3;
                     foreach (var (key, v) in o)
@@ -290,13 +294,17 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
                     }
                     return count;
                 }
-                case List<object> list:
+                case List<object?> list:
                 {
                     return 1 + sizeof(uint) + list.Sum(Count);
                 }
                 case DateTime _:
                 {
                     return 1 + sizeof(double) + sizeof(short);
+                }
+                case null:
+                {
+                    return 0;
                 }
                 default:
                 {

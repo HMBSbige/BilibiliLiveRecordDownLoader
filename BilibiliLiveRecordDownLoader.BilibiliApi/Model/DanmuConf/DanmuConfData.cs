@@ -1,8 +1,5 @@
-﻿using System;
-
-namespace BilibiliApi.Model.DanmuConf
+﻿namespace BilibiliApi.Model.DanmuConf
 {
-    [Serializable]
     public class DanmuConfData
     {
         /// <summary>
@@ -13,21 +10,21 @@ namespace BilibiliApi.Model.DanmuConf
         /// <summary>
         /// 默认主机名
         /// </summary>
-        public string host { get; set; }
+        public string? host { get; set; }
 
         /// <summary>
         /// 主机列表
         /// </summary>
-        public HostServerList[] host_server_list { get; set; }
+        public HostServerList[]? host_server_list { get; set; }
 
         /// <summary>
         /// 服务器列表
         /// </summary>
-        public ServerList[] server_list { get; set; }
+        public ServerList[]? server_list { get; set; }
 
         /// <summary>
         /// token
         /// </summary>
-        public string token { get; set; }
+        public string? token { get; set; }
     }
 }

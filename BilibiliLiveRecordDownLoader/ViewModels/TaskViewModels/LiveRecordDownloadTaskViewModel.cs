@@ -43,7 +43,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels
 
                 Status = @"正在获取回放地址";
                 using var client = new BililiveApiClient();
-                var message = await client.GetLiveRecordUrl(_liveRecord.Rid, _cts.Token);
+                var message = await client.GetLiveRecordUrlAsync(_liveRecord.Rid, _cts.Token);
 
                 var list = message?.data?.list;
                 if (list == null)
@@ -52,7 +52,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels
                 }
 
                 var l = list.Where(x => !string.IsNullOrEmpty(x.url) || !string.IsNullOrEmpty(x.backup_url))
-                        .Select(x => string.IsNullOrEmpty(x.url) ? x.backup_url : x.url).ToArray();
+                        .Select(x => string.IsNullOrEmpty(x.url) ? x.backup_url : x.url)
+                        .ToArray();
+
+                if (list.Length != l.Length)
+                {
+                    throw new Exception(@"获取的分段地址不完整！");
+                }
 
                 Status = @"开始下载...";
                 Progress = 0.0;
@@ -61,7 +67,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels
                 {
                     _cts.Token.ThrowIfCancellationRequested();
 
-                    var url = l[i];
+                    var url = l[i]!;
                     var outfile = Path.Combine(_recordPath, $@"{i + 1}.flv");
                     if (File.Exists(outfile))
                     {

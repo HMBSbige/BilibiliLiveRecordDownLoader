@@ -28,7 +28,7 @@ namespace BilibiliLiveRecordDownLoader
 
         private void Application_Startup(object sender, StartupEventArgs e)
         {
-            Directory.SetCurrentDirectory(Path.GetDirectoryName(Utils.Utils.GetExecutablePath()));
+            Directory.SetCurrentDirectory(Path.GetDirectoryName(Utils.Utils.GetExecutablePath())!);
             var identifier = $@"Global\{nameof(BilibiliLiveRecordDownLoader)}";
 
             var singleInstance = new SingleInstance.SingleInstance(identifier);
@@ -42,7 +42,7 @@ namespace BilibiliLiveRecordDownLoader
             singleInstance.ArgumentsReceived.ObserveOnDispatcher().Subscribe(SingleInstance_ArgumentsReceived);
             singleInstance.ListenForArgumentsFromSuccessiveInstances();
 
-            Current.Events().Exit.Subscribe(args =>
+            Current.Events().Exit.Subscribe(_ =>
             {
                 singleInstance.Dispose();
                 Log.CloseAndFlush();

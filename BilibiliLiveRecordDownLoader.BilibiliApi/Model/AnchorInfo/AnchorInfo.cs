@@ -1,8 +1,5 @@
-﻿using System;
-
-namespace BilibiliApi.Model.AnchorInfo
+﻿namespace BilibiliApi.Model.AnchorInfo
 {
-    [Serializable]
     public class AnchorInfo
     {
         /// <summary>
@@ -13,12 +10,12 @@ namespace BilibiliApi.Model.AnchorInfo
         /// <summary>
         /// 昵称
         /// </summary>
-        public string uname { get; set; }
+        public string? uname { get; set; }
 
         /// <summary>
         /// 头像地址
         /// </summary>
-        public string face { get; set; }
+        public string? face { get; set; }
 
         /// <summary>
         /// 主站等级

@@ -17,7 +17,7 @@ namespace BilibiliLiveRecordDownLoader
 {
     public partial class MainWindow
     {
-        private IDisposable _logServices;
+        private IDisposable? _logServices;
 
         public MainWindow(ILogger<MainWindow> logger,
             IConfigService configService)
@@ -30,7 +30,7 @@ namespace BilibiliLiveRecordDownLoader
                 ViewModel.DisposeWith(d);
 
                 this.Bind(ViewModel,
-                    vm => vm.ConfigService.Config.RoomId,
+                    vm => vm.ConfigService.Config!.RoomId,
                     v => v.RoomIdTextBox.Text,
                     x => $@"{x}",
                     x => long.TryParse(x, out var v) ? v : 732).DisposeWith(d);
@@ -49,7 +49,7 @@ namespace BilibiliLiveRecordDownLoader
                 this.OneWayBind(ViewModel, vm => vm.Uid, v => v.UIdTextBlock.Text, i => $@"UID: {i}").DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.Level, v => v.LvTextBlock.Text, i => $@"Lv{i}").DisposeWith(d);
 
-                this.Bind(ViewModel, vm => vm.ConfigService.Config.MainDir, v => v.MainDirTextBox.Text).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.ConfigService.Config!.MainDir, v => v.MainDirTextBox.Text).DisposeWith(d);
 
                 this.OneWayBind(ViewModel, vm => vm.DiskUsageProgressBarText, v => v.DiskUsageProgressBarTextBlock.Text).DisposeWith(d);
 
@@ -85,12 +85,12 @@ namespace BilibiliLiveRecordDownLoader
                 this.BindCommand(ViewModel, vm => vm.StopTaskCommand, v => v.StopTaskMenuItem).DisposeWith(d);
 
                 this.Bind(ViewModel,
-                    vm => vm.ConfigService.Config.DownloadThreads,
+                    vm => vm.ConfigService.Config!.DownloadThreads,
                     v => v.ThreadsTextBox.Value,
                     x => x,
                     x => x.HasValue ? Convert.ToByte(x.Value) : (byte)8).DisposeWith(d);
 
-                Observable.FromEventPattern(LogTextBox, nameof(LogTextBox.TextChanged)).Subscribe(args =>
+                Observable.FromEventPattern(LogTextBox, nameof(LogTextBox.TextChanged)).Subscribe(_ =>
                 {
                     if (LogTextBox.LineCount > 2000)
                     {
@@ -102,7 +102,7 @@ namespace BilibiliLiveRecordDownLoader
 
                 _logServices = CreateLogService();
 
-                LiveRecordListDataGrid.Events().Loaded.Subscribe(args =>
+                LiveRecordListDataGrid.Events().Loaded.Subscribe(_ =>
                 {
                     LiveRecordListDataGrid.GridColumnSizer = new GridColumnSizerExt(LiveRecordListDataGrid);
                 }).DisposeWith(d);
@@ -147,7 +147,7 @@ namespace BilibiliLiveRecordDownLoader
 
         private IntPtr WindowProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
-            if (CloseReason != CloseReason.UserClosing && CloseReason != CloseReason.None)
+            if (CloseReason is not CloseReason.UserClosing and not CloseReason.None)
             {
                 RemoveCloseReasonHook();
                 return IntPtr.Zero;

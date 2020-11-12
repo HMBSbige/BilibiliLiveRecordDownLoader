@@ -39,15 +39,15 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 
         public string UserAgent { get; set; } = @"Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko";
 
-        public string Cookie { get; set; }
+        public string? Cookie { get; set; }
 
-        public Uri Target { get; set; }
+        public Uri? Target { get; set; }
 
         public ushort Threads { get; set; } = 8;
 
         public string TempDir { get; set; } = Path.GetTempPath();
 
-        public string OutFileName { get; set; }
+        public string? OutFileName { get; set; }
 
         private readonly ObjectPool<HttpClient> _httpClientPool;
 
@@ -174,10 +174,14 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
             }
         }
 
-        private static string EnsureDirectory(string path)
+        private static string EnsureDirectory(string? path)
         {
             try
             {
+                if (path is null)
+                {
+                    return Directory.GetCurrentDirectory();
+                }
                 if (!Directory.Exists(path))
                 {
                     Directory.CreateDirectory(path);
@@ -205,11 +209,11 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
             for (var i = 1; i < parts; ++i)
             {
                 var range = new RangeHeaderValue((i - 1) * partSize, i * partSize - 1);
-                list.Add(new FileRange { FileName = GetTempFileName(), Range = range });
+                list.Add(new FileRange(range, GetTempFileName()));
             }
 
             var last = new RangeHeaderValue((parts - 1) * partSize, _fileSize);
-            list.Add(new FileRange { FileName = GetTempFileName(), Range = last });
+            list.Add(new FileRange(last, GetTempFileName()));
 
             return list;
         }
@@ -267,8 +271,12 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
             }
         }
 
-        private async ValueTask DeleteFileWithRetryAsync(string filename, byte retryTime = 3)
+        private async ValueTask DeleteFileWithRetryAsync(string? filename, byte retryTime = 3)
         {
+            if (filename is null || !File.Exists(filename))
+            {
+                return;
+            }
             var i = 0;
             while (true)
             {

@@ -1,14 +1,11 @@
-﻿using System;
-
-namespace BilibiliApi.Model.DanmuConf
+﻿namespace BilibiliApi.Model.DanmuConf
 {
-    [Serializable]
     public class HostServerList
     {
         /// <summary>
         /// 主机名
         /// </summary>
-        public string host { get; set; }
+        public string? host { get; set; }
 
         /// <summary>
         /// TCP 端口
