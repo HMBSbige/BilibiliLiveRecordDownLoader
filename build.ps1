@@ -35,11 +35,10 @@ function Build-App
 
 function Build-SelfContained
 {
-    param([string]$arch)
+    param([string]$rid)
 
-    Write-Host "Building .NET Core $arch"
+    Write-Host "Building .NET App SelfContained $rid"
 
-    $rid = "win-$arch"
     $outdir = "$output_dir\$net_tfm\$rid"
     $publishDir = "$outdir\publish"
 
@@ -62,10 +61,10 @@ if ($build)
 
 if ($buildX64)
 {
-    Build-SelfContained x64
+    Build-SelfContained win-x64
 }
 
 if ($buildX86)
 {
-    Build-SelfContained x86
+    Build-SelfContained win-x86
 }
