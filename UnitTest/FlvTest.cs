@@ -115,8 +115,8 @@ namespace UnitTest
 				Assert.IsTrue(info.ToMemory(memory.Memory).Span.SequenceEqual(should));
 			}
 
-			info.PayloadInfo = new FlvTagPayloadInfo();
-			info.Timestamp = new FlvTimestamp();
+			info.PayloadInfo = new();
+			info.Timestamp = new();
 			info.Read(should);
 			Assert.AreEqual(info.PayloadInfo.PayloadSize, (uint)((1 << 24) - 1));
 			Assert.AreEqual(info.PayloadInfo.PacketType, PacketType.VideoPayload);

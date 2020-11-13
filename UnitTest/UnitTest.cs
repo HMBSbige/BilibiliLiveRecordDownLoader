@@ -35,7 +35,7 @@ namespace UnitTest
 			{
 				await using var downloader = new MultiThreadedDownloader(NullLogger<MultiThreadedDownloader>.Instance)
 				{
-					Target = new Uri(url),
+					Target = new(url),
 					Threads = 4,
 					OutFileName = outFile,
 					TempDir = path

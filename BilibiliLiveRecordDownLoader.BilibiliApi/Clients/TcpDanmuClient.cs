@@ -25,7 +25,7 @@ namespace BilibiliApi.Clients
 
 		protected override async ValueTask ClientHandshakeAsync(CancellationToken token)
 		{
-			_client = new TcpClient();
+			_client = new();
 			await _client.ConnectAsync(Host!, Port, token);
 			_netStream = _client.GetStream();
 		}

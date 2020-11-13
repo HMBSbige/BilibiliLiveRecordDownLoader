@@ -28,17 +28,17 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 
 		public double Progress => Interlocked.Read(ref _current) / (double)_fileSize;
 
-		private readonly BehaviorSubject<double> _currentSpeed = new BehaviorSubject<double>(0.0);
+		private readonly BehaviorSubject<double> _currentSpeed = new(0.0);
 		public IObservable<double> CurrentSpeed => _currentSpeed.AsObservable();
 
-		private readonly BehaviorSubject<string> _status = new BehaviorSubject<string>(string.Empty);
+		private readonly BehaviorSubject<string> _status = new(string.Empty);
 		public IObservable<string> Status => _status.AsObservable();
 
 		public int BufferSize { get; set; } = 4096;
 
 		public bool IsAsync { get; set; } = false;
 
-		private readonly List<string> _files = new List<string>();
+		private readonly List<string> _files = new();
 		public IEnumerable<string> Files => _files;
 
 		public FlvMerger(ILogger<FlvMerger> logger)

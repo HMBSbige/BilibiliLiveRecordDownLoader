@@ -1,6 +1,5 @@
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Utils;
-using BilibiliLiveRecordDownLoader.ViewModels;
 using BilibiliLiveRecordDownLoader.Views;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
@@ -24,7 +23,7 @@ namespace BilibiliLiveRecordDownLoader
 			IConfigService configService)
 		{
 			InitializeComponent();
-			ViewModel = new MainWindowViewModel(this, logger, configService);
+			ViewModel = new(this, logger, configService);
 
 			this.WhenActivated(d =>
 			{

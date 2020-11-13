@@ -16,7 +16,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 {
 	public sealed class ConfigService : ReactiveObject, IConfigService
 	{
-		private Config _config = new Config();
+		private Config _config = new();
 
 		public Config Config
 		{
@@ -30,9 +30,9 @@ namespace BilibiliLiveRecordDownLoader.Services
 
 		private readonly IDisposable _configMonitor;
 
-		private readonly AsyncReaderWriterLock _lock = new AsyncReaderWriterLock();
+		private readonly AsyncReaderWriterLock _lock = new();
 
-		private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
+		private static readonly JsonSerializerOptions JsonOptions = new()
 		{
 			WriteIndented = true,
 			Encoder = JavaScriptEncoder.Default

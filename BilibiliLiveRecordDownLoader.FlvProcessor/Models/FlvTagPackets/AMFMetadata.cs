@@ -21,7 +21,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
 
 		public AMFMetadata()
 		{
-			_data = new Dictionary<string, object?>
+			_data = new()
 			{
 				[@"duration"] = 0.0
 			};

@@ -26,7 +26,7 @@ namespace BilibiliApi.Clients
 
 		public TimeSpan RetryInterval { get; set; } = TimeSpan.FromSeconds(2);
 
-		private readonly Subject<DanmuPacket> _danMuSubj = new Subject<DanmuPacket>();
+		private readonly Subject<DanmuPacket> _danMuSubj = new();
 		public IObservable<DanmuPacket> Received => _danMuSubj.AsObservable();
 
 		protected string? Host;
@@ -68,7 +68,7 @@ namespace BilibiliApi.Clients
 
 			await StopAsync();
 
-			_cts = new CancellationTokenSource();
+			_cts = new();
 
 			await GetServerAsync(_cts.Token);
 

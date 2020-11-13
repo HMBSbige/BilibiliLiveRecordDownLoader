@@ -24,8 +24,8 @@ namespace BilibiliApi.Clients
 
 		protected override async ValueTask ClientHandshakeAsync(CancellationToken token)
 		{
-			_client = new ClientWebSocket();
-			await _client.ConnectAsync(new Uri(Server), token);
+			_client = new();
+			await _client.ConnectAsync(new(Server), token);
 		}
 
 		protected override async ValueTask SendAsync(ReadOnlyMemory<byte> buffer, CancellationToken token)

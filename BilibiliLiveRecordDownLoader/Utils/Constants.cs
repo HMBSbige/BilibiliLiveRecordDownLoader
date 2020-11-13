@@ -11,6 +11,6 @@ namespace BilibiliLiveRecordDownLoader.Utils
 		public const string OutputTemplate = @"[{Timestamp:yyyy-MM-dd HH:mm:ss}] [{Level}] {Message:lj}{NewLine}{Exception}";
 		public const string LogFile = @"Logs/BilibiliLiveRecordDownLoader.log";
 
-		public static readonly SubjectMemorySink SubjectMemorySink = new SubjectMemorySink(OutputTemplate);
+		public static readonly SubjectMemorySink SubjectMemorySink = new(OutputTemplate);
 	}
 }

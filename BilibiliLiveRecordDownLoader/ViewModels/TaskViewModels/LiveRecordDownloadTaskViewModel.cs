@@ -17,7 +17,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels
 	{
 		private readonly ILogger _logger;
 
-		private readonly CancellationTokenSource _cts = new CancellationTokenSource();
+		private readonly CancellationTokenSource _cts = new();
 		private readonly LiveRecordListViewModel _liveRecord;
 		private readonly string _path;
 		private readonly string _recordPath;
@@ -76,7 +76,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels
 					}
 
 					await using var downloader = Locator.Current.GetService<IDownloader>();
-					downloader.Target = new Uri(url);
+					downloader.Target = new(url);
 					downloader.Threads = _threadsCount;
 					downloader.OutFileName = outfile;
 					downloader.TempDir = _recordPath;

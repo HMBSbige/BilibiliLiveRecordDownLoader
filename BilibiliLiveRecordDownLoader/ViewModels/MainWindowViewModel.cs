@@ -137,13 +137,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private readonly ILogger _logger;
 		public readonly IConfigService ConfigService;
 
-		private SourceList<LiveRecordList> LiveRecordSourceList { get; } = new SourceList<LiveRecordList>();
+		private SourceList<LiveRecordList> LiveRecordSourceList { get; } = new();
 		public readonly ReadOnlyObservableCollection<LiveRecordListViewModel> LiveRecordList;
 
-		private SourceList<TaskListViewModel> TaskSourceList { get; } = new SourceList<TaskListViewModel>();
+		private SourceList<TaskListViewModel> TaskSourceList { get; } = new();
 		public readonly ReadOnlyObservableCollection<TaskListViewModel> TaskList;
 
-		private readonly OperationQueue _liveRecordDownloadTaskQueue = new OperationQueue(1);
+		private readonly OperationQueue _liveRecordDownloadTaskQueue = new(1);
 
 		private bool _isInitData = true;
 

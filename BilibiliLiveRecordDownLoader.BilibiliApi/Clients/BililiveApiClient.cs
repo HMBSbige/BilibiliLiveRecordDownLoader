@@ -19,7 +19,7 @@ namespace BilibiliApi.Clients
 		public string? Cookie { get; set; }
 
 		private HttpClient _httpClient;
-		private static readonly SemaphoreSlim SemaphoreSlim = new SemaphoreSlim(1, 1);
+		private static readonly SemaphoreSlim SemaphoreSlim = new(1, 1);
 
 		public BililiveApiClient()
 		{
@@ -110,11 +110,11 @@ namespace BilibiliApi.Clients
 			HttpClient client;
 			if (string.IsNullOrEmpty(Cookie))
 			{
-				client = new HttpClient(new ForceHttp2Handler(new SocketsHttpHandler()), true);
+				client = new(new ForceHttp2Handler(new SocketsHttpHandler()), true);
 			}
 			else
 			{
-				client = new HttpClient(new ForceHttp2Handler(new SocketsHttpHandler { UseCookies = false }), true);
+				client = new(new ForceHttp2Handler(new SocketsHttpHandler { UseCookies = false }), true);
 				client.DefaultRequestHeaders.Add(@"Cookie", Cookie);
 			}
 

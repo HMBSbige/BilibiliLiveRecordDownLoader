@@ -12,7 +12,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 	{
 		private readonly ITextFormatter _textFormatter;
 
-		public readonly ReplaySubject<string> LogSubject = new ReplaySubject<string>(100);
+		public readonly ReplaySubject<string> LogSubject = new(100);
 
 		public SubjectMemorySink(string outputTemplate)
 		{

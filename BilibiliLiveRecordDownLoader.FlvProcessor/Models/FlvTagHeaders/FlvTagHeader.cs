@@ -7,17 +7,17 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagHeaders
 	{
 		#region Field
 
-		public FlvTagPayloadInfo PayloadInfo = new FlvTagPayloadInfo();
+		public FlvTagPayloadInfo PayloadInfo = new();
 
 		/// <summary>
 		/// 单位微秒
 		/// </summary>
-		public FlvTimestamp Timestamp = new FlvTimestamp();
+		public FlvTimestamp Timestamp = new();
 
 		/// <summary>
 		/// For first stream of same type set to NULL
 		/// </summary>
-		public StreamId StreamId = new StreamId();
+		public StreamId StreamId = new();
 
 		#endregion
 
