@@ -42,11 +42,11 @@ namespace BilibiliApi.Model.Danmu
 			var res = array.Slice(0, PacketLength);
 
 			BinaryPrimitives.WriteInt32BigEndian(res.Span, PacketLength);
-			BinaryPrimitives.WriteInt16BigEndian(res.Span.Slice(4), HeaderLength);
-			BinaryPrimitives.WriteInt16BigEndian(res.Span.Slice(6), ProtocolVersion);
-			BinaryPrimitives.WriteInt32BigEndian(res.Span.Slice(8), (int)Operation);
-			BinaryPrimitives.WriteInt32BigEndian(res.Span.Slice(12), SequenceId);
-			Body.CopyTo(res.Slice(HeaderLength));
+			BinaryPrimitives.WriteInt16BigEndian(res.Span[4..], HeaderLength);
+			BinaryPrimitives.WriteInt16BigEndian(res.Span[6..], ProtocolVersion);
+			BinaryPrimitives.WriteInt32BigEndian(res.Span[8..], (int)Operation);
+			BinaryPrimitives.WriteInt32BigEndian(res.Span[12..], SequenceId);
+			Body.CopyTo(res[HeaderLength..]);
 
 			return res;
 		}
@@ -54,9 +54,9 @@ namespace BilibiliApi.Model.Danmu
 		public void ReadDanMu(Memory<byte> buffer)
 		{
 			HeaderLength = BinaryPrimitives.ReadInt16BigEndian(buffer.Span);
-			ProtocolVersion = BinaryPrimitives.ReadInt16BigEndian(buffer.Span.Slice(2));
-			Operation = (Operation)BinaryPrimitives.ReadInt32BigEndian(buffer.Span.Slice(4));
-			SequenceId = BinaryPrimitives.ReadInt32BigEndian(buffer.Span.Slice(8));
+			ProtocolVersion = BinaryPrimitives.ReadInt16BigEndian(buffer.Span[2..]);
+			Operation = (Operation)BinaryPrimitives.ReadInt32BigEndian(buffer.Span[4..]);
+			SequenceId = BinaryPrimitives.ReadInt32BigEndian(buffer.Span[8..]);
 			Body = buffer.Slice(HeaderLength - 4, PacketLength - HeaderLength);
 		}
 

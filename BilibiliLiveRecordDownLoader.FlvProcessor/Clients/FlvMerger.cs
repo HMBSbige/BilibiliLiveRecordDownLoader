@@ -125,11 +125,9 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 						}
 
 						_status.OnNext(@"写 MetaData size");
-						using (var metadataSizeBuffer = MemoryPool<byte>.Shared.Rent(sizeof(uint)))
-						{
-							BinaryPrimitives.WriteUInt32BigEndian(metadataSizeBuffer.Memory.Span, (uint)metadata.Size + (uint)metadataHeader.Size);
-							WriteWithProgress(outFile, metadataSizeBuffer.Memory.Slice(0, sizeof(uint)).Span, token);
-						}
+						using var metadataSizeBuffer = MemoryPool<byte>.Shared.Rent(sizeof(uint));
+						BinaryPrimitives.WriteUInt32BigEndian(metadataSizeBuffer.Memory.Span, (uint)metadata.Size + (uint)metadataHeader.Size);
+						WriteWithProgress(outFile, metadataSizeBuffer.Memory.Slice(0, sizeof(uint)).Span, token);
 					}
 				}
 			}

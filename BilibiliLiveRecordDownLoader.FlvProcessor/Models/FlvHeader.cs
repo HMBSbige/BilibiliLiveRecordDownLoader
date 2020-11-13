@@ -31,7 +31,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models
 		/// </summary>
 		public uint HeaderSize = 9;
 
-		public uint Reserved => 0;
+		public uint Reserved = 0;
 
 		#endregion
 

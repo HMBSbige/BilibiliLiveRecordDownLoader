@@ -28,8 +28,8 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagHeaders
 			var res = array.Slice(0, Size);
 
 			PayloadInfo.ToMemory(res);
-			Timestamp.ToMemory(res.Slice(4));
-			StreamId.ToMemory(res.Slice(8));
+			Timestamp.ToMemory(res[4..]);
+			StreamId.ToMemory(res[8..]);
 
 			return res;
 		}
@@ -37,7 +37,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagHeaders
 		public void Read(Span<byte> buffer)
 		{
 			PayloadInfo.Read(buffer);
-			Timestamp.Read(buffer.Slice(4));
+			Timestamp.Read(buffer[4..]);
 		}
 	}
 }

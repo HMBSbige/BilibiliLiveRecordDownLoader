@@ -301,7 +301,7 @@ namespace BilibiliApi.Clients
 					case 2:
 					{
 						await using var ms = new MemoryStream();
-						await ms.WriteAsync(packet.Body.Slice(2), token); // Drop header
+						await ms.WriteAsync(packet.Body[2..], token); // Drop header
 						ms.Seek(0, SeekOrigin.Begin);
 
 						await using var deflate = new DeflateStream(ms, CompressionMode.Decompress);

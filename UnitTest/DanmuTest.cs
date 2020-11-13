@@ -17,10 +17,7 @@ namespace UnitTest
 			const string json3 = @"{""cmd"":""LIVE"",""roomid"":40462}";
 			const string json4 = @"{""cmd"":""ROOM_CHANGE"",""data"":{""title"":null,""area_name"":null,""parent_area_name"":null}}";
 
-			Assert.ThrowsException<KeyNotFoundException>(() =>
-			{
-				DanmuFactory.ParseJson(Encoding.UTF8.GetBytes(json));
-			});
+			Assert.ThrowsException<KeyNotFoundException>(() => DanmuFactory.ParseJson(Encoding.UTF8.GetBytes(json)));
 
 			Assert.AreEqual(DanmuFactory.ParseJson(Encoding.UTF8.GetBytes(json1)).IsStreaming(), null);
 			Assert.AreEqual(DanmuFactory.ParseJson(Encoding.UTF8.GetBytes(json2)).IsStreaming(), false);

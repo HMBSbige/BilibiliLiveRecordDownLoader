@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.Services
 {
-	public class ConfigService : ReactiveObject, IConfigService
+	public sealed class ConfigService : ReactiveObject, IConfigService
 	{
 		private Config _config = new Config();
 

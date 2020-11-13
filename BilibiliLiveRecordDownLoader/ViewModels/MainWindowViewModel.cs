@@ -24,7 +24,7 @@ using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
-	public class MainWindowViewModel : ReactiveObject, IDisposable
+	public sealed class MainWindowViewModel : ReactiveObject, IDisposable
 	{
 		#region 字段
 

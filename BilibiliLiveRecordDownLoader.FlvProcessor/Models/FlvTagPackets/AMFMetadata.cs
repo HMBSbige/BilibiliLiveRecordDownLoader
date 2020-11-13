@@ -35,7 +35,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
 
 			var offset = Encode(res.Span, @"onMetaData");
 
-			Encode(res.Span.Slice(offset), _data);
+			Encode(res.Span[offset..], _data);
 
 			return res;
 		}
@@ -72,7 +72,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
 		{
 			var length = BinaryPrimitives.ReadUInt16BigEndian(buffer);
 			value = Encoding.UTF8.GetString(buffer.Slice(sizeof(ushort), length));
-			buffer = buffer.Slice(length + sizeof(ushort));
+			buffer = buffer[(length + sizeof(ushort))..];
 			return buffer;
 		}
 
@@ -80,20 +80,20 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
 		{
 			var type = (AMF0)buffer[0];
 			value = null;
-			buffer = buffer.Slice(1);
+			buffer = buffer[1..];
 
 			switch (type)
 			{
 				case AMF0.Number:
 				{
 					value = BinaryPrimitives.ReadDoubleBigEndian(buffer);
-					buffer = buffer.Slice(sizeof(double));
+					buffer = buffer[sizeof(double)..];
 					break;
 				}
 				case AMF0.Boolean:
 				{
 					value = Convert.ToBoolean(buffer[0]);
-					buffer = buffer.Slice(1);
+					buffer = buffer[1..];
 					break;
 				}
 				case AMF0.String:
@@ -111,7 +111,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
 						o[(string)key] = v;
 					}
 					value = o;
-					buffer = buffer.Slice(3); // AMF0.ObjectEnd 00 00 09
+					buffer = buffer[3..]; // AMF0.ObjectEnd 00 00 09
 					break;
 				}
 				case AMF0.Null:
@@ -121,7 +121,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
 				}
 				case AMF0.ECMAArray:
 				{
-					buffer = buffer.Slice(sizeof(uint)); // length
+					buffer = buffer[sizeof(uint)..]; // length
 					goto case AMF0.Object;
 				}
 				case AMF0.StrictArray:
@@ -142,7 +142,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
 					var localDateTimeOffset = BinaryPrimitives.ReadInt16BigEndian(buffer);
 
 					value = DateTime.UnixEpoch.AddMilliseconds(datetime).AddMinutes(-localDateTimeOffset);
-					buffer = buffer.Slice(sizeof(double) + sizeof(short));
+					buffer = buffer[(sizeof(double) + sizeof(short))..];
 					break;
 				}
 				case AMF0.LongString:
@@ -153,7 +153,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
 						throw new OutOfMemoryException($@"String is too long: {length} > {int.MaxValue}");
 					}
 					value = Encoding.UTF8.GetString(buffer.Slice(sizeof(uint), (int)length));
-					buffer = buffer.Slice((int)length + sizeof(uint));
+					buffer = buffer[((int)length + sizeof(uint))..];
 					break;
 				}
 				default:
@@ -172,7 +172,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
 				case double number:
 				{
 					array[0] = (byte)AMF0.Number;
-					BinaryPrimitives.WriteDoubleBigEndian(array.Slice(1), number);
+					BinaryPrimitives.WriteDoubleBigEndian(array[1..], number);
 					return Count(number);
 				}
 				case bool b:
@@ -187,14 +187,14 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
 					if (strCount > ushort.MaxValue)
 					{
 						array[0] = (byte)AMF0.LongString;
-						BinaryPrimitives.WriteUInt32BigEndian(array.Slice(1), (uint)strCount);
-						Encoding.UTF8.GetBytes(str, array.Slice(1 + sizeof(uint)));
+						BinaryPrimitives.WriteUInt32BigEndian(array[1..], (uint)strCount);
+						Encoding.UTF8.GetBytes(str, array[(1 + sizeof(uint))..]);
 						return 1 + strCount + sizeof(uint);
 					}
 
 					array[0] = (byte)AMF0.String;
-					BinaryPrimitives.WriteUInt16BigEndian(array.Slice(1), (ushort)strCount);
-					Encoding.UTF8.GetBytes(str, array.Slice(1 + sizeof(ushort)));
+					BinaryPrimitives.WriteUInt16BigEndian(array[1..], (ushort)strCount);
+					Encoding.UTF8.GetBytes(str, array[(1 + sizeof(ushort))..]);
 					return 1 + strCount + sizeof(ushort);
 				}
 				case Dictionary<string, object?> o:
@@ -203,7 +203,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
 					if (UseArray)
 					{
 						array[0] = (byte)AMF0.ECMAArray;
-						BinaryPrimitives.WriteUInt32BigEndian(array.Slice(1), (uint)o.Count);
+						BinaryPrimitives.WriteUInt32BigEndian(array[1..], (uint)o.Count);
 						current = 5;
 					}
 					else
@@ -214,16 +214,16 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
 					foreach (var (key, v) in o)
 					{
 						var length = Math.Min(Encoding.UTF8.GetByteCount(key), ushort.MaxValue);
-						BinaryPrimitives.WriteUInt16BigEndian(array.Slice(current), (ushort)length);
+						BinaryPrimitives.WriteUInt16BigEndian(array[current..], (ushort)length);
 						current += 2;
 
-						Encoding.UTF8.GetBytes(key, array.Slice(current));
+						Encoding.UTF8.GetBytes(key, array[current..]);
 						current += length;
 
-						current += Encode(array.Slice(current), v);
+						current += Encode(array[current..], v);
 					}
 
-					var span = array.Slice(current);
+					var span = array[current..];
 					span[0] = 0;
 					span[1] = 0;
 					span[2] = 9;
@@ -232,11 +232,11 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
 				case List<object?> list:
 				{
 					array[0] = (byte)AMF0.StrictArray;
-					BinaryPrimitives.WriteUInt32BigEndian(array.Slice(1), (uint)list.Count);
+					BinaryPrimitives.WriteUInt32BigEndian(array[1..], (uint)list.Count);
 					var current = 5;
 					foreach (var o in list)
 					{
-						current += Encode(array.Slice(current), o);
+						current += Encode(array[current..], o);
 					}
 					return current;
 				}
@@ -245,9 +245,9 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
 					array[0] = (byte)AMF0.Date;
 
 					var time = dataTime.ToUniversalTime().Subtract(DateTime.UnixEpoch).TotalMilliseconds;
-					BinaryPrimitives.WriteDoubleBigEndian(array.Slice(1), time);
+					BinaryPrimitives.WriteDoubleBigEndian(array[1..], time);
 
-					BinaryPrimitives.WriteInt16BigEndian(array.Slice(1 + sizeof(double)), 0);
+					BinaryPrimitives.WriteInt16BigEndian(array[(1 + sizeof(double))..], 0);
 
 					return Count(dataTime);
 				}
