@@ -13,11 +13,14 @@ indent_size = 4
 end_of_line = lf
 insert_final_newline = true
 
+[*.bat]
+indent_style = tab
+
 # c# 文件
 [*.cs]
 
 # 缩进和间距
-indent_style = space
+indent_style = tab
 
 #### .NET 编码约定 ####
 

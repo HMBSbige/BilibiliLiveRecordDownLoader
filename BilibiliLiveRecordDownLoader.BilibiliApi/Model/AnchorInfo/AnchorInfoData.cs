@@ -1,7 +1,7 @@
-﻿namespace BilibiliApi.Model.AnchorInfo
+namespace BilibiliApi.Model.AnchorInfo
 {
-    public class AnchorInfoData
-    {
-        public AnchorInfo? info { get; set; }
-    }
+	public class AnchorInfoData
+	{
+		public AnchorInfo? info { get; set; }
+	}
 }

@@ -1,5 +1,5 @@
 @echo on&setlocal
-    setlocal enableextensions disabledelayedexpansion
+	setlocal enableextensions disabledelayedexpansion
 
 	::Arguments of either PreBuild or PostBuild
 	set buildType=%1
@@ -7,7 +7,7 @@
 	set sourceFile=%2
 	
 	::Replacement string
-    set DummyKey=##SyncfusionLicense##
+	set DummyKey=##SyncfusionLicense##
 	set LicenseKey=%SyncfusionLicenseKey%
 	
 	::Replacement statement
