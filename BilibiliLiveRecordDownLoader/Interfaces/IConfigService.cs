@@ -1,4 +1,4 @@
-﻿using BilibiliLiveRecordDownLoader.Models;
+using BilibiliLiveRecordDownLoader.Models;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,7 +10,7 @@ namespace BilibiliLiveRecordDownLoader.Interfaces
         /// <summary>
         /// 配置文件
         /// </summary>
-        Config? Config { get; }
+        Config Config { get; }
 
         /// <summary>
         /// 配置文件路径

@@ -1,4 +1,4 @@
-﻿using BilibiliApi.Model.LiveRecordList;
+using BilibiliApi.Model.LiveRecordList;
 using ReactiveUI;
 using System;
 
@@ -8,11 +8,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
     {
         #region 字段
 
-        private string _rid;
-        private string _title;
-        private string _cover;
-        private string _areaName;
-        private string _parentAreaName;
+        private string? _rid;
+        private string? _title;
+        private string? _cover;
+        private string? _areaName;
+        private string? _parentAreaName;
         private DateTime _startTime;
         private DateTime _endTime;
         private long _online;
@@ -26,7 +26,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         /// <summary>
         /// 视频id
         /// </summary>
-        public string Rid
+        public string? Rid
         {
             get => _rid;
             set => this.RaiseAndSetIfChanged(ref _rid, value);
@@ -35,7 +35,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         /// <summary>
         /// 标题
         /// </summary>
-        public string Title
+        public string? Title
         {
             get => _title;
             set => this.RaiseAndSetIfChanged(ref _title, value);
@@ -44,7 +44,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         /// <summary>
         /// 封面地址
         /// </summary>
-        public string Cover
+        public string? Cover
         {
             get => _cover;
             set => this.RaiseAndSetIfChanged(ref _cover, value);
@@ -53,7 +53,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         /// <summary>
         /// 分区名
         /// </summary>
-        public string AreaName
+        public string? AreaName
         {
             get => _areaName;
             set => this.RaiseAndSetIfChanged(ref _areaName, value);
@@ -62,7 +62,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
         /// <summary>
         /// 主分区名
         /// </summary>
-        public string ParentAreaName
+        public string? ParentAreaName
         {
             get => _parentAreaName;
             set => this.RaiseAndSetIfChanged(ref _parentAreaName, value);
@@ -142,7 +142,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             }
             catch
             {
-                return DateTime.MinValue;
+                return default;
             }
         }
 
@@ -154,7 +154,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             }
             catch
             {
-                return TimeSpan.Zero;
+                return default;
             }
         }
     }

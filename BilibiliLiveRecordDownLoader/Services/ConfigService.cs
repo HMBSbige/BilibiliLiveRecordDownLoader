@@ -1,4 +1,4 @@
-﻿using BilibiliLiveRecordDownLoader.Interfaces;
+using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Shared;
 using Microsoft.Extensions.Logging;
@@ -16,9 +16,9 @@ namespace BilibiliLiveRecordDownLoader.Services
 {
     public class ConfigService : ReactiveObject, IConfigService
     {
-        private Config? _config;
+        private Config _config = new Config();
 
-        public Config? Config
+        public Config Config
         {
             get => _config;
             private set => this.RaiseAndSetIfChanged(ref _config, value);
@@ -43,9 +43,9 @@ namespace BilibiliLiveRecordDownLoader.Services
             _logger = logger;
             _configMonitor = this.WhenAnyValue(
                     x => x.Config,
-                    x => x.Config!.RoomId,
-                    x => x.Config!.MainDir,
-                    x => x.Config!.DownloadThreads)
+                    x => x.Config.RoomId,
+                    x => x.Config.MainDir,
+                    x => x.Config.DownloadThreads)
                 .Throttle(TimeSpan.FromSeconds(1))
                 .DistinctUntilChanged()
                 .Where(v => v.Item1 != null && !_lock.IsWriteLockHeld)
@@ -81,29 +81,16 @@ namespace BilibiliLiveRecordDownLoader.Services
 
                 await using var fs = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, true);
 
-                Config = await JsonSerializer.DeserializeAsync<Config>(fs, cancellationToken: token);
+                var config = await JsonSerializer.DeserializeAsync<Config>(fs, cancellationToken: token);
+                if (config != null)
+                {
+                    Config = config;
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, @"Load Config Error!");
             }
-            finally
-            {
-                if (Config == null)
-                {
-                    Init();
-                }
-            }
-        }
-
-        private void Init()
-        {
-            Config = new Config
-            {
-                RoomId = 732,
-                MainDir = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),
-                DownloadThreads = 8
-            };
         }
 
         public void Dispose()

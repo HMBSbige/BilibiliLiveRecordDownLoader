@@ -1,4 +1,4 @@
-﻿using BilibiliLiveRecordDownLoader.ViewModels;
+using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI;
 using System;
 
@@ -8,9 +8,9 @@ namespace BilibiliLiveRecordDownLoader.Models
     {
         #region 字段
 
-        private long _roomId;
-        private string? _mainDir;
-        private byte _downloadThreads;
+        private long _roomId = 732;
+        private string _mainDir = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+        private byte _downloadThreads = 8;
 
         #endregion
 
@@ -22,7 +22,7 @@ namespace BilibiliLiveRecordDownLoader.Models
             set => this.RaiseAndSetIfChanged(ref _roomId, value);
         }
 
-        public string? MainDir
+        public string MainDir
         {
             get => _mainDir;
             set => this.RaiseAndSetIfChanged(ref _mainDir, value);

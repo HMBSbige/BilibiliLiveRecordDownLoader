@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Windows;
@@ -10,9 +10,9 @@ namespace BilibiliLiveRecordDownLoader.Utils
         public static string CountSize(long size)
         {
             var mStrSize = string.Empty;
-            const double step = 1024.00;
-            var factSize = size;
-            if (factSize == 0)
+            const ushort step = 1024;
+            double factSize = size;
+            if (factSize == 0.0)
             {
                 mStrSize = $@"{factSize:F2} Byte";
             }
@@ -20,15 +20,15 @@ namespace BilibiliLiveRecordDownLoader.Utils
             {
                 mStrSize = $@"{factSize:F2} Bytes";
             }
-            else if (factSize >= step && factSize < 1048576)
+            else if (factSize is >= step and < 1048576)
             {
                 mStrSize = $@"{factSize / step:F2} KB";
             }
-            else if (factSize >= 1048576 && factSize < 1073741824)
+            else if (factSize is >= 1048576 and < 1073741824)
             {
                 mStrSize = $@"{factSize / step / step:F2} MB";
             }
-            else if (factSize >= 1073741824 && factSize < 1099511627776)
+            else if (factSize is >= 1073741824 and < 1099511627776)
             {
                 mStrSize = $@"{factSize / step / step / step:F2} GB";
             }

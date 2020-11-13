@@ -1,4 +1,4 @@
-﻿using BilibiliLiveRecordDownLoader.Interfaces;
+using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using BilibiliLiveRecordDownLoader.Views;
 using Microsoft.Extensions.Logging;
@@ -30,7 +30,7 @@ namespace BilibiliLiveRecordDownLoader
                 ViewModel.DisposeWith(d);
 
                 this.Bind(ViewModel,
-                    vm => vm.ConfigService.Config!.RoomId,
+                    vm => vm.ConfigService.Config.RoomId,
                     v => v.RoomIdTextBox.Text,
                     x => $@"{x}",
                     x => long.TryParse(x, out var v) ? v : 732).DisposeWith(d);
@@ -49,7 +49,7 @@ namespace BilibiliLiveRecordDownLoader
                 this.OneWayBind(ViewModel, vm => vm.Uid, v => v.UIdTextBlock.Text, i => $@"UID: {i}").DisposeWith(d);
                 this.OneWayBind(ViewModel, vm => vm.Level, v => v.LvTextBlock.Text, i => $@"Lv{i}").DisposeWith(d);
 
-                this.Bind(ViewModel, vm => vm.ConfigService.Config!.MainDir, v => v.MainDirTextBox.Text).DisposeWith(d);
+                this.Bind(ViewModel, vm => vm.ConfigService.Config.MainDir, v => v.MainDirTextBox.Text).DisposeWith(d);
 
                 this.OneWayBind(ViewModel, vm => vm.DiskUsageProgressBarText, v => v.DiskUsageProgressBarTextBlock.Text).DisposeWith(d);
 
@@ -85,7 +85,7 @@ namespace BilibiliLiveRecordDownLoader
                 this.BindCommand(ViewModel, vm => vm.StopTaskCommand, v => v.StopTaskMenuItem).DisposeWith(d);
 
                 this.Bind(ViewModel,
-                    vm => vm.ConfigService.Config!.DownloadThreads,
+                    vm => vm.ConfigService.Config.DownloadThreads,
                     v => v.ThreadsTextBox.Value,
                     x => x,
                     x => x.HasValue ? Convert.ToByte(x.Value) : (byte)8).DisposeWith(d);
@@ -102,10 +102,7 @@ namespace BilibiliLiveRecordDownLoader
 
                 _logServices = CreateLogService();
 
-                LiveRecordListDataGrid.Events().Loaded.Subscribe(_ =>
-                {
-                    LiveRecordListDataGrid.GridColumnSizer = new GridColumnSizerExt(LiveRecordListDataGrid);
-                }).DisposeWith(d);
+                LiveRecordListDataGrid.Events().Loaded.Subscribe(_ => LiveRecordListDataGrid.GridColumnSizer = new GridColumnSizerExt(LiveRecordListDataGrid)).DisposeWith(d);
 
                 #region CloseReasonHack
 
@@ -186,10 +183,7 @@ namespace BilibiliLiveRecordDownLoader
         {
             return ((App)System.Windows.Application.Current).SubjectMemorySink.LogSubject
                     .ObserveOnDispatcher()
-                    .Subscribe(str =>
-                    {
-                        LogTextBox.AppendText(str);
-                    });
+                    .Subscribe(str => LogTextBox.AppendText(str));
         }
     }
 }

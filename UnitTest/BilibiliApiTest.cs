@@ -1,6 +1,9 @@
-﻿using BilibiliApi.Clients;
+using BilibiliApi.Clients;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Threading.Tasks;
+
+#nullable disable warnings
+// ReSharper disable PossibleNullReferenceException
 
 namespace UnitTest
 {

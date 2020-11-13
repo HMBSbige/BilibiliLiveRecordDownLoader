@@ -1,4 +1,4 @@
-﻿using System.Threading.Tasks;
+using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.Interfaces
 {
@@ -7,7 +7,7 @@ namespace BilibiliLiveRecordDownLoader.Interfaces
         /// <summary>
         /// 描述
         /// </summary>
-        string Description { get; }
+        string? Description { get; }
 
         /// <summary>
         /// 进度，[0.0,1.0]
@@ -17,12 +17,12 @@ namespace BilibiliLiveRecordDownLoader.Interfaces
         /// <summary>
         /// 速度
         /// </summary>
-        string Speed { get; }
+        string? Speed { get; }
 
         /// <summary>
         /// 状态
         /// </summary>
-        string Status { get; }
+        string? Status { get; }
 
         ValueTask StartAsync();
         void Stop();

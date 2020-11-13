@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,18 +17,19 @@ namespace BilibiliLiveRecordDownLoader.Shared.HttpPolicy
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             request.Version = HttpVersion.Version20;
-            HttpResponseMessage? response = null;
+            HttpResponseMessage response;
 
-            for (var i = 0; i < _maxRetries; ++i)
+            var i = 0;
+            do
             {
                 response = await base.SendAsync(request, cancellationToken);
                 if (response.IsSuccessStatusCode)
                 {
                     return response;
                 }
-            }
+            } while (++i < _maxRetries);
 
-            return response!;
+            return response;
         }
     }
 }

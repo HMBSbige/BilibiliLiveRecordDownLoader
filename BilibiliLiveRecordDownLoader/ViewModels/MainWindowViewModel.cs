@@ -1,4 +1,4 @@
-﻿using BilibiliApi.Clients;
+using BilibiliApi.Clients;
 using BilibiliApi.Model.LiveRecordList;
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Shared;
@@ -28,11 +28,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
     {
         #region 字段
 
-        private string _imageUri;
-        private string _name;
+        private string? _imageUri;
+        private string? _name;
         private long _uid;
         private long _level;
-        private string _diskUsageProgressBarText;
+        private string? _diskUsageProgressBarText;
         private double _diskUsageProgressBarValue;
         private long _roomId;
         private long _shortRoomId;
@@ -44,13 +44,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
         #region 属性
 
-        public string ImageUri
+        public string? ImageUri
         {
             get => _imageUri;
             set => this.RaiseAndSetIfChanged(ref _imageUri, value);
         }
 
-        public string Name
+        public string? Name
         {
             get => _name;
             set => this.RaiseAndSetIfChanged(ref _name, value);
@@ -68,7 +68,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             set => this.RaiseAndSetIfChanged(ref _level, value);
         }
 
-        public string DiskUsageProgressBarText
+        public string? DiskUsageProgressBarText
         {
             get => _diskUsageProgressBarText;
             set => this.RaiseAndSetIfChanged(ref _diskUsageProgressBarText, value);
@@ -123,13 +123,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
         public ReactiveCommand<Unit, Unit> SelectMainDirCommand { get; }
         public ReactiveCommand<Unit, Unit> OpenMainDirCommand { get; }
-        public ReactiveCommand<GridRecordContextMenuInfo, Unit> CopyLiveRecordDownloadUrlCommand { get; }
-        public ReactiveCommand<GridRecordContextMenuInfo, Unit> OpenLiveRecordUrlCommand { get; }
-        public ReactiveCommand<GridRecordContextMenuInfo, Unit> DownLoadCommand { get; }
-        public ReactiveCommand<GridRecordContextMenuInfo, Unit> OpenDirCommand { get; }
+        public ReactiveCommand<GridRecordContextMenuInfo?, Unit> CopyLiveRecordDownloadUrlCommand { get; }
+        public ReactiveCommand<GridRecordContextMenuInfo?, Unit> OpenLiveRecordUrlCommand { get; }
+        public ReactiveCommand<GridRecordContextMenuInfo?, Unit> DownLoadCommand { get; }
+        public ReactiveCommand<GridRecordContextMenuInfo?, Unit> OpenDirCommand { get; }
         public ReactiveCommand<Unit, Unit> ShowWindowCommand { get; }
         public ReactiveCommand<Unit, Unit> ExitCommand { get; }
-        public ReactiveCommand<GridRecordContextMenuInfo, Unit> StopTaskCommand { get; }
+        public ReactiveCommand<GridRecordContextMenuInfo?, Unit> StopTaskCommand { get; }
 
         #endregion
 
@@ -203,13 +203,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
             SelectMainDirCommand = ReactiveCommand.Create(SelectDirectory);
             OpenMainDirCommand = ReactiveCommand.CreateFromObservable(OpenDirectory);
-            CopyLiveRecordDownloadUrlCommand = ReactiveCommand.CreateFromTask<GridRecordContextMenuInfo>(CopyLiveRecordDownloadUrlAsync);
-            OpenLiveRecordUrlCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo, Unit>(OpenLiveRecordUrl);
-            OpenDirCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo, Unit>(OpenDir);
-            DownLoadCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo, Unit>(Download);
+            CopyLiveRecordDownloadUrlCommand = ReactiveCommand.CreateFromTask<GridRecordContextMenuInfo?>(CopyLiveRecordDownloadUrlAsync);
+            OpenLiveRecordUrlCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo?, Unit>(OpenLiveRecordUrl);
+            OpenDirCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo?, Unit>(OpenDir);
+            DownLoadCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo?, Unit>(Download);
             ShowWindowCommand = ReactiveCommand.Create(ShowWindow);
             ExitCommand = ReactiveCommand.Create(Exit);
-            StopTaskCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo, Unit>(StopTask);
+            StopTaskCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo?, Unit>(StopTask);
         }
 
         private async Task InitAsync()
@@ -240,6 +240,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             return Observable.Start(() =>
             {
                 Utils.Utils.OpenDir(ConfigService.Config.MainDir);
+                return Unit.Default;
             });
         }
 
@@ -266,7 +267,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
                 using var client = new BililiveApiClient();
                 var msg = await client.GetAnchorInfoAsync(roomId);
 
-                if (msg.code != 0 || msg.data?.info == null)
+                if (msg?.data?.info == null || msg.code != 0)
                 {
                     throw new ArgumentException($@"[{roomId}]获取主播信息出错，可能该房间号的主播不存在");
                 }
@@ -348,7 +349,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             }
         }
 
-        private static async Task CopyLiveRecordDownloadUrlAsync(GridRecordContextMenuInfo info)
+        private static async Task CopyLiveRecordDownloadUrlAsync(GridRecordContextMenuInfo? info)
         {
             try
             {
@@ -372,7 +373,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             }
         }
 
-        private static IObservable<Unit> OpenLiveRecordUrl(GridRecordContextMenuInfo info)
+        private static IObservable<Unit> OpenLiveRecordUrl(GridRecordContextMenuInfo? info)
         {
             return Observable.Start(() =>
             {
@@ -390,7 +391,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             });
         }
 
-        private IObservable<Unit> OpenDir(GridRecordContextMenuInfo info)
+        private IObservable<Unit> OpenDir(GridRecordContextMenuInfo? info)
         {
             return Observable.Start(() =>
             {
@@ -414,13 +415,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             });
         }
 
-        private IObservable<Unit> Download(GridRecordContextMenuInfo info)
+        private IObservable<Unit> Download(GridRecordContextMenuInfo? info)
         {
             return Observable.Start(() =>
             {
                 try
                 {
-                    if (info?.Record is LiveRecordListViewModel liveRecord)
+                    if (info?.Record is LiveRecordListViewModel { Rid: not "" or null } liveRecord)
                     {
                         var root = Path.Combine(ConfigService.Config.MainDir, $@"{RoomId}", @"Replay");
                         var task = new LiveRecordDownloadTaskViewModel(_logger, liveRecord, root, ConfigService.Config.DownloadThreads);
@@ -445,7 +446,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
             _liveRecordDownloadTaskQueue.Enqueue(1, () => task.StartAsync().AsTask()).NoWarning();
         }
 
-        private IObservable<Unit> StopTask(GridRecordContextMenuInfo info)
+        private IObservable<Unit> StopTask(GridRecordContextMenuInfo? info)
         {
             return Observable.Start(() =>
             {
@@ -470,7 +471,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
         private void ShowWindow()
         {
-            _window?.ShowWindow();
+            _window.ShowWindow();
         }
 
         private void Exit()
@@ -482,9 +483,9 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
         public void Dispose()
         {
-            _diskMonitor?.Dispose();
-            _roomIdMonitor?.Dispose();
-            ConfigService?.Dispose();
+            _diskMonitor.Dispose();
+            _roomIdMonitor.Dispose();
+            ConfigService.Dispose();
         }
     }
 }

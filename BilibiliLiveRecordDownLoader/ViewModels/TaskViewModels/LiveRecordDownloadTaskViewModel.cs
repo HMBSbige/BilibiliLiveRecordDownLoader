@@ -1,4 +1,4 @@
-﻿using BilibiliApi.Clients;
+using BilibiliApi.Clients;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
 using BilibiliLiveRecordDownLoader.Http.DownLoaders;
 using Microsoft.Extensions.Logging;
@@ -32,7 +32,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels
 
             Status = @"未开始";
             Description = $@"{liveRecord.Rid}";
-            _recordPath = Path.Combine(_path, liveRecord.Rid);
+            _recordPath = Path.Combine(_path, liveRecord.Rid!);
         }
 
         public override async ValueTask StartAsync()
@@ -43,7 +43,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels
 
                 Status = @"正在获取回放地址";
                 using var client = new BililiveApiClient();
-                var message = await client.GetLiveRecordUrlAsync(_liveRecord.Rid, _cts.Token);
+                var message = await client.GetLiveRecordUrlAsync(_liveRecord.Rid!, _cts.Token);
 
                 var list = message?.data?.list;
                 if (list == null)
@@ -82,24 +82,18 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels
                     downloader.TempDir = _recordPath;
 
                     using var ds = downloader.Status.DistinctUntilChanged().Subscribe(s =>
-                    {
-                        // ReSharper disable once AccessToModifiedClosure
-                        Status = $@"[{i + 1}/{l.Length}] {s}";
-                    });
+                            // ReSharper disable once AccessToModifiedClosure
+                            Status = $@"[{i + 1}/{l.Length}] {s}");
 
                     using var d = downloader.CurrentSpeed.DistinctUntilChanged().Subscribe(speed =>
-                    {
-                        Speed = $@"{Utils.Utils.CountSize(Convert.ToInt64(speed))}/s";
-                    });
+                            Speed = $@"{Utils.Utils.CountSize(Convert.ToInt64(speed))}/s");
 
                     using var dp = Observable.Interval(TimeSpan.FromSeconds(0.2))
                             .DistinctUntilChanged()
                             .Subscribe(_ =>
-                            {
                                 // ReSharper disable once AccessToModifiedClosure
                                 // ReSharper disable once AccessToDisposedClosure
-                                Progress = (downloader.Progress + i) / l.Length;
-                            });
+                                Progress = (downloader.Progress + i) / l.Length);
 
                     await downloader.DownloadAsync(_cts.Token);
                 }
@@ -120,20 +114,15 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels
                     await using var flv = Locator.Current.GetService<IFlvMerger>();
                     flv.AddRange(Enumerable.Range(1, l.Length).Select(i => Path.Combine(_recordPath, $@"{i}.flv")));
 
-                    using var ds = flv.Status.DistinctUntilChanged().Subscribe(s => { Status = s; });
+                    using var ds = flv.Status.DistinctUntilChanged().Subscribe(s => Status = s);
 
-                    using var d = flv.CurrentSpeed.DistinctUntilChanged().Subscribe(speed =>
-                    {
-                        Speed = $@"{Utils.Utils.CountSize(Convert.ToInt64(speed))}/s";
-                    });
+                    using var d = flv.CurrentSpeed.DistinctUntilChanged().Subscribe(speed => Speed = $@"{Utils.Utils.CountSize(Convert.ToInt64(speed))}/s");
 
                     using var dp = Observable.Interval(TimeSpan.FromSeconds(0.1))
                             .DistinctUntilChanged()
                             .Subscribe(_ =>
-                            {
                                 // ReSharper disable once AccessToDisposedClosure
-                                Progress = flv.Progress;
-                            });
+                                Progress = flv.Progress);
 
                     await flv.MergeAsync(mergeFlv, _cts.Token);
                     Utils.Utils.DeleteFiles(_recordPath);
