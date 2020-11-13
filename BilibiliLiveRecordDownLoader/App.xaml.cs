@@ -72,7 +72,7 @@ namespace BilibiliLiveRecordDownLoader
 
 			Register();
 
-			MainWindow = Locator.Current.GetService<MainWindow>();
+			MainWindow = Locator.Current.GetService<Window>();
 			MainWindow.ShowWindow();
 		}
 
@@ -86,7 +86,7 @@ namespace BilibiliLiveRecordDownLoader
 
 		private static void ConfigureServices(IServiceCollection services)
 		{
-			services.AddSingleton<MainWindow>();
+			services.AddSingleton(typeof(Window), typeof(MainWindow));
 			services.AddSingleton(typeof(IConfigService), typeof(ConfigService));
 			services.AddTransient(typeof(IDownloader), typeof(MultiThreadedDownloader));
 			services.AddTransient(typeof(IFlvMerger), typeof(FlvMerger));
