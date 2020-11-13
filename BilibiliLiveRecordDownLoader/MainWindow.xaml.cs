@@ -1,4 +1,5 @@
 using BilibiliLiveRecordDownLoader.Interfaces;
+using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using BilibiliLiveRecordDownLoader.Views;
 using Microsoft.Extensions.Logging;
@@ -181,7 +182,7 @@ namespace BilibiliLiveRecordDownLoader
 
 		private IDisposable CreateLogService()
 		{
-			return ((App)System.Windows.Application.Current).SubjectMemorySink.LogSubject
+			return Constants.SubjectMemorySink.LogSubject
 					.ObserveOnDispatcher()
 					.Subscribe(str => LogTextBox.AppendText(str));
 		}

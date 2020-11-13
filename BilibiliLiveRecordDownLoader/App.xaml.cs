@@ -24,8 +24,6 @@ namespace BilibiliLiveRecordDownLoader
 	{
 		private static int _exited;
 
-		public SubjectMemorySink SubjectMemorySink { get; } = new SubjectMemorySink(Constants.OutputTemplate);
-
 		private void Application_Startup(object sender, StartupEventArgs e)
 		{
 			Directory.SetCurrentDirectory(Path.GetDirectoryName(Utils.Utils.GetExecutablePath())!);
@@ -95,7 +93,7 @@ namespace BilibiliLiveRecordDownLoader
 			services.AddLogging(c => c.AddSerilog());
 		}
 
-		private void Register()
+		private static void Register()
 		{
 			Log.Logger = new LoggerConfiguration()
 #if DEBUG
@@ -110,7 +108,7 @@ namespace BilibiliLiveRecordDownLoader
 						outputTemplate: Constants.OutputTemplate,
 						rollingInterval: RollingInterval.Day,
 						fileSizeLimitBytes: Constants.MaxLogFileSize))
-				.WriteTo.Sink(SubjectMemorySink)
+				.WriteTo.Sink(Constants.SubjectMemorySink)
 				.CreateLogger();
 
 			var services = new ServiceCollection();
