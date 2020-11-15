@@ -9,8 +9,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using Punchclock;
 using ReactiveUI;
-using Syncfusion.Data.Extensions;
-using Syncfusion.UI.Xaml.Grid;
 using System;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -123,13 +121,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		public ReactiveCommand<Unit, Unit> SelectMainDirCommand { get; }
 		public ReactiveCommand<Unit, Unit> OpenMainDirCommand { get; }
-		public ReactiveCommand<GridRecordContextMenuInfo?, Unit> CopyLiveRecordDownloadUrlCommand { get; }
-		public ReactiveCommand<GridRecordContextMenuInfo?, Unit> OpenLiveRecordUrlCommand { get; }
-		public ReactiveCommand<GridRecordContextMenuInfo?, Unit> DownLoadCommand { get; }
-		public ReactiveCommand<GridRecordContextMenuInfo?, Unit> OpenDirCommand { get; }
+		public ReactiveCommand<object?, Unit> CopyLiveRecordDownloadUrlCommand { get; }
+		public ReactiveCommand<object?, Unit> OpenLiveRecordUrlCommand { get; }
+		public ReactiveCommand<object?, Unit> DownLoadCommand { get; }
+		public ReactiveCommand<object?, Unit> OpenDirCommand { get; }
 		public ReactiveCommand<Unit, Unit> ShowWindowCommand { get; }
 		public ReactiveCommand<Unit, Unit> ExitCommand { get; }
-		public ReactiveCommand<GridRecordContextMenuInfo?, Unit> StopTaskCommand { get; }
+		public ReactiveCommand<object?, Unit> StopTaskCommand { get; }
 
 		#endregion
 
@@ -180,11 +178,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					.DisposeMany()
 					.Subscribe(_ =>
 					{
-						var dataGrid = _window.LiveRecordListDataGrid;
-						dataGrid.GridColumnSizer.ResetAutoCalculationforAllColumns();
-						dataGrid.Columns.ForEach(c => c.Width = double.NaN);
-						dataGrid.GridColumnSizer.Refresh();
-
 						if (!_isInitData)
 						{
 							return;
@@ -192,6 +185,9 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 						_window.SizeToContent = SizeToContent.Width;
 						_window.SizeToContent = SizeToContent.Manual;
+
+						_window.LiveRecordListDataGrid.EnableRowVirtualization = true;
+
 						_isInitData = false;
 					});
 
@@ -203,13 +199,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 			SelectMainDirCommand = ReactiveCommand.Create(SelectDirectory);
 			OpenMainDirCommand = ReactiveCommand.CreateFromObservable(OpenDirectory);
-			CopyLiveRecordDownloadUrlCommand = ReactiveCommand.CreateFromTask<GridRecordContextMenuInfo?>(CopyLiveRecordDownloadUrlAsync);
-			OpenLiveRecordUrlCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo?, Unit>(OpenLiveRecordUrl);
-			OpenDirCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo?, Unit>(OpenDir);
-			DownLoadCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo?, Unit>(Download);
+			CopyLiveRecordDownloadUrlCommand = ReactiveCommand.CreateFromTask<object?>(CopyLiveRecordDownloadUrlAsync);
+			OpenLiveRecordUrlCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(OpenLiveRecordUrl);
+			OpenDirCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(OpenDir);
+			DownLoadCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(Download);
 			ShowWindowCommand = ReactiveCommand.Create(ShowWindow);
 			ExitCommand = ReactiveCommand.Create(Exit);
-			StopTaskCommand = ReactiveCommand.CreateFromObservable<GridRecordContextMenuInfo?, Unit>(StopTask);
+			StopTaskCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(StopTask);
 		}
 
 		private async Task InitAsync()
@@ -349,55 +345,57 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			}
 		}
 
-		private static async Task CopyLiveRecordDownloadUrlAsync(GridRecordContextMenuInfo? info)
+		private static async Task CopyLiveRecordDownloadUrlAsync(object? info)
 		{
 			try
 			{
-				if (info?.Record is LiveRecordListViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
+				if (info is LiveRecordListViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
 				{
 					using var client = new BililiveApiClient();
 					var message = await client.GetLiveRecordUrlAsync(liveRecord.Rid);
 					var list = message?.data?.list;
-					if (list != null && list.Length > 0)
+					if (list is not null
+						&& list.Length > 0
+						&& list.All(x => x.url is not null or @"" || x.backup_url is not null or @"")
+						)
 					{
 						Utils.Utils.CopyToClipboard(string.Join(Environment.NewLine,
-								list.Where(x => !string.IsNullOrEmpty(x.url) || !string.IsNullOrEmpty(x.backup_url))
-										.Select(x => string.IsNullOrEmpty(x.url) ? x.backup_url : x.url)
+								list.Select(x => x.url is not null or @"" ? x.backup_url : x.url)
 						));
 					}
 				}
 			}
 			catch
 			{
-				// ignored
+				//ignored
 			}
 		}
 
-		private static IObservable<Unit> OpenLiveRecordUrl(GridRecordContextMenuInfo? info)
+		private static IObservable<Unit> OpenLiveRecordUrl(object? info)
 		{
 			return Observable.Start(() =>
 			{
 				try
 				{
-					if (info?.Record is LiveRecordListViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
+					if (info is LiveRecordListViewModel { Rid: not @"" or null } liveRecord)
 					{
 						Utils.Utils.OpenUrl($@"https://live.bilibili.com/record/{liveRecord.Rid}");
 					}
 				}
 				catch
 				{
-					// ignored
+					//ignored
 				}
 			});
 		}
 
-		private IObservable<Unit> OpenDir(GridRecordContextMenuInfo? info)
+		private IObservable<Unit> OpenDir(object? info)
 		{
 			return Observable.Start(() =>
 			{
 				try
 				{
-					if (info?.Record is LiveRecordListViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
+					if (info is LiveRecordListViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
 					{
 						var root = Path.Combine(ConfigService.Config.MainDir, $@"{RoomId}", @"Replay");
 						var path = Path.Combine(root, liveRecord.Rid);
@@ -410,18 +408,22 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				}
 				catch
 				{
-					// ignored
+					//ignored
 				}
 			});
 		}
 
-		private IObservable<Unit> Download(GridRecordContextMenuInfo? info)
+		private IObservable<Unit> Download(object? info)
 		{
 			return Observable.Start(() =>
 			{
 				try
 				{
-					if (info?.Record is LiveRecordListViewModel { Rid: not "" or null } liveRecord)
+					//if (info is IList { Count: > 0 } list)
+					//{
+					//
+					//}
+					if (info is LiveRecordListViewModel { Rid: not @"" or null } liveRecord)
 					{
 						var root = Path.Combine(ConfigService.Config.MainDir, $@"{RoomId}", @"Replay");
 						var task = new LiveRecordDownloadTaskViewModel(_logger, liveRecord, root, ConfigService.Config.DownloadThreads);
@@ -446,13 +448,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			_liveRecordDownloadTaskQueue.Enqueue(1, () => task.StartAsync().AsTask()).NoWarning();
 		}
 
-		private IObservable<Unit> StopTask(GridRecordContextMenuInfo? info)
+		private IObservable<Unit> StopTask(object? info)
 		{
 			return Observable.Start(() =>
 			{
 				try
 				{
-					if (info?.Record is TaskListViewModel task)
+					if (info is TaskListViewModel task)
 					{
 						task.Stop();
 					}
@@ -466,7 +468,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		private void StopAllTask()
 		{
-			TaskSourceList.Items.ForEach(t => t.Stop());
+			TaskSourceList.Items.ToList().ForEach(t => t.Stop());
 		}
 
 		private void ShowWindow()
