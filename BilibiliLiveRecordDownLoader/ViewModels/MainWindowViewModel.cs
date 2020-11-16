@@ -220,7 +220,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			ShowWindowCommand = ReactiveCommand.Create(ShowWindow);
 			ExitCommand = ReactiveCommand.Create(Exit);
 			StopTaskCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(StopTask);
-			ClearAllTasksCommand = ReactiveCommand.CreateFromObservable(ClearAllTasks);
+			ClearAllTasksCommand = ReactiveCommand.CreateFromTask(ClearAllTasksAsync);
 		}
 
 		private async ValueTask InitAsync()
@@ -547,23 +547,42 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			});
 		}
 
-		private IObservable<Unit> ClearAllTasks()
+		private async Task ClearAllTasksAsync()
 		{
-			return Observable.Start(() =>
+			try
 			{
+				if (TaskSourceList.Count == 0)
+				{
+					return;
+				}
+				var dialog = new ContentDialog
+				{
+					Title = @"确定清空所有任务？",
+					Content = @"将会停止所有任务并清空列表",
+					PrimaryButtonText = @"确定",
+					CloseButtonText = @"取消",
+					DefaultButton = ContentDialogButton.Primary
+				};
 				try
 				{
-					TaskSourceList.Items.ToList().ForEach(task =>
+					if (await dialog.ShowAsync() == ContentDialogResult.Primary)
 					{
-						task.Stop();
-						TaskSourceList.Remove(task);
-					});
+						TaskSourceList.Items.ToList().ForEach(task =>
+						{
+							task.Stop();
+							TaskSourceList.Remove(task);
+						});
+					}
 				}
-				catch (Exception ex)
+				finally
 				{
-					_logger.LogError(ex, @"停止任务出错");
+					dialog.Hide();
 				}
-			});
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, @"停止任务出错");
+			}
 		}
 
 		private void StopAllTask()

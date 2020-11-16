@@ -209,7 +209,7 @@
                                       CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItems)}"
                             />
                             <Separator />
-                            <MenuItem x:Name="RemoveTaskMenuItem" Header="停止所有任务" />
+                            <MenuItem x:Name="RemoveTaskMenuItem" Header="清空所有任务" />
                         </ContextMenu>
                     </DataGrid.ContextMenu>
                     <DataGrid.Columns>
