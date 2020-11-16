@@ -125,5 +125,10 @@ namespace BilibiliLiveRecordDownLoader.Utils
 				return false;
 			}
 		}
+
+		public static string? GetAppVersion()
+		{
+			return typeof(App).Assembly.GetName().Version?.ToString();
+		}
 	}
 }

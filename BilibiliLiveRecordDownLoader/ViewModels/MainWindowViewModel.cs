@@ -18,6 +18,7 @@ using System.Reactive.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Forms;
+using UpdateChecker;
 using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
@@ -128,6 +129,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		public ReactiveCommand<Unit, Unit> ShowWindowCommand { get; }
 		public ReactiveCommand<Unit, Unit> ExitCommand { get; }
 		public ReactiveCommand<object?, Unit> StopTaskCommand { get; }
+		public ReactiveCommand<Unit, Unit> CheckUpdateCommand { get; }
 
 		#endregion
 
@@ -155,6 +157,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			_logger = logger;
 			ConfigService = configService;
 
+			CheckUpdateCommand = ReactiveCommand.CreateFromTask(CheckUpdateAsync);
 			InitAsync().NoWarning();
 
 			_roomIdMonitor = this.WhenAnyValue(x => x.ConfigService.Config.RoomId, x => x.TriggerLiveRecordListQuery)
@@ -211,6 +214,38 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private async Task InitAsync()
 		{
 			await ConfigService.LoadAsync(default);
+			if (ConfigService.Config.IsCheckUpdateOnStart)
+			{
+				await CheckUpdateCommand.Execute();
+			}
+		}
+
+		private async Task CheckUpdateAsync()
+		{
+			try
+			{
+				var version = Utils.Utils.GetAppVersion()!;
+				var updateChecker = new GitHubReleasesUpdateChecker(
+						@"HMBSbige",
+						@"BilibiliLiveRecordDownLoader",
+						ConfigService.Config.IsCheckPreRelease,
+						version
+				);
+				var res = await updateChecker.CheckAsync(default);
+				//TODO
+				if (res)
+				{
+					_logger.LogInformation($@"发现新版本：{updateChecker.LatestVersion}");
+				}
+				else
+				{
+					_logger.LogInformation($@"没有找到新版本：{version} ≥ {updateChecker.LatestVersion}");
+				}
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, @"检查更新出错");
+			}
 		}
 
 		private void SelectDirectory()

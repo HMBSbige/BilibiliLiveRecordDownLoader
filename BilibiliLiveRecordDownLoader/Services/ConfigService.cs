@@ -45,7 +45,10 @@ namespace BilibiliLiveRecordDownLoader.Services
 					x => x.Config,
 					x => x.Config.RoomId,
 					x => x.Config.MainDir,
-					x => x.Config.DownloadThreads)
+					x => x.Config.DownloadThreads,
+					x => x.Config.IsCheckUpdateOnStart,
+					x => x.Config.IsCheckPreRelease
+					)
 				.Throttle(TimeSpan.FromSeconds(1))
 				.DistinctUntilChanged()
 				.Where(v => v.Item1 != null && !_lock.IsWriteLockHeld)
