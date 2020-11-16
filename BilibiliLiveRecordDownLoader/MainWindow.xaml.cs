@@ -88,6 +88,11 @@ namespace BilibiliLiveRecordDownLoader
 					x => x,
 					Convert.ToByte).DisposeWith(d);
 
+				this.Bind(ViewModel, vm => vm.ConfigService.Config.IsCheckUpdateOnStart, v => v.IsCheckUpdateOnStartSwitch.IsOn).DisposeWith(d);
+				this.Bind(ViewModel, vm => vm.ConfigService.Config.IsCheckPreRelease, v => v.IsCheckPreReleaseSwitch.IsOn).DisposeWith(d);
+				this.BindCommand(ViewModel, vm => vm.CheckUpdateCommand, v => v.CheckUpdateButton).DisposeWith(d);
+				this.OneWayBind(ViewModel, vm => vm.UpdateStatus, v => v.UpdateStatusTextBlock.Text).DisposeWith(d);
+
 				Observable.FromEventPattern(LogTextBox, nameof(LogTextBox.TextChanged)).Subscribe(_ =>
 				{
 					if (LogTextBox.LineCount > 2000)

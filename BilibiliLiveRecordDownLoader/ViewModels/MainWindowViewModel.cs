@@ -7,6 +7,7 @@ using BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels;
 using DynamicData;
 using Microsoft.Extensions.Logging;
 using Microsoft.WindowsAPICodePack.Dialogs;
+using ModernWpf.Controls;
 using Punchclock;
 using ReactiveUI;
 using System;
@@ -38,6 +39,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private long _recordCount;
 		private bool _isLiveRecordBusy;
 		private bool _triggerLiveRecordListQuery;
+		private string? _updateStatus;
 
 		#endregion
 
@@ -109,6 +111,12 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			set => this.RaiseAndSetIfChanged(ref _triggerLiveRecordListQuery, value);
 		}
 
+		public string? UpdateStatus
+		{
+			get => _updateStatus;
+			set => this.RaiseAndSetIfChanged(ref _updateStatus, value);
+		}
+
 		#endregion
 
 		#region Monitor
@@ -141,6 +149,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		public readonly ReadOnlyObservableCollection<LiveRecordListViewModel> LiveRecordList;
 
 		private SourceList<TaskListViewModel> TaskSourceList { get; } = new();
+
 		public readonly ReadOnlyObservableCollection<TaskListViewModel> TaskList;
 
 		private readonly OperationQueue _liveRecordDownloadTaskQueue = new(1);
@@ -224,6 +233,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		{
 			try
 			{
+				UpdateStatus = @"正在检查更新...";
 				var version = Utils.Utils.GetAppVersion()!;
 				var updateChecker = new GitHubReleasesUpdateChecker(
 						@"HMBSbige",
@@ -231,20 +241,44 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 						ConfigService.Config.IsCheckPreRelease,
 						version
 				);
-				var res = await updateChecker.CheckAsync(default);
-				//TODO
-				if (res)
+				if (await updateChecker.CheckAsync(default))
 				{
-					_logger.LogInformation($@"发现新版本：{updateChecker.LatestVersion}");
+					if (updateChecker.LatestVersionUrl is null)
+					{
+						UpdateStatus = @"更新地址获取出错";
+						return;
+					}
+
+					UpdateStatus = $@"发现新版本：{updateChecker.LatestVersion}";
+					var dialog = new ContentDialog
+					{
+						Title = UpdateStatus,
+						Content = @"是否跳转到下载页？",
+						PrimaryButtonText = @"是",
+						SecondaryButtonText = @"否",
+						DefaultButton = ContentDialogButton.Primary
+					};
+					try
+					{
+						if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+						{
+							Utils.Utils.OpenUrl(updateChecker.LatestVersionUrl);
+						}
+					}
+					finally
+					{
+						dialog.Hide();
+					}
 				}
 				else
 				{
-					_logger.LogInformation($@"没有找到新版本：{version} ≥ {updateChecker.LatestVersion}");
+					UpdateStatus = $@"没有找到新版本：{version} ≥ {updateChecker.LatestVersion}";
 				}
 			}
 			catch (Exception ex)
 			{
-				_logger.LogError(ex, @"检查更新出错");
+				UpdateStatus = @"检查更新出错";
+				_logger.LogError(ex, UpdateStatus);
 			}
 		}
 

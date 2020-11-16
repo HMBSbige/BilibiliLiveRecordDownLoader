@@ -270,8 +270,8 @@
                                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                                d:Text="114514 TB/1919810 TB"/>
                                 </Grid>
-                                <Button x:Name="SelectMainDirButton" Grid.Row="0" Grid.Column="1" Content="选择目录" Margin="3" Padding="3" />
-                                <Button x:Name="OpenMainDirButton" Grid.Row="1" Grid.Column="1" Content="打开目录" Margin="3" Padding="3" />
+                                <Button x:Name="SelectMainDirButton" Grid.Row="0" Grid.Column="1" Content="选择目录" />
+                                <Button x:Name="OpenMainDirButton" Grid.Row="1" Grid.Column="1" Content="打开目录" />
                             </Grid>
                         </GroupBox>
                         <GroupBox Header="下载设置"
@@ -284,6 +284,19 @@
                                           PlaceholderText="8"
                                           SmallChange="1"
                                           LargeChange="10" />
+                        </GroupBox>
+                        <GroupBox Header="更新">
+                            <StackPanel>
+                                <ui:ToggleSwitch x:Name="IsCheckUpdateOnStartSwitch"
+                                                 Header="启动时检查更新"
+                                                 OnContent="" OffContent="" />
+                                <ui:ToggleSwitch x:Name="IsCheckPreReleaseSwitch"
+                                                 Header="包括预览版更新"
+                                                 OnContent="" OffContent="" />
+                                <Button x:Name="CheckUpdateButton"
+                                        Content="检查更新" />
+                                <TextBlock x:Name="UpdateStatusTextBlock" d:Text="无更新" />
+                            </StackPanel>
                         </GroupBox>
                     </ui:SimpleStackPanel>
                 </ScrollViewer>
