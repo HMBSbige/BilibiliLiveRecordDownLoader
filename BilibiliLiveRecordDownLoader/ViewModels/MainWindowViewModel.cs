@@ -139,6 +139,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		public ReactiveCommand<Unit, Unit> ExitCommand { get; }
 		public ReactiveCommand<object?, Unit> StopTaskCommand { get; }
 		public ReactiveCommand<Unit, Unit> CheckUpdateCommand { get; }
+		public ReactiveCommand<Unit, Unit> ClearAllTasksCommand { get; }
 
 		#endregion
 
@@ -219,6 +220,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			ShowWindowCommand = ReactiveCommand.Create(ShowWindow);
 			ExitCommand = ReactiveCommand.Create(Exit);
 			StopTaskCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(StopTask);
+			ClearAllTasksCommand = ReactiveCommand.CreateFromObservable(ClearAllTasks);
 		}
 
 		private async ValueTask InitAsync()
@@ -517,7 +519,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				return;
 			}
 			TaskSourceList.Add(task);
-			_liveRecordDownloadTaskQueue.Enqueue(1, () => task.StartAsync().AsTask()).NoWarning();
+			_liveRecordDownloadTaskQueue.Enqueue(1, @"直播回放下载", () => task.StartAsync().AsTask()).NoWarning();
 		}
 
 		private IObservable<Unit> StopTask(object? info)
@@ -533,9 +535,29 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 							if (item is TaskListViewModel task)
 							{
 								task.Stop();
+								TaskSourceList.Remove(task);
 							}
 						}
 					}
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, @"停止任务出错");
+				}
+			});
+		}
+
+		private IObservable<Unit> ClearAllTasks()
+		{
+			return Observable.Start(() =>
+			{
+				try
+				{
+					TaskSourceList.Items.ToList().ForEach(task =>
+					{
+						task.Stop();
+						TaskSourceList.Remove(task);
+					});
 				}
 				catch (Exception ex)
 				{

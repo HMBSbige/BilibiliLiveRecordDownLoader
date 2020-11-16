@@ -140,7 +140,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels
 			}
 			catch (OperationCanceledException)
 			{
-
+				_logger.LogInformation($@"下载已取消：{_liveRecord.Rid}");
 			}
 			catch (Exception ex)
 			{

@@ -151,8 +151,8 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 			}
 			catch (OperationCanceledException)
 			{
-				_logger.LogInformation($@"下载已取消：{Target}");
 				_status.OnNext(@"下载已取消");
+				throw;
 			}
 			catch (Exception ex)
 			{

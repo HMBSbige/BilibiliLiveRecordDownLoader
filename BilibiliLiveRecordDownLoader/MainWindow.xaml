@@ -208,6 +208,8 @@
                             <MenuItem x:Name="StopTaskMenuItem" Header="停止任务"
                                       CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItems)}"
                             />
+                            <Separator />
+                            <MenuItem x:Name="RemoveTaskMenuItem" Header="停止所有任务" />
                         </ContextMenu>
                     </DataGrid.ContextMenu>
                     <DataGrid.Columns>
@@ -274,10 +276,10 @@
                                 <Button x:Name="OpenMainDirButton" Grid.Row="1" Grid.Column="1" Content="打开目录" />
                             </Grid>
                         </GroupBox>
-                        <GroupBox Header="下载设置"
+                        <GroupBox Header="直播回放"
                                   HorizontalAlignment="Left">
                             <ui:NumberBox x:Name="ThreadsTextBox"
-                                          Header="单个文件下载线程数："
+                                          Header="下载线程数："
                                           Maximum="128"
                                           Minimum="1"
                                           SpinButtonPlacementMode="Compact"
@@ -289,6 +291,7 @@
                             <StackPanel>
                                 <ui:ToggleSwitch x:Name="IsCheckUpdateOnStartSwitch"
                                                  Header="启动时检查更新"
+                                                 IsOn="True"
                                                  OnContent="" OffContent="" />
                                 <ui:ToggleSwitch x:Name="IsCheckPreReleaseSwitch"
                                                  Header="包括预览版更新"
