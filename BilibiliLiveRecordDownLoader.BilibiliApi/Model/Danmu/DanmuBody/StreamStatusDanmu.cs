@@ -1,7 +1,7 @@
-﻿namespace BilibiliApi.Model.Danmu.DanmuBody
+namespace BilibiliApi.Model.Danmu.DanmuBody
 {
-    public class StreamStatusDanmu : DanmuBase
-    {
-        public long RoomId { get; set; }
-    }
+	public class StreamStatusDanmu : DanmuBase
+	{
+		public long RoomId { get; set; }
+	}
 }

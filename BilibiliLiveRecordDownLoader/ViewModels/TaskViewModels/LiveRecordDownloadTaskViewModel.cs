@@ -1,4 +1,4 @@
-﻿using BilibiliApi.Clients;
+using BilibiliApi.Clients;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
 using BilibiliLiveRecordDownLoader.Http.DownLoaders;
 using Microsoft.Extensions.Logging;
@@ -13,153 +13,148 @@ using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels
 {
-    public class LiveRecordDownloadTaskViewModel : TaskListViewModel
-    {
-        private readonly ILogger _logger;
+	public class LiveRecordDownloadTaskViewModel : TaskListViewModel
+	{
+		private readonly ILogger _logger;
 
-        private readonly CancellationTokenSource _cts = new CancellationTokenSource();
-        private readonly LiveRecordListViewModel _liveRecord;
-        private readonly string _path;
-        private readonly string _recordPath;
-        private readonly ushort _threadsCount;
+		private readonly CancellationTokenSource _cts = new();
+		private readonly LiveRecordListViewModel _liveRecord;
+		private readonly string _path;
+		private readonly string _recordPath;
+		private readonly ushort _threadsCount;
 
-        public LiveRecordDownloadTaskViewModel(ILogger logger, LiveRecordListViewModel liveRecord, string path, ushort threadsCount)
-        {
-            _logger = logger;
-            _liveRecord = liveRecord;
-            _path = path;
-            _threadsCount = threadsCount;
+		public LiveRecordDownloadTaskViewModel(ILogger logger, LiveRecordListViewModel liveRecord, string path, ushort threadsCount)
+		{
+			_logger = logger;
+			_liveRecord = liveRecord;
+			_path = path;
+			_threadsCount = threadsCount;
 
-            Status = @"未开始";
-            Description = $@"{liveRecord.Rid}";
-            _recordPath = Path.Combine(_path, liveRecord.Rid);
-        }
+			Status = @"未开始";
+			Description = $@"{liveRecord.Rid}";
+			_recordPath = Path.Combine(_path, liveRecord.Rid!);
+		}
 
-        public override async ValueTask StartAsync()
-        {
-            try
-            {
-                _cts.Token.ThrowIfCancellationRequested();
+		public override async ValueTask StartAsync()
+		{
+			try
+			{
+				_cts.Token.ThrowIfCancellationRequested();
 
-                Status = @"正在获取回放地址";
-                using var client = new BililiveApiClient();
-                var message = await client.GetLiveRecordUrl(_liveRecord.Rid, _cts.Token);
+				Status = @"正在获取回放地址";
+				using var client = new BililiveApiClient();
+				var message = await client.GetLiveRecordUrlAsync(_liveRecord.Rid!, _cts.Token);
 
-                var list = message?.data?.list;
-                if (list == null)
-                {
-                    return;
-                }
+				var list = message?.data?.list;
+				if (list == null)
+				{
+					return;
+				}
 
-                var l = list.Where(x => !string.IsNullOrEmpty(x.url) || !string.IsNullOrEmpty(x.backup_url))
-                        .Select(x => string.IsNullOrEmpty(x.url) ? x.backup_url : x.url).ToArray();
+				var l = list.Where(x => !string.IsNullOrEmpty(x.url) || !string.IsNullOrEmpty(x.backup_url))
+						.Select(x => string.IsNullOrEmpty(x.url) ? x.backup_url : x.url)
+						.ToArray();
 
-                Status = @"开始下载...";
-                Progress = 0.0;
+				if (list.Length != l.Length)
+				{
+					throw new Exception(@"获取的分段地址不完整！");
+				}
 
-                for (var i = 0; i < l.Length; ++i)
-                {
-                    _cts.Token.ThrowIfCancellationRequested();
+				Status = @"开始下载...";
+				Progress = 0.0;
 
-                    var url = l[i];
-                    var outfile = Path.Combine(_recordPath, $@"{i + 1}.flv");
-                    if (File.Exists(outfile))
-                    {
-                        Progress = (1.0 + i) / l.Length;
-                        continue;
-                    }
+				for (var i = 0; i < l.Length; ++i)
+				{
+					_cts.Token.ThrowIfCancellationRequested();
 
-                    await using var downloader = Locator.Current.GetService<IDownloader>();
-                    downloader.Target = new Uri(url);
-                    downloader.Threads = _threadsCount;
-                    downloader.OutFileName = outfile;
-                    downloader.TempDir = _recordPath;
+					var url = l[i]!;
+					var outfile = Path.Combine(_recordPath, $@"{i + 1}.flv");
+					if (File.Exists(outfile))
+					{
+						Progress = (1.0 + i) / l.Length;
+						continue;
+					}
 
-                    using var ds = downloader.Status.DistinctUntilChanged().Subscribe(s =>
-                    {
-                        // ReSharper disable once AccessToModifiedClosure
-                        Status = $@"[{i + 1}/{l.Length}] {s}";
-                    });
+					await using var downloader = Locator.Current.GetService<IDownloader>();
+					downloader.Target = new(url);
+					downloader.Threads = _threadsCount;
+					downloader.OutFileName = outfile;
+					downloader.TempDir = _recordPath;
 
-                    using var d = downloader.CurrentSpeed.DistinctUntilChanged().Subscribe(speed =>
-                    {
-                        Speed = $@"{Utils.Utils.CountSize(Convert.ToInt64(speed))}/s";
-                    });
+					using var ds = downloader.Status.DistinctUntilChanged().Subscribe(s =>
+							// ReSharper disable once AccessToModifiedClosure
+							Status = $@"[{i + 1}/{l.Length}] {s}");
 
-                    using var dp = Observable.Interval(TimeSpan.FromSeconds(0.2))
-                            .DistinctUntilChanged()
-                            .Subscribe(_ =>
-                            {
-                                // ReSharper disable once AccessToModifiedClosure
-                                // ReSharper disable once AccessToDisposedClosure
-                                Progress = (downloader.Progress + i) / l.Length;
-                            });
+					using var d = downloader.CurrentSpeed.DistinctUntilChanged().Subscribe(speed =>
+							Speed = $@"{Utils.Utils.CountSize(Convert.ToInt64(speed))}/s");
 
-                    await downloader.DownloadAsync(_cts.Token);
-                }
+					using var dp = Observable.Interval(TimeSpan.FromSeconds(0.2))
+							.DistinctUntilChanged()
+							.Subscribe(_ =>
+								// ReSharper disable once AccessToModifiedClosure
+								// ReSharper disable once AccessToDisposedClosure
+								Progress = (downloader.Progress + i) / l.Length);
 
-                Progress = 1.0;
+					await downloader.DownloadAsync(_cts.Token);
+				}
 
-                //Merge flv
+				Progress = 1.0;
 
-                Status = @"正在合并分段...";
-                Progress = 0.0;
+				//Merge flv
 
-                var filename = _liveRecord.StartTime == default
-                        ? _liveRecord.Rid
-                        : $@"{_liveRecord.StartTime:yyyyMMdd_HHmmss}";
-                var mergeFlv = Path.Combine(_path, $@"{filename}.flv");
-                if (l.Length > 1)
-                {
-                    await using var flv = Locator.Current.GetService<IFlvMerger>();
-                    flv.AddRange(Enumerable.Range(1, l.Length).Select(i => Path.Combine(_recordPath, $@"{i}.flv")));
+				Status = @"正在合并分段...";
+				Progress = 0.0;
 
-                    using var ds = flv.Status.DistinctUntilChanged().Subscribe(s => { Status = s; });
+				var filename = _liveRecord.StartTime == default
+						? _liveRecord.Rid
+						: $@"{_liveRecord.StartTime:yyyyMMdd_HHmmss}";
+				var mergeFlv = Path.Combine(_path, $@"{filename}.flv");
+				if (l.Length > 1)
+				{
+					await using var flv = Locator.Current.GetService<IFlvMerger>();
+					flv.AddRange(Enumerable.Range(1, l.Length).Select(i => Path.Combine(_recordPath, $@"{i}.flv")));
 
-                    using var d = flv.CurrentSpeed.DistinctUntilChanged().Subscribe(speed =>
-                    {
-                        Speed = $@"{Utils.Utils.CountSize(Convert.ToInt64(speed))}/s";
-                    });
+					using var ds = flv.Status.DistinctUntilChanged().Subscribe(s => Status = s);
 
-                    using var dp = Observable.Interval(TimeSpan.FromSeconds(0.1))
-                            .DistinctUntilChanged()
-                            .Subscribe(_ =>
-                            {
-                                // ReSharper disable once AccessToDisposedClosure
-                                Progress = flv.Progress;
-                            });
+					using var d = flv.CurrentSpeed.DistinctUntilChanged().Subscribe(speed => Speed = $@"{Utils.Utils.CountSize(Convert.ToInt64(speed))}/s");
 
-                    await flv.MergeAsync(mergeFlv, _cts.Token);
-                    Utils.Utils.DeleteFiles(_recordPath);
-                }
-                else if (l.Length == 1)
-                {
-                    Status = @"只有一段，进行移动...";
-                    var inputFile = Path.Combine(_recordPath, @"1.flv");
-                    File.Move(inputFile, mergeFlv, true);
-                    Utils.Utils.DeleteFiles(_recordPath);
-                }
+					using var dp = Observable.Interval(TimeSpan.FromSeconds(0.1))
+							.DistinctUntilChanged()
+							.Subscribe(_ =>
+								// ReSharper disable once AccessToDisposedClosure
+								Progress = flv.Progress);
 
-                Status = @"完成";
-                Progress = 1.0;
-            }
-            catch (OperationCanceledException)
-            {
+					await flv.MergeAsync(mergeFlv, _cts.Token);
+					Utils.Utils.DeleteFiles(_recordPath);
+				}
+				else if (l.Length == 1)
+				{
+					Status = @"只有一段，进行移动...";
+					var inputFile = Path.Combine(_recordPath, @"1.flv");
+					File.Move(inputFile, mergeFlv, true);
+					Utils.Utils.DeleteFiles(_recordPath);
+				}
 
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, @"下载直播回放出错");
-            }
-            finally
-            {
-                Speed = string.Empty;
-            }
-        }
+				Status = @"完成";
+				Progress = 1.0;
+			}
+			catch (OperationCanceledException)
+			{
 
-        public override void Stop()
-        {
-            _cts.Cancel();
-        }
-    }
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, @"下载直播回放出错");
+			}
+			finally
+			{
+				Speed = string.Empty;
+			}
+		}
+
+		public override void Stop()
+		{
+			_cts.Cancel();
+		}
+	}
 }

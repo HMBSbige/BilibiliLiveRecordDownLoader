@@ -1,12 +1,13 @@
-<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net5.0-windows10.0.19041.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <UseWPF>true</UseWPF>
     <ApplicationIcon>Resources\Asaki.ico</ApplicationIcon>
     <Version>1.0.5</Version>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,7 +16,7 @@
 
   <ItemGroup>
     <PackageReference Include="Hardcodet.NotifyIcon.Wpf.NetCore" Version="1.0.14" />
-    <PackageReference Include="HMBSbige.SingleInstance" Version="1.1.0" />
+    <PackageReference Include="HMBSbige.SingleInstance" Version="5.0.0" />
     <PackageReference Include="Microsoft-WindowsAPICodePack-Shell" Version="1.1.4" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="5.0.0" />
     <PackageReference Include="Microsoft.VisualStudio.Threading" Version="16.8.55" />
@@ -27,11 +28,11 @@
     <PackageReference Include="Serilog.Sinks.Async" Version="1.4.0" />
     <PackageReference Include="Serilog.Sinks.Debug" Version="1.0.1" Condition=" '$(Configuration)' == 'Debug' " />
     <PackageReference Include="Serilog.Sinks.File" Version="4.1.0" />
-    <PackageReference Include="Splat.Microsoft.Extensions.DependencyInjection" Version="9.6.1" />
-    <PackageReference Include="Syncfusion.SfBusyIndicator.WPF" Version="18.3.0.47" />
-    <PackageReference Include="Syncfusion.SfGrid.WPF" Version="18.3.0.47" />
-    <PackageReference Include="Syncfusion.SfProgressBar.WPF" Version="18.3.0.47" />
-    <PackageReference Include="Syncfusion.Themes.VisualStudio2015.WPF" Version="18.3.0.47" />
+    <PackageReference Include="Splat.Microsoft.Extensions.DependencyInjection" Version="9.7.1" />
+    <PackageReference Include="Syncfusion.SfBusyIndicator.WPF" Version="18.3.0.48" />
+    <PackageReference Include="Syncfusion.SfGrid.WPF" Version="18.3.0.48" />
+    <PackageReference Include="Syncfusion.SfProgressBar.WPF" Version="18.3.0.48" />
+    <PackageReference Include="Syncfusion.Themes.VisualStudio2015.WPF" Version="18.3.0.48" />
     <PackageReference Include="System.IO.FileSystem" Version="4.3.0" />
     <PackageReference Include="System.Text.Encoding.Extensions" Version="4.3.0" />
     <PackageReference Include="System.Threading.Timer" Version="4.3.0" />

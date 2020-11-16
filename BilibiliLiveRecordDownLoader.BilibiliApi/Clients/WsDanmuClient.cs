@@ -1,18 +1,18 @@
-﻿using BilibiliApi.Model.DanmuConf;
+using BilibiliApi.Model.DanmuConf;
 using Microsoft.Extensions.Logging;
 
 namespace BilibiliApi.Clients
 {
-    public class WsDanmuClient : WssDanmuClient
-    {
-        protected override string Server => $@"ws://{Host}:{Port}/sub";
-        protected override ushort DefaultPort => 2244;
+	public class WsDanmuClient : WssDanmuClient
+	{
+		protected override string Server => $@"ws://{Host}:{Port}/sub";
+		protected override ushort DefaultPort => 2244;
 
-        public WsDanmuClient(ILogger logger) : base(logger) { }
+		public WsDanmuClient(ILogger logger) : base(logger) { }
 
-        protected override ushort GetPort(HostServerList server)
-        {
-            return server.ws_port;
-        }
-    }
+		protected override ushort GetPort(HostServerList server)
+		{
+			return server.ws_port;
+		}
+	}
 }

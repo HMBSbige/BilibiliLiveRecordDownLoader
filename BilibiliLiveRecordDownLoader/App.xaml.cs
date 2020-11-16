@@ -1,4 +1,4 @@
-﻿using BilibiliLiveRecordDownLoader.FlvProcessor.Clients;
+using BilibiliLiveRecordDownLoader.FlvProcessor.Clients;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
 using BilibiliLiveRecordDownLoader.Http.DownLoaders;
 using BilibiliLiveRecordDownLoader.Interfaces;
@@ -20,109 +20,107 @@ using System.Windows;
 
 namespace BilibiliLiveRecordDownLoader
 {
-    public partial class App
-    {
-        private static int _exited;
+	public partial class App
+	{
+		private static int _exited;
 
-        public SubjectMemorySink SubjectMemorySink { get; } = new SubjectMemorySink(Constants.OutputTemplate);
+		private void Application_Startup(object sender, StartupEventArgs e)
+		{
+			Directory.SetCurrentDirectory(Path.GetDirectoryName(Utils.Utils.GetExecutablePath())!);
+			var identifier = $@"Global\{nameof(BilibiliLiveRecordDownLoader)}";
 
-        private void Application_Startup(object sender, StartupEventArgs e)
-        {
-            Directory.SetCurrentDirectory(Path.GetDirectoryName(Utils.Utils.GetExecutablePath()));
-            var identifier = $@"Global\{nameof(BilibiliLiveRecordDownLoader)}";
+			var singleInstance = new SingleInstance.SingleInstance(identifier);
+			if (!singleInstance.IsFirstInstance)
+			{
+				singleInstance.PassArgumentsToFirstInstance(e.Args.Append(Constants.ParameterShow));
+				Current.Shutdown();
+				return;
+			}
 
-            var singleInstance = new SingleInstance.SingleInstance(identifier);
-            if (!singleInstance.IsFirstInstance)
-            {
-                singleInstance.PassArgumentsToFirstInstance(e.Args.Append(Constants.ParameterShow));
-                Current.Shutdown();
-                return;
-            }
+			singleInstance.ArgumentsReceived.ObserveOnDispatcher().Subscribe(SingleInstance_ArgumentsReceived);
+			singleInstance.ListenForArgumentsFromSuccessiveInstances();
 
-            singleInstance.ArgumentsReceived.ObserveOnDispatcher().Subscribe(SingleInstance_ArgumentsReceived);
-            singleInstance.ListenForArgumentsFromSuccessiveInstances();
+			Current.Events().Exit.Subscribe(_ =>
+			{
+				singleInstance.Dispose();
+				Log.CloseAndFlush();
+			});
+			Current.Events().DispatcherUnhandledException.Subscribe(args =>
+			{
+				try
+				{
+					if (Interlocked.Increment(ref _exited) != 1)
+					{
+						return;
+					}
 
-            Current.Events().Exit.Subscribe(args =>
-            {
-                singleInstance.Dispose();
-                Log.CloseAndFlush();
-            });
-            Current.Events().DispatcherUnhandledException.Subscribe(args =>
-            {
-                try
-                {
-                    if (Interlocked.Increment(ref _exited) != 1)
-                    {
-                        return;
-                    }
+					var exStr = $@"未捕获异常：{args.Exception}";
 
-                    var exStr = $@"未捕获异常：{args.Exception}";
+					Log.Fatal(args.Exception, @"未捕获异常");
+					MessageBox.Show(exStr, nameof(BilibiliLiveRecordDownLoader), MessageBoxButton.OK, MessageBoxImage.Error);
 
-                    Log.Fatal(args.Exception, @"未捕获异常");
-                    MessageBox.Show(exStr, nameof(BilibiliLiveRecordDownLoader), MessageBoxButton.OK, MessageBoxImage.Error);
+					Current.Shutdown();
+				}
+				finally
+				{
+					singleInstance.Dispose();
+					Log.CloseAndFlush();
+				}
+			});
 
-                    Current.Shutdown();
-                }
-                finally
-                {
-                    singleInstance.Dispose();
-                    Log.CloseAndFlush();
-                }
-            });
+			Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(@"##SyncfusionLicense##");
 
-            Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(@"##SyncfusionLicense##");
+			Register();
 
-            Register();
+			MainWindow = Locator.Current.GetService<Window>();
+			MainWindow.ShowWindow();
+		}
 
-            MainWindow = Locator.Current.GetService<MainWindow>();
-            MainWindow.ShowWindow();
-        }
+		private void SingleInstance_ArgumentsReceived(IEnumerable<string> args)
+		{
+			if (args.Contains(Constants.ParameterShow))
+			{
+				MainWindow?.ShowWindow();
+			}
+		}
 
-        private void SingleInstance_ArgumentsReceived(IEnumerable<string> args)
-        {
-            if (args.Contains(Constants.ParameterShow))
-            {
-                MainWindow?.ShowWindow();
-            }
-        }
+		private static void ConfigureServices(IServiceCollection services)
+		{
+			services.AddSingleton(typeof(Window), typeof(MainWindow));
+			services.AddSingleton(typeof(IConfigService), typeof(ConfigService));
+			services.AddTransient(typeof(IDownloader), typeof(MultiThreadedDownloader));
+			services.AddTransient(typeof(IFlvMerger), typeof(FlvMerger));
+			services.AddLogging(c => c.AddSerilog());
+		}
 
-        private void ConfigureServices(IServiceCollection services)
-        {
-            services.AddSingleton<MainWindow>();
-            services.AddSingleton(typeof(IConfigService), typeof(ConfigService));
-            services.AddTransient(typeof(IDownloader), typeof(MultiThreadedDownloader));
-            services.AddTransient(typeof(IFlvMerger), typeof(FlvMerger));
-            services.AddLogging(c => c.AddSerilog());
-        }
-
-        private void Register()
-        {
-            Log.Logger = new LoggerConfiguration()
+		private static void Register()
+		{
+			Log.Logger = new LoggerConfiguration()
 #if DEBUG
-                .MinimumLevel.Debug()
-                .WriteTo.Debug(outputTemplate: Constants.OutputTemplate)
+				.MinimumLevel.Debug()
+				.WriteTo.Debug(outputTemplate: Constants.OutputTemplate)
 #else
-                .MinimumLevel.Information()
+				.MinimumLevel.Information()
 #endif
-                .MinimumLevel.Override(@"Microsoft", LogEventLevel.Information)
-                .Enrich.FromLogContext()
-                .WriteTo.Async(c => c.File(Constants.LogFile,
-                        outputTemplate: Constants.OutputTemplate,
-                        rollingInterval: RollingInterval.Day,
-                        fileSizeLimitBytes: Constants.MaxLogFileSize))
-                .WriteTo.Sink(SubjectMemorySink)
-                .CreateLogger();
+				.MinimumLevel.Override(@"Microsoft", LogEventLevel.Information)
+				.Enrich.FromLogContext()
+				.WriteTo.Async(c => c.File(Constants.LogFile,
+						outputTemplate: Constants.OutputTemplate,
+						rollingInterval: RollingInterval.Day,
+						fileSizeLimitBytes: Constants.MaxLogFileSize))
+				.WriteTo.Sink(Constants.SubjectMemorySink)
+				.CreateLogger();
 
-            var services = new ServiceCollection();
+			var services = new ServiceCollection();
 
-            services.UseMicrosoftDependencyResolver();
-            Locator.CurrentMutable.InitializeSplat();
-            Locator.CurrentMutable.InitializeReactiveUI();
+			services.UseMicrosoftDependencyResolver();
+			Locator.CurrentMutable.InitializeSplat();
+			Locator.CurrentMutable.InitializeReactiveUI();
 
-            ConfigureServices(services);
+			ConfigureServices(services);
 
-            var container = services.BuildServiceProvider();
-            container.UseMicrosoftDependencyResolver();
-        }
-    }
+			var container = services.BuildServiceProvider();
+			container.UseMicrosoftDependencyResolver();
+		}
+	}
 }
