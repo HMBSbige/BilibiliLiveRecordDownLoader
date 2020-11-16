@@ -11,6 +11,7 @@ using ModernWpf.Controls;
 using Punchclock;
 using ReactiveUI;
 using System;
+using System.Collections;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
@@ -220,7 +221,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			StopTaskCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(StopTask);
 		}
 
-		private async Task InitAsync()
+		private async ValueTask InitAsync()
 		{
 			await ConfigService.LoadAsync(default);
 			if (ConfigService.Config.IsCheckUpdateOnStart)
@@ -488,15 +489,17 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			{
 				try
 				{
-					//if (info is IList { Count: > 0 } list)
-					//{
-					//
-					//}
-					if (info is LiveRecordListViewModel { Rid: not @"" or null } liveRecord)
+					if (info is IList { Count: > 0 } list)
 					{
-						var root = Path.Combine(ConfigService.Config.MainDir, $@"{RoomId}", @"Replay");
-						var task = new LiveRecordDownloadTaskViewModel(_logger, liveRecord, root, ConfigService.Config.DownloadThreads);
-						AddTask(task);
+						foreach (var item in list)
+						{
+							if (item is LiveRecordListViewModel { Rid: not @"" or null } liveRecord)
+							{
+								var root = Path.Combine(ConfigService.Config.MainDir, $@"{RoomId}", @"Replay");
+								var task = new LiveRecordDownloadTaskViewModel(_logger, liveRecord, root, ConfigService.Config.DownloadThreads);
+								AddTask(task);
+							}
+						}
 					}
 				}
 				catch (Exception ex)
@@ -523,9 +526,15 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			{
 				try
 				{
-					if (info is TaskListViewModel task)
+					if (info is IList { Count: > 0 } list)
 					{
-						task.Stop();
+						foreach (var item in list)
+						{
+							if (item is TaskListViewModel task)
+							{
+								task.Stop();
+							}
+						}
 					}
 				}
 				catch (Exception ex)

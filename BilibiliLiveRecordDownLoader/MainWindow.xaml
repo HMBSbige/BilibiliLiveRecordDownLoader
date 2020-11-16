@@ -104,7 +104,7 @@
                         CanUserSortColumns="True"
                         CanUserReorderColumns="True"
                         
-                        SelectionMode="Single"
+                        SelectionMode="Extended"
                         SelectionUnit="FullRow"
                         
                         d:DataContext="{d:DesignInstance viewModels:LiveRecordListViewModel}"
@@ -123,7 +123,7 @@
                         <DataGrid.ContextMenu>
                             <ContextMenu>
                                 <MenuItem x:Name="DownLoadMenuItem" Header="加入下载队列"
-                                          CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItem)}"
+                                          CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItems)}"
                                           />
                                 <MenuItem x:Name="CopyLiveRecordDownloadUrlMenuItem" Header="复制下载地址"
                                           CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItem)}"
@@ -187,7 +187,7 @@
                     CanUserSortColumns="True"
                     CanUserReorderColumns="True"
 
-                    SelectionMode="Single"
+                    SelectionMode="Extended"
                     SelectionUnit="FullRow"
 
                     d:DataContext="{d:DesignInstance viewModels:TaskListViewModel}"
@@ -206,7 +206,7 @@
                     <DataGrid.ContextMenu>
                         <ContextMenu>
                             <MenuItem x:Name="StopTaskMenuItem" Header="停止任务"
-                                      CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItem)}"
+                                      CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItems)}"
                             />
                         </ContextMenu>
                     </DataGrid.ContextMenu>
