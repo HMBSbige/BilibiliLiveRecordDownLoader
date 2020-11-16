@@ -141,37 +141,105 @@
                         <DataGrid.Columns>
                             <DataGridTextColumn
                                 Header="视频 Id"
-                                Binding="{Binding Rid}" />
+                                Binding="{Binding Rid, Mode=OneWay}" />
                             <DataGridTextColumn
                                 Header="标题"
-                                Binding="{Binding Title}" />
+                                Binding="{Binding Title, Mode=OneWay}" />
                             <DataGridTextColumn
                                 Header="分区名"
-                                Binding="{Binding AreaName}" />
+                                Binding="{Binding AreaName, Mode=OneWay}" />
                             <DataGridTextColumn
                                 Header="主分区名"
-                                Binding="{Binding ParentAreaName}" />
+                                Binding="{Binding ParentAreaName, Mode=OneWay}" />
                             <DataGridTextColumn
                                 Header="开始时间"
-                                Binding="{Binding StartTime,StringFormat={}{0:yyyy年MM月dd日 H:mm:ss}}" />
+                                Binding="{Binding StartTime, StringFormat={}{0:yyyy年MM月dd日 H:mm:ss}, Mode=OneWay}" />
                             <DataGridTextColumn
                                 Header="结束时间"
-                                Binding="{Binding EndTime,StringFormat={}{0:yyyy年MM月dd日 H:mm:ss}}" />
+                                Binding="{Binding EndTime, StringFormat={}{0:yyyy年MM月dd日 H:mm:ss}, Mode=OneWay}" />
                             <DataGridTextColumn
                                 Header="人气峰值"
-                                Binding="{Binding Online}" />
+                                Binding="{Binding Online, Mode=OneWay}" />
                             <DataGridTextColumn
                                 Header="弹幕数"
-                                Binding="{Binding DanmuNum}" />
+                                Binding="{Binding DanmuNum, Mode=OneWay}" />
                             <DataGridTextColumn
                                 Header="视频长度"
-                                Binding="{Binding Length,StringFormat={}{0:h':'mm':'ss}}" />
+                                Binding="{Binding Length, StringFormat={}{0:h':'mm':'ss}, Mode=OneWay}" />
                         </DataGrid.Columns>
                     </DataGrid>
                 </DockPanel>
             </TabItem>
             <TabItem Header="任务列表">
+                <DataGrid
+                    x:Name="TaskListDataGrid"
+                    AutoGenerateColumns="False"
+                    HeadersVisibility="Column"
+                    IsReadOnly="True"
+                    GridLinesVisibility="All"
 
+                    VirtualizingPanel.VirtualizationMode="Recycling"
+                    EnableColumnVirtualization="True"
+                    EnableRowVirtualization="False"
+
+                    CanUserResizeColumns="True"
+                    CanUserResizeRows="False"
+                    CanUserSortColumns="True"
+                    CanUserReorderColumns="True"
+
+                    SelectionMode="Single"
+                    SelectionUnit="FullRow"
+
+                    d:DataContext="{d:DesignInstance viewModels:TaskListViewModel}"
+                    >
+                    <DataGrid.CellStyle>
+                        <Style TargetType="DataGridCell">
+                            <Style.Triggers>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="BorderThickness" Value="0" />
+                                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                    <Setter Property="Background" Value="{x:Null}" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.CellStyle>
+                    <DataGrid.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem x:Name="StopTaskMenuItem" Header="停止任务"
+                                      CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItem)}"
+                            />
+                        </ContextMenu>
+                    </DataGrid.ContextMenu>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn
+                            Header="任务描述"
+                            Binding="{Binding Description, Mode=OneWay}" />
+                        <DataGridTextColumn
+                            Header="速度"
+                            Binding="{Binding Speed, Mode=OneWay}" />
+                        <DataGridTextColumn
+                            Header="状态"
+                            Binding="{Binding Status, Mode=OneWay}" />
+                        <DataGridTemplateColumn Header="进度" Width="*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <ui:ProgressBar x:Name="progressBar"
+                                                        Background="Transparent"
+                                                        Minimum="0" Maximum="1"
+                                                        Height="30"
+                                                        Value="{Binding Progress, Mode=OneWay}" />
+                                        <TextBlock
+                                            Text="{Binding Progress, Mode=OneWay, StringFormat={}{0:P2}}"
+                                            HorizontalAlignment="Center"
+                                            Foreground="Black"
+                                            VerticalAlignment="Center" TextAlignment="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
             </TabItem>
             <TabItem Header="日志">
                 <TextBox x:Name="LogTextBox"
