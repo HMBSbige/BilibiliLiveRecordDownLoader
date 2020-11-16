@@ -5,6 +5,7 @@ using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
 using Microsoft.Extensions.DependencyInjection;
+using ModernWpf;
 using ReactiveUI;
 using Serilog;
 using Serilog.Events;
@@ -68,7 +69,7 @@ namespace BilibiliLiveRecordDownLoader
 				}
 			});
 
-			Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(@"##SyncfusionLicense##");
+			ThemeManager.Current.ApplicationTheme = null;
 
 			Register();
 

@@ -7,21 +7,15 @@
     xmlns:viewModels="clr-namespace:BilibiliLiveRecordDownLoader.ViewModels"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:Syncfusion="http://schemas.syncfusion.com/wpf"
     xmlns:tb="http://www.hardcodet.net/taskbar"
-    xmlns:sfSkinManager="clr-namespace:Syncfusion.SfSkinManager;assembly=Syncfusion.SfSkinManager.WPF"
-    xmlns:system="clr-namespace:System;assembly=System.Runtime"
+    xmlns:ui="http://schemas.modernwpf.com/2019"
     mc:Ignorable="d"
     x:Name="Window"
     WindowStartupLocation="CenterScreen"
     Title="BilibiliLiveRecordDownLoader"
-    MinHeight="600" MinWidth="800"
     Height="700" Width="1200"
-    sfSkinManager:SfSkinManager.VisualStyle="VisualStudio2015"
+    ui:WindowHelper.UseModernWindowStyle="True"
     >
-    <Window.Resources>
-        <system:Double x:Key="MenuItemFontSize">14</system:Double>
-    </Window.Resources>
     <Grid>
         <tb:TaskbarIcon x:Name="NotifyIcon"
                         Visibility="Visible"
@@ -30,16 +24,15 @@
                         MenuActivation="RightClick"
                         >
             <tb:TaskbarIcon.ContextMenu>
-                <ContextMenu sfSkinManager:SfSkinManager.VisualStyle="VisualStudio2015"
-                             FontSize="{StaticResource MenuItemFontSize}">
-                    <MenuItem x:Name="ShowMenuItem" Header="显示主窗口(_S)" FocusVisualStyle="{x:Null}"/>
-                    <MenuItem x:Name="ExitMenuItem" Header="退出(_X)" FocusVisualStyle="{x:Null}" />
+                <ContextMenu>
+                    <MenuItem x:Name="ShowMenuItem" Header="显示主窗口(_S)" />
+                    <MenuItem x:Name="ExitMenuItem" Header="退出(_X)" />
                 </ContextMenu>
             </tb:TaskbarIcon.ContextMenu>
         </tb:TaskbarIcon>
-        <TabControl FontSize="14">
+        <TabControl TabStripPlacement="Left">
             <TabItem Header="直播回放">
-                <DockPanel>
+                <DockPanel Margin="20,0,20,20">
                     <Grid Margin="5" DockPanel.Dock="Top">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -58,7 +51,6 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition />
                             <ColumnDefinition />
-                            <ColumnDefinition Width="100"/>
                             <ColumnDefinition Width="100"/>
                         </Grid.ColumnDefinitions>
                         <Image Grid.RowSpan="3" x:Name="FaceImage"
@@ -88,171 +80,213 @@
                                    FontSize="16" />
 
                         <Grid Grid.Row="0" Grid.Column="3" Grid.RowSpan="3">
-                            <Syncfusion:SfBusyIndicator
+                            <ui:ProgressRing
                                 x:Name="LiveRecordBusyIndicator"
-                                Background="Transparent"
-                                d:IsBusy="True"
-                                Header="加载中..." AnimationType="DoubleRing" />
-                        </Grid>
-
-                        <Grid Grid.Row="0" Grid.Column="4" Grid.RowSpan="3">
-                            <Syncfusion:SfBusyIndicator
-                                Background="Transparent"
-                                IsBusy="True"
-                                Header="运行中..." AnimationType="Clock" />
+                                d:IsActive="True"
+                                Height="50"
+                                Width="50"
+                                />
                         </Grid>
                     </Grid>
-                    <Syncfusion:SfDataGrid
-                                FontFamily="Microsoft YaHei UI"
-                                x:Name="LiveRecordListDataGrid"
-                                ColumnSizer="Auto"
-                                AutoGenerateColumns="False"
-                                RowSelectionBrush="LightGray"
-                                CurrentCellBorderBrush="Transparent"
-                                CurrentCellBorderThickness="2"
-                                BorderThickness="1,1,1,0"
-
-                                AllowResizingHiddenColumns="True"
-                                SelectionUnit="Row" SelectionMode="Single"
-                                AllowEditing="False" AddNewRowPosition="None"
-                                AllowResizingColumns="True"
-                                AllowDeleting="False"
-                                AllowDraggingRows="False" AllowDraggingColumns="True" AllowDrop="False"
-                                AllowGrouping="False" ShowGroupDropArea="False"
-                                AllowSorting="True" AllowFiltering="False" ShowSortNumbers="True"
-                                ShowToolTip="True"
-                                ShowRowHeader="False"
-
-                                EnableDataVirtualization="True"
-                                ScrollMode="None" CanMaintainScrollPosition="True" ShowBusyIndicator="True"
-                    >
-                        <Syncfusion:SfDataGrid.RecordContextMenu>
+                    <DataGrid
+                        x:Name="LiveRecordListDataGrid"
+                        AutoGenerateColumns="False"
+                        HeadersVisibility="Column"
+                        IsReadOnly="True"
+                        GridLinesVisibility="All"
+                        
+                        VirtualizingPanel.VirtualizationMode="Recycling"
+                        EnableColumnVirtualization="True"
+                        EnableRowVirtualization="False"
+                        
+                        CanUserResizeColumns="True"
+                        CanUserResizeRows="False"
+                        CanUserSortColumns="True"
+                        CanUserReorderColumns="True"
+                        
+                        SelectionMode="Single"
+                        SelectionUnit="FullRow"
+                        
+                        d:DataContext="{d:DesignInstance viewModels:LiveRecordListViewModel}"
+                        >
+                        <DataGrid.CellStyle>
+                            <Style TargetType="DataGridCell">
+                                <Style.Triggers>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter Property="BorderThickness" Value="0" />
+                                        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                        <Setter Property="Background" Value="{x:Null}" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.CellStyle>
+                        <DataGrid.ContextMenu>
                             <ContextMenu>
-                                <MenuItem x:Name="DownLoadMenuItem" Header="加入下载队列" CommandParameter="{Binding }" />
-                                <MenuItem x:Name="CopyLiveRecordDownloadUrlMenuItem" Header="复制下载地址" CommandParameter="{Binding }" />
+                                <MenuItem x:Name="DownLoadMenuItem" Header="加入下载队列"
+                                          CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItem)}"
+                                          />
+                                <MenuItem x:Name="CopyLiveRecordDownloadUrlMenuItem" Header="复制下载地址"
+                                          CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItem)}"
+                                          />
                                 <Separator />
-                                <MenuItem x:Name="OpenDirMenuItem" Header="打开目录" CommandParameter="{Binding }" />
-                                <MenuItem x:Name="OpenLiveRecordUrlMenuItem" Header="打开回放地址" CommandParameter="{Binding }" />
+                                <MenuItem x:Name="OpenDirMenuItem" Header="打开目录"
+                                          CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItem)}"
+                                          />
+                                <MenuItem x:Name="OpenLiveRecordUrlMenuItem"
+                                          Header="打开回放地址"
+                                          CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItem)}"
+                                            />
                             </ContextMenu>
-                        </Syncfusion:SfDataGrid.RecordContextMenu>
-
-                        <Syncfusion:SfDataGrid.Columns>
-                            <Syncfusion:GridTextColumn MappingName="Rid" HeaderText="视频 Id" />
-                            <Syncfusion:GridTextColumn MappingName="Title" HeaderText="标题" />
-                            <Syncfusion:GridTextColumn MappingName="AreaName" HeaderText="分区名" />
-                            <Syncfusion:GridTextColumn MappingName="ParentAreaName" HeaderText="主分区名" />
-
-                            <Syncfusion:GridDateTimeColumn MappingName="StartTime" HeaderText="开始时间"
-                                                           AllowNullValue="True" Pattern="FullDateTime" />
-
-                            <Syncfusion:GridDateTimeColumn MappingName="EndTime" HeaderText="结束时间"
-                                                           AllowNullValue="True" Pattern="FullDateTime" />
-
-                            <Syncfusion:GridNumericColumn MappingName="Online" HeaderText="人气峰值" NumberDecimalDigits="0" TextAlignment="Left" />
-                            <Syncfusion:GridNumericColumn MappingName="DanmuNum" HeaderText="弹幕数" NumberDecimalDigits="0" TextAlignment="Left" />
-
-                            <Syncfusion:GridTimeSpanColumn MappingName="Length" HeaderText="视频长度" Format="h:m:s" />
-
-                        </Syncfusion:SfDataGrid.Columns>
-
-                    </Syncfusion:SfDataGrid>
+                        </DataGrid.ContextMenu>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn
+                                Header="视频 Id"
+                                Binding="{Binding Rid, Mode=OneWay}" />
+                            <DataGridTextColumn
+                                Header="标题"
+                                Binding="{Binding Title, Mode=OneWay}" />
+                            <DataGridTextColumn
+                                Header="分区名"
+                                Binding="{Binding AreaName, Mode=OneWay}" />
+                            <DataGridTextColumn
+                                Header="主分区名"
+                                Binding="{Binding ParentAreaName, Mode=OneWay}" />
+                            <DataGridTextColumn
+                                Header="开始时间"
+                                Binding="{Binding StartTime, StringFormat={}{0:yyyy年MM月dd日 H:mm:ss}, Mode=OneWay}" />
+                            <DataGridTextColumn
+                                Header="结束时间"
+                                Binding="{Binding EndTime, StringFormat={}{0:yyyy年MM月dd日 H:mm:ss}, Mode=OneWay}" />
+                            <DataGridTextColumn
+                                Header="人气峰值"
+                                Binding="{Binding Online, Mode=OneWay}" />
+                            <DataGridTextColumn
+                                Header="弹幕数"
+                                Binding="{Binding DanmuNum, Mode=OneWay}" />
+                            <DataGridTextColumn
+                                Header="视频长度"
+                                Binding="{Binding Length, StringFormat={}{0:h':'mm':'ss}, Mode=OneWay}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
                 </DockPanel>
             </TabItem>
             <TabItem Header="任务列表">
-                <Syncfusion:SfDataGrid
-                    FontFamily="Microsoft YaHei UI"
+                <DataGrid
                     x:Name="TaskListDataGrid"
-                    ColumnSizer="AutoWithLastColumnFill"
                     AutoGenerateColumns="False"
-                    RowSelectionBrush="LightGray"
-                    CurrentCellBorderBrush="Transparent"
-                    CurrentCellBorderThickness="2"
-                    BorderThickness="1,1,1,0"
+                    HeadersVisibility="Column"
+                    IsReadOnly="True"
+                    GridLinesVisibility="All"
 
-                    AllowResizingHiddenColumns="True"
-                    SelectionUnit="Row" SelectionMode="Single"
-                    AllowEditing="False" AddNewRowPosition="None"
-                    AllowResizingColumns="True"
-                    AllowDeleting="False"
-                    AllowDraggingRows="False" AllowDraggingColumns="True" AllowDrop="False"
-                    AllowGrouping="False" ShowGroupDropArea="False"
-                    AllowSorting="True" AllowFiltering="False" ShowSortNumbers="True"
-                    ShowToolTip="True"
-                    ShowRowHeader="False"
+                    VirtualizingPanel.VirtualizationMode="Recycling"
+                    EnableColumnVirtualization="True"
+                    EnableRowVirtualization="False"
 
-                    EnableDataVirtualization="True"
-                    ScrollMode="None" CanMaintainScrollPosition="True" ShowBusyIndicator="True">
-                    
-                    <Syncfusion:SfDataGrid.RecordContextMenu>
+                    CanUserResizeColumns="True"
+                    CanUserResizeRows="False"
+                    CanUserSortColumns="True"
+                    CanUserReorderColumns="True"
+
+                    SelectionMode="Single"
+                    SelectionUnit="FullRow"
+
+                    d:DataContext="{d:DesignInstance viewModels:TaskListViewModel}"
+                    >
+                    <DataGrid.CellStyle>
+                        <Style TargetType="DataGridCell">
+                            <Style.Triggers>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="BorderThickness" Value="0" />
+                                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                                    <Setter Property="Background" Value="{x:Null}" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.CellStyle>
+                    <DataGrid.ContextMenu>
                         <ContextMenu>
-                            <MenuItem x:Name="StopTaskMenuItem" Header="停止任务" CommandParameter="{Binding }" />
+                            <MenuItem x:Name="StopTaskMenuItem" Header="停止任务"
+                                      CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItem)}"
+                            />
                         </ContextMenu>
-                    </Syncfusion:SfDataGrid.RecordContextMenu>
-                    
-                    <Syncfusion:SfDataGrid.Columns>
-
-                        <Syncfusion:GridTextColumn MappingName="Description" HeaderText="任务描述" />
-                        <Syncfusion:GridTextColumn MappingName="Speed" HeaderText="速度" />
-
-                        <Syncfusion:GridTemplateColumn MappingName="Progress" HeaderText="进度">
-                            <Syncfusion:GridTemplateColumn.CellTemplate>
+                    </DataGrid.ContextMenu>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn
+                            Header="任务描述"
+                            Binding="{Binding Description, Mode=OneWay}" />
+                        <DataGridTextColumn
+                            Header="速度"
+                            Binding="{Binding Speed, Mode=OneWay}" />
+                        <DataGridTextColumn
+                            Header="状态"
+                            Binding="{Binding Status, Mode=OneWay}" />
+                        <DataGridTemplateColumn Header="进度" Width="*">
+                            <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <Grid Margin="-1">
-                                        <ProgressBar x:Name="progressBar" Background="Transparent" Minimum="0"
-                                                     Maximum="1" BorderThickness="0"
-                                                     Value="{Binding Path=Progress, Mode=OneWay,UpdateSourceTrigger=PropertyChanged}" />
+                                    <Grid>
+                                        <ui:ProgressBar x:Name="progressBar"
+                                                        Background="Transparent"
+                                                        Minimum="0" Maximum="1"
+                                                        Height="30"
+                                                        Value="{Binding Progress, Mode=OneWay}" />
                                         <TextBlock
-                                            Text="{Binding Path=Progress, Mode=OneWay,UpdateSourceTrigger=PropertyChanged ,StringFormat={}{0:P2} }"
+                                            Text="{Binding Progress, Mode=OneWay, StringFormat={}{0:P2}}"
                                             HorizontalAlignment="Center"
                                             Foreground="Black"
                                             VerticalAlignment="Center" TextAlignment="Center" />
                                     </Grid>
                                 </DataTemplate>
-                            </Syncfusion:GridTemplateColumn.CellTemplate>
-                        </Syncfusion:GridTemplateColumn>
-
-                        <Syncfusion:GridTextColumn MappingName="Status" HeaderText="状态" />
-
-                    </Syncfusion:SfDataGrid.Columns>
-                </Syncfusion:SfDataGrid>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
             </TabItem>
             <TabItem Header="日志">
-                <TextBox x:Name="LogTextBox" IsReadOnly="True" Opacity="1" d:Text="日志&#13;LogTextBox"
+                <TextBox x:Name="LogTextBox"
+                         IsReadOnly="True"
+                         d:Text="日志&#13;LogTextBox"
                          VerticalContentAlignment="Top"
                          HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
             </TabItem>
             <TabItem Header="设置">
-                <StackPanel>
-                    <GroupBox Header="根目录" Margin="3">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition />
-                                <RowDefinition />
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBox x:Name="MainDirTextBox" Grid.Row="0" Grid.Column="0" IsReadOnly="True" Margin="3" VerticalContentAlignment="Center" d:Text="D:\Video" Opacity="1"/>
-                            <Grid Grid.Row="1" Grid.Column="0" Margin="3">
-                                <Syncfusion:SfLinearProgressBar x:Name="DiskUsageProgressBar" d:Progress="68" Height="23.5" IndicatorPadding="3" />
-                                <TextBlock x:Name="DiskUsageProgressBarTextBlock" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <ScrollViewer>
+                    <ui:SimpleStackPanel
+                        Margin="20,0,20,20"
+                        Spacing="0">
+                        <GroupBox Header="根目录">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition />
+                                    <RowDefinition />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="MainDirTextBox" Grid.Row="0" Grid.Column="0" IsReadOnly="True" Margin="3" VerticalContentAlignment="Center" d:Text="D:\Video" />
+                                <Grid Grid.Row="1" Grid.Column="0" Margin="3">
+                                    <ui:ProgressBar x:Name="DiskUsageProgressBar" Height="30" d:Value="68" />
+                                    <TextBlock x:Name="DiskUsageProgressBarTextBlock"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               d:Text="114514 TB/1919810 TB"/>
+                                </Grid>
+                                <Button x:Name="SelectMainDirButton" Grid.Row="0" Grid.Column="1" Content="选择目录" Margin="3" Padding="3" />
+                                <Button x:Name="OpenMainDirButton" Grid.Row="1" Grid.Column="1" Content="打开目录" Margin="3" Padding="3" />
                             </Grid>
-                            <Button x:Name="SelectMainDirButton" Grid.Row="0" Grid.Column="1" Content="选择目录" Margin="3" Padding="3" />
-                            <Button x:Name="OpenMainDirButton" Grid.Row="1" Grid.Column="1" Content="打开目录" Margin="3" Padding="3" />
-                        </Grid>
-                    </GroupBox>
-                    <GroupBox Header="下载设置" Margin="3">
-                        <Grid Margin="5">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="30" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="单个文件下载线程数：" VerticalAlignment="Center" />
-                            <Syncfusion:IntegerTextBox Grid.Column="1" x:Name="ThreadsTextBox" MinValue="1" MaxValue="128" NullValue="8" UseNullOption="True" />
-                        </Grid>
-                    </GroupBox>
-                </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="下载设置"
+                                  HorizontalAlignment="Left">
+                            <ui:NumberBox x:Name="ThreadsTextBox"
+                                          Header="单个文件下载线程数："
+                                          Maximum="128"
+                                          Minimum="1"
+                                          SpinButtonPlacementMode="Compact"
+                                          PlaceholderText="8"
+                                          SmallChange="1"
+                                          LargeChange="10" />
+                        </GroupBox>
+                    </ui:SimpleStackPanel>
+                </ScrollViewer>
             </TabItem>
         </TabControl>
     </Grid>

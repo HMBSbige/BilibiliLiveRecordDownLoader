@@ -1,6 +1,5 @@
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Utils;
-using BilibiliLiveRecordDownLoader.Views;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using System;
@@ -53,7 +52,7 @@ namespace BilibiliLiveRecordDownLoader
 
 				this.OneWayBind(ViewModel, vm => vm.DiskUsageProgressBarText, v => v.DiskUsageProgressBarTextBlock.Text).DisposeWith(d);
 
-				this.OneWayBind(ViewModel, vm => vm.DiskUsageProgressBarValue, v => v.DiskUsageProgressBar.Progress).DisposeWith(d);
+				this.OneWayBind(ViewModel, vm => vm.DiskUsageProgressBarValue, v => v.DiskUsageProgressBar.Value).DisposeWith(d);
 
 				this.OneWayBind(ViewModel, vm => vm.DiskUsageProgressBarValue, v => v.DiskUsageProgressBar.Foreground,
 								p => p > 90
@@ -64,13 +63,12 @@ namespace BilibiliLiveRecordDownLoader
 
 				this.BindCommand(ViewModel, viewModel => viewModel.OpenMainDirCommand, view => view.OpenMainDirButton).DisposeWith(d);
 
-				this.OneWayBind(ViewModel, vm => vm.LiveRecordList, v => v.LiveRecordListDataGrid.ItemsSource).DisposeWith(d);
-
 				this.OneWayBind(ViewModel, vm => vm.RoomId, v => v.RoomIdTextBlock.Text, i => $@"房间号: {i}").DisposeWith(d);
 				this.OneWayBind(ViewModel, vm => vm.ShortRoomId, v => v.ShortRoomIdTextBlock.Text, i => $@"短号: {i}").DisposeWith(d);
 				this.OneWayBind(ViewModel, vm => vm.RecordCount, v => v.RecordCountTextBlock.Text, i => $@"列表总数: {i}").DisposeWith(d);
-				this.OneWayBind(ViewModel, vm => vm.IsLiveRecordBusy, v => v.LiveRecordBusyIndicator.IsBusy).DisposeWith(d);
+				this.OneWayBind(ViewModel, vm => vm.IsLiveRecordBusy, v => v.LiveRecordBusyIndicator.IsActive).DisposeWith(d);
 
+				this.OneWayBind(ViewModel, vm => vm.LiveRecordList, v => v.LiveRecordListDataGrid.ItemsSource).DisposeWith(d);
 				this.BindCommand(ViewModel, vm => vm.CopyLiveRecordDownloadUrlCommand, v => v.CopyLiveRecordDownloadUrlMenuItem).DisposeWith(d);
 				this.BindCommand(ViewModel, vm => vm.OpenLiveRecordUrlCommand, v => v.OpenLiveRecordUrlMenuItem).DisposeWith(d);
 				this.BindCommand(ViewModel, vm => vm.DownLoadCommand, v => v.DownLoadMenuItem).DisposeWith(d);
@@ -88,7 +86,7 @@ namespace BilibiliLiveRecordDownLoader
 					vm => vm.ConfigService.Config.DownloadThreads,
 					v => v.ThreadsTextBox.Value,
 					x => x,
-					x => x.HasValue ? Convert.ToByte(x.Value) : (byte)8).DisposeWith(d);
+					Convert.ToByte).DisposeWith(d);
 
 				Observable.FromEventPattern(LogTextBox, nameof(LogTextBox.TextChanged)).Subscribe(_ =>
 				{
@@ -101,8 +99,6 @@ namespace BilibiliLiveRecordDownLoader
 				}).DisposeWith(d);
 
 				_logServices = CreateLogService();
-
-				LiveRecordListDataGrid.Events().Loaded.Subscribe(_ => LiveRecordListDataGrid.GridColumnSizer = new GridColumnSizerExt(LiveRecordListDataGrid)).DisposeWith(d);
 
 				#region CloseReasonHack
 
