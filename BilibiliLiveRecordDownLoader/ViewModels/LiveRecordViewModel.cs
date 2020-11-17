@@ -4,7 +4,7 @@ using System;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
-	public class LiveRecordListViewModel : ReactiveObject
+	public class LiveRecordViewModel : ReactiveObject
 	{
 		#region 字段
 
@@ -115,7 +115,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		#endregion
 
-		public LiveRecordListViewModel(LiveRecordList data)
+		public LiveRecordViewModel(LiveRecordList data)
 		{
 			CopyFrom(data);
 		}

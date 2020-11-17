@@ -108,7 +108,7 @@
                         SelectionMode="Extended"
                         SelectionUnit="FullRow"
                         
-                        d:DataContext="{d:DesignInstance viewModels:LiveRecordListViewModel}"
+                        d:DataContext="{d:DesignInstance viewModels:LiveRecordViewModel}"
                         >
                         <DataGrid.CellStyle>
                             <Style TargetType="DataGridCell">

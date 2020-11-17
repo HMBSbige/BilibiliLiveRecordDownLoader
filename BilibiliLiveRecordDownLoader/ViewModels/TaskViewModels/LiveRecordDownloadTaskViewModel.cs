@@ -18,12 +18,12 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels
 		private readonly ILogger _logger;
 
 		private readonly CancellationTokenSource _cts = new();
-		private readonly LiveRecordListViewModel _liveRecord;
+		private readonly LiveRecordViewModel _liveRecord;
 		private readonly string _path;
 		private readonly string _recordPath;
 		private readonly ushort _threadsCount;
 
-		public LiveRecordDownloadTaskViewModel(ILogger logger, LiveRecordListViewModel liveRecord, string path, ushort threadsCount)
+		public LiveRecordDownloadTaskViewModel(ILogger logger, LiveRecordViewModel liveRecord, string path, ushort threadsCount)
 		{
 			_logger = logger;
 			_liveRecord = liveRecord;

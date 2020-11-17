@@ -50,7 +50,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private readonly OperationQueue _liveRecordDownloadTaskQueue;
 		public readonly GlobalViewModel Global;
 
-		public readonly ReadOnlyObservableCollection<LiveRecordListViewModel> LiveRecordList;
+		public readonly ReadOnlyObservableCollection<LiveRecordViewModel> LiveRecordList;
 		public Config Config => _configService.Config;
 		private const long PageSize = 200;
 
@@ -84,7 +84,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					.Subscribe(GetDiskUsage);
 
 			_liveRecordSourceList.Connect()
-					.Transform(x => new LiveRecordListViewModel(x))
+					.Transform(x => new LiveRecordViewModel(x))
 					.ObserveOnDispatcher()
 					.Bind(out LiveRecordList)
 					.DisposeMany()
@@ -207,7 +207,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		{
 			try
 			{
-				if (info is LiveRecordListViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
+				if (info is LiveRecordViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
 				{
 					using var client = new BililiveApiClient();
 					var message = await client.GetLiveRecordUrlAsync(liveRecord.Rid);
@@ -235,7 +235,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			{
 				try
 				{
-					if (info is LiveRecordListViewModel { Rid: not @"" or null } liveRecord)
+					if (info is LiveRecordViewModel { Rid: not @"" or null } liveRecord)
 					{
 						Utils.Utils.OpenUrl($@"https://live.bilibili.com/record/{liveRecord.Rid}");
 					}
@@ -253,7 +253,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			{
 				try
 				{
-					if (info is LiveRecordListViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
+					if (info is LiveRecordViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
 					{
 						var root = Path.Combine(_configService.Config.MainDir, $@"{Global.RoomId}", Constants.LiveRecordPath);
 						var path = Path.Combine(root, liveRecord.Rid);
@@ -281,7 +281,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					{
 						foreach (var item in list)
 						{
-							if (item is LiveRecordListViewModel { Rid: not @"" or null } liveRecord)
+							if (item is LiveRecordViewModel { Rid: not @"" or null } liveRecord)
 							{
 								var root = Path.Combine(_configService.Config.MainDir, $@"{Global.RoomId}", Constants.LiveRecordPath);
 								var task = new LiveRecordDownloadTaskViewModel(_logger, liveRecord, root, _configService.Config.DownloadThreads);
