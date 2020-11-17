@@ -245,11 +245,7 @@
                 </DataGrid>
             </TabItem>
             <TabItem Header="日志">
-                <TextBox x:Name="LogTextBox"
-                         IsReadOnly="True"
-                         d:Text="日志&#13;LogTextBox"
-                         VerticalContentAlignment="Top"
-                         HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
+                <views:LogView />
             </TabItem>
             <TabItem Header="设置">
                 <views:SettingView />

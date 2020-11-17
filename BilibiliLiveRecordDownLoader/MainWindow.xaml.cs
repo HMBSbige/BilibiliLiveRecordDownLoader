@@ -1,10 +1,8 @@
-using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI;
 using Splat;
 using System;
 using System.Reactive.Disposables;
-using System.Reactive.Linq;
 using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Input;
@@ -19,7 +17,6 @@ namespace BilibiliLiveRecordDownLoader
 		{
 			InitializeComponent();
 			ViewModel = Locator.Current.GetService<MainWindowViewModel>();
-			var logServices = CreateLogService();
 
 			this.WhenActivated(d =>
 			{
@@ -64,17 +61,6 @@ namespace BilibiliLiveRecordDownLoader
 				this.OneWayBind(ViewModel, vm => vm.TaskList, v => v.TaskListDataGrid.ItemsSource).DisposeWith(d);
 				this.BindCommand(ViewModel, vm => vm.StopTaskCommand, v => v.StopTaskMenuItem).DisposeWith(d);
 				this.BindCommand(ViewModel, vm => vm.ClearAllTasksCommand, v => v.RemoveTaskMenuItem).DisposeWith(d);
-
-				Observable.FromEventPattern(LogTextBox, nameof(LogTextBox.TextChanged)).Subscribe(_ =>
-				{
-					if (LogTextBox.LineCount > 2000)
-					{
-						logServices.Dispose();
-						LogTextBox.Clear();
-						logServices = CreateLogService();
-					}
-				}).DisposeWith(d);
-				logServices.DisposeWith(d);
 
 				#region CloseReasonHack
 
@@ -149,12 +135,5 @@ namespace BilibiliLiveRecordDownLoader
 		}
 
 		#endregion
-
-		private IDisposable CreateLogService()
-		{
-			return Constants.SubjectMemorySink.LogSubject
-					.ObserveOnDispatcher()
-					.Subscribe(str => LogTextBox.AppendText(str));
-		}
 	}
 }
