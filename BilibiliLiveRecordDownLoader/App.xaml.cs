@@ -6,6 +6,7 @@ using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
+using BilibiliLiveRecordDownLoader.Views;
 using DynamicData;
 using Microsoft.Extensions.DependencyInjection;
 using ModernWpf;
@@ -98,6 +99,9 @@ namespace BilibiliLiveRecordDownLoader
 			services.AddSingleton<SourceList<TaskListViewModel>>();
 			services.AddSingleton(new OperationQueue(int.MaxValue));
 			services.AddSingleton<GlobalViewModel>();
+			services.AddSingleton(typeof(IScreen), typeof(MainScreen));
+			services.AddSingleton<SettingViewModel>();
+
 			services.AddTransient(typeof(IDownloader), typeof(MultiThreadedDownloader));
 			services.AddTransient(typeof(IFlvMerger), typeof(FlvMerger));
 			services.AddLogging(c => c.AddSerilog());

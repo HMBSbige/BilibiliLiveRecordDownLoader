@@ -7,7 +7,6 @@ using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels;
 using DynamicData;
 using Microsoft.Extensions.Logging;
-using Microsoft.WindowsAPICodePack.Dialogs;
 using ModernWpf.Controls;
 using Punchclock;
 using ReactiveUI;
@@ -21,7 +20,6 @@ using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using UpdateChecker;
 using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
@@ -37,8 +35,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		#region Command
 
-		public ReactiveCommand<Unit, Unit> SelectMainDirCommand { get; }
-		public ReactiveCommand<Unit, Unit> OpenMainDirCommand { get; }
 		public ReactiveCommand<object?, Unit> CopyLiveRecordDownloadUrlCommand { get; }
 		public ReactiveCommand<object?, Unit> OpenLiveRecordUrlCommand { get; }
 		public ReactiveCommand<object?, Unit> DownLoadCommand { get; }
@@ -46,7 +42,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		public ReactiveCommand<Unit, Unit> ShowWindowCommand { get; }
 		public ReactiveCommand<Unit, Unit> ExitCommand { get; }
 		public ReactiveCommand<object?, Unit> StopTaskCommand { get; }
-		public ReactiveCommand<Unit, Unit> CheckUpdateCommand { get; }
 		public ReactiveCommand<Unit, Unit> ClearAllTasksCommand { get; }
 
 		#endregion
@@ -78,9 +73,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			_liveRecordDownloadTaskQueue = taskQueue;
 			Global = global;
 
-			CheckUpdateCommand = ReactiveCommand.CreateFromTask(CheckUpdateAsync);
-			InitAsync().NoWarning();
-
 			_roomIdMonitor = this.WhenAnyValue(x => x._configService.Config.RoomId, x => x.Global.TriggerLiveRecordListQuery)
 					.Throttle(TimeSpan.FromMilliseconds(800), RxApp.MainThreadScheduler)
 					.DistinctUntilChanged()
@@ -108,8 +100,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					.DisposeMany()
 					.Subscribe();
 
-			SelectMainDirCommand = ReactiveCommand.Create(SelectDirectory);
-			OpenMainDirCommand = ReactiveCommand.CreateFromObservable(OpenDirectory);
 			CopyLiveRecordDownloadUrlCommand = ReactiveCommand.CreateFromTask<object?>(CopyLiveRecordDownloadUrlAsync);
 			OpenLiveRecordUrlCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(OpenLiveRecordUrl);
 			OpenDirCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(OpenDir);
@@ -118,88 +108,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			ExitCommand = ReactiveCommand.Create(Exit);
 			StopTaskCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(StopTask);
 			ClearAllTasksCommand = ReactiveCommand.CreateFromTask(ClearAllTasksAsync);
-		}
-
-		private async ValueTask InitAsync()
-		{
-			await _configService.LoadAsync(default);
-			if (_configService.Config.IsCheckUpdateOnStart)
-			{
-				await CheckUpdateCommand.Execute();
-			}
-		}
-
-		private async Task CheckUpdateAsync()
-		{
-			try
-			{
-				Global.UpdateStatus = @"正在检查更新...";
-				var version = Utils.Utils.GetAppVersion()!;
-				var updateChecker = new GitHubReleasesUpdateChecker(
-						@"HMBSbige",
-						@"BilibiliLiveRecordDownLoader",
-						_configService.Config.IsCheckPreRelease,
-						version
-				);
-				if (await updateChecker.CheckAsync(default))
-				{
-					if (updateChecker.LatestVersionUrl is null)
-					{
-						Global.UpdateStatus = @"更新地址获取出错";
-						return;
-					}
-
-					Global.UpdateStatus = $@"发现新版本：{updateChecker.LatestVersion}";
-					using var dialog = new DisposableContentDialog
-					{
-						Title = Global.UpdateStatus,
-						Content = @"是否跳转到下载页？",
-						PrimaryButtonText = @"是",
-						SecondaryButtonText = @"否",
-						DefaultButton = ContentDialogButton.Primary
-					};
-					if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-					{
-						Utils.Utils.OpenUrl(updateChecker.LatestVersionUrl);
-					}
-				}
-				else
-				{
-					Global.UpdateStatus = $@"没有找到新版本：{version} ≥ {updateChecker.LatestVersion}";
-				}
-			}
-			catch (Exception ex)
-			{
-				Global.UpdateStatus = @"检查更新出错";
-				_logger.LogError(ex, Global.UpdateStatus);
-			}
-		}
-
-		private void SelectDirectory()
-		{
-			var dlg = new CommonOpenFileDialog
-			{
-				IsFolderPicker = true,
-				Multiselect = false,
-				Title = @"选择存储目录",
-				AddToMostRecentlyUsedList = false,
-				EnsurePathExists = true,
-				NavigateToShortcut = true,
-				InitialDirectory = _configService.Config.MainDir
-			};
-			if (dlg.ShowDialog() == CommonFileDialogResult.Ok)
-			{
-				_configService.Config.MainDir = dlg.FileName;
-			}
-		}
-
-		private IObservable<Unit> OpenDirectory()
-		{
-			return Observable.Start(() =>
-			{
-				Utils.Utils.OpenDir(_configService.Config.MainDir);
-				return Unit.Default;
-			});
 		}
 
 		private void GetDiskUsage(long _)

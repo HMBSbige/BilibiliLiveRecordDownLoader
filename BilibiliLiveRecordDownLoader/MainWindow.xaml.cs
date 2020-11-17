@@ -9,20 +9,17 @@ using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Input;
 using System.Windows.Interop;
-using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace BilibiliLiveRecordDownLoader
 {
 	public partial class MainWindow
 	{
-		private IDisposable? _logServices;
-
 		public MainWindow()
 		{
 			InitializeComponent();
 			ViewModel = Locator.Current.GetService<MainWindowViewModel>();
-			_logServices = CreateLogService();
+			var logServices = CreateLogService();
 
 			this.WhenActivated(d =>
 			{
@@ -48,21 +45,6 @@ namespace BilibiliLiveRecordDownLoader
 				this.OneWayBind(ViewModel, vm => vm.Global.Uid, v => v.UIdTextBlock.Text, i => $@"UID: {i}").DisposeWith(d);
 				this.OneWayBind(ViewModel, vm => vm.Global.Level, v => v.LvTextBlock.Text, i => $@"Lv{i}").DisposeWith(d);
 
-				this.Bind(ViewModel, vm => vm.Config.MainDir, v => v.MainDirTextBox.Text).DisposeWith(d);
-
-				this.OneWayBind(ViewModel, vm => vm.Global.DiskUsageProgressBarText, v => v.DiskUsageProgressBarTextBlock.Text).DisposeWith(d);
-
-				this.OneWayBind(ViewModel, vm => vm.Global.DiskUsageProgressBarValue, v => v.DiskUsageProgressBar.Value).DisposeWith(d);
-
-				this.OneWayBind(ViewModel, vm => vm.Global.DiskUsageProgressBarValue, v => v.DiskUsageProgressBar.Foreground,
-								p => p > 90
-										? new SolidColorBrush(Colors.Red)
-										: new SolidColorBrush(Color.FromRgb(38, 160, 218))).DisposeWith(d);
-
-				this.BindCommand(ViewModel, viewModel => viewModel.SelectMainDirCommand, view => view.SelectMainDirButton).DisposeWith(d);
-
-				this.BindCommand(ViewModel, viewModel => viewModel.OpenMainDirCommand, view => view.OpenMainDirButton).DisposeWith(d);
-
 				this.OneWayBind(ViewModel, vm => vm.Global.RoomId, v => v.RoomIdTextBlock.Text, i => $@"房间号: {i}").DisposeWith(d);
 				this.OneWayBind(ViewModel, vm => vm.Global.ShortRoomId, v => v.ShortRoomIdTextBlock.Text, i => $@"短号: {i}").DisposeWith(d);
 				this.OneWayBind(ViewModel, vm => vm.Global.RecordCount, v => v.RecordCountTextBlock.Text, i => $@"列表总数: {i}").DisposeWith(d);
@@ -83,27 +65,16 @@ namespace BilibiliLiveRecordDownLoader
 				this.BindCommand(ViewModel, vm => vm.StopTaskCommand, v => v.StopTaskMenuItem).DisposeWith(d);
 				this.BindCommand(ViewModel, vm => vm.ClearAllTasksCommand, v => v.RemoveTaskMenuItem).DisposeWith(d);
 
-				this.Bind(ViewModel,
-					vm => vm.Config.DownloadThreads,
-					v => v.ThreadsTextBox.Value,
-					x => x,
-					Convert.ToByte).DisposeWith(d);
-
-				this.Bind(ViewModel, vm => vm.Config.IsCheckUpdateOnStart, v => v.IsCheckUpdateOnStartSwitch.IsOn).DisposeWith(d);
-				this.Bind(ViewModel, vm => vm.Config.IsCheckPreRelease, v => v.IsCheckPreReleaseSwitch.IsOn).DisposeWith(d);
-				this.BindCommand(ViewModel, vm => vm.CheckUpdateCommand, v => v.CheckUpdateButton).DisposeWith(d);
-				this.OneWayBind(ViewModel, vm => vm.Global.UpdateStatus, v => v.UpdateStatusTextBlock.Text).DisposeWith(d);
-
 				Observable.FromEventPattern(LogTextBox, nameof(LogTextBox.TextChanged)).Subscribe(_ =>
 				{
 					if (LogTextBox.LineCount > 2000)
 					{
-						_logServices?.Dispose();
+						logServices.Dispose();
 						LogTextBox.Clear();
-						_logServices = CreateLogService();
+						logServices = CreateLogService();
 					}
 				}).DisposeWith(d);
-				_logServices?.DisposeWith(d);
+				logServices.DisposeWith(d);
 
 				#region CloseReasonHack
 

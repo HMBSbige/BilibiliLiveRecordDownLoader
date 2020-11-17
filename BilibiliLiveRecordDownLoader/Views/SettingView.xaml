@@ -1,0 +1,67 @@
+<reactiveUi:ReactiveUserControl
+    x:TypeArguments="viewModels:SettingViewModel"
+    x:Class="BilibiliLiveRecordDownLoader.Views.SettingView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:reactiveUi="http://reactiveui.net"
+    xmlns:viewModels="clr-namespace:BilibiliLiveRecordDownLoader.ViewModels"
+    xmlns:ui="http://schemas.modernwpf.com/2019"
+    mc:Ignorable="d"
+    d:DesignHeight="450" d:DesignWidth="800" d:Background="White">
+    <Grid>
+        <ScrollViewer>
+            <ui:SimpleStackPanel
+                        Margin="20,0,20,20"
+                        Spacing="0">
+                <GroupBox Header="根目录">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition />
+                            <RowDefinition />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="MainDirTextBox" Grid.Row="0" Grid.Column="0" IsReadOnly="True" Margin="3" VerticalContentAlignment="Center" d:Text="D:\Video" />
+                        <Grid Grid.Row="1" Grid.Column="0" Margin="3">
+                            <ui:ProgressBar x:Name="DiskUsageProgressBar" Height="30" d:Value="68" />
+                            <TextBlock x:Name="DiskUsageProgressBarTextBlock"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               d:Text="114514 TB/1919810 TB"/>
+                        </Grid>
+                        <Button x:Name="SelectMainDirButton" Grid.Row="0" Grid.Column="1" Content="选择目录" />
+                        <Button x:Name="OpenMainDirButton" Grid.Row="1" Grid.Column="1" Content="打开目录" />
+                    </Grid>
+                </GroupBox>
+                <GroupBox Header="直播回放"
+                                  HorizontalAlignment="Left">
+                    <ui:NumberBox x:Name="ThreadsTextBox"
+                                          Header="下载线程数："
+                                          Maximum="128"
+                                          Minimum="1"
+                                          SpinButtonPlacementMode="Compact"
+                                          PlaceholderText="8"
+                                          SmallChange="1"
+                                          LargeChange="10" />
+                </GroupBox>
+                <GroupBox Header="更新">
+                    <StackPanel>
+                        <ui:ToggleSwitch x:Name="IsCheckUpdateOnStartSwitch"
+                                                 Header="启动时检查更新"
+                                                 IsOn="True"
+                                                 OnContent="" OffContent="" />
+                        <ui:ToggleSwitch x:Name="IsCheckPreReleaseSwitch"
+                                                 Header="包括预览版更新"
+                                                 OnContent="" OffContent="" />
+                        <Button x:Name="CheckUpdateButton"
+                                        Content="检查更新" />
+                        <TextBlock x:Name="UpdateStatusTextBlock" d:Text="无更新" />
+                    </StackPanel>
+                </GroupBox>
+            </ui:SimpleStackPanel>
+        </ScrollViewer>
+    </Grid>
+</reactiveUi:ReactiveUserControl>

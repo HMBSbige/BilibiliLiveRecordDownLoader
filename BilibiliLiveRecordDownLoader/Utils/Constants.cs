@@ -1,4 +1,5 @@
 using BilibiliLiveRecordDownLoader.Services;
+using System.Windows.Media;
 
 namespace BilibiliLiveRecordDownLoader.Utils
 {
@@ -14,5 +15,7 @@ namespace BilibiliLiveRecordDownLoader.Utils
 		public const string LiveRecordPath = @"Replay";
 
 		public static readonly SubjectMemorySink SubjectMemorySink = new(OutputTemplate);
+		public static readonly SolidColorBrush RedBrush = new(Colors.Red);
+		public static readonly SolidColorBrush NormalDiskUsageBrush = new(Color.FromRgb(38, 160, 218));
 	}
 }
