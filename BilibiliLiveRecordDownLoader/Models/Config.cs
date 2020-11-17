@@ -1,10 +1,9 @@
-using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI;
 using System;
 
 namespace BilibiliLiveRecordDownLoader.Models
 {
-	public class Config : MyReactiveObject
+	public class Config : ReactiveObject
 	{
 		#region 字段
 

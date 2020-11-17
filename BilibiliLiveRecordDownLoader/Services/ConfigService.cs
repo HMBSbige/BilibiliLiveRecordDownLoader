@@ -35,7 +35,8 @@ namespace BilibiliLiveRecordDownLoader.Services
 		private static readonly JsonSerializerOptions JsonOptions = new()
 		{
 			WriteIndented = true,
-			Encoder = JavaScriptEncoder.Default
+			Encoder = JavaScriptEncoder.Default,
+			IgnoreReadOnlyProperties = true,
 		};
 
 		public ConfigService(ILogger<ConfigService> logger)
