@@ -239,7 +239,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					}
 
 					UpdateStatus = $@"发现新版本：{updateChecker.LatestVersion}";
-					var dialog = new ContentDialog
+					using var dialog = new DisposableContentDialog
 					{
 						Title = UpdateStatus,
 						Content = @"是否跳转到下载页？",
@@ -247,16 +247,9 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 						SecondaryButtonText = @"否",
 						DefaultButton = ContentDialogButton.Primary
 					};
-					try
+					if (await dialog.ShowAsync() == ContentDialogResult.Primary)
 					{
-						if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-						{
-							Utils.Utils.OpenUrl(updateChecker.LatestVersionUrl);
-						}
-					}
-					finally
-					{
-						dialog.Hide();
+						Utils.Utils.OpenUrl(updateChecker.LatestVersionUrl);
 					}
 				}
 				else
@@ -541,7 +534,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				{
 					return;
 				}
-				var dialog = new ContentDialog
+				using var dialog = new DisposableContentDialog
 				{
 					Title = @"确定清空所有任务？",
 					Content = @"将会停止所有任务并清空列表",
@@ -549,20 +542,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					CloseButtonText = @"取消",
 					DefaultButton = ContentDialogButton.Primary
 				};
-				try
+				if (await dialog.ShowAsync() == ContentDialogResult.Primary)
 				{
-					if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+					_taskSourceList.Items.ToList().ForEach(task =>
 					{
-						_taskSourceList.Items.ToList().ForEach(task =>
-						{
-							task.Stop();
-							_taskSourceList.Remove(task);
-						});
-					}
-				}
-				finally
-				{
-					dialog.Hide();
+						task.Stop();
+						_taskSourceList.Remove(task);
+					});
 				}
 			}
 			catch (Exception ex)
