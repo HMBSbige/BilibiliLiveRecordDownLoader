@@ -1,3 +1,4 @@
+using BilibiliApi.Model.LiveRecordList;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Clients;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
 using BilibiliLiveRecordDownLoader.Http.DownLoaders;
@@ -5,6 +6,7 @@ using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
+using DynamicData;
 using Microsoft.Extensions.DependencyInjection;
 using ModernWpf;
 using ReactiveUI;
@@ -91,6 +93,8 @@ namespace BilibiliLiveRecordDownLoader
 			services.AddSingleton<MainWindow>();
 			services.AddSingleton<MainWindowViewModel>();
 			services.AddSingleton(typeof(IConfigService), typeof(ConfigService));
+			services.AddSingleton<SourceList<LiveRecordList>>();
+			services.AddSingleton<SourceList<TaskListViewModel>>();
 			services.AddTransient(typeof(IDownloader), typeof(MultiThreadedDownloader));
 			services.AddTransient(typeof(IFlvMerger), typeof(FlvMerger));
 			services.AddLogging(c => c.AddSerilog());

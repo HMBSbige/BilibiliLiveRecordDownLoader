@@ -146,10 +146,10 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private readonly ILogger _logger;
 		public readonly IConfigService ConfigService;
 
-		private readonly SourceList<LiveRecordList> _liveRecordSourceList = new();
+		private readonly SourceList<LiveRecordList> _liveRecordSourceList;
 		public readonly ReadOnlyObservableCollection<LiveRecordListViewModel> LiveRecordList;
 
-		private readonly SourceList<TaskListViewModel> _taskSourceList = new();
+		private readonly SourceList<TaskListViewModel> _taskSourceList;
 		public readonly ReadOnlyObservableCollection<TaskListViewModel> TaskList;
 
 		private readonly OperationQueue _liveRecordDownloadTaskQueue = new(1);
@@ -158,10 +158,14 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		public MainWindowViewModel(
 			ILogger<MainWindowViewModel> logger,
-			IConfigService configService)
+			IConfigService configService,
+			SourceList<LiveRecordList> liveRecordSourceList,
+			SourceList<TaskListViewModel> taskSourceList)
 		{
 			_logger = logger;
 			ConfigService = configService;
+			_liveRecordSourceList = liveRecordSourceList;
+			_taskSourceList = taskSourceList;
 
 			CheckUpdateCommand = ReactiveCommand.CreateFromTask(CheckUpdateAsync);
 			InitAsync().NoWarning();
