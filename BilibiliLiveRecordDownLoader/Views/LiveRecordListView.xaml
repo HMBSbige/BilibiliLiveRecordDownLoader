@@ -68,26 +68,26 @@
                 </Grid>
             </Grid>
             <DataGrid
-                        x:Name="LiveRecordListDataGrid"
-                        AutoGenerateColumns="False"
-                        HeadersVisibility="Column"
-                        IsReadOnly="True"
-                        GridLinesVisibility="All"
-                        
-                        VirtualizingPanel.VirtualizationMode="Recycling"
-                        EnableColumnVirtualization="True"
-                        EnableRowVirtualization="True"
-                        
-                        CanUserResizeColumns="True"
-                        CanUserResizeRows="False"
-                        CanUserSortColumns="True"
-                        CanUserReorderColumns="True"
-                        
-                        SelectionMode="Extended"
-                        SelectionUnit="FullRow"
-                        
-                        d:DataContext="{d:DesignInstance viewModels:LiveRecordViewModel}"
-                        >
+                x:Name="LiveRecordListDataGrid"
+                AutoGenerateColumns="False"
+                HeadersVisibility="Column"
+                IsReadOnly="True"
+                GridLinesVisibility="All"
+                
+                VirtualizingPanel.VirtualizationMode="Recycling"
+                EnableColumnVirtualization="True"
+                EnableRowVirtualization="True"
+                
+                CanUserResizeColumns="True"
+                CanUserResizeRows="False"
+                CanUserSortColumns="True"
+                CanUserReorderColumns="True"
+                
+                SelectionMode="Extended"
+                SelectionUnit="FullRow"
+                
+                d:DataContext="{d:DesignInstance viewModels:LiveRecordViewModel}"
+                >
                 <DataGrid.CellStyle>
                     <Style TargetType="DataGridCell">
                         <Style.Triggers>
@@ -104,10 +104,10 @@
                         <MenuItem x:Name="DownLoadMenuItem" Header="加入下载队列"
                                           CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItems)}"
                                           />
+                        <Separator />
                         <MenuItem x:Name="CopyLiveRecordDownloadUrlMenuItem" Header="复制下载地址"
                                           CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItem)}"
                                           />
-                        <Separator />
                         <MenuItem x:Name="OpenDirMenuItem" Header="打开目录"
                                           CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItem)}"
                                           />
