@@ -29,7 +29,7 @@ namespace BilibiliLiveRecordDownLoader
 				ViewModel.DisposeWith(d);
 
 				this.Bind(ViewModel,
-					vm => vm.ConfigService.Config.RoomId,
+					vm => vm.Config.RoomId,
 					v => v.RoomIdTextBox.Text,
 					x => $@"{x}",
 					x => long.TryParse(x, out var v) ? v : 732).DisposeWith(d);
@@ -48,7 +48,7 @@ namespace BilibiliLiveRecordDownLoader
 				this.OneWayBind(ViewModel, vm => vm.Uid, v => v.UIdTextBlock.Text, i => $@"UID: {i}").DisposeWith(d);
 				this.OneWayBind(ViewModel, vm => vm.Level, v => v.LvTextBlock.Text, i => $@"Lv{i}").DisposeWith(d);
 
-				this.Bind(ViewModel, vm => vm.ConfigService.Config.MainDir, v => v.MainDirTextBox.Text).DisposeWith(d);
+				this.Bind(ViewModel, vm => vm.Config.MainDir, v => v.MainDirTextBox.Text).DisposeWith(d);
 
 				this.OneWayBind(ViewModel, vm => vm.DiskUsageProgressBarText, v => v.DiskUsageProgressBarTextBlock.Text).DisposeWith(d);
 
@@ -84,13 +84,13 @@ namespace BilibiliLiveRecordDownLoader
 				this.BindCommand(ViewModel, vm => vm.ClearAllTasksCommand, v => v.RemoveTaskMenuItem).DisposeWith(d);
 
 				this.Bind(ViewModel,
-					vm => vm.ConfigService.Config.DownloadThreads,
+					vm => vm.Config.DownloadThreads,
 					v => v.ThreadsTextBox.Value,
 					x => x,
 					Convert.ToByte).DisposeWith(d);
 
-				this.Bind(ViewModel, vm => vm.ConfigService.Config.IsCheckUpdateOnStart, v => v.IsCheckUpdateOnStartSwitch.IsOn).DisposeWith(d);
-				this.Bind(ViewModel, vm => vm.ConfigService.Config.IsCheckPreRelease, v => v.IsCheckPreReleaseSwitch.IsOn).DisposeWith(d);
+				this.Bind(ViewModel, vm => vm.Config.IsCheckUpdateOnStart, v => v.IsCheckUpdateOnStartSwitch.IsOn).DisposeWith(d);
+				this.Bind(ViewModel, vm => vm.Config.IsCheckPreRelease, v => v.IsCheckPreReleaseSwitch.IsOn).DisposeWith(d);
 				this.BindCommand(ViewModel, vm => vm.CheckUpdateCommand, v => v.CheckUpdateButton).DisposeWith(d);
 				this.OneWayBind(ViewModel, vm => vm.UpdateStatus, v => v.UpdateStatusTextBlock.Text).DisposeWith(d);
 

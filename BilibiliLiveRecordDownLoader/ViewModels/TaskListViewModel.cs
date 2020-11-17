@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
-	public abstract class TaskListViewModel : MyReactiveObject, ITask
+	public abstract class TaskListViewModel : ReactiveObject, ITask
 	{
 		#region 字段
 
