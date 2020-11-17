@@ -27,7 +27,7 @@ namespace BilibiliLiveRecordDownLoader.Views
 						logServices = CreateLogService();
 					}
 				}).DisposeWith(d);
-				logServices.DisposeWith(d);
+				//TODO logServices.DisposeWith(d);
 			});
 		}
 

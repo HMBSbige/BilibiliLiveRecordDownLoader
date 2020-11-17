@@ -15,7 +15,9 @@ namespace BilibiliLiveRecordDownLoader.Views
 			this.WhenActivated(d =>
 			{
 				this.OneWayBind(ViewModel, vm => vm.TaskList, v => v.TaskListDataGrid.ItemsSource).DisposeWith(d);
-				this.BindCommand(ViewModel, vm => vm.StopTaskCommand, v => v.StopTaskMenuItem).DisposeWith(d);
+				this.BindCommand(ViewModel, vm => vm.StopTaskCommand, v => v.StopTaskMenuItem)
+				// TODO .DisposeWith(d)
+				;
 				this.BindCommand(ViewModel, vm => vm.ClearAllTasksCommand, v => v.RemoveTaskMenuItem).DisposeWith(d);
 			});
 		}
