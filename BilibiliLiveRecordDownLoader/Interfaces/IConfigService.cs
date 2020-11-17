@@ -20,11 +20,11 @@ namespace BilibiliLiveRecordDownLoader.Interfaces
 		/// <summary>
 		/// 保存配置
 		/// </summary>
-		Task SaveAsync(CancellationToken token);
+		ValueTask SaveAsync(CancellationToken token);
 
 		/// <summary>
 		/// 加载配置
 		/// </summary>
-		Task LoadAsync(CancellationToken token);
+		ValueTask LoadAsync(CancellationToken token);
 	}
 }

@@ -56,20 +56,15 @@ namespace BilibiliLiveRecordDownLoader.Services
 				.Subscribe(_ => SaveAsync(default).NoWarning());
 		}
 
-		public async Task SaveAsync(CancellationToken token)
+		public async ValueTask SaveAsync(CancellationToken token)
 		{
 			try
 			{
 				await using var _ = await _lock.WriteLockAsync(token);
 
-				await using var stream = new MemoryStream();
-
-				await JsonSerializer.SerializeAsync(stream, Config, JsonOptions, token);
-				stream.Position = 0;
-
 				await using var fs = new FileStream(FilePath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, true);
 
-				await stream.CopyToAsync(fs, token);
+				await JsonSerializer.SerializeAsync(fs, Config, JsonOptions, token);
 			}
 			catch (Exception ex)
 			{
@@ -77,7 +72,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 			}
 		}
 
-		public async Task LoadAsync(CancellationToken token)
+		public async ValueTask LoadAsync(CancellationToken token)
 		{
 			try
 			{
