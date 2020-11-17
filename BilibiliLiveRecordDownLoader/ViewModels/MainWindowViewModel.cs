@@ -10,6 +10,7 @@ using Microsoft.WindowsAPICodePack.Dialogs;
 using ModernWpf.Controls;
 using Punchclock;
 using ReactiveUI;
+using Splat;
 using System;
 using System.Collections;
 using System.Collections.ObjectModel;
@@ -18,7 +19,6 @@ using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Forms;
 using UpdateChecker;
 using ILogger = Microsoft.Extensions.Logging.ILogger;
@@ -143,7 +143,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		#endregion
 
-		private readonly MainWindow _window;
 		private readonly ILogger _logger;
 		public readonly IConfigService ConfigService;
 
@@ -156,15 +155,12 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		private readonly OperationQueue _liveRecordDownloadTaskQueue = new(1);
 
-		private bool _isInitData = true;
-
 		private const long PageSize = 200;
 
-		public MainWindowViewModel(MainWindow window,
-			ILogger logger,
+		public MainWindowViewModel(
+			ILogger<MainWindowViewModel> logger,
 			IConfigService configService)
 		{
-			_window = window;
 			_logger = logger;
 			ConfigService = configService;
 
@@ -190,20 +186,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					.ObserveOnDispatcher()
 					.Bind(out LiveRecordList)
 					.DisposeMany()
-					.Subscribe(_ =>
-					{
-						if (!_isInitData)
-						{
-							return;
-						}
-
-						_window.SizeToContent = SizeToContent.Width;
-						_window.SizeToContent = SizeToContent.Manual;
-
-						_window.LiveRecordListDataGrid.EnableRowVirtualization = true;
-
-						_isInitData = false;
-					});
+					.Subscribe();
 
 			TaskSourceList.Connect()
 					.ObserveOnDispatcher()
@@ -590,16 +573,17 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			TaskSourceList.Items.ToList().ForEach(t => t.Stop());
 		}
 
-		private void ShowWindow()
+		private static void ShowWindow()
 		{
-			_window.ShowWindow();
+			Locator.Current.GetService<MainWindow>().ShowWindow();
 		}
 
 		private void Exit()
 		{
 			StopAllTask();
-			_window.CloseReason = CloseReason.ApplicationExitCall;
-			_window.Close();
+			var window = Locator.Current.GetService<MainWindow>();
+			window.CloseReason = CloseReason.ApplicationExitCall;
+			window.Close();
 		}
 
 		public void Dispose()

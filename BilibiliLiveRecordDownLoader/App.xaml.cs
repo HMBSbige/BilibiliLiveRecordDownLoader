@@ -4,6 +4,7 @@ using BilibiliLiveRecordDownLoader.Http.DownLoaders;
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
+using BilibiliLiveRecordDownLoader.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using ModernWpf;
 using ReactiveUI;
@@ -73,7 +74,7 @@ namespace BilibiliLiveRecordDownLoader
 
 			Register();
 
-			MainWindow = Locator.Current.GetService<Window>();
+			MainWindow = Locator.Current.GetService<MainWindow>();
 			MainWindow.ShowWindow();
 		}
 
@@ -87,7 +88,8 @@ namespace BilibiliLiveRecordDownLoader
 
 		private static void ConfigureServices(IServiceCollection services)
 		{
-			services.AddSingleton(typeof(Window), typeof(MainWindow));
+			services.AddSingleton<MainWindow>();
+			services.AddSingleton<MainWindowViewModel>();
 			services.AddSingleton(typeof(IConfigService), typeof(ConfigService));
 			services.AddTransient(typeof(IDownloader), typeof(MultiThreadedDownloader));
 			services.AddTransient(typeof(IFlvMerger), typeof(FlvMerger));

@@ -1,7 +1,7 @@
-using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Utils;
-using Microsoft.Extensions.Logging;
+using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI;
+using Splat;
 using System;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
@@ -18,11 +18,10 @@ namespace BilibiliLiveRecordDownLoader
 	{
 		private IDisposable? _logServices;
 
-		public MainWindow(ILogger<MainWindow> logger,
-			IConfigService configService)
+		public MainWindow()
 		{
 			InitializeComponent();
-			ViewModel = new(this, logger, configService);
+			ViewModel = Locator.Current.GetService<MainWindowViewModel>();
 
 			this.WhenActivated(d =>
 			{
@@ -110,15 +109,14 @@ namespace BilibiliLiveRecordDownLoader
 
 				AddCloseReasonHook();
 
-				this.Events()
-						.Closing.Subscribe(e =>
-						{
-							if (CloseReason == CloseReason.UserClosing)
-							{
-								Hide();
-								e.Cancel = true;
-							}
-						}).DisposeWith(d);
+				this.Events().Closing.Subscribe(e =>
+				{
+					if (CloseReason == CloseReason.UserClosing)
+					{
+						Hide();
+						e.Cancel = true;
+					}
+				}).DisposeWith(d);
 
 				#endregion
 			});

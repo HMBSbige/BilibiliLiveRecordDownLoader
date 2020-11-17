@@ -97,7 +97,7 @@
                         
                         VirtualizingPanel.VirtualizationMode="Recycling"
                         EnableColumnVirtualization="True"
-                        EnableRowVirtualization="False"
+                        EnableRowVirtualization="True"
                         
                         CanUserResizeColumns="True"
                         CanUserResizeRows="False"
@@ -180,7 +180,7 @@
 
                     VirtualizingPanel.VirtualizationMode="Recycling"
                     EnableColumnVirtualization="True"
-                    EnableRowVirtualization="False"
+                    EnableRowVirtualization="True"
 
                     CanUserResizeColumns="True"
                     CanUserResizeRows="False"
