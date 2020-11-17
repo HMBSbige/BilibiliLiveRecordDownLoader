@@ -152,7 +152,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private readonly SourceList<TaskListViewModel> _taskSourceList;
 		public readonly ReadOnlyObservableCollection<TaskListViewModel> TaskList;
 
-		private readonly OperationQueue _liveRecordDownloadTaskQueue = new(1);
+		private readonly OperationQueue _liveRecordDownloadTaskQueue = new(int.MaxValue);
 
 		private const long PageSize = 200;
 
@@ -448,7 +448,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				{
 					if (info is LiveRecordListViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
 					{
-						var root = Path.Combine(ConfigService.Config.MainDir, $@"{RoomId}", @"Replay");
+						var root = Path.Combine(ConfigService.Config.MainDir, $@"{RoomId}", Constants.LiveRecordPath);
 						var path = Path.Combine(root, liveRecord.Rid);
 						if (!Utils.Utils.OpenDir(path))
 						{
@@ -476,9 +476,12 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 						{
 							if (item is LiveRecordListViewModel { Rid: not @"" or null } liveRecord)
 							{
-								var root = Path.Combine(ConfigService.Config.MainDir, $@"{RoomId}", @"Replay");
+								var root = Path.Combine(ConfigService.Config.MainDir, $@"{RoomId}", Constants.LiveRecordPath);
 								var task = new LiveRecordDownloadTaskViewModel(_logger, liveRecord, root, ConfigService.Config.DownloadThreads);
-								AddTask(task);
+								if (AddTask(task))
+								{
+									_liveRecordDownloadTaskQueue.Enqueue(1, Constants.LiveRecordKey, () => task.StartAsync().AsTask()).NoWarning();
+								}
 							}
 						}
 					}
@@ -490,15 +493,15 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			});
 		}
 
-		private void AddTask(TaskListViewModel task)
+		private bool AddTask(TaskListViewModel task)
 		{
 			if (_taskSourceList.Items.Any(x => x.Description == task.Description))
 			{
 				_logger.LogWarning($@"添加重复任务：{task.Description}");
-				return;
+				return false;
 			}
 			_taskSourceList.Add(task);
-			_liveRecordDownloadTaskQueue.Enqueue(1, @"直播回放下载", () => task.StartAsync().AsTask()).NoWarning();
+			return true;
 		}
 
 		private IObservable<Unit> StopTask(object? info)
