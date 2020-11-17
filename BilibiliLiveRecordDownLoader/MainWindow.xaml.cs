@@ -22,6 +22,7 @@ namespace BilibiliLiveRecordDownLoader
 		{
 			InitializeComponent();
 			ViewModel = Locator.Current.GetService<MainWindowViewModel>();
+			_logServices = CreateLogService();
 
 			this.WhenActivated(d =>
 			{
@@ -102,8 +103,7 @@ namespace BilibiliLiveRecordDownLoader
 						_logServices = CreateLogService();
 					}
 				}).DisposeWith(d);
-
-				_logServices = CreateLogService();
+				_logServices?.DisposeWith(d);
 
 				#region CloseReasonHack
 
@@ -142,12 +142,12 @@ namespace BilibiliLiveRecordDownLoader
 
 		public CloseReason CloseReason = CloseReason.None;
 
-		private IntPtr WindowProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+		private nint WindowProc(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
 		{
 			if (CloseReason is not CloseReason.UserClosing and not CloseReason.None)
 			{
 				RemoveCloseReasonHook();
-				return IntPtr.Zero;
+				return 0;
 			}
 
 			switch (msg)
@@ -174,7 +174,7 @@ namespace BilibiliLiveRecordDownLoader
 				}
 			}
 
-			return IntPtr.Zero;
+			return 0;
 		}
 
 		#endregion

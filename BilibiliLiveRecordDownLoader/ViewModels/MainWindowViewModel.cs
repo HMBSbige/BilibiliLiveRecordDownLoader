@@ -146,11 +146,10 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private readonly ILogger _logger;
 		public readonly IConfigService ConfigService;
 
-		private SourceList<LiveRecordList> LiveRecordSourceList { get; } = new();
+		private readonly SourceList<LiveRecordList> _liveRecordSourceList = new();
 		public readonly ReadOnlyObservableCollection<LiveRecordListViewModel> LiveRecordList;
 
-		private SourceList<TaskListViewModel> TaskSourceList { get; } = new();
-
+		private readonly SourceList<TaskListViewModel> _taskSourceList = new();
 		public readonly ReadOnlyObservableCollection<TaskListViewModel> TaskList;
 
 		private readonly OperationQueue _liveRecordDownloadTaskQueue = new(1);
@@ -181,14 +180,14 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			_diskMonitor = Observable.Interval(TimeSpan.FromSeconds(1), RxApp.MainThreadScheduler)
 					.Subscribe(GetDiskUsage);
 
-			LiveRecordSourceList.Connect()
+			_liveRecordSourceList.Connect()
 					.Transform(x => new LiveRecordListViewModel(x))
 					.ObserveOnDispatcher()
 					.Bind(out LiveRecordList)
 					.DisposeMany()
 					.Subscribe();
 
-			TaskSourceList.Connect()
+			_taskSourceList.Connect()
 					.ObserveOnDispatcher()
 					.Bind(out TaskList)
 					.DisposeMany()
@@ -355,7 +354,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				RoomId = 0;
 				ShortRoomId = 0;
 				RecordCount = 0;
-				LiveRecordSourceList.Clear();
+				_liveRecordSourceList.Clear();
 
 				using var client = new BililiveApiClient();
 				var roomInitMessage = await client.GetRoomInitAsync(roomId);
@@ -377,7 +376,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 							var list = listMessage.data?.list;
 							if (list != null)
 							{
-								LiveRecordSourceList.AddRange(list);
+								_liveRecordSourceList.AddRange(list);
 							}
 						}
 						else
@@ -496,12 +495,12 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		private void AddTask(TaskListViewModel task)
 		{
-			if (TaskSourceList.Items.Any(x => x.Description == task.Description))
+			if (_taskSourceList.Items.Any(x => x.Description == task.Description))
 			{
 				_logger.LogWarning($@"添加重复任务：{task.Description}");
 				return;
 			}
-			TaskSourceList.Add(task);
+			_taskSourceList.Add(task);
 			_liveRecordDownloadTaskQueue.Enqueue(1, @"直播回放下载", () => task.StartAsync().AsTask()).NoWarning();
 		}
 
@@ -518,7 +517,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 							if (item is TaskListViewModel task)
 							{
 								task.Stop();
-								TaskSourceList.Remove(task);
+								_taskSourceList.Remove(task);
 							}
 						}
 					}
@@ -534,7 +533,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		{
 			try
 			{
-				if (TaskSourceList.Count == 0)
+				if (_taskSourceList.Count == 0)
 				{
 					return;
 				}
@@ -550,10 +549,10 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				{
 					if (await dialog.ShowAsync() == ContentDialogResult.Primary)
 					{
-						TaskSourceList.Items.ToList().ForEach(task =>
+						_taskSourceList.Items.ToList().ForEach(task =>
 						{
 							task.Stop();
-							TaskSourceList.Remove(task);
+							_taskSourceList.Remove(task);
 						});
 					}
 				}
@@ -570,7 +569,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		private void StopAllTask()
 		{
-			TaskSourceList.Items.ToList().ForEach(t => t.Stop());
+			_taskSourceList.Items.ToList().ForEach(t => t.Stop());
 		}
 
 		private static void ShowWindow()
