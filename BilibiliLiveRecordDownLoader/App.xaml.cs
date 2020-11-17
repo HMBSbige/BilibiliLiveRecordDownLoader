@@ -6,6 +6,7 @@ using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
+using BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels;
 using BilibiliLiveRecordDownLoader.Views;
 using DynamicData;
 using Microsoft.Extensions.DependencyInjection;
@@ -96,7 +97,7 @@ namespace BilibiliLiveRecordDownLoader
 			services.AddSingleton<MainWindowViewModel>();
 			services.AddSingleton(typeof(IConfigService), typeof(ConfigService));
 			services.AddSingleton<SourceList<LiveRecordList>>();
-			services.AddSingleton<SourceList<TaskListViewModel>>();
+			services.AddSingleton<SourceList<TaskViewModel>>();
 			services.AddSingleton(new OperationQueue(int.MaxValue));
 			services.AddSingleton<GlobalViewModel>();
 			services.AddSingleton(typeof(IScreen), typeof(MainScreen));

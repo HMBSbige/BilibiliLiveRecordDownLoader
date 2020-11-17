@@ -2,9 +2,9 @@ using BilibiliLiveRecordDownLoader.Interfaces;
 using ReactiveUI;
 using System.Threading.Tasks;
 
-namespace BilibiliLiveRecordDownLoader.ViewModels
+namespace BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels
 {
-	public abstract class TaskListViewModel : ReactiveObject, ITask
+	public abstract class TaskViewModel : ReactiveObject, ITask
 	{
 		#region 字段
 

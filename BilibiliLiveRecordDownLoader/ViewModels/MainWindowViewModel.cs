@@ -49,12 +49,12 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private readonly ILogger _logger;
 		private readonly IConfigService _configService;
 		private readonly SourceList<LiveRecordList> _liveRecordSourceList;
-		private readonly SourceList<TaskListViewModel> _taskSourceList;
+		private readonly SourceList<TaskViewModel> _taskSourceList;
 		private readonly OperationQueue _liveRecordDownloadTaskQueue;
 		public readonly GlobalViewModel Global;
 
 		public readonly ReadOnlyObservableCollection<LiveRecordListViewModel> LiveRecordList;
-		public readonly ReadOnlyObservableCollection<TaskListViewModel> TaskList;
+		public readonly ReadOnlyObservableCollection<TaskViewModel> TaskList;
 		public Config Config => _configService.Config;
 		private const long PageSize = 200;
 
@@ -62,7 +62,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			ILogger<MainWindowViewModel> logger,
 			IConfigService configService,
 			SourceList<LiveRecordList> liveRecordSourceList,
-			SourceList<TaskListViewModel> taskSourceList,
+			SourceList<TaskViewModel> taskSourceList,
 			OperationQueue taskQueue,
 			GlobalViewModel global)
 		{
@@ -312,7 +312,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			});
 		}
 
-		private bool AddTask(TaskListViewModel task)
+		private bool AddTask(TaskViewModel task)
 		{
 			if (_taskSourceList.Items.Any(x => x.Description == task.Description))
 			{
@@ -333,7 +333,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					{
 						foreach (var item in list)
 						{
-							if (item is TaskListViewModel task)
+							if (item is TaskViewModel task)
 							{
 								task.Stop();
 								_taskSourceList.Remove(task);

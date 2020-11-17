@@ -10,6 +10,7 @@
     xmlns:tb="http://www.hardcodet.net/taskbar"
     xmlns:ui="http://schemas.modernwpf.com/2019"
     xmlns:views="clr-namespace:BilibiliLiveRecordDownLoader.Views"
+    xmlns:taskViewModels="clr-namespace:BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels"
     mc:Ignorable="d"
     x:Name="Window"
     WindowStartupLocation="CenterScreen"
@@ -191,7 +192,7 @@
                     SelectionMode="Extended"
                     SelectionUnit="FullRow"
 
-                    d:DataContext="{d:DesignInstance viewModels:TaskListViewModel}"
+                    d:DataContext="{d:DesignInstance taskViewModels:TaskViewModel}"
                     >
                     <DataGrid.CellStyle>
                         <Style TargetType="DataGridCell">

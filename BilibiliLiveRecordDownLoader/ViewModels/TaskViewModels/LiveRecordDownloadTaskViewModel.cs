@@ -13,7 +13,7 @@ using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels
 {
-	public class LiveRecordDownloadTaskViewModel : TaskListViewModel
+	public class LiveRecordDownloadTaskViewModel : TaskViewModel
 	{
 		private readonly ILogger _logger;
 
