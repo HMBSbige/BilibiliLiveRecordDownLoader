@@ -9,6 +9,7 @@ using BilibiliLiveRecordDownLoader.ViewModels;
 using DynamicData;
 using Microsoft.Extensions.DependencyInjection;
 using ModernWpf;
+using Punchclock;
 using ReactiveUI;
 using Serilog;
 using Serilog.Events;
@@ -95,6 +96,7 @@ namespace BilibiliLiveRecordDownLoader
 			services.AddSingleton(typeof(IConfigService), typeof(ConfigService));
 			services.AddSingleton<SourceList<LiveRecordList>>();
 			services.AddSingleton<SourceList<TaskListViewModel>>();
+			services.AddSingleton(new OperationQueue(int.MaxValue));
 			services.AddTransient(typeof(IDownloader), typeof(MultiThreadedDownloader));
 			services.AddTransient(typeof(IFlvMerger), typeof(FlvMerger));
 			services.AddLogging(c => c.AddSerilog());
