@@ -10,7 +10,6 @@
     xmlns:tb="http://www.hardcodet.net/taskbar"
     xmlns:ui="http://schemas.modernwpf.com/2019"
     xmlns:views="clr-namespace:BilibiliLiveRecordDownLoader.Views"
-    xmlns:taskViewModels="clr-namespace:BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels"
     mc:Ignorable="d"
     x:Name="Window"
     WindowStartupLocation="CenterScreen"
@@ -173,77 +172,7 @@
                 </DockPanel>
             </TabItem>
             <TabItem Header="任务列表">
-                <DataGrid
-                    x:Name="TaskListDataGrid"
-                    AutoGenerateColumns="False"
-                    HeadersVisibility="Column"
-                    IsReadOnly="True"
-                    GridLinesVisibility="All"
-
-                    VirtualizingPanel.VirtualizationMode="Recycling"
-                    EnableColumnVirtualization="True"
-                    EnableRowVirtualization="True"
-
-                    CanUserResizeColumns="True"
-                    CanUserResizeRows="False"
-                    CanUserSortColumns="True"
-                    CanUserReorderColumns="True"
-
-                    SelectionMode="Extended"
-                    SelectionUnit="FullRow"
-
-                    d:DataContext="{d:DesignInstance taskViewModels:TaskViewModel}"
-                    >
-                    <DataGrid.CellStyle>
-                        <Style TargetType="DataGridCell">
-                            <Style.Triggers>
-                                <Trigger Property="IsSelected" Value="True">
-                                    <Setter Property="BorderThickness" Value="0" />
-                                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-                                    <Setter Property="Background" Value="{x:Null}" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </DataGrid.CellStyle>
-                    <DataGrid.ContextMenu>
-                        <ContextMenu>
-                            <MenuItem x:Name="StopTaskMenuItem" Header="停止任务"
-                                      CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItems)}"
-                            />
-                            <Separator />
-                            <MenuItem x:Name="RemoveTaskMenuItem" Header="清空所有任务" />
-                        </ContextMenu>
-                    </DataGrid.ContextMenu>
-                    <DataGrid.Columns>
-                        <DataGridTextColumn
-                            Header="任务描述"
-                            Binding="{Binding Description, Mode=OneWay}" />
-                        <DataGridTextColumn
-                            Header="速度"
-                            Binding="{Binding Speed, Mode=OneWay}" />
-                        <DataGridTextColumn
-                            Header="状态"
-                            Binding="{Binding Status, Mode=OneWay}" />
-                        <DataGridTemplateColumn Header="进度" Width="*">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <Grid>
-                                        <ui:ProgressBar x:Name="progressBar"
-                                                        Background="Transparent"
-                                                        Minimum="0" Maximum="1"
-                                                        Height="30"
-                                                        Value="{Binding Progress, Mode=OneWay}" />
-                                        <TextBlock
-                                            Text="{Binding Progress, Mode=OneWay, StringFormat={}{0:P2}}"
-                                            HorizontalAlignment="Center"
-                                            Foreground="Black"
-                                            VerticalAlignment="Center" TextAlignment="Center" />
-                                    </Grid>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                    </DataGrid.Columns>
-                </DataGrid>
+                <views:TaskListView />
             </TabItem>
             <TabItem Header="日志">
                 <views:LogView />

@@ -7,7 +7,6 @@ using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels;
 using DynamicData;
 using Microsoft.Extensions.Logging;
-using ModernWpf.Controls;
 using Punchclock;
 using ReactiveUI;
 using Splat;
@@ -41,20 +40,17 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		public ReactiveCommand<object?, Unit> OpenDirCommand { get; }
 		public ReactiveCommand<Unit, Unit> ShowWindowCommand { get; }
 		public ReactiveCommand<Unit, Unit> ExitCommand { get; }
-		public ReactiveCommand<object?, Unit> StopTaskCommand { get; }
-		public ReactiveCommand<Unit, Unit> ClearAllTasksCommand { get; }
 
 		#endregion
 
 		private readonly ILogger _logger;
 		private readonly IConfigService _configService;
-		private readonly SourceList<LiveRecordList> _liveRecordSourceList;
 		private readonly SourceList<TaskViewModel> _taskSourceList;
+		private readonly SourceList<LiveRecordList> _liveRecordSourceList;
 		private readonly OperationQueue _liveRecordDownloadTaskQueue;
 		public readonly GlobalViewModel Global;
 
 		public readonly ReadOnlyObservableCollection<LiveRecordListViewModel> LiveRecordList;
-		public readonly ReadOnlyObservableCollection<TaskViewModel> TaskList;
 		public Config Config => _configService.Config;
 		private const long PageSize = 200;
 
@@ -68,8 +64,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		{
 			_logger = logger;
 			_configService = configService;
-			_liveRecordSourceList = liveRecordSourceList;
 			_taskSourceList = taskSourceList;
+			_liveRecordSourceList = liveRecordSourceList;
 			_liveRecordDownloadTaskQueue = taskQueue;
 			Global = global;
 
@@ -94,20 +90,12 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					.DisposeMany()
 					.Subscribe();
 
-			_taskSourceList.Connect()
-					.ObserveOnDispatcher()
-					.Bind(out TaskList)
-					.DisposeMany()
-					.Subscribe();
-
 			CopyLiveRecordDownloadUrlCommand = ReactiveCommand.CreateFromTask<object?>(CopyLiveRecordDownloadUrlAsync);
 			OpenLiveRecordUrlCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(OpenLiveRecordUrl);
 			OpenDirCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(OpenDir);
 			DownLoadCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(Download);
 			ShowWindowCommand = ReactiveCommand.Create(ShowWindow);
 			ExitCommand = ReactiveCommand.Create(Exit);
-			StopTaskCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(StopTask);
-			ClearAllTasksCommand = ReactiveCommand.CreateFromTask(ClearAllTasksAsync);
 		}
 
 		private void GetDiskUsage(long _)
@@ -321,62 +309,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			}
 			_taskSourceList.Add(task);
 			return true;
-		}
-
-		private IObservable<Unit> StopTask(object? info)
-		{
-			return Observable.Start(() =>
-			{
-				try
-				{
-					if (info is IList { Count: > 0 } list)
-					{
-						foreach (var item in list)
-						{
-							if (item is TaskViewModel task)
-							{
-								task.Stop();
-								_taskSourceList.Remove(task);
-							}
-						}
-					}
-				}
-				catch (Exception ex)
-				{
-					_logger.LogError(ex, @"停止任务出错");
-				}
-			});
-		}
-
-		private async Task ClearAllTasksAsync()
-		{
-			try
-			{
-				if (_taskSourceList.Count == 0)
-				{
-					return;
-				}
-				using var dialog = new DisposableContentDialog
-				{
-					Title = @"确定清空所有任务？",
-					Content = @"将会停止所有任务并清空列表",
-					PrimaryButtonText = @"确定",
-					CloseButtonText = @"取消",
-					DefaultButton = ContentDialogButton.Primary
-				};
-				if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-				{
-					_taskSourceList.Items.ToList().ForEach(task =>
-					{
-						task.Stop();
-						_taskSourceList.Remove(task);
-					});
-				}
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, @"停止任务出错");
-			}
 		}
 
 		private void StopAllTask()

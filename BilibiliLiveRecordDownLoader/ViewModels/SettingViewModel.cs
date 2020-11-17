@@ -38,7 +38,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		public SettingViewModel(
 			IScreen hostScreen,
-			ILogger<MainWindowViewModel> logger,
+			ILogger<SettingViewModel> logger,
 			IConfigService configService,
 			GlobalViewModel global)
 		{
