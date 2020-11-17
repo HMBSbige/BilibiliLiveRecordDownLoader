@@ -28,99 +28,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 {
 	public sealed class MainWindowViewModel : ReactiveObject, IDisposable
 	{
-		#region 字段
-
-		private string? _imageUri;
-		private string? _name;
-		private long _uid;
-		private long _level;
-		private string? _diskUsageProgressBarText;
-		private double _diskUsageProgressBarValue;
-		private long _roomId;
-		private long _shortRoomId;
-		private long _recordCount;
-		private bool _isLiveRecordBusy;
-		private bool _triggerLiveRecordListQuery;
-		private string? _updateStatus;
-
-		#endregion
-
-		#region 属性
-
-		public string? ImageUri
-		{
-			get => _imageUri;
-			set => this.RaiseAndSetIfChanged(ref _imageUri, value);
-		}
-
-		public string? Name
-		{
-			get => _name;
-			set => this.RaiseAndSetIfChanged(ref _name, value);
-		}
-
-		public long Uid
-		{
-			get => _uid;
-			set => this.RaiseAndSetIfChanged(ref _uid, value);
-		}
-
-		public long Level
-		{
-			get => _level;
-			set => this.RaiseAndSetIfChanged(ref _level, value);
-		}
-
-		public string? DiskUsageProgressBarText
-		{
-			get => _diskUsageProgressBarText;
-			set => this.RaiseAndSetIfChanged(ref _diskUsageProgressBarText, value);
-		}
-
-		public double DiskUsageProgressBarValue
-		{
-			get => _diskUsageProgressBarValue;
-			set => this.RaiseAndSetIfChanged(ref _diskUsageProgressBarValue, value);
-		}
-
-		public long RoomId
-		{
-			get => _roomId;
-			set => this.RaiseAndSetIfChanged(ref _roomId, value);
-		}
-
-		public long ShortRoomId
-		{
-			get => _shortRoomId;
-			set => this.RaiseAndSetIfChanged(ref _shortRoomId, value);
-		}
-
-		public long RecordCount
-		{
-			get => _recordCount;
-			set => this.RaiseAndSetIfChanged(ref _recordCount, value);
-		}
-
-		public bool IsLiveRecordBusy
-		{
-			get => _isLiveRecordBusy;
-			set => this.RaiseAndSetIfChanged(ref _isLiveRecordBusy, value);
-		}
-
-		public bool TriggerLiveRecordListQuery
-		{
-			get => _triggerLiveRecordListQuery;
-			set => this.RaiseAndSetIfChanged(ref _triggerLiveRecordListQuery, value);
-		}
-
-		public string? UpdateStatus
-		{
-			get => _updateStatus;
-			set => this.RaiseAndSetIfChanged(ref _updateStatus, value);
-		}
-
-		#endregion
-
 		#region Monitor
 
 		private readonly IDisposable _diskMonitor;
@@ -149,6 +56,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private readonly SourceList<LiveRecordList> _liveRecordSourceList;
 		private readonly SourceList<TaskListViewModel> _taskSourceList;
 		private readonly OperationQueue _liveRecordDownloadTaskQueue;
+		public readonly GlobalViewModel Global;
 
 		public readonly ReadOnlyObservableCollection<LiveRecordListViewModel> LiveRecordList;
 		public readonly ReadOnlyObservableCollection<TaskListViewModel> TaskList;
@@ -160,18 +68,20 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			IConfigService configService,
 			SourceList<LiveRecordList> liveRecordSourceList,
 			SourceList<TaskListViewModel> taskSourceList,
-			OperationQueue taskQueue)
+			OperationQueue taskQueue,
+			GlobalViewModel global)
 		{
 			_logger = logger;
 			_configService = configService;
 			_liveRecordSourceList = liveRecordSourceList;
 			_taskSourceList = taskSourceList;
 			_liveRecordDownloadTaskQueue = taskQueue;
+			Global = global;
 
 			CheckUpdateCommand = ReactiveCommand.CreateFromTask(CheckUpdateAsync);
 			InitAsync().NoWarning();
 
-			_roomIdMonitor = this.WhenAnyValue(x => x._configService.Config.RoomId, x => x.TriggerLiveRecordListQuery)
+			_roomIdMonitor = this.WhenAnyValue(x => x._configService.Config.RoomId, x => x.Global.TriggerLiveRecordListQuery)
 					.Throttle(TimeSpan.FromMilliseconds(800), RxApp.MainThreadScheduler)
 					.DistinctUntilChanged()
 					.Where(i => i.Item1 > 0)
@@ -223,7 +133,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		{
 			try
 			{
-				UpdateStatus = @"正在检查更新...";
+				Global.UpdateStatus = @"正在检查更新...";
 				var version = Utils.Utils.GetAppVersion()!;
 				var updateChecker = new GitHubReleasesUpdateChecker(
 						@"HMBSbige",
@@ -235,14 +145,14 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				{
 					if (updateChecker.LatestVersionUrl is null)
 					{
-						UpdateStatus = @"更新地址获取出错";
+						Global.UpdateStatus = @"更新地址获取出错";
 						return;
 					}
 
-					UpdateStatus = $@"发现新版本：{updateChecker.LatestVersion}";
+					Global.UpdateStatus = $@"发现新版本：{updateChecker.LatestVersion}";
 					using var dialog = new DisposableContentDialog
 					{
-						Title = UpdateStatus,
+						Title = Global.UpdateStatus,
 						Content = @"是否跳转到下载页？",
 						PrimaryButtonText = @"是",
 						SecondaryButtonText = @"否",
@@ -255,13 +165,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				}
 				else
 				{
-					UpdateStatus = $@"没有找到新版本：{version} ≥ {updateChecker.LatestVersion}";
+					Global.UpdateStatus = $@"没有找到新版本：{version} ≥ {updateChecker.LatestVersion}";
 				}
 			}
 			catch (Exception ex)
 			{
-				UpdateStatus = @"检查更新出错";
-				_logger.LogError(ex, UpdateStatus);
+				Global.UpdateStatus = @"检查更新出错";
+				_logger.LogError(ex, Global.UpdateStatus);
 			}
 		}
 
@@ -297,14 +207,14 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			var (availableFreeSpace, totalSize) = Utils.Utils.GetDiskUsage(_configService.Config.MainDir);
 			if (totalSize != 0)
 			{
-				DiskUsageProgressBarText = $@"已使用 {Utils.Utils.CountSize(totalSize - availableFreeSpace)}/{Utils.Utils.CountSize(totalSize)} 剩余 {Utils.Utils.CountSize(availableFreeSpace)}";
+				Global.DiskUsageProgressBarText = $@"已使用 {Utils.Utils.CountSize(totalSize - availableFreeSpace)}/{Utils.Utils.CountSize(totalSize)} 剩余 {Utils.Utils.CountSize(availableFreeSpace)}";
 				var percentage = (totalSize - availableFreeSpace) / (double)totalSize;
-				DiskUsageProgressBarValue = percentage * 100;
+				Global.DiskUsageProgressBarValue = percentage * 100;
 			}
 			else
 			{
-				DiskUsageProgressBarText = string.Empty;
-				DiskUsageProgressBarValue = 0;
+				Global.DiskUsageProgressBarText = string.Empty;
+				Global.DiskUsageProgressBarValue = 0;
 			}
 		}
 
@@ -321,17 +231,17 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				}
 
 				var info = msg.data.info;
-				ImageUri = info.face;
-				Name = info.uname;
-				Uid = info.uid;
-				Level = info.platform_user_level;
+				Global.ImageUri = info.face;
+				Global.Name = info.uname;
+				Global.Uid = info.uid;
+				Global.Level = info.platform_user_level;
 			}
 			catch (Exception ex)
 			{
-				ImageUri = null;
-				Name = string.Empty;
-				Uid = 0;
-				Level = 0;
+				Global.ImageUri = null;
+				Global.Name = string.Empty;
+				Global.Uid = 0;
+				Global.Level = 0;
 
 				if (ex is ArgumentException)
 				{
@@ -348,10 +258,10 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		{
 			try
 			{
-				IsLiveRecordBusy = true;
-				RoomId = 0;
-				ShortRoomId = 0;
-				RecordCount = 0;
+				Global.IsLiveRecordBusy = true;
+				Global.RoomId = 0;
+				Global.ShortRoomId = 0;
+				Global.RecordCount = 0;
 				_liveRecordSourceList.Clear();
 
 				using var client = new BililiveApiClient();
@@ -361,16 +271,16 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					&& roomInitMessage.data != null
 					&& roomInitMessage.data.room_id > 0)
 				{
-					RoomId = roomInitMessage.data.room_id;
-					ShortRoomId = roomInitMessage.data.short_id;
-					RecordCount = long.MaxValue;
+					Global.RoomId = roomInitMessage.data.room_id;
+					Global.ShortRoomId = roomInitMessage.data.short_id;
+					Global.RecordCount = long.MaxValue;
 					var currentPage = 0;
-					while (currentPage < Math.Ceiling((double)RecordCount / PageSize))
+					while (currentPage < Math.Ceiling((double)Global.RecordCount / PageSize))
 					{
 						var listMessage = await client.GetLiveRecordListAsync(roomInitMessage.data.room_id, ++currentPage, PageSize);
 						if (listMessage?.data != null && listMessage.data.count > 0)
 						{
-							RecordCount = listMessage.data.count;
+							Global.RecordCount = listMessage.data.count;
 							var list = listMessage.data?.list;
 							if (list != null)
 							{
@@ -380,7 +290,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 						else
 						{
 							_logger.LogWarning(@"[{0}]加载列表出错，可能该直播间无直播回放", roomId);
-							RecordCount = 0;
+							Global.RecordCount = 0;
 							break;
 						}
 					}
@@ -389,11 +299,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, @"[{0}]加载直播回放列表出错", roomId);
-				RecordCount = 0;
+				Global.RecordCount = 0;
 			}
 			finally
 			{
-				IsLiveRecordBusy = false;
+				Global.IsLiveRecordBusy = false;
 			}
 		}
 
@@ -449,7 +359,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				{
 					if (info is LiveRecordListViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
 					{
-						var root = Path.Combine(_configService.Config.MainDir, $@"{RoomId}", Constants.LiveRecordPath);
+						var root = Path.Combine(_configService.Config.MainDir, $@"{Global.RoomId}", Constants.LiveRecordPath);
 						var path = Path.Combine(root, liveRecord.Rid);
 						if (!Utils.Utils.OpenDir(path))
 						{
@@ -477,7 +387,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 						{
 							if (item is LiveRecordListViewModel { Rid: not @"" or null } liveRecord)
 							{
-								var root = Path.Combine(_configService.Config.MainDir, $@"{RoomId}", Constants.LiveRecordPath);
+								var root = Path.Combine(_configService.Config.MainDir, $@"{Global.RoomId}", Constants.LiveRecordPath);
 								var task = new LiveRecordDownloadTaskViewModel(_logger, liveRecord, root, _configService.Config.DownloadThreads);
 								if (AddTask(task))
 								{

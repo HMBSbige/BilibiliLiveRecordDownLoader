@@ -97,6 +97,7 @@ namespace BilibiliLiveRecordDownLoader
 			services.AddSingleton<SourceList<LiveRecordList>>();
 			services.AddSingleton<SourceList<TaskListViewModel>>();
 			services.AddSingleton(new OperationQueue(int.MaxValue));
+			services.AddSingleton<GlobalViewModel>();
 			services.AddTransient(typeof(IDownloader), typeof(MultiThreadedDownloader));
 			services.AddTransient(typeof(IFlvMerger), typeof(FlvMerger));
 			services.AddLogging(c => c.AddSerilog());
