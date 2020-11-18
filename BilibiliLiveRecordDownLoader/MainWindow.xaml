@@ -34,8 +34,8 @@
         <ui:NavigationView
             x:Name="NavigationView"
             IsBackButtonVisible="Collapsed"
-            PaneDisplayMode="Auto"
-            IsPaneOpen="False">
+            PaneDisplayMode="LeftCompact"
+            IsTabStop="False">
             <ui:NavigationView.MenuItems>
                 <ui:NavigationViewItem Icon="Download" Content="直播回放" Tag="1" />
                 <ui:NavigationViewItem Icon="59645" Content="任务列表" Tag="2" />
@@ -44,7 +44,10 @@
             <reactiveUi:RoutedViewHost
                 x:Name="RoutedViewHost"
                 HorizontalContentAlignment="Stretch"
-                VerticalContentAlignment="Stretch" />
+                VerticalContentAlignment="Stretch"
+                Transition="Fade"
+                Direction="Up"
+                Duration="0:0:0.15" />
         </ui:NavigationView>
     </Grid>
 </reactiveUi:ReactiveWindow>

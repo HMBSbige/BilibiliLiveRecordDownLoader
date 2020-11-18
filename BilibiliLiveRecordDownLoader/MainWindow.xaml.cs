@@ -2,6 +2,7 @@ using BilibiliLiveRecordDownLoader.ViewModels;
 using ModernWpf.Controls;
 using ReactiveUI;
 using System;
+using System.Linq;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Windows;
@@ -30,7 +31,6 @@ namespace BilibiliLiveRecordDownLoader
 
 				this.Bind(ViewModel, vm => vm.HostScreen.Router, v => v.RoutedViewHost.Router).DisposeWith(d);
 
-				ViewModel.HostScreen.Router.Navigate.Execute(liveRecordList);
 				Observable.FromEventPattern<NavigationViewSelectionChangedEventArgs>(NavigationView, nameof(NavigationView.SelectionChanged))
 				.Subscribe(args =>
 				{
@@ -64,6 +64,8 @@ namespace BilibiliLiveRecordDownLoader
 						}
 					}
 				}).DisposeWith(d);
+
+				NavigationView.SelectedItem = NavigationView.MenuItems.OfType<NavigationViewItem>().First();
 
 				#region CloseReasonHack
 
