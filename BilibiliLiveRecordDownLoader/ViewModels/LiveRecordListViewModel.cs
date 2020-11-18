@@ -140,7 +140,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		public LiveRecordListViewModel(
 				IScreen hostScreen,
-				ILogger<MainWindowViewModel> logger,
+				ILogger<LiveRecordListViewModel> logger,
 				IConfigService configService,
 				SourceList<LiveRecordList> liveRecordSourceList,
 				SourceList<TaskViewModel> taskSourceList,
