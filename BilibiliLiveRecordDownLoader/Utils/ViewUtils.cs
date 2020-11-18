@@ -48,10 +48,18 @@ namespace BilibiliLiveRecordDownLoader.Utils
 
 		public static void ToCenter(this Window window)
 		{
-			var windowWidth = window.Width;
-			var windowHeight = window.Height;
-			window.Left = SystemParameters.PrimaryScreenWidth / 2 - windowWidth / 2;
-			window.Top = SystemParameters.PrimaryScreenHeight / 2 - windowHeight / 2;
+			if (window.Width > SystemParameters.PrimaryScreenWidth)
+			{
+				window.Width = 1280;
+			}
+
+			if (window.Height > SystemParameters.PrimaryScreenHeight)
+			{
+				window.Height = 720;
+			}
+
+			window.Left = SystemParameters.PrimaryScreenWidth / 2 - window.Width / 2;
+			window.Top = SystemParameters.PrimaryScreenHeight / 2 - window.Height / 2;
 		}
 	}
 }
