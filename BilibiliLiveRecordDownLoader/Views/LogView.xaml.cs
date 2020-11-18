@@ -14,28 +14,13 @@ namespace BilibiliLiveRecordDownLoader.Views
 		{
 			InitializeComponent();
 			ViewModel = Locator.Current.GetService<LogViewModel>();
-			var logServices = CreateLogService();
 
 			this.WhenActivated(d =>
 			{
-				Observable.FromEventPattern(LogTextBox, nameof(LogTextBox.TextChanged)).Subscribe(_ =>
-				{
-					if (LogTextBox.LineCount > 2000)
-					{
-						logServices.Dispose();
-						LogTextBox.Clear();
-						logServices = CreateLogService();
-					}
-				}).DisposeWith(d);
-				//TODO logServices.DisposeWith(d);
+				Constants.SubjectMemorySink.LogSubject
+						  .ObserveOnDispatcher()
+						  .Subscribe(str => LogTextBox.AppendText(str)).DisposeWith(d);
 			});
-		}
-
-		private IDisposable CreateLogService()
-		{
-			return Constants.SubjectMemorySink.LogSubject
-					.ObserveOnDispatcher()
-					.Subscribe(str => LogTextBox.AppendText(str));
 		}
 	}
 }

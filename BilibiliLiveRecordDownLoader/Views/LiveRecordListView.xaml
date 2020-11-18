@@ -101,20 +101,11 @@
                 </DataGrid.CellStyle>
                 <DataGrid.ContextMenu>
                     <ContextMenu>
-                        <MenuItem x:Name="DownLoadMenuItem" Header="加入下载队列"
-                                          CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItems)}"
-                                          />
+                        <MenuItem x:Name="DownLoadMenuItem" Header="加入下载队列" />
                         <Separator />
-                        <MenuItem x:Name="CopyLiveRecordDownloadUrlMenuItem" Header="复制下载地址"
-                                          CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItem)}"
-                                          />
-                        <MenuItem x:Name="OpenDirMenuItem" Header="打开目录"
-                                          CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItem)}"
-                                          />
-                        <MenuItem x:Name="OpenLiveRecordUrlMenuItem"
-                                          Header="打开回放地址"
-                                          CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItem)}"
-                                            />
+                        <MenuItem x:Name="CopyLiveRecordDownloadUrlMenuItem" Header="复制下载地址" />
+                        <MenuItem x:Name="OpenDirMenuItem" Header="打开目录" />
+                        <MenuItem x:Name="OpenLiveRecordUrlMenuItem" Header="打开回放地址" />
                     </ContextMenu>
                 </DataGrid.ContextMenu>
                 <DataGrid.Columns>

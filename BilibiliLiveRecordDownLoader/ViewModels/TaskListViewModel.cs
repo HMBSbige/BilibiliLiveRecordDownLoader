@@ -21,6 +21,22 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		public string UrlPathSegment => @"TaskList";
 		public IScreen HostScreen { get; }
 
+		#region 字段
+
+		private object? _selectedItems;
+
+		#endregion
+
+		#region 属性
+
+		public object? SelectedItems
+		{
+			get => _selectedItems;
+			set => this.RaiseAndSetIfChanged(ref _selectedItems, value);
+		}
+
+		#endregion
+
 		#region Command
 
 		public ReactiveCommand<object?, Unit> StopTaskCommand { get; }
