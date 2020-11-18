@@ -9,12 +9,15 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:tb="http://www.hardcodet.net/taskbar"
     xmlns:ui="http://schemas.modernwpf.com/2019"
+    xmlns:fluentWpf="clr-namespace:SourceChord.FluentWPF;assembly=FluentWPF"
     mc:Ignorable="d"
     x:Name="Window"
     WindowStartupLocation="CenterScreen"
     Title="BilibiliLiveRecordDownLoader"
     Height="700" Width="1200"
-    ui:WindowHelper.UseModernWindowStyle="True"
+    ui:ThemeManager.IsThemeAware="True"
+    fluentWpf:AcrylicWindow.ExtendViewIntoTitleBar="True"
+    fluentWpf:AcrylicWindow.Enabled="True"
     >
     <Grid>
         <tb:TaskbarIcon x:Name="NotifyIcon"

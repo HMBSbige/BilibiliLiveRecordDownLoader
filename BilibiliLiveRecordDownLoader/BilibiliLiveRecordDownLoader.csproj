@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="FluentWPF" Version="0.8.0" />
     <PackageReference Include="Hardcodet.NotifyIcon.Wpf.NetCore" Version="1.0.14" />
     <PackageReference Include="HMBSbige.SingleInstance" Version="5.0.0" />
     <PackageReference Include="HMBSbige.UpdateChecker" Version="5.0.0" />

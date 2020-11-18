@@ -9,66 +9,66 @@
     xmlns:viewModels="clr-namespace:BilibiliLiveRecordDownLoader.ViewModels"
     xmlns:controls="http://schemas.modernwpf.com/2019"
     mc:Ignorable="d"
-    d:DesignHeight="450" d:DesignWidth="800" d:Background="White">
-    <Grid Margin="10,0,15,15">
+    d:DesignHeight="450" d:DesignWidth="800" Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+    <Grid Margin="10,15,0,0">
         <DockPanel>
-            <Grid Margin="5" DockPanel.Dock="Top">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="房间号：" VerticalAlignment="Center" />
-                <TextBox x:Name="RoomIdTextBox" Grid.Column="1" VerticalContentAlignment="Center" />
-            </Grid>
-            <Grid DockPanel.Dock="Top" Margin="5" Height="100">
-                <Grid.RowDefinitions>
-                    <RowDefinition />
-                    <RowDefinition />
-                    <RowDefinition />
-                </Grid.RowDefinitions>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition />
-                    <ColumnDefinition />
-                    <ColumnDefinition Width="100"/>
-                </Grid.ColumnDefinitions>
-                <Image Grid.RowSpan="3" x:Name="FaceImage"
-                               Width="100" Margin="0,0,10,0"
-                               d:Source="https://i1.hdslb.com/bfs/face/d14fb85fd5f92761700ff9971a3d923f180598c1.jpg"
-                               RenderOptions.BitmapScalingMode="HighQuality"
-                               RenderOptions.EdgeMode="Aliased" />
+            <controls:SimpleStackPanel
+                Margin="0,0,15,0"
+                DockPanel.Dock="Top"
+                Spacing="10">
+                <TextBlock Text="房间号：" FontSize="18" />
+                <TextBox x:Name="RoomIdTextBox" />
+                <Grid Height="100">
+                    <Grid.RowDefinitions>
+                        <RowDefinition />
+                        <RowDefinition />
+                        <RowDefinition />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition />
+                        <ColumnDefinition />
+                        <ColumnDefinition Width="100"/>
+                    </Grid.ColumnDefinitions>
+                    <Image Grid.RowSpan="3" x:Name="FaceImage"
+                                   Width="100" Margin="0,0,10,0"
+                                   d:Source="https://i1.hdslb.com/bfs/face/d14fb85fd5f92761700ff9971a3d923f180598c1.jpg"
+                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                   RenderOptions.EdgeMode="Aliased" />
 
-                <TextBlock Grid.Row="0" Grid.Column="1" x:Name="NameTextBlock" VerticalAlignment="Center"
-                                   d:Text="AA"
-                                   FontSize="16" />
-                <TextBlock Grid.Row="1" Grid.Column="1" x:Name="UIdTextBlock" VerticalAlignment="Center"
-                                   d:Text="UID"
-                                   FontSize="16" />
-                <TextBlock Grid.Row="2" Grid.Column="1" x:Name="LvTextBlock" VerticalAlignment="Center"
-                                   d:Text="Lv6"
-                                   FontSize="16" />
+                    <TextBlock Grid.Row="0" Grid.Column="1" x:Name="NameTextBlock" VerticalAlignment="Center"
+                                       d:Text="AA"
+                                       FontSize="16" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" x:Name="UIdTextBlock" VerticalAlignment="Center"
+                                       d:Text="UID"
+                                       FontSize="16" />
+                    <TextBlock Grid.Row="2" Grid.Column="1" x:Name="LvTextBlock" VerticalAlignment="Center"
+                                       d:Text="Lv6"
+                                       FontSize="16" />
 
-                <TextBlock Grid.Row="0" Grid.Column="2" x:Name="RoomIdTextBlock" VerticalAlignment="Center"
-                                   d:Text="6154037"
-                                   FontSize="16" />
-                <TextBlock Grid.Row="1" Grid.Column="2" x:Name="ShortRoomIdTextBlock" VerticalAlignment="Center"
-                                   d:Text="732"
-                                   FontSize="16" />
-                <TextBlock Grid.Row="2" Grid.Column="2" x:Name="RecordCountTextBlock" VerticalAlignment="Center"
-                                   d:Text="100"
-                                   FontSize="16" />
+                    <TextBlock Grid.Row="0" Grid.Column="2" x:Name="RoomIdTextBlock" VerticalAlignment="Center"
+                                       d:Text="6154037"
+                                       FontSize="16" />
+                    <TextBlock Grid.Row="1" Grid.Column="2" x:Name="ShortRoomIdTextBlock" VerticalAlignment="Center"
+                                       d:Text="732"
+                                       FontSize="16" />
+                    <TextBlock Grid.Row="2" Grid.Column="2" x:Name="RecordCountTextBlock" VerticalAlignment="Center"
+                                       d:Text="100"
+                                       FontSize="16" />
 
-                <Grid Grid.Row="0" Grid.Column="3" Grid.RowSpan="3">
-                    <controls:ProgressRing
-                                x:Name="LiveRecordBusyIndicator"
-                                d:IsActive="True"
-                                Height="50"
-                                Width="50"
-                                />
+                    <Grid Grid.Row="0" Grid.Column="3" Grid.RowSpan="3">
+                        <controls:ProgressRing
+                                    x:Name="LiveRecordBusyIndicator"
+                                    d:IsActive="True"
+                                    Height="50"
+                                    Width="50"
+                                    />
+                    </Grid>
                 </Grid>
-            </Grid>
+            </controls:SimpleStackPanel>
             <DataGrid
                 x:Name="LiveRecordListDataGrid"
+                Margin="0,10,0,0"
                 AutoGenerateColumns="False"
                 HeadersVisibility="Column"
                 IsReadOnly="True"
@@ -87,6 +87,8 @@
                 SelectionUnit="FullRow"
                 
                 d:DataContext="{d:DesignInstance viewModels:LiveRecordViewModel}"
+                BorderThickness="1"
+                BorderBrush="{DynamicResource GridLinesBrush}"
                 >
                 <DataGrid.CellStyle>
                     <Style TargetType="DataGridCell">
