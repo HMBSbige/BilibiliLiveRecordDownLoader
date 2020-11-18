@@ -74,11 +74,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			_logger = logger;
 			_configService = configService;
 
-			InitAsync().NoWarning();
-
 			SelectMainDirCommand = ReactiveCommand.Create(SelectDirectory);
 			OpenMainDirCommand = ReactiveCommand.CreateFromObservable(OpenDirectory);
 			CheckUpdateCommand = ReactiveCommand.CreateFromTask(CheckUpdateAsync);
+
+			InitAsync().NoWarning();
 		}
 
 		private async ValueTask InitAsync()
