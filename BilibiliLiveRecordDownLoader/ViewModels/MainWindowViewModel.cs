@@ -21,9 +21,14 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		private readonly SourceList<TaskViewModel> _taskSourceList;
 
-		public MainWindowViewModel(SourceList<TaskViewModel> taskSourceList)
+		public IScreen HostScreen { get; }
+
+		public MainWindowViewModel(
+			SourceList<TaskViewModel> taskSourceList,
+			IScreen screen)
 		{
 			_taskSourceList = taskSourceList;
+			HostScreen = screen;
 
 			ShowWindowCommand = ReactiveCommand.Create(ShowWindow);
 			ExitCommand = ReactiveCommand.Create(Exit);

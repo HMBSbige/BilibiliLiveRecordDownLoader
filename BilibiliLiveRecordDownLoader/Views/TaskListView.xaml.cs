@@ -1,16 +1,15 @@
 using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI;
-using Splat;
 using System.Reactive.Disposables;
 
 namespace BilibiliLiveRecordDownLoader.Views
 {
 	public partial class TaskListView
 	{
-		public TaskListView()
+		public TaskListView(TaskListViewModel viewModel)
 		{
 			InitializeComponent();
-			ViewModel = Locator.Current.GetService<TaskListViewModel>();
+			ViewModel = viewModel;
 
 			this.WhenActivated(d =>
 			{

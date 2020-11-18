@@ -1,7 +1,6 @@
 using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI;
-using Splat;
 using System;
 using System.Reactive.Disposables;
 
@@ -9,10 +8,10 @@ namespace BilibiliLiveRecordDownLoader.Views
 {
 	public partial class SettingView
 	{
-		public SettingView()
+		public SettingView(SettingViewModel viewModel)
 		{
 			InitializeComponent();
-			ViewModel = Locator.Current.GetService<SettingViewModel>();
+			ViewModel = viewModel;
 
 			this.WhenActivated(d =>
 			{
@@ -28,9 +27,9 @@ namespace BilibiliLiveRecordDownLoader.Views
 						v => v.DiskUsageProgressBar.Foreground,
 						p => p > 90 ? Constants.RedBrush : Constants.NormalDiskUsageBrush).DisposeWith(d);
 
-				this.BindCommand(ViewModel, viewModel => viewModel.SelectMainDirCommand, view => view.SelectMainDirButton).DisposeWith(d);
+				this.BindCommand(ViewModel, vm => vm.SelectMainDirCommand, v => v.SelectMainDirButton).DisposeWith(d);
 
-				this.BindCommand(ViewModel, viewModel => viewModel.OpenMainDirCommand, view => view.OpenMainDirButton).DisposeWith(d);
+				this.BindCommand(ViewModel, vm => vm.OpenMainDirCommand, v => v.OpenMainDirButton).DisposeWith(d);
 
 				this.Bind(ViewModel,
 						vm => vm.Config.DownloadThreads,

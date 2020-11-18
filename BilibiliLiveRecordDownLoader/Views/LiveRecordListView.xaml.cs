@@ -1,6 +1,5 @@
 using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI;
-using Splat;
 using System;
 using System.Reactive.Disposables;
 using System.Windows;
@@ -11,10 +10,10 @@ namespace BilibiliLiveRecordDownLoader.Views
 {
 	public partial class LiveRecordListView
 	{
-		public LiveRecordListView()
+		public LiveRecordListView(LiveRecordListViewModel viewModel)
 		{
 			InitializeComponent();
-			ViewModel = Locator.Current.GetService<LiveRecordListViewModel>();
+			ViewModel = viewModel;
 
 			this.WhenActivated(d =>
 			{

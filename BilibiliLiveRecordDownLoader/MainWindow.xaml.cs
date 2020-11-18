@@ -1,8 +1,9 @@
 using BilibiliLiveRecordDownLoader.ViewModels;
+using ModernWpf.Controls;
 using ReactiveUI;
-using Splat;
 using System;
 using System.Reactive.Disposables;
+using System.Reactive.Linq;
 using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Interop;
@@ -11,16 +12,58 @@ namespace BilibiliLiveRecordDownLoader
 {
 	public partial class MainWindow
 	{
-		public MainWindow()
+		public MainWindow(
+			MainWindowViewModel viewModel,
+			LiveRecordListViewModel liveRecordList,
+			TaskListViewModel taskList,
+			LogViewModel log,
+			SettingViewModel settings)
 		{
 			InitializeComponent();
-			ViewModel = Locator.Current.GetService<MainWindowViewModel>();
+			ViewModel = viewModel;
 
 			this.WhenActivated(d =>
 			{
 				this.BindCommand(ViewModel, vm => vm.ShowWindowCommand, v => v.NotifyIcon, nameof(NotifyIcon.TrayLeftMouseUp)).DisposeWith(d);
 				this.BindCommand(ViewModel, vm => vm.ShowWindowCommand, v => v.ShowMenuItem).DisposeWith(d);
 				this.BindCommand(ViewModel, vm => vm.ExitCommand, v => v.ExitMenuItem).DisposeWith(d);
+
+				this.Bind(ViewModel, vm => vm.HostScreen.Router, v => v.RoutedViewHost.Router).DisposeWith(d);
+
+				ViewModel.HostScreen.Router.Navigate.Execute(liveRecordList);
+				Observable.FromEventPattern<NavigationViewSelectionChangedEventArgs>(NavigationView, nameof(NavigationView.SelectionChanged))
+				.Subscribe(args =>
+				{
+					if (args.EventArgs.IsSettingsSelected)
+					{
+						ViewModel.HostScreen.Router.Navigate.Execute(settings);
+						return;
+					}
+
+					if (args.EventArgs.SelectedItem is not NavigationViewItem { Tag: string tag })
+					{
+						return;
+					}
+
+					switch (tag)
+					{
+						case @"1":
+						{
+							ViewModel.HostScreen.Router.Navigate.Execute(liveRecordList);
+							break;
+						}
+						case @"2":
+						{
+							ViewModel.HostScreen.Router.Navigate.Execute(taskList);
+							break;
+						}
+						case @"3":
+						{
+							ViewModel.HostScreen.Router.Navigate.Execute(log);
+							break;
+						}
+					}
+				}).DisposeWith(d);
 
 				#region CloseReasonHack
 

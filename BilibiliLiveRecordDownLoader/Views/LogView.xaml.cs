@@ -1,7 +1,6 @@
 using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI;
-using Splat;
 using System;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
@@ -10,10 +9,10 @@ namespace BilibiliLiveRecordDownLoader.Views
 {
 	public partial class LogView
 	{
-		public LogView()
+		public LogView(LogViewModel viewModel)
 		{
 			InitializeComponent();
-			ViewModel = Locator.Current.GetService<LogViewModel>();
+			ViewModel = viewModel;
 
 			this.WhenActivated(d =>
 			{

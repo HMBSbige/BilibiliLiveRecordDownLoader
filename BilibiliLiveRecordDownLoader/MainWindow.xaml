@@ -9,7 +9,6 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:tb="http://www.hardcodet.net/taskbar"
     xmlns:ui="http://schemas.modernwpf.com/2019"
-    xmlns:views="clr-namespace:BilibiliLiveRecordDownLoader.Views"
     mc:Ignorable="d"
     x:Name="Window"
     WindowStartupLocation="CenterScreen"
@@ -32,19 +31,20 @@
                 </ContextMenu>
             </tb:TaskbarIcon.ContextMenu>
         </tb:TaskbarIcon>
-        <TabControl TabStripPlacement="Left">
-            <TabItem Header="直播回放">
-                <views:LiveRecordListView />
-            </TabItem>
-            <TabItem Header="任务列表">
-                <views:TaskListView />
-            </TabItem>
-            <TabItem Header="日志">
-                <views:LogView />
-            </TabItem>
-            <TabItem Header="设置">
-                <views:SettingView />
-            </TabItem>
-        </TabControl>
+        <ui:NavigationView
+            x:Name="NavigationView"
+            IsBackButtonVisible="Collapsed"
+            PaneDisplayMode="Auto"
+            IsPaneOpen="False">
+            <ui:NavigationView.MenuItems>
+                <ui:NavigationViewItem Icon="Download" Content="直播回放" Tag="1" />
+                <ui:NavigationViewItem Icon="59645" Content="任务列表" Tag="2" />
+                <ui:NavigationViewItem Icon="Message" Content="日志" Tag="3" />
+            </ui:NavigationView.MenuItems>
+            <reactiveUi:RoutedViewHost
+                x:Name="RoutedViewHost"
+                HorizontalContentAlignment="Stretch"
+                VerticalContentAlignment="Stretch" />
+        </ui:NavigationView>
     </Grid>
 </reactiveUi:ReactiveWindow>
