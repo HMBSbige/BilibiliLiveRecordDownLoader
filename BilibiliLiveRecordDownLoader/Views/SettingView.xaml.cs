@@ -16,13 +16,15 @@ namespace BilibiliLiveRecordDownLoader.Views
 
 			this.WhenActivated(d =>
 			{
+				ViewModel.CreateDiskMonitor().DisposeWith(d);
+
 				this.Bind(ViewModel, vm => vm.Config.MainDir, v => v.MainDirTextBox.Text).DisposeWith(d);
 
-				this.OneWayBind(ViewModel, vm => vm.Global.DiskUsageProgressBarText, v => v.DiskUsageProgressBarTextBlock.Text).DisposeWith(d);
+				this.OneWayBind(ViewModel, vm => vm.DiskUsageProgressBarText, v => v.DiskUsageProgressBarTextBlock.Text).DisposeWith(d);
 
-				this.OneWayBind(ViewModel, vm => vm.Global.DiskUsageProgressBarValue, v => v.DiskUsageProgressBar.Value).DisposeWith(d);
+				this.OneWayBind(ViewModel, vm => vm.DiskUsageProgressBarValue, v => v.DiskUsageProgressBar.Value).DisposeWith(d);
 
-				this.OneWayBind(ViewModel, vm => vm.Global.DiskUsageProgressBarValue,
+				this.OneWayBind(ViewModel, vm => vm.DiskUsageProgressBarValue,
 						v => v.DiskUsageProgressBar.Foreground,
 						p => p > 90 ? Constants.RedBrush : Constants.NormalDiskUsageBrush).DisposeWith(d);
 
@@ -39,7 +41,7 @@ namespace BilibiliLiveRecordDownLoader.Views
 				this.Bind(ViewModel, vm => vm.Config.IsCheckUpdateOnStart, v => v.IsCheckUpdateOnStartSwitch.IsOn).DisposeWith(d);
 				this.Bind(ViewModel, vm => vm.Config.IsCheckPreRelease, v => v.IsCheckPreReleaseSwitch.IsOn).DisposeWith(d);
 				this.BindCommand(ViewModel, vm => vm.CheckUpdateCommand, v => v.CheckUpdateButton).DisposeWith(d);
-				this.OneWayBind(ViewModel, vm => vm.Global.UpdateStatus, v => v.UpdateStatusTextBlock.Text).DisposeWith(d);
+				this.OneWayBind(ViewModel, vm => vm.UpdateStatus, v => v.UpdateStatusTextBlock.Text).DisposeWith(d);
 			});
 		}
 	}

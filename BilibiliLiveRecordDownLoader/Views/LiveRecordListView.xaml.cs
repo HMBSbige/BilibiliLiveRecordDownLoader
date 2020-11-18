@@ -28,19 +28,19 @@ namespace BilibiliLiveRecordDownLoader.Views
 				{
 					if (args.Key == Key.Enter)
 					{
-						ViewModel.Global.TriggerLiveRecordListQuery = !ViewModel.Global.TriggerLiveRecordListQuery;
+						ViewModel.TriggerLiveRecordListQuery = !ViewModel.TriggerLiveRecordListQuery;
 					}
 				}).DisposeWith(d);
 
-				this.OneWayBind(ViewModel, vm => vm.Global.ImageUri, v => v.FaceImage.Source, url => url == null ? null : new BitmapImage(new Uri(url))).DisposeWith(d);
-				this.OneWayBind(ViewModel, vm => vm.Global.Name, v => v.NameTextBlock.Text).DisposeWith(d);
-				this.OneWayBind(ViewModel, vm => vm.Global.Uid, v => v.UIdTextBlock.Text, i => $@"UID: {i}").DisposeWith(d);
-				this.OneWayBind(ViewModel, vm => vm.Global.Level, v => v.LvTextBlock.Text, i => $@"Lv{i}").DisposeWith(d);
+				this.OneWayBind(ViewModel, vm => vm.ImageUri, v => v.FaceImage.Source, url => url == null ? null : new BitmapImage(new Uri(url))).DisposeWith(d);
+				this.OneWayBind(ViewModel, vm => vm.Name, v => v.NameTextBlock.Text).DisposeWith(d);
+				this.OneWayBind(ViewModel, vm => vm.Uid, v => v.UIdTextBlock.Text, i => $@"UID: {i}").DisposeWith(d);
+				this.OneWayBind(ViewModel, vm => vm.Level, v => v.LvTextBlock.Text, i => $@"Lv{i}").DisposeWith(d);
 
-				this.OneWayBind(ViewModel, vm => vm.Global.RoomId, v => v.RoomIdTextBlock.Text, i => $@"房间号: {i}").DisposeWith(d);
-				this.OneWayBind(ViewModel, vm => vm.Global.ShortRoomId, v => v.ShortRoomIdTextBlock.Text, i => $@"短号: {i}").DisposeWith(d);
-				this.OneWayBind(ViewModel, vm => vm.Global.RecordCount, v => v.RecordCountTextBlock.Text, i => $@"列表总数: {i}").DisposeWith(d);
-				this.OneWayBind(ViewModel, vm => vm.Global.IsLiveRecordBusy, v => v.LiveRecordBusyIndicator.IsActive).DisposeWith(d);
+				this.OneWayBind(ViewModel, vm => vm.RoomId, v => v.RoomIdTextBlock.Text, i => $@"房间号: {i}").DisposeWith(d);
+				this.OneWayBind(ViewModel, vm => vm.ShortRoomId, v => v.ShortRoomIdTextBlock.Text, i => $@"短号: {i}").DisposeWith(d);
+				this.OneWayBind(ViewModel, vm => vm.RecordCount, v => v.RecordCountTextBlock.Text, i => $@"列表总数: {i}").DisposeWith(d);
+				this.OneWayBind(ViewModel, vm => vm.IsLiveRecordBusy, v => v.LiveRecordBusyIndicator.IsActive).DisposeWith(d);
 
 				this.OneWayBind(ViewModel, vm => vm.LiveRecordList, v => v.LiveRecordListDataGrid.ItemsSource).DisposeWith(d);
 				this.WhenAnyValue(v => v.LiveRecordListDataGrid.SelectedItem)
@@ -50,20 +50,20 @@ namespace BilibiliLiveRecordDownLoader.Views
 						.BindTo(ViewModel, vm => vm.SelectedItems)
 						.DisposeWith(d);
 				this.BindCommand(ViewModel,
-					vm => vm.CopyLiveRecordDownloadUrlCommand,
-					v => v.CopyLiveRecordDownloadUrlMenuItem,
-					vm => vm.SelectedItems).DisposeWith(d);
-				this.BindCommand(ViewModel,
-					vm => vm.OpenLiveRecordUrlCommand,
-					v => v.OpenLiveRecordUrlMenuItem,
-					vm => vm.SelectedItem).DisposeWith(d);
-				this.BindCommand(ViewModel,
 					vm => vm.DownLoadCommand,
 					v => v.DownLoadMenuItem,
+					vm => vm.SelectedItems).DisposeWith(d);
+				this.BindCommand(ViewModel,
+					vm => vm.CopyLiveRecordDownloadUrlCommand,
+					v => v.CopyLiveRecordDownloadUrlMenuItem,
 					vm => vm.SelectedItem).DisposeWith(d);
 				this.BindCommand(ViewModel,
 					vm => vm.OpenDirCommand,
 					v => v.OpenDirMenuItem,
+					vm => vm.SelectedItem).DisposeWith(d);
+				this.BindCommand(ViewModel,
+					vm => vm.OpenLiveRecordUrlCommand,
+					v => v.OpenLiveRecordUrlMenuItem,
 					vm => vm.SelectedItem).DisposeWith(d);
 			});
 		}

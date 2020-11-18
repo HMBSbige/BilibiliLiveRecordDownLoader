@@ -23,6 +23,7 @@
                         ToolTipText="BilibiliLiveRecordDownLoader"
                         IconSource="Resources/Asaki.ico"
                         MenuActivation="RightClick"
+                        NoLeftClickDelay="True"
                         >
             <tb:TaskbarIcon.ContextMenu>
                 <ContextMenu>

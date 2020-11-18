@@ -18,8 +18,6 @@ namespace BilibiliLiveRecordDownLoader
 
 			this.WhenActivated(d =>
 			{
-				ViewModel.DisposeWith(d);
-
 				this.BindCommand(ViewModel, vm => vm.ShowWindowCommand, v => v.NotifyIcon, nameof(NotifyIcon.TrayLeftMouseUp)).DisposeWith(d);
 				this.BindCommand(ViewModel, vm => vm.ShowWindowCommand, v => v.ShowMenuItem).DisposeWith(d);
 				this.BindCommand(ViewModel, vm => vm.ExitCommand, v => v.ExitMenuItem).DisposeWith(d);

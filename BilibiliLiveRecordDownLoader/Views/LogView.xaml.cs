@@ -17,9 +17,8 @@ namespace BilibiliLiveRecordDownLoader.Views
 
 			this.WhenActivated(d =>
 			{
-				Constants.SubjectMemorySink.LogSubject
-						  .ObserveOnDispatcher()
-						  .Subscribe(str => LogTextBox.AppendText(str)).DisposeWith(d);
+				LogTextBox.Clear();
+				Constants.SubjectMemorySink.LogSubject.ObserveOnDispatcher().Subscribe(str => LogTextBox.AppendText(str)).DisposeWith(d);
 			});
 		}
 	}

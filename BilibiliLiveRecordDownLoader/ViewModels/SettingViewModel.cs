@@ -22,6 +22,36 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		public IScreen HostScreen { get; }
 
+		#region 字段
+
+		private string? _diskUsageProgressBarText;
+		private double _diskUsageProgressBarValue;
+		private string? _updateStatus;
+
+		#endregion
+
+		#region 属性
+
+		public string? DiskUsageProgressBarText
+		{
+			get => _diskUsageProgressBarText;
+			set => this.RaiseAndSetIfChanged(ref _diskUsageProgressBarText, value);
+		}
+
+		public double DiskUsageProgressBarValue
+		{
+			get => _diskUsageProgressBarValue;
+			set => this.RaiseAndSetIfChanged(ref _diskUsageProgressBarValue, value);
+		}
+
+		public string? UpdateStatus
+		{
+			get => _updateStatus;
+			set => this.RaiseAndSetIfChanged(ref _updateStatus, value);
+		}
+
+		#endregion
+
 		#region Command
 
 		public ReactiveCommand<Unit, Unit> SelectMainDirCommand { get; }
@@ -32,20 +62,17 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		private readonly ILogger _logger;
 		private readonly IConfigService _configService;
-		public readonly GlobalViewModel Global;
 
 		public Config Config => _configService.Config;
 
 		public SettingViewModel(
 			IScreen hostScreen,
 			ILogger<SettingViewModel> logger,
-			IConfigService configService,
-			GlobalViewModel global)
+			IConfigService configService)
 		{
 			HostScreen = hostScreen;
 			_logger = logger;
 			_configService = configService;
-			Global = global;
 
 			InitAsync().NoWarning();
 
@@ -94,7 +121,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		{
 			try
 			{
-				Global.UpdateStatus = @"正在检查更新...";
+				UpdateStatus = @"正在检查更新...";
 				var version = Utils.Utils.GetAppVersion()!;
 				var updateChecker = new GitHubReleasesUpdateChecker(
 						@"HMBSbige",
@@ -106,14 +133,14 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				{
 					if (updateChecker.LatestVersionUrl is null)
 					{
-						Global.UpdateStatus = @"更新地址获取出错";
+						UpdateStatus = @"更新地址获取出错";
 						return;
 					}
 
-					Global.UpdateStatus = $@"发现新版本：{updateChecker.LatestVersion}";
+					UpdateStatus = $@"发现新版本：{updateChecker.LatestVersion}";
 					using var dialog = new DisposableContentDialog
 					{
-						Title = Global.UpdateStatus,
+						Title = UpdateStatus,
 						Content = @"是否跳转到下载页？",
 						PrimaryButtonText = @"是",
 						SecondaryButtonText = @"否",
@@ -126,13 +153,34 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				}
 				else
 				{
-					Global.UpdateStatus = $@"没有找到新版本：{version} ≥ {updateChecker.LatestVersion}";
+					UpdateStatus = $@"没有找到新版本：{version} ≥ {updateChecker.LatestVersion}";
 				}
 			}
 			catch (Exception ex)
 			{
-				Global.UpdateStatus = @"检查更新出错";
-				_logger.LogError(ex, Global.UpdateStatus);
+				UpdateStatus = @"检查更新出错";
+				_logger.LogError(ex, UpdateStatus);
+			}
+		}
+
+		public IDisposable CreateDiskMonitor()
+		{
+			return Observable.Interval(TimeSpan.FromSeconds(1), RxApp.MainThreadScheduler).Subscribe(GetDiskUsage);
+		}
+
+		private void GetDiskUsage(long _)
+		{
+			var (availableFreeSpace, totalSize) = Utils.Utils.GetDiskUsage(_configService.Config.MainDir);
+			if (totalSize != 0)
+			{
+				DiskUsageProgressBarText = $@"已使用 {Utils.Utils.CountSize(totalSize - availableFreeSpace)}/{Utils.Utils.CountSize(totalSize)} 剩余 {Utils.Utils.CountSize(availableFreeSpace)}";
+				var percentage = (totalSize - availableFreeSpace) / (double)totalSize;
+				DiskUsageProgressBarValue = percentage * 100;
+			}
+			else
+			{
+				DiskUsageProgressBarText = string.Empty;
+				DiskUsageProgressBarValue = 0;
 			}
 		}
 	}

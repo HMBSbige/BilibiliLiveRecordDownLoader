@@ -99,7 +99,6 @@ namespace BilibiliLiveRecordDownLoader
 			services.AddSingleton<SourceList<LiveRecordList>>();
 			services.AddSingleton<SourceList<TaskViewModel>>();
 			services.AddSingleton(new OperationQueue(int.MaxValue));
-			services.AddSingleton<GlobalViewModel>();
 			services.AddSingleton(typeof(IScreen), typeof(MainScreen));
 			services.AddSingleton<SettingViewModel>();
 			services.AddSingleton<LogViewModel>();

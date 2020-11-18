@@ -31,6 +31,15 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		private object? _selectedItem;
 		private object? _selectedItems;
+		private string? _imageUri;
+		private string? _name;
+		private long _uid;
+		private long _level;
+		private long _roomId;
+		private long _shortRoomId;
+		private long _recordCount;
+		private bool _isLiveRecordBusy;
+		private bool _triggerLiveRecordListQuery;
 
 		#endregion
 
@@ -46,6 +55,60 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		{
 			get => _selectedItems;
 			set => this.RaiseAndSetIfChanged(ref _selectedItems, value);
+		}
+
+		public string? ImageUri
+		{
+			get => _imageUri;
+			set => this.RaiseAndSetIfChanged(ref _imageUri, value);
+		}
+
+		public string? Name
+		{
+			get => _name;
+			set => this.RaiseAndSetIfChanged(ref _name, value);
+		}
+
+		public long Uid
+		{
+			get => _uid;
+			set => this.RaiseAndSetIfChanged(ref _uid, value);
+		}
+
+		public long Level
+		{
+			get => _level;
+			set => this.RaiseAndSetIfChanged(ref _level, value);
+		}
+
+		public long RoomId
+		{
+			get => _roomId;
+			set => this.RaiseAndSetIfChanged(ref _roomId, value);
+		}
+
+		public long ShortRoomId
+		{
+			get => _shortRoomId;
+			set => this.RaiseAndSetIfChanged(ref _shortRoomId, value);
+		}
+
+		public long RecordCount
+		{
+			get => _recordCount;
+			set => this.RaiseAndSetIfChanged(ref _recordCount, value);
+		}
+
+		public bool IsLiveRecordBusy
+		{
+			get => _isLiveRecordBusy;
+			set => this.RaiseAndSetIfChanged(ref _isLiveRecordBusy, value);
+		}
+
+		public bool TriggerLiveRecordListQuery
+		{
+			get => _triggerLiveRecordListQuery;
+			set => this.RaiseAndSetIfChanged(ref _triggerLiveRecordListQuery, value);
 		}
 
 		#endregion
@@ -70,7 +133,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private readonly SourceList<TaskViewModel> _taskSourceList;
 		private readonly SourceList<LiveRecordList> _liveRecordSourceList;
 		private readonly OperationQueue _liveRecordDownloadTaskQueue;
-		public readonly GlobalViewModel Global;
 
 		public readonly ReadOnlyObservableCollection<LiveRecordViewModel> LiveRecordList;
 		public Config Config => _configService.Config;
@@ -82,8 +144,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				IConfigService configService,
 				SourceList<LiveRecordList> liveRecordSourceList,
 				SourceList<TaskViewModel> taskSourceList,
-				OperationQueue taskQueue,
-				GlobalViewModel global)
+				OperationQueue taskQueue)
 		{
 			HostScreen = hostScreen;
 			_logger = logger;
@@ -91,10 +152,9 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			_taskSourceList = taskSourceList;
 			_liveRecordSourceList = liveRecordSourceList;
 			_liveRecordDownloadTaskQueue = taskQueue;
-			Global = global;
 
 			_roomIdMonitor = this
-					.WhenAnyValue(x => x._configService.Config.RoomId, x => x.Global.TriggerLiveRecordListQuery)
+					.WhenAnyValue(x => x._configService.Config.RoomId, x => x.TriggerLiveRecordListQuery)
 					.Throttle(TimeSpan.FromMilliseconds(800), RxApp.MainThreadScheduler)
 					.DistinctUntilChanged()
 					.Where(i => i.Item1 > 0)
@@ -170,7 +230,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				{
 					if (info is LiveRecordViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
 					{
-						var root = Path.Combine(_configService.Config.MainDir, $@"{Global.RoomId}", Constants.LiveRecordPath);
+						var root = Path.Combine(_configService.Config.MainDir, $@"{RoomId}", Constants.LiveRecordPath);
 						var path = Path.Combine(root, liveRecord.Rid);
 						if (!Utils.Utils.OpenDir(path))
 						{
@@ -198,7 +258,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 						{
 							if (item is LiveRecordViewModel { Rid: not @"" or null } liveRecord)
 							{
-								var root = Path.Combine(_configService.Config.MainDir, $@"{Global.RoomId}", Constants.LiveRecordPath);
+								var root = Path.Combine(_configService.Config.MainDir, $@"{RoomId}", Constants.LiveRecordPath);
 								var task = new LiveRecordDownloadTaskViewModel(_logger, liveRecord, root, _configService.Config.DownloadThreads);
 								if (AddTask(task))
 								{
@@ -239,17 +299,17 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				}
 
 				var info = msg.data.info;
-				Global.ImageUri = info.face;
-				Global.Name = info.uname;
-				Global.Uid = info.uid;
-				Global.Level = info.platform_user_level;
+				ImageUri = info.face;
+				Name = info.uname;
+				Uid = info.uid;
+				Level = info.platform_user_level;
 			}
 			catch (Exception ex)
 			{
-				Global.ImageUri = null;
-				Global.Name = string.Empty;
-				Global.Uid = 0;
-				Global.Level = 0;
+				ImageUri = null;
+				Name = string.Empty;
+				Uid = 0;
+				Level = 0;
 
 				if (ex is ArgumentException)
 				{
@@ -266,10 +326,10 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		{
 			try
 			{
-				Global.IsLiveRecordBusy = true;
-				Global.RoomId = 0;
-				Global.ShortRoomId = 0;
-				Global.RecordCount = 0;
+				IsLiveRecordBusy = true;
+				RoomId = 0;
+				ShortRoomId = 0;
+				RecordCount = 0;
 				_liveRecordSourceList.Clear();
 
 				using var client = new BililiveApiClient();
@@ -279,16 +339,16 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					&& roomInitMessage.data != null
 					&& roomInitMessage.data.room_id > 0)
 				{
-					Global.RoomId = roomInitMessage.data.room_id;
-					Global.ShortRoomId = roomInitMessage.data.short_id;
-					Global.RecordCount = long.MaxValue;
+					RoomId = roomInitMessage.data.room_id;
+					ShortRoomId = roomInitMessage.data.short_id;
+					RecordCount = long.MaxValue;
 					var currentPage = 0;
-					while (currentPage < Math.Ceiling((double)Global.RecordCount / PageSize))
+					while (currentPage < Math.Ceiling((double)RecordCount / PageSize))
 					{
 						var listMessage = await client.GetLiveRecordListAsync(roomInitMessage.data.room_id, ++currentPage, PageSize);
 						if (listMessage?.data != null && listMessage.data.count > 0)
 						{
-							Global.RecordCount = listMessage.data.count;
+							RecordCount = listMessage.data.count;
 							var list = listMessage.data?.list;
 							if (list != null)
 							{
@@ -298,7 +358,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 						else
 						{
 							_logger.LogWarning(@"[{0}]加载列表出错，可能该直播间无直播回放", roomId);
-							Global.RecordCount = 0;
+							RecordCount = 0;
 							break;
 						}
 					}
@@ -307,11 +367,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, @"[{0}]加载直播回放列表出错", roomId);
-				Global.RecordCount = 0;
+				RecordCount = 0;
 			}
 			finally
 			{
-				Global.IsLiveRecordBusy = false;
+				IsLiveRecordBusy = false;
 			}
 		}
 
