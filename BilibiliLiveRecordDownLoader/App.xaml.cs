@@ -6,6 +6,8 @@ using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
+using BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels;
+using BilibiliLiveRecordDownLoader.Views;
 using DynamicData;
 using Microsoft.Extensions.DependencyInjection;
 using ModernWpf;
@@ -91,12 +93,24 @@ namespace BilibiliLiveRecordDownLoader
 
 		private static void ConfigureServices(IServiceCollection services)
 		{
-			services.AddSingleton<MainWindow>();
 			services.AddSingleton<MainWindowViewModel>();
+			services.AddSingleton<SettingViewModel>();
+			services.AddSingleton<LogViewModel>();
+			services.AddSingleton<TaskListViewModel>();
+			services.AddSingleton<LiveRecordListViewModel>();
+
+			services.AddSingleton<MainWindow>();
+			services.AddTransient(typeof(IViewFor<LiveRecordListViewModel>), typeof(LiveRecordListView));
+			services.AddTransient(typeof(IViewFor<TaskListViewModel>), typeof(TaskListView));
+			services.AddTransient(typeof(IViewFor<LogViewModel>), typeof(LogView));
+			services.AddTransient(typeof(IViewFor<SettingViewModel>), typeof(SettingView));
+
 			services.AddSingleton(typeof(IConfigService), typeof(ConfigService));
 			services.AddSingleton<SourceList<LiveRecordList>>();
-			services.AddSingleton<SourceList<TaskListViewModel>>();
+			services.AddSingleton<SourceList<TaskViewModel>>();
 			services.AddSingleton(new OperationQueue(int.MaxValue));
+			services.AddSingleton(typeof(IScreen), typeof(MainScreen));
+
 			services.AddTransient(typeof(IDownloader), typeof(MultiThreadedDownloader));
 			services.AddTransient(typeof(IFlvMerger), typeof(FlvMerger));
 			services.AddLogging(c => c.AddSerilog());

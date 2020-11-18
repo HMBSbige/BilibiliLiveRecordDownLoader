@@ -9,12 +9,15 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:tb="http://www.hardcodet.net/taskbar"
     xmlns:ui="http://schemas.modernwpf.com/2019"
+    xmlns:fluentWpf="clr-namespace:SourceChord.FluentWPF;assembly=FluentWPF"
     mc:Ignorable="d"
     x:Name="Window"
     WindowStartupLocation="CenterScreen"
     Title="BilibiliLiveRecordDownLoader"
     Height="700" Width="1200"
-    ui:WindowHelper.UseModernWindowStyle="True"
+    ui:ThemeManager.IsThemeAware="True"
+    fluentWpf:AcrylicWindow.ExtendViewIntoTitleBar="True"
+    fluentWpf:AcrylicWindow.Enabled="True"
     >
     <Grid>
         <tb:TaskbarIcon x:Name="NotifyIcon"
@@ -22,6 +25,7 @@
                         ToolTipText="BilibiliLiveRecordDownLoader"
                         IconSource="Resources/Asaki.ico"
                         MenuActivation="RightClick"
+                        NoLeftClickDelay="True"
                         >
             <tb:TaskbarIcon.ContextMenu>
                 <ContextMenu>
@@ -30,280 +34,24 @@
                 </ContextMenu>
             </tb:TaskbarIcon.ContextMenu>
         </tb:TaskbarIcon>
-        <TabControl TabStripPlacement="Left">
-            <TabItem Header="直播回放">
-                <DockPanel Margin="20,0,20,20">
-                    <Grid Margin="5" DockPanel.Dock="Top">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="房间号：" VerticalAlignment="Center" />
-                        <TextBox x:Name="RoomIdTextBox" Grid.Column="1" VerticalContentAlignment="Center" />
-                    </Grid>
-                    <Grid DockPanel.Dock="Top" Margin="5" Height="100">
-                        <Grid.RowDefinitions>
-                            <RowDefinition />
-                            <RowDefinition />
-                            <RowDefinition />
-                        </Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition />
-                            <ColumnDefinition />
-                            <ColumnDefinition Width="100"/>
-                        </Grid.ColumnDefinitions>
-                        <Image Grid.RowSpan="3" x:Name="FaceImage"
-                               Width="100" Margin="0,0,10,0"
-                               d:Source="https://i1.hdslb.com/bfs/face/d14fb85fd5f92761700ff9971a3d923f180598c1.jpg"
-                               RenderOptions.BitmapScalingMode="HighQuality"
-                               RenderOptions.EdgeMode="Aliased" />
-
-                        <TextBlock Grid.Row="0" Grid.Column="1" x:Name="NameTextBlock" VerticalAlignment="Center"
-                                   d:Text="AA"
-                                   FontSize="16" />
-                        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="UIdTextBlock" VerticalAlignment="Center"
-                                   d:Text="UID"
-                                   FontSize="16" />
-                        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="LvTextBlock" VerticalAlignment="Center"
-                                   d:Text="Lv6"
-                                   FontSize="16" />
-
-                        <TextBlock Grid.Row="0" Grid.Column="2" x:Name="RoomIdTextBlock" VerticalAlignment="Center"
-                                   d:Text="6154037"
-                                   FontSize="16" />
-                        <TextBlock Grid.Row="1" Grid.Column="2" x:Name="ShortRoomIdTextBlock" VerticalAlignment="Center"
-                                   d:Text="732"
-                                   FontSize="16" />
-                        <TextBlock Grid.Row="2" Grid.Column="2" x:Name="RecordCountTextBlock" VerticalAlignment="Center"
-                                   d:Text="100"
-                                   FontSize="16" />
-
-                        <Grid Grid.Row="0" Grid.Column="3" Grid.RowSpan="3">
-                            <ui:ProgressRing
-                                x:Name="LiveRecordBusyIndicator"
-                                d:IsActive="True"
-                                Height="50"
-                                Width="50"
-                                />
-                        </Grid>
-                    </Grid>
-                    <DataGrid
-                        x:Name="LiveRecordListDataGrid"
-                        AutoGenerateColumns="False"
-                        HeadersVisibility="Column"
-                        IsReadOnly="True"
-                        GridLinesVisibility="All"
-                        
-                        VirtualizingPanel.VirtualizationMode="Recycling"
-                        EnableColumnVirtualization="True"
-                        EnableRowVirtualization="True"
-                        
-                        CanUserResizeColumns="True"
-                        CanUserResizeRows="False"
-                        CanUserSortColumns="True"
-                        CanUserReorderColumns="True"
-                        
-                        SelectionMode="Extended"
-                        SelectionUnit="FullRow"
-                        
-                        d:DataContext="{d:DesignInstance viewModels:LiveRecordListViewModel}"
-                        >
-                        <DataGrid.CellStyle>
-                            <Style TargetType="DataGridCell">
-                                <Style.Triggers>
-                                    <Trigger Property="IsSelected" Value="True">
-                                        <Setter Property="BorderThickness" Value="0" />
-                                        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-                                        <Setter Property="Background" Value="{x:Null}" />
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </DataGrid.CellStyle>
-                        <DataGrid.ContextMenu>
-                            <ContextMenu>
-                                <MenuItem x:Name="DownLoadMenuItem" Header="加入下载队列"
-                                          CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItems)}"
-                                          />
-                                <MenuItem x:Name="CopyLiveRecordDownloadUrlMenuItem" Header="复制下载地址"
-                                          CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItem)}"
-                                          />
-                                <Separator />
-                                <MenuItem x:Name="OpenDirMenuItem" Header="打开目录"
-                                          CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItem)}"
-                                          />
-                                <MenuItem x:Name="OpenLiveRecordUrlMenuItem"
-                                          Header="打开回放地址"
-                                          CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItem)}"
-                                            />
-                            </ContextMenu>
-                        </DataGrid.ContextMenu>
-                        <DataGrid.Columns>
-                            <DataGridTextColumn
-                                Header="视频 Id"
-                                Binding="{Binding Rid, Mode=OneWay}" />
-                            <DataGridTextColumn
-                                Header="标题"
-                                Binding="{Binding Title, Mode=OneWay}" />
-                            <DataGridTextColumn
-                                Header="分区名"
-                                Binding="{Binding AreaName, Mode=OneWay}" />
-                            <DataGridTextColumn
-                                Header="主分区名"
-                                Binding="{Binding ParentAreaName, Mode=OneWay}" />
-                            <DataGridTextColumn
-                                Header="开始时间"
-                                Binding="{Binding StartTime, StringFormat={}{0:yyyy年MM月dd日 H:mm:ss}, Mode=OneWay}" />
-                            <DataGridTextColumn
-                                Header="结束时间"
-                                Binding="{Binding EndTime, StringFormat={}{0:yyyy年MM月dd日 H:mm:ss}, Mode=OneWay}" />
-                            <DataGridTextColumn
-                                Header="人气峰值"
-                                Binding="{Binding Online, Mode=OneWay}" />
-                            <DataGridTextColumn
-                                Header="弹幕数"
-                                Binding="{Binding DanmuNum, Mode=OneWay}" />
-                            <DataGridTextColumn
-                                Header="视频长度"
-                                Binding="{Binding Length, StringFormat={}{0:h':'mm':'ss}, Mode=OneWay}" />
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </DockPanel>
-            </TabItem>
-            <TabItem Header="任务列表">
-                <DataGrid
-                    x:Name="TaskListDataGrid"
-                    AutoGenerateColumns="False"
-                    HeadersVisibility="Column"
-                    IsReadOnly="True"
-                    GridLinesVisibility="All"
-
-                    VirtualizingPanel.VirtualizationMode="Recycling"
-                    EnableColumnVirtualization="True"
-                    EnableRowVirtualization="True"
-
-                    CanUserResizeColumns="True"
-                    CanUserResizeRows="False"
-                    CanUserSortColumns="True"
-                    CanUserReorderColumns="True"
-
-                    SelectionMode="Extended"
-                    SelectionUnit="FullRow"
-
-                    d:DataContext="{d:DesignInstance viewModels:TaskListViewModel}"
-                    >
-                    <DataGrid.CellStyle>
-                        <Style TargetType="DataGridCell">
-                            <Style.Triggers>
-                                <Trigger Property="IsSelected" Value="True">
-                                    <Setter Property="BorderThickness" Value="0" />
-                                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-                                    <Setter Property="Background" Value="{x:Null}" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </DataGrid.CellStyle>
-                    <DataGrid.ContextMenu>
-                        <ContextMenu>
-                            <MenuItem x:Name="StopTaskMenuItem" Header="停止任务"
-                                      CommandParameter="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type ContextMenu}}, Path=PlacementTarget.(DataGrid.SelectedItems)}"
-                            />
-                            <Separator />
-                            <MenuItem x:Name="RemoveTaskMenuItem" Header="清空所有任务" />
-                        </ContextMenu>
-                    </DataGrid.ContextMenu>
-                    <DataGrid.Columns>
-                        <DataGridTextColumn
-                            Header="任务描述"
-                            Binding="{Binding Description, Mode=OneWay}" />
-                        <DataGridTextColumn
-                            Header="速度"
-                            Binding="{Binding Speed, Mode=OneWay}" />
-                        <DataGridTextColumn
-                            Header="状态"
-                            Binding="{Binding Status, Mode=OneWay}" />
-                        <DataGridTemplateColumn Header="进度" Width="*">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <Grid>
-                                        <ui:ProgressBar x:Name="progressBar"
-                                                        Background="Transparent"
-                                                        Minimum="0" Maximum="1"
-                                                        Height="30"
-                                                        Value="{Binding Progress, Mode=OneWay}" />
-                                        <TextBlock
-                                            Text="{Binding Progress, Mode=OneWay, StringFormat={}{0:P2}}"
-                                            HorizontalAlignment="Center"
-                                            Foreground="Black"
-                                            VerticalAlignment="Center" TextAlignment="Center" />
-                                    </Grid>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                    </DataGrid.Columns>
-                </DataGrid>
-            </TabItem>
-            <TabItem Header="日志">
-                <TextBox x:Name="LogTextBox"
-                         IsReadOnly="True"
-                         d:Text="日志&#13;LogTextBox"
-                         VerticalContentAlignment="Top"
-                         HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
-            </TabItem>
-            <TabItem Header="设置">
-                <ScrollViewer>
-                    <ui:SimpleStackPanel
-                        Margin="20,0,20,20"
-                        Spacing="0">
-                        <GroupBox Header="根目录">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition />
-                                    <RowDefinition />
-                                </Grid.RowDefinitions>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBox x:Name="MainDirTextBox" Grid.Row="0" Grid.Column="0" IsReadOnly="True" Margin="3" VerticalContentAlignment="Center" d:Text="D:\Video" />
-                                <Grid Grid.Row="1" Grid.Column="0" Margin="3">
-                                    <ui:ProgressBar x:Name="DiskUsageProgressBar" Height="30" d:Value="68" />
-                                    <TextBlock x:Name="DiskUsageProgressBarTextBlock"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                                               d:Text="114514 TB/1919810 TB"/>
-                                </Grid>
-                                <Button x:Name="SelectMainDirButton" Grid.Row="0" Grid.Column="1" Content="选择目录" />
-                                <Button x:Name="OpenMainDirButton" Grid.Row="1" Grid.Column="1" Content="打开目录" />
-                            </Grid>
-                        </GroupBox>
-                        <GroupBox Header="直播回放"
-                                  HorizontalAlignment="Left">
-                            <ui:NumberBox x:Name="ThreadsTextBox"
-                                          Header="下载线程数："
-                                          Maximum="128"
-                                          Minimum="1"
-                                          SpinButtonPlacementMode="Compact"
-                                          PlaceholderText="8"
-                                          SmallChange="1"
-                                          LargeChange="10" />
-                        </GroupBox>
-                        <GroupBox Header="更新">
-                            <StackPanel>
-                                <ui:ToggleSwitch x:Name="IsCheckUpdateOnStartSwitch"
-                                                 Header="启动时检查更新"
-                                                 IsOn="True"
-                                                 OnContent="" OffContent="" />
-                                <ui:ToggleSwitch x:Name="IsCheckPreReleaseSwitch"
-                                                 Header="包括预览版更新"
-                                                 OnContent="" OffContent="" />
-                                <Button x:Name="CheckUpdateButton"
-                                        Content="检查更新" />
-                                <TextBlock x:Name="UpdateStatusTextBlock" d:Text="无更新" />
-                            </StackPanel>
-                        </GroupBox>
-                    </ui:SimpleStackPanel>
-                </ScrollViewer>
-            </TabItem>
-        </TabControl>
+        <ui:NavigationView
+            x:Name="NavigationView"
+            IsBackButtonVisible="Collapsed"
+            PaneDisplayMode="Auto"
+            IsTabStop="False"
+            IsPaneOpen="False">
+            <ui:NavigationView.MenuItems>
+                <ui:NavigationViewItem Icon="Download" Content="直播回放" Tag="1" />
+                <ui:NavigationViewItem Icon="59645" Content="任务列表" Tag="2" />
+                <ui:NavigationViewItem Icon="Message" Content="日志" Tag="3" />
+            </ui:NavigationView.MenuItems>
+            <reactiveUi:RoutedViewHost
+                x:Name="RoutedViewHost"
+                HorizontalContentAlignment="Stretch"
+                VerticalContentAlignment="Stretch"
+                Transition="Fade"
+                Direction="Up"
+                Duration="0:0:0.3" />
+        </ui:NavigationView>
     </Grid>
 </reactiveUi:ReactiveWindow>

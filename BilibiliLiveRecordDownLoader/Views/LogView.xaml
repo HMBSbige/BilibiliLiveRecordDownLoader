@@ -1,0 +1,19 @@
+<reactiveUi:ReactiveUserControl
+    x:TypeArguments="viewModels:LogViewModel"
+    x:Class="BilibiliLiveRecordDownLoader.Views.LogView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:reactiveUi="http://reactiveui.net"
+    xmlns:viewModels="clr-namespace:BilibiliLiveRecordDownLoader.ViewModels"
+    mc:Ignorable="d"
+    d:DesignHeight="450" d:DesignWidth="800" Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+    <Grid Margin="0,30,0,0">
+        <TextBox x:Name="LogTextBox"
+                 IsReadOnly="True"
+                 d:Text="日志&#13;LogTextBox"
+                 VerticalContentAlignment="Top"
+                 HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+    </Grid>
+</reactiveUi:ReactiveUserControl>

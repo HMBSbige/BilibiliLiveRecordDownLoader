@@ -1,109 +1,71 @@
-using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
+using ModernWpf.Controls;
 using ReactiveUI;
-using Splat;
 using System;
+using System.Linq;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Windows;
 using System.Windows.Forms;
-using System.Windows.Input;
 using System.Windows.Interop;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 
 namespace BilibiliLiveRecordDownLoader
 {
 	public partial class MainWindow
 	{
-		private IDisposable? _logServices;
-
-		public MainWindow()
+		public MainWindow(
+			MainWindowViewModel viewModel,
+			LiveRecordListViewModel liveRecordList,
+			TaskListViewModel taskList,
+			LogViewModel log,
+			SettingViewModel settings)
 		{
 			InitializeComponent();
-			ViewModel = Locator.Current.GetService<MainWindowViewModel>();
-			_logServices = CreateLogService();
+			ViewModel = viewModel;
 
 			this.WhenActivated(d =>
 			{
-				ViewModel.DisposeWith(d);
-
-				this.Bind(ViewModel,
-					vm => vm.Config.RoomId,
-					v => v.RoomIdTextBox.Text,
-					x => $@"{x}",
-					x => long.TryParse(x, out var v) ? v : 732).DisposeWith(d);
-
-				RoomIdTextBox.Events().KeyUp.Subscribe(args =>
-				{
-					if (args.Key != Key.Enter)
-					{
-						return;
-					}
-					ViewModel.TriggerLiveRecordListQuery = !ViewModel.TriggerLiveRecordListQuery;
-				}).DisposeWith(d);
-
-				this.OneWayBind(ViewModel, vm => vm.ImageUri, v => v.FaceImage.Source, url => url == null ? null : new BitmapImage(new Uri(url))).DisposeWith(d);
-				this.OneWayBind(ViewModel, vm => vm.Name, v => v.NameTextBlock.Text).DisposeWith(d);
-				this.OneWayBind(ViewModel, vm => vm.Uid, v => v.UIdTextBlock.Text, i => $@"UID: {i}").DisposeWith(d);
-				this.OneWayBind(ViewModel, vm => vm.Level, v => v.LvTextBlock.Text, i => $@"Lv{i}").DisposeWith(d);
-
-				this.Bind(ViewModel, vm => vm.Config.MainDir, v => v.MainDirTextBox.Text).DisposeWith(d);
-
-				this.OneWayBind(ViewModel, vm => vm.DiskUsageProgressBarText, v => v.DiskUsageProgressBarTextBlock.Text).DisposeWith(d);
-
-				this.OneWayBind(ViewModel, vm => vm.DiskUsageProgressBarValue, v => v.DiskUsageProgressBar.Value).DisposeWith(d);
-
-				this.OneWayBind(ViewModel, vm => vm.DiskUsageProgressBarValue, v => v.DiskUsageProgressBar.Foreground,
-								p => p > 90
-										? new SolidColorBrush(Colors.Red)
-										: new SolidColorBrush(Color.FromRgb(38, 160, 218))).DisposeWith(d);
-
-				this.BindCommand(ViewModel, viewModel => viewModel.SelectMainDirCommand, view => view.SelectMainDirButton).DisposeWith(d);
-
-				this.BindCommand(ViewModel, viewModel => viewModel.OpenMainDirCommand, view => view.OpenMainDirButton).DisposeWith(d);
-
-				this.OneWayBind(ViewModel, vm => vm.RoomId, v => v.RoomIdTextBlock.Text, i => $@"房间号: {i}").DisposeWith(d);
-				this.OneWayBind(ViewModel, vm => vm.ShortRoomId, v => v.ShortRoomIdTextBlock.Text, i => $@"短号: {i}").DisposeWith(d);
-				this.OneWayBind(ViewModel, vm => vm.RecordCount, v => v.RecordCountTextBlock.Text, i => $@"列表总数: {i}").DisposeWith(d);
-				this.OneWayBind(ViewModel, vm => vm.IsLiveRecordBusy, v => v.LiveRecordBusyIndicator.IsActive).DisposeWith(d);
-
-				this.OneWayBind(ViewModel, vm => vm.LiveRecordList, v => v.LiveRecordListDataGrid.ItemsSource).DisposeWith(d);
-				this.BindCommand(ViewModel, vm => vm.CopyLiveRecordDownloadUrlCommand, v => v.CopyLiveRecordDownloadUrlMenuItem).DisposeWith(d);
-				this.BindCommand(ViewModel, vm => vm.OpenLiveRecordUrlCommand, v => v.OpenLiveRecordUrlMenuItem).DisposeWith(d);
-				this.BindCommand(ViewModel, vm => vm.DownLoadCommand, v => v.DownLoadMenuItem).DisposeWith(d);
-				this.BindCommand(ViewModel, vm => vm.OpenDirCommand, v => v.OpenDirMenuItem).DisposeWith(d);
-
 				this.BindCommand(ViewModel, vm => vm.ShowWindowCommand, v => v.NotifyIcon, nameof(NotifyIcon.TrayLeftMouseUp)).DisposeWith(d);
-
 				this.BindCommand(ViewModel, vm => vm.ShowWindowCommand, v => v.ShowMenuItem).DisposeWith(d);
 				this.BindCommand(ViewModel, vm => vm.ExitCommand, v => v.ExitMenuItem).DisposeWith(d);
 
-				this.OneWayBind(ViewModel, vm => vm.TaskList, v => v.TaskListDataGrid.ItemsSource).DisposeWith(d);
-				this.BindCommand(ViewModel, vm => vm.StopTaskCommand, v => v.StopTaskMenuItem).DisposeWith(d);
-				this.BindCommand(ViewModel, vm => vm.ClearAllTasksCommand, v => v.RemoveTaskMenuItem).DisposeWith(d);
+				this.Bind(ViewModel, vm => vm.HostScreen.Router, v => v.RoutedViewHost.Router).DisposeWith(d);
 
-				this.Bind(ViewModel,
-					vm => vm.Config.DownloadThreads,
-					v => v.ThreadsTextBox.Value,
-					x => x,
-					Convert.ToByte).DisposeWith(d);
-
-				this.Bind(ViewModel, vm => vm.Config.IsCheckUpdateOnStart, v => v.IsCheckUpdateOnStartSwitch.IsOn).DisposeWith(d);
-				this.Bind(ViewModel, vm => vm.Config.IsCheckPreRelease, v => v.IsCheckPreReleaseSwitch.IsOn).DisposeWith(d);
-				this.BindCommand(ViewModel, vm => vm.CheckUpdateCommand, v => v.CheckUpdateButton).DisposeWith(d);
-				this.OneWayBind(ViewModel, vm => vm.UpdateStatus, v => v.UpdateStatusTextBlock.Text).DisposeWith(d);
-
-				Observable.FromEventPattern(LogTextBox, nameof(LogTextBox.TextChanged)).Subscribe(_ =>
+				Observable.FromEventPattern<NavigationViewSelectionChangedEventArgs>(NavigationView, nameof(NavigationView.SelectionChanged))
+				.Subscribe(args =>
 				{
-					if (LogTextBox.LineCount > 2000)
+					if (args.EventArgs.IsSettingsSelected)
 					{
-						_logServices?.Dispose();
-						LogTextBox.Clear();
-						_logServices = CreateLogService();
+						ViewModel.HostScreen.Router.Navigate.Execute(settings);
+						return;
+					}
+
+					if (args.EventArgs.SelectedItem is not NavigationViewItem { Tag: string tag })
+					{
+						return;
+					}
+
+					switch (tag)
+					{
+						case @"1":
+						{
+							ViewModel.HostScreen.Router.Navigate.Execute(liveRecordList);
+							break;
+						}
+						case @"2":
+						{
+							ViewModel.HostScreen.Router.Navigate.Execute(taskList);
+							break;
+						}
+						case @"3":
+						{
+							ViewModel.HostScreen.Router.Navigate.Execute(log);
+							break;
+						}
 					}
 				}).DisposeWith(d);
-				_logServices?.DisposeWith(d);
+
+				NavigationView.SelectedItem = NavigationView.MenuItems.OfType<NavigationViewItem>().First();
 
 				#region CloseReasonHack
 
@@ -178,12 +140,5 @@ namespace BilibiliLiveRecordDownLoader
 		}
 
 		#endregion
-
-		private IDisposable CreateLogService()
-		{
-			return Constants.SubjectMemorySink.LogSubject
-					.ObserveOnDispatcher()
-					.Subscribe(str => LogTextBox.AppendText(str));
-		}
 	}
 }

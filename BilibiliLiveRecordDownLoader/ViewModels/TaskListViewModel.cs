@@ -1,50 +1,128 @@
-using BilibiliLiveRecordDownLoader.Interfaces;
+using BilibiliLiveRecordDownLoader.Utils;
+using BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels;
+using DynamicData;
+using Microsoft.Extensions.Logging;
+using ModernWpf.Controls;
 using ReactiveUI;
+using System;
+using System.Collections;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Reactive;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
-	public abstract class TaskListViewModel : ReactiveObject, ITask
+#pragma warning disable CS8612
+	public class TaskListViewModel : ReactiveObject, IRoutableViewModel
+#pragma warning restore CS8612
 	{
+		public string UrlPathSegment => @"TaskList";
+		public IScreen HostScreen { get; }
+
 		#region 字段
 
-		private double _progress;
-		private string? _speed;
-		private string? _status;
-		private string? _description;
+		private object? _selectedItems;
 
 		#endregion
 
 		#region 属性
 
-		public string? Description
+		public object? SelectedItems
 		{
-			get => _description;
-			set => this.RaiseAndSetIfChanged(ref _description, value);
-		}
-
-		public double Progress
-		{
-			get => _progress;
-			set => this.RaiseAndSetIfChanged(ref _progress, value);
-		}
-
-		public string? Speed
-		{
-			get => _speed;
-			set => this.RaiseAndSetIfChanged(ref _speed, value);
-		}
-
-		public string? Status
-		{
-			get => _status;
-			set => this.RaiseAndSetIfChanged(ref _status, value);
+			get => _selectedItems;
+			set => this.RaiseAndSetIfChanged(ref _selectedItems, value);
 		}
 
 		#endregion
 
-		public abstract ValueTask StartAsync();
+		#region Command
 
-		public abstract void Stop();
+		public ReactiveCommand<object?, Unit> StopTaskCommand { get; }
+		public ReactiveCommand<Unit, Unit> ClearAllTasksCommand { get; }
+
+		#endregion
+
+		private readonly ILogger _logger;
+		private readonly SourceList<TaskViewModel> _taskSourceList;
+
+		public readonly ReadOnlyObservableCollection<TaskViewModel> TaskList;
+
+		public TaskListViewModel(
+			IScreen hostScreen,
+			ILogger<TaskListViewModel> logger,
+			SourceList<TaskViewModel> taskSourceList)
+		{
+			HostScreen = hostScreen;
+			_logger = logger;
+			_taskSourceList = taskSourceList;
+
+			_taskSourceList.Connect()
+					.ObserveOnDispatcher()
+					.Bind(out TaskList)
+					.DisposeMany()
+					.Subscribe();
+
+			StopTaskCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(StopTask);
+			ClearAllTasksCommand = ReactiveCommand.CreateFromTask(ClearAllTasksAsync);
+		}
+
+		private IObservable<Unit> StopTask(object? info)
+		{
+			return Observable.Start(() =>
+			{
+				try
+				{
+					if (info is IList { Count: > 0 } list)
+					{
+						foreach (var item in list)
+						{
+							if (item is TaskViewModel task)
+							{
+								task.Stop();
+								_taskSourceList.Remove(task);
+							}
+						}
+					}
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, @"停止任务出错");
+				}
+			});
+		}
+
+		private async Task ClearAllTasksAsync()
+		{
+			try
+			{
+				if (_taskSourceList.Count == 0)
+				{
+					return;
+				}
+
+				using var dialog = new DisposableContentDialog
+				{
+					Title = @"确定清空所有任务？",
+					Content = @"将会停止所有任务并清空列表",
+					PrimaryButtonText = @"确定",
+					CloseButtonText = @"取消",
+					DefaultButton = ContentDialogButton.Primary
+				};
+				if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+				{
+					_taskSourceList.Items.ToList().ForEach(task =>
+					{
+						task.Stop();
+						_taskSourceList.Remove(task);
+					});
+				}
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, @"停止任务出错");
+			}
+		}
 	}
 }
