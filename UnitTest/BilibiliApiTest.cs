@@ -14,7 +14,7 @@ namespace UnitTest
 		public async Task GetLiveRecordUrlTestAsync()
 		{
 			using var client = new BililiveApiClient();
-			var json = await client.GetLiveRecordUrlAsync(@"R1zx411c75j"); // 视频链接会过期
+			var json = await client.GetLiveRecordUrlAsync(@"R12x411c7PL"); // 视频链接会过期
 			Assert.AreEqual(json.code, 0);
 			Assert.AreEqual(json.message, @"0");
 			Assert.IsTrue(json.data.size > 0);
@@ -32,7 +32,6 @@ namespace UnitTest
 			Assert.AreEqual(json.message, @"ok");
 			Assert.AreEqual(json.data.room_id, 6154037);
 			Assert.AreEqual(json.data.short_id, 732);
-			Assert.AreEqual(json.data.uid, 194484313);
 		}
 
 		[TestMethod]
@@ -88,7 +87,7 @@ namespace UnitTest
 		public async Task GetDanmuConfTestAsync()
 		{
 			using var client = new BililiveApiClient();
-			var json = await client.GetDanmuConfAsync(6154037);
+			var json = await client.GetDanmuConfAsync(732);
 			Assert.AreEqual(json.code, 0);
 			Assert.AreEqual(json.msg, @"ok");
 			Assert.AreEqual(json.message, @"ok");
@@ -97,6 +96,36 @@ namespace UnitTest
 			Assert.IsTrue(json.data.host_server_list.Length > 0);
 			Assert.IsTrue(json.data.server_list.Length > 0);
 			Assert.IsTrue(!string.IsNullOrWhiteSpace(json.data.token));
+		}
+
+		[TestMethod]
+		public async Task GetPlayUrlTestAsync()
+		{
+			using var client = new BililiveApiClient();
+			var json = await client.GetPlayUrlAsync(732);
+			Assert.AreEqual(json.code, 0);
+			Assert.AreEqual(json.message, @"0");
+			Assert.AreEqual(json.data.current_qn, 10000);
+			Assert.IsTrue(json.data.quality_description.Length > 0);
+			Assert.IsTrue(json.data.durl.Length > 0);
+			foreach (var durl in json.data.durl)
+			{
+				Assert.IsTrue(durl.url.StartsWith(@"https://"));
+			}
+		}
+
+		[TestMethod]
+		public async Task GetRoomInfoTestAsync()
+		{
+			using var client = new BililiveApiClient();
+			var json = await client.GetRoomInfoAsync(732);
+			Assert.AreEqual(json.code, 0);
+			Assert.AreEqual(json.msg, @"ok");
+			Assert.AreEqual(json.message, @"ok");
+			Assert.AreEqual(json.data.room_id, 6154037);
+			Assert.AreEqual(json.data.short_id, 732);
+			Assert.IsTrue(json.data.live_status is 0 or 1);
+			Assert.IsTrue(!string.IsNullOrWhiteSpace(json.data.title));
 		}
 	}
 }

@@ -11,10 +11,5 @@ namespace BilibiliApi.Model.RoomInit
 		/// 短房间号
 		/// </summary>
 		public long short_id { get; set; }
-
-		/// <summary>
-		/// 直播主站 uid
-		/// </summary>
-		public long uid { get; set; }
 	}
 }

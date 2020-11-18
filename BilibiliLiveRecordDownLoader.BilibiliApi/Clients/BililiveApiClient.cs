@@ -2,6 +2,8 @@ using BilibiliApi.Model.AnchorInfo;
 using BilibiliApi.Model.DanmuConf;
 using BilibiliApi.Model.LiveRecordList;
 using BilibiliApi.Model.LiveRecordUrl;
+using BilibiliApi.Model.PlayUrl;
+using BilibiliApi.Model.RoomInfo;
 using BilibiliApi.Model.RoomInit;
 using BilibiliLiveRecordDownLoader.Shared.HttpPolicy;
 using System;
@@ -14,7 +16,7 @@ namespace BilibiliApi.Clients
 {
 	public sealed class BililiveApiClient : IDisposable
 	{
-		public string UserAgent { get; set; } = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.121 Safari/537.36";
+		public string UserAgent { get; set; } = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.66 Safari/537.36";
 
 		public string? Cookie { get; set; }
 
@@ -83,13 +85,38 @@ namespace BilibiliApi.Clients
 		/// <summary>
 		/// 获取弹幕服务器地址
 		/// </summary>
-		/// <param name="roomId">房间号（理论上不允许短号，目前实测任意都可以）</param>
+		/// <param name="roomId">房间号（允许短号）</param>
 		/// <param name="token"></param>
 		/// <returns></returns>
 		public async Task<DanmuConfMessage?> GetDanmuConfAsync(long roomId, CancellationToken token = default)
 		{
 			var url = $@"https://api.live.bilibili.com/room/v1/Danmu/getConf?room_id={roomId}";
 			return await GetJsonAsync<DanmuConfMessage>(url, token);
+		}
+
+		/// <summary>
+		/// 获取直播间播放地址
+		/// </summary>
+		/// <param name="roomId">房间号（允许短号）</param>
+		/// <param name="qn"></param>
+		/// <param name="token"></param>
+		/// <returns></returns>
+		public async Task<PlayUrlMessage?> GetPlayUrlAsync(long roomId, long qn = 10000, CancellationToken token = default)
+		{
+			var url = $@"https://api.live.bilibili.com/room/v1/Room/playUrl?cid={roomId}&qn={qn}&platform=web";
+			return await GetJsonAsync<PlayUrlMessage>(url, token);
+		}
+
+		/// <summary>
+		/// 获取直播间详细信息
+		/// </summary>
+		/// <param name="roomId">房间号（允许短号）</param>
+		/// <param name="token"></param>
+		/// <returns></returns>
+		public async Task<RoomInfoMessage?> GetRoomInfoAsync(long roomId, CancellationToken token = default)
+		{
+			var url = $@"https://api.live.bilibili.com/room/v1/Room/get_info?id={roomId}";
+			return await GetJsonAsync<RoomInfoMessage>(url, token);
 		}
 
 		private async Task<T?> GetJsonAsync<T>(string url, CancellationToken token = default)
