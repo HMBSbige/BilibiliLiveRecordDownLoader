@@ -67,6 +67,9 @@ namespace BilibiliLiveRecordDownLoader
 
 				NavigationView.SelectedItem = NavigationView.MenuItems.OfType<NavigationViewItem>().First();
 
+				this.Bind(ViewModel, vm => vm.Config.MainWindowsWidth, v => v.Width).DisposeWith(d);
+				this.Bind(ViewModel, vm => vm.Config.MainWindowsHeight, v => v.Height).DisposeWith(d);
+
 				#region CloseReasonHack
 
 				AddCloseReasonHook();

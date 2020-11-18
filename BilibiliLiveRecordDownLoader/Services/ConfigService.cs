@@ -42,17 +42,22 @@ namespace BilibiliLiveRecordDownLoader.Services
 		public ConfigService(ILogger<ConfigService> logger)
 		{
 			_logger = logger;
-			_configMonitor = this.WhenAnyValue(
+			var c0 = this.WhenAnyValue(
 					x => x.Config,
 					x => x.Config.RoomId,
 					x => x.Config.MainDir,
 					x => x.Config.DownloadThreads,
 					x => x.Config.IsCheckUpdateOnStart,
 					x => x.Config.IsCheckPreRelease
-					)
+			);
+			var c1 = this.WhenAnyValue(
+					x => x.Config.MainWindowsWidth,
+					x => x.Config.MainWindowsHeight
+			);
+			_configMonitor = c0.CombineLatest(c1)
 				.Throttle(TimeSpan.FromSeconds(1))
 				.DistinctUntilChanged()
-				.Where(v => v.Item1 != null && !_lock.IsWriteLockHeld)
+				.Where(v => v.First.Item1 != null && !_lock.IsWriteLockHeld)
 				.Subscribe(_ => SaveAsync(default).NoWarning());
 		}
 

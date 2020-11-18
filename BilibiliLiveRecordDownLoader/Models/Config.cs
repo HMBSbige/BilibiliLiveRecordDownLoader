@@ -12,6 +12,8 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private byte _downloadThreads = 8;
 		private bool _isCheckUpdateOnStart = true;
 		private bool _isCheckPreRelease;
+		private double _mainWindowsWidth = 1280;
+		private double _mainWindowsHeight = 720;
 
 		#endregion
 
@@ -45,6 +47,18 @@ namespace BilibiliLiveRecordDownLoader.Models
 		{
 			get => _isCheckPreRelease;
 			set => this.RaiseAndSetIfChanged(ref _isCheckPreRelease, value);
+		}
+
+		public double MainWindowsWidth
+		{
+			get => _mainWindowsWidth;
+			set => this.RaiseAndSetIfChanged(ref _mainWindowsWidth, value);
+		}
+
+		public double MainWindowsHeight
+		{
+			get => _mainWindowsHeight;
+			set => this.RaiseAndSetIfChanged(ref _mainWindowsHeight, value);
 		}
 
 		#endregion

@@ -12,7 +12,7 @@
     xmlns:fluentWpf="clr-namespace:SourceChord.FluentWPF;assembly=FluentWPF"
     mc:Ignorable="d"
     x:Name="Window"
-    WindowStartupLocation="CenterScreen"
+    WindowStartupLocation="Manual"
     Title="BilibiliLiveRecordDownLoader"
     Height="720" Width="1280"
     MinHeight="720" MinWidth="1280"

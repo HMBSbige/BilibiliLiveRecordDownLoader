@@ -1,4 +1,5 @@
 using BilibiliLiveRecordDownLoader.Interfaces;
+using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels;
 using DynamicData;
@@ -20,15 +21,19 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		#endregion
 
 		private readonly SourceList<TaskViewModel> _taskSourceList;
+		private readonly IConfigService _configService;
 
 		public IScreen HostScreen { get; }
+		public Config Config => _configService.Config;
 
 		public MainWindowViewModel(
+			IScreen screen,
 			SourceList<TaskViewModel> taskSourceList,
-			IScreen screen)
+			IConfigService configService)
 		{
-			_taskSourceList = taskSourceList;
 			HostScreen = screen;
+			_taskSourceList = taskSourceList;
+			_configService = configService;
 
 			ShowWindowCommand = ReactiveCommand.Create(ShowWindow);
 			ExitCommand = ReactiveCommand.Create(Exit);
@@ -48,7 +53,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		{
 			StopAllTask();
 
-			Locator.Current.GetService<IConfigService>().Dispose();
+			_configService.Dispose();
 
 			var window = Locator.Current.GetService<MainWindow>();
 			window.CloseReason = CloseReason.ApplicationExitCall;
