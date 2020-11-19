@@ -124,7 +124,7 @@ namespace UnitTest
 			Assert.AreEqual(json.message, @"ok");
 			Assert.AreEqual(json.data.room_id, 6154037);
 			Assert.AreEqual(json.data.short_id, 732);
-			Assert.IsTrue(json.data.live_status is 0 or 1);
+			Assert.IsTrue(json.data.live_status is 0 or 1 or 2);
 			Assert.IsTrue(!string.IsNullOrWhiteSpace(json.data.title));
 		}
 	}

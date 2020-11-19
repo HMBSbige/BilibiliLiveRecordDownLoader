@@ -14,6 +14,7 @@ namespace BilibiliApi.Model.RoomInfo
 
 		/// <summary>
 		/// 直播状态，
+		/// 2 轮播
 		/// 1 开播
 		/// 0 未开播
 		/// </summary>
