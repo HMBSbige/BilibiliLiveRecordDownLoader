@@ -34,9 +34,9 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 		private readonly BehaviorSubject<string> _status = new(string.Empty);
 		public IObservable<string> Status => _status.AsObservable();
 
-		public int BufferSize { get; set; } = 4096;
+		public int BufferSize { get; init; } = 4096;
 
-		public bool IsAsync { get; set; } = false;
+		public bool IsAsync { get; init; }
 
 		private readonly List<string> _files = new();
 		public IEnumerable<string> Files => _files;

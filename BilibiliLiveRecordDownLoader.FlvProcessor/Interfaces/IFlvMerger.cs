@@ -8,12 +8,12 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces
 {
 	public interface IFlvMerger : IAsyncDisposable, IProgress
 	{
-		public int BufferSize { get; set; }
+		public int BufferSize { get; init; }
 
 		/// <summary>
 		/// 输出 FLV 时是否使用异步
 		/// </summary>
-		public bool IsAsync { get; set; }
+		public bool IsAsync { get; init; }
 
 		/// <summary>
 		/// 需要合并的 FLV
