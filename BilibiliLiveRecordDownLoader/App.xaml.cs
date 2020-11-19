@@ -94,25 +94,25 @@ namespace BilibiliLiveRecordDownLoader
 		private static void ConfigureServices(IServiceCollection services)
 		{
 			services.AddSingleton<MainWindowViewModel>();
-			services.AddSingleton<SettingViewModel>();
-			services.AddSingleton<LogViewModel>();
-			services.AddSingleton<TaskListViewModel>();
 			services.AddSingleton<LiveRecordListViewModel>();
+			services.AddSingleton<TaskListViewModel>();
+			services.AddSingleton<LogViewModel>();
+			services.AddSingleton<SettingViewModel>();
 
 			services.AddSingleton<MainWindow>();
-			services.AddTransient(typeof(IViewFor<LiveRecordListViewModel>), typeof(LiveRecordListView));
-			services.AddTransient(typeof(IViewFor<TaskListViewModel>), typeof(TaskListView));
-			services.AddTransient(typeof(IViewFor<LogViewModel>), typeof(LogView));
-			services.AddTransient(typeof(IViewFor<SettingViewModel>), typeof(SettingView));
+			services.AddTransient<IViewFor<LiveRecordListViewModel>, LiveRecordListView>();
+			services.AddTransient<IViewFor<TaskListViewModel>, TaskListView>();
+			services.AddTransient<IViewFor<LogViewModel>, LogView>();
+			services.AddTransient<IViewFor<SettingViewModel>, SettingView>();
 
-			services.AddSingleton(typeof(IConfigService), typeof(ConfigService));
+			services.AddSingleton<IConfigService, ConfigService>();
 			services.AddSingleton<SourceList<LiveRecordList>>();
 			services.AddSingleton<SourceList<TaskViewModel>>();
 			services.AddSingleton(new OperationQueue(int.MaxValue));
-			services.AddSingleton(typeof(IScreen), typeof(MainScreen));
+			services.AddSingleton<IScreen, MainScreen>();
 
-			services.AddTransient(typeof(IDownloader), typeof(MultiThreadedDownloader));
-			services.AddTransient(typeof(IFlvMerger), typeof(FlvMerger));
+			services.AddTransient<IDownloader, MultiThreadedDownloader>();
+			services.AddTransient<IFlvMerger, FlvMerger>();
 			services.AddLogging(c => c.AddSerilog());
 		}
 
