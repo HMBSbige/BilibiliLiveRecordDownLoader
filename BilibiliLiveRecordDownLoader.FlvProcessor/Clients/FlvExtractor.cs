@@ -43,6 +43,8 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 		public string? OutputAudio { get; private set; }
 
 		private static readonly string[] OutputExtensions = { @".avi", @".mp3", @".264", @".aac", @".spx", @".txt" };
+		private IAudioWriter? _audioWriter;
+		private IVideoWriter? _videoWriter;
 
 		public FlvExtractor(ILogger<FlvExtractor> logger)
 		{
@@ -122,17 +124,31 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 				{
 					case PacketType.AudioPayload:
 					{
-						//TODO
+						_audioWriter ??= GetAudioWriter(payloadMemory.Span[0]);
+
+						_audioWriter.Write(payloadMemory.Slice(1), tagHeader.Timestamp.Data);
 						break;
 					}
 					case PacketType.VideoPayload when payloadMemory.Span[0].IsFrameType():
 					{
 						//TODO
+						_videoWriter ??= GetVideoWriter(payloadMemory.Span[0]);
+						_videoWriter.Write(payloadMemory.Slice(1), tagHeader.Timestamp.Data, payloadMemory.Span[0].ToFrameType());
 						break;
 					}
 				}
 			}
 
+			throw new NotImplementedException();
+		}
+
+		private IAudioWriter GetAudioWriter(byte mediaInfo)
+		{
+			throw new NotImplementedException();
+		}
+
+		private IVideoWriter GetVideoWriter(byte mediaInfo)
+		{
 			throw new NotImplementedException();
 		}
 
@@ -153,7 +169,10 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 
 		public ValueTask DisposeAsync()
 		{
+			_currentSpeed.OnCompleted();
+			_status.OnCompleted();
 			throw new NotImplementedException();
+			return default;
 		}
 	}
 }
