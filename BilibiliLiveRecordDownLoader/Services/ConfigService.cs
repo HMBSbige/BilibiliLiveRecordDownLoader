@@ -57,7 +57,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 			_configMonitor = c0.CombineLatest(c1)
 				.Throttle(TimeSpan.FromSeconds(1))
 				.DistinctUntilChanged()
-				.Where(v => v.First.Item1 != null && !_lock.IsWriteLockHeld)
+				.Where(v => v.First.Item1 is not null && !_lock.IsWriteLockHeld)
 				.Subscribe(_ => SaveAsync(default).NoWarning());
 		}
 
@@ -86,7 +86,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 				await using var fs = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, true);
 
 				var config = await JsonSerializer.DeserializeAsync<Config>(fs, cancellationToken: token);
-				if (config != null)
+				if (config is not null)
 				{
 					Config = config;
 				}

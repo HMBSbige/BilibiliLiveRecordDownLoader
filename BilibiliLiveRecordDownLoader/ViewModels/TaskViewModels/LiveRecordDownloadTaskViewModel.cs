@@ -46,7 +46,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels
 				var message = await client.GetLiveRecordUrlAsync(_liveRecord.Rid!, _cts.Token);
 
 				var list = message?.data?.list;
-				if (list == null)
+				if (list is null)
 				{
 					return;
 				}

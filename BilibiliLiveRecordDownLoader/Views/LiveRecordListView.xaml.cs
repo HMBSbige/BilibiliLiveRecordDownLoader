@@ -31,7 +31,7 @@ namespace BilibiliLiveRecordDownLoader.Views
 					}
 				}).DisposeWith(d);
 
-				this.OneWayBind(ViewModel, vm => vm.ImageUri, v => v.FaceImage.Source, url => url == null ? null : new BitmapImage(new Uri(url))).DisposeWith(d);
+				this.OneWayBind(ViewModel, vm => vm.ImageUri, v => v.FaceImage.Source, url => url is null ? null : new BitmapImage(new Uri(url))).DisposeWith(d);
 				this.OneWayBind(ViewModel, vm => vm.Name, v => v.NameTextBlock.Text).DisposeWith(d);
 				this.OneWayBind(ViewModel, vm => vm.Uid, v => v.UIdTextBlock.Text, i => $@"UID: {i}").DisposeWith(d);
 				this.OneWayBind(ViewModel, vm => vm.Level, v => v.LvTextBlock.Text, i => $@"Lv{i}").DisposeWith(d);

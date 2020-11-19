@@ -21,7 +21,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 
 		public void Emit(LogEvent logEvent)
 		{
-			if (logEvent == null)
+			if (logEvent is null)
 			{
 				throw new ArgumentNullException(nameof(logEvent));
 			}

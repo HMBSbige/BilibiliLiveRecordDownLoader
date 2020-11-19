@@ -293,7 +293,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				using var client = new BililiveApiClient();
 				var msg = await client.GetAnchorInfoAsync(roomId);
 
-				if (msg?.data?.info == null || msg.code != 0)
+				if (msg?.data?.info is null || msg.code != 0)
 				{
 					throw new ArgumentException($@"[{roomId}]获取主播信息出错，可能该房间号的主播不存在");
 				}
@@ -334,10 +334,9 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 				using var client = new BililiveApiClient();
 				var roomInitMessage = await client.GetRoomInitAsync(roomId);
-				if (roomInitMessage != null
-					&& roomInitMessage.code == 0
-					&& roomInitMessage.data != null
-					&& roomInitMessage.data.room_id > 0)
+				if (roomInitMessage?.data is not null
+				    && roomInitMessage.code == 0
+				    && roomInitMessage.data.room_id > 0)
 				{
 					RoomId = roomInitMessage.data.room_id;
 					ShortRoomId = roomInitMessage.data.short_id;
@@ -346,11 +345,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					while (currentPage < Math.Ceiling((double)RecordCount / PageSize))
 					{
 						var listMessage = await client.GetLiveRecordListAsync(roomInitMessage.data.room_id, ++currentPage, PageSize);
-						if (listMessage?.data != null && listMessage.data.count > 0)
+						if (listMessage?.data is not null && listMessage.data.count > 0)
 						{
 							RecordCount = listMessage.data.count;
 							var list = listMessage.data?.list;
-							if (list != null)
+							if (list is not null)
 							{
 								_liveRecordSourceList.AddRange(list);
 							}

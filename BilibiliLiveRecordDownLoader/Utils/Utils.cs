@@ -86,7 +86,7 @@ namespace BilibiliLiveRecordDownLoader.Utils
 		{
 			var p = Process.GetCurrentProcess();
 			var res = p.MainModule?.FileName;
-			if (res != null)
+			if (res is not null)
 			{
 				return res;
 			}
