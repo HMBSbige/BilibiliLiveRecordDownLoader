@@ -41,6 +41,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 		private IAudioWriter? _audioWriter;
 		private IVideoWriter? _videoWriter;
 		private readonly List<uint> _videoTimeStamps = new();
+		private string? _outputBasePath;
 
 		public FlvExtractor(ILogger<FlvExtractor> logger)
 		{
@@ -76,10 +77,12 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 				throw new NotSupportedException(@"Unsupported extension");
 			}
 
-			if (!Directory.Exists(OutputDir))
+			if (!Directory.Exists(OutputDir) || OutputDir is null)
 			{
 				throw new DirectoryNotFoundException(@"Output directory doesn't exist.");
 			}
+
+			_outputBasePath = Path.Combine(OutputDir, Path.GetFileNameWithoutExtension(path));
 
 			var sw = Stopwatch.StartNew();
 			using var speedMonitor = Observable.Interval(TimeSpan.FromSeconds(1)).Subscribe(_ =>
@@ -130,13 +133,13 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 				{
 					case PacketType.AudioPayload:
 					{
-						_audioWriter ??= GetAudioWriter(path, payloadMemory.Span[0]);
+						_audioWriter ??= GetAudioWriter(_outputBasePath, payloadMemory.Span[0]);
 						_audioWriter.Write(payloadMemory[1..], tagHeader.Timestamp.Data);
 						break;
 					}
 					case PacketType.VideoPayload when payloadMemory.Span[0].IsFrameType():
 					{
-						_videoWriter ??= GetVideoWriter(path, payloadMemory.Span[0]);
+						_videoWriter ??= GetVideoWriter(_outputBasePath, payloadMemory.Span[0]);
 						var timeStamp = tagHeader.Timestamp.Data;
 						_videoTimeStamps.Add(timeStamp);
 						_videoWriter.Write(payloadMemory[1..], timeStamp, payloadMemory.Span[0].ToFrameType());
@@ -301,7 +304,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 		{
 			if (_videoWriter is not null)
 			{
-				await _videoWriter.FinishAsync(frameRate ?? new FractionUInt32(60, 1));
+				await _videoWriter.FinishAsync(frameRate ?? new FractionUInt32(25, 1));
 				if (disposing)
 				{
 					DeleteFileWithRetryAsync(_videoWriter.Path).NoWarning();
