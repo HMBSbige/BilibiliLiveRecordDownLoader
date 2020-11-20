@@ -3,7 +3,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
+namespace BilibiliLiveRecordDownLoader.Http.Interfaces
 {
 	public interface IDownloader : IAsyncDisposable, IProgress
 	{
@@ -22,16 +22,6 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 		/// 下载目标
 		/// </summary>
 		Uri? Target { get; set; }
-
-		/// <summary>
-		/// 线程数
-		/// </summary>
-		ushort Threads { get; set; }
-
-		/// <summary>
-		/// 临时文件夹
-		/// </summary>
-		string TempDir { get; set; }
 
 		/// <summary>
 		/// 输出文件名，包括路径

@@ -21,7 +21,7 @@ using System.Threading.Tasks;
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
 #pragma warning disable CS8612
-	public class LiveRecordListViewModel : ReactiveObject, IRoutableViewModel, IDisposable
+	public sealed class LiveRecordListViewModel : ReactiveObject, IRoutableViewModel, IDisposable
 #pragma warning restore CS8612
 	{
 		public string UrlPathSegment => @"LiveRecordList";
