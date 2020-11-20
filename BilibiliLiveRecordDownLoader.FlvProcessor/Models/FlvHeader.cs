@@ -1,5 +1,6 @@
 using BilibiliLiveRecordDownLoader.FlvProcessor.Enums;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
+using BilibiliLiveRecordDownLoader.FlvProcessor.Utils;
 using System;
 using System.Buffers.Binary;
 using System.Text;

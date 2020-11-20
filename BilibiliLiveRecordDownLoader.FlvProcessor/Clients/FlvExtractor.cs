@@ -1,36 +1,31 @@
+using BilibiliLiveRecordDownLoader.FlvProcessor.AudioWrites;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Enums;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Models;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagHeaders;
+using BilibiliLiveRecordDownLoader.FlvProcessor.Utils;
+using BilibiliLiveRecordDownLoader.FlvProcessor.VideoWriters;
+using BilibiliLiveRecordDownLoader.Shared;
+using BilibiliLiveRecordDownLoader.Shared.Abstracts;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reactive.Linq;
-using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 {
-	public class FlvExtractor : IFlvExtractor
+	public class FlvExtractor : ProgressBase, IFlvExtractor
 	{
 		private readonly ILogger _logger;
 
-		private long _fileSize;
-		private long _current;
-		private long _last;
 		private long _read;
-
-		public double Progress => Interlocked.Read(ref _current) / (double)_fileSize;
-
-		private readonly BehaviorSubject<double> _currentSpeed = new(0.0);//TODO
-		public IObservable<double> CurrentSpeed => _currentSpeed.AsObservable();
-
-		private readonly BehaviorSubject<string> _status = new(string.Empty); //TODO
-		public IObservable<string> Status => _status.AsObservable();
 
 		public int BufferSize { get; init; } = 4096;
 
@@ -45,6 +40,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 		private static readonly string[] OutputExtensions = { @".avi", @".mp3", @".264", @".aac", @".spx", @".txt" };
 		private IAudioWriter? _audioWriter;
 		private IVideoWriter? _videoWriter;
+		private readonly List<uint> _videoTimeStamps = new();
 
 		public FlvExtractor(ILogger<FlvExtractor> logger)
 		{
@@ -54,7 +50,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 		public async ValueTask ExtractAsync(string path, CancellationToken token)
 		{
 			await using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize);
-			_fileSize = fs.Length;
+			FileSize = fs.Length;
 			_read = 0L;
 
 			var header = new FlvHeader();
@@ -62,7 +58,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 			{
 				var memory = headerBuffer.Memory.Slice(0, header.Size);
 
-				_status.OnNext(@"读 Header");
+				StatusSubject.OnNext(@"读 Header");
 				ReadWithProgress(fs, memory.Span, token);
 				header.Read(memory.Span);
 
@@ -85,11 +81,21 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 				throw new DirectoryNotFoundException(@"Output directory doesn't exist.");
 			}
 
+			var sw = Stopwatch.StartNew();
+			using var speedMonitor = Observable.Interval(TimeSpan.FromSeconds(1)).Subscribe(_ =>
+			{
+				var last = Interlocked.Read(ref Last);
+				CurrentSpeedSubject.OnNext(last / sw.Elapsed.TotalSeconds);
+				sw.Restart();
+				Interlocked.Add(ref Last, -last);
+			});
+
 			var tagHeader = new FlvTagHeader();
 			using var tagHeaderBuffer = MemoryPool<byte>.Shared.Rent(tagHeader.Size);
 			var tagHeaderMemory = tagHeaderBuffer.Memory.Slice(0, tagHeader.Size);
 
-			while (_read + tagHeader.Size < _fileSize)
+			StatusSubject.OnNext(@"正在提取...");
+			while (_read + tagHeader.Size < FileSize)
 			{
 				// 读 tag header
 				ReadWithProgress(fs, tagHeaderMemory.Span, token);
@@ -101,7 +107,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 					continue;
 				}
 
-				if (_fileSize - _read < payloadSize)
+				if (FileSize - _read < payloadSize)
 				{
 					break;
 				}
@@ -124,32 +130,69 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 				{
 					case PacketType.AudioPayload:
 					{
-						_audioWriter ??= GetAudioWriter(payloadMemory.Span[0]);
-
-						_audioWriter.Write(payloadMemory.Slice(1), tagHeader.Timestamp.Data);
+						_audioWriter ??= GetAudioWriter(path, payloadMemory.Span[0]);
+						_audioWriter.Write(payloadMemory[1..], tagHeader.Timestamp.Data);
 						break;
 					}
 					case PacketType.VideoPayload when payloadMemory.Span[0].IsFrameType():
 					{
-						//TODO
-						_videoWriter ??= GetVideoWriter(payloadMemory.Span[0]);
-						_videoWriter.Write(payloadMemory.Slice(1), tagHeader.Timestamp.Data, payloadMemory.Span[0].ToFrameType());
+						_videoWriter ??= GetVideoWriter(path, payloadMemory.Span[0]);
+						var timeStamp = tagHeader.Timestamp.Data;
+						_videoTimeStamps.Add(timeStamp);
+						_videoWriter.Write(payloadMemory[1..], timeStamp, payloadMemory.Span[0].ToFrameType());
 						break;
 					}
 				}
 			}
 
-			throw new NotImplementedException();
+			var averageFrameRate = CalculateAverageFrameRate();
+			var trueFrameRate = CalculateTrueFrameRate();
+			await CloseOutput(averageFrameRate, false);
+
+			_logger.LogDebug($@"平均帧数：{averageFrameRate}");
+			_logger.LogDebug($@"真实帧数：{trueFrameRate}");
+			StatusSubject.OnNext(@"已完成");
 		}
 
-		private IAudioWriter GetAudioWriter(byte mediaInfo)
+		private IAudioWriter GetAudioWriter(in string path, byte mediaInfo)
 		{
-			throw new NotImplementedException();
+			var format = mediaInfo.ToSoundFormat();
+
+			switch (format)
+			{
+				case SoundFormat.AAC:
+				{
+					OutputAudio = Path.ChangeExtension(path, @".aac");
+					return new AACWriter(OutputAudio, IsAsync, BufferSize);
+				}
+				default:
+				{
+					_logger.LogWarning($@"Unable to extract audio ({format} is unsupported).");
+					break;
+				}
+			}
+			return new DefaultAudioWrite();
 		}
 
-		private IVideoWriter GetVideoWriter(byte mediaInfo)
+		private IVideoWriter GetVideoWriter(in string path, byte mediaInfo)
 		{
-			throw new NotImplementedException();
+			var codecId = mediaInfo.ToCodecID();
+
+			switch (codecId)
+			{
+				case CodecID.AVC:
+				{
+					OutputVideo = Path.ChangeExtension(path, @".264");
+					return new H264Writer(OutputVideo, IsAsync, BufferSize);
+				}
+				default:
+				{
+					_logger.LogWarning($@"Unable to extract video ({codecId} is unsupported).");
+					break;
+				}
+			}
+
+			return new DefaultVideoWriter();
 		}
 
 		private void ReadWithProgress(Stream stream, Span<byte> buffer, CancellationToken token)
@@ -163,16 +206,155 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 
 		private void ReportProgress(long length)
 		{
-			Interlocked.Add(ref _last, length);
-			Interlocked.Add(ref _current, length);
+			Interlocked.Add(ref Last, length);
+			Interlocked.Add(ref Current, length);
 		}
 
-		public ValueTask DisposeAsync()
+		private FractionUInt32? CalculateAverageFrameRate()
 		{
-			_currentSpeed.OnCompleted();
-			_status.OnCompleted();
-			throw new NotImplementedException();
-			return default;
+			var frameCount = _videoTimeStamps.Count;
+
+			if (frameCount > 1)
+			{
+				var frameRate = new FractionUInt32(
+					(uint)(frameCount - 1) * 1000,
+					_videoTimeStamps.Last() - _videoTimeStamps.First());
+				return frameRate;
+			}
+
+			return null;
+		}
+
+		private FractionUInt32? CalculateTrueFrameRate()
+		{
+			var deltaCount = new Dictionary<uint, uint>();
+			uint delta, count;
+
+			// Calculate the distance between the timestamps, count how many times each delta appears
+			for (var i = 1; i < _videoTimeStamps.Count; ++i)
+			{
+				var deltaS = (int)(_videoTimeStamps[i] - (long)_videoTimeStamps[i - 1]);
+
+				if (deltaS <= 0)
+				{
+					continue;
+				}
+
+				delta = (uint)deltaS;
+
+				if (deltaCount.ContainsKey(delta))
+				{
+					deltaCount[delta] += 1;
+				}
+				else
+				{
+					deltaCount.Add(delta, 1);
+				}
+			}
+
+			var threshold = _videoTimeStamps.Count / 10;
+			var minDelta = uint.MaxValue;
+
+			// Find the smallest delta that made up at least 10% of the frames (grouping in delta+1
+			// because of rounding, e.g. a NTSC video will have deltas of 33 and 34 ms)
+			foreach (var (key, value) in deltaCount)
+			{
+				delta = key;
+				count = value;
+
+				if (deltaCount.ContainsKey(delta + 1))
+				{
+					count += deltaCount[delta + 1];
+				}
+
+				if (count >= threshold && delta < minDelta)
+				{
+					minDelta = delta;
+				}
+			}
+
+			// Calculate the frame rate based on the smallest delta, and delta+1 if present
+			if (minDelta != uint.MaxValue)
+			{
+				count = deltaCount[minDelta];
+				var totalTime = minDelta * count;
+				var totalFrames = count;
+
+				if (deltaCount.ContainsKey(minDelta + 1))
+				{
+					count = deltaCount[minDelta + 1];
+					totalTime += (minDelta + 1) * count;
+					totalFrames += count;
+				}
+
+				if (totalTime != 0)
+				{
+					return new FractionUInt32(totalFrames * 1000, totalTime);
+				}
+			}
+
+			// Unable to calculate frame rate
+			return null;
+		}
+
+		private async ValueTask CloseOutput(FractionUInt32? frameRate, bool disposing)
+		{
+			if (_videoWriter is not null)
+			{
+				await _videoWriter.FinishAsync(frameRate ?? new FractionUInt32(60, 1));
+				if (disposing)
+				{
+					DeleteFileWithRetryAsync(_videoWriter.Path).NoWarning();
+				}
+				_videoWriter = null;
+			}
+
+			if (_audioWriter is not null)
+			{
+				await _audioWriter.DisposeAsync();
+				if (disposing)
+				{
+					DeleteFileWithRetryAsync(_audioWriter.Path).NoWarning();
+				}
+				_audioWriter = null;
+			}
+		}
+
+		private async ValueTask DeleteFileWithRetryAsync(string? filename, byte retryTime = 3)
+		{
+			if (filename is null || !File.Exists(filename))
+			{
+				return;
+			}
+
+			var i = 0;
+			while (true)
+			{
+				try
+				{
+					File.Delete(filename);
+				}
+				catch (Exception) when (i < retryTime)
+				{
+					++i;
+					await Task.Delay(TimeSpan.FromSeconds(1));
+					continue;
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, $@"删除 {filename} 出错");
+				}
+
+				break;
+			}
+		}
+
+		public async ValueTask DisposeAsync()
+		{
+			CurrentSpeedSubject.OnCompleted();
+			StatusSubject.OnCompleted();
+
+			await CloseOutput(null, true);
 		}
 	}
 }

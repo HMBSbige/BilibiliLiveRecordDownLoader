@@ -1,4 +1,5 @@
 using BilibiliLiveRecordDownLoader.Shared;
+using BilibiliLiveRecordDownLoader.Shared.Abstracts;
 using BilibiliLiveRecordDownLoader.Shared.HttpPolicy;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
@@ -14,28 +15,15 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Reactive;
 using System.Reactive.Linq;
-using System.Reactive.Subjects;
 using System.Reactive.Threading.Tasks;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 {
-	public class MultiThreadedDownloader : IDownloader
+	public class MultiThreadedDownloader : ProgressBase, IDownloader
 	{
 		private readonly ILogger _logger;
-
-		private long _fileSize;
-		private long _current;
-		private long _last;
-
-		public double Progress => Interlocked.Read(ref _current) / (double)_fileSize;
-
-		private readonly BehaviorSubject<double> _currentSpeed = new(0.0);
-		public IObservable<double> CurrentSpeed => _currentSpeed.AsObservable();
-
-		private readonly BehaviorSubject<string> _status = new(string.Empty);
-		public IObservable<string> Status => _status.AsObservable();
 
 		public string UserAgent { get; set; } = @"Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko";
 
@@ -116,27 +104,27 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 		/// </summary>
 		public async ValueTask DownloadAsync(CancellationToken token)
 		{
-			_status.OnNext(@"正在获取下载文件大小...");
-			_fileSize = await GetContentLengthAsync(token); //总大小
+			StatusSubject.OnNext(@"正在获取下载文件大小...");
+			FileSize = await GetContentLengthAsync(token); //总大小
 
 			TempDir = EnsureDirectory(TempDir);
 			var list = GetFileRangeList();
 
 			var opQueue = new OperationQueue(1);
-			_current = 0;
-			_last = 0;
+			Current = 0;
+			Last = 0;
 			try
 			{
 				var sw = Stopwatch.StartNew();
 				using var speedMonitor = Observable.Interval(TimeSpan.FromSeconds(1)).Subscribe(_ =>
 				{
-					var last = Interlocked.Read(ref _last);
-					_currentSpeed.OnNext(last / sw.Elapsed.TotalSeconds);
+					var last = Interlocked.Read(ref Last);
+					CurrentSpeedSubject.OnNext(last / sw.Elapsed.TotalSeconds);
 					sw.Restart();
-					Interlocked.Add(ref _last, -last);
+					Interlocked.Add(ref Last, -last);
 				});
 
-				_status.OnNext(@"正在下载...");
+				StatusSubject.OnNext(@"正在下载...");
 				await list.Select(info =>
 				{
 					// ReSharper disable once AccessToDisposedClosure
@@ -145,19 +133,19 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 							.SelectMany(res => WriteToFileAsync(res.Item1, res.Item2, token));
 				}).Merge();
 
-				_status.OnNext(@"下载完成，正在合并文件...");
-				_current = 0;
+				StatusSubject.OnNext(@"下载完成，正在合并文件...");
+				Current = 0;
 				await MergeFilesAsync(list, token);
 			}
 			catch (OperationCanceledException)
 			{
-				_status.OnNext(@"下载已取消");
+				StatusSubject.OnNext(@"下载已取消");
 				throw;
 			}
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, @"下载出错");
-				_status.OnNext(@"下载出错");
+				StatusSubject.OnNext(@"下载出错");
 			}
 			finally
 			{
@@ -204,9 +192,9 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 			var list = new List<FileRange>();
 
 			var parts = Threads; //线程数
-			var partSize = _fileSize / parts; //每块大小
+			var partSize = FileSize / parts; //每块大小
 
-			_logger.LogDebug($@"总大小：{_fileSize} ({Target})");
+			_logger.LogDebug($@"总大小：{FileSize} ({Target})");
 			_logger.LogDebug($@"每块大小：{partSize} ({Target})");
 
 			for (var i = 1; i < parts; ++i)
@@ -215,7 +203,7 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 				list.Add(new FileRange(range, GetTempFileName()));
 			}
 
-			var last = new RangeHeaderValue((parts - 1) * partSize, _fileSize);
+			var last = new RangeHeaderValue((parts - 1) * partSize, FileSize);
 			list.Add(new FileRange(last, GetTempFileName()));
 
 			return list;
@@ -323,15 +311,15 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 		{
 			if (reportSpeed)
 			{
-				Interlocked.Add(ref _last, length);
+				Interlocked.Add(ref Last, length);
 			}
-			Interlocked.Add(ref _current, length);
+			Interlocked.Add(ref Current, length);
 		}
 
 		public ValueTask DisposeAsync()
 		{
-			_currentSpeed.OnCompleted();
-			_status.OnCompleted();
+			CurrentSpeedSubject.OnCompleted();
+			StatusSubject.OnCompleted();
 
 			return default;
 		}

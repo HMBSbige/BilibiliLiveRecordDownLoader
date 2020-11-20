@@ -1,6 +1,9 @@
 namespace BilibiliLiveRecordDownLoader.FlvProcessor.Enums
 {
-	public enum FrameType : byte // 其实是半个字节
+	/// <summary>
+	/// 帧类型，半个字节
+	/// </summary>
+	public enum FrameType : byte
 	{
 		/// <summary>
 		/// 关键帧 for AVC, a seekable frame
