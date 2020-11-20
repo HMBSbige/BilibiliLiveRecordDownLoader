@@ -1,3 +1,5 @@
+using BilibiliLiveRecordDownLoader.Http.Interfaces;
+using BilibiliLiveRecordDownLoader.Http.Models;
 using BilibiliLiveRecordDownLoader.Shared;
 using BilibiliLiveRecordDownLoader.Shared.Abstracts;
 using BilibiliLiveRecordDownLoader.Shared.HttpPolicy;
@@ -19,7 +21,7 @@ using System.Reactive.Threading.Tasks;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
+namespace BilibiliLiveRecordDownLoader.Http.Clients
 {
 	public class MultiThreadedDownloader : ProgressBase, IDownloader
 	{
@@ -31,11 +33,17 @@ namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
 
 		public Uri? Target { get; set; }
 
+		public string? OutFileName { get; set; }
+
+		/// <summary>
+		/// 线程数
+		/// </summary>
 		public ushort Threads { get; set; } = 8;
 
+		/// <summary>
+		/// 临时文件夹
+		/// </summary>
 		public string TempDir { get; set; } = Path.GetTempPath();
-
-		public string? OutFileName { get; set; }
 
 		private readonly ObjectPool<HttpClient> _httpClientPool;
 

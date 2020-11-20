@@ -1,6 +1,6 @@
 using BilibiliApi.Clients;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
-using BilibiliLiveRecordDownLoader.Http.DownLoaders;
+using BilibiliLiveRecordDownLoader.Http.Clients;
 using Microsoft.Extensions.Logging;
 using Splat;
 using System;
@@ -75,7 +75,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels
 						continue;
 					}
 
-					await using var downloader = Locator.Current.GetService<IDownloader>();
+					await using var downloader = Locator.Current.GetService<MultiThreadedDownloader>();
 					downloader.Target = new(url);
 					downloader.Threads = _threadsCount;
 					downloader.OutFileName = outfile;

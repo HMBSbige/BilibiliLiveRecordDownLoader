@@ -1,7 +1,7 @@
 using BilibiliApi.Model.LiveRecordList;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Clients;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
-using BilibiliLiveRecordDownLoader.Http.DownLoaders;
+using BilibiliLiveRecordDownLoader.Http.Clients;
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
@@ -111,7 +111,7 @@ namespace BilibiliLiveRecordDownLoader
 			services.AddSingleton(new OperationQueue(int.MaxValue));
 			services.AddSingleton<IScreen, MainScreen>();
 
-			services.AddTransient<IDownloader, MultiThreadedDownloader>();
+			services.AddTransient<MultiThreadedDownloader>();
 			services.AddTransient<IFlvMerger, FlvMerger>();
 			services.AddLogging(c => c.AddSerilog());
 		}

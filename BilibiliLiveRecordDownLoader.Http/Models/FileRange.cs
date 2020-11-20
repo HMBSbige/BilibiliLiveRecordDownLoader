@@ -1,6 +1,6 @@
 using System.Net.Http.Headers;
 
-namespace BilibiliLiveRecordDownLoader.Http.DownLoaders
+namespace BilibiliLiveRecordDownLoader.Http.Models
 {
 	public class FileRange
 	{
