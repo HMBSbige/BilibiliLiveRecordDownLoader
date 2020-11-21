@@ -85,5 +85,39 @@ namespace UnitTest
 				File.Delete(outFlv);
 			}
 		}
+
+		[TestMethod]
+		public async Task DownloadTestAsync()
+		{
+			const string url = @"https://www.mediacollege.com/video-gallery/testclips/4sec.flv";
+			var filename = Path.ChangeExtension(Path.GetRandomFileName(), @"flv");
+			const string sha256 = @"9657166E7865880954FD6BEE8A7F9E2BBF2F32D7729BB8184A2AA2BA1261FAB6";
+			var path = KnownFolders.Downloads.Path;
+			var outFile = Path.Combine(path, filename);
+			try
+			{
+				await using var downloader = new HttpDownloader(TimeSpan.FromSeconds(10))
+				{
+					Target = new(url),
+					OutFileName = outFile
+				};
+
+				//downloader.CurrentSpeed.Subscribe(i => { Console.WriteLine($@"{i} Bytes/s"); });
+
+				await downloader.DownloadAsync(default);
+
+				Assert.IsTrue(File.Exists(outFile));
+				Assert.AreEqual(CalculateSHA256(outFile), sha256);
+			}
+			catch (Exception)
+			{
+				File.Delete(outFile);
+				throw;
+			}
+			finally
+			{
+				File.Delete(outFile);
+			}
+		}
 	}
 }
