@@ -1,15 +1,14 @@
 using BilibiliLiveRecordDownLoader.Http.Interfaces;
 using BilibiliLiveRecordDownLoader.Http.Models;
-using BilibiliLiveRecordDownLoader.Shared;
 using BilibiliLiveRecordDownLoader.Shared.Abstracts;
 using BilibiliLiveRecordDownLoader.Shared.HttpPolicy;
+using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
 using Punchclock;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -26,10 +25,6 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 	public class MultiThreadedDownloader : ProgressBase, IDownloader
 	{
 		private readonly ILogger _logger;
-
-		public string UserAgent { get; set; } = @"Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko";
-
-		public string? Cookie { get; set; }
 
 		public Uri? Target { get; set; }
 
@@ -56,35 +51,13 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 			}
 		}
 
-		public MultiThreadedDownloader(ILogger<MultiThreadedDownloader> logger)
+		public MultiThreadedDownloader(ILogger logger, string? cookie = null, string userAgent = Constants.ChromeUserAgent)
 		{
 			_logger = logger;
 
-			var policy = new PooledHttpClientPolicy(CreateNewClient);
+			var policy = new PooledHttpClientPolicy(() => HttpClientUtils.BuildClientForMultiThreadedDownloader(cookie, userAgent));
 			var provider = new DefaultObjectPoolProvider { MaximumRetained = 10 };
 			_httpClientPool = provider.Create(policy);
-		}
-
-		private HttpClient CreateNewClient()
-		{
-			var httpHandler = new SocketsHttpHandler();
-			if (!string.IsNullOrEmpty(Cookie))
-			{
-				httpHandler.UseCookies = false;
-			}
-
-			var client = new HttpClient(new RetryHandler(httpHandler, 10), true);
-
-			if (!string.IsNullOrEmpty(Cookie))
-			{
-				client.DefaultRequestHeaders.Add(@"Cookie", Cookie);
-			}
-
-			client.DefaultRequestHeaders.Add(@"User-Agent", UserAgent);
-			client.DefaultRequestHeaders.ConnectionClose = false;
-			client.Timeout = Timeout.InfiniteTimeSpan;
-
-			return client;
 		}
 
 		/// <summary>
@@ -98,12 +71,15 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 
 			using (_httpClientPool.GetObject(out var client))
 			{
-				client.DefaultRequestHeaders.Add(@"User-Agent", UserAgent);
-
 				var result = await client.GetAsync(Target, HttpCompletionOption.ResponseHeadersRead, token);
 
-				var str = result.Content.Headers.First(h => h.Key.Equals(@"Content-Length")).Value.First();
-				return long.Parse(str);
+				var length = result.Content.Headers.ContentLength;
+				if (length is not null)
+				{
+					return length.Value;
+				}
+
+				throw new HttpRequestException(@"Cannot get Content-Length");
 			}
 		}
 
@@ -123,23 +99,15 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 			Last = 0;
 			try
 			{
-				var sw = Stopwatch.StartNew();
-				using var speedMonitor = Observable.Interval(TimeSpan.FromSeconds(1)).Subscribe(_ =>
-				{
-					var last = Interlocked.Read(ref Last);
-					CurrentSpeedSubject.OnNext(last / sw.Elapsed.TotalSeconds);
-					sw.Restart();
-					Interlocked.Add(ref Last, -last);
-				});
+				using var speedMonitor = CreateSpeedMonitor();
 
 				StatusSubject.OnNext(@"正在下载...");
 				await list.Select(info =>
-				{
-					// ReSharper disable once AccessToDisposedClosure
-					return opQueue.Enqueue(1, () => GetStreamAsync(info, token))
-							.ToObservable()
-							.SelectMany(res => WriteToFileAsync(res.Item1, res.Item2, token));
-				}).Merge();
+						// ReSharper disable once AccessToDisposedClosure
+						opQueue.Enqueue(1, () => GetStreamAsync(info, token))
+								.ToObservable()
+								.SelectMany(res => WriteToFileAsync(res.Item1, res.Item2, token))
+				).Merge();
 
 				StatusSubject.OnNext(@"下载完成，正在合并文件...");
 				Current = 0;
@@ -322,14 +290,6 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 				Interlocked.Add(ref Last, length);
 			}
 			Interlocked.Add(ref Current, length);
-		}
-
-		public ValueTask DisposeAsync()
-		{
-			CurrentSpeedSubject.OnCompleted();
-			StatusSubject.OnCompleted();
-
-			return default;
 		}
 	}
 }

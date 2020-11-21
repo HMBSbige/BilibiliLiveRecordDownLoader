@@ -33,7 +33,7 @@ namespace UnitTest
 			var outFile = Path.Combine(path, filename);
 			try
 			{
-				await using var downloader = new MultiThreadedDownloader(NullLogger<MultiThreadedDownloader>.Instance)
+				await using var downloader = new MultiThreadedDownloader(NullLogger.Instance)
 				{
 					Target = new(url),
 					Threads = 4,

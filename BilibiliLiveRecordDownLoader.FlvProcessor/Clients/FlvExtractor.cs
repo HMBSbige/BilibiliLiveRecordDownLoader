@@ -5,17 +5,15 @@ using BilibiliLiveRecordDownLoader.FlvProcessor.Models;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagHeaders;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Utils;
 using BilibiliLiveRecordDownLoader.FlvProcessor.VideoWriters;
-using BilibiliLiveRecordDownLoader.Shared;
 using BilibiliLiveRecordDownLoader.Shared.Abstracts;
+using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -84,14 +82,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 
 			_outputBasePath = Path.Combine(OutputDir, Path.GetFileNameWithoutExtension(path));
 
-			var sw = Stopwatch.StartNew();
-			using var speedMonitor = Observable.Interval(TimeSpan.FromSeconds(1)).Subscribe(_ =>
-			{
-				var last = Interlocked.Read(ref Last);
-				CurrentSpeedSubject.OnNext(last / sw.Elapsed.TotalSeconds);
-				sw.Restart();
-				Interlocked.Add(ref Last, -last);
-			});
+			using var speedMonitor = CreateSpeedMonitor();
 
 			var tagHeader = new FlvTagHeader();
 			using var tagHeaderBuffer = MemoryPool<byte>.Shared.Rent(tagHeader.Size);
@@ -352,10 +343,9 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 			}
 		}
 
-		public async ValueTask DisposeAsync()
+		public override async ValueTask DisposeAsync()
 		{
-			CurrentSpeedSubject.OnCompleted();
-			StatusSubject.OnCompleted();
+			await base.DisposeAsync();
 
 			await CloseOutput(null, true);
 		}

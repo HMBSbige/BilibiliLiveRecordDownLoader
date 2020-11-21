@@ -75,11 +75,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels
 						continue;
 					}
 
-					await using var downloader = Locator.Current.GetService<MultiThreadedDownloader>();
-					downloader.Target = new(url);
-					downloader.Threads = _threadsCount;
-					downloader.OutFileName = outfile;
-					downloader.TempDir = _recordPath;
+					await using var downloader = new MultiThreadedDownloader(_logger)
+					{
+						Target = new(url),
+						Threads = _threadsCount,
+						OutFileName = outfile,
+						TempDir = _recordPath
+					};
 
 					using var ds = downloader.Status.DistinctUntilChanged().Subscribe(s =>
 							// ReSharper disable once AccessToModifiedClosure

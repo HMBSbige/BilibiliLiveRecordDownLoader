@@ -5,7 +5,7 @@ using BilibiliApi.Model.LiveRecordUrl;
 using BilibiliApi.Model.PlayUrl;
 using BilibiliApi.Model.RoomInfo;
 using BilibiliApi.Model.RoomInit;
-using BilibiliLiveRecordDownLoader.Shared.HttpPolicy;
+using BilibiliLiveRecordDownLoader.Shared.Utils;
 using System;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -16,22 +16,15 @@ namespace BilibiliApi.Clients
 {
 	public sealed class BililiveApiClient : IDisposable
 	{
-		public string UserAgent { get; set; } = @"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.66 Safari/537.36";
+		public HttpClient HttpClient { get; }
 
-		public string? Cookie { get; set; }
-
-		private HttpClient _httpClient;
 		private static readonly SemaphoreSlim SemaphoreSlim = new(1, 1);
 
-		public BililiveApiClient()
-		{
-			_httpClient = BuildClient();
-		}
+		public BililiveApiClient(string? cookie = null, string userAgent = Constants.ChromeUserAgent) : this(TimeSpan.FromSeconds(10), cookie, userAgent) { }
 
-		public void Reload()
+		public BililiveApiClient(TimeSpan timeout, string? cookie = null, string userAgent = Constants.ChromeUserAgent)
 		{
-			_httpClient.Dispose();
-			_httpClient = BuildClient();
+			HttpClient = HttpClientUtils.BuildClientForBilibili(userAgent, cookie, timeout);
 		}
 
 		/// <summary>
@@ -124,7 +117,7 @@ namespace BilibiliApi.Clients
 			await SemaphoreSlim.WaitAsync(token);
 			try
 			{
-				return await _httpClient.GetFromJsonAsync<T>(url, token);
+				return await HttpClient.GetFromJsonAsync<T>(url, token);
 			}
 			finally
 			{
@@ -132,30 +125,9 @@ namespace BilibiliApi.Clients
 			}
 		}
 
-		private HttpClient BuildClient()
-		{
-			HttpClient client;
-			if (string.IsNullOrEmpty(Cookie))
-			{
-				client = new(new ForceHttp2Handler(new SocketsHttpHandler()), true);
-			}
-			else
-			{
-				client = new(new ForceHttp2Handler(new SocketsHttpHandler { UseCookies = false }), true);
-				client.DefaultRequestHeaders.Add(@"Cookie", Cookie);
-			}
-
-			client.Timeout = TimeSpan.FromSeconds(10);
-			client.DefaultRequestHeaders.Add(@"Accept", @"application/json, text/javascript, */*; q=0.01");
-			client.DefaultRequestHeaders.Add(@"Referer", @"https://live.bilibili.com/");
-			client.DefaultRequestHeaders.Add(@"User-Agent", UserAgent);
-
-			return client;
-		}
-
 		public void Dispose()
 		{
-			_httpClient.Dispose();
+			HttpClient.Dispose();
 		}
 	}
 }

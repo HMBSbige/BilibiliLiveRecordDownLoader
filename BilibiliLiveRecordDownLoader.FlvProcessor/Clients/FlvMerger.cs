@@ -9,10 +9,8 @@ using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -50,14 +48,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 
 			FileSize = Files.Sum(file => new FileInfo(file).Length);
 
-			var sw = Stopwatch.StartNew();
-			using var speedMonitor = Observable.Interval(TimeSpan.FromSeconds(1)).Subscribe(_ =>
-			{
-				var last = Interlocked.Read(ref Last);
-				CurrentSpeedSubject.OnNext(last / sw.Elapsed.TotalSeconds);
-				sw.Restart();
-				Interlocked.Add(ref Last, -last);
-			});
+			using var speedMonitor = CreateSpeedMonitor();
 
 			await using var outFile = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None, BufferSize, IsAsync);
 
@@ -253,14 +244,6 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 
 			file.Seek(i, SeekOrigin.Begin);
 			WriteWithProgress(file, outBytes, default);
-		}
-
-		public ValueTask DisposeAsync()
-		{
-			CurrentSpeedSubject.OnCompleted();
-			StatusSubject.OnCompleted();
-
-			return default;
 		}
 	}
 }

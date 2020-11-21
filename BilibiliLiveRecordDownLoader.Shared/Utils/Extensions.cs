@@ -4,7 +4,7 @@ using System.Reactive.Disposables;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
-namespace BilibiliLiveRecordDownLoader.Shared
+namespace BilibiliLiveRecordDownLoader.Shared.Utils
 {
 	public static class Extensions
 	{

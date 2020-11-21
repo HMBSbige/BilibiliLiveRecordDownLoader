@@ -2,7 +2,6 @@ using BilibiliApi.Clients;
 using BilibiliApi.Model.LiveRecordList;
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models;
-using BilibiliLiveRecordDownLoader.Shared;
 using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels;
 using DynamicData;
@@ -17,6 +16,7 @@ using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
+using Extensions = BilibiliLiveRecordDownLoader.Shared.Utils.Extensions;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
@@ -161,8 +161,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					.Select(i => i.Item1)
 					.Subscribe(i =>
 					{
-						GetAnchorInfoAsync(i).NoWarning();
-						GetRecordListAsync(i).NoWarning();
+						Extensions.NoWarning(GetAnchorInfoAsync(i));
+						Extensions.NoWarning(GetRecordListAsync(i));
 					});
 
 			_liveRecordSourceList.Connect()
@@ -262,7 +262,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 								var task = new LiveRecordDownloadTaskViewModel(_logger, liveRecord, root, _configService.Config.DownloadThreads);
 								if (AddTask(task))
 								{
-									_liveRecordDownloadTaskQueue.Enqueue(1, Constants.LiveRecordKey, () => task.StartAsync().AsTask()).NoWarning();
+									Extensions.NoWarning(_liveRecordDownloadTaskQueue.Enqueue(1, Constants.LiveRecordKey, () => task.StartAsync().AsTask()));
 								}
 							}
 						}
@@ -335,8 +335,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				using var client = new BililiveApiClient();
 				var roomInitMessage = await client.GetRoomInitAsync(roomId);
 				if (roomInitMessage?.data is not null
-				    && roomInitMessage.code == 0
-				    && roomInitMessage.data.room_id > 0)
+					&& roomInitMessage.code == 0
+					&& roomInitMessage.data.room_id > 0)
 				{
 					RoomId = roomInitMessage.data.room_id;
 					ShortRoomId = roomInitMessage.data.short_id;
