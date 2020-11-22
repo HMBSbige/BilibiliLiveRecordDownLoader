@@ -65,17 +65,19 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private readonly IConfigService _configService;
 		private readonly SourceList<RoomStatus> _roomList;
 
-		public Config Config => _configService.Config;
+		public readonly Config Config;
 
 		public SettingViewModel(
 			IScreen hostScreen,
 			ILogger<SettingViewModel> logger,
 			IConfigService configService,
+			Config config,
 			SourceList<RoomStatus> roomList)
 		{
 			HostScreen = hostScreen;
 			_logger = logger;
 			_configService = configService;
+			Config = config;
 			_roomList = roomList;
 
 			SelectMainDirCommand = ReactiveCommand.Create(SelectDirectory);
@@ -89,9 +91,9 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		{
 			await _configService.LoadAsync(default);
 
-			_roomList.AddRange(_configService.Config.Rooms);
+			_roomList.AddRange(Config.Rooms);
 
-			if (_configService.Config.IsCheckUpdateOnStart)
+			if (Config.IsCheckUpdateOnStart)
 			{
 				await CheckUpdateCommand.Execute();
 			}
@@ -107,11 +109,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				AddToMostRecentlyUsedList = false,
 				EnsurePathExists = true,
 				NavigateToShortcut = true,
-				InitialDirectory = _configService.Config.MainDir
+				InitialDirectory = Config.MainDir
 			};
 			if (dlg.ShowDialog() == CommonFileDialogResult.Ok)
 			{
-				_configService.Config.MainDir = dlg.FileName;
+				Config.MainDir = dlg.FileName;
 			}
 		}
 
@@ -119,7 +121,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		{
 			return Observable.Start(() =>
 			{
-				Utils.Utils.OpenDir(_configService.Config.MainDir);
+				Utils.Utils.OpenDir(Config.MainDir);
 				return Unit.Default;
 			});
 		}
@@ -133,7 +135,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				var updateChecker = new GitHubReleasesUpdateChecker(
 						@"HMBSbige",
 						@"BilibiliLiveRecordDownLoader",
-						_configService.Config.IsCheckPreRelease,
+						Config.IsCheckPreRelease,
 						version
 				);
 				if (await updateChecker.CheckAsync(default))
@@ -177,7 +179,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		private void GetDiskUsage(long _)
 		{
-			var (availableFreeSpace, totalSize) = Utils.Utils.GetDiskUsage(_configService.Config.MainDir);
+			var (availableFreeSpace, totalSize) = Utils.Utils.GetDiskUsage(Config.MainDir);
 			if (totalSize != 0)
 			{
 				DiskUsageProgressBarText = $@"已使用 {Utils.Utils.CountSize(totalSize - availableFreeSpace)}/{Utils.Utils.CountSize(totalSize)} 剩余 {Utils.Utils.CountSize(availableFreeSpace)}";

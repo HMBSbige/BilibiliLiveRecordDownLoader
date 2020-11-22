@@ -1,4 +1,3 @@
-using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using BilibiliLiveRecordDownLoader.Views.Dialogs;
@@ -55,21 +54,20 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		private readonly ILogger _logger;
 		private readonly SourceList<RoomStatus> _roomList;
-		private readonly IConfigService _configService;
+		private readonly Config _config;
 
-		public Config Config => _configService.Config;
 		public readonly ReadOnlyObservableCollection<RoomStatus> RoomList;
 
 		public StreamRecordViewModel(
 			IScreen hostScreen,
 			ILogger<StreamRecordViewModel> logger,
 			SourceList<RoomStatus> roomList,
-			IConfigService configService)
+			Config config)
 		{
 			HostScreen = hostScreen;
 			_logger = logger;
 			_roomList = roomList;
-			_configService = configService;
+			_config = config;
 
 			_roomList.Connect()
 					.ObserveOnDispatcher()
@@ -150,8 +148,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private void AddRoom(RoomStatus room)
 		{
 			_roomList.Add(room);
-			Config.Rooms.Add(room);
-			_configService.RaiseRoomsChanged();
+			_config.Rooms.Add(room);
+			_config.RaisePropertyChanged(nameof(_config.Rooms));
 		}
 	}
 }

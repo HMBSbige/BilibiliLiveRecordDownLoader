@@ -91,7 +91,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 			}
 		}
 
-		public void RaiseRoomsChanged()
+		private void RaiseRoomsChanged()
 		{
 			Config.RaisePropertyChanged(nameof(Config.Rooms));
 		}

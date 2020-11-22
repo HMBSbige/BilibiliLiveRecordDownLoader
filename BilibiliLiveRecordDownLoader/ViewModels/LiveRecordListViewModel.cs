@@ -1,6 +1,5 @@
 using BilibiliApi.Clients;
 using BilibiliApi.Model.LiveRecordList;
-using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
 using BilibiliLiveRecordDownLoader.Utils;
@@ -129,32 +128,31 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		#endregion
 
 		private readonly ILogger _logger;
-		private readonly IConfigService _configService;
 		private readonly SourceList<TaskViewModel> _taskSourceList;
 		private readonly SourceList<LiveRecordList> _liveRecordSourceList;
 		private readonly OperationQueue _liveRecordDownloadTaskQueue;
 
 		public readonly ReadOnlyObservableCollection<LiveRecordViewModel> LiveRecordList;
-		public Config Config => _configService.Config;
+		public readonly Config Config;
 		private const long PageSize = 200;
 
 		public LiveRecordListViewModel(
 				IScreen hostScreen,
 				ILogger<LiveRecordListViewModel> logger,
-				IConfigService configService,
+				Config config,
 				SourceList<LiveRecordList> liveRecordSourceList,
 				SourceList<TaskViewModel> taskSourceList,
 				OperationQueue taskQueue)
 		{
 			HostScreen = hostScreen;
 			_logger = logger;
-			_configService = configService;
+			Config = config;
 			_taskSourceList = taskSourceList;
 			_liveRecordSourceList = liveRecordSourceList;
 			_liveRecordDownloadTaskQueue = taskQueue;
 
 			_roomIdMonitor = this
-					.WhenAnyValue(x => x._configService.Config.RoomId, x => x.TriggerLiveRecordListQuery)
+					.WhenAnyValue(x => x.Config.RoomId, x => x.TriggerLiveRecordListQuery)
 					.Throttle(TimeSpan.FromMilliseconds(800), RxApp.MainThreadScheduler)
 					.DistinctUntilChanged()
 					.Where(i => i.Item1 > 0)
@@ -230,7 +228,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				{
 					if (info is LiveRecordViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
 					{
-						var root = Path.Combine(_configService.Config.MainDir, $@"{RoomId}", Constants.LiveRecordPath);
+						var root = Path.Combine(Config.MainDir, $@"{RoomId}", Constants.LiveRecordPath);
 						var path = Path.Combine(root, liveRecord.Rid);
 						if (!Utils.Utils.OpenDir(path))
 						{
@@ -258,8 +256,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 						{
 							if (item is LiveRecordViewModel { Rid: not @"" or null } liveRecord)
 							{
-								var root = Path.Combine(_configService.Config.MainDir, $@"{RoomId}", Constants.LiveRecordPath);
-								var task = new LiveRecordDownloadTaskViewModel(_logger, liveRecord, root, _configService.Config.DownloadThreads);
+								var root = Path.Combine(Config.MainDir, $@"{RoomId}", Constants.LiveRecordPath);
+								var task = new LiveRecordDownloadTaskViewModel(_logger, liveRecord, root, Config.DownloadThreads);
 								if (AddTask(task))
 								{
 									Extensions.NoWarning(_liveRecordDownloadTaskQueue.Enqueue(1, Constants.LiveRecordKey, () => task.StartAsync().AsTask()));

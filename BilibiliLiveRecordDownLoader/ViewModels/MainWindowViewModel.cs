@@ -21,19 +21,18 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		#endregion
 
 		private readonly SourceList<TaskViewModel> _taskSourceList;
-		private readonly IConfigService _configService;
 
 		public IScreen HostScreen { get; }
-		public Config Config => _configService.Config;
+		public readonly Config Config;
 
 		public MainWindowViewModel(
 			IScreen screen,
 			SourceList<TaskViewModel> taskSourceList,
-			IConfigService configService)
+			Config config)
 		{
 			HostScreen = screen;
 			_taskSourceList = taskSourceList;
-			_configService = configService;
+			Config = config;
 
 			ShowWindowCommand = ReactiveCommand.Create(ShowWindow);
 			ExitCommand = ReactiveCommand.Create(Exit);
@@ -53,7 +52,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		{
 			StopAllTask();
 
-			_configService.Dispose();
+			Locator.Current.GetService<IConfigService>().Dispose();
 
 			var window = Locator.Current.GetService<MainWindow>();
 			window.CloseReason = CloseReason.ApplicationExitCall;

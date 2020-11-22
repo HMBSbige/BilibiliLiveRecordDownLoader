@@ -26,7 +26,5 @@ namespace BilibiliLiveRecordDownLoader.Interfaces
 		/// 加载配置
 		/// </summary>
 		ValueTask LoadAsync(CancellationToken token);
-
-		void RaiseRoomsChanged();
 	}
 }
