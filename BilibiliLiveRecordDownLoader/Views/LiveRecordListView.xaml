@@ -8,6 +8,7 @@
     xmlns:reactiveUi="http://reactiveui.net"
     xmlns:viewModels="clr-namespace:BilibiliLiveRecordDownLoader.ViewModels"
     xmlns:controls="http://schemas.modernwpf.com/2019"
+    xmlns:models="clr-namespace:BilibiliLiveRecordDownLoader.Models"
     mc:Ignorable="d"
     d:DesignHeight="450" d:DesignWidth="800" Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
     <Grid Margin="10,15,0,0">
@@ -86,7 +87,7 @@
                 SelectionMode="Extended"
                 SelectionUnit="FullRow"
                 
-                d:DataContext="{d:DesignInstance viewModels:LiveRecordViewModel}"
+                d:DataContext="{d:DesignInstance models:LiveRecordViewModel}"
                 BorderThickness="1"
                 BorderBrush="{DynamicResource GridLinesBrush}"
                 >

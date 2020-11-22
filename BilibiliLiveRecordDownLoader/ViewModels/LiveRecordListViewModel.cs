@@ -2,8 +2,8 @@ using BilibiliApi.Clients;
 using BilibiliApi.Model.LiveRecordList;
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models;
+using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
 using BilibiliLiveRecordDownLoader.Utils;
-using BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels;
 using DynamicData;
 using Microsoft.Extensions.Logging;
 using Punchclock;
@@ -291,14 +291,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			try
 			{
 				using var client = new BililiveApiClient();
-				var msg = await client.GetAnchorInfoAsync(roomId);
+				var info = await client.GetAnchorInfoDataAsync(roomId);
 
-				if (msg?.data?.info is null || msg.code != 0)
-				{
-					throw new ArgumentException($@"[{roomId}]获取主播信息出错，可能该房间号的主播不存在");
-				}
-
-				var info = msg.data.info;
 				ImageUri = info.face;
 				Name = info.uname;
 				Uid = info.uid;

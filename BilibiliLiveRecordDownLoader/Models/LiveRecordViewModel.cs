@@ -2,7 +2,7 @@ using BilibiliApi.Model.LiveRecordList;
 using ReactiveUI;
 using System;
 
-namespace BilibiliLiveRecordDownLoader.ViewModels
+namespace BilibiliLiveRecordDownLoader.Models
 {
 	public class LiveRecordViewModel : ReactiveObject
 	{

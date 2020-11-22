@@ -1,5 +1,6 @@
 using ReactiveUI;
 using System;
+using System.Collections.Generic;
 
 namespace BilibiliLiveRecordDownLoader.Models
 {
@@ -14,6 +15,9 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private bool _isCheckPreRelease;
 		private double _mainWindowsWidth = 1280;
 		private double _mainWindowsHeight = 720;
+		private string _userAgent = string.Empty;
+		private string _cookie = string.Empty;
+		private List<RoomStatus> _rooms = new();
 
 		#endregion
 
@@ -61,6 +65,38 @@ namespace BilibiliLiveRecordDownLoader.Models
 			set => this.RaiseAndSetIfChanged(ref _mainWindowsHeight, value);
 		}
 
+		public string UserAgent
+		{
+			get => _userAgent;
+			set => this.RaiseAndSetIfChanged(ref _userAgent, value);
+		}
+
+		public string Cookie
+		{
+			get => _cookie;
+			set => this.RaiseAndSetIfChanged(ref _cookie, value);
+		}
+
+		public List<RoomStatus> Rooms
+		{
+			get => _rooms;
+			set => this.RaiseAndSetIfChanged(ref _rooms, value);
+		}
+
 		#endregion
+
+		public void Clone(Config config)
+		{
+			RoomId = config.RoomId;
+			MainDir = config.MainDir;
+			DownloadThreads = config.DownloadThreads;
+			IsCheckUpdateOnStart = config.IsCheckUpdateOnStart;
+			IsCheckPreRelease = config.IsCheckPreRelease;
+			MainWindowsWidth = config.MainWindowsWidth;
+			MainWindowsHeight = config.MainWindowsHeight;
+			UserAgent = config.UserAgent;
+			Cookie = config.Cookie;
+			Rooms = config.Rooms;
+		}
 	}
 }

@@ -1,5 +1,5 @@
-using BilibiliLiveRecordDownLoader.Utils;
-using BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels;
+using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
+using BilibiliLiveRecordDownLoader.Views.Dialogs;
 using DynamicData;
 using Microsoft.Extensions.Logging;
 using ModernWpf.Controls;

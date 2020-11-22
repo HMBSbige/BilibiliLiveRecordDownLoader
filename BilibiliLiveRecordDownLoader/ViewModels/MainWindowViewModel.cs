@@ -1,7 +1,7 @@
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models;
+using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
 using BilibiliLiveRecordDownLoader.Utils;
-using BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels;
 using DynamicData;
 using ReactiveUI;
 using Splat;

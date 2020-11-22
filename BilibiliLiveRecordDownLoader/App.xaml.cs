@@ -2,10 +2,11 @@ using BilibiliApi.Model.LiveRecordList;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Clients;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
 using BilibiliLiveRecordDownLoader.Interfaces;
+using BilibiliLiveRecordDownLoader.Models;
+using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
-using BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels;
 using BilibiliLiveRecordDownLoader.Views;
 using DynamicData;
 using Microsoft.Extensions.DependencyInjection;
@@ -97,15 +98,19 @@ namespace BilibiliLiveRecordDownLoader
 			services.AddSingleton<TaskListViewModel>();
 			services.AddSingleton<LogViewModel>();
 			services.AddSingleton<SettingViewModel>();
+			services.AddSingleton<StreamRecordViewModel>();
 
 			services.AddSingleton<MainWindow>();
 			services.AddTransient<IViewFor<LiveRecordListViewModel>, LiveRecordListView>();
 			services.AddTransient<IViewFor<TaskListViewModel>, TaskListView>();
 			services.AddTransient<IViewFor<LogViewModel>, LogView>();
 			services.AddTransient<IViewFor<SettingViewModel>, SettingView>();
+			services.AddTransient<IViewFor<StreamRecordViewModel>, StreamRecordView>();
 
 			services.AddSingleton<IConfigService, ConfigService>();
+			services.AddSingleton<Config>();
 			services.AddSingleton<SourceList<LiveRecordList>>();
+			services.AddSingleton<SourceList<RoomStatus>>();
 			services.AddSingleton<SourceList<TaskViewModel>>();
 			services.AddSingleton(new OperationQueue(int.MaxValue));
 			services.AddSingleton<IScreen, MainScreen>();

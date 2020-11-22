@@ -11,7 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using ILogger = Microsoft.Extensions.Logging.ILogger;
 
-namespace BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels
+namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 {
 	public class LiveRecordDownloadTaskViewModel : TaskViewModel
 	{

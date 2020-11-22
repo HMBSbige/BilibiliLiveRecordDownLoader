@@ -7,8 +7,8 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:reactiveUi="http://reactiveui.net"
     xmlns:viewModels="clr-namespace:BilibiliLiveRecordDownLoader.ViewModels"
-    xmlns:taskViewModels="clr-namespace:BilibiliLiveRecordDownLoader.ViewModels.TaskViewModels"
     xmlns:ui="http://schemas.modernwpf.com/2019"
+    xmlns:taskViewModels="clr-namespace:BilibiliLiveRecordDownLoader.Models.TaskViewModels"
     mc:Ignorable="d"
     d:DesignHeight="450" d:DesignWidth="800" Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
     <Grid Margin="0,30,0,0">

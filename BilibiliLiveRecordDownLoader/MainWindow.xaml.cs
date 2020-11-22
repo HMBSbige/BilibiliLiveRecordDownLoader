@@ -18,7 +18,8 @@ namespace BilibiliLiveRecordDownLoader
 			LiveRecordListViewModel liveRecordList,
 			TaskListViewModel taskList,
 			LogViewModel log,
-			SettingViewModel settings)
+			SettingViewModel settings,
+			StreamRecordViewModel streamRecord)
 		{
 			InitializeComponent();
 			ViewModel = viewModel;
@@ -60,6 +61,11 @@ namespace BilibiliLiveRecordDownLoader
 						case @"3":
 						{
 							ViewModel.HostScreen.Router.Navigate.Execute(log);
+							break;
+						}
+						case @"4":
+						{
+							ViewModel.HostScreen.Router.Navigate.Execute(streamRecord);
 							break;
 						}
 					}

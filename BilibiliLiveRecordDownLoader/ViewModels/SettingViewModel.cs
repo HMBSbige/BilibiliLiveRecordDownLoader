@@ -1,7 +1,8 @@
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
-using BilibiliLiveRecordDownLoader.Utils;
+using BilibiliLiveRecordDownLoader.Views.Dialogs;
+using DynamicData;
 using Microsoft.Extensions.Logging;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using ModernWpf.Controls;
@@ -62,17 +63,20 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		private readonly ILogger _logger;
 		private readonly IConfigService _configService;
+		private readonly SourceList<RoomStatus> _roomList;
 
 		public Config Config => _configService.Config;
 
 		public SettingViewModel(
 			IScreen hostScreen,
 			ILogger<SettingViewModel> logger,
-			IConfigService configService)
+			IConfigService configService,
+			SourceList<RoomStatus> roomList)
 		{
 			HostScreen = hostScreen;
 			_logger = logger;
 			_configService = configService;
+			_roomList = roomList;
 
 			SelectMainDirCommand = ReactiveCommand.Create(SelectDirectory);
 			OpenMainDirCommand = ReactiveCommand.CreateFromObservable(OpenDirectory);
@@ -84,6 +88,9 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private async ValueTask InitAsync()
 		{
 			await _configService.LoadAsync(default);
+
+			_roomList.AddRange(_configService.Config.Rooms);
+
 			if (_configService.Config.IsCheckUpdateOnStart)
 			{
 				await CheckUpdateCommand.Execute();

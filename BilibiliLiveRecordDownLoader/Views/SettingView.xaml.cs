@@ -41,6 +41,9 @@ namespace BilibiliLiveRecordDownLoader.Views
 				this.Bind(ViewModel, vm => vm.Config.IsCheckPreRelease, v => v.IsCheckPreReleaseSwitch.IsOn).DisposeWith(d);
 				this.BindCommand(ViewModel, vm => vm.CheckUpdateCommand, v => v.CheckUpdateButton).DisposeWith(d);
 				this.OneWayBind(ViewModel, vm => vm.UpdateStatus, v => v.UpdateStatusTextBlock.Text).DisposeWith(d);
+
+				this.Bind(ViewModel, vm => vm.Config.UserAgent, v => v.UserAgentTextBox.Text).DisposeWith(d);
+				this.Bind(ViewModel, vm => vm.Config.Cookie, v => v.CookieTextBox.Text).DisposeWith(d);
 			});
 		}
 	}

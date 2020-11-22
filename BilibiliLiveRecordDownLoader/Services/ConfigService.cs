@@ -1,6 +1,8 @@
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
+using DynamicData;
+using DynamicData.Binding;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.Threading;
 using ReactiveUI;
@@ -16,19 +18,14 @@ namespace BilibiliLiveRecordDownLoader.Services
 {
 	public sealed class ConfigService : ReactiveObject, IConfigService
 	{
-		private Config _config = new();
-
-		public Config Config
-		{
-			get => _config;
-			private set => this.RaiseAndSetIfChanged(ref _config, value);
-		}
+		public Config Config { get; }
 
 		public string FilePath { get; set; } = $@"{nameof(BilibiliLiveRecordDownLoader)}.json";
 
 		private readonly ILogger _logger;
 
 		private readonly IDisposable _configMonitor;
+		private IDisposable? _roomsMonitor;
 
 		private readonly AsyncReaderWriterLock _lock = new();
 
@@ -39,26 +36,23 @@ namespace BilibiliLiveRecordDownLoader.Services
 			IgnoreReadOnlyProperties = true,
 		};
 
-		public ConfigService(ILogger<ConfigService> logger)
+		public ConfigService(
+			ILogger<ConfigService> logger,
+			Config config)
 		{
 			_logger = logger;
-			var c0 = this.WhenAnyValue(
-					x => x.Config,
-					x => x.Config.RoomId,
-					x => x.Config.MainDir,
-					x => x.Config.DownloadThreads,
-					x => x.Config.IsCheckUpdateOnStart,
-					x => x.Config.IsCheckPreRelease
-			);
-			var c1 = this.WhenAnyValue(
-					x => x.Config.MainWindowsWidth,
-					x => x.Config.MainWindowsHeight
-			);
-			_configMonitor = c0.CombineLatest(c1)
+			Config = config;
+			_configMonitor = Config.WhenAnyPropertyChanged()
 				.Throttle(TimeSpan.FromSeconds(1))
-				.DistinctUntilChanged()
-				.Where(v => v.First.Item1 is not null && !_lock.IsWriteLockHeld)
-				.Subscribe(_ => SaveAsync(default).NoWarning());
+				.Where(_ => !_lock.IsWriteLockHeld)
+				.Subscribe(_ =>
+				{
+					SaveAsync(default).NoWarning();
+					_roomsMonitor?.Dispose();
+					_roomsMonitor = Config.Rooms.AsObservableChangeSet()
+						.WhenAnyPropertyChanged()
+						.Subscribe(_ => RaiseRoomsChanged());
+				});
 		}
 
 		public async ValueTask SaveAsync(CancellationToken token)
@@ -88,7 +82,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 				var config = await JsonSerializer.DeserializeAsync<Config>(fs, cancellationToken: token);
 				if (config is not null)
 				{
-					Config = config;
+					Config.Clone(config);
 				}
 			}
 			catch (Exception ex)
@@ -97,9 +91,15 @@ namespace BilibiliLiveRecordDownLoader.Services
 			}
 		}
 
+		public void RaiseRoomsChanged()
+		{
+			Config.RaisePropertyChanged(nameof(Config.Rooms));
+		}
+
 		public void Dispose()
 		{
 			_configMonitor.Dispose();
+			_roomsMonitor?.Dispose();
 		}
 	}
 }

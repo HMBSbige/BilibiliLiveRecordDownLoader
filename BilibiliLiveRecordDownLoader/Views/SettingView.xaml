@@ -9,10 +9,10 @@
     xmlns:viewModels="clr-namespace:BilibiliLiveRecordDownLoader.ViewModels"
     xmlns:ui="http://schemas.modernwpf.com/2019"
     mc:Ignorable="d"
-    d:DesignHeight="450" d:DesignWidth="800" Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
-    <Grid Margin="20,15,20,20">
+    d:DesignHeight="800" d:DesignWidth="800" Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+    <Grid Margin="20,25,0,0">
         <ScrollViewer>
-            <ui:SimpleStackPanel Spacing="0">
+            <ui:SimpleStackPanel Spacing="0" Margin="0,0,20,0">
                 <GroupBox Header="根目录">
                     <Grid>
                         <Grid.RowDefinitions>
@@ -57,6 +57,18 @@
                         <Button x:Name="CheckUpdateButton"
                                         Content="检查更新" />
                         <TextBlock x:Name="UpdateStatusTextBlock" d:Text="无更新" />
+                    </StackPanel>
+                </GroupBox>
+                <GroupBox Header="网络">
+                    <StackPanel>
+                        <TextBox x:Name="UserAgentTextBox"
+                                 ui:ControlHelper.Header="User Agent"
+                                 ui:ControlHelper.PlaceholderText="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.66 Safari/537.36" />
+                        <TextBox x:Name="CookieTextBox"
+                                 ui:ControlHelper.Header="Cookie"
+                                 VerticalContentAlignment="Top"
+                                 TextWrapping="WrapWithOverflow"
+                                 Height="100" />
                     </StackPanel>
                 </GroupBox>
             </ui:SimpleStackPanel>
