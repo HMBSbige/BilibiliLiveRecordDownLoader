@@ -49,10 +49,10 @@
             <DataGrid.ContextMenu>
                 <ContextMenu>
                     <MenuItem x:Name="AddMenuItem" Header="添加直播间" />
-                    <MenuItem x:Name="ModifyMenuItem" Header="修改直播间" />
-                    <MenuItem x:Name="RemoveMenuItem" Header="删除" />
+                    <MenuItem x:Name="ModifyMenuItem" Header="直播间设置" />
+                    <MenuItem x:Name="RemoveMenuItem" Header="移除直播间" />
                     <Separator />
-                    <MenuItem x:Name="RefreshDirMenuItem" Header="手动刷新" />
+                    <MenuItem x:Name="RefreshMenuItem" Header="手动刷新" />
                     <MenuItem x:Name="OpenDirMenuItem" Header="打开目录" />
                     <MenuItem x:Name="OpenUrlMenuItem" Header="打开直播间" />
                 </ContextMenu>

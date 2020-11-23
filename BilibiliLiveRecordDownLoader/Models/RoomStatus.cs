@@ -184,14 +184,6 @@ namespace BilibiliLiveRecordDownLoader.Models
 			_config = Locator.Current.GetService<Config>();
 		}
 
-		private void CopyFromRoomInfoData(RoomInfoData roomData)
-		{
-			RoomId = roomData.room_id;
-			ShortId = roomData.short_id;
-			LiveStatus = (LiveStatus)roomData.live_status;
-			Title = roomData.title;
-		}
-
 		private BililiveApiClient CreateClient(TimeSpan timeout)
 		{
 			return new(timeout, _config.Cookie, _config.UserAgent);
@@ -243,6 +235,64 @@ namespace BilibiliLiveRecordDownLoader.Models
 			{
 				await GetAnchorInfoAsync(token);
 			}
+		}
+
+		public async Task RefreshStatusAsync(CancellationToken token)
+		{
+			try
+			{
+				await GetRoomInfoDataAsync(true, token);
+				await GetAnchorInfoAsync(token);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, $@"[{RoomId}] 刷新房间状态出错");
+			}
+		}
+
+		private void CopyFromRoomInfoData(RoomInfoData roomData)
+		{
+			RoomId = roomData.room_id;
+			ShortId = roomData.short_id;
+			LiveStatus = (LiveStatus)roomData.live_status;
+			Title = roomData.title;
+		}
+
+		public RoomStatus Clone()
+		{
+			return new()
+			{
+				IsEnable = IsEnable,
+				IsNotify = IsNotify,
+				RoomId = RoomId,
+				DanMuReconnectLatency = DanMuReconnectLatency,
+				HttpCheckLatency = HttpCheckLatency,
+				StreamReconnectLatency = StreamReconnectLatency,
+				StreamConnectTimeout = StreamConnectTimeout,
+				StreamTimeout = StreamTimeout,
+			};
+		}
+
+		public void Clone(RoomStatus room)
+		{
+			IsEnable = room.IsEnable;
+			IsNotify = room.IsNotify;
+			//RoomId = room.RoomId;
+			DanMuReconnectLatency = room.DanMuReconnectLatency;
+			HttpCheckLatency = room.HttpCheckLatency;
+			StreamReconnectLatency = room.StreamReconnectLatency;
+			StreamConnectTimeout = room.StreamConnectTimeout;
+			StreamTimeout = room.StreamTimeout;
+		}
+
+		public override bool Equals(object? obj)
+		{
+			return obj is RoomStatus room && room.RoomId == RoomId;
+		}
+
+		public override int GetHashCode()
+		{
+			return HashCode.Combine(RoomId);
 		}
 	}
 }

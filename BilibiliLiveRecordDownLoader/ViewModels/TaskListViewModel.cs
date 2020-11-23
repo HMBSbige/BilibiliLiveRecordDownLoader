@@ -74,16 +74,20 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			{
 				try
 				{
-					if (info is IList { Count: > 0 } list)
+					if (info is not IList { Count: > 0 } list)
 					{
-						foreach (var item in list)
+						return;
+					}
+
+					foreach (var item in list)
+					{
+						if (item is not TaskViewModel task)
 						{
-							if (item is TaskViewModel task)
-							{
-								task.Stop();
-								_taskSourceList.Remove(task);
-							}
+							continue;
 						}
+
+						task.Stop();
+						_taskSourceList.Remove(task);
 					}
 				}
 				catch (Exception ex)
@@ -108,7 +112,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					Content = @"将会停止所有任务并清空列表",
 					PrimaryButtonText = @"确定",
 					CloseButtonText = @"取消",
-					DefaultButton = ContentDialogButton.Primary
+					DefaultButton = ContentDialogButton.Close
 				};
 				if (await dialog.ShowAsync() == ContentDialogResult.Primary)
 				{

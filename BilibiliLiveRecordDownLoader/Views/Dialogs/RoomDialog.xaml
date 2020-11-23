@@ -20,7 +20,8 @@
                   />
         <CheckBox Content="开播提醒"
                   IsChecked="{Binding Path=IsNotify,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-        <ui:NumberBox Header="房间号"
+        <ui:NumberBox x:Name="RoomIdNumberBox"
+                      Header="房间号"
                       Minimum="0"
                       Maximum="9223372036854775807"
                       Value="{Binding Path=RoomId,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"/>

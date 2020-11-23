@@ -1,6 +1,8 @@
+using DynamicData.Kernel;
 using ReactiveUI;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace BilibiliLiveRecordDownLoader.Models
 {
@@ -80,7 +82,11 @@ namespace BilibiliLiveRecordDownLoader.Models
 		public List<RoomStatus> Rooms
 		{
 			get => _rooms;
-			set => this.RaiseAndSetIfChanged(ref _rooms, value);
+			set
+			{
+				this.RaiseAndSetIfChanged(ref _rooms, value);
+				_rooms = _rooms.Distinct().AsList();
+			}
 		}
 
 		#endregion

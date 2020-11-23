@@ -202,7 +202,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			}
 		}
 
-		private static IObservable<Unit> OpenLiveRecordUrl(object? info)
+		private IObservable<Unit> OpenLiveRecordUrl(object? info)
 		{
 			return Observable.Start(() =>
 			{
@@ -213,9 +213,9 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 						Utils.Utils.OpenUrl($@"https://live.bilibili.com/record/{liveRecord.Rid}");
 					}
 				}
-				catch
+				catch (Exception ex)
 				{
-					//ignored
+					_logger.LogError(ex, @"打开地址出错");
 				}
 			});
 		}
@@ -237,9 +237,9 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 						}
 					}
 				}
-				catch
+				catch (Exception ex)
 				{
-					//ignored
+					_logger.LogError(ex, @"打开目录出错");
 				}
 			});
 		}
@@ -250,19 +250,23 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			{
 				try
 				{
-					if (info is IList { Count: > 0 } list)
+					if (info is not IList { Count: > 0 } list)
 					{
-						foreach (var item in list)
+						return;
+					}
+
+					foreach (var item in list)
+					{
+						if (item is not LiveRecordViewModel { Rid: not @"" or null } liveRecord)
 						{
-							if (item is LiveRecordViewModel { Rid: not @"" or null } liveRecord)
-							{
-								var root = Path.Combine(Config.MainDir, $@"{RoomId}", Constants.LiveRecordPath);
-								var task = new LiveRecordDownloadTaskViewModel(_logger, liveRecord, root, Config.DownloadThreads);
-								if (AddTask(task))
-								{
-									Extensions.NoWarning(_liveRecordDownloadTaskQueue.Enqueue(1, Constants.LiveRecordKey, () => task.StartAsync().AsTask()));
-								}
-							}
+							continue;
+						}
+
+						var root = Path.Combine(Config.MainDir, $@"{RoomId}", Constants.LiveRecordPath);
+						var task = new LiveRecordDownloadTaskViewModel(_logger, liveRecord, root, Config.DownloadThreads);
+						if (AddTask(task))
+						{
+							Extensions.NoWarning(_liveRecordDownloadTaskQueue.Enqueue(1, Constants.LiveRecordKey, () => task.StartAsync().AsTask()));
 						}
 					}
 				}
