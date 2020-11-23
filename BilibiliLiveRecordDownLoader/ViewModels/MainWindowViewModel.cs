@@ -41,6 +41,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private void StopAllTask()
 		{
 			_taskSourceList.Items.ToList().ForEach(t => t.Stop());
+			//TODO 停止录制
 		}
 
 		private static void ShowWindow()
@@ -51,7 +52,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private void Exit()
 		{
 			StopAllTask();
-
+			
 			Locator.Current.GetService<IConfigService>().Dispose();
 
 			var window = Locator.Current.GetService<MainWindow>();

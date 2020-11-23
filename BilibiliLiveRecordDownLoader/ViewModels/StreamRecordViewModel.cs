@@ -1,6 +1,5 @@
 using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.Models;
-using BilibiliLiveRecordDownLoader.Shared.Utils;
 using BilibiliLiveRecordDownLoader.Views.Dialogs;
 using DynamicData;
 using Microsoft.Extensions.Logging;
@@ -96,14 +95,37 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 										case ChangeType.Item:
 										{
 											var room = change.Item.Current;
-											room.InitAsync(default).NoWarning();
+											room.Start();
 											break;
 										}
 										case ChangeType.Range:
 										{
 											foreach (var room in change.Range)
 											{
-												room.InitAsync(default).NoWarning();
+												room.Start();
+											}
+											break;
+										}
+									}
+									break;
+								}
+								case ListChangeReason.Remove:
+								case ListChangeReason.RemoveRange:
+								case ListChangeReason.Clear:
+								{
+									switch (change.Type)
+									{
+										case ChangeType.Item:
+										{
+											var room = change.Item.Current;
+											room.Stop();
+											break;
+										}
+										case ChangeType.Range:
+										{
+											foreach (var room in change.Range)
+											{
+												room.Stop();
 											}
 											break;
 										}

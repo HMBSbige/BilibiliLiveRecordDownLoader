@@ -1,10 +1,16 @@
 using BilibiliApi.Clients;
+using BilibiliApi.Enums;
+using BilibiliApi.Model.Danmu;
 using BilibiliApi.Model.RoomInfo;
+using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Enums;
+using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using Splat;
 using System;
+using System.Reactive.Linq;
+using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,6 +22,10 @@ namespace BilibiliLiveRecordDownLoader.Models
 	{
 		private readonly ILogger _logger;
 		private readonly Config _config;
+		private IDanmuClient? _danmuClient;
+		private IDisposable? _httpMonitor;
+		private IDisposable? _statusMonitor;
+		private CancellationTokenSource? _recordCts;
 
 		#region 字段
 
@@ -224,19 +234,6 @@ namespace BilibiliLiveRecordDownLoader.Models
 			}
 		}
 
-		public async Task InitAsync(CancellationToken token)
-		{
-			if (LiveStatus == LiveStatus.未知)
-			{
-				await GetRoomInfoDataAsync(false, token);
-			}
-
-			if (UserName is null)
-			{
-				await GetAnchorInfoAsync(token);
-			}
-		}
-
 		public async Task RefreshStatusAsync(CancellationToken token)
 		{
 			try
@@ -247,6 +244,144 @@ namespace BilibiliLiveRecordDownLoader.Models
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, $@"[{RoomId}] 刷新房间状态出错");
+			}
+		}
+
+		public void Start()
+		{
+			//StopMonitor();
+			StartMonitor();
+		}
+
+		private void StartMonitor()
+		{
+			_recordCts = new CancellationTokenSource();
+			_statusMonitor = this.WhenAnyValue(x => x.LiveStatus, x => x.IsEnable).Subscribe(_ => StatusUpdated(_recordCts.Token));
+			this.RaisePropertyChanged(nameof(LiveStatus));
+			_danmuClient = new TcpDanmuClient(_logger)
+			{
+				RetryInterval = TimeSpan.FromSeconds(DanMuReconnectLatency),
+				RoomId = RoomId
+			};
+			_danmuClient.Received.Subscribe(ParseDanmu);
+			_danmuClient.StartAsync();
+			CreateHttpCheckTask();
+		}
+
+		private void CreateHttpCheckTask()
+		{
+			_httpMonitor = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(HttpCheckLatency)).Subscribe(_ =>
+			{
+				RefreshStatusAsync(default).NoWarning();
+			});
+		}
+
+		private async Task StartRecordAsync(CancellationToken token)
+		{
+			try
+			{
+				if (RecordStatus != RecordStatus.未录制)
+				{
+					_logger.LogDebug($@"[{RoomId}] 重复录制，已跳过");
+					return;
+				}
+				RecordStatus = RecordStatus.启动中;
+
+				while (LiveStatus == LiveStatus.直播)
+				{
+					RecordStatus = RecordStatus.启动中;
+					var client = CreateClient(TimeSpan.FromSeconds(StreamConnectTimeout));
+
+					//TODO 录制
+
+					RecordStatus = RecordStatus.录制中;
+					await Task.Delay(TimeSpan.FromSeconds(StreamReconnectLatency), token);
+				}
+				RecordStatus = RecordStatus.未录制;
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, $@"[{RoomId}] 录制出现错误");
+			}
+		}
+
+		public void Stop()
+		{
+			StopMonitor();
+			StopRecord();
+		}
+
+		private void StopMonitor()
+		{
+			_statusMonitor?.Dispose();
+			_danmuClient?.DisposeAsync();
+			_httpMonitor?.Dispose();
+		}
+
+		private void StopRecord()
+		{
+			_recordCts?.Cancel();
+			RecordStatus = RecordStatus.未录制;
+		}
+
+		private void ParseDanmu(DanmuPacket packet)
+		{
+			try
+			{
+				if (packet.Operation != Operation.SendMsgReply)
+				{
+					return;
+				}
+
+				var danMu = DanmuFactory.ParseJson(packet.Body.Span);
+				if (danMu is null)
+				{
+					return;
+				}
+
+				var isStreaming = danMu.IsStreaming();
+				LiveStatus = isStreaming switch
+				{
+					true => LiveStatus.直播,
+					false => LiveStatus.闲置,
+					null => LiveStatus
+				};
+
+				var title = danMu.TitleChanged();
+				if (title is not null)
+				{
+					Title = title;
+				}
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, $@"[{RoomId}] 弹幕解析失败：{packet.Operation} {packet.ProtocolVersion} {Encoding.UTF8.GetString(packet.Body.Span)}");
+			}
+		}
+
+		private void StatusUpdated(CancellationToken token)
+		{
+			try
+			{
+				if (IsNotify && LiveStatus == LiveStatus.直播)
+				{
+					//TODO 提示开播
+				}
+
+				if (!IsEnable)
+				{
+					StopRecord();
+					return;
+				}
+
+				if (LiveStatus == LiveStatus.直播)
+				{
+					StartRecordAsync(token).NoWarning();
+				}
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, $@"[{RoomId}] 启动/停止录制出现错误");
 			}
 		}
 

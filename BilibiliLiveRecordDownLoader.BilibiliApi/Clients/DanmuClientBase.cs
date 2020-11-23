@@ -79,6 +79,7 @@ namespace BilibiliApi.Clients
 		{
 			try
 			{
+				//TODO Cookie
 				using var client = new BililiveApiClient();
 				var conf = await client.GetDanmuConfAsync(RoomId, token);
 				if (conf is null)
