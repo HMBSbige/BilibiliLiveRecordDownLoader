@@ -114,31 +114,31 @@
                 <DataGrid.Columns>
                     <DataGridTextColumn
                                 Header="视频 Id"
-                                Binding="{Binding Rid, Mode=OneWay}" />
+                                Binding="{Binding Rid, Mode=OneTime}" />
                     <DataGridTextColumn
                                 Header="标题"
-                                Binding="{Binding Title, Mode=OneWay}" />
+                                Binding="{Binding Title, Mode=OneTime}" />
                     <DataGridTextColumn
                                 Header="分区名"
-                                Binding="{Binding AreaName, Mode=OneWay}" />
+                                Binding="{Binding AreaName, Mode=OneTime}" />
                     <DataGridTextColumn
                                 Header="主分区名"
-                                Binding="{Binding ParentAreaName, Mode=OneWay}" />
+                                Binding="{Binding ParentAreaName, Mode=OneTime}" />
                     <DataGridTextColumn
                                 Header="开始时间"
-                                Binding="{Binding StartTime, StringFormat={}{0:yyyy年MM月dd日 H:mm:ss}, Mode=OneWay}" />
+                                Binding="{Binding StartTime, StringFormat={}{0:yyyy年MM月dd日 H:mm:ss}, Mode=OneTime}" />
                     <DataGridTextColumn
                                 Header="结束时间"
-                                Binding="{Binding EndTime, StringFormat={}{0:yyyy年MM月dd日 H:mm:ss}, Mode=OneWay}" />
+                                Binding="{Binding EndTime, StringFormat={}{0:yyyy年MM月dd日 H:mm:ss}, Mode=OneTime}" />
                     <DataGridTextColumn
                                 Header="人气峰值"
-                                Binding="{Binding Online, Mode=OneWay}" />
+                                Binding="{Binding Online, Mode=OneTime}" />
                     <DataGridTextColumn
                                 Header="弹幕数"
-                                Binding="{Binding DanmuNum, Mode=OneWay}" />
+                                Binding="{Binding DanmuNum, Mode=OneTime}" />
                     <DataGridTextColumn
                                 Header="视频长度"
-                                Binding="{Binding Length, StringFormat={}{0:h':'mm':'ss}, Mode=OneWay}" />
+                                Binding="{Binding Length, StringFormat={}{0:h':'mm':'ss}, Mode=OneTime}" />
                 </DataGrid.Columns>
             </DataGrid>
         </DockPanel>
