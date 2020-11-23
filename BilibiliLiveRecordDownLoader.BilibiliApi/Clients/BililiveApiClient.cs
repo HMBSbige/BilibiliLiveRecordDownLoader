@@ -7,6 +7,7 @@ using BilibiliApi.Model.RoomInfo;
 using BilibiliApi.Model.RoomInit;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using System;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading;
@@ -117,6 +118,8 @@ namespace BilibiliApi.Clients
 			return await GetJsonAsync<DanmuConfMessage>(url, token);
 		}
 
+		#region 获取直播间播放地址
+
 		/// <summary>
 		/// 获取直播间播放地址
 		/// </summary>
@@ -129,6 +132,29 @@ namespace BilibiliApi.Clients
 			var url = $@"https://api.live.bilibili.com/room/v1/Room/playUrl?cid={roomId}&qn={qn}&platform=web";
 			return await GetJsonAsync<PlayUrlMessage>(url, token);
 		}
+
+		/// <summary>
+		/// 获取直播间播放地址
+		/// </summary>
+		/// <param name="roomId">房间号（允许短号）</param>
+		/// <param name="qn"></param>
+		/// <param name="token"></param>
+		/// <returns></returns>
+		public async Task<PlayUrlData> GetPlayUrlDataAsync(long roomId, long qn = 10000, CancellationToken token = default)
+		{
+			var message = await GetPlayUrlAsync(roomId, qn, token);
+			if (message?.code != 0 || message.data?.durl?.FirstOrDefault()?.url is null)
+			{
+				if (message is not null)
+				{
+					throw new HttpRequestException($@"[{roomId}] 获取直播地址失败: {message.message}");
+				}
+				throw new HttpRequestException($@"[{roomId}] 获取直播地址失败");
+			}
+			return message.data;
+		}
+
+		#endregion
 
 		#region 获取直播间详细信息
 

@@ -4,11 +4,15 @@ using BilibiliApi.Model.Danmu;
 using BilibiliApi.Model.RoomInfo;
 using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Enums;
+using BilibiliLiveRecordDownLoader.Http.Clients;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using Splat;
 using System;
+using System.IO;
+using System.Linq;
+using System.Net.Http;
 using System.Reactive.Linq;
 using System.Text;
 using System.Text.Json.Serialization;
@@ -25,7 +29,10 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private IDanmuClient? _danmuClient;
 		private IDisposable? _httpMonitor;
 		private IDisposable? _statusMonitor;
-		private CancellationTokenSource? _recordCts;
+		private IDisposable? _enableMonitor;
+		private IDisposable? _titleMonitor;
+		private CancellationTokenSource _recordCts = new();
+		private CancellationToken _token => _recordCts.Token;
 
 		#region 字段
 
@@ -41,8 +48,8 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private double _httpCheckLatency = 300.0;
 		private double _streamReconnectLatency = 6.0;
 		private double _streamConnectTimeout = 3.0;
-		private double _streamTimeout = 5.0;
-		private double _speed;
+		private double _streamTimeout = 5.0;//TODO 重连
+		private string _speed = string.Empty;
 		//TODO 画质选择
 
 		#endregion
@@ -180,7 +187,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 		/// 速度
 		/// </summary>
 		[JsonIgnore]
-		public double Speed
+		public string Speed
 		{
 			get => _speed;
 			set => this.RaiseAndSetIfChanged(ref _speed, value);
@@ -249,15 +256,22 @@ namespace BilibiliLiveRecordDownLoader.Models
 
 		public void Start()
 		{
-			//StopMonitor();
 			StartMonitor();
 		}
 
 		private void StartMonitor()
 		{
-			_recordCts = new CancellationTokenSource();
-			_statusMonitor = this.WhenAnyValue(x => x.LiveStatus, x => x.IsEnable).Subscribe(_ => StatusUpdated(_recordCts.Token));
+			_statusMonitor = this.WhenAnyValue(x => x.LiveStatus).Subscribe(_ => StatusUpdated());
+			_enableMonitor = this.WhenAnyValue(x => x.IsEnable).Subscribe(_ => EnableUpdated());
 			this.RaisePropertyChanged(nameof(LiveStatus));
+			_titleMonitor = this.WhenAnyValue(x => x.Title).Subscribe(title =>
+			{
+				if (title is not null)
+				{
+					_logger.LogInformation($@"[{RoomId}] [TitleChanged] {title}");
+				}
+			});
+			this.RaisePropertyChanged(nameof(Title));
 			_danmuClient = new TcpDanmuClient(_logger)
 			{
 				RetryInterval = TimeSpan.FromSeconds(DanMuReconnectLatency),
@@ -265,20 +279,15 @@ namespace BilibiliLiveRecordDownLoader.Models
 			};
 			_danmuClient.Received.Subscribe(ParseDanmu);
 			_danmuClient.StartAsync();
-			CreateHttpCheckTask();
-		}
-
-		private void CreateHttpCheckTask()
-		{
 			_httpMonitor = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(HttpCheckLatency)).Subscribe(_ =>
 			{
 				RefreshStatusAsync(default).NoWarning();
 			});
 		}
 
-		private async Task StartRecordAsync(CancellationToken token)
+		private async Task StartRecordAsync()
 		{
-			try
+			lock (this)
 			{
 				if (RecordStatus != RecordStatus.未录制)
 				{
@@ -286,22 +295,61 @@ namespace BilibiliLiveRecordDownLoader.Models
 					return;
 				}
 				RecordStatus = RecordStatus.启动中;
+				_recordCts = new CancellationTokenSource();
+			}
 
+			try
+			{
 				while (LiveStatus == LiveStatus.直播)
 				{
 					RecordStatus = RecordStatus.启动中;
-					var client = CreateClient(TimeSpan.FromSeconds(StreamConnectTimeout));
+					using var client = CreateClient(TimeSpan.FromSeconds(10));
+					var urlData = await client.GetPlayUrlDataAsync(RoomId, 10000, _token);
+					var url = urlData.durl!.First().url;
 
-					//TODO 录制
+					await using var downloader = new HttpDownloader(TimeSpan.FromSeconds(StreamConnectTimeout), _config.Cookie, _config.UserAgent)
+					{
+						Target = new Uri(url!)
+					};
+					try
+					{
+						await downloader.GetStreamAsync(_token);
+						RecordStatus = RecordStatus.录制中;
+						downloader.OutFileName = Path.Combine(_config.MainDir, $@"{RoomId}", $@"{DateTime.Now:yyyyMMdd_HHmmss}.flv");
+						_logger.LogInformation($@"[{RoomId}] 开始录制");
+						using var speedMonitor = downloader.CurrentSpeed.Subscribe(b => Speed = $@"{Utils.Utils.CountSize(Convert.ToInt64(b))}/s");
+						await downloader.DownloadAsync(_token);
+						_logger.LogInformation($@"[{RoomId}] 录制结束");
+					}
+					catch (OperationCanceledException) { throw; }
+					catch (Exception e)
+					{
+						if (e is HttpRequestException ex)
+						{
+							_logger.LogInformation($@"[{RoomId}] 尝试下载直播流时服务器返回了 {ex.StatusCode}");
+						}
+						else
+						{
+							_logger.LogError(e, $@"[{RoomId}] 尝试下载直播流错误");
+						}
 
-					RecordStatus = RecordStatus.录制中;
-					await Task.Delay(TimeSpan.FromSeconds(StreamReconnectLatency), token);
+						await Task.Delay(TimeSpan.FromSeconds(StreamReconnectLatency), _token);
+					}
 				}
-				RecordStatus = RecordStatus.未录制;
+				_logger.LogInformation($@"[{RoomId}] 不再录制");
+			}
+			catch (OperationCanceledException)
+			{
+				_logger.LogInformation($@"[{RoomId}] 录制已取消");
 			}
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, $@"[{RoomId}] 录制出现错误");
+			}
+			finally
+			{
+				RecordStatus = RecordStatus.未录制;
+				Speed = string.Empty;
 			}
 		}
 
@@ -313,6 +361,8 @@ namespace BilibiliLiveRecordDownLoader.Models
 
 		private void StopMonitor()
 		{
+			_titleMonitor?.Dispose();
+			_enableMonitor?.Dispose();
 			_statusMonitor?.Dispose();
 			_danmuClient?.DisposeAsync();
 			_httpMonitor?.Dispose();
@@ -320,8 +370,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 
 		private void StopRecord()
 		{
-			_recordCts?.Cancel();
-			RecordStatus = RecordStatus.未录制;
+			_recordCts.Cancel();
 		}
 
 		private void ParseDanmu(DanmuPacket packet)
@@ -339,13 +388,11 @@ namespace BilibiliLiveRecordDownLoader.Models
 					return;
 				}
 
-				var isStreaming = danMu.IsStreaming();
-				LiveStatus = isStreaming switch
+				var streamingStatus = danMu.IsStreaming();
+				if (streamingStatus != LiveStatus.未知)
 				{
-					true => LiveStatus.直播,
-					false => LiveStatus.闲置,
-					null => LiveStatus
-				};
+					LiveStatus = streamingStatus;
+				}
 
 				var title = danMu.TitleChanged();
 				if (title is not null)
@@ -359,24 +406,47 @@ namespace BilibiliLiveRecordDownLoader.Models
 			}
 		}
 
-		private void StatusUpdated(CancellationToken token)
+		private void StatusUpdated()
 		{
 			try
 			{
-				if (IsNotify && LiveStatus == LiveStatus.直播)
+				if (LiveStatus != LiveStatus.未知)
 				{
-					//TODO 提示开播
-				}
-
-				if (!IsEnable)
-				{
-					StopRecord();
-					return;
+					_logger.LogInformation($@"[{RoomId}] 直播状态：{LiveStatus}");
 				}
 
 				if (LiveStatus == LiveStatus.直播)
 				{
-					StartRecordAsync(token).NoWarning();
+					if (IsNotify)
+					{
+						//TODO 提示开播
+					}
+					if (IsEnable)
+					{
+						StartRecordAsync().NoWarning();
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, $@"[{RoomId}] 启动/停止录制出现错误");
+			}
+		}
+
+		private void EnableUpdated()
+		{
+			try
+			{
+				if (IsEnable)
+				{
+					if (LiveStatus == LiveStatus.直播)
+					{
+						StartRecordAsync().NoWarning();
+					}
+				}
+				else
+				{
+					StopRecord();
 				}
 			}
 			catch (Exception ex)

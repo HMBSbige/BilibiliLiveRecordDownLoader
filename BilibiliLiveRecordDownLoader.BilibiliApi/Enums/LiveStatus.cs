@@ -1,4 +1,4 @@
-namespace BilibiliLiveRecordDownLoader.Enums
+namespace BilibiliApi.Enums
 {
 	public enum LiveStatus
 	{

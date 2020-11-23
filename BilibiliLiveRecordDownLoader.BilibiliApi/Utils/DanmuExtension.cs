@@ -6,13 +6,17 @@ namespace BilibiliApi.Utils
 {
 	public static class DanmuExtension
 	{
-		public static bool? IsStreaming(this IDanmu? danmu)
+		public static LiveStatus IsStreaming(this IDanmu? danmu)
 		{
 			if (danmu is StreamStatusDanmu streamStatusDanmu)
 			{
-				return streamStatusDanmu.Cmd == DanmuCommand.LIVE;
+				if (streamStatusDanmu.Cmd == DanmuCommand.LIVE)
+				{
+					return LiveStatus.直播;
+				}
+				return streamStatusDanmu.Round.HasValue ? LiveStatus.轮播 : LiveStatus.闲置;
 			}
-			return null;
+			return LiveStatus.未知;
 		}
 
 		public static string? TitleChanged(this IDanmu? danmu)

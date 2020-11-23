@@ -21,6 +21,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		#endregion
 
 		private readonly SourceList<TaskViewModel> _taskSourceList;
+		private readonly SourceList<RoomStatus> _roomList;
 
 		public IScreen HostScreen { get; }
 		public readonly Config Config;
@@ -28,11 +29,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		public MainWindowViewModel(
 			IScreen screen,
 			SourceList<TaskViewModel> taskSourceList,
-			Config config)
+			Config config,
+			SourceList<RoomStatus> roomList)
 		{
 			HostScreen = screen;
 			_taskSourceList = taskSourceList;
 			Config = config;
+			_roomList = roomList;
 
 			ShowWindowCommand = ReactiveCommand.Create(ShowWindow);
 			ExitCommand = ReactiveCommand.Create(Exit);
@@ -41,7 +44,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private void StopAllTask()
 		{
 			_taskSourceList.Items.ToList().ForEach(t => t.Stop());
-			//TODO 停止录制
+			_roomList.Items.ToList().ForEach(room => room.Stop());
 		}
 
 		private static void ShowWindow()
@@ -52,7 +55,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private void Exit()
 		{
 			StopAllTask();
-			
+
 			Locator.Current.GetService<IConfigService>().Dispose();
 
 			var window = Locator.Current.GetService<MainWindow>();

@@ -50,7 +50,17 @@ namespace BilibiliApi.Utils
 				case @"PREPARING":
 				{
 					var roomId = long.Parse(root.GetProperty(@"roomid").GetString()!);
-					return new StreamStatusDanmu { Cmd = DanmuCommand.PREPARING, RoomId = roomId };
+					if (root.TryGetProperty(@"round", out var value))
+					{
+						var round = value.GetInt64();
+						return new StreamStatusDanmu { Cmd = DanmuCommand.PREPARING, RoomId = roomId, Round = round };
+					}
+					return new StreamStatusDanmu
+					{
+						Cmd = DanmuCommand.PREPARING,
+						RoomId = roomId,
+						Round = null
+					};
 				}
 				case @"ROOM_CHANGE":
 				{

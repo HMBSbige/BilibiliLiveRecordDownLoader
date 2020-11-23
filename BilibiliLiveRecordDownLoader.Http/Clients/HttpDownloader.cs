@@ -17,15 +17,25 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 		public string? OutFileName { get; set; }
 
 		private readonly HttpClient _httpClient;
+		private Stream? _netStream;
 
 		public HttpDownloader(TimeSpan timeout, string? cookie = null, string userAgent = Constants.ChromeUserAgent)
 		{
+			if (string.IsNullOrEmpty(userAgent))
+			{
+				userAgent = Constants.ChromeUserAgent;
+			}
 			_httpClient = HttpClientUtils.BuildClientForBilibili(userAgent, cookie, timeout);
 		}
 
 		public HttpDownloader(HttpClient client)
 		{
 			_httpClient = client;
+		}
+
+		public async Task GetStreamAsync(CancellationToken token)
+		{
+			_netStream = await _httpClient.GetStreamAsync(Target, token);
 		}
 
 		public async ValueTask DownloadAsync(CancellationToken token)
@@ -35,12 +45,13 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 				throw new ArgumentNullException(nameof(OutFileName));
 			}
 
-			var stream = await _httpClient.GetStreamAsync(Target, token);
+			_netStream ??= await _httpClient.GetStreamAsync(Target, token);
+			EnsureDirectory(OutFileName);
 			await using var fs = new FileStream(OutFileName, FileMode.Create, FileAccess.Write, FileShare.Read);
 
 			using (CreateSpeedMonitor())
 			{
-				await CopyToAsyncWithProgress(stream, fs, token);
+				await CopyToAsyncWithProgress(_netStream, fs, token);
 			}
 		}
 
@@ -65,6 +76,12 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 		private void ReportProgress(long length)
 		{
 			Interlocked.Add(ref Last, length);
+		}
+
+		private static void EnsureDirectory(string path)
+		{
+			var dir = Path.GetDirectoryName(path);
+			Directory.CreateDirectory(dir!);
 		}
 
 		public override async ValueTask DisposeAsync()

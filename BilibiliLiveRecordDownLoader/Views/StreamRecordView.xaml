@@ -85,12 +85,28 @@
                 <DataGridTextColumn
                     Header="主播名"
                     Binding="{Binding UserName, Mode=OneWay}" />
-                <DataGridTextColumn
-                    Header="直播状态"
-                    Binding="{Binding LiveStatus, Mode=OneWay}" />
-                <DataGridTextColumn
-                    Header="录制状态"
-                    Binding="{Binding RecordStatus, Mode=OneWay}" />
+                <DataGridTemplateColumn Header="直播状态">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding LiveStatus, Mode=OneWay}"
+                                       FontSize="{DynamicResource ControlContentThemeFontSize}"
+                                       Padding="12,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{Binding LiveStatus, Converter={StaticResource LiveStatusToBrushConverter}}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="录制状态">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding RecordStatus, Mode=OneWay}"
+                                       FontSize="{DynamicResource ControlContentThemeFontSize}"
+                                       Padding="12,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{Binding RecordStatus, Converter={StaticResource LiveStatusToBrushConverter}}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
                 <DataGridTextColumn
                     Header="速度"
                     Binding="{Binding Speed, Mode=OneWay}" />

@@ -16,6 +16,8 @@ namespace BilibiliLiveRecordDownLoader.Utils
 
 		public static readonly SubjectMemorySink SubjectMemorySink = new(OutputTemplate);
 		public static readonly SolidColorBrush RedBrush = new(Colors.Red);
+		public static readonly SolidColorBrush GreenBrush = new(Colors.Green);
+		public static readonly SolidColorBrush YellowBrush = new(Colors.Coral);
 		public static readonly SolidColorBrush NormalDiskUsageBrush = new(Color.FromRgb(38, 160, 218));
 	}
 }
