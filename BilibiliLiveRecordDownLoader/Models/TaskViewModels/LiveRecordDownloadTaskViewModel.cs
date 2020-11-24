@@ -16,6 +16,8 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 	public class LiveRecordDownloadTaskViewModel : TaskViewModel
 	{
 		private readonly ILogger _logger;
+		private readonly BililiveApiClient _apiClient;
+		private readonly Config _config;
 
 		private readonly CancellationTokenSource _cts = new();
 		private readonly LiveRecordViewModel _liveRecord;
@@ -23,9 +25,11 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 		private readonly string _recordPath;
 		private readonly ushort _threadsCount;
 
-		public LiveRecordDownloadTaskViewModel(ILogger logger, LiveRecordViewModel liveRecord, string path, ushort threadsCount)
+		public LiveRecordDownloadTaskViewModel(LiveRecordViewModel liveRecord, string path, ushort threadsCount)
 		{
-			_logger = logger;
+			_logger = Locator.Current.GetService<ILogger<LiveRecordDownloadTaskViewModel>>();
+			_apiClient = Locator.Current.GetService<BililiveApiClient>();
+			_config = Locator.Current.GetService<Config>();
 			_liveRecord = liveRecord;
 			_path = path;
 			_threadsCount = threadsCount;
@@ -42,8 +46,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 				_cts.Token.ThrowIfCancellationRequested();
 
 				Status = @"正在获取回放地址";
-				using var client = new BililiveApiClient();
-				var message = await client.GetLiveRecordUrlAsync(_liveRecord.Rid!, _cts.Token);
+				var message = await _apiClient.GetLiveRecordUrlAsync(_liveRecord.Rid!, _cts.Token);
 
 				var list = message?.data?.list;
 				if (list is null)
@@ -75,7 +78,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 						continue;
 					}
 
-					await using var downloader = new MultiThreadedDownloader(_logger)
+					await using var downloader = new MultiThreadedDownloader(_logger, _config.Cookie, _config.UserAgent)
 					{
 						Target = new(url),
 						Threads = _threadsCount,

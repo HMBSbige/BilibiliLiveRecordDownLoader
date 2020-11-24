@@ -1,3 +1,4 @@
+using BilibiliApi.Clients;
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
@@ -25,6 +26,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 		private readonly ILogger _logger;
 
 		private readonly IDisposable _configMonitor;
+		private readonly IDisposable _networkSettingMonitor;
 		private IDisposable? _roomsMonitor;
 
 		private readonly AsyncReaderWriterLock _lock = new();
@@ -38,10 +40,12 @@ namespace BilibiliLiveRecordDownLoader.Services
 
 		public ConfigService(
 			ILogger<ConfigService> logger,
-			Config config)
+			Config config,
+			BililiveApiClient apiClient)
 		{
 			_logger = logger;
 			Config = config;
+
 			_configMonitor = Config.WhenAnyPropertyChanged()
 				.Throttle(TimeSpan.FromSeconds(1))
 				.Where(_ => !_lock.IsWriteLockHeld)
@@ -53,6 +57,14 @@ namespace BilibiliLiveRecordDownLoader.Services
 						.WhenAnyPropertyChanged()
 						.Subscribe(_ => RaiseRoomsChanged());
 				});
+
+			_networkSettingMonitor = Config.WhenAnyValue(x => x.Cookie, x => x.UserAgent)
+					.Throttle(TimeSpan.FromSeconds(1))
+					.Subscribe(cu =>
+					{
+						var (cookie, ua) = cu;
+						apiClient.BuildClient(TimeSpan.FromSeconds(10), cookie, ua);
+					});
 		}
 
 		public async ValueTask SaveAsync(CancellationToken token)
@@ -99,6 +111,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 		public void Dispose()
 		{
 			_configMonitor.Dispose();
+			_networkSettingMonitor.Dispose();
 			_roomsMonitor?.Dispose();
 		}
 	}

@@ -51,10 +51,13 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 			}
 		}
 
-		public MultiThreadedDownloader(ILogger logger, string? cookie = null, string userAgent = Constants.ChromeUserAgent)
+		public MultiThreadedDownloader(ILogger logger, string? cookie = null, string userAgent = Constants.IdmUserAgent)
 		{
 			_logger = logger;
-
+			if (string.IsNullOrEmpty(userAgent))
+			{
+				userAgent = Constants.IdmUserAgent;
+			}
 			var policy = new PooledHttpClientPolicy(() => HttpClientUtils.BuildClientForMultiThreadedDownloader(cookie, userAgent));
 			var provider = new DefaultObjectPoolProvider { MaximumRetained = 10 };
 			_httpClientPool = provider.Create(policy);

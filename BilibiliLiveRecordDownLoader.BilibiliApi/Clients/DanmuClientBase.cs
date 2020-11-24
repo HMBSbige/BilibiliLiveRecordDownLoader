@@ -29,6 +29,8 @@ namespace BilibiliApi.Clients
 		private readonly Subject<DanmuPacket> _danMuSubj = new();
 		public IObservable<DanmuPacket> Received => _danMuSubj.AsObservable();
 
+		public BililiveApiClient? ApiClient { get; set; }
+
 		protected string? Host;
 		protected ushort Port;
 		protected abstract string Server { get; }
@@ -79,9 +81,12 @@ namespace BilibiliApi.Clients
 		{
 			try
 			{
-				//TODO Cookie
-				using var client = new BililiveApiClient();
-				var conf = await client.GetDanmuConfAsync(RoomId, token);
+				if (ApiClient is null)
+				{
+					_logger.LogWarning(@"使用默认弹幕服务器地址");
+					return;
+				}
+				var conf = await ApiClient.GetDanmuConfAsync(RoomId, token);
 				if (conf is null)
 				{
 					throw new Exception(@"Empty json response");

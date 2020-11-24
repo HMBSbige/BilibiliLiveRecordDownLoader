@@ -27,7 +27,7 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 			return client;
 		}
 
-		public static HttpClient BuildClientForMultiThreadedDownloader(string? cookie = null, string userAgent = Constants.ChromeUserAgent)
+		public static HttpClient BuildClientForMultiThreadedDownloader(string? cookie = null, string userAgent = Constants.IdmUserAgent)
 		{
 			var httpHandler = new SocketsHttpHandler();
 			if (!string.IsNullOrEmpty(cookie))

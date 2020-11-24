@@ -1,3 +1,4 @@
+using BilibiliApi.Clients;
 using BilibiliApi.Model.LiveRecordList;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Clients;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
@@ -113,6 +114,7 @@ namespace BilibiliLiveRecordDownLoader
 			services.AddSingleton<SourceList<RoomStatus>>();
 			services.AddSingleton<SourceList<TaskViewModel>>();
 			services.AddSingleton(new OperationQueue(int.MaxValue));
+			services.AddSingleton<BililiveApiClient>();
 			services.AddSingleton<IScreen, MainScreen>();
 
 			services.AddTransient<IFlvMerger, FlvMerger>();

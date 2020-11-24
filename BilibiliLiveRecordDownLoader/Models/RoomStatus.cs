@@ -25,6 +25,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 	public class RoomStatus : ReactiveObject
 	{
 		private readonly ILogger _logger;
+		private readonly BililiveApiClient _apiClient;
 		private readonly Config _config;
 		private IDanmuClient? _danmuClient;
 		private IDisposable? _httpMonitor;
@@ -199,19 +200,16 @@ namespace BilibiliLiveRecordDownLoader.Models
 		{
 			_logger = Locator.Current.GetService<ILogger<RoomStatus>>();
 			_config = Locator.Current.GetService<Config>();
+			_apiClient = Locator.Current.GetService<BililiveApiClient>();
 		}
-
-		private BililiveApiClient CreateClient(TimeSpan timeout)
-		{
-			return new(timeout, _config.Cookie, _config.UserAgent);
-		}
+		
+		#region ApiRequest
 
 		public async Task GetRoomInfoDataAsync(bool isThrow, CancellationToken token)
 		{
 			try
 			{
-				using var client = CreateClient(TimeSpan.FromSeconds(10));
-				var data = await client.GetRoomInfoDataAsync(RoomId, token);
+				var data = await _apiClient.GetRoomInfoDataAsync(RoomId, token);
 				CopyFromRoomInfoData(data);
 			}
 			catch (Exception ex)
@@ -231,8 +229,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 		{
 			try
 			{
-				using var client = CreateClient(TimeSpan.FromSeconds(10));
-				var info = await client.GetAnchorInfoDataAsync(RoomId, token);
+				var info = await _apiClient.GetAnchorInfoDataAsync(RoomId, token);
 				UserName = info.uname;
 			}
 			catch (Exception ex)
@@ -253,6 +250,10 @@ namespace BilibiliLiveRecordDownLoader.Models
 				_logger.LogError(ex, $@"[{RoomId}] 刷新房间状态出错");
 			}
 		}
+
+		#endregion
+
+		#region Start
 
 		public void Start()
 		{
@@ -275,14 +276,12 @@ namespace BilibiliLiveRecordDownLoader.Models
 			_danmuClient = new TcpDanmuClient(_logger)
 			{
 				RetryInterval = TimeSpan.FromSeconds(DanMuReconnectLatency),
-				RoomId = RoomId
+				RoomId = RoomId,
+				ApiClient = _apiClient
 			};
 			_danmuClient.Received.Subscribe(ParseDanmu);
-			_danmuClient.StartAsync();
-			_httpMonitor = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(HttpCheckLatency)).Subscribe(_ =>
-			{
-				RefreshStatusAsync(default).NoWarning();
-			});
+			_danmuClient.StartAsync().NoWarning();
+			_httpMonitor = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(HttpCheckLatency)).Subscribe(_ => RefreshStatusAsync(default).NoWarning());
 		}
 
 		private async Task StartRecordAsync()
@@ -303,8 +302,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 				while (LiveStatus == LiveStatus.直播)
 				{
 					RecordStatus = RecordStatus.启动中;
-					using var client = CreateClient(TimeSpan.FromSeconds(10));
-					var urlData = await client.GetPlayUrlDataAsync(RoomId, 10000, _token);
+					var urlData = await _apiClient.GetPlayUrlDataAsync(RoomId, 10000, _token);
 					var url = urlData.durl!.First().url;
 
 					await using var downloader = new HttpDownloader(TimeSpan.FromSeconds(StreamConnectTimeout), _config.Cookie, _config.UserAgent)
@@ -353,6 +351,10 @@ namespace BilibiliLiveRecordDownLoader.Models
 			}
 		}
 
+		#endregion
+
+		#region Stop
+
 		public void Stop()
 		{
 			StopMonitor();
@@ -364,7 +366,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 			_titleMonitor?.Dispose();
 			_enableMonitor?.Dispose();
 			_statusMonitor?.Dispose();
-			_danmuClient?.DisposeAsync();
+			_danmuClient?.DisposeAsync().NoWarning();
 			_httpMonitor?.Dispose();
 		}
 
@@ -372,6 +374,10 @@ namespace BilibiliLiveRecordDownLoader.Models
 		{
 			_recordCts.Cancel();
 		}
+
+		#endregion
+
+		#region PropertyUpdated
 
 		private void ParseDanmu(DanmuPacket packet)
 		{
@@ -455,6 +461,10 @@ namespace BilibiliLiveRecordDownLoader.Models
 			}
 		}
 
+		#endregion
+
+		#region Clone
+
 		private void CopyFromRoomInfoData(RoomInfoData roomData)
 		{
 			RoomId = roomData.room_id;
@@ -490,6 +500,10 @@ namespace BilibiliLiveRecordDownLoader.Models
 			StreamTimeout = room.StreamTimeout;
 		}
 
+		#endregion
+
+		#region Equals
+
 		public override bool Equals(object? obj)
 		{
 			return obj is RoomStatus room && room.RoomId == RoomId;
@@ -499,5 +513,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 		{
 			return HashCode.Combine(RoomId);
 		}
+
+		#endregion
 	}
 }

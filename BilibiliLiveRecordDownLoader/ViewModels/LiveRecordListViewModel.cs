@@ -131,6 +131,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private readonly SourceList<TaskViewModel> _taskSourceList;
 		private readonly SourceList<LiveRecordList> _liveRecordSourceList;
 		private readonly OperationQueue _liveRecordDownloadTaskQueue;
+		private readonly BililiveApiClient _apiClient;
 
 		public readonly ReadOnlyObservableCollection<LiveRecordViewModel> LiveRecordList;
 		public readonly Config Config;
@@ -142,7 +143,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				Config config,
 				SourceList<LiveRecordList> liveRecordSourceList,
 				SourceList<TaskViewModel> taskSourceList,
-				OperationQueue taskQueue)
+				OperationQueue taskQueue,
+				BililiveApiClient apiClient)
 		{
 			HostScreen = hostScreen;
 			_logger = logger;
@@ -150,6 +152,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			_taskSourceList = taskSourceList;
 			_liveRecordSourceList = liveRecordSourceList;
 			_liveRecordDownloadTaskQueue = taskQueue;
+			_apiClient = apiClient;
 
 			_roomIdMonitor = this
 					.WhenAnyValue(x => x.Config.RoomId, x => x.TriggerLiveRecordListQuery)
@@ -176,14 +179,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			DownLoadCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(Download);
 		}
 
-		private static async Task CopyLiveRecordDownloadUrlAsync(object? info)
+		private async Task CopyLiveRecordDownloadUrlAsync(object? info)
 		{
 			try
 			{
 				if (info is LiveRecordViewModel liveRecord && !string.IsNullOrEmpty(liveRecord.Rid))
 				{
-					using var client = new BililiveApiClient();
-					var message = await client.GetLiveRecordUrlAsync(liveRecord.Rid);
+					var message = await _apiClient.GetLiveRecordUrlAsync(liveRecord.Rid);
 					var list = message?.data?.list;
 					if (list is not null
 						&& list.Length > 0
@@ -263,7 +265,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 						}
 
 						var root = Path.Combine(Config.MainDir, $@"{RoomId}", Constants.LiveRecordPath);
-						var task = new LiveRecordDownloadTaskViewModel(_logger, liveRecord, root, Config.DownloadThreads);
+						var task = new LiveRecordDownloadTaskViewModel(liveRecord, root, Config.DownloadThreads);
 						if (AddTask(task))
 						{
 							Extensions.NoWarning(_liveRecordDownloadTaskQueue.Enqueue(1, Constants.LiveRecordKey, () => task.StartAsync().AsTask()));
@@ -292,8 +294,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		{
 			try
 			{
-				using var client = new BililiveApiClient();
-				var info = await client.GetAnchorInfoDataAsync(roomId);
+				var info = await _apiClient.GetAnchorInfoDataAsync(roomId);
 
 				ImageUri = info.face;
 				Name = info.uname;
@@ -328,8 +329,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				RecordCount = 0;
 				_liveRecordSourceList.Clear();
 
-				using var client = new BililiveApiClient();
-				var roomInitMessage = await client.GetRoomInitAsync(roomId);
+				var roomInitMessage = await _apiClient.GetRoomInitAsync(roomId);
 				if (roomInitMessage?.data is not null
 					&& roomInitMessage.code == 0
 					&& roomInitMessage.data.room_id > 0)
@@ -340,7 +340,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					var currentPage = 0;
 					while (currentPage < Math.Ceiling((double)RecordCount / PageSize))
 					{
-						var listMessage = await client.GetLiveRecordListAsync(roomInitMessage.data.room_id, ++currentPage, PageSize);
+						var listMessage = await _apiClient.GetLiveRecordListAsync(roomInitMessage.data.room_id, ++currentPage, PageSize);
 						if (listMessage?.data is not null && listMessage.data.count > 0)
 						{
 							RecordCount = listMessage.data.count;

@@ -28,14 +28,17 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 			_httpClient = HttpClientUtils.BuildClientForBilibili(userAgent, cookie, timeout);
 		}
 
-		public HttpDownloader(HttpClient client)
-		{
-			_httpClient = client;
-		}
-
 		public async Task GetStreamAsync(CancellationToken token)
 		{
 			_netStream = await _httpClient.GetStreamAsync(Target, token);
+		}
+
+		public async ValueTask CloseStream()
+		{
+			if (_netStream is not null)
+			{
+				await _netStream.DisposeAsync();
+			}
 		}
 
 		public async ValueTask DownloadAsync(CancellationToken token)
