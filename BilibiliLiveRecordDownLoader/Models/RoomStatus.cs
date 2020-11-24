@@ -5,6 +5,7 @@ using BilibiliApi.Model.RoomInfo;
 using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.Http.Clients;
+using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
@@ -27,6 +28,8 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private readonly ILogger _logger;
 		private readonly BililiveApiClient _apiClient;
 		private readonly Config _config;
+		private readonly MessageInteractions _message;
+
 		private IDanmuClient? _danmuClient;
 		private IDisposable? _httpMonitor;
 		private IDisposable? _statusMonitor;
@@ -201,6 +204,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 			_logger = Locator.Current.GetService<ILogger<RoomStatus>>();
 			_config = Locator.Current.GetService<Config>();
 			_apiClient = Locator.Current.GetService<BililiveApiClient>();
+			_message = Locator.Current.GetService<MessageInteractions>();
 		}
 
 		#region ApiRequest
@@ -262,7 +266,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 
 		private void StartMonitor()
 		{
-			_statusMonitor = this.WhenAnyValue(x => x.LiveStatus).Subscribe(_ => StatusUpdated());
+			_statusMonitor = this.WhenAnyValue(x => x.LiveStatus).Subscribe(_ => StatusUpdatedAsync().NoWarning());
 			_enableMonitor = this.WhenAnyValue(x => x.IsEnable).Subscribe(_ => EnableUpdated());
 			this.RaisePropertyChanged(nameof(LiveStatus));
 			_titleMonitor = this.WhenAnyValue(x => x.Title).Subscribe(title =>
@@ -438,7 +442,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 			}
 		}
 
-		private void StatusUpdated()
+		private async ValueTask StatusUpdatedAsync()
 		{
 			try
 			{
@@ -451,11 +455,11 @@ namespace BilibiliLiveRecordDownLoader.Models
 				{
 					if (IsNotify)
 					{
-						//TODO 提示开播
+						await _message.ShowLiveStatus.Handle(this);
 					}
 					if (IsEnable)
 					{
-						StartRecordAsync().NoWarning();
+						await StartRecordAsync();
 					}
 				}
 			}

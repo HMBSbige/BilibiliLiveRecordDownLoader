@@ -1,4 +1,7 @@
+using BilibiliApi.Enums;
+using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.ViewModels;
+using Hardcodet.Wpf.TaskbarNotification;
 using ModernWpf.Controls;
 using ReactiveUI;
 using System;
@@ -8,6 +11,7 @@ using System.Reactive.Linq;
 using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Interop;
+using System.Windows.Threading;
 
 namespace BilibiliLiveRecordDownLoader
 {
@@ -19,7 +23,8 @@ namespace BilibiliLiveRecordDownLoader
 			TaskListViewModel taskList,
 			LogViewModel log,
 			SettingViewModel settings,
-			StreamRecordViewModel streamRecord)
+			StreamRecordViewModel streamRecord,
+			MessageInteractions message)
 		{
 			InitializeComponent();
 			ViewModel = viewModel;
@@ -75,6 +80,16 @@ namespace BilibiliLiveRecordDownLoader
 
 				this.Bind(ViewModel, vm => vm.Config.MainWindowsWidth, v => v.Width).DisposeWith(d);
 				this.Bind(ViewModel, vm => vm.Config.MainWindowsHeight, v => v.Height).DisposeWith(d);
+
+				message.ShowLiveStatus.RegisterHandler(async context =>
+				{
+					var room = context.Input;
+					if (room.LiveStatus == LiveStatus.直播)
+					{
+						NotifyIcon.ShowBalloonTip($@"{room.UserName} 开播了！", room.Title, BalloonIcon.Info);
+					}
+					context.SetOutput(default);
+				}).DisposeWith(d);
 
 				#region CloseReasonHack
 

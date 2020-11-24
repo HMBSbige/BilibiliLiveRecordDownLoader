@@ -15,7 +15,7 @@
     DefaultButton="Primary"
     d:DataContext="{d:DesignInstance models:RoomStatus}">
     <ui:SimpleStackPanel Spacing="10">
-        <CheckBox Content="启用"
+        <CheckBox Content="启用录制"
                   IsChecked="{Binding Path=IsEnable,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
                   />
         <CheckBox Content="开播提醒"
