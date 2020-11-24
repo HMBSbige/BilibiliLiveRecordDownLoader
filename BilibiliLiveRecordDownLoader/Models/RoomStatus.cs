@@ -49,7 +49,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private double _httpCheckLatency = 300.0;
 		private double _streamReconnectLatency = 6.0;
 		private double _streamConnectTimeout = 3.0;
-		private double _streamTimeout = 5.0;//TODO 重连
+		private double _streamTimeout = 5.0;
 		private string _speed = string.Empty;
 		//TODO 画质选择
 
@@ -320,8 +320,25 @@ namespace BilibiliLiveRecordDownLoader.Models
 						RecordStatus = RecordStatus.录制中;
 						downloader.OutFileName = Path.Combine(_config.MainDir, $@"{RoomId}", $@"{DateTime.Now:yyyyMMdd_HHmmss}.flv");
 						_logger.LogInformation($@"[{RoomId}] 开始录制");
-						using var speedMonitor = downloader.CurrentSpeed.Subscribe(b => Speed = $@"{Utils.Utils.CountSize(Convert.ToInt64(b))}/s");
-						await downloader.DownloadAsync(_token);
+						var lastDataReceivedTime = DateTime.Now;
+						using (downloader.CurrentSpeed.Subscribe(b =>
+						{
+							Speed = $@"{Utils.Utils.CountSize(Convert.ToInt64(b))}/s";
+							var now = DateTime.Now;
+							if (b > 0.0)
+							{
+								lastDataReceivedTime = now;
+							}
+							else if (now - lastDataReceivedTime > TimeSpan.FromSeconds(StreamTimeout))
+							{
+								//TODO 重连测试
+								// ReSharper disable once AccessToDisposedClosure
+								downloader.CloseStream().NoWarning();
+							}
+						}))
+						{
+							await downloader.DownloadAsync(_token);
+						}
 						_logger.LogInformation($@"[{RoomId}] 录制结束");
 					}
 					catch (OperationCanceledException) { throw; }
@@ -331,11 +348,15 @@ namespace BilibiliLiveRecordDownLoader.Models
 						{
 							_logger.LogInformation($@"[{RoomId}] 尝试下载直播流时服务器返回了 {ex.StatusCode}");
 						}
+						else if (e is ObjectDisposedException)
+						{
+							_logger.LogWarning($@"[{RoomId}] 网络不稳定，尝试重连");
+							continue;
+						}
 						else
 						{
 							_logger.LogError(e, $@"[{RoomId}] 尝试下载直播流错误");
 						}
-
 						await Task.Delay(TimeSpan.FromSeconds(StreamReconnectLatency), _token);
 					}
 				}
