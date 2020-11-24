@@ -11,7 +11,6 @@ using System.Reactive.Linq;
 using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Interop;
-using System.Windows.Threading;
 
 namespace BilibiliLiveRecordDownLoader
 {
@@ -81,7 +80,7 @@ namespace BilibiliLiveRecordDownLoader
 				this.Bind(ViewModel, vm => vm.Config.MainWindowsWidth, v => v.Width).DisposeWith(d);
 				this.Bind(ViewModel, vm => vm.Config.MainWindowsHeight, v => v.Height).DisposeWith(d);
 
-				message.ShowLiveStatus.RegisterHandler(async context =>
+				message.ShowLiveStatus.RegisterHandler(context =>
 				{
 					var room = context.Input;
 					if (room.LiveStatus == LiveStatus.直播)

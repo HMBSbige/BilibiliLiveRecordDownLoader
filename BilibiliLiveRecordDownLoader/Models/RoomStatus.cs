@@ -14,6 +14,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Reactive.Linq;
 using System.Text;
 using System.Text.Json.Serialization;
@@ -55,6 +56,8 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private double _streamTimeout = 5.0;
 		private string _speed = string.Empty;
 		//TODO 画质选择
+		//TODO 弹幕服务器类型选择
+		//TODO 自动转 mp4
 
 		#endregion
 
@@ -325,7 +328,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 						downloader.OutFileName = Path.Combine(_config.MainDir, $@"{RoomId}", $@"{DateTime.Now:yyyyMMdd_HHmmss}.flv");
 						_logger.LogInformation($@"[{RoomId}] 开始录制");
 						var lastDataReceivedTime = DateTime.Now;
-						using (downloader.CurrentSpeed.Subscribe(b =>
+						using var speedMonitor = downloader.CurrentSpeed.Subscribe(b =>
 						{
 							Speed = $@"{Utils.Utils.CountSize(Convert.ToInt64(b))}/s";
 							var now = DateTime.Now;
@@ -335,15 +338,19 @@ namespace BilibiliLiveRecordDownLoader.Models
 							}
 							else if (now - lastDataReceivedTime > TimeSpan.FromSeconds(StreamTimeout))
 							{
-								//TODO 重连测试
 								// ReSharper disable once AccessToDisposedClosure
 								downloader.CloseStream().NoWarning();
+								_logger.LogWarning($@"[{RoomId}] 网络不稳定，即将尝试重连");
 							}
-						}))
+						});
+						try
 						{
 							await downloader.DownloadAsync(_token);
 						}
-						_logger.LogInformation($@"[{RoomId}] 录制结束");
+						finally
+						{
+							_logger.LogInformation($@"[{RoomId}] 录制结束");
+						}
 					}
 					catch (OperationCanceledException) { throw; }
 					catch (Exception e)
@@ -352,9 +359,8 @@ namespace BilibiliLiveRecordDownLoader.Models
 						{
 							_logger.LogInformation($@"[{RoomId}] 尝试下载直播流时服务器返回了 {ex.StatusCode}");
 						}
-						else if (e is ObjectDisposedException)
+						else if (e is IOException { InnerException: SocketException { ErrorCode: (int)SocketError.OperationAborted } })
 						{
-							_logger.LogWarning($@"[{RoomId}] 网络不稳定，尝试重连");
 							continue;
 						}
 						else
