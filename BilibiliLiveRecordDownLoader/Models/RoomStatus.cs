@@ -202,7 +202,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 			_config = Locator.Current.GetService<Config>();
 			_apiClient = Locator.Current.GetService<BililiveApiClient>();
 		}
-		
+
 		#region ApiRequest
 
 		public async Task GetRoomInfoDataAsync(bool isThrow, CancellationToken token)
@@ -281,6 +281,11 @@ namespace BilibiliLiveRecordDownLoader.Models
 			};
 			_danmuClient.Received.Subscribe(ParseDanmu);
 			_danmuClient.StartAsync().NoWarning();
+			BuildHttpCheckMonitor();
+		}
+
+		private void BuildHttpCheckMonitor()
+		{
 			_httpMonitor = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(HttpCheckLatency)).Subscribe(_ => RefreshStatusAsync(default).NoWarning());
 		}
 
@@ -458,6 +463,20 @@ namespace BilibiliLiveRecordDownLoader.Models
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, $@"[{RoomId}] 启动/停止录制出现错误");
+			}
+		}
+
+		public void SettingUpdated()
+		{
+			if (_danmuClient is not null)
+			{
+				_danmuClient.RetryInterval = TimeSpan.FromSeconds(DanMuReconnectLatency);
+			}
+
+			if (_httpMonitor is not null)
+			{
+				_httpMonitor.Dispose();
+				BuildHttpCheckMonitor();
 			}
 		}
 
