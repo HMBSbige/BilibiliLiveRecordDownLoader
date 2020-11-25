@@ -39,7 +39,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 			_recordPath = Path.Combine(_path, liveRecord.Rid!);
 		}
 
-		public override async ValueTask StartAsync()
+		public override async Task StartAsync()
 		{
 			try
 			{

@@ -43,7 +43,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 
 		#endregion
 
-		public abstract ValueTask StartAsync();
+		public abstract Task StartAsync();
 
 		public abstract void Stop();
 	}

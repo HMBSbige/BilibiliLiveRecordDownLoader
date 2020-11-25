@@ -3,6 +3,7 @@ using BilibiliLiveRecordDownLoader.Views.Dialogs;
 using DynamicData;
 using Microsoft.Extensions.Logging;
 using ModernWpf.Controls;
+using Punchclock;
 using ReactiveUI;
 using System;
 using System.Collections;
@@ -46,17 +47,20 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		private readonly ILogger _logger;
 		private readonly SourceList<TaskViewModel> _taskSourceList;
+		private readonly OperationQueue _taskQueue;
 
 		public readonly ReadOnlyObservableCollection<TaskViewModel> TaskList;
 
 		public TaskListViewModel(
 			IScreen hostScreen,
 			ILogger<TaskListViewModel> logger,
-			SourceList<TaskViewModel> taskSourceList)
+			SourceList<TaskViewModel> taskSourceList,
+			OperationQueue taskQueue)
 		{
 			HostScreen = hostScreen;
 			_logger = logger;
 			_taskSourceList = taskSourceList;
+			_taskQueue = taskQueue;
 
 			_taskSourceList.Connect()
 					.ObserveOnDispatcher()
@@ -127,6 +131,18 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			{
 				_logger.LogError(ex, @"停止任务出错");
 			}
+		}
+
+		public async Task AddTaskAsync(TaskViewModel task, string key, int priority = 1)
+		{
+			if (_taskSourceList.Items.Any(x => x.Description == task.Description))
+			{
+				_logger.LogWarning($@"添加重复任务：{task.Description}");
+				return;
+			}
+
+			_taskSourceList.Add(task);
+			await _taskQueue.Enqueue(priority, key, task.StartAsync);
 		}
 	}
 }

@@ -2,10 +2,9 @@ using BilibiliApi.Clients;
 using BilibiliApi.Model.LiveRecordList;
 using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
-using BilibiliLiveRecordDownLoader.Utils;
+using BilibiliLiveRecordDownLoader.Shared.Utils;
 using DynamicData;
 using Microsoft.Extensions.Logging;
-using Punchclock;
 using ReactiveUI;
 using System;
 using System.Collections;
@@ -15,7 +14,7 @@ using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
-using Extensions = BilibiliLiveRecordDownLoader.Shared.Utils.Extensions;
+using Constants = BilibiliLiveRecordDownLoader.Utils.Constants;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
@@ -128,9 +127,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		#endregion
 
 		private readonly ILogger _logger;
-		private readonly SourceList<TaskViewModel> _taskSourceList;
+		private readonly TaskListViewModel _taskList;
 		private readonly SourceList<LiveRecordList> _liveRecordSourceList;
-		private readonly OperationQueue _liveRecordDownloadTaskQueue;
 		private readonly BililiveApiClient _apiClient;
 
 		public readonly ReadOnlyObservableCollection<LiveRecordViewModel> LiveRecordList;
@@ -142,16 +140,14 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				ILogger<LiveRecordListViewModel> logger,
 				Config config,
 				SourceList<LiveRecordList> liveRecordSourceList,
-				SourceList<TaskViewModel> taskSourceList,
-				OperationQueue taskQueue,
+				TaskListViewModel taskList,
 				BililiveApiClient apiClient)
 		{
 			HostScreen = hostScreen;
 			_logger = logger;
 			Config = config;
-			_taskSourceList = taskSourceList;
+			_taskList = taskList;
 			_liveRecordSourceList = liveRecordSourceList;
-			_liveRecordDownloadTaskQueue = taskQueue;
 			_apiClient = apiClient;
 
 			_roomIdMonitor = this
@@ -162,8 +158,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					.Select(i => i.Item1)
 					.Subscribe(i =>
 					{
-						Extensions.NoWarning(GetAnchorInfoAsync(i));
-						Extensions.NoWarning(GetRecordListAsync(i));
+						GetAnchorInfoAsync(i).NoWarning();
+						GetRecordListAsync(i).NoWarning();
 					});
 
 			_liveRecordSourceList.Connect()
@@ -266,10 +262,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 						var root = Path.Combine(Config.MainDir, $@"{RoomId}", Constants.LiveRecordPath);
 						var task = new LiveRecordDownloadTaskViewModel(liveRecord, root, Config.DownloadThreads);
-						if (AddTask(task))
-						{
-							Extensions.NoWarning(_liveRecordDownloadTaskQueue.Enqueue(1, Constants.LiveRecordKey, () => task.StartAsync().AsTask()));
-						}
+						_taskList.AddTaskAsync(task, Constants.LiveRecordKey).NoWarning();
 					}
 				}
 				catch (Exception ex)
@@ -277,17 +270,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					_logger.LogError(ex, @"下载回放出错");
 				}
 			});
-		}
-
-		private bool AddTask(TaskViewModel task)
-		{
-			if (_taskSourceList.Items.Any(x => x.Description == task.Description))
-			{
-				_logger.LogWarning($@"添加重复任务：{task.Description}");
-				return false;
-			}
-			_taskSourceList.Add(task);
-			return true;
 		}
 
 		private async Task GetAnchorInfoAsync(long roomId)

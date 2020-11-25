@@ -24,7 +24,7 @@ namespace BilibiliLiveRecordDownLoader.Interfaces
 		/// </summary>
 		string? Status { get; }
 
-		ValueTask StartAsync();
+		Task StartAsync();
 		void Stop();
 	}
 }
