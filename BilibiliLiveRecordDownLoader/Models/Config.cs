@@ -19,6 +19,8 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private double _mainWindowsHeight = 720;
 		private string _userAgent = string.Empty;
 		private string _cookie = string.Empty;
+		private bool _isAutoConvertMp4 = true;
+		private bool _isDeleteAfterConvert;
 		private List<RoomStatus> _rooms = new();
 
 		#endregion
@@ -89,6 +91,18 @@ namespace BilibiliLiveRecordDownLoader.Models
 			}
 		}
 
+		public bool IsAutoConvertMp4
+		{
+			get => _isAutoConvertMp4;
+			set => this.RaiseAndSetIfChanged(ref _isAutoConvertMp4, value);
+		}
+
+		public bool IsDeleteAfterConvert
+		{
+			get => _isDeleteAfterConvert;
+			set => this.RaiseAndSetIfChanged(ref _isDeleteAfterConvert, value);
+		}
+
 		#endregion
 
 		public void Clone(Config config)
@@ -103,6 +117,8 @@ namespace BilibiliLiveRecordDownLoader.Models
 			UserAgent = config.UserAgent;
 			Cookie = config.Cookie;
 			Rooms = config.Rooms;
+			IsAutoConvertMp4 = config.IsAutoConvertMp4;
+			IsDeleteAfterConvert = config.IsDeleteAfterConvert;
 		}
 	}
 }

@@ -9,7 +9,7 @@
     xmlns:viewModels="clr-namespace:BilibiliLiveRecordDownLoader.ViewModels"
     xmlns:ui="http://schemas.modernwpf.com/2019"
     mc:Ignorable="d"
-    d:DesignHeight="800" d:DesignWidth="800" Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+    d:DesignHeight="1200" d:DesignWidth="800" Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
     <Grid Margin="20,25,0,0">
         <ScrollViewer>
             <ui:SimpleStackPanel Spacing="0" Margin="0,0,20,0">
@@ -69,6 +69,18 @@
                                  VerticalContentAlignment="Top"
                                  TextWrapping="WrapWithOverflow"
                                  Height="100" />
+                    </StackPanel>
+                </GroupBox>
+                <GroupBox Header="直播录制">
+                    <StackPanel>
+                        <ui:ToggleSwitch x:Name="IsAutoConvertMp4Switch"
+                                         Header="录制完成自动转 MP4"
+                                         IsOn="True"
+                                         OnContent="" OffContent="" />
+                        <ui:ToggleSwitch x:Name="IsDeleteAfterConvertSwitch"
+                                         Header="转换完成后删除原文件"
+                                         IsEnabled="{Binding ElementName=IsAutoConvertMp4Switch,Path=IsOn}"
+                                         OnContent="" OffContent="" />
                     </StackPanel>
                 </GroupBox>
             </ui:SimpleStackPanel>
