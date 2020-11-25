@@ -148,6 +148,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 			}
 			catch (Exception ex)
 			{
+				Status = @"出错";
 				_logger.LogError(ex, @"下载直播回放出错");
 			}
 			finally

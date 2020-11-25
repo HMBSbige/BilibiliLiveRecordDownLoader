@@ -5,7 +5,9 @@ using BilibiliApi.Model.RoomInfo;
 using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.Http.Clients;
+using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
+using BilibiliLiveRecordDownLoader.ViewModels;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using Splat;
@@ -28,6 +30,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private readonly ILogger _logger;
 		private readonly BililiveApiClient _apiClient;
 		private readonly Config _config;
+		private readonly TaskListViewModel _taskList;
 
 		private IDanmuClient? _danmuClient;
 		private IDisposable? _httpMonitor;
@@ -55,7 +58,6 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private string _speed = string.Empty;
 		private DanmuClientType _clientType = DanmuClientType.SecureWebsocket;
 		//TODO 画质选择
-		//TODO 自动转 mp4
 
 		#endregion
 
@@ -214,6 +216,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 			_logger = Locator.Current.GetService<ILogger<RoomStatus>>();
 			_config = Locator.Current.GetService<Config>();
 			_apiClient = Locator.Current.GetService<BililiveApiClient>();
+			_taskList = Locator.Current.GetService<TaskListViewModel>();
 		}
 
 		#region ApiRequest
@@ -340,7 +343,8 @@ namespace BilibiliLiveRecordDownLoader.Models
 					{
 						await downloader.GetStreamAsync(_token);
 						RecordStatus = RecordStatus.录制中;
-						downloader.OutFileName = Path.Combine(_config.MainDir, $@"{RoomId}", $@"{DateTime.Now:yyyyMMdd_HHmmss}.flv");
+						var flv = Path.Combine(_config.MainDir, $@"{RoomId}", $@"{DateTime.Now:yyyyMMdd_HHmmss}.flv");
+						downloader.OutFileName = flv;
 						_logger.LogInformation($@"[{RoomId}] 开始录制");
 						var lastDataReceivedTime = DateTime.Now;
 						using var speedMonitor = downloader.CurrentSpeed.Subscribe(b =>
@@ -365,6 +369,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 						finally
 						{
 							_logger.LogInformation($@"[{RoomId}] 录制结束");
+							ConvertToMp4Async(flv).NoWarning();
 						}
 					}
 					catch (OperationCanceledException) { throw; }
@@ -396,6 +401,28 @@ namespace BilibiliLiveRecordDownLoader.Models
 			{
 				RecordStatus = RecordStatus.未录制;
 				Speed = string.Empty;
+			}
+		}
+
+		private async Task ConvertToMp4Async(string flv)
+		{
+			try
+			{
+				if (_config.IsAutoConvertMp4 && File.Exists(flv))
+				{
+					var args = string.Format(Utils.Constants.FFmpegCopyConvert, flv, Path.ChangeExtension(flv, @"mp4"));
+					var task = new FFmpegTaskViewModel(args);
+					await _taskList.AddTaskAsync(task, Path.GetPathRoot(flv) ?? string.Empty);
+					_taskList.RemoveTask(task);
+					if (_config.IsDeleteAfterConvert)
+					{
+						File.Delete(flv);
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, @"转封装 MP4 时发生错误");
 			}
 		}
 

@@ -136,6 +136,7 @@ namespace BilibiliLiveRecordDownLoader.FFmpeg
 			try
 			{
 				// Win7 Job API 有问题，可能没正常退出，需要手动杀一下
+				// Win7 爬
 				if (!_process.HasExited)
 				{
 					_process.Kill();

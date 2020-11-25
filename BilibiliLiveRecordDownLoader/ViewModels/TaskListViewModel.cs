@@ -90,8 +90,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 							continue;
 						}
 
-						task.Stop();
-						_taskSourceList.Remove(task);
+						RemoveTask(task);
 					}
 				}
 				catch (Exception ex)
@@ -120,11 +119,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				};
 				if (await dialog.ShowAsync() == ContentDialogResult.Primary)
 				{
-					_taskSourceList.Items.ToList().ForEach(task =>
-					{
-						task.Stop();
-						_taskSourceList.Remove(task);
-					});
+					_taskSourceList.Items.ToList().ForEach(RemoveTask);
 				}
 			}
 			catch (Exception ex)
@@ -137,12 +132,18 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		{
 			if (_taskSourceList.Items.Any(x => x.Description == task.Description))
 			{
-				_logger.LogWarning($@"添加重复任务：{task.Description}");
+				_logger.LogWarning($@"已跳过重复任务：{task.Description}");
 				return;
 			}
 
 			_taskSourceList.Add(task);
 			await _taskQueue.Enqueue(priority, key, task.StartAsync);
+		}
+
+		public void RemoveTask(TaskViewModel task)
+		{
+			task.Stop();
+			_taskSourceList.Remove(task);
 		}
 	}
 }

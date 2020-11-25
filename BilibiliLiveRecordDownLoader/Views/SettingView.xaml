@@ -45,6 +45,18 @@
                                           SmallChange="1"
                                           LargeChange="10" />
                 </GroupBox>
+                <GroupBox Header="直播录制">
+                    <StackPanel>
+                        <ui:ToggleSwitch x:Name="IsAutoConvertMp4Switch"
+                                         Header="录制完成自动转 MP4"
+                                         IsOn="True"
+                                         OnContent="" OffContent="" />
+                        <ui:ToggleSwitch x:Name="IsDeleteAfterConvertSwitch"
+                                         Header="转换完成后删除原文件"
+                                         IsEnabled="{Binding ElementName=IsAutoConvertMp4Switch,Path=IsOn}"
+                                         OnContent="" OffContent="" />
+                    </StackPanel>
+                </GroupBox>
                 <GroupBox Header="更新">
                     <StackPanel>
                         <ui:ToggleSwitch x:Name="IsCheckUpdateOnStartSwitch"
@@ -53,6 +65,7 @@
                                                  OnContent="" OffContent="" />
                         <ui:ToggleSwitch x:Name="IsCheckPreReleaseSwitch"
                                                  Header="包括预览版更新"
+                                                 IsEnabled="{Binding ElementName=IsCheckUpdateOnStartSwitch,Path=IsOn}"
                                                  OnContent="" OffContent="" />
                         <Button x:Name="CheckUpdateButton"
                                         Content="检查更新" />
@@ -69,18 +82,6 @@
                                  VerticalContentAlignment="Top"
                                  TextWrapping="WrapWithOverflow"
                                  Height="100" />
-                    </StackPanel>
-                </GroupBox>
-                <GroupBox Header="直播录制">
-                    <StackPanel>
-                        <ui:ToggleSwitch x:Name="IsAutoConvertMp4Switch"
-                                         Header="录制完成自动转 MP4"
-                                         IsOn="True"
-                                         OnContent="" OffContent="" />
-                        <ui:ToggleSwitch x:Name="IsDeleteAfterConvertSwitch"
-                                         Header="转换完成后删除原文件"
-                                         IsEnabled="{Binding ElementName=IsAutoConvertMp4Switch,Path=IsOn}"
-                                         OnContent="" OffContent="" />
                     </StackPanel>
                 </GroupBox>
             </ui:SimpleStackPanel>

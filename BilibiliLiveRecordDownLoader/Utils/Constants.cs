@@ -13,6 +13,7 @@ namespace BilibiliLiveRecordDownLoader.Utils
 		public const string LogFile = @"Logs/BilibiliLiveRecordDownLoader.log";
 		public const string LiveRecordKey = @"直播回放下载";
 		public const string LiveRecordPath = @"Replay";
+		public const string FFmpegCopyConvert = @"-i {0} -c:v copy -c:a copy -y {1}";
 
 		public static readonly SubjectMemorySink SubjectMemorySink = new(OutputTemplate);
 		public static readonly SolidColorBrush RedBrush = new(Colors.Red);
