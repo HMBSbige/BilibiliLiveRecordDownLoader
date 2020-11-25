@@ -53,8 +53,8 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private double _streamConnectTimeout = 3.0;
 		private double _streamTimeout = 5.0;
 		private string _speed = string.Empty;
+		private DanmuClientType _clientType = DanmuClientType.SecureWebsocket;
 		//TODO 画质选择
-		//TODO 弹幕服务器类型选择
 		//TODO 自动转 mp4
 
 		#endregion
@@ -198,6 +198,15 @@ namespace BilibiliLiveRecordDownLoader.Models
 			set => this.RaiseAndSetIfChanged(ref _speed, value);
 		}
 
+		/// <summary>
+		/// 弹幕服务器类型
+		/// </summary>
+		public DanmuClientType ClientType
+		{
+			get => _clientType;
+			set => this.RaiseAndSetIfChanged(ref _clientType, value);
+		}
+
 		#endregion
 
 		public RoomStatus()
@@ -277,20 +286,29 @@ namespace BilibiliLiveRecordDownLoader.Models
 				}
 			});
 			this.RaisePropertyChanged(nameof(Title));
-			_danmuClient = new TcpDanmuClient(_logger)
-			{
-				RetryInterval = TimeSpan.FromSeconds(DanMuReconnectLatency),
-				RoomId = RoomId,
-				ApiClient = _apiClient
-			};
-			_danmuClient.Received.Subscribe(ParseDanmu);
-			_danmuClient.StartAsync().NoWarning();
+			BuildDanmuClientAsync().NoWarning();
 			BuildHttpCheckMonitor();
 		}
 
 		private void BuildHttpCheckMonitor()
 		{
 			_httpMonitor = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(HttpCheckLatency)).Subscribe(_ => RefreshStatusAsync(default).NoWarning());
+		}
+
+		private async ValueTask BuildDanmuClientAsync()
+		{
+			_danmuClient = ClientType switch
+			{
+				DanmuClientType.SecureWebsocket => new WssDanmuClient(_logger),
+				DanmuClientType.Websocket => new WsDanmuClient(_logger),
+				_ => new TcpDanmuClient(_logger)
+			};
+			_danmuClient.RetryInterval = TimeSpan.FromSeconds(DanMuReconnectLatency);
+			_danmuClient.RoomId = RoomId;
+			_danmuClient.ApiClient = _apiClient;
+
+			_danmuClient.Received.Subscribe(ParseDanmu);
+			await _danmuClient.StartAsync();
 		}
 
 		private async Task StartRecordAsync()
@@ -494,20 +512,6 @@ namespace BilibiliLiveRecordDownLoader.Models
 			}
 		}
 
-		public void SettingUpdated()
-		{
-			if (_danmuClient is not null)
-			{
-				_danmuClient.RetryInterval = TimeSpan.FromSeconds(DanMuReconnectLatency);
-			}
-
-			if (_httpMonitor is not null)
-			{
-				_httpMonitor.Dispose();
-				BuildHttpCheckMonitor();
-			}
-		}
-
 		#endregion
 
 		#region Clone
@@ -532,19 +536,45 @@ namespace BilibiliLiveRecordDownLoader.Models
 				StreamReconnectLatency = StreamReconnectLatency,
 				StreamConnectTimeout = StreamConnectTimeout,
 				StreamTimeout = StreamTimeout,
+				ClientType = ClientType
 			};
 		}
 
-		public void Clone(RoomStatus room)
+		public async ValueTask UpdateAsync(RoomStatus room)
 		{
 			IsEnable = room.IsEnable;
 			IsNotify = room.IsNotify;
 			//RoomId = room.RoomId;
-			DanMuReconnectLatency = room.DanMuReconnectLatency;
-			HttpCheckLatency = room.HttpCheckLatency;
+
+			if (!DanMuReconnectLatency.Equals(room.DanMuReconnectLatency))
+			{
+				DanMuReconnectLatency = room.DanMuReconnectLatency;
+				if (_danmuClient is not null)
+				{
+					_danmuClient.RetryInterval = TimeSpan.FromSeconds(DanMuReconnectLatency);
+				}
+			}
+
+			if (!HttpCheckLatency.Equals(room.HttpCheckLatency))
+			{
+				HttpCheckLatency = room.HttpCheckLatency;
+				_httpMonitor?.Dispose();
+				BuildHttpCheckMonitor();
+			}
+
 			StreamReconnectLatency = room.StreamReconnectLatency;
 			StreamConnectTimeout = room.StreamConnectTimeout;
 			StreamTimeout = room.StreamTimeout;
+
+			if (ClientType != room.ClientType)
+			{
+				ClientType = room.ClientType;
+				if (_danmuClient is not null)
+				{
+					await _danmuClient.DisposeAsync();
+				}
+				await BuildDanmuClientAsync();
+			}
 		}
 
 		#endregion

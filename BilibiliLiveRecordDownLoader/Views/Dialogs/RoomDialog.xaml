@@ -40,5 +40,12 @@
         <ui:NumberBox Header="直播流超时(秒)"
                       Minimum="0.0"
                       Value="{Binding Path=StreamTimeout,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+        <ui:RadioButtons Header="弹幕服务器类型"
+                         MaxColumns="1"
+                         SelectedIndex="{Binding ClientType,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource DanmuClientTypeToIntConverter}}">
+            <RadioButton Content="TCP" />
+            <RadioButton Content="SecureWebsocket" />
+            <RadioButton Content="Websocket" />
+        </ui:RadioButtons>
     </ui:SimpleStackPanel>
 </dialogs:DisposableContentDialog>

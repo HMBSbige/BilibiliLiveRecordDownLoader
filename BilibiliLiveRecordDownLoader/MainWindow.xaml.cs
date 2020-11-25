@@ -82,10 +82,7 @@ namespace BilibiliLiveRecordDownLoader
 				MessageBus.Current.Listen<RoomStatus>()
 						.Where(room => room.LiveStatus == LiveStatus.直播)
 						.ObserveOnDispatcher()
-						.Subscribe(room =>
-						{
-							NotifyIcon.ShowBalloonTip($@"{room.UserName} 开播了！", room.Title, BalloonIcon.Info);
-						}).DisposeWith(d);
+						.Subscribe(room => NotifyIcon.ShowBalloonTip($@"{room.UserName} 开播了！", room.Title, BalloonIcon.Info)).DisposeWith(d);
 
 				#region CloseReasonHack
 

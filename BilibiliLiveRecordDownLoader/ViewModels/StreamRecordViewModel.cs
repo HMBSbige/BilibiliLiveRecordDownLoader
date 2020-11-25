@@ -217,8 +217,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 						return default;
 					}
 				}
-				room.Clone(roomCopy);
-				room.SettingUpdated();
+				await room.UpdateAsync(roomCopy);
 			}
 			catch (Exception ex)
 			{

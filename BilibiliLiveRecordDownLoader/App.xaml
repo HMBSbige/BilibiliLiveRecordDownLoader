@@ -34,6 +34,7 @@
                 <ui:XamlControlsResources />
             </ResourceDictionary.MergedDictionaries>
             <valueConverters:LiveStatusToBrushConverter x:Key="LiveStatusToBrushConverter" />
+            <valueConverters:DanmuClientTypeToIntConverter x:Key="DanmuClientTypeToIntConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>
