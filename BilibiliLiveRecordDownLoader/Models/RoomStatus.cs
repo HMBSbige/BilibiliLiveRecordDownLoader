@@ -5,7 +5,6 @@ using BilibiliApi.Model.RoomInfo;
 using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.Http.Clients;
-using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
@@ -29,7 +28,6 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private readonly ILogger _logger;
 		private readonly BililiveApiClient _apiClient;
 		private readonly Config _config;
-		private readonly MessageInteractions _message;
 
 		private IDanmuClient? _danmuClient;
 		private IDisposable? _httpMonitor;
@@ -207,7 +205,6 @@ namespace BilibiliLiveRecordDownLoader.Models
 			_logger = Locator.Current.GetService<ILogger<RoomStatus>>();
 			_config = Locator.Current.GetService<Config>();
 			_apiClient = Locator.Current.GetService<BililiveApiClient>();
-			_message = Locator.Current.GetService<MessageInteractions>();
 		}
 
 		#region ApiRequest
@@ -461,7 +458,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 				{
 					if (IsNotify)
 					{
-						await _message.ShowLiveStatus.Handle(this);
+						MessageBus.Current.SendMessage(this);
 					}
 					if (IsEnable)
 					{
