@@ -34,8 +34,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 			_path = path;
 			_threadsCount = threadsCount;
 
-			Status = @"未开始";
-			Description = $@"{liveRecord.Rid}";
+			Description = liveRecord.Rid;
 			_recordPath = Path.Combine(_path, liveRecord.Rid!);
 		}
 

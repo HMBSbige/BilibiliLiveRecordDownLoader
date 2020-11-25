@@ -77,28 +77,36 @@ namespace BilibiliLiveRecordDownLoader.FFmpeg
 
 		public async Task StartAsync(string args, CancellationToken token)
 		{
-			if (_process is not null)
+			try
 			{
-				throw new FileLoadException(@"进程已在运行或未释放");
+				if (_process is not null)
+				{
+					throw new FileLoadException(@"进程已在运行或未释放");
+				}
+				if (!await VerifyAsync(token))
+				{
+					throw new FileNotFoundException(@"未找到 FFmpeg", FFmpegPath);
+				}
+				_process = CreateProcess(FFmpegPath, args);
+				_process.StartInfo.RedirectStandardOutput = true;
+				_process.StartInfo.RedirectStandardError = true;
+
+				_process.Start();
+				_job.AddProcess(_process);
+
+				var output = ReadOutputAsync(_process.StandardOutput, token);
+				var error = ReadOutputAsync(_process.StandardError, token);
+
+				await output;
+				await error;
+
+				await _process.WaitForExitAsync(token);
 			}
-			if (!await VerifyAsync(token))
+			catch (OperationCanceledException)
 			{
-				throw new FileNotFoundException(@"未找到 FFmpeg", FFmpegPath);
+				Stop();
+				throw;
 			}
-			_process = CreateProcess(FFmpegPath, args);
-			_process.StartInfo.RedirectStandardOutput = true;
-			_process.StartInfo.RedirectStandardError = true;
-
-			_process.Start();
-			_job.AddProcess(_process);
-
-			var output = ReadOutputAsync(_process.StandardOutput, token);
-			var error = ReadOutputAsync(_process.StandardError, token);
-
-			await output;
-			await error;
-
-			await _process.WaitForExitAsync(token);
 		}
 
 		public void Stop()

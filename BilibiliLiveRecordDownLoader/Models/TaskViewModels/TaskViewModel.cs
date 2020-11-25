@@ -10,7 +10,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 
 		private double _progress;
 		private string? _speed;
-		private string? _status;
+		private string _status = @"未开始";
 		private string? _description;
 
 		#endregion
@@ -35,7 +35,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 			set => this.RaiseAndSetIfChanged(ref _speed, value);
 		}
 
-		public string? Status
+		public string Status
 		{
 			get => _status;
 			set => this.RaiseAndSetIfChanged(ref _status, value);
