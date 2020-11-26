@@ -1,3 +1,4 @@
+using BilibiliApi.Clients;
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
@@ -64,6 +65,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private readonly ILogger _logger;
 		private readonly IConfigService _configService;
 		private readonly SourceList<RoomStatus> _roomList;
+		private readonly BililiveApiClient _apiClient;
 
 		public readonly Config Config;
 
@@ -72,13 +74,15 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			ILogger<SettingViewModel> logger,
 			IConfigService configService,
 			Config config,
-			SourceList<RoomStatus> roomList)
+			SourceList<RoomStatus> roomList,
+			BililiveApiClient apiClient)
 		{
 			HostScreen = hostScreen;
 			_logger = logger;
 			_configService = configService;
 			Config = config;
 			_roomList = roomList;
+			_apiClient = apiClient;
 
 			SelectMainDirCommand = ReactiveCommand.Create(SelectDirectory);
 			OpenMainDirCommand = ReactiveCommand.CreateFromObservable(OpenDirectory);
@@ -138,7 +142,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 						Config.IsCheckPreRelease,
 						version
 				);
-				if (await updateChecker.CheckAsync(default))
+				if (await updateChecker.CheckAsync(_apiClient.Client, default))
 				{
 					if (updateChecker.LatestVersionUrl is null)
 					{

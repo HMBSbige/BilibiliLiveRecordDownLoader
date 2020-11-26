@@ -17,7 +17,7 @@ namespace BilibiliApi.Clients
 {
 	public sealed class BililiveApiClient : IDisposable
 	{
-		private HttpClient _httpClient = new();
+		public HttpClient Client { get; private set; } = new();
 
 		private static readonly SemaphoreSlim SemaphoreSlim = new(1, 1);
 
@@ -32,8 +32,8 @@ namespace BilibiliApi.Clients
 			{
 				userAgent = Constants.ChromeUserAgent;
 			}
-			_httpClient.Dispose();
-			_httpClient = HttpClientUtils.BuildClientForBilibili(userAgent, cookie, timeout);
+			Client.Dispose();
+			Client = HttpClientUtils.BuildClientForBilibili(userAgent, cookie, timeout);
 		}
 
 		/// <summary>
@@ -202,7 +202,7 @@ namespace BilibiliApi.Clients
 			await SemaphoreSlim.WaitAsync(token);
 			try
 			{
-				return await _httpClient.GetFromJsonAsync<T>(url, token);
+				return await Client.GetFromJsonAsync<T>(url, token);
 			}
 			finally
 			{
@@ -212,7 +212,7 @@ namespace BilibiliApi.Clients
 
 		public void Dispose()
 		{
-			_httpClient.Dispose();
+			Client.Dispose();
 		}
 	}
 }
