@@ -46,6 +46,7 @@
                 <ui:NavigationViewItem Icon="59230" Content="直播录制" Tag="4" />
                 <ui:NavigationViewItem Icon="59645" Content="任务列表" Tag="2" />
                 <ui:NavigationViewItem Icon="Message" Content="日志" Tag="3" />
+                <ui:NavigationViewItem Icon="61272" Content="用户设置" Tag="5" />
             </ui:NavigationView.MenuItems>
             <reactiveUi:RoutedViewHost
                 x:Name="RoutedViewHost"

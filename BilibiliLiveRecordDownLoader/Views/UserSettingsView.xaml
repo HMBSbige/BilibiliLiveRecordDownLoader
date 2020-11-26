@@ -1,0 +1,32 @@
+<reactiveUi:ReactiveUserControl
+    x:TypeArguments="viewModels:UserSettingsViewModel"
+    x:Class="BilibiliLiveRecordDownLoader.Views.UserSettingsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:reactiveUi="http://reactiveui.net"
+    xmlns:viewModels="clr-namespace:BilibiliLiveRecordDownLoader.ViewModels"
+    xmlns:ui="http://schemas.modernwpf.com/2019"
+    xmlns:constants="clr-namespace:BilibiliLiveRecordDownLoader.Shared.Utils;assembly=BilibiliLiveRecordDownLoader.Shared"
+    mc:Ignorable="d"
+    d:DesignHeight="450" d:DesignWidth="800" Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+    <Grid Margin="20,25,0,0">
+        <ScrollViewer>
+            <ui:SimpleStackPanel Spacing="0" Margin="0,0,20,0">
+                <GroupBox Header="网络">
+                    <StackPanel>
+                        <TextBox x:Name="UserAgentTextBox"
+                                 ui:ControlHelper.Header="User Agent"
+                                 ui:ControlHelper.PlaceholderText="{x:Static constants:Constants.ChromeUserAgent}" />
+                        <TextBox x:Name="CookieTextBox"
+                                 ui:ControlHelper.Header="Cookie"
+                                 VerticalContentAlignment="Top"
+                                 TextWrapping="WrapWithOverflow"
+                                 Height="100" />
+                    </StackPanel>
+                </GroupBox>
+            </ui:SimpleStackPanel>
+        </ScrollViewer>
+    </Grid>
+</reactiveUi:ReactiveUserControl>

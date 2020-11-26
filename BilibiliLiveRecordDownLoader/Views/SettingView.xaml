@@ -72,18 +72,6 @@
                         <TextBlock x:Name="UpdateStatusTextBlock" d:Text="无更新" />
                     </StackPanel>
                 </GroupBox>
-                <GroupBox Header="网络">
-                    <StackPanel>
-                        <TextBox x:Name="UserAgentTextBox"
-                                 ui:ControlHelper.Header="User Agent"
-                                 ui:ControlHelper.PlaceholderText="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.66 Safari/537.36" />
-                        <TextBox x:Name="CookieTextBox"
-                                 ui:ControlHelper.Header="Cookie"
-                                 VerticalContentAlignment="Top"
-                                 TextWrapping="WrapWithOverflow"
-                                 Height="100" />
-                    </StackPanel>
-                </GroupBox>
             </ui:SimpleStackPanel>
         </ScrollViewer>
     </Grid>
