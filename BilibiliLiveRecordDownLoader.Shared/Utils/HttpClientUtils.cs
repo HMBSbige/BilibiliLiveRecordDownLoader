@@ -6,16 +6,16 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 {
 	public static class HttpClientUtils
 	{
-		public static HttpClient BuildClientForBilibili(string userAgent, string? cookie, TimeSpan timeout)
+		public static HttpClient BuildClientForBilibili(string userAgent, string? cookie, TimeSpan timeout, bool useProxy)
 		{
-			HttpClient client;
-			if (string.IsNullOrEmpty(cookie))
+			var handle = new SocketsHttpHandler
 			{
-				client = new(new ForceHttp2Handler(new SocketsHttpHandler()), true);
-			}
-			else
+				UseProxy = useProxy,
+				UseCookies = cookie is null or @""
+			};
+			var client = new HttpClient(new ForceHttp2Handler(handle), true);
+			if (!handle.UseCookies)
 			{
-				client = new(new ForceHttp2Handler(new SocketsHttpHandler { UseCookies = false }), true);
 				client.DefaultRequestHeaders.Add(@"Cookie", cookie);
 			}
 
@@ -27,16 +27,15 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 			return client;
 		}
 
-		public static HttpClient BuildClientForMultiThreadedDownloader(string? cookie = null, string userAgent = Constants.IdmUserAgent)
+		public static HttpClient BuildClientForMultiThreadedDownloader(string? cookie, string userAgent, bool useProxy)
 		{
-			var httpHandler = new SocketsHttpHandler();
-			if (!string.IsNullOrEmpty(cookie))
+			var handle = new SocketsHttpHandler
 			{
-				httpHandler.UseCookies = false;
-			}
-
-			var client = new HttpClient(new RetryHandler(httpHandler, 10), true);
-			if (!string.IsNullOrEmpty(cookie))
+				UseProxy = useProxy,
+				UseCookies = cookie is null or @""
+			};
+			var client = new HttpClient(new RetryHandler(handle, 10), true);
+			if (!handle.UseCookies)
 			{
 				client.DefaultRequestHeaders.Add(@"Cookie", cookie);
 			}

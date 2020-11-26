@@ -21,19 +21,19 @@ namespace BilibiliApi.Clients
 
 		private static readonly SemaphoreSlim SemaphoreSlim = new(1, 1);
 
-		public BililiveApiClient(string? cookie = null, string userAgent = Constants.ChromeUserAgent)
+		public BililiveApiClient(string? cookie, string userAgent, bool useProxy)
 		{
-			BuildClient(TimeSpan.FromSeconds(10), cookie, userAgent);
+			BuildClient(TimeSpan.FromSeconds(10), cookie, userAgent, useProxy);
 		}
 
-		public void BuildClient(TimeSpan timeout, string? cookie = null, string userAgent = Constants.ChromeUserAgent)
+		public void BuildClient(TimeSpan timeout, string? cookie, string userAgent, bool useProxy)
 		{
 			if (string.IsNullOrEmpty(userAgent))
 			{
 				userAgent = Constants.ChromeUserAgent;
 			}
 			Client.Dispose();
-			Client = HttpClientUtils.BuildClientForBilibili(userAgent, cookie, timeout);
+			Client = HttpClientUtils.BuildClientForBilibili(userAgent, cookie, timeout, useProxy);
 		}
 
 		/// <summary>

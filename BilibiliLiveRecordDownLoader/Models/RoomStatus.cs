@@ -335,7 +335,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 					var urlData = await _apiClient.GetPlayUrlDataAsync(RoomId, 10000, _token);
 					var url = urlData.durl!.First().url;
 
-					await using var downloader = new HttpDownloader(TimeSpan.FromSeconds(StreamConnectTimeout), _config.Cookie, _config.UserAgent)
+					await using var downloader = new HttpDownloader(TimeSpan.FromSeconds(StreamConnectTimeout), _config.Cookie, _config.UserAgent, _config.IsUseProxy)
 					{
 						Target = new Uri(url!)
 					};

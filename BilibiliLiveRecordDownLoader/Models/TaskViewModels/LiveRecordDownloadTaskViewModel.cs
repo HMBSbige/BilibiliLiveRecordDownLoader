@@ -77,7 +77,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 						continue;
 					}
 
-					await using var downloader = new MultiThreadedDownloader(_logger, _config.Cookie, _config.UserAgent)
+					await using var downloader = new MultiThreadedDownloader(_logger, _config.Cookie, _config.UserAgent, _config.IsUseProxy)
 					{
 						Target = new(url),
 						Threads = _threadsCount,

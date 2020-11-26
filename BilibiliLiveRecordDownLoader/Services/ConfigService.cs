@@ -58,12 +58,12 @@ namespace BilibiliLiveRecordDownLoader.Services
 						.Subscribe(_ => RaiseRoomsChanged());
 				});
 
-			_networkSettingMonitor = Config.WhenAnyValue(x => x.Cookie, x => x.UserAgent)
+			_networkSettingMonitor = Config.WhenAnyValue(x => x.Cookie, x => x.UserAgent, x => x.IsUseProxy)
 					.Throttle(TimeSpan.FromSeconds(1))
-					.Subscribe(cu =>
+					.Subscribe(x =>
 					{
-						var (cookie, ua) = cu;
-						apiClient.BuildClient(TimeSpan.FromSeconds(10), cookie, ua);
+						var (cookie, ua, useProxy) = x;
+						apiClient.BuildClient(TimeSpan.FromSeconds(10), cookie, ua, useProxy);
 					});
 		}
 

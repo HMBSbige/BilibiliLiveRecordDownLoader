@@ -15,6 +15,7 @@ namespace BilibiliLiveRecordDownLoader.Views
 			{
 				this.Bind(ViewModel, vm => vm.Config.UserAgent, v => v.UserAgentTextBox.Text).DisposeWith(d);
 				this.Bind(ViewModel, vm => vm.Config.Cookie, v => v.CookieTextBox.Text).DisposeWith(d);
+				this.Bind(ViewModel, vm => vm.Config.IsUseProxy, v => v.ProxySwitch.IsOn).DisposeWith(d);
 			});
 		}
 	}

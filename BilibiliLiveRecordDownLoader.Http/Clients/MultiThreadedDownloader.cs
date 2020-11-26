@@ -51,14 +51,14 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 			}
 		}
 
-		public MultiThreadedDownloader(ILogger logger, string? cookie = null, string userAgent = Constants.IdmUserAgent)
+		public MultiThreadedDownloader(ILogger logger, string? cookie, string userAgent, bool useProxy)
 		{
 			_logger = logger;
 			if (string.IsNullOrEmpty(userAgent))
 			{
 				userAgent = Constants.IdmUserAgent;
 			}
-			var policy = new PooledHttpClientPolicy(() => HttpClientUtils.BuildClientForMultiThreadedDownloader(cookie, userAgent));
+			var policy = new PooledHttpClientPolicy(() => HttpClientUtils.BuildClientForMultiThreadedDownloader(cookie, userAgent, useProxy));
 			var provider = new DefaultObjectPoolProvider { MaximumRetained = 10 };
 			_httpClientPool = provider.Create(policy);
 		}

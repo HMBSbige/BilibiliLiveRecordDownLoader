@@ -19,13 +19,13 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 		private readonly HttpClient _httpClient;
 		private Stream? _netStream;
 
-		public HttpDownloader(TimeSpan timeout, string? cookie = null, string userAgent = Constants.ChromeUserAgent)
+		public HttpDownloader(TimeSpan timeout, string? cookie, string userAgent, bool useProxy)
 		{
 			if (string.IsNullOrEmpty(userAgent))
 			{
 				userAgent = Constants.ChromeUserAgent;
 			}
-			_httpClient = HttpClientUtils.BuildClientForBilibili(userAgent, cookie, timeout);
+			_httpClient = HttpClientUtils.BuildClientForBilibili(userAgent, cookie, timeout, useProxy);
 		}
 
 		public async Task GetStreamAsync(CancellationToken token)

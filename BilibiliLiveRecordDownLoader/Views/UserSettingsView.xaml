@@ -24,6 +24,10 @@
                                  VerticalContentAlignment="Top"
                                  TextWrapping="WrapWithOverflow"
                                  Height="100" />
+                        <ui:ToggleSwitch x:Name="ProxySwitch"
+                                         Header="代理"
+                                         IsOn="True"
+                                         OnContent="使用系统代理" OffContent="不使用代理" />
                     </StackPanel>
                 </GroupBox>
             </ui:SimpleStackPanel>

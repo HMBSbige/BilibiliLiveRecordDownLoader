@@ -10,7 +10,7 @@ namespace UnitTest
 	[TestClass]
 	public class BilibiliApiTest
 	{
-		private readonly BililiveApiClient _apiClient = new();
+		private readonly BililiveApiClient _apiClient = new(default, string.Empty, true);
 
 		[TestMethod]
 		public async Task GetLiveRecordUrlTestAsync()

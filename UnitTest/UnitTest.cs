@@ -1,5 +1,6 @@
 using BilibiliLiveRecordDownLoader.FlvProcessor.Clients;
 using BilibiliLiveRecordDownLoader.Http.Clients;
+using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.WindowsAPICodePack.Shell;
@@ -33,7 +34,7 @@ namespace UnitTest
 			var outFile = Path.Combine(path, filename);
 			try
 			{
-				await using var downloader = new MultiThreadedDownloader(NullLogger.Instance)
+				await using var downloader = new MultiThreadedDownloader(NullLogger.Instance, default, string.Empty, true)
 				{
 					Target = new(url),
 					Threads = 4,
@@ -96,7 +97,7 @@ namespace UnitTest
 			var outFile = Path.Combine(path, filename);
 			try
 			{
-				await using var downloader = new HttpDownloader(TimeSpan.FromSeconds(10))
+				await using var downloader = new HttpDownloader(TimeSpan.FromSeconds(10), null, Constants.ChromeUserAgent, true)
 				{
 					Target = new(url),
 					OutFileName = outFile

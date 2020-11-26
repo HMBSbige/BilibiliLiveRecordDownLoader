@@ -21,6 +21,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private string _cookie = string.Empty;
 		private bool _isAutoConvertMp4 = true;
 		private bool _isDeleteAfterConvert;
+		private bool _isUseProxy = true;
 		private List<RoomStatus> _rooms = new();
 
 		#endregion
@@ -103,6 +104,12 @@ namespace BilibiliLiveRecordDownLoader.Models
 			set => this.RaiseAndSetIfChanged(ref _isDeleteAfterConvert, value);
 		}
 
+		public bool IsUseProxy
+		{
+			get => _isUseProxy;
+			set => this.RaiseAndSetIfChanged(ref _isUseProxy, value);
+		}
+
 		#endregion
 
 		public void Clone(Config config)
@@ -119,6 +126,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 			Rooms = config.Rooms;
 			IsAutoConvertMp4 = config.IsAutoConvertMp4;
 			IsDeleteAfterConvert = config.IsDeleteAfterConvert;
+			IsUseProxy = config.IsUseProxy;
 		}
 	}
 }
