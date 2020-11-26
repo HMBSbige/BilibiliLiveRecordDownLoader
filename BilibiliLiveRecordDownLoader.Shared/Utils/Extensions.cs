@@ -1,5 +1,7 @@
 using Microsoft.Extensions.ObjectPool;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reactive.Disposables;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
@@ -41,6 +43,20 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 			var b = objectPool.Get();
 			res = b;
 			return Disposable.Create(() => objectPool.Return(b));
+		}
+
+		public static string ToCookie(this IEnumerable<string> cookies)
+		{
+			var hashSet = new HashSet<string>();
+			foreach (var cookie in cookies)
+			{
+				var keyValue = cookie.Split(';', StringSplitOptions.TrimEntries).FirstOrDefault();
+				if (keyValue is not null and not @"")
+				{
+					hashSet.Add(keyValue);
+				}
+			}
+			return string.Join(';', hashSet);
 		}
 	}
 }

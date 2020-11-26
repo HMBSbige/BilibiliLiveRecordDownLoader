@@ -19,10 +19,10 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private double _mainWindowsHeight = 720;
 		private string _userAgent = string.Empty;
 		private string _cookie = string.Empty;
+		private List<RoomStatus> _rooms = new();
 		private bool _isAutoConvertMp4 = true;
 		private bool _isDeleteAfterConvert;
 		private bool _isUseProxy = true;
-		private List<RoomStatus> _rooms = new();
 
 		#endregion
 

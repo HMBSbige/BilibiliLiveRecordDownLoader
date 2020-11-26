@@ -185,11 +185,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					var list = message?.data?.list;
 					if (list is not null
 						&& list.Length > 0
-						&& list.All(x => x.url is not null or @"" || x.backup_url is not null or @"")
+						&& list.All(x => !string.IsNullOrEmpty(x.url) || !string.IsNullOrEmpty(x.backup_url))
 						)
 					{
 						Utils.Utils.CopyToClipboard(string.Join(Environment.NewLine,
-								list.Select(x => x.url is null or @"" ? x.backup_url : x.url)
+								list.Select(x => string.IsNullOrEmpty(x.url) ? x.backup_url : x.url)
 						));
 					}
 				}
@@ -206,7 +206,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			{
 				try
 				{
-					if (info is LiveRecordViewModel { Rid: not @"" or null } liveRecord)
+					if (info is LiveRecordViewModel { Rid: not null and not @"" } liveRecord)
 					{
 						Utils.Utils.OpenUrl($@"https://live.bilibili.com/record/{liveRecord.Rid}");
 					}
@@ -255,7 +255,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 					foreach (var item in list)
 					{
-						if (item is not LiveRecordViewModel { Rid: not @"" or null } liveRecord)
+						if (item is not LiveRecordViewModel { Rid: not null and not @"" } liveRecord)
 						{
 							continue;
 						}

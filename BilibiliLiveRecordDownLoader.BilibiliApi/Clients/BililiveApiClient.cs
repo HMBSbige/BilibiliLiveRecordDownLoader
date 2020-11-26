@@ -15,7 +15,7 @@ using System.Threading.Tasks;
 
 namespace BilibiliApi.Clients
 {
-	public sealed class BililiveApiClient : IDisposable
+	public sealed partial class BililiveApiClient : IDisposable
 	{
 		public HttpClient Client { get; private set; } = new();
 
@@ -197,12 +197,25 @@ namespace BilibiliApi.Clients
 
 		#endregion
 
-		private async Task<T?> GetJsonAsync<T>(string url, CancellationToken token = default)
+		private async Task<T?> GetJsonAsync<T>(string url, CancellationToken token)
 		{
 			await SemaphoreSlim.WaitAsync(token);
 			try
 			{
 				return await Client.GetFromJsonAsync<T>(url, token);
+			}
+			finally
+			{
+				SemaphoreSlim.Release();
+			}
+		}
+
+		private async Task<HttpResponseMessage> PostAsync(string url, HttpContent content, CancellationToken token)
+		{
+			await SemaphoreSlim.WaitAsync(token);
+			try
+			{
+				return await Client.PostAsync(url, content, token);
 			}
 			finally
 			{

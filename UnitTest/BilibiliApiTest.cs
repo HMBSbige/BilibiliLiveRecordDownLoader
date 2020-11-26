@@ -1,5 +1,6 @@
 using BilibiliApi.Clients;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Net.Http;
 using System.Threading.Tasks;
 
 #nullable disable warnings
@@ -121,6 +122,37 @@ namespace UnitTest
 			Assert.AreEqual(json.data.short_id, 732);
 			Assert.IsTrue(json.data.live_status is 0 or 1 or 2);
 			Assert.IsTrue(!string.IsNullOrWhiteSpace(json.data.title));
+		}
+
+		[TestMethod]
+		public async Task GetLoginUrlTestAsync()
+		{
+			var json = await _apiClient.GetLoginUrlAsync();
+			Assert.AreEqual(json.code, 0);
+			Assert.AreEqual(json.status, true);
+			Assert.IsTrue(json.data.url.StartsWith(@"https://"));
+			Assert.AreEqual(json.data.oauthKey.Length, 32);
+		}
+
+		[TestMethod]
+		public async Task GetLoginInfoTestAsync()
+		{
+			var cookie = await _apiClient.GetLoginInfoAsync(@"");
+			Assert.IsTrue(cookie.Contains(@"sid="));
+			Assert.IsTrue(cookie.Contains(@"DedeUserID="));
+			Assert.IsTrue(cookie.Contains(@"DedeUserID__ckMd5="));
+			Assert.IsTrue(cookie.Contains(@"SESSDATA="));
+			Assert.IsTrue(cookie.Contains(@"bili_jct="));
+		}
+
+		[TestMethod]
+		public async Task GetLoginInfoFailTestAsync()
+		{
+			var ex = await Assert.ThrowsExceptionAsync<HttpRequestException>(async () =>
+			{
+				await _apiClient.GetLoginInfoAsync(string.Empty);
+			});
+			Assert.AreEqual(ex.Message, @"不存在该密钥");
 		}
 	}
 }
