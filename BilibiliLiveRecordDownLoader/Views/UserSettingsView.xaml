@@ -30,6 +30,12 @@
                                          OnContent="使用系统代理" OffContent="不使用代理" />
                     </StackPanel>
                 </GroupBox>
+                <GroupBox Header="登录">
+                    <StackPanel>
+                        <Button x:Name="GetQrCodeButton"
+                                Content="扫描二维码登录"/>
+                    </StackPanel>
+                </GroupBox>
             </ui:SimpleStackPanel>
         </ScrollViewer>
     </Grid>

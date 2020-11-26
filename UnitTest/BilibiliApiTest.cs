@@ -154,5 +154,11 @@ namespace UnitTest
 			});
 			Assert.AreEqual(ex.Message, @"不存在该密钥");
 		}
+
+		[TestMethod]
+		public async Task CheckLoginStatusTestAsync()
+		{
+			Assert.IsFalse(await _apiClient.CheckLoginStatusAsync());
+		}
 	}
 }

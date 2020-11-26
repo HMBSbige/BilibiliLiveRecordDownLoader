@@ -12,6 +12,23 @@ namespace BilibiliApi.Clients
 {
 	public partial class BililiveApiClient
 	{
+		#region 检查登录状态
+
+		public async Task<bool> CheckLoginStatusAsync(CancellationToken token = default)
+		{
+			const string url = @"https://api.bilibili.com/x/web-interface/nav/stat";
+			var json = await GetJsonAsync<JsonElement>(url, token);
+			if (json.TryGetProperty(@"code", out var codeElement)
+				&& codeElement.TryGetInt64(out var code)
+				&& code == 0)
+			{
+				return true;
+			}
+			return false;
+		}
+
+		#endregion
+
 		#region 二维码地址及扫码密钥
 
 		public async Task<GetLoginUrlMessage?> GetLoginUrlAsync(CancellationToken token = default)
