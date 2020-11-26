@@ -65,7 +65,6 @@
                                                  OnContent="" OffContent="" />
                         <ui:ToggleSwitch x:Name="IsCheckPreReleaseSwitch"
                                                  Header="包括预览版更新"
-                                                 IsEnabled="{Binding ElementName=IsCheckUpdateOnStartSwitch,Path=IsOn}"
                                                  OnContent="" OffContent="" />
                         <Button x:Name="CheckUpdateButton"
                                         Content="检查更新" />

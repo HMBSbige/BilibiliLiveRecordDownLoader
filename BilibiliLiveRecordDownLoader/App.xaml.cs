@@ -116,7 +116,7 @@ namespace BilibiliLiveRecordDownLoader
 			services.AddSingleton<SourceList<RoomStatus>>();
 			services.AddSingleton<SourceList<TaskViewModel>>();
 			services.AddSingleton(new OperationQueue(int.MaxValue));
-			services.AddSingleton<BililiveApiClient>();
+			services.AddSingleton(new BililiveApiClient(default, string.Empty, true));
 			services.AddSingleton<IScreen, MainScreen>();
 
 			services.AddTransient<IFlvMerger, FlvMerger>();
