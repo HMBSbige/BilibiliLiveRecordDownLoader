@@ -24,6 +24,7 @@
     <PackageReference Include="Microsoft.VisualStudio.Threading" Version="16.8.55" />
     <PackageReference Include="ModernWpfUI" Version="0.9.2" />
     <PackageReference Include="Punchclock" Version="3.3.2" />
+    <PackageReference Include="QRCoder" Version="1.4.1" />
     <PackageReference Include="ReactiveUI.Events.WPF" Version="12.1.5" />
     <PackageReference Include="ReactiveUI.WPF" Version="12.1.5" />
     <PackageReference Include="Serilog" Version="2.10.0" />
@@ -32,6 +33,7 @@
     <PackageReference Include="Serilog.Sinks.Debug" Version="1.0.1" Condition=" '$(Configuration)' == 'Debug' " />
     <PackageReference Include="Serilog.Sinks.File" Version="4.1.0" />
     <PackageReference Include="Splat.Microsoft.Extensions.DependencyInjection" Version="9.7.1" />
+    <PackageReference Include="System.Drawing.Common" Version="5.0.0" />
     <PackageReference Include="System.IO.FileSystem" Version="4.3.0" />
     <PackageReference Include="System.Text.Encoding.Extensions" Version="4.3.0" />
     <PackageReference Include="System.Threading.Timer" Version="4.3.0" />

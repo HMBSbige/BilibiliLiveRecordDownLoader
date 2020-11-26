@@ -148,10 +148,7 @@ namespace UnitTest
 		[TestMethod]
 		public async Task GetLoginInfoFailTestAsync()
 		{
-			var ex = await Assert.ThrowsExceptionAsync<HttpRequestException>(async () =>
-			{
-				await _apiClient.GetLoginInfoAsync(string.Empty);
-			});
+			var ex = await Assert.ThrowsExceptionAsync<HttpRequestException>(async () => await _apiClient.GetLoginInfoAsync(string.Empty));
 			Assert.AreEqual(ex.Message, @"不存在该密钥");
 		}
 

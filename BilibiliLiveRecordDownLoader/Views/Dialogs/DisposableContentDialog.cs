@@ -5,7 +5,7 @@ namespace BilibiliLiveRecordDownLoader.Views.Dialogs
 {
 	public class DisposableContentDialog : ContentDialog, IDisposable
 	{
-		public void Dispose()
+		public virtual void Dispose()
 		{
 			Hide();
 		}

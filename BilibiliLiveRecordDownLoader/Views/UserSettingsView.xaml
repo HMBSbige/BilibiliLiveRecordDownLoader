@@ -10,12 +10,12 @@
     xmlns:ui="http://schemas.modernwpf.com/2019"
     xmlns:constants="clr-namespace:BilibiliLiveRecordDownLoader.Shared.Utils;assembly=BilibiliLiveRecordDownLoader.Shared"
     mc:Ignorable="d"
-    d:DesignHeight="450" d:DesignWidth="800" Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+    d:DesignHeight="600" d:DesignWidth="800" Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
     <Grid Margin="20,25,0,0">
         <ScrollViewer>
             <ui:SimpleStackPanel Spacing="0" Margin="0,0,20,0">
                 <GroupBox Header="网络">
-                    <StackPanel>
+                    <ui:SimpleStackPanel Spacing="10">
                         <TextBox x:Name="UserAgentTextBox"
                                  ui:ControlHelper.Header="User Agent"
                                  ui:ControlHelper.PlaceholderText="{x:Static constants:Constants.ChromeUserAgent}" />
@@ -28,13 +28,17 @@
                                          Header="代理"
                                          IsOn="True"
                                          OnContent="使用系统代理" OffContent="不使用代理" />
-                    </StackPanel>
+                    </ui:SimpleStackPanel>
                 </GroupBox>
                 <GroupBox Header="登录">
-                    <StackPanel>
+                    <ui:SimpleStackPanel Spacing="10">
                         <Button x:Name="GetQrCodeButton"
                                 Content="扫描二维码登录"/>
-                    </StackPanel>
+                        <Button x:Name="CheckLoginButton"
+                                Content="验证登录" />
+                        <TextBlock x:Name="LoginStatusTextBlock"
+                                   d:Text="未登录" d:Foreground="Red"/>
+                    </ui:SimpleStackPanel>
                 </GroupBox>
             </ui:SimpleStackPanel>
         </ScrollViewer>

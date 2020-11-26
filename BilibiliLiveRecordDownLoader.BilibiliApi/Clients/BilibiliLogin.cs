@@ -18,13 +18,7 @@ namespace BilibiliApi.Clients
 		{
 			const string url = @"https://api.bilibili.com/x/web-interface/nav/stat";
 			var json = await GetJsonAsync<JsonElement>(url, token);
-			if (json.TryGetProperty(@"code", out var codeElement)
-				&& codeElement.TryGetInt64(out var code)
-				&& code == 0)
-			{
-				return true;
-			}
-			return false;
+			return json.TryGetProperty(@"code", out var codeElement) && codeElement.TryGetInt64(out var code) && code == 0;
 		}
 
 		#endregion
@@ -37,10 +31,10 @@ namespace BilibiliApi.Clients
 			return await GetJsonAsync<GetLoginUrlMessage>(url, token);
 		}
 
-		public async Task<GetLoginUrlData?> GetLoginUrlDataAsync(CancellationToken token = default)
+		public async Task<GetLoginUrlData> GetLoginUrlDataAsync(CancellationToken token = default)
 		{
 			var message = await GetLoginUrlAsync(token);
-			if (message?.data is null || message.code != 0)
+			if (message?.data?.url is null || message.code != 0 || message.data.oauthKey is null)
 			{
 				throw new HttpRequestException(@"获取二维码地址失败");
 			}
