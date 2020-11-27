@@ -285,10 +285,17 @@ namespace BilibiliApi.Clients
 					var result = await reader.ReadAsync(token);
 					var buffer = result.Buffer;
 
-					var packet = new DanmuPacket();
-					buffer = packet.ReadDanMu(buffer);
+					while (!token.IsCancellationRequested)
+					{
+						var packet = new DanmuPacket();
+						var success = packet.ReadDanMu(ref buffer);
+						ProcessDanMuPacketAsync(packet, token).NoWarning();
 
-					await ProcessDanMuPacketAsync(packet, token);
+						if (buffer.Length < 16 || !success)
+						{
+							break;
+						}
+					}
 
 					reader.AdvanceTo(buffer.Start, buffer.End);
 
@@ -323,7 +330,6 @@ namespace BilibiliApi.Clients
 						ms.Seek(0, SeekOrigin.Begin);
 
 						await using var deflate = new DeflateStream(ms, CompressionMode.Decompress);
-
 
 						using var header = MemoryPool<byte>.Shared.Rent(4);
 						while (true)

@@ -60,12 +60,17 @@ namespace BilibiliApi.Model.Danmu
 			Body = buffer.Slice(HeaderLength - 4, PacketLength - HeaderLength);
 		}
 
-		public ReadOnlySequence<byte> ReadDanMu(in ReadOnlySequence<byte> sequence)
+		/// <summary>
+		/// 读取弹幕
+		/// </summary>
+		/// <param name="sequence"></param>
+		/// <returns>是否成功读取</returns>
+		public bool ReadDanMu(ref ReadOnlySequence<byte> sequence)
 		{
 			var length = sequence.Length;
 			if (length < 16)
 			{
-				return sequence;
+				return false;
 			}
 
 			var reader = new SequenceReader<byte>(sequence);
@@ -73,7 +78,7 @@ namespace BilibiliApi.Model.Danmu
 			reader.TryReadBigEndian(out int packetLength);
 			if (packetLength > length)
 			{
-				return sequence;
+				return false;
 			}
 
 			reader.TryReadBigEndian(out short headerLength);
@@ -89,7 +94,8 @@ namespace BilibiliApi.Model.Danmu
 
 			Body = reader.UnreadSequence.Slice(0, PacketLength - HeaderLength).ToArray();
 
-			return sequence.Slice(packetLength);
+			sequence = sequence.Slice(packetLength);
+			return true;
 		}
 	}
 }
