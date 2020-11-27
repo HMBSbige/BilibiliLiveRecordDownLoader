@@ -284,24 +284,28 @@ namespace BilibiliApi.Clients
 				{
 					var result = await reader.ReadAsync(token);
 					var buffer = result.Buffer;
-
-					while (!token.IsCancellationRequested)
+					try
 					{
-						var packet = new DanmuPacket();
-						var success = packet.ReadDanMu(ref buffer);
-						ProcessDanMuPacketAsync(packet, token).NoWarning();
+						while (!token.IsCancellationRequested)
+						{
+							var packet = new DanmuPacket();
+							var success = packet.ReadDanMu(ref buffer);
+							await ProcessDanMuPacketAsync(packet, token);
 
-						if (buffer.Length < 16 || !success)
+							if (buffer.Length < 16 || !success)
+							{
+								break;
+							}
+						}
+
+						if (result.IsCompleted)
 						{
 							break;
 						}
 					}
-
-					reader.AdvanceTo(buffer.Start, buffer.End);
-
-					if (result.IsCompleted)
+					finally
 					{
-						break;
+						reader.AdvanceTo(buffer.Start, buffer.End);
 					}
 				}
 			}
