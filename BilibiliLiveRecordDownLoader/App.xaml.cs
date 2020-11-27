@@ -101,6 +101,7 @@ namespace BilibiliLiveRecordDownLoader
 			services.AddSingleton<SettingViewModel>();
 			services.AddSingleton<StreamRecordViewModel>();
 			services.AddSingleton<UserSettingsViewModel>();
+			services.AddSingleton<FFmpegCommandViewModel>();
 
 			services.AddSingleton<MainWindow>();
 			services.AddTransient<IViewFor<LiveRecordListViewModel>, LiveRecordListView>();
@@ -109,6 +110,7 @@ namespace BilibiliLiveRecordDownLoader
 			services.AddTransient<IViewFor<SettingViewModel>, SettingView>();
 			services.AddTransient<IViewFor<StreamRecordViewModel>, StreamRecordView>();
 			services.AddTransient<IViewFor<UserSettingsViewModel>, UserSettingsView>();
+			services.AddTransient<IViewFor<FFmpegCommandViewModel>, FFmpegCommandView>();
 
 			services.AddSingleton<IConfigService, ConfigService>();
 			services.AddSingleton<Config>();

@@ -23,7 +23,8 @@ namespace BilibiliLiveRecordDownLoader
 			LogViewModel log,
 			SettingViewModel settings,
 			StreamRecordViewModel streamRecord,
-			UserSettingsViewModel userSettings)
+			UserSettingsViewModel userSettings,
+			FFmpegCommandViewModel ffmpegCommand)
 		{
 			InitializeComponent();
 			ViewModel = viewModel;
@@ -75,6 +76,11 @@ namespace BilibiliLiveRecordDownLoader
 						case @"5":
 						{
 							ViewModel.HostScreen.Router.Navigate.Execute(userSettings);
+							break;
+						}
+						case @"6":
+						{
+							ViewModel.HostScreen.Router.Navigate.Execute(ffmpegCommand);
 							break;
 						}
 					}
