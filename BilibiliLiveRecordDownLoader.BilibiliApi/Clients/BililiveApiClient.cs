@@ -32,7 +32,6 @@ namespace BilibiliApi.Clients
 			{
 				userAgent = Constants.ChromeUserAgent;
 			}
-			Client.Dispose();
 			Client = HttpClientUtils.BuildClientForBilibili(userAgent, cookie, timeout, useProxy);
 		}
 

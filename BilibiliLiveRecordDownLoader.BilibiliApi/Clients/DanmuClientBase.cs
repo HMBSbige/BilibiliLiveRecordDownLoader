@@ -35,6 +35,8 @@ namespace BilibiliApi.Clients
 		protected ushort Port;
 		protected abstract string Server { get; }
 		private string? _token;
+		private long _uid;
+		private long _protocolVersion = 2;
 
 		private const string DefaultHost = @"broadcastlv.chat.bilibili.com";
 		protected abstract ushort DefaultPort { get; }
@@ -86,6 +88,16 @@ namespace BilibiliApi.Clients
 					_logger.LogWarning(@"使用默认弹幕服务器地址");
 					return;
 				}
+
+				try
+				{
+					_uid = await ApiClient.GetUidAsync(token);
+				}
+				catch
+				{
+					_uid = 0;
+				}
+
 				var conf = await ApiClient.GetDanmuConfAsync(RoomId, token);
 				if (conf is null)
 				{
@@ -190,7 +202,7 @@ namespace BilibiliApi.Clients
 
 		private async ValueTask AuthAsync(CancellationToken token)
 		{
-			var json = @$"{{""roomid"":{RoomId},""uid"":0,""protover"":2,""key"":""{_token}""}}";
+			var json = @$"{{""roomid"":{RoomId},""uid"":{_uid},""protover"":{_protocolVersion},""key"":""{_token}""}}";
 			await SendDataAsync(Operation.Auth, json, token);
 		}
 

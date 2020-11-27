@@ -1,5 +1,6 @@
 using BilibiliApi.Clients;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System;
 using System.Net.Http;
 using System.Threading.Tasks;
 
@@ -137,7 +138,7 @@ namespace UnitTest
 		[TestMethod]
 		public async Task GetLoginInfoTestAsync()
 		{
-			var cookie = await _apiClient.GetLoginInfoAsync(@"");
+			var cookie = await _apiClient.GetLoginInfoAsync(@""); // 设置 Key
 			Assert.IsTrue(cookie.Contains(@"sid="));
 			Assert.IsTrue(cookie.Contains(@"DedeUserID="));
 			Assert.IsTrue(cookie.Contains(@"DedeUserID__ckMd5="));
@@ -156,6 +157,12 @@ namespace UnitTest
 		public async Task CheckLoginStatusTestAsync()
 		{
 			Assert.IsFalse(await _apiClient.CheckLoginStatusAsync());
+		}
+
+		[TestMethod]
+		public async Task GetUidTestAsync()
+		{
+			await Assert.ThrowsExceptionAsync<InvalidOperationException>(async () => await _apiClient.GetUidAsync());
 		}
 	}
 }

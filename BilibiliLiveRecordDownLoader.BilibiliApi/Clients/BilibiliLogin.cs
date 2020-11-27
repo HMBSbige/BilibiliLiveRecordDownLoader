@@ -21,6 +21,19 @@ namespace BilibiliApi.Clients
 			return json.TryGetProperty(@"code", out var codeElement) && codeElement.TryGetInt64(out var code) && code == 0;
 		}
 
+		public async Task<long> GetUidAsync(CancellationToken token = default)
+		{
+			const string url = @"https://api.live.bilibili.com/User/getUserInfo";
+			var json = await GetJsonAsync<JsonElement>(url, token);
+			if (json.TryGetProperty(@"data", out var dataElement)
+				&& dataElement.TryGetProperty(@"uid", out var uidElement)
+				&& uidElement.TryGetInt64(out var uid))
+			{
+				return uid;
+			}
+			return 0;
+		}
+
 		#endregion
 
 		#region 二维码地址及扫码密钥
