@@ -8,13 +8,48 @@
     xmlns:reactiveUi="http://reactiveui.net"
     xmlns:viewModels="clr-namespace:BilibiliLiveRecordDownLoader.ViewModels"
     xmlns:ui="http://schemas.modernwpf.com/2019"
+    xmlns:wpfMaskedTextBox="clr-namespace:WPFMaskedTextBox;assembly=WPFMaskedTextBox"
     mc:Ignorable="d"
     d:DesignHeight="450" d:DesignWidth="800" Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
     <Grid Margin="20,25,0,0">
         <ScrollViewer>
             <ui:SimpleStackPanel Spacing="0" Margin="0,0,20,0">
-                <GroupBox Header="剪辑">
-                    
+                <GroupBox Header="简单剪辑">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ui:SimpleStackPanel Spacing="15" Orientation="Horizontal"
+                                             Grid.Row="2" Grid.Column="0"
+                                             Margin="5">
+                            <TextBlock Text="开始时刻" VerticalAlignment="Center" />
+                            <wpfMaskedTextBox:MaskedTextBox
+                                x:Name="TextBox"
+                                Mask="##:##:##.###"
+                                PromptChar="0"
+                                Style="{DynamicResource DefaultTextBoxStyle}"
+                                Filter="Number" />
+                            <TextBlock Text="结束时刻" VerticalAlignment="Center" />
+                            <wpfMaskedTextBox:MaskedTextBox
+                                x:Name="TextBox2"
+                                Mask="##:##:##.###"
+                                PromptChar="0"
+                                Style="{DynamicResource DefaultTextBoxStyle}"
+                                Filter="Number" />
+                        </ui:SimpleStackPanel>
+                        <TextBox Grid.Row="0" Grid.Column="0" d:Text="114514" IsReadOnly="True" Margin="0,5,5,5" />
+                        <TextBox Grid.Row="1" Grid.Column="0" d:Text="1919810" Margin="0,5,5,5" />
+
+                        <Button Grid.Row="0" Grid.Column="1" Content="视频" Margin="5,5,0,5"/>
+                        <Button Grid.Row="1" Grid.Column="1" Content="输出" Margin="5,5,0,5" />
+                        <Button Grid.Row="2" Grid.Column="1" Content="截取" Margin="5,5,0,5" />
+                    </Grid>
                 </GroupBox>
             </ui:SimpleStackPanel>
         </ScrollViewer>
