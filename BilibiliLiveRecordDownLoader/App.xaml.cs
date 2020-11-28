@@ -14,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 using ModernWpf;
 using Punchclock;
 using ReactiveUI;
+using RunAtStartup;
 using Serilog;
 using Serilog.Events;
 using Splat;
@@ -81,6 +82,10 @@ namespace BilibiliLiveRecordDownLoader
 			Register();
 
 			MainWindow = Locator.Current.GetService<MainWindow>();
+			if (e.Args.Contains(Constants.ParameterSilent))
+			{
+				MainWindow.Visibility = Visibility.Hidden;
+			}
 			MainWindow.ShowWindow();
 		}
 
@@ -117,9 +122,10 @@ namespace BilibiliLiveRecordDownLoader
 			services.AddSingleton<SourceList<LiveRecordList>>();
 			services.AddSingleton<SourceList<RoomStatus>>();
 			services.AddSingleton<SourceList<TaskViewModel>>();
+			services.AddSingleton<IScreen, MainScreen>();
 			services.AddSingleton(new OperationQueue(int.MaxValue));
 			services.AddSingleton(new BililiveApiClient(default, string.Empty, true));
-			services.AddSingleton<IScreen, MainScreen>();
+			services.AddSingleton(new StartupService(nameof(BilibiliLiveRecordDownLoader)));
 
 			services.AddTransient<IFlvMerger, FlvMerger>();
 			services.AddLogging(c => c.AddSerilog());

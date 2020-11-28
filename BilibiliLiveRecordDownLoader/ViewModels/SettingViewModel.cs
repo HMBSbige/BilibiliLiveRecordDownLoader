@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using ModernWpf.Controls;
 using ReactiveUI;
+using RunAtStartup;
 using System;
 using System.Reactive;
 using System.Reactive.Linq;
@@ -29,6 +30,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private string? _diskUsageProgressBarText;
 		private double _diskUsageProgressBarValue;
 		private string? _updateStatus;
+		private bool _isRunOnStartup;
 
 		#endregion
 
@@ -52,6 +54,12 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			set => this.RaiseAndSetIfChanged(ref _updateStatus, value);
 		}
 
+		public bool IsRunOnStartup
+		{
+			get => _isRunOnStartup;
+			set => this.RaiseAndSetIfChanged(ref _isRunOnStartup, value);
+		}
+
 		#endregion
 
 		#region Command
@@ -66,6 +74,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private readonly IConfigService _configService;
 		private readonly SourceList<RoomStatus> _roomList;
 		private readonly BililiveApiClient _apiClient;
+		private readonly StartupService _startup;
 
 		public readonly Config Config;
 
@@ -75,7 +84,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			IConfigService configService,
 			Config config,
 			SourceList<RoomStatus> roomList,
-			BililiveApiClient apiClient)
+			BililiveApiClient apiClient,
+			StartupService startup)
 		{
 			HostScreen = hostScreen;
 			_logger = logger;
@@ -83,6 +93,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			Config = config;
 			_roomList = roomList;
 			_apiClient = apiClient;
+			_startup = startup;
 
 			SelectMainDirCommand = ReactiveCommand.Create(SelectDirectory);
 			OpenMainDirCommand = ReactiveCommand.CreateFromObservable(OpenDirectory);
@@ -194,6 +205,55 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			{
 				DiskUsageProgressBarText = string.Empty;
 				DiskUsageProgressBarValue = 0;
+			}
+		}
+
+		public void CheckStartupStatus()
+		{
+			try
+			{
+				IsRunOnStartup = _startup.Check();
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, @"检查自启动状态失败");
+			}
+		}
+
+		private void SetStartup()
+		{
+			try
+			{
+				var data = $@"""{Utils.Utils.GetExecutablePath()}"" {Utils.Constants.ParameterSilent}";
+				_startup.Set(data);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, @"设置自启动失败");
+			}
+		}
+
+		private void RemoveStartup()
+		{
+			try
+			{
+				_startup.Delete();
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, @"取消自启动失败");
+			}
+		}
+
+		public void SwitchStartup(bool enable)
+		{
+			if (enable)
+			{
+				SetStartup();
+			}
+			else
+			{
+				RemoveStartup();
 			}
 		}
 	}

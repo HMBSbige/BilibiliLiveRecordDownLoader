@@ -3,6 +3,7 @@ using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI;
 using System;
 using System.Reactive.Disposables;
+using System.Reactive.Linq;
 
 namespace BilibiliLiveRecordDownLoader.Views
 {
@@ -16,6 +17,7 @@ namespace BilibiliLiveRecordDownLoader.Views
 			this.WhenActivated(d =>
 			{
 				ViewModel.CreateDiskMonitor().DisposeWith(d);
+				ViewModel.CheckStartupStatus();
 
 				this.Bind(ViewModel, vm => vm.Config.MainDir, v => v.MainDirTextBox.Text).DisposeWith(d);
 
@@ -37,13 +39,17 @@ namespace BilibiliLiveRecordDownLoader.Views
 						x => x,
 						Convert.ToByte).DisposeWith(d);
 
-				this.Bind(ViewModel, vm => vm.Config.IsCheckUpdateOnStart, v => v.IsCheckUpdateOnStartSwitch.IsOn).DisposeWith(d);
 				this.Bind(ViewModel, vm => vm.Config.IsCheckPreRelease, v => v.IsCheckPreReleaseSwitch.IsOn).DisposeWith(d);
 				this.BindCommand(ViewModel, vm => vm.CheckUpdateCommand, v => v.CheckUpdateButton).DisposeWith(d);
 				this.OneWayBind(ViewModel, vm => vm.UpdateStatus, v => v.UpdateStatusTextBlock.Text).DisposeWith(d);
 
 				this.Bind(ViewModel, vm => vm.Config.IsAutoConvertMp4, v => v.IsAutoConvertMp4Switch.IsOn).DisposeWith(d);
 				this.Bind(ViewModel, vm => vm.Config.IsDeleteAfterConvert, v => v.IsDeleteAfterConvertSwitch.IsOn).DisposeWith(d);
+
+				this.Bind(ViewModel, vm => vm.IsRunOnStartup, v => v.StartupSwitch.IsOn).DisposeWith(d);
+				this.Bind(ViewModel, vm => vm.Config.IsCheckUpdateOnStart, v => v.IsCheckUpdateOnStartSwitch.IsOn).DisposeWith(d);
+
+				Observable.FromEventPattern(StartupSwitch, nameof(StartupSwitch.Toggled)).Subscribe(_ => ViewModel.SwitchStartup(StartupSwitch.IsOn)).DisposeWith(d);
 			});
 		}
 	}

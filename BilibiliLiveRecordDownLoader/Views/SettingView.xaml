@@ -49,7 +49,7 @@
                     <StackPanel>
                         <ui:ToggleSwitch x:Name="IsAutoConvertMp4Switch"
                                          Header="录制完成自动转 MP4"
-                                         IsOn="True"
+                                         d:IsOn="True"
                                          OnContent="需要 FFmpeg" OffContent="" />
                         <ui:ToggleSwitch x:Name="IsDeleteAfterConvertSwitch"
                                          Header="转换完成后删除原文件"
@@ -59,16 +59,22 @@
                 </GroupBox>
                 <GroupBox Header="更新">
                     <StackPanel>
-                        <ui:ToggleSwitch x:Name="IsCheckUpdateOnStartSwitch"
-                                                 Header="启动时检查更新"
-                                                 IsOn="True"
-                                                 OnContent="" OffContent="" />
                         <ui:ToggleSwitch x:Name="IsCheckPreReleaseSwitch"
                                                  Header="包括预览版更新"
                                                  OnContent="" OffContent="" />
                         <Button x:Name="CheckUpdateButton"
                                         Content="检查更新" />
                         <TextBlock x:Name="UpdateStatusTextBlock" d:Text="无更新" />
+                    </StackPanel>
+                </GroupBox>
+                <GroupBox Header="启动">
+                    <StackPanel>
+                        <ui:ToggleSwitch x:Name="StartupSwitch"
+                                         Header="开机自启动"
+                                         OnContent="开" OffContent="关" />
+                        <ui:ToggleSwitch x:Name="IsCheckUpdateOnStartSwitch"
+                                         Header="启动时检查更新"
+                                         OnContent="" OffContent="" />
                     </StackPanel>
                 </GroupBox>
             </ui:SimpleStackPanel>
