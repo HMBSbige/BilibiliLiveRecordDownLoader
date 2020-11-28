@@ -50,7 +50,7 @@
                         <ui:ToggleSwitch x:Name="IsAutoConvertMp4Switch"
                                          Header="录制完成自动转 MP4"
                                          IsOn="True"
-                                         OnContent="" OffContent="" />
+                                         OnContent="需要 FFmpeg" OffContent="" />
                         <ui:ToggleSwitch x:Name="IsDeleteAfterConvertSwitch"
                                          Header="转换完成后删除原文件"
                                          IsEnabled="{Binding ElementName=IsAutoConvertMp4Switch,Path=IsOn}"

@@ -10,10 +10,22 @@
     xmlns:ui="http://schemas.modernwpf.com/2019"
     xmlns:wpfMaskedTextBox="clr-namespace:WPFMaskedTextBox;assembly=WPFMaskedTextBox"
     mc:Ignorable="d"
-    d:DesignHeight="450" d:DesignWidth="800" Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+    d:DesignHeight="550" d:DesignWidth="800" Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
     <Grid Margin="20,25,0,0">
         <ScrollViewer>
             <ui:SimpleStackPanel Spacing="0" Margin="0,0,20,0">
+                <GroupBox Header="FFmpeg 状态">
+                    <ui:SimpleStackPanel Spacing="15">
+                        <TextBlock x:Name="FFmpegStatusTextBlock"
+                                   d:Text="FFmpeg 运行失败！请将 FFmpeg.exe 放至程序根目录或系统路径后单击重新检查状态" d:Foreground="Red"
+                                   VerticalAlignment="Center" FontSize="14"
+                                   />
+                        <ui:HyperlinkButton
+                            x:Name="HyperlinkButton"
+                            Content="下载 FFmpeg"
+                            NavigateUri="https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.7z" />
+                    </ui:SimpleStackPanel>
+                </GroupBox>
                 <GroupBox Header="简单剪辑">
                     <Grid>
                         <Grid.RowDefinitions>

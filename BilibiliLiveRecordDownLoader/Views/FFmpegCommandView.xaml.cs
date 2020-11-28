@@ -1,5 +1,8 @@
 using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI;
+using System;
+using System.Reactive.Disposables;
+using System.Windows;
 
 namespace BilibiliLiveRecordDownLoader.Views
 {
@@ -12,7 +15,33 @@ namespace BilibiliLiveRecordDownLoader.Views
 
 			this.WhenActivated(d =>
 			{
+				this.OneWayBind(ViewModel, vm => vm.FFmpegStatus, vm => vm.FFmpegStatusTextBlock.Text).DisposeWith(d);
+				this.OneWayBind(ViewModel, vm => vm.FFmpegStatusForeground, vm => vm.FFmpegStatusTextBlock.Foreground).DisposeWith(d);
+				this.BindCommand(ViewModel, vm => vm.CheckFFmpegStatusCommand, vm => vm.FFmpegStatusTextBlock, nameof(FFmpegStatusTextBlock.MouseLeftButtonUp)).DisposeWith(d);
 
+				this.OneWayBind(ViewModel, vm => vm.CutInput, vm => vm.CutInputTextBox.Text).DisposeWith(d);
+				this.Bind(ViewModel, vm => vm.CutOutput, vm => vm.CutOutputTextBox.Text).DisposeWith(d);
+				this.Bind(ViewModel, vm => vm.CutStartTime, vm => vm.CutStartTimeTextBox.Text).DisposeWith(d);
+				this.Bind(ViewModel, vm => vm.CutEndTime, vm => vm.CutEndTimeTextBox.Text).DisposeWith(d);
+
+				this.OneWayBind(ViewModel, vm => vm.ConvertInput, vm => vm.ConvertInputTextBox.Text).DisposeWith(d);
+				this.Bind(ViewModel, vm => vm.ConvertOutput, vm => vm.ConvertOutputTextBox.Text).DisposeWith(d);
+				this.Bind(ViewModel, vm => vm.IsDelete, vm => vm.IsDeleteCheckBox.IsChecked).DisposeWith(d);
+
+				this.BindCommand(ViewModel, vm => vm.CutOpenFileCommand, vm => vm.CutInputButton).DisposeWith(d);
+				this.BindCommand(ViewModel, vm => vm.CutSaveFileCommand, vm => vm.CutOutputButton).DisposeWith(d);
+				this.BindCommand(ViewModel, vm => vm.CutCommand, vm => vm.CutButton).DisposeWith(d);
+
+				this.BindCommand(ViewModel, vm => vm.ConvertOpenFileCommand, vm => vm.ConvertInputButton).DisposeWith(d);
+				this.BindCommand(ViewModel, vm => vm.ConvertSaveFileCommand, vm => vm.ConvertOutputButton).DisposeWith(d);
+				this.BindCommand(ViewModel, vm => vm.ConvertCommand, vm => vm.ConvertButton).DisposeWith(d);
+
+				ViewModel.CheckFFmpegStatusCommand.Execute().Subscribe(b =>
+				{
+					HyperlinkButton.Visibility = b ? Visibility.Collapsed : Visibility.Visible;
+					CutButton.IsEnabled = b;
+					ConvertButton.IsEnabled = b;
+				}).DisposeWith(d);
 			});
 		}
 	}

@@ -1,4 +1,5 @@
 using BilibiliLiveRecordDownLoader.Services;
+using Microsoft.WindowsAPICodePack.Dialogs;
 using System.Windows.Media;
 
 namespace BilibiliLiveRecordDownLoader.Utils
@@ -21,5 +22,8 @@ namespace BilibiliLiveRecordDownLoader.Utils
 		public static readonly SolidColorBrush GreenBrush = new(Colors.Green);
 		public static readonly SolidColorBrush YellowBrush = new(Colors.Coral);
 		public static readonly SolidColorBrush NormalDiskUsageBrush = new(Color.FromRgb(38, 160, 218));
+
+		public static readonly CommonFileDialogFilter VideoFilter = new(@"视频文件", @"*.mp4;*.flv;*.mkv");
+		public static readonly CommonFileDialogFilter AllFilter = new(@"所有文件", @"*.*");
 	}
 }

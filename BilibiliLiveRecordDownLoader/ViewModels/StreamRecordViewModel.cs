@@ -81,60 +81,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					.ObserveOnDispatcher()
 					.Bind(out RoomList)
 					.DisposeMany()
-					.Subscribe(changeSet =>
-					{
-						foreach (var change in changeSet)
-						{
-							switch (change.Reason)
-							{
-								case ListChangeReason.Add:
-								case ListChangeReason.AddRange:
-								{
-									switch (change.Type)
-									{
-										case ChangeType.Item:
-										{
-											var room = change.Item.Current;
-											room.Start();
-											break;
-										}
-										case ChangeType.Range:
-										{
-											foreach (var room in change.Range)
-											{
-												room.Start();
-											}
-											break;
-										}
-									}
-									break;
-								}
-								case ListChangeReason.Remove:
-								case ListChangeReason.RemoveRange:
-								case ListChangeReason.Clear:
-								{
-									switch (change.Type)
-									{
-										case ChangeType.Item:
-										{
-											var room = change.Item.Current;
-											room.Stop();
-											break;
-										}
-										case ChangeType.Range:
-										{
-											foreach (var room in change.Range)
-											{
-												room.Stop();
-											}
-											break;
-										}
-									}
-									break;
-								}
-							}
-						}
-					});
+					.Subscribe(RoomListChanged);
 
 			AddRoomCommand = ReactiveCommand.CreateFromTask(AddRoomAsync);
 			ModifyRoomCommand = ReactiveCommand.CreateFromTask<object?, Unit>(ModifyRoomAsync);
@@ -142,6 +89,65 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			RefreshRoomCommand = ReactiveCommand.CreateFromTask<object?, Unit>(RefreshRoomAsync);
 			OpenDirCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(OpenDir);
 			OpenUrlCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(OpenLiveUrl);
+		}
+
+		private static void RoomListChanged(IChangeSet<RoomStatus> changeSet)
+		{
+			foreach (var change in changeSet)
+			{
+				switch (change.Reason)
+				{
+					case ListChangeReason.Add:
+					case ListChangeReason.AddRange:
+					{
+						switch (change.Type)
+						{
+							case ChangeType.Item:
+							{
+								var room = change.Item.Current;
+								room.Start();
+								break;
+							}
+							case ChangeType.Range:
+							{
+								foreach (var room in change.Range)
+								{
+									room.Start();
+								}
+
+								break;
+							}
+						}
+
+						break;
+					}
+					case ListChangeReason.Remove:
+					case ListChangeReason.RemoveRange:
+					case ListChangeReason.Clear:
+					{
+						switch (change.Type)
+						{
+							case ChangeType.Item:
+							{
+								var room = change.Item.Current;
+								room.Stop();
+								break;
+							}
+							case ChangeType.Range:
+							{
+								foreach (var room in change.Range)
+								{
+									room.Stop();
+								}
+
+								break;
+							}
+						}
+
+						break;
+					}
+				}
+			}
 		}
 
 		private void RaiseRoomsChanged()
