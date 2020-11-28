@@ -14,38 +14,45 @@
     CloseButtonText="取消"
     DefaultButton="Primary"
     d:DataContext="{d:DesignInstance models:RoomStatus}">
-    <ui:SimpleStackPanel Spacing="10">
-        <CheckBox Content="启用录制"
-                  IsChecked="{Binding Path=IsEnable,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
-                  />
-        <CheckBox Content="开播提醒"
-                  IsChecked="{Binding Path=IsNotify,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-        <ui:NumberBox x:Name="RoomIdNumberBox"
-                      Header="房间号"
-                      Minimum="0"
-                      Maximum="9223372036854775807"
-                      Value="{Binding Path=RoomId,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"/>
-        <ui:NumberBox Header="弹幕重连间隔(秒)"
-                      Minimum="0.0"
-                      Value="{Binding Path=DanMuReconnectLatency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-        <ui:NumberBox Header="开播检查间隔(秒)"
-                      Minimum="0.0"
-                      Value="{Binding Path=HttpCheckLatency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-        <ui:NumberBox Header="直播重连间隔(秒)"
-                      Minimum="0.0"
-                      Value="{Binding Path=StreamReconnectLatency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-        <ui:NumberBox Header="直播连接超时(秒)"
-                      Minimum="0.0"
-                      Value="{Binding Path=StreamConnectTimeout,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-        <ui:NumberBox Header="直播流超时(秒)"
-                      Minimum="0.0"
-                      Value="{Binding Path=StreamTimeout,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-        <ui:RadioButtons Header="弹幕服务器类型"
-                         MaxColumns="1"
-                         SelectedIndex="{Binding ClientType,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource DanmuClientTypeToIntConverter}}">
-            <RadioButton Content="TCP" />
-            <RadioButton Content="SecureWebsocket" />
-            <RadioButton Content="Websocket" />
-        </ui:RadioButtons>
-    </ui:SimpleStackPanel>
+    <ScrollViewer Padding="0,0,20,0">
+        <ui:SimpleStackPanel Spacing="10">
+            <ui:ToggleSwitch
+                Header="录制"
+                OnContent="启用"
+                OffContent="禁用"
+                IsOn="{Binding Path=IsEnable,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+            <ui:ToggleSwitch
+                Header="开播提醒"
+                OnContent="启用"
+                OffContent="禁用"
+                IsOn="{Binding Path=IsNotify,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+            <ui:NumberBox x:Name="RoomIdNumberBox"
+                          Header="房间号"
+                          Minimum="0"
+                          Maximum="9223372036854775807"
+                          Value="{Binding Path=RoomId,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"/>
+            <ui:NumberBox Header="弹幕重连间隔(秒)"
+                          Minimum="0.0"
+                          Value="{Binding Path=DanMuReconnectLatency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+            <ui:NumberBox Header="开播检查间隔(秒)"
+                          Minimum="0.0"
+                          Value="{Binding Path=HttpCheckLatency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+            <ui:NumberBox Header="直播重连间隔(秒)"
+                          Minimum="0.0"
+                          Value="{Binding Path=StreamReconnectLatency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+            <ui:NumberBox Header="直播连接超时(秒)"
+                          Minimum="0.0"
+                          Value="{Binding Path=StreamConnectTimeout,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+            <ui:NumberBox Header="直播流超时(秒)"
+                          Minimum="0.0"
+                          Value="{Binding Path=StreamTimeout,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+            <ui:RadioButtons Header="弹幕服务器类型"
+                             MaxColumns="1"
+                             SelectedIndex="{Binding ClientType,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource DanmuClientTypeToIntConverter}}">
+                <RadioButton Content="TCP" />
+                <RadioButton Content="SecureWebsocket" />
+                <RadioButton Content="Websocket" />
+            </ui:RadioButtons>
+        </ui:SimpleStackPanel>
+    </ScrollViewer>
 </dialogs:DisposableContentDialog>

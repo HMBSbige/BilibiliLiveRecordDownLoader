@@ -8,6 +8,7 @@
     xmlns:reactiveUi="http://reactiveui.net"
     xmlns:viewModels="clr-namespace:BilibiliLiveRecordDownLoader.ViewModels"
     xmlns:models="clr-namespace:BilibiliLiveRecordDownLoader.Models"
+    xmlns:controls="http://schemas.modernwpf.com/2019"
     mc:Ignorable="d"
     d:DesignHeight="450" d:DesignWidth="800"
     Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
@@ -61,18 +62,20 @@
                 <DataGridTemplateColumn Header="启用录制">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <CheckBox HorizontalAlignment="Center" VerticalAlignment="Center"
-                                      Margin="20,0,-78,0"
-                                      IsChecked="{Binding IsEnable, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <controls:ToggleSwitch
+                                Margin="20,0,-90,0"
+                                OnContent="" OffContent=""
+                                IsOn="{Binding IsEnable, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
                 <DataGridTemplateColumn Header="开播提醒">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <CheckBox HorizontalAlignment="Center" VerticalAlignment="Center"
-                                      Margin="20,0,-78,0"
-                                      IsChecked="{Binding IsNotify, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <controls:ToggleSwitch
+                                Margin="20,0,-90,0"
+                                OnContent="" OffContent=""
+                                IsOn="{Binding IsNotify, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>

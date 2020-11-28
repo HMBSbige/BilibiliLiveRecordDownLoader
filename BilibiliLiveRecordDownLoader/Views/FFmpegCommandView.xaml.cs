@@ -26,7 +26,7 @@ namespace BilibiliLiveRecordDownLoader.Views
 
 				this.OneWayBind(ViewModel, vm => vm.ConvertInput, vm => vm.ConvertInputTextBox.Text).DisposeWith(d);
 				this.Bind(ViewModel, vm => vm.ConvertOutput, vm => vm.ConvertOutputTextBox.Text).DisposeWith(d);
-				this.Bind(ViewModel, vm => vm.IsDelete, vm => vm.IsDeleteCheckBox.IsChecked).DisposeWith(d);
+				this.Bind(ViewModel, vm => vm.IsDelete, vm => vm.IsDeleteToggleSwitch.IsOn).DisposeWith(d);
 
 				this.BindCommand(ViewModel, vm => vm.CutOpenFileCommand, vm => vm.CutInputButton).DisposeWith(d);
 				this.BindCommand(ViewModel, vm => vm.CutSaveFileCommand, vm => vm.CutOutputButton).DisposeWith(d);

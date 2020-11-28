@@ -45,7 +45,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		private string _convertInput = string.Empty;
 		private string _convertOutput = string.Empty;
-		private bool? _isDelete = false;
+		private bool _isDelete = false;
 
 		#endregion
 
@@ -99,7 +99,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			set => this.RaiseAndSetIfChanged(ref _convertOutput, value);
 		}
 
-		public bool? IsDelete
+		public bool IsDelete
 		{
 			get => _isDelete;
 			set => this.RaiseAndSetIfChanged(ref _isDelete, value);
@@ -244,7 +244,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				return;
 			}
 
-			ConvertVideoAsync(ConvertInput, ConvertOutput, IsDelete.GetValueOrDefault(false)).NoWarning();
+			ConvertVideoAsync(ConvertInput, ConvertOutput, IsDelete).NoWarning();
 
 			ConvertInput = string.Empty;
 			ConvertOutput = string.Empty;
