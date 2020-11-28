@@ -286,13 +286,13 @@ namespace BilibiliApi.Clients
 					var buffer = result.Buffer;
 					try
 					{
-						while (!token.IsCancellationRequested)
+						while (buffer.Length >= 16)
 						{
 							var packet = new DanmuPacket();
 							var success = packet.ReadDanMu(ref buffer);
 							await ProcessDanMuPacketAsync(packet, token);
 
-							if (buffer.Length < 16 || !success)
+							if (!success)
 							{
 								break;
 							}

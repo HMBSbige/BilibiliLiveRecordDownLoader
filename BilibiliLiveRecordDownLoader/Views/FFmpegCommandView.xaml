@@ -30,25 +30,45 @@
                                              Margin="5">
                             <TextBlock Text="开始时刻" VerticalAlignment="Center" />
                             <wpfMaskedTextBox:MaskedTextBox
-                                x:Name="TextBox"
+                                x:Name="CutStartTimeTextBox"
                                 Mask="##:##:##.###"
                                 PromptChar="0"
                                 Style="{DynamicResource DefaultTextBoxStyle}"
                                 Filter="Number" />
                             <TextBlock Text="结束时刻" VerticalAlignment="Center" />
                             <wpfMaskedTextBox:MaskedTextBox
-                                x:Name="TextBox2"
+                                x:Name="CutEndTimeTextBox"
                                 Mask="##:##:##.###"
                                 PromptChar="0"
                                 Style="{DynamicResource DefaultTextBoxStyle}"
                                 Filter="Number" />
                         </ui:SimpleStackPanel>
-                        <TextBox Grid.Row="0" Grid.Column="0" d:Text="114514" IsReadOnly="True" Margin="0,5,5,5" />
-                        <TextBox Grid.Row="1" Grid.Column="0" d:Text="1919810" Margin="0,5,5,5" />
+                        <TextBox Grid.Row="0" Grid.Column="0" x:Name="CutInputTextBox" d:Text="114514" IsReadOnly="True" Margin="0,5,5,5" />
+                        <TextBox Grid.Row="1" Grid.Column="0" x:Name="CutOutputTextBox" d:Text="1919810" Margin="0,5,5,5" />
 
-                        <Button Grid.Row="0" Grid.Column="1" Content="视频" Margin="5,5,0,5"/>
-                        <Button Grid.Row="1" Grid.Column="1" Content="输出" Margin="5,5,0,5" />
-                        <Button Grid.Row="2" Grid.Column="1" Content="截取" Margin="5,5,0,5" />
+                        <Button Grid.Row="0" Grid.Column="1" x:Name="CutInputButton" Content="视频" Margin="5,5,0,5"/>
+                        <Button Grid.Row="1" Grid.Column="1" x:Name="CutOutputButton" Content="输出" Margin="5,5,0,5" />
+                        <Button Grid.Row="2" Grid.Column="1" x:Name="CutButton" Content="截取" Margin="5,5,0,5" />
+                    </Grid>
+                </GroupBox>
+                <GroupBox Header="转封装">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <CheckBox x:Name="IsDeleteCheckBox" Grid.Row="2" Grid.Column="0" Content="转换完成后删除原文件" />
+                        <TextBox Grid.Row="0" Grid.Column="0" x:Name="ConvertInputTextBox" d:Text="114514" IsReadOnly="True" Margin="0,5,5,5" />
+                        <TextBox Grid.Row="1" Grid.Column="0" x:Name="ConvertOutputTextBox" d:Text="1919810" Margin="0,5,5,5" />
+
+                        <Button Grid.Row="0" Grid.Column="1" x:Name="ConvertInputButton" Content="选择" Margin="5,5,0,5"/>
+                        <Button Grid.Row="1" Grid.Column="1" x:Name="ConvertOutputButton" Content="输出" Margin="5,5,0,5" />
+                        <Button Grid.Row="2" Grid.Column="1" x:Name="ConvertButton" Content="封装" Margin="5,5,0,5" />
                     </Grid>
                 </GroupBox>
             </ui:SimpleStackPanel>
