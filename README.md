@@ -1,12 +1,18 @@
 # BilibiliLiveRecordDownLoader
 [![CI](https://github.com/HMBSbige/BilibiliLiveRecordDownLoader/workflows/CI/badge.svg)](https://github.com/HMBSbige/BilibiliLiveRecordDownLoader/actions)
 
-Bilibili 直播回放下载
+Bilibili 直播录制与回放下载
+
+~~也是 WPF 最佳实践~~
 
 ## 主要功能
-- [x] 多线程下载
-- [x] 自动合并分段 FLV
-- [ ] 未来可能重写[录播机](https://github.com/HMBSbige/AutoSplitVideo)并将录播机合进来
+- [x] 多线程下载直播回放并自动合并分段 FLV
+- [x] 多直播间录制
+- [x] 登录后支持录制付费直播
+- [x] 开播提醒
+- [x] 录制完成后自动转 MP4
+- [x] 简单剪辑分段、手动转封装
+- [x] 记录直播间标题变化
 
 ## 预览
 ![](Build/preview.png)
