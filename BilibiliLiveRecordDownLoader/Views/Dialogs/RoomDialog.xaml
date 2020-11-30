@@ -7,7 +7,7 @@
     xmlns:dialogs="clr-namespace:BilibiliLiveRecordDownLoader.Views.Dialogs"
     xmlns:ui="http://schemas.modernwpf.com/2019"
     xmlns:models="clr-namespace:BilibiliLiveRecordDownLoader.Models"
-    xmlns:system="clr-namespace:System;assembly=System.Runtime"
+    xmlns:constants="clr-namespace:BilibiliLiveRecordDownLoader.Utils"
     mc:Ignorable="d"
     d:DesignHeight="800"
     d:DesignWidth="600"
@@ -53,13 +53,13 @@
                       IsEditable="True"
                       HorizontalAlignment="Stretch"
                       Text="{Binding Path=Qn,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource QnToStringConverter}}">
-                <system:String>原画</system:String>
-                <system:String>4K</system:String>
-                <system:String>蓝光(杜比)</system:String>
-                <system:String>蓝光</system:String>
-                <system:String>超清</system:String>
-                <system:String>高清</system:String>
-                <system:String>流畅</system:String>
+                <ComboBoxItem Content="{x:Static constants:Constants.Qn10000}" />
+                <ComboBoxItem Content="{x:Static constants:Constants.Qn800}" />
+                <ComboBoxItem Content="{x:Static constants:Constants.Qn401}" />
+                <ComboBoxItem Content="{x:Static constants:Constants.Qn400}" />
+                <ComboBoxItem Content="{x:Static constants:Constants.Qn250}" />
+                <ComboBoxItem Content="{x:Static constants:Constants.Qn150}" />
+                <ComboBoxItem Content="{x:Static constants:Constants.Qn80}" />
             </ComboBox>
             <ui:RadioButtons Header="弹幕服务器类型"
                              MaxColumns="1"
