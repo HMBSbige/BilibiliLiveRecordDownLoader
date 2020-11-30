@@ -74,8 +74,6 @@ namespace BilibiliApi.Clients
 
 			_cts = new();
 
-			await GetServerAsync(_cts.Token);
-
 			await ConnectWithRetryAsync(_cts.Token);
 		}
 
@@ -142,6 +140,8 @@ namespace BilibiliApi.Clients
 
 		private async ValueTask ConnectWithRetryAsync(CancellationToken token)
 		{
+			await GetServerAsync(token);
+
 			while (!ClientConnected && !token.IsCancellationRequested)
 			{
 				_logger.LogInformation($@"[{RoomId}] 正在连接弹幕服务器 {Server}");
