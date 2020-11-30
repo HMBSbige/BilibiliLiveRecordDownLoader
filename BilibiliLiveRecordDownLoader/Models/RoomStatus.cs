@@ -311,9 +311,9 @@ namespace BilibiliLiveRecordDownLoader.Models
 		{
 			_danmuClient = ClientType switch
 			{
-				DanmuClientType.SecureWebsocket => new WssDanmuClient(_logger),
+				DanmuClientType.TCP => new TcpDanmuClient(_logger),
 				DanmuClientType.Websocket => new WsDanmuClient(_logger),
-				_ => new TcpDanmuClient(_logger)
+				_ => new WssDanmuClient(_logger)
 			};
 			_danmuClient.RetryInterval = TimeSpan.FromSeconds(DanMuReconnectLatency);
 			_danmuClient.RoomId = RoomId;
