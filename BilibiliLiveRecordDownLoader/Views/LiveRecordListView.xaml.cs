@@ -42,28 +42,25 @@ namespace BilibiliLiveRecordDownLoader.Views
 				this.OneWayBind(ViewModel, vm => vm.IsLiveRecordBusy, v => v.LiveRecordBusyIndicator.IsActive).DisposeWith(d);
 
 				this.OneWayBind(ViewModel, vm => vm.LiveRecordList, v => v.LiveRecordListDataGrid.ItemsSource).DisposeWith(d);
-				this.WhenAnyValue(v => v.LiveRecordListDataGrid.SelectedItem)
-						.BindTo(ViewModel, vm => vm.SelectedItem)
-						.DisposeWith(d);
-				this.WhenAnyValue(v => v.LiveRecordListDataGrid.SelectedItems)
-						.BindTo(ViewModel, vm => vm.SelectedItems)
-						.DisposeWith(d);
+
+				var selectedItems = this.WhenAnyValue(v => v.LiveRecordListDataGrid.SelectedItems);
+				var selectedItem = this.WhenAnyValue(v => v.LiveRecordListDataGrid.SelectedItem);
 				this.BindCommand(ViewModel,
 					vm => vm.DownLoadCommand,
 					v => v.DownLoadMenuItem,
-					vm => vm.SelectedItems).DisposeWith(d);
+					selectedItems).DisposeWith(d);
 				this.BindCommand(ViewModel,
 					vm => vm.CopyLiveRecordDownloadUrlCommand,
 					v => v.CopyLiveRecordDownloadUrlMenuItem,
-					vm => vm.SelectedItem).DisposeWith(d);
+					selectedItem).DisposeWith(d);
 				this.BindCommand(ViewModel,
 					vm => vm.OpenDirCommand,
 					v => v.OpenDirMenuItem,
-					vm => vm.SelectedItem).DisposeWith(d);
+					selectedItem).DisposeWith(d);
 				this.BindCommand(ViewModel,
 					vm => vm.OpenLiveRecordUrlCommand,
 					v => v.OpenLiveRecordUrlMenuItem,
-					vm => vm.SelectedItem).DisposeWith(d);
+					selectedItem).DisposeWith(d);
 			});
 		}
 	}

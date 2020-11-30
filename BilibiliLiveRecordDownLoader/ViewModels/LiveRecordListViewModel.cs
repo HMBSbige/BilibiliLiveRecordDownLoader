@@ -27,8 +27,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		#region 字段
 
-		private object? _selectedItem;
-		private object? _selectedItems;
 		private string? _imageUri;
 		private string? _name;
 		private long _uid;
@@ -42,18 +40,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		#endregion
 
 		#region 属性
-
-		public object? SelectedItem
-		{
-			get => _selectedItem;
-			set => this.RaiseAndSetIfChanged(ref _selectedItem, value);
-		}
-
-		public object? SelectedItems
-		{
-			get => _selectedItems;
-			set => this.RaiseAndSetIfChanged(ref _selectedItems, value);
-		}
 
 		public string? ImageUri
 		{

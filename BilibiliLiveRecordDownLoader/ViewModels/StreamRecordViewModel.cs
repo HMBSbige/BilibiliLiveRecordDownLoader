@@ -26,29 +26,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		public string UrlPathSegment => @"StreamRecord";
 		public IScreen HostScreen { get; }
 
-		#region 字段
-
-		private object? _selectedItem;
-		private object? _selectedItems;
-
-		#endregion
-
-		#region 属性
-
-		public object? SelectedItem
-		{
-			get => _selectedItem;
-			set => this.RaiseAndSetIfChanged(ref _selectedItem, value);
-		}
-
-		public object? SelectedItems
-		{
-			get => _selectedItems;
-			set => this.RaiseAndSetIfChanged(ref _selectedItems, value);
-		}
-
-		#endregion
-
 		#region Command
 
 		public ReactiveCommand<Unit, Unit> AddRoomCommand { get; }
