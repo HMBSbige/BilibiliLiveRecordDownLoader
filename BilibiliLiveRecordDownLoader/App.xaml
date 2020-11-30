@@ -35,6 +35,7 @@
             </ResourceDictionary.MergedDictionaries>
             <valueConverters:LiveStatusToBrushConverter x:Key="LiveStatusToBrushConverter" />
             <valueConverters:DanmuClientTypeToIntConverter x:Key="DanmuClientTypeToIntConverter" />
+            <valueConverters:QnToStringConverter x:Key="QnToStringConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

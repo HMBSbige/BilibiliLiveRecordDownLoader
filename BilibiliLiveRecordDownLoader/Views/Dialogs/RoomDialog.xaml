@@ -7,6 +7,7 @@
     xmlns:dialogs="clr-namespace:BilibiliLiveRecordDownLoader.Views.Dialogs"
     xmlns:ui="http://schemas.modernwpf.com/2019"
     xmlns:models="clr-namespace:BilibiliLiveRecordDownLoader.Models"
+    xmlns:system="clr-namespace:System;assembly=System.Runtime"
     mc:Ignorable="d"
     d:DesignHeight="800"
     d:DesignWidth="600"
@@ -46,11 +47,20 @@
             <ui:NumberBox Header="直播流超时(秒)"
                           Minimum="0.0"
                           Value="{Binding Path=StreamTimeout,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-            <ui:NumberBox Header="画质参数（qn）"
-                          Description="下次录制生效"
-                          Minimum="80"
-                          Maximum="9223372036854775807"
-                          Value="{Binding Path=Qn,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+            <ComboBox ui:ControlHelper.Header="画质"
+                      ui:ControlHelper.PlaceholderText="原画"
+                      ui:ControlHelper.Description="下次录制生效"
+                      IsEditable="True"
+                      HorizontalAlignment="Stretch"
+                      Text="{Binding Path=Qn,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource QnToStringConverter}}">
+                <system:String>原画</system:String>
+                <system:String>4K</system:String>
+                <system:String>蓝光(杜比)</system:String>
+                <system:String>蓝光</system:String>
+                <system:String>超清</system:String>
+                <system:String>高清</system:String>
+                <system:String>流畅</system:String>
+            </ComboBox>
             <ui:RadioButtons Header="弹幕服务器类型"
                              MaxColumns="1"
                              SelectedIndex="{Binding ClientType,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource DanmuClientTypeToIntConverter}}">

@@ -57,7 +57,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private double _streamTimeout = 5.0;
 		private string _speed = string.Empty;
 		private DanmuClientType _clientType = DanmuClientType.SecureWebsocket;
-		private long _qn = 10000;
+		private Qn _qn = Qn.原画;
 
 		#endregion
 
@@ -212,7 +212,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 		/// <summary>
 		/// qn 参数
 		/// </summary>
-		public long Qn
+		public Qn Qn
 		{
 			get => _qn;
 			set => this.RaiseAndSetIfChanged(ref _qn, value);
@@ -341,7 +341,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 				while (LiveStatus == LiveStatus.直播)
 				{
 					RecordStatus = RecordStatus.启动中;
-					var urlData = await _apiClient.GetPlayUrlDataAsync(RoomId, _qn, _token);
+					var urlData = await _apiClient.GetPlayUrlDataAsync(RoomId, (long)Qn, _token);
 					var url = urlData.durl!.First().url;
 
 					await using var downloader = new HttpDownloader(TimeSpan.FromSeconds(StreamConnectTimeout), _config.Cookie, _config.UserAgent, _config.IsUseProxy)
@@ -569,7 +569,8 @@ namespace BilibiliLiveRecordDownLoader.Models
 				StreamReconnectLatency = StreamReconnectLatency,
 				StreamConnectTimeout = StreamConnectTimeout,
 				StreamTimeout = StreamTimeout,
-				ClientType = ClientType
+				ClientType = ClientType,
+				Qn = Qn
 			};
 		}
 
@@ -608,6 +609,8 @@ namespace BilibiliLiveRecordDownLoader.Models
 				}
 				await BuildDanmuClientAsync();
 			}
+
+			Qn = room.Qn;
 		}
 
 		#endregion
