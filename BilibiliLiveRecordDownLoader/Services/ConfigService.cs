@@ -9,6 +9,7 @@ using Microsoft.VisualStudio.Threading;
 using ReactiveUI;
 using System;
 using System.IO;
+using System.Linq;
 using System.Reactive.Linq;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -38,6 +39,8 @@ namespace BilibiliLiveRecordDownLoader.Services
 			IgnoreReadOnlyProperties = true,
 		};
 
+		private static readonly string[] RoomProperties = Utils.Utils.GetPropertiesNameExcludeJsonIgnore(typeof(RoomStatus)).ToArray();
+
 		public ConfigService(
 			ILogger<ConfigService> logger,
 			Config config,
@@ -52,14 +55,17 @@ namespace BilibiliLiveRecordDownLoader.Services
 				.Subscribe(_ =>
 				{
 					SaveAsync(default).NoWarning();
+
+					// 监控 房间设置 变化
 					_roomsMonitor?.Dispose();
 					_roomsMonitor = Config.Rooms.AsObservableChangeSet()
-						.WhenAnyPropertyChanged()
+						.WhenAnyPropertyChanged(RoomProperties)
 						.Subscribe(_ => RaiseRoomsChanged());
 				});
 
 			_networkSettingMonitor = Config.WhenAnyValue(x => x.Cookie, x => x.UserAgent, x => x.IsUseProxy)
-					.Throttle(TimeSpan.FromSeconds(1))
+					.Throttle(TimeSpan.FromSeconds(0.8))
+					.DistinctUntilChanged()
 					.Subscribe(x =>
 					{
 						var (cookie, ua, useProxy) = x;

@@ -105,6 +105,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private async ValueTask InitAsync()
 		{
 			await _configService.LoadAsync(default);
+			await Task.Delay(TimeSpan.FromSeconds(1)); // Wait apiClient rebuild
 
 			_roomList.AddRange(Config.Rooms);
 

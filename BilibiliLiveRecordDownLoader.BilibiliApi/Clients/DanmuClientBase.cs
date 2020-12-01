@@ -10,6 +10,7 @@ using System.IO;
 using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Linq;
+using System.Net.Http;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Text;
@@ -36,11 +37,10 @@ namespace BilibiliApi.Clients
 		protected abstract string Server { get; }
 		private string? _token;
 		private long _uid;
-		private long _protocolVersion = 2;
+		private const long ProtocolVersion = 2;
 
 		private const string DefaultHost = @"broadcastlv.chat.bilibili.com";
 		protected abstract ushort DefaultPort { get; }
-		private const string DefaultToken = @"";
 
 		protected abstract bool ClientConnected { get; }
 
@@ -81,11 +81,26 @@ namespace BilibiliApi.Clients
 		{
 			try
 			{
+				_uid = default;
+				_token = default;
+				Host = default;
+				Port = default;
+
 				if (ApiClient is null)
 				{
-					_logger.LogWarning(@"使用默认弹幕服务器地址");
 					return;
 				}
+
+				var conf = await ApiClient.GetDanmuConfAsync(RoomId, token);
+				if (conf?.data?.host_server_list is null || conf.data.host_server_list.Length == 0)
+				{
+					throw new HttpRequestException(@"Wrong response");
+				}
+
+				var server = conf.data.host_server_list.First();
+				Host = server.host;
+				Port = GetPort(server);
+				_token = conf.data.token;
 
 				try
 				{
@@ -93,36 +108,25 @@ namespace BilibiliApi.Clients
 				}
 				catch
 				{
-					_uid = 0;
+					// ignored
 				}
-
-				var conf = await ApiClient.GetDanmuConfAsync(RoomId, token);
-				if (conf is null)
-				{
-					throw new Exception(@"Empty json response");
-				}
-
-				_token = conf.data!.token;
-				Host = conf.data.host_server_list!.First().host;
-				Port = GetPort(conf.data.host_server_list.First());
 			}
 			catch (Exception ex)
 			{
-				_logger.LogWarning(ex, @"获取弹幕服务器地址失败，尝试使用默认服务器地址");
+				_logger.LogWarning(ex, @"获取弹幕服务器失败");
 			}
 			finally
 			{
-				if (string.IsNullOrWhiteSpace(Host))
+				if (string.IsNullOrEmpty(_token) || string.IsNullOrWhiteSpace(Host))
 				{
+					_logger.LogWarning(@"使用默认弹幕服务器");
 					Host = DefaultHost;
 				}
 
-				if (Port == 0)
+				if (Port == default)
 				{
 					Port = DefaultPort;
 				}
-
-				_token ??= DefaultToken;
 			}
 		}
 
@@ -140,10 +144,10 @@ namespace BilibiliApi.Clients
 
 		private async ValueTask ConnectWithRetryAsync(CancellationToken token)
 		{
-			await GetServerAsync(token);
-
 			while (!ClientConnected && !token.IsCancellationRequested)
 			{
+				await GetServerAsync(token);
+
 				_logger.LogInformation($@"[{RoomId}] 正在连接弹幕服务器 {Server}");
 
 				if (!await ConnectAsync(token))
@@ -166,7 +170,7 @@ namespace BilibiliApi.Clients
 			{
 				await ClientHandshakeAsync(token);
 
-				await AuthAsync(token);
+				await SendAuthAsync(token);
 
 				_heartBeatTask = Observable.Interval(TimeSpan.FromSeconds(30))
 					.Subscribe(_ => SendHeartbeatAsync(token).NoWarning());
@@ -200,9 +204,18 @@ namespace BilibiliApi.Clients
 			await SendAsync(buffer, token);
 		}
 
-		private async ValueTask AuthAsync(CancellationToken token)
+		private async ValueTask SendAuthAsync(CancellationToken token)
 		{
-			var json = @$"{{""roomid"":{RoomId},""uid"":{_uid},""protover"":{_protocolVersion},""key"":""{_token}""}}";
+			string json;
+			if (string.IsNullOrEmpty(_token))
+			{
+				json = @$"{{""roomid"":{RoomId},""uid"":{_uid},""protover"":{ProtocolVersion}}}";
+			}
+			else
+			{
+				json = @$"{{""roomid"":{RoomId},""uid"":{_uid},""protover"":{ProtocolVersion},""key"":""{_token}""}}";
+			}
+			_logger.LogDebug($@"AuthJson: {json}");
 			await SendDataAsync(Operation.Auth, json, token);
 		}
 
@@ -317,54 +330,51 @@ namespace BilibiliApi.Clients
 
 		private async ValueTask ProcessDanMuPacketAsync(DanmuPacket packet, CancellationToken token)
 		{
-			if (packet.PacketLength >= 16)
+			switch (packet.ProtocolVersion)
 			{
-				switch (packet.ProtocolVersion)
+				case 0:
+				case 1:
 				{
-					case 0:
-					case 1:
-					{
-						EmitDanmu(packet);
-						break;
-					}
-					case 2:
-					{
-						await using var ms = new MemoryStream();
-						await ms.WriteAsync(packet.Body[2..], token); // Drop header
-						ms.Seek(0, SeekOrigin.Begin);
+					EmitDanmu(packet);
+					break;
+				}
+				case 2:
+				{
+					await using var ms = new MemoryStream();
+					await ms.WriteAsync(packet.Body[2..], token); // Drop header
+					ms.Seek(0, SeekOrigin.Begin);
 
-						await using var deflate = new DeflateStream(ms, CompressionMode.Decompress);
+					await using var deflate = new DeflateStream(ms, CompressionMode.Decompress);
 
-						using var header = MemoryPool<byte>.Shared.Rent(4);
-						while (true)
+					using var header = MemoryPool<byte>.Shared.Rent(4);
+					while (true)
+					{
+						var headerLength = await deflate.ReadAsync(header.Memory.Slice(0, 4), token);
+
+						if (headerLength < 4)
 						{
-							var headerLength = await deflate.ReadAsync(header.Memory.Slice(0, 4), token);
-
-							if (headerLength < 4)
-							{
-								break;
-							}
-
-							var packetLength = BinaryPrimitives.ReadInt32BigEndian(header.Memory.Span);
-							var remainSize = packetLength - headerLength;
-
-							using var subBuffer = MemoryPool<byte>.Shared.Rent(remainSize);
-
-							await deflate.ReadAsync(subBuffer.Memory.Slice(0, remainSize), token);
-
-							var subPacket = new DanmuPacket { PacketLength = packetLength };
-							subPacket.ReadDanMu(subBuffer.Memory);
-
-							await ProcessDanMuPacketAsync(subPacket, token);
+							break;
 						}
 
-						break;
+						var packetLength = BinaryPrimitives.ReadInt32BigEndian(header.Memory.Span);
+						var remainSize = packetLength - headerLength;
+
+						using var subBuffer = MemoryPool<byte>.Shared.Rent(remainSize);
+
+						await deflate.ReadAsync(subBuffer.Memory.Slice(0, remainSize), token);
+
+						var subPacket = new DanmuPacket { PacketLength = packetLength };
+						subPacket.ReadDanMu(subBuffer.Memory);
+
+						await ProcessDanMuPacketAsync(subPacket, token);
 					}
-					default:
-					{
-						_logger.LogWarning($@"弹幕协议不支持。Version: {packet.ProtocolVersion}");
-						break;
-					}
+
+					break;
+				}
+				default:
+				{
+					_logger.LogWarning($@"弹幕协议不支持。Version: {packet.ProtocolVersion}");
+					break;
 				}
 			}
 		}

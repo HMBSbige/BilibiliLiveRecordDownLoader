@@ -1,6 +1,11 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
+using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 using System.Windows;
 
 namespace BilibiliLiveRecordDownLoader.Utils
@@ -133,6 +138,13 @@ namespace BilibiliLiveRecordDownLoader.Utils
 		public static string? GetAppVersion()
 		{
 			return typeof(App).Assembly.GetName().Version?.ToString();
+		}
+
+		public static IEnumerable<string> GetPropertiesNameExcludeJsonIgnore(Type type)
+		{
+			return type.GetProperties()
+				.Where(pi => !Attribute.IsDefined(pi, typeof(JsonIgnoreAttribute)) && !Attribute.IsDefined(pi, typeof(IgnoreDataMemberAttribute)))
+				.Select(p => p.Name);
 		}
 	}
 }

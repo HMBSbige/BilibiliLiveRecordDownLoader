@@ -382,7 +382,10 @@ namespace BilibiliLiveRecordDownLoader.Models
 						}
 					}
 					catch (OperationCanceledException) { throw; }
-					catch (IOException ex) when (ex.InnerException is SocketException { ErrorCode: (int)SocketError.OperationAborted }) { }
+					catch (IOException ex) when (ex.InnerException is SocketException { ErrorCode: (int)SocketError.OperationAborted })
+					{
+						// downloader stream manually closed
+					}
 					catch (Exception e)
 					{
 						if (e is HttpRequestException ex)

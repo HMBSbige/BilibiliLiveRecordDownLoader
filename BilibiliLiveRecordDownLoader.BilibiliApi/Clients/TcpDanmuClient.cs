@@ -43,8 +43,8 @@ namespace BilibiliApi.Clients
 
 		protected override void ResetClient()
 		{
-			_client?.Dispose();
 			base.ResetClient();
+			_client?.Dispose();
 		}
 	}
 }
