@@ -16,6 +16,9 @@ insert_final_newline = true
 [*.bat]
 indent_style = tab
 
+[*.csproj]
+indent_size = 2
+
 # c# 文件
 [*.cs]
 
