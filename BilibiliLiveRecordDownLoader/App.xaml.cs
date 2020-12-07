@@ -136,7 +136,7 @@ namespace BilibiliLiveRecordDownLoader
 			Log.Logger = new LoggerConfiguration()
 #if DEBUG
 				.MinimumLevel.Debug()
-				.WriteTo.Debug(outputTemplate: Constants.OutputTemplate)
+				.WriteTo.Async(c => c.Debug(outputTemplate: Constants.OutputTemplate))
 #else
 				.MinimumLevel.Information()
 #endif
