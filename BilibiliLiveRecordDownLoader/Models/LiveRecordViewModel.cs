@@ -1,117 +1,73 @@
 using BilibiliApi.Model.LiveRecordList;
 using ReactiveUI;
+using ReactiveUI.Fody.Helpers;
 using System;
 
 namespace BilibiliLiveRecordDownLoader.Models
 {
 	public class LiveRecordViewModel : ReactiveObject
 	{
-		#region 字段
-
-		private string? _rid;
-		private string? _title;
-		private string? _cover;
-		private string? _areaName;
-		private string? _parentAreaName;
-		private DateTime _startTime;
-		private DateTime _endTime;
-		private long _online;
-		private long _danmuNum;
-		private TimeSpan _length;
-
-		#endregion
-
 		#region 属性
 
 		/// <summary>
 		/// 视频id
 		/// </summary>
-		public string? Rid
-		{
-			get => _rid;
-			set => this.RaiseAndSetIfChanged(ref _rid, value);
-		}
+		[Reactive]
+		public string? Rid { get; set; }
 
 		/// <summary>
 		/// 标题
 		/// </summary>
-		public string? Title
-		{
-			get => _title;
-			set => this.RaiseAndSetIfChanged(ref _title, value);
-		}
+		[Reactive]
+		public string? Title { get; set; }
 
 		/// <summary>
 		/// 封面地址
 		/// </summary>
-		public string? Cover
-		{
-			get => _cover;
-			set => this.RaiseAndSetIfChanged(ref _cover, value);
-		}
+		[Reactive]
+		public string? Cover { get; set; }
 
 		/// <summary>
 		/// 分区名
 		/// </summary>
-		public string? AreaName
-		{
-			get => _areaName;
-			set => this.RaiseAndSetIfChanged(ref _areaName, value);
-		}
+		[Reactive]
+		public string? AreaName { get; set; }
 
 		/// <summary>
 		/// 主分区名
 		/// </summary>
-		public string? ParentAreaName
-		{
-			get => _parentAreaName;
-			set => this.RaiseAndSetIfChanged(ref _parentAreaName, value);
-		}
+		[Reactive]
+		public string? ParentAreaName { get; set; }
 
 		/// <summary>
 		/// 开始时间
 		/// </summary>
-		public DateTime StartTime
-		{
-			get => _startTime;
-			set => this.RaiseAndSetIfChanged(ref _startTime, value);
-		}
+		[Reactive]
+		public DateTime StartTime { get; set; }
 
 		/// <summary>
 		/// 结束时间
 		/// </summary>
-		public DateTime EndTime
-		{
-			get => _endTime;
-			set => this.RaiseAndSetIfChanged(ref _endTime, value);
-		}
+		[Reactive]
+		public DateTime EndTime { get; set; }
 
 		/// <summary>
 		/// 人气峰值
 		/// </summary>
-		public long Online
-		{
-			get => _online;
-			set => this.RaiseAndSetIfChanged(ref _online, value);
-		}
+		[Reactive]
+		public long Online { get; set; }
 
 		/// <summary>
 		/// 弹幕数
 		/// </summary>
-		public long DanmuNum
-		{
-			get => _danmuNum;
-			set => this.RaiseAndSetIfChanged(ref _danmuNum, value);
-		}
+		[Reactive]
+		public long DanmuNum { get; set; }
 
 		/// <summary>
 		/// 视频长度
 		/// </summary>
-		public TimeSpan Length
-		{
-			get => _length;
-			set => this.RaiseAndSetIfChanged(ref _length, value);
-		}
+		[Reactive]
+		public TimeSpan Length { get; set; }
 
 		#endregion
 

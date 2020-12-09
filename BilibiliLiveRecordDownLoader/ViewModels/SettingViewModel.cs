@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using ModernWpf.Controls;
 using ReactiveUI;
+using ReactiveUI.Fody.Helpers;
 using RunAtStartup;
 using System;
 using System.Reactive;
@@ -17,48 +18,25 @@ using UpdateChecker;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
-#pragma warning disable CS8612
 	public class SettingViewModel : ReactiveObject, IRoutableViewModel
-#pragma warning restore CS8612
 	{
 		public string UrlPathSegment => @"Settings";
 
 		public IScreen HostScreen { get; }
 
-		#region 字段
-
-		private string? _diskUsageProgressBarText;
-		private double _diskUsageProgressBarValue;
-		private string? _updateStatus;
-		private bool _isRunOnStartup;
-
-		#endregion
-
 		#region 属性
 
-		public string? DiskUsageProgressBarText
-		{
-			get => _diskUsageProgressBarText;
-			set => this.RaiseAndSetIfChanged(ref _diskUsageProgressBarText, value);
-		}
+		[Reactive]
+		public string? DiskUsageProgressBarText { get; set; }
 
-		public double DiskUsageProgressBarValue
-		{
-			get => _diskUsageProgressBarValue;
-			set => this.RaiseAndSetIfChanged(ref _diskUsageProgressBarValue, value);
-		}
+		[Reactive]
+		public double DiskUsageProgressBarValue { get; set; }
 
-		public string? UpdateStatus
-		{
-			get => _updateStatus;
-			set => this.RaiseAndSetIfChanged(ref _updateStatus, value);
-		}
+		[Reactive]
+		public string? UpdateStatus { get; set; }
 
-		public bool IsRunOnStartup
-		{
-			get => _isRunOnStartup;
-			set => this.RaiseAndSetIfChanged(ref _isRunOnStartup, value);
-		}
+		[Reactive]
+		public bool IsRunOnStartup { get; set; }
 
 		#endregion
 

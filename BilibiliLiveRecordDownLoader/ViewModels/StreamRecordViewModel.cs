@@ -19,9 +19,7 @@ using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
-#pragma warning disable CS8612
 	public class StreamRecordViewModel : ReactiveObject, IRoutableViewModel
-#pragma warning restore CS8612
 	{
 		public string UrlPathSegment => @"StreamRecord";
 		public IScreen HostScreen { get; }

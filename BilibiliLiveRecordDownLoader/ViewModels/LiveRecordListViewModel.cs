@@ -6,6 +6,7 @@ using BilibiliLiveRecordDownLoader.Shared.Utils;
 using DynamicData;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
+using ReactiveUI.Fody.Helpers;
 using System;
 using System.Collections;
 using System.Collections.ObjectModel;
@@ -18,82 +19,39 @@ using Constants = BilibiliLiveRecordDownLoader.Utils.Constants;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
-#pragma warning disable CS8612
 	public sealed class LiveRecordListViewModel : ReactiveObject, IRoutableViewModel, IDisposable
-#pragma warning restore CS8612
 	{
 		public string UrlPathSegment => @"LiveRecordList";
 		public IScreen HostScreen { get; }
 
-		#region 字段
-
-		private string? _imageUri;
-		private string? _name;
-		private long _uid;
-		private long _level;
-		private long _roomId;
-		private long _shortRoomId;
-		private long _recordCount;
-		private bool _isLiveRecordBusy;
-		private bool _triggerLiveRecordListQuery;
-
-		#endregion
-
 		#region 属性
 
-		public string? ImageUri
-		{
-			get => _imageUri;
-			set => this.RaiseAndSetIfChanged(ref _imageUri, value);
-		}
+		[Reactive]
+		public string? ImageUri { get; set; }
 
-		public string? Name
-		{
-			get => _name;
-			set => this.RaiseAndSetIfChanged(ref _name, value);
-		}
+		[Reactive]
+		public string? Name { get; set; }
 
-		public long Uid
-		{
-			get => _uid;
-			set => this.RaiseAndSetIfChanged(ref _uid, value);
-		}
+		[Reactive]
+		public long Uid { get; set; }
 
-		public long Level
-		{
-			get => _level;
-			set => this.RaiseAndSetIfChanged(ref _level, value);
-		}
+		[Reactive]
+		public long Level { get; set; }
 
-		public long RoomId
-		{
-			get => _roomId;
-			set => this.RaiseAndSetIfChanged(ref _roomId, value);
-		}
+		[Reactive]
+		public long RoomId { get; set; }
 
-		public long ShortRoomId
-		{
-			get => _shortRoomId;
-			set => this.RaiseAndSetIfChanged(ref _shortRoomId, value);
-		}
+		[Reactive]
+		public long ShortRoomId { get; set; }
 
-		public long RecordCount
-		{
-			get => _recordCount;
-			set => this.RaiseAndSetIfChanged(ref _recordCount, value);
-		}
+		[Reactive]
+		public long RecordCount { get; set; }
 
-		public bool IsLiveRecordBusy
-		{
-			get => _isLiveRecordBusy;
-			set => this.RaiseAndSetIfChanged(ref _isLiveRecordBusy, value);
-		}
+		[Reactive]
+		public bool IsLiveRecordBusy { get; set; }
 
-		public bool TriggerLiveRecordListQuery
-		{
-			get => _triggerLiveRecordListQuery;
-			set => this.RaiseAndSetIfChanged(ref _triggerLiveRecordListQuery, value);
-		}
+		[Reactive]
+		public bool TriggerLiveRecordListQuery { get; set; }
 
 		#endregion
 

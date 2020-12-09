@@ -1,45 +1,25 @@
 using BilibiliLiveRecordDownLoader.Interfaces;
 using ReactiveUI;
+using ReactiveUI.Fody.Helpers;
 using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 {
 	public abstract class TaskViewModel : ReactiveObject, ITask
 	{
-		#region 字段
-
-		private double _progress;
-		private string? _speed;
-		private string _status = @"未开始";
-		private string? _description;
-
-		#endregion
-
 		#region 属性
 
-		public string? Description
-		{
-			get => _description;
-			set => this.RaiseAndSetIfChanged(ref _description, value);
-		}
+		[Reactive]
+		public string? Description { get; set; }
 
-		public double Progress
-		{
-			get => _progress;
-			set => this.RaiseAndSetIfChanged(ref _progress, value);
-		}
+		[Reactive]
+		public double Progress { get; set; }
 
-		public string? Speed
-		{
-			get => _speed;
-			set => this.RaiseAndSetIfChanged(ref _speed, value);
-		}
+		[Reactive]
+		public string? Speed { get; set; }
 
-		public string Status
-		{
-			get => _status;
-			set => this.RaiseAndSetIfChanged(ref _status, value);
-		}
+		[Reactive]
+		public string Status { get; set; } = @"未开始";
 
 		#endregion
 

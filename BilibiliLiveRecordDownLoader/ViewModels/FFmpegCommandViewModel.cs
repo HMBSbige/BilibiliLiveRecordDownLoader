@@ -4,6 +4,7 @@ using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.Extensions.Logging;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using ReactiveUI;
+using ReactiveUI.Fody.Helpers;
 using System;
 using System.IO;
 using System.Reactive;
@@ -14,9 +15,7 @@ using Constants = BilibiliLiveRecordDownLoader.Utils.Constants;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
-#pragma warning disable CS8612
 	public class FFmpegCommandViewModel : ReactiveObject, IRoutableViewModel
-#pragma warning restore CS8612
 	{
 		public string UrlPathSegment => @"FFmpegCommand";
 		public IScreen HostScreen { get; }
@@ -33,77 +32,34 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		#endregion
 
-		#region 字段
-
-		private string _ffmpegStatus = @"未知";
-		private SolidColorBrush _ffmpegStatusForeground = Constants.YellowBrush;
-
-		private string _cutInput = string.Empty;
-		private string _cutOutput = string.Empty;
-		private string _cutStartTime = @"00:00:00.000";
-		private string _cutEndTime = @"03:00:00.000";
-
-		private string _convertInput = string.Empty;
-		private string _convertOutput = string.Empty;
-		private bool _isDelete = false;
-
-		#endregion
-
 		#region 属性
 
-		public string FFmpegStatus
-		{
-			get => _ffmpegStatus;
-			set => this.RaiseAndSetIfChanged(ref _ffmpegStatus, value);
-		}
+		[Reactive]
+		public string FFmpegStatus { get; set; } = @"未知";
 
-		public SolidColorBrush FFmpegStatusForeground
-		{
-			get => _ffmpegStatusForeground;
-			set => this.RaiseAndSetIfChanged(ref _ffmpegStatusForeground, value);
-		}
+		[Reactive]
+		public SolidColorBrush FFmpegStatusForeground { get; set; } = Constants.YellowBrush;
 
-		public string CutInput
-		{
-			get => _cutInput;
-			set => this.RaiseAndSetIfChanged(ref _cutInput, value);
-		}
+		[Reactive]
+		public string CutInput { get; set; } = string.Empty;
 
-		public string CutOutput
-		{
-			get => _cutOutput;
-			set => this.RaiseAndSetIfChanged(ref _cutOutput, value);
-		}
+		[Reactive]
+		public string CutOutput { get; set; } = string.Empty;
 
-		public string CutStartTime
-		{
-			get => _cutStartTime;
-			set => this.RaiseAndSetIfChanged(ref _cutStartTime, value);
-		}
+		[Reactive]
+		public string CutStartTime { get; set; } = @"00:00:00.000";
 
-		public string CutEndTime
-		{
-			get => _cutEndTime;
-			set => this.RaiseAndSetIfChanged(ref _cutEndTime, value);
-		}
+		[Reactive]
+		public string CutEndTime { get; set; } = @"03:00:00.000";
 
-		public string ConvertInput
-		{
-			get => _convertInput;
-			set => this.RaiseAndSetIfChanged(ref _convertInput, value);
-		}
+		[Reactive]
+		public string ConvertInput { get; set; } = string.Empty;
 
-		public string ConvertOutput
-		{
-			get => _convertOutput;
-			set => this.RaiseAndSetIfChanged(ref _convertOutput, value);
-		}
+		[Reactive]
+		public string ConvertOutput { get; set; } = string.Empty;
 
-		public bool IsDelete
-		{
-			get => _isDelete;
-			set => this.RaiseAndSetIfChanged(ref _isDelete, value);
-		}
+		[Reactive]
+		public bool IsDelete { get; set; }
 
 		#endregion
 
@@ -152,19 +108,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			return false;
 		}
 
-		private void CutOpenFile()
+		private void NewOutputFile()
 		{
-			var filename = GetOpenFileName();
-			if (filename is null)
-			{
-				return;
-			}
-
-			CutInput = filename;
+			var filename = CutInput;
 
 			var oldName = Path.ChangeExtension(filename, null);
 			var extension = Path.GetExtension(filename);
-			for (var i = 1; i < int.MaxValue; ++i)
+			for (var i = 1; i < 10000; ++i)
 			{
 				var newPath = Path.ChangeExtension($@"{oldName}_{i}", extension);
 				if (File.Exists(newPath))
@@ -175,6 +125,19 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				CutOutput = newPath;
 				break;
 			}
+		}
+
+		private void CutOpenFile()
+		{
+			var filename = GetOpenFileName();
+			if (filename is null)
+			{
+				return;
+			}
+
+			CutInput = filename;
+
+			NewOutputFile();
 		}
 
 		private void CutSaveFile()
@@ -227,9 +190,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				var task = new FFmpegTaskViewModel(args);
 				_taskList.AddTaskAsync(task, Path.GetPathRoot(CutOutput) ?? string.Empty).NoWarning();
 
-				CutInput = string.Empty;
-				CutOutput = string.Empty;
-				CutStartTime = CutEndTime;
+				NewOutputFile();
 			}
 			catch (Exception ex)
 			{

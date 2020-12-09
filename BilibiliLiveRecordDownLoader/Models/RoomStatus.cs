@@ -10,6 +10,7 @@ using BilibiliLiveRecordDownLoader.Shared.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
+using ReactiveUI.Fody.Helpers;
 using Splat;
 using System;
 using System.IO;
@@ -40,183 +41,114 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private CancellationTokenSource _recordCts = new();
 		private CancellationToken _token => _recordCts.Token;
 
-		#region 字段
-
-		private bool _isEnable = true;
-		private long _shortId;
-		private long _roomId = 732;
-		private string? _userName;
-		private string? _title;
-		private LiveStatus _liveStatus = LiveStatus.未知;
-		private RecordStatus _recordStatus;
-		private bool _isNotify;
-		private double _danMuReconnectLatency = 2.0;
-		private double _httpCheckLatency = 300.0;
-		private double _streamReconnectLatency = 6.0;
-		private double _streamConnectTimeout = 3.0;
-		private double _streamTimeout = 5.0;
-		private string _speed = string.Empty;
-		private DanmuClientType _clientType = DanmuClientType.SecureWebsocket;
-		private Qn _qn = Qn.原画;
-
-		#endregion
-
 		#region 属性
 
 		/// <summary>
 		/// 是否启用录制
 		/// </summary>
-		public bool IsEnable
-		{
-			get => _isEnable;
-			set => this.RaiseAndSetIfChanged(ref _isEnable, value);
-		}
+		[Reactive]
+		public bool IsEnable { get; set; } = true;
 
 		/// <summary>
 		/// 短号
 		/// </summary>
 		[JsonIgnore]
-		public long ShortId
-		{
-			get => _shortId;
-			set => this.RaiseAndSetIfChanged(ref _shortId, value);
-		}
+		[Reactive]
+		public long ShortId { get; set; }
 
 		/// <summary>
 		/// 房间号
 		/// </summary>
-		public long RoomId
-		{
-			get => _roomId;
-			set => this.RaiseAndSetIfChanged(ref _roomId, value);
-		}
+		[Reactive]
+		public long RoomId { get; set; } = 732;
 
 		/// <summary>
 		/// 主播名
 		/// </summary>
 		[JsonIgnore]
-		public string? UserName
-		{
-			get => _userName;
-			set => this.RaiseAndSetIfChanged(ref _userName, value);
-		}
+		[Reactive]
+		public string? UserName { get; set; }
 
 		/// <summary>
 		/// 直播间标题
 		/// </summary>
 		[JsonIgnore]
-		public string? Title
-		{
-			get => _title;
-			set => this.RaiseAndSetIfChanged(ref _title, value);
-		}
+		[Reactive]
+		public string? Title { get; set; }
 
 		/// <summary>
 		/// 直播状态
 		/// </summary>
 		[JsonIgnore]
-		public LiveStatus LiveStatus
-		{
-			get => _liveStatus;
-			set => this.RaiseAndSetIfChanged(ref _liveStatus, value);
-		}
+		[Reactive]
+		public LiveStatus LiveStatus { get; set; } = LiveStatus.未知;
 
 		/// <summary>
 		/// 录制状态
 		/// </summary>
 		[JsonIgnore]
-		public RecordStatus RecordStatus
-		{
-			get => _recordStatus;
-			set => this.RaiseAndSetIfChanged(ref _recordStatus, value);
-		}
+		[Reactive]
+		public RecordStatus RecordStatus { get; set; }
 
 		/// <summary>
 		/// 是否开播提醒
 		/// </summary>
-		public bool IsNotify
-		{
-			get => _isNotify;
-			set => this.RaiseAndSetIfChanged(ref _isNotify, value);
-		}
+		[Reactive]
+		public bool IsNotify { get; set; }
 
 		/// <summary>
 		/// 弹幕重连间隔
 		/// 单位 秒
 		/// </summary>
-		public double DanMuReconnectLatency
-		{
-			get => _danMuReconnectLatency;
-			set => this.RaiseAndSetIfChanged(ref _danMuReconnectLatency, value);
-		}
+		[Reactive]
+		public double DanMuReconnectLatency { get; set; } = 2.0;
 
 		/// <summary>
 		/// Http 开播检查间隔
 		/// 单位 秒
 		/// </summary>
-		public double HttpCheckLatency
-		{
-			get => _httpCheckLatency;
-			set => this.RaiseAndSetIfChanged(ref _httpCheckLatency, value);
-		}
+		[Reactive]
+		public double HttpCheckLatency { get; set; } = 300.0;
 
 		/// <summary>
 		/// 直播重连间隔
 		/// 单位 秒
 		/// </summary>
-		public double StreamReconnectLatency
-		{
-			get => _streamReconnectLatency;
-			set => this.RaiseAndSetIfChanged(ref _streamReconnectLatency, value);
-		}
+		[Reactive]
+		public double StreamReconnectLatency { get; set; } = 6.0;
 
 		/// <summary>
 		/// 直播连接超时
 		/// 单位 秒
 		/// </summary>
-		public double StreamConnectTimeout
-		{
-			get => _streamConnectTimeout;
-			set => this.RaiseAndSetIfChanged(ref _streamConnectTimeout, value);
-		}
+		[Reactive]
+		public double StreamConnectTimeout { get; set; } = 3.0;
 
 		/// <summary>
 		/// 直播流超时
 		/// 单位 秒
 		/// </summary>
-		public double StreamTimeout
-		{
-			get => _streamTimeout;
-			set => this.RaiseAndSetIfChanged(ref _streamTimeout, value);
-		}
+		[Reactive]
+		public double StreamTimeout { get; set; } = 5.0;
 
 		/// <summary>
 		/// 速度
 		/// </summary>
 		[JsonIgnore]
-		public string Speed
-		{
-			get => _speed;
-			set => this.RaiseAndSetIfChanged(ref _speed, value);
-		}
+		[Reactive]
+		public string Speed { get; set; } = string.Empty;
 
 		/// <summary>
 		/// 弹幕服务器类型
 		/// </summary>
-		public DanmuClientType ClientType
-		{
-			get => _clientType;
-			set => this.RaiseAndSetIfChanged(ref _clientType, value);
-		}
+		[Reactive]
+		public DanmuClientType ClientType { get; set; } = DanmuClientType.SecureWebsocket;
 
 		/// <summary>
 		/// qn 参数
 		/// </summary>
-		public Qn Qn
-		{
-			get => _qn;
-			set => this.RaiseAndSetIfChanged(ref _qn, value);
-		}
+		[Reactive]
+		public Qn Qn { get; set; } = Qn.原画;
 
 		#endregion
 
@@ -627,6 +559,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 
 		public override int GetHashCode()
 		{
+			// ReSharper disable once NonReadonlyMemberInGetHashCode
 			return HashCode.Combine(RoomId);
 		}
 

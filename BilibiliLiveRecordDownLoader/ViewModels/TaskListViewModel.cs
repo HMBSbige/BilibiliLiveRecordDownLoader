@@ -15,9 +15,7 @@ using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
-#pragma warning disable CS8612
 	public class TaskListViewModel : ReactiveObject, IRoutableViewModel
-#pragma warning restore CS8612
 	{
 		public string UrlPathSegment => @"TaskList";
 		public IScreen HostScreen { get; }

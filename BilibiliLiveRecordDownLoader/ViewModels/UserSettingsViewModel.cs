@@ -4,6 +4,7 @@ using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.Views.Dialogs;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
+using ReactiveUI.Fody.Helpers;
 using System;
 using System.Net.Http;
 using System.Reactive;
@@ -14,33 +15,18 @@ using System.Windows.Media;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
-#pragma warning disable CS8612
 	public class UserSettingsViewModel : ReactiveObject, IRoutableViewModel
-#pragma warning restore CS8612
 	{
 		public string UrlPathSegment => @"UserSettings";
 		public IScreen HostScreen { get; }
 
-		#region 字段
-
-		private string _loginStatus = @"未知";
-		private SolidColorBrush _loginStatusForeground = Constants.YellowBrush;
-
-		#endregion
-
 		#region 属性
 
-		public string LoginStatus
-		{
-			get => _loginStatus;
-			set => this.RaiseAndSetIfChanged(ref _loginStatus, value);
-		}
+		[Reactive]
+		public string LoginStatus { get; set; } = @"未知";
 
-		public SolidColorBrush LoginStatusForeground
-		{
-			get => _loginStatusForeground;
-			set => this.RaiseAndSetIfChanged(ref _loginStatusForeground, value);
-		}
+		[Reactive]
+		public SolidColorBrush LoginStatusForeground { get; set; } = Constants.YellowBrush;
 
 		#endregion
 

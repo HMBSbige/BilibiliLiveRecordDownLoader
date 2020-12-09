@@ -1,5 +1,6 @@
 using DynamicData.Kernel;
 using ReactiveUI;
+using ReactiveUI.Fody.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,35 +11,18 @@ namespace BilibiliLiveRecordDownLoader.Models
 	{
 		#region 字段
 
-		private long _roomId = 732;
-		private string _mainDir = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
 		private byte _downloadThreads = 8;
-		private bool _isCheckUpdateOnStart = true;
-		private bool _isCheckPreRelease;
-		private double _mainWindowsWidth = 1280;
-		private double _mainWindowsHeight = 720;
-		private string _userAgent = string.Empty;
-		private string _cookie = string.Empty;
 		private List<RoomStatus> _rooms = new();
-		private bool _isAutoConvertMp4 = true;
-		private bool _isDeleteAfterConvert;
-		private bool _isUseProxy = true;
 
 		#endregion
 
 		#region 属性
 
-		public long RoomId
-		{
-			get => _roomId;
-			set => this.RaiseAndSetIfChanged(ref _roomId, value);
-		}
+		[Reactive]
+		public long RoomId { get; set; } = 732;
 
-		public string MainDir
-		{
-			get => _mainDir;
-			set => this.RaiseAndSetIfChanged(ref _mainDir, value);
-		}
+		[Reactive]
+		public string MainDir { get; set; } = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
 
 		public byte DownloadThreads
 		{
@@ -46,41 +30,23 @@ namespace BilibiliLiveRecordDownLoader.Models
 			set => this.RaiseAndSetIfChanged(ref _downloadThreads, value);
 		}
 
-		public bool IsCheckUpdateOnStart
-		{
-			get => _isCheckUpdateOnStart;
-			set => this.RaiseAndSetIfChanged(ref _isCheckUpdateOnStart, value);
-		}
+		[Reactive]
+		public bool IsCheckUpdateOnStart { get; set; } = true;
 
-		public bool IsCheckPreRelease
-		{
-			get => _isCheckPreRelease;
-			set => this.RaiseAndSetIfChanged(ref _isCheckPreRelease, value);
-		}
+		[Reactive]
+		public bool IsCheckPreRelease { get; set; }
 
-		public double MainWindowsWidth
-		{
-			get => _mainWindowsWidth;
-			set => this.RaiseAndSetIfChanged(ref _mainWindowsWidth, value);
-		}
+		[Reactive]
+		public double MainWindowsWidth { get; set; } = 1280;
 
-		public double MainWindowsHeight
-		{
-			get => _mainWindowsHeight;
-			set => this.RaiseAndSetIfChanged(ref _mainWindowsHeight, value);
-		}
+		[Reactive]
+		public double MainWindowsHeight { get; set; } = 720;
 
-		public string UserAgent
-		{
-			get => _userAgent;
-			set => this.RaiseAndSetIfChanged(ref _userAgent, value);
-		}
+		[Reactive]
+		public string UserAgent { get; set; } = string.Empty;
 
-		public string Cookie
-		{
-			get => _cookie;
-			set => this.RaiseAndSetIfChanged(ref _cookie, value);
-		}
+		[Reactive]
+		public string Cookie { get; set; } = string.Empty;
 
 		public List<RoomStatus> Rooms
 		{
@@ -92,23 +58,14 @@ namespace BilibiliLiveRecordDownLoader.Models
 			}
 		}
 
-		public bool IsAutoConvertMp4
-		{
-			get => _isAutoConvertMp4;
-			set => this.RaiseAndSetIfChanged(ref _isAutoConvertMp4, value);
-		}
+		[Reactive]
+		public bool IsAutoConvertMp4 { get; set; } = true;
 
-		public bool IsDeleteAfterConvert
-		{
-			get => _isDeleteAfterConvert;
-			set => this.RaiseAndSetIfChanged(ref _isDeleteAfterConvert, value);
-		}
+		[Reactive]
+		public bool IsDeleteAfterConvert { get; set; }
 
-		public bool IsUseProxy
-		{
-			get => _isUseProxy;
-			set => this.RaiseAndSetIfChanged(ref _isUseProxy, value);
-		}
+		[Reactive]
+		public bool IsUseProxy { get; set; } = true;
 
 		#endregion
 
