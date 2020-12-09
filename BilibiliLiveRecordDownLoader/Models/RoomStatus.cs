@@ -272,16 +272,16 @@ namespace BilibiliLiveRecordDownLoader.Models
 			{
 				while (LiveStatus == LiveStatus.直播)
 				{
-					RecordStatus = RecordStatus.启动中;
-					var urlData = await _apiClient.GetPlayUrlDataAsync(RoomId, (long)Qn, _token);
-					var url = urlData.durl!.First().url;
-
-					await using var downloader = new HttpDownloader(TimeSpan.FromSeconds(StreamConnectTimeout), _config.Cookie, _config.UserAgent, _config.IsUseProxy)
-					{
-						Target = new Uri(url!)
-					};
 					try
 					{
+						RecordStatus = RecordStatus.启动中;
+						var urlData = await _apiClient.GetPlayUrlDataAsync(RoomId, (long)Qn, _token);
+						var url = urlData.durl!.First().url;
+
+						await using var downloader = new HttpDownloader(TimeSpan.FromSeconds(StreamConnectTimeout), _config.Cookie, _config.UserAgent, _config.IsUseProxy)
+						{
+							Target = new Uri(url!)
+						};
 						await downloader.GetStreamAsync(_token);
 						RecordStatus = RecordStatus.录制中;
 						var flv = Path.Combine(_config.MainDir, $@"{RoomId}", $@"{DateTime.Now:yyyyMMdd_HHmmss}.flv");
@@ -313,7 +313,10 @@ namespace BilibiliLiveRecordDownLoader.Models
 							ConvertToMp4Async(flv).NoWarning();
 						}
 					}
-					catch (OperationCanceledException) { throw; }
+					catch (OperationCanceledException ex) when (ex.InnerException is not TimeoutException)
+					{
+						throw;
+					}
 					catch (IOException ex) when (ex.InnerException is SocketException { ErrorCode: (int)SocketError.OperationAborted })
 					{
 						// downloader stream manually closed
