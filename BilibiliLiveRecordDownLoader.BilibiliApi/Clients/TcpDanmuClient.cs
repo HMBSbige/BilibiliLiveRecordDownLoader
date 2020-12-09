@@ -26,6 +26,8 @@ namespace BilibiliApi.Clients
 		protected override async ValueTask ClientHandshakeAsync(CancellationToken token)
 		{
 			_client = new();
+			DisposableServices.Add(_client);
+
 			await _client.ConnectAsync(Host!, Port, token);
 			_netStream = _client.GetStream();
 		}
@@ -39,12 +41,6 @@ namespace BilibiliApi.Clients
 		protected override async ValueTask<int> ReceiveAsync(Memory<byte> buffer, CancellationToken token)
 		{
 			return await _netStream!.ReadAsync(buffer, token);
-		}
-
-		protected override void ResetClient()
-		{
-			base.ResetClient();
-			_client?.Dispose();
 		}
 	}
 }

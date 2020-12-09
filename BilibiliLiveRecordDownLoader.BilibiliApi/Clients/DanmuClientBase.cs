@@ -11,6 +11,7 @@ using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Linq;
 using System.Net.Http;
+using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Text;
@@ -47,6 +48,7 @@ namespace BilibiliApi.Clients
 		private IDisposable? _heartBeatTask;
 
 		private CancellationTokenSource? _cts;
+		protected readonly CompositeDisposable DisposableServices = new();
 
 		private const int BufferSize = 1024;
 
@@ -176,6 +178,7 @@ namespace BilibiliApi.Clients
 
 				_heartBeatTask = Observable.Interval(TimeSpan.FromSeconds(30))
 					.Subscribe(_ => SendHeartbeatAsync(token).NoWarning());
+				DisposableServices.Add(_heartBeatTask);
 
 				return true;
 			}
@@ -231,6 +234,7 @@ namespace BilibiliApi.Clients
 			catch (Exception ex)
 			{
 				_logger.LogWarning(ex, @"{0} 心跳包发送失败", logHeader);
+				ResetClient();
 			}
 		}
 
@@ -407,9 +411,9 @@ namespace BilibiliApi.Clients
 			_danMuSubj.OnNext(packet);
 		}
 
-		protected virtual void ResetClient()
+		private void ResetClient()
 		{
-			_heartBeatTask?.Dispose();
+			DisposableServices.Clear();
 		}
 
 		public virtual ValueTask StopAsync()
@@ -432,6 +436,7 @@ namespace BilibiliApi.Clients
 			_danMuSubj.OnCompleted();
 			await StopAsync();
 			_cts?.Dispose();
+			DisposableServices.Dispose();
 		}
 	}
 }

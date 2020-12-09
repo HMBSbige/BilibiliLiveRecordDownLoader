@@ -25,6 +25,8 @@ namespace BilibiliApi.Clients
 		protected override async ValueTask ClientHandshakeAsync(CancellationToken token)
 		{
 			_client = new();
+			DisposableServices.Add(_client);
+
 			await _client.ConnectAsync(new(Server), token);
 		}
 
@@ -37,12 +39,6 @@ namespace BilibiliApi.Clients
 		{
 			var rcvResult = await _client!.ReceiveAsync(buffer, token);
 			return rcvResult.Count;
-		}
-
-		protected override void ResetClient()
-		{
-			base.ResetClient();
-			_client?.Dispose();
 		}
 	}
 }
