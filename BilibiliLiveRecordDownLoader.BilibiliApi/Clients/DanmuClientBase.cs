@@ -50,6 +50,8 @@ namespace BilibiliApi.Clients
 
 		private const int BufferSize = 1024;
 
+		private string logHeader => $@"[{RoomId}]";
+
 		protected DanmuClientBase(ILogger logger)
 		{
 			_logger = logger;
@@ -113,13 +115,13 @@ namespace BilibiliApi.Clients
 			}
 			catch (Exception ex)
 			{
-				_logger.LogWarning(ex, $@"[{RoomId}] 获取弹幕服务器失败");
+				_logger.LogWarning(ex, @"{0} 获取弹幕服务器失败", logHeader);
 			}
 			finally
 			{
 				if (string.IsNullOrEmpty(_token) || string.IsNullOrWhiteSpace(Host))
 				{
-					_logger.LogWarning($@"[{RoomId}] 使用默认弹幕服务器");
+					_logger.LogWarning(@"{0} 使用默认弹幕服务器", logHeader);
 					Host = DefaultHost;
 				}
 
@@ -138,7 +140,7 @@ namespace BilibiliApi.Clients
 			}
 			catch (TaskCanceledException)
 			{
-				_logger.LogInformation($@"[{RoomId}] 不再连接弹幕服务器");
+				_logger.LogInformation(@"{0} 不再连接弹幕服务器", logHeader);
 			}
 		}
 
@@ -148,7 +150,7 @@ namespace BilibiliApi.Clients
 			{
 				await GetServerAsync(token);
 
-				_logger.LogInformation($@"[{RoomId}] 正在连接弹幕服务器 {Server}");
+				_logger.LogInformation(@"{0} 正在连接弹幕服务器 {1}", logHeader, Server);
 
 				if (!await ConnectAsync(token))
 				{
@@ -156,7 +158,7 @@ namespace BilibiliApi.Clients
 					continue;
 				}
 
-				_logger.LogInformation($@"[{RoomId}] 连接弹幕服务器成功");
+				_logger.LogInformation(@"{0} 连接弹幕服务器成功", logHeader);
 
 				ProcessDanMuAsync(token).NoWarning();
 
@@ -179,7 +181,7 @@ namespace BilibiliApi.Clients
 			}
 			catch (Exception ex)
 			{
-				_logger.LogError(ex, $@"[{RoomId}] 连接弹幕服务器错误");
+				_logger.LogError(ex, @"{0} 连接弹幕服务器错误", logHeader);
 				return false;
 			}
 		}
@@ -215,7 +217,7 @@ namespace BilibiliApi.Clients
 			{
 				json = @$"{{""roomid"":{RoomId},""uid"":{_uid},""protover"":{ProtocolVersion},""key"":""{_token}""}}";
 			}
-			_logger.LogDebug($@"[{RoomId}] AuthJson: {json}");
+			_logger.LogDebug(@"{0} AuthJson: {1}", logHeader, json);
 			await SendDataAsync(Operation.Auth, json, token);
 		}
 
@@ -223,12 +225,12 @@ namespace BilibiliApi.Clients
 		{
 			try
 			{
-				_logger.LogDebug($@"[{RoomId}] 发送心跳包");
+				_logger.LogDebug(@"{0} 发送心跳包", logHeader);
 				await SendDataAsync(Operation.Heartbeat, string.Empty, token);
 			}
 			catch (Exception ex)
 			{
-				_logger.LogWarning(ex, $@"[{RoomId}] 心跳包发送失败");
+				_logger.LogWarning(ex, @"{0} 心跳包发送失败", logHeader);
 			}
 		}
 
@@ -244,13 +246,13 @@ namespace BilibiliApi.Clients
 			}
 			catch (OperationCanceledException)
 			{
-				_logger.LogInformation($@"[{RoomId}] 不再连接弹幕服务器");
+				_logger.LogInformation(@"{0} 不再连接弹幕服务器", logHeader);
 			}
 			catch (Exception ex)
 			{
 				ResetClient();
 
-				_logger.LogWarning(ex, $@"[{RoomId}] 弹幕服务器连接被断开，尝试重连...");
+				_logger.LogWarning(ex, @"{0} 弹幕服务器连接被断开，尝试重连...", logHeader);
 				await WaitAsync(token);
 				await ConnectWithRetryAsync(token);
 			}
@@ -266,7 +268,7 @@ namespace BilibiliApi.Clients
 
 					var bytesRead = await ReceiveAsync(memory, token);
 
-					_logger.LogDebug($@"[{RoomId}] 收到 {bytesRead} 字节");
+					_logger.LogDebug(@"{0} 收到 {1} 字节", logHeader, bytesRead);
 
 					if (bytesRead == 0)
 					{
@@ -373,7 +375,7 @@ namespace BilibiliApi.Clients
 				}
 				default:
 				{
-					_logger.LogWarning($@"[{RoomId}] 弹幕协议不支持。Version: {packet.ProtocolVersion}");
+					_logger.LogWarning(@"{0} 弹幕协议不支持。Version: {1}", logHeader, packet.ProtocolVersion);
 					break;
 				}
 			}
@@ -386,18 +388,18 @@ namespace BilibiliApi.Clients
 			{
 				case Operation.HeartbeatReply:
 				{
-					_logger.LogDebug($@"[{RoomId}] 收到弹幕[{packet.Operation}] 人气值: {BinaryPrimitives.ReadUInt32BigEndian(packet.Body.Span)}");
+					_logger.LogDebug(@"{0} 收到弹幕[{1}] 人气值: {2}", logHeader, packet.Operation, BinaryPrimitives.ReadUInt32BigEndian(packet.Body.Span));
 					break;
 				}
 				case Operation.SendMsgReply:
 				case Operation.AuthReply:
 				{
-					_logger.LogDebug($@"[{RoomId}] 收到弹幕[{0}]:{1}", packet.Operation, Encoding.UTF8.GetString(packet.Body.Span));
+					_logger.LogDebug(@"{0} 收到弹幕[{1}]:{2}", logHeader, packet.Operation, Encoding.UTF8.GetString(packet.Body.Span));
 					break;
 				}
 				default:
 				{
-					_logger.LogDebug($@"[{RoomId}] 收到弹幕[{packet.Operation}]");
+					_logger.LogDebug(@"{0} 收到弹幕[{1}]", logHeader, packet.Operation);
 					break;
 				}
 			}
