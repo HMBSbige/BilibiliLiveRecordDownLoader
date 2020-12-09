@@ -113,13 +113,13 @@ namespace BilibiliApi.Clients
 			}
 			catch (Exception ex)
 			{
-				_logger.LogWarning(ex, @"获取弹幕服务器失败");
+				_logger.LogWarning(ex, $@"[{RoomId}] 获取弹幕服务器失败");
 			}
 			finally
 			{
 				if (string.IsNullOrEmpty(_token) || string.IsNullOrWhiteSpace(Host))
 				{
-					_logger.LogWarning(@"使用默认弹幕服务器");
+					_logger.LogWarning($@"[{RoomId}] 使用默认弹幕服务器");
 					Host = DefaultHost;
 				}
 
@@ -215,7 +215,7 @@ namespace BilibiliApi.Clients
 			{
 				json = @$"{{""roomid"":{RoomId},""uid"":{_uid},""protover"":{ProtocolVersion},""key"":""{_token}""}}";
 			}
-			_logger.LogDebug($@"AuthJson: {json}");
+			_logger.LogDebug($@"[{RoomId}] AuthJson: {json}");
 			await SendDataAsync(Operation.Auth, json, token);
 		}
 
@@ -223,12 +223,12 @@ namespace BilibiliApi.Clients
 		{
 			try
 			{
-				_logger.LogDebug(@"发送心跳包");
+				_logger.LogDebug($@"[{RoomId}] 发送心跳包");
 				await SendDataAsync(Operation.Heartbeat, string.Empty, token);
 			}
 			catch (Exception ex)
 			{
-				_logger.LogWarning(ex, @"心跳包发送失败");
+				_logger.LogWarning(ex, $@"[{RoomId}] 心跳包发送失败");
 			}
 		}
 
@@ -266,7 +266,7 @@ namespace BilibiliApi.Clients
 
 					var bytesRead = await ReceiveAsync(memory, token);
 
-					_logger.LogDebug($@"收到 {bytesRead} 字节");
+					_logger.LogDebug($@"[{RoomId}] 收到 {bytesRead} 字节");
 
 					if (bytesRead == 0)
 					{
@@ -373,7 +373,7 @@ namespace BilibiliApi.Clients
 				}
 				default:
 				{
-					_logger.LogWarning($@"弹幕协议不支持。Version: {packet.ProtocolVersion}");
+					_logger.LogWarning($@"[{RoomId}] 弹幕协议不支持。Version: {packet.ProtocolVersion}");
 					break;
 				}
 			}
@@ -386,18 +386,18 @@ namespace BilibiliApi.Clients
 			{
 				case Operation.HeartbeatReply:
 				{
-					_logger.LogDebug($@"收到弹幕[{packet.Operation}] 人气值: {BinaryPrimitives.ReadUInt32BigEndian(packet.Body.Span)}");
+					_logger.LogDebug($@"[{RoomId}] 收到弹幕[{packet.Operation}] 人气值: {BinaryPrimitives.ReadUInt32BigEndian(packet.Body.Span)}");
 					break;
 				}
 				case Operation.SendMsgReply:
 				case Operation.AuthReply:
 				{
-					_logger.LogDebug(@"收到弹幕[{0}]:{1}", packet.Operation, Encoding.UTF8.GetString(packet.Body.Span));
+					_logger.LogDebug($@"[{RoomId}] 收到弹幕[{0}]:{1}", packet.Operation, Encoding.UTF8.GetString(packet.Body.Span));
 					break;
 				}
 				default:
 				{
-					_logger.LogDebug($@"收到弹幕[{packet.Operation}]");
+					_logger.LogDebug($@"[{RoomId}] 收到弹幕[{packet.Operation}]");
 					break;
 				}
 			}
