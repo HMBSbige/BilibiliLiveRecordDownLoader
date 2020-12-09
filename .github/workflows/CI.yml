@@ -8,7 +8,6 @@ jobs:
     name: Build
     runs-on: windows-latest
     env:
-      DOTNET_SDK_VERSION: 5.0.100
       NET_TFM: net5.0-windows10.0.19041.0
       Configuration: Release
     steps:
@@ -20,7 +19,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v1
       with:
-        dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+        dotnet-version: 5.0.x
 
     - name: Build .NET App
       shell: pwsh
