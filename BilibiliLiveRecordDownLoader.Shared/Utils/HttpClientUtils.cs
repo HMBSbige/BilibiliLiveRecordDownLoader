@@ -1,5 +1,6 @@
 using BilibiliLiveRecordDownLoader.Shared.HttpPolicy;
 using System;
+using System.Net;
 using System.Net.Http;
 
 namespace BilibiliLiveRecordDownLoader.Shared.Utils
@@ -13,16 +14,17 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 				UseProxy = useProxy,
 				UseCookies = cookie is null or @""
 			};
-			var client = new HttpClient(new ForceHttp2Handler(handle), true);
+			var client = new HttpClient(handle, true);
 			if (!handle.UseCookies)
 			{
 				client.DefaultRequestHeaders.Add(@"Cookie", cookie);
 			}
 
+			client.DefaultRequestVersion = HttpVersion.Version20;
 			client.Timeout = timeout;
-			client.DefaultRequestHeaders.Add(@"Accept", @"application/json, text/javascript, */*; q=0.01");
-			client.DefaultRequestHeaders.Add(@"Referer", @"https://live.bilibili.com/");
-			client.DefaultRequestHeaders.Add(@"User-Agent", userAgent);
+			client.DefaultRequestHeaders.Accept.ParseAdd(@"application/json, text/javascript, */*; q=0.01");
+			client.DefaultRequestHeaders.Referrer = new Uri(@"https://live.bilibili.com/");
+			client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
 
 			return client;
 		}
@@ -40,7 +42,8 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 				client.DefaultRequestHeaders.Add(@"Cookie", cookie);
 			}
 
-			client.DefaultRequestHeaders.Add(@"User-Agent", userAgent);
+			client.DefaultRequestVersion = HttpVersion.Version20;
+			client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
 			client.DefaultRequestHeaders.ConnectionClose = false;
 
 			return client;
