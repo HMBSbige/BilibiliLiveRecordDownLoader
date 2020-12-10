@@ -211,6 +211,7 @@ namespace BilibiliApi.Clients
 				});
 
 				ProcessDanMuAsync(token).NoWarning();
+				break;
 			}
 		}
 
