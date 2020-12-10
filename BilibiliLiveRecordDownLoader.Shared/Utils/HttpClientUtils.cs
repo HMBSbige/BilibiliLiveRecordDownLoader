@@ -13,7 +13,7 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 			{
 				userAgent = Constants.ChromeUserAgent;
 			}
-			var client = new HttpClient(handler, true);
+			var client = new HttpClient(handler);
 			if (!handler.UseCookies)
 			{
 				client.DefaultRequestHeaders.Add(@"Cookie", cookie);
@@ -34,7 +34,7 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 			{
 				userAgent = Constants.IdmUserAgent;
 			}
-			var client = new HttpClient(new RetryHandler(handler, 10), true);
+			var client = new HttpClient(new RetryHandler(handler, 10));
 			if (!handler.UseCookies)
 			{
 				client.DefaultRequestHeaders.Add(@"Cookie", cookie);
@@ -43,6 +43,25 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 			client.DefaultRequestVersion = HttpVersion.Version20;
 			client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
 			client.DefaultRequestHeaders.ConnectionClose = false;
+
+			return client;
+		}
+
+		public static HttpClient BuildClient(string? cookie, string userAgent, HttpClientHandler handler)
+		{
+			if (string.IsNullOrEmpty(userAgent))
+			{
+				userAgent = Constants.ChromeUserAgent;
+			}
+
+			var client = new HttpClient(handler);
+			if (!handler.UseCookies)
+			{
+				client.DefaultRequestHeaders.Add(@"Cookie", cookie);
+			}
+
+			client.DefaultRequestVersion = HttpVersion.Version20;
+			client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
 
 			return client;
 		}

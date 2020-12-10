@@ -12,6 +12,7 @@ using RunAtStartup;
 using System;
 using System.Reactive;
 using System.Reactive.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using UpdateChecker;
 
@@ -116,7 +117,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			});
 		}
 
-		private async Task CheckUpdateAsync()
+		private async Task CheckUpdateAsync(CancellationToken token)
 		{
 			try
 			{
@@ -128,7 +129,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 						Config.IsCheckPreRelease,
 						version
 				);
-				if (await updateChecker.CheckAsync(new(_configService.HttpHandler), default))
+				if (await updateChecker.CheckAsync(HttpClientUtils.BuildClient(Config.Cookie, Config.UserAgent, _configService.HttpHandler), token))
 				{
 					if (updateChecker.LatestVersionUrl is null)
 					{
