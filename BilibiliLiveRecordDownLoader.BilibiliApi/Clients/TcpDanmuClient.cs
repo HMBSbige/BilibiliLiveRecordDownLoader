@@ -23,12 +23,15 @@ namespace BilibiliApi.Clients
 			return server.port;
 		}
 
-		protected override async ValueTask ClientHandshakeAsync(CancellationToken token)
+		protected override IDisposable CreateClient()
 		{
 			_client = new();
-			DisposableServices.Add(_client);
+			return _client;
+		}
 
-			await _client.ConnectAsync(Host!, Port, token);
+		protected override async ValueTask ClientHandshakeAsync(CancellationToken token)
+		{
+			await _client!.ConnectAsync(Host!, Port, token);
 			_netStream = _client.GetStream();
 		}
 

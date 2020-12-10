@@ -22,12 +22,15 @@ namespace BilibiliApi.Clients
 			return server.wss_port;
 		}
 
-		protected override async ValueTask ClientHandshakeAsync(CancellationToken token)
+		protected override IDisposable CreateClient()
 		{
 			_client = new();
-			DisposableServices.Add(_client);
+			return _client;
+		}
 
-			await _client.ConnectAsync(new(Server), token);
+		protected override async ValueTask ClientHandshakeAsync(CancellationToken token)
+		{
+			await _client!.ConnectAsync(new(Server), token);
 		}
 
 		protected override async ValueTask SendAsync(ReadOnlyMemory<byte> buffer, CancellationToken token)

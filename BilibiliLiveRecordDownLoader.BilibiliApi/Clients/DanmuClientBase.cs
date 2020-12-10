@@ -15,6 +15,7 @@ using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -46,9 +47,10 @@ namespace BilibiliApi.Clients
 		protected abstract bool ClientConnected { get; }
 
 		private IDisposable? _heartBeatTask;
+		private static readonly TimeSpan HeartBeatInterval = TimeSpan.FromSeconds(30);
 
 		private CancellationTokenSource? _cts;
-		protected readonly CompositeDisposable DisposableServices = new();
+		private readonly CompositeDisposable _disposableServices = new();
 
 		private const int BufferSize = 1024;
 
@@ -60,6 +62,8 @@ namespace BilibiliApi.Clients
 		}
 
 		protected abstract ushort GetPort(HostServerList server);
+
+		protected abstract IDisposable CreateClient();
 
 		protected abstract ValueTask ClientHandshakeAsync(CancellationToken token);
 
@@ -146,6 +150,31 @@ namespace BilibiliApi.Clients
 			}
 		}
 
+		private bool IsAuthSuccess(in DanmuPacket packet)
+		{
+			try
+			{
+				if (packet.Operation == Operation.AuthReply)
+				{
+					var json = Encoding.UTF8.GetString(packet.Body.Span);
+					_logger.LogDebug(@"{0} 进房回应 {1}", logHeader, json);
+					if (json == @"{""code"":0}")
+					{
+						return true;
+					}
+					var jsonElement = JsonSerializer.Deserialize<JsonElement>(json);
+					var code = jsonElement.GetProperty(@"code").GetInt64();
+					return code == 0;
+				}
+
+				return false;
+			}
+			catch
+			{
+				return false;
+			}
+		}
+
 		private async ValueTask ConnectWithRetryAsync(CancellationToken token)
 		{
 			while (!ClientConnected && !token.IsCancellationRequested)
@@ -156,15 +185,27 @@ namespace BilibiliApi.Clients
 
 				if (!await ConnectAsync(token))
 				{
+					Close();
 					await WaitAsync(token);
 					continue;
 				}
 
 				_logger.LogInformation(@"{0} 连接弹幕服务器成功", logHeader);
 
-				ProcessDanMuAsync(token).NoWarning();
+				Received.Take(1).Subscribe(packet =>
+				{
+					if (IsAuthSuccess(packet))
+					{
+						_logger.LogInformation(@"{0} 进房成功", logHeader);
+					}
+					else
+					{
+						_logger.LogWarning(@"{0} 进房失败", logHeader);
+						Close();
+					}
+				});
 
-				break;
+				ProcessDanMuAsync(token).NoWarning();
 			}
 		}
 
@@ -172,13 +213,16 @@ namespace BilibiliApi.Clients
 		{
 			try
 			{
+				var client = CreateClient();
+				_disposableServices.Add(client);
+
 				await ClientHandshakeAsync(token);
 
 				await SendAuthAsync(token);
 
-				_heartBeatTask = Observable.Interval(TimeSpan.FromSeconds(30))
-					.Subscribe(_ => SendHeartbeatAsync(token).NoWarning());
-				DisposableServices.Add(_heartBeatTask);
+				_heartBeatTask = Observable.Interval(HeartBeatInterval)
+					.Subscribe(async _ => await SendHeartbeatAsync(token));
+				_disposableServices.Add(_heartBeatTask);
 
 				return true;
 			}
@@ -234,7 +278,7 @@ namespace BilibiliApi.Clients
 			catch (Exception ex)
 			{
 				_logger.LogWarning(ex, @"{0} 心跳包发送失败", logHeader);
-				ResetClient();
+				Close();
 			}
 		}
 
@@ -247,19 +291,20 @@ namespace BilibiliApi.Clients
 				var reading = ReadPipeAsync(pipe.Reader, token);
 				await reading;
 				await writing;
+				_logger.LogWarning(@"{0} 弹幕服务器不再发送弹幕，尝试重连...", logHeader);
 			}
 			catch (OperationCanceledException)
 			{
 				_logger.LogInformation(@"{0} 不再连接弹幕服务器", logHeader);
+				return;
 			}
 			catch (Exception ex)
 			{
-				ResetClient();
-
+				Close();
 				_logger.LogWarning(ex, @"{0} 弹幕服务器连接被断开，尝试重连...", logHeader);
-				await WaitAsync(token);
-				await ConnectWithRetryAsync(token);
 			}
+			await WaitAsync(token);
+			await ConnectWithRetryAsync(token);
 		}
 
 		private async ValueTask FillPipeAsync(PipeWriter writer, CancellationToken token)
@@ -411,15 +456,15 @@ namespace BilibiliApi.Clients
 			_danMuSubj.OnNext(packet);
 		}
 
-		private void ResetClient()
+		private void Close()
 		{
-			DisposableServices.Clear();
+			_disposableServices.Clear();
 		}
 
 		public virtual ValueTask StopAsync()
 		{
 			_cts?.Cancel();
-			ResetClient();
+			Close();
 			return default;
 		}
 
@@ -436,7 +481,7 @@ namespace BilibiliApi.Clients
 			_danMuSubj.OnCompleted();
 			await StopAsync();
 			_cts?.Dispose();
-			DisposableServices.Dispose();
+			_disposableServices.Dispose();
 		}
 	}
 }
