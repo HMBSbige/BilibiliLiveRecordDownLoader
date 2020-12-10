@@ -82,12 +82,5 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 			var dir = Path.GetDirectoryName(path);
 			Directory.CreateDirectory(dir!);
 		}
-
-		public override async ValueTask DisposeAsync()
-		{
-			await base.DisposeAsync();
-
-			_httpClient.Dispose();
-		}
 	}
 }

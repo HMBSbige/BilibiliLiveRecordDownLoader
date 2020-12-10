@@ -15,7 +15,7 @@ using System.Threading.Tasks;
 
 namespace BilibiliApi.Clients
 {
-	public sealed partial class BililiveApiClient : IDisposable
+	public sealed partial class BililiveApiClient
 	{
 		private HttpClient _client = null!;
 
@@ -216,11 +216,6 @@ namespace BilibiliApi.Clients
 			{
 				SemaphoreSlim.Release();
 			}
-		}
-
-		public void Dispose()
-		{
-			_client.Dispose();
 		}
 	}
 }
