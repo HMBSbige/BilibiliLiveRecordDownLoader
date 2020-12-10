@@ -32,7 +32,7 @@ namespace BilibiliApi.Clients
 		private readonly Subject<DanmuPacket> _danMuSubj = new();
 		public IObservable<DanmuPacket> Received => _danMuSubj.AsObservable();
 
-		public BililiveApiClient? ApiClient { get; set; }
+		private readonly BililiveApiClient _apiClient;
 
 		protected string? Host;
 		protected ushort Port;
@@ -59,9 +59,10 @@ namespace BilibiliApi.Clients
 		private static readonly TimeSpan GetServerInterval = TimeSpan.FromSeconds(20);
 		private DateTime _lastGetServerSuccess;
 
-		protected DanmuClientBase(ILogger logger)
+		protected DanmuClientBase(ILogger logger, BililiveApiClient apiClient)
 		{
 			_logger = logger;
+			_apiClient = apiClient;
 		}
 
 		protected abstract ushort GetPort(HostServerList server);
@@ -97,14 +98,14 @@ namespace BilibiliApi.Clients
 				Host = default;
 				Port = default;
 
-				if (DateTime.Now - _lastGetServerSuccess < GetServerInterval || ApiClient is null)
+				if (DateTime.Now - _lastGetServerSuccess < GetServerInterval)
 				{
 					_logger.LogDebug(@"{0} 跳过获取弹幕服务器", logHeader);
 					return;
 				}
 				_lastGetServerSuccess = DateTime.Now;
 
-				var conf = await ApiClient.GetDanmuConfAsync(RoomId, token);
+				var conf = await _apiClient.GetDanmuConfAsync(RoomId, token);
 				if (conf?.data?.host_server_list is null || conf.data.host_server_list.Length == 0)
 				{
 					throw new HttpRequestException(@"Wrong response");
@@ -117,7 +118,7 @@ namespace BilibiliApi.Clients
 
 				try
 				{
-					_uid = await ApiClient.GetUidAsync(token);
+					_uid = await _apiClient.GetUidAsync(token);
 				}
 				catch
 				{

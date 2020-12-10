@@ -16,7 +16,6 @@ namespace BilibiliApi.Clients
 		/// </summary>
 		TimeSpan RetryInterval { get; set; }
 		IObservable<DanmuPacket> Received { get; }
-		BililiveApiClient? ApiClient { get; set; }
 		ValueTask StartAsync();
 		ValueTask StopAsync();
 	}

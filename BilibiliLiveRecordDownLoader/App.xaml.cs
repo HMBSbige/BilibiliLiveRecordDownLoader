@@ -124,10 +124,13 @@ namespace BilibiliLiveRecordDownLoader
 			services.AddSingleton<SourceList<TaskViewModel>>();
 			services.AddSingleton<IScreen, MainScreen>();
 			services.AddSingleton(new OperationQueue(int.MaxValue));
-			services.AddSingleton(new BililiveApiClient(default, string.Empty, true));
+			services.AddSingleton(new BililiveApiClient(default, string.Empty));
 			services.AddSingleton(new StartupService(nameof(BilibiliLiveRecordDownLoader)));
 
 			services.AddTransient<IFlvMerger, FlvMerger>();
+			services.AddTransient<TcpDanmuClient>();
+			services.AddTransient<WsDanmuClient>();
+			services.AddTransient<WssDanmuClient>();
 			services.AddLogging(c => c.AddSerilog());
 		}
 

@@ -1,6 +1,7 @@
 using BilibiliApi.Clients;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
 using BilibiliLiveRecordDownLoader.Http.Clients;
+using BilibiliLiveRecordDownLoader.Interfaces;
 using Microsoft.Extensions.Logging;
 using Splat;
 using System;
@@ -18,6 +19,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 		private readonly ILogger _logger;
 		private readonly BililiveApiClient _apiClient;
 		private readonly Config _config;
+		private readonly IConfigService _configService;
 
 		private readonly CancellationTokenSource _cts = new();
 		private readonly LiveRecordViewModel _liveRecord;
@@ -30,6 +32,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 			_logger = Locator.Current.GetService<ILogger<LiveRecordDownloadTaskViewModel>>();
 			_apiClient = Locator.Current.GetService<BililiveApiClient>();
 			_config = Locator.Current.GetService<Config>();
+			_configService = Locator.Current.GetService<IConfigService>();
 			_liveRecord = liveRecord;
 			_path = path;
 			_threadsCount = threadsCount;
@@ -77,7 +80,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 						continue;
 					}
 
-					await using var downloader = new MultiThreadedDownloader(_logger, _config.Cookie, _config.UserAgent, _config.IsUseProxy)
+					await using var downloader = new MultiThreadedDownloader(_logger, _config.Cookie, _config.UserAgent, _configService.HttpHandler)
 					{
 						Target = new(url),
 						Threads = _threadsCount,

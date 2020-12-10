@@ -11,7 +11,6 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Reactive;
@@ -42,23 +41,14 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 
 		private readonly ObjectPool<HttpClient> _httpClientPool;
 
-		static MultiThreadedDownloader()
-		{
-			const int connectionLimit = 10000;
-			if (ServicePointManager.DefaultConnectionLimit < connectionLimit)
-			{
-				ServicePointManager.DefaultConnectionLimit = connectionLimit;
-			}
-		}
-
-		public MultiThreadedDownloader(ILogger logger, string? cookie, string userAgent, bool useProxy)
+		public MultiThreadedDownloader(ILogger logger, string? cookie, string userAgent, HttpClientHandler handler)
 		{
 			_logger = logger;
 			if (string.IsNullOrEmpty(userAgent))
 			{
 				userAgent = Constants.IdmUserAgent;
 			}
-			var policy = new PooledHttpClientPolicy(() => HttpClientUtils.BuildClientForMultiThreadedDownloader(cookie, userAgent, useProxy));
+			var policy = new PooledHttpClientPolicy(() => HttpClientUtils.BuildClientForMultiThreadedDownloader(cookie, userAgent, handler));
 			var provider = new DefaultObjectPoolProvider { MaximumRetained = 10 };
 			_httpClientPool = provider.Create(policy);
 		}

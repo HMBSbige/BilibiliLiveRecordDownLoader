@@ -7,15 +7,14 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 {
 	public static class HttpClientUtils
 	{
-		public static HttpClient BuildClientForBilibili(string userAgent, string? cookie, TimeSpan timeout, bool useProxy)
+		public static HttpClient BuildClientForBilibili(TimeSpan timeout, string userAgent, string? cookie, HttpClientHandler handler)
 		{
-			var handle = new SocketsHttpHandler
+			if (string.IsNullOrEmpty(userAgent))
 			{
-				UseProxy = useProxy,
-				UseCookies = cookie is null or @""
-			};
-			var client = new HttpClient(handle, true);
-			if (!handle.UseCookies)
+				userAgent = Constants.ChromeUserAgent;
+			}
+			var client = new HttpClient(handler, true);
+			if (!handler.UseCookies)
 			{
 				client.DefaultRequestHeaders.Add(@"Cookie", cookie);
 			}
@@ -23,21 +22,16 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 			client.DefaultRequestVersion = HttpVersion.Version20;
 			client.Timeout = timeout;
 			client.DefaultRequestHeaders.Accept.ParseAdd(@"application/json, text/javascript, */*; q=0.01");
-			client.DefaultRequestHeaders.Referrer = new Uri(@"https://live.bilibili.com/");
+			client.DefaultRequestHeaders.Referrer = new(@"https://live.bilibili.com/");
 			client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
 
 			return client;
 		}
 
-		public static HttpClient BuildClientForMultiThreadedDownloader(string? cookie, string userAgent, bool useProxy)
+		public static HttpClient BuildClientForMultiThreadedDownloader(string? cookie, string userAgent, HttpClientHandler handler)
 		{
-			var handle = new SocketsHttpHandler
-			{
-				UseProxy = useProxy,
-				UseCookies = cookie is null or @""
-			};
-			var client = new HttpClient(new RetryHandler(handle, 10), true);
-			if (!handle.UseCookies)
+			var client = new HttpClient(new RetryHandler(handler, 10), true);
+			if (!handler.UseCookies)
 			{
 				client.DefaultRequestHeaders.Add(@"Cookie", cookie);
 			}

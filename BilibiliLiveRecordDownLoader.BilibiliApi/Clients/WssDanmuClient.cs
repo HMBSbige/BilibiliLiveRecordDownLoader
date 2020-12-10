@@ -15,7 +15,7 @@ namespace BilibiliApi.Clients
 
 		private ClientWebSocket? _client;
 
-		public WssDanmuClient(ILogger logger) : base(logger) { }
+		public WssDanmuClient(ILogger<WssDanmuClient> logger, BililiveApiClient apiClient) : base(logger, apiClient) { }
 
 		protected override ushort GetPort(HostServerList server)
 		{

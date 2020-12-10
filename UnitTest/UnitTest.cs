@@ -34,7 +34,7 @@ namespace UnitTest
 			var outFile = Path.Combine(path, filename);
 			try
 			{
-				await using var downloader = new MultiThreadedDownloader(NullLogger.Instance, default, string.Empty, true)
+				await using var downloader = new MultiThreadedDownloader(NullLogger.Instance, default, string.Empty, new())
 				{
 					Target = new(url),
 					Threads = 4,
@@ -97,7 +97,7 @@ namespace UnitTest
 			var outFile = Path.Combine(path, filename);
 			try
 			{
-				await using var downloader = new HttpDownloader(TimeSpan.FromSeconds(10), null, Constants.ChromeUserAgent, true)
+				await using var downloader = new HttpDownloader(TimeSpan.FromSeconds(10), null, Constants.ChromeUserAgent, new())
 				{
 					Target = new(url),
 					OutFileName = outFile

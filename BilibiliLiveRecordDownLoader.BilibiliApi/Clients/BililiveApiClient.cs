@@ -17,22 +17,18 @@ namespace BilibiliApi.Clients
 {
 	public sealed partial class BililiveApiClient : IDisposable
 	{
-		public HttpClient Client { get; private set; } = new();
+		private HttpClient _client = null!;
 
 		private static readonly SemaphoreSlim SemaphoreSlim = new(1, 1);
 
-		public BililiveApiClient(string? cookie, string userAgent, bool useProxy)
+		public BililiveApiClient(string? cookie, string userAgent)
 		{
-			BuildClient(TimeSpan.FromSeconds(10), cookie, userAgent, useProxy);
+			BuildClient(cookie, userAgent, new());
 		}
 
-		public void BuildClient(TimeSpan timeout, string? cookie, string userAgent, bool useProxy)
+		public void BuildClient(string? cookie, string userAgent, HttpClientHandler handler)
 		{
-			if (string.IsNullOrEmpty(userAgent))
-			{
-				userAgent = Constants.ChromeUserAgent;
-			}
-			Client = HttpClientUtils.BuildClientForBilibili(userAgent, cookie, timeout, useProxy);
+			_client = HttpClientUtils.BuildClientForBilibili(TimeSpan.FromSeconds(10), userAgent, cookie, handler);
 		}
 
 		/// <summary>
@@ -201,7 +197,7 @@ namespace BilibiliApi.Clients
 			await SemaphoreSlim.WaitAsync(token);
 			try
 			{
-				return await Client.GetFromJsonAsync<T>(url, token);
+				return await _client.GetFromJsonAsync<T>(url, token);
 			}
 			finally
 			{
@@ -214,7 +210,7 @@ namespace BilibiliApi.Clients
 			await SemaphoreSlim.WaitAsync(token);
 			try
 			{
-				return await Client.PostAsync(url, content, token);
+				return await _client.PostAsync(url, content, token);
 			}
 			finally
 			{
@@ -224,7 +220,7 @@ namespace BilibiliApi.Clients
 
 		public void Dispose()
 		{
-			Client.Dispose();
+			_client.Dispose();
 		}
 	}
 }

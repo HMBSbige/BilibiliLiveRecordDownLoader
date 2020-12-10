@@ -5,6 +5,7 @@ using BilibiliApi.Model.RoomInfo;
 using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.Http.Clients;
+using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
@@ -31,6 +32,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private readonly ILogger _logger;
 		private readonly BililiveApiClient _apiClient;
 		private readonly Config _config;
+		private readonly IConfigService _configService;
 		private readonly TaskListViewModel _taskList;
 
 		private IDanmuClient? _danmuClient;
@@ -158,6 +160,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 			_config = Locator.Current.GetService<Config>();
 			_apiClient = Locator.Current.GetService<BililiveApiClient>();
 			_taskList = Locator.Current.GetService<TaskListViewModel>();
+			_configService = Locator.Current.GetService<IConfigService>();
 		}
 
 		#region ApiRequest
@@ -243,13 +246,12 @@ namespace BilibiliLiveRecordDownLoader.Models
 		{
 			_danmuClient = ClientType switch
 			{
-				DanmuClientType.TCP => new TcpDanmuClient(_logger),
-				DanmuClientType.Websocket => new WsDanmuClient(_logger),
-				_ => new WssDanmuClient(_logger)
+				DanmuClientType.TCP => Locator.Current.GetService<TcpDanmuClient>(),
+				DanmuClientType.Websocket => Locator.Current.GetService<WsDanmuClient>(),
+				_ => Locator.Current.GetService<WssDanmuClient>(),
 			};
 			_danmuClient.RetryInterval = TimeSpan.FromSeconds(DanMuReconnectLatency);
 			_danmuClient.RoomId = RoomId;
-			_danmuClient.ApiClient = _apiClient;
 
 			_danmuClient.Received.Subscribe(ParseDanmu);
 			await _danmuClient.StartAsync();
@@ -278,9 +280,9 @@ namespace BilibiliLiveRecordDownLoader.Models
 						var urlData = await _apiClient.GetPlayUrlDataAsync(RoomId, (long)Qn, _token);
 						var url = urlData.durl!.First().url;
 
-						await using var downloader = new HttpDownloader(TimeSpan.FromSeconds(StreamConnectTimeout), _config.Cookie, _config.UserAgent, _config.IsUseProxy)
+						await using var downloader = new HttpDownloader(TimeSpan.FromSeconds(StreamConnectTimeout), _config.Cookie, _config.UserAgent, _configService.HttpHandler)
 						{
-							Target = new Uri(url!)
+							Target = new(url!)
 						};
 						await downloader.GetStreamAsync(_token);
 						RecordStatus = RecordStatus.录制中;

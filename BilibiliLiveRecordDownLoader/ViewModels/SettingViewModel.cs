@@ -1,4 +1,3 @@
-using BilibiliApi.Clients;
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
@@ -51,7 +50,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private readonly ILogger _logger;
 		private readonly IConfigService _configService;
 		private readonly SourceList<RoomStatus> _roomList;
-		private readonly BililiveApiClient _apiClient;
 		private readonly StartupService _startup;
 
 		public readonly Config Config;
@@ -62,7 +60,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			IConfigService configService,
 			Config config,
 			SourceList<RoomStatus> roomList,
-			BililiveApiClient apiClient,
 			StartupService startup)
 		{
 			HostScreen = hostScreen;
@@ -70,7 +67,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			_configService = configService;
 			Config = config;
 			_roomList = roomList;
-			_apiClient = apiClient;
 			_startup = startup;
 
 			SelectMainDirCommand = ReactiveCommand.Create(SelectDirectory);
@@ -132,7 +128,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 						Config.IsCheckPreRelease,
 						version
 				);
-				if (await updateChecker.CheckAsync(_apiClient.Client, default))
+				if (await updateChecker.CheckAsync(new(_configService.HttpHandler), default))
 				{
 					if (updateChecker.LatestVersionUrl is null)
 					{

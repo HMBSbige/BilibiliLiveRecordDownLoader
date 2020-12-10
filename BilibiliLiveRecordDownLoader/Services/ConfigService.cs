@@ -10,6 +10,7 @@ using ReactiveUI;
 using System;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Reactive.Linq;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -21,6 +22,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 	public sealed class ConfigService : ReactiveObject, IConfigService
 	{
 		public Config Config { get; }
+		public HttpClientHandler HttpHandler { get; private set; } = new();
 
 		public string FilePath { get; set; } = $@"{nameof(BilibiliLiveRecordDownLoader)}.json";
 
@@ -64,12 +66,17 @@ namespace BilibiliLiveRecordDownLoader.Services
 				});
 
 			_networkSettingMonitor = Config.WhenAnyValue(x => x.Cookie, x => x.UserAgent, x => x.IsUseProxy)
-					.Throttle(TimeSpan.FromSeconds(0.8))
+					.Throttle(TimeSpan.FromSeconds(0.5))
 					.DistinctUntilChanged()
 					.Subscribe(x =>
 					{
 						var (cookie, ua, useProxy) = x;
-						apiClient.BuildClient(TimeSpan.FromSeconds(10), cookie, ua, useProxy);
+						HttpHandler = new()
+						{
+							UseCookies = string.IsNullOrWhiteSpace(cookie),
+							UseProxy = useProxy
+						};
+						apiClient.BuildClient(cookie, ua, HttpHandler);
 					});
 		}
 
