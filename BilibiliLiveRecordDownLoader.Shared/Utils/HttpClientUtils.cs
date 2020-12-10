@@ -30,6 +30,10 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 
 		public static HttpClient BuildClientForMultiThreadedDownloader(string? cookie, string userAgent, HttpClientHandler handler)
 		{
+			if (string.IsNullOrEmpty(userAgent))
+			{
+				userAgent = Constants.IdmUserAgent;
+			}
 			var client = new HttpClient(new RetryHandler(handler, 10), true);
 			if (!handler.UseCookies)
 			{

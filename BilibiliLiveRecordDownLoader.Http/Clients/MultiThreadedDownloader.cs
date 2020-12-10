@@ -1,10 +1,8 @@
 using BilibiliLiveRecordDownLoader.Http.Interfaces;
 using BilibiliLiveRecordDownLoader.Http.Models;
 using BilibiliLiveRecordDownLoader.Shared.Abstracts;
-using BilibiliLiveRecordDownLoader.Shared.HttpPolicy;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.ObjectPool;
 using Punchclock;
 using System;
 using System.Buffers;
@@ -39,18 +37,12 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 		/// </summary>
 		public string TempDir { get; set; } = Path.GetTempPath();
 
-		private readonly ObjectPool<HttpClient> _httpClientPool;
+		private readonly HttpClient _client;
 
 		public MultiThreadedDownloader(ILogger logger, string? cookie, string userAgent, HttpClientHandler handler)
 		{
 			_logger = logger;
-			if (string.IsNullOrEmpty(userAgent))
-			{
-				userAgent = Constants.IdmUserAgent;
-			}
-			var policy = new PooledHttpClientPolicy(() => HttpClientUtils.BuildClientForMultiThreadedDownloader(cookie, userAgent, handler));
-			var provider = new DefaultObjectPoolProvider { MaximumRetained = 10 };
-			_httpClientPool = provider.Create(policy);
+			_client = HttpClientUtils.BuildClientForMultiThreadedDownloader(cookie, userAgent, handler);
 		}
 
 		/// <summary>
@@ -62,18 +54,15 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 		{
 			token.ThrowIfCancellationRequested();
 
-			using (_httpClientPool.GetObject(out var client))
+			var result = await _client.GetAsync(Target, HttpCompletionOption.ResponseHeadersRead, token);
+
+			var length = result.Content.Headers.ContentLength;
+			if (length is not null)
 			{
-				var result = await client.GetAsync(Target, HttpCompletionOption.ResponseHeadersRead, token);
-
-				var length = result.Content.Headers.ContentLength;
-				if (length is not null)
-				{
-					return length.Value;
-				}
-
-				throw new HttpRequestException(@"Cannot get Content-Length");
+				return length.Value;
 			}
+
+			throw new HttpRequestException(@"Cannot get Content-Length");
 		}
 
 		/// <summary>
@@ -181,25 +170,23 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 		private async Task<(Stream, string)> GetStreamAsync(FileRange info, CancellationToken token)
 		{
 			token.ThrowIfCancellationRequested();
-			using (_httpClientPool.GetObject(out var client))
-			{
-				var request = new HttpRequestMessage { RequestUri = Target };
-				request.Headers.ConnectionClose = false;
-				request.Headers.Range = info.Range;
 
-				var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+			var request = new HttpRequestMessage { RequestUri = Target };
+			request.Headers.ConnectionClose = false;
+			request.Headers.Range = info.Range;
 
-				var stream = await response.Content.ReadAsStreamAsync(token);
+			var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
 
-				return (stream, info.FileName);
-			}
+			var stream = await response.Content.ReadAsStreamAsync(token);
+
+			return (stream, info.FileName);
 		}
 
 		private async Task<Unit> WriteToFileAsync(Stream stream, string tempFileName, CancellationToken token)
 		{
 			token.ThrowIfCancellationRequested();
 
-			await using var fs = File.OpenWrite(tempFileName);
+			await using var fs = File.Create(tempFileName);
 			await CopyStreamAsyncWithProgress(stream, fs, true, token);
 			return Unit.Default;
 		}

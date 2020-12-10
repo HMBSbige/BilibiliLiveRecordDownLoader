@@ -1,8 +1,6 @@
-using Microsoft.Extensions.ObjectPool;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reactive.Disposables;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
@@ -36,13 +34,6 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 
 				return hash1 + hash2 * 1566083941;
 			}
-		}
-
-		public static IDisposable GetObject<T>(this ObjectPool<T> objectPool, out T res) where T : class
-		{
-			var b = objectPool.Get();
-			res = b;
-			return Disposable.Create(() => objectPool.Return(b));
 		}
 
 		public static string ToCookie(this IEnumerable<string> cookies)
