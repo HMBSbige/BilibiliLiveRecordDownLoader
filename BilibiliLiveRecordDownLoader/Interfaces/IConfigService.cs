@@ -16,7 +16,7 @@ namespace BilibiliLiveRecordDownLoader.Interfaces
 		/// <summary>
 		/// 用于全局的 Handler
 		/// </summary>
-		HttpClientHandler HttpHandler { get; }
+		HttpMessageHandler HttpHandler { get; }
 
 		/// <summary>
 		/// 配置文件路径

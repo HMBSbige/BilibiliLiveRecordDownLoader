@@ -7,6 +7,7 @@ using Microsoft.WindowsAPICodePack.Shell;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Net.Http;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 
@@ -34,7 +35,7 @@ namespace UnitTest
 			var outFile = Path.Combine(path, filename);
 			try
 			{
-				await using var downloader = new MultiThreadedDownloader(NullLogger.Instance, default, string.Empty, new())
+				await using var downloader = new MultiThreadedDownloader(NullLogger.Instance, default, string.Empty, new SocketsHttpHandler())
 				{
 					Target = new(url),
 					Threads = 4,
@@ -97,7 +98,7 @@ namespace UnitTest
 			var outFile = Path.Combine(path, filename);
 			try
 			{
-				await using var downloader = new HttpDownloader(TimeSpan.FromSeconds(10), null, Constants.ChromeUserAgent, new())
+				await using var downloader = new HttpDownloader(TimeSpan.FromSeconds(10), null, Constants.ChromeUserAgent, new SocketsHttpHandler())
 				{
 					Target = new(url),
 					OutFileName = outFile

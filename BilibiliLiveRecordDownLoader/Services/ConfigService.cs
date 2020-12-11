@@ -22,7 +22,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 	public sealed class ConfigService : ReactiveObject, IConfigService
 	{
 		public Config Config { get; }
-		public HttpClientHandler HttpHandler { get; private set; } = new();
+		public HttpMessageHandler HttpHandler { get; private set; } = new SocketsHttpHandler();
 
 		public string FilePath { get; set; } = $@"{nameof(BilibiliLiveRecordDownLoader)}.json";
 
@@ -71,8 +71,9 @@ namespace BilibiliLiveRecordDownLoader.Services
 					.Subscribe(x =>
 					{
 						var (cookie, ua, useProxy) = x;
-						HttpHandler = new()
+						HttpHandler = new SocketsHttpHandler
 						{
+							PooledConnectionLifetime = TimeSpan.FromMinutes(10),
 							UseCookies = string.IsNullOrWhiteSpace(cookie),
 							UseProxy = useProxy
 						};

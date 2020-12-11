@@ -23,10 +23,10 @@ namespace BilibiliApi.Clients
 
 		public BililiveApiClient(string? cookie, string userAgent)
 		{
-			BuildClient(cookie, userAgent, new());
+			BuildClient(cookie, userAgent, new SocketsHttpHandler());
 		}
 
-		public void BuildClient(string? cookie, string userAgent, HttpClientHandler handler)
+		public void BuildClient(string? cookie, string userAgent, HttpMessageHandler handler)
 		{
 			_client = HttpClientUtils.BuildClientForBilibili(TimeSpan.FromSeconds(10), userAgent, cookie, handler);
 		}

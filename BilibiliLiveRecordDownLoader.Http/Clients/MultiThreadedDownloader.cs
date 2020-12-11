@@ -39,7 +39,7 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 
 		private readonly HttpClient _client;
 
-		public MultiThreadedDownloader(ILogger logger, string? cookie, string userAgent, HttpClientHandler handler)
+		public MultiThreadedDownloader(ILogger logger, string? cookie, string userAgent, HttpMessageHandler handler)
 		{
 			_logger = logger;
 			_client = HttpClientUtils.BuildClientForMultiThreadedDownloader(cookie, userAgent, handler);

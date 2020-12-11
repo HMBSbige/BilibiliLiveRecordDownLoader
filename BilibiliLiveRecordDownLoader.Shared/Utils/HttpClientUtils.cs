@@ -7,14 +7,14 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 {
 	public static class HttpClientUtils
 	{
-		public static HttpClient BuildClientForBilibili(TimeSpan timeout, string userAgent, string? cookie, HttpClientHandler handler)
+		public static HttpClient BuildClientForBilibili(TimeSpan timeout, string userAgent, string? cookie, HttpMessageHandler handler)
 		{
 			if (string.IsNullOrEmpty(userAgent))
 			{
 				userAgent = Constants.ChromeUserAgent;
 			}
 			var client = new HttpClient(handler, false);
-			if (!handler.UseCookies)
+			if (!string.IsNullOrWhiteSpace(cookie))
 			{
 				client.DefaultRequestHeaders.Add(@"Cookie", cookie);
 			}
@@ -28,14 +28,14 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 			return client;
 		}
 
-		public static HttpClient BuildClientForMultiThreadedDownloader(string? cookie, string userAgent, HttpClientHandler handler)
+		public static HttpClient BuildClientForMultiThreadedDownloader(string? cookie, string userAgent, HttpMessageHandler handler)
 		{
 			if (string.IsNullOrEmpty(userAgent))
 			{
 				userAgent = Constants.IdmUserAgent;
 			}
 			var client = new HttpClient(new RetryHandler(handler, 10), false);
-			if (!handler.UseCookies)
+			if (!string.IsNullOrWhiteSpace(cookie))
 			{
 				client.DefaultRequestHeaders.Add(@"Cookie", cookie);
 			}
@@ -47,7 +47,7 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 			return client;
 		}
 
-		public static HttpClient BuildClient(string? cookie, string userAgent, HttpClientHandler handler)
+		public static HttpClient BuildClient(string? cookie, string userAgent, HttpMessageHandler handler)
 		{
 			if (string.IsNullOrEmpty(userAgent))
 			{
@@ -55,7 +55,7 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 			}
 
 			var client = new HttpClient(handler, false);
-			if (!handler.UseCookies)
+			if (!string.IsNullOrWhiteSpace(cookie))
 			{
 				client.DefaultRequestHeaders.Add(@"Cookie", cookie);
 			}

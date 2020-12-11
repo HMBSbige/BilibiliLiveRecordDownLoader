@@ -19,7 +19,7 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 		private readonly HttpClient _httpClient;
 		private Stream? _netStream;
 
-		public HttpDownloader(TimeSpan timeout, string? cookie, string userAgent, HttpClientHandler handler)
+		public HttpDownloader(TimeSpan timeout, string? cookie, string userAgent, HttpMessageHandler handler)
 		{
 			_httpClient = HttpClientUtils.BuildClientForBilibili(timeout, userAgent, cookie, handler);
 		}
