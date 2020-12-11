@@ -41,7 +41,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 					}
 				}))
 				{
-					using var ffmpeg = new FFmpegCommand();
+					using var ffmpeg = Locator.Current.GetService<FFmpegCommand>();
 					using var messageMonitor = ffmpeg.MessageUpdated.Subscribe(str => Status = str);
 
 					await ffmpeg.StartAsync(_args, _cts.Token);

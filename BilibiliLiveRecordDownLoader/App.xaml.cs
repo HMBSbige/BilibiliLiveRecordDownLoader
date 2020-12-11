@@ -1,20 +1,9 @@
-using BilibiliApi.Clients;
-using BilibiliApi.Model.LiveRecordList;
-using BilibiliLiveRecordDownLoader.FlvProcessor.Clients;
-using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
-using BilibiliLiveRecordDownLoader.Interfaces;
-using BilibiliLiveRecordDownLoader.Models;
-using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
-using BilibiliLiveRecordDownLoader.ViewModels;
-using BilibiliLiveRecordDownLoader.Views;
-using DynamicData;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using ModernWpf;
-using Punchclock;
 using ReactiveUI;
-using RunAtStartup;
 using Serilog;
 using Serilog.Events;
 using Splat;
@@ -99,43 +88,21 @@ namespace BilibiliLiveRecordDownLoader
 
 		private static void ConfigureServices(IServiceCollection services)
 		{
-			services.AddSingleton<MainWindowViewModel>();
-			services.AddSingleton<LiveRecordListViewModel>();
-			services.AddSingleton<TaskListViewModel>();
-			services.AddSingleton<LogViewModel>();
-			services.AddSingleton<SettingViewModel>();
-			services.AddSingleton<StreamRecordViewModel>();
-			services.AddSingleton<UserSettingsViewModel>();
-			services.AddSingleton<FFmpegCommandViewModel>();
-
-			services.AddSingleton<MainWindow>();
-			services.AddTransient<IViewFor<LiveRecordListViewModel>, LiveRecordListView>();
-			services.AddTransient<IViewFor<TaskListViewModel>, TaskListView>();
-			services.AddTransient<IViewFor<LogViewModel>, LogView>();
-			services.AddTransient<IViewFor<SettingViewModel>, SettingView>();
-			services.AddTransient<IViewFor<StreamRecordViewModel>, StreamRecordView>();
-			services.AddTransient<IViewFor<UserSettingsViewModel>, UserSettingsView>();
-			services.AddTransient<IViewFor<FFmpegCommandViewModel>, FFmpegCommandView>();
-
-			services.AddSingleton<IConfigService, ConfigService>();
-			services.AddSingleton<Config>();
-			services.AddSingleton<SourceList<LiveRecordList>>();
-			services.AddSingleton<SourceList<RoomStatus>>();
-			services.AddSingleton<SourceList<TaskViewModel>>();
-			services.AddSingleton<IScreen, MainScreen>();
-			services.AddSingleton(new OperationQueue(int.MaxValue));
-			services.AddSingleton(new BililiveApiClient(default, string.Empty));
-			services.AddSingleton(new StartupService(nameof(BilibiliLiveRecordDownLoader)));
-
-			services.AddTransient<IFlvMerger, FlvMerger>();
-			services.AddTransient<TcpDanmuClient>();
-			services.AddTransient<WsDanmuClient>();
-			services.AddTransient<WssDanmuClient>();
 			services.AddLogging(c => c.AddSerilog());
+			services.AddViewModels();
+			services.AddViews();
+			services.AddDanmuClients();
+			services.AddConfig();
+			services.AddDynamicData();
+			services.AddFlvProcessor();
+			services.AddStartupService();
+			services.AddGlobalTaskQueue();
+			services.AddBilibiliApiClient();
 		}
 
 		private static void Register()
 		{
+			var memorySink = new SubjectMemorySink(Constants.OutputTemplate);
 			Log.Logger = new LoggerConfiguration()
 #if DEBUG
 				.MinimumLevel.Debug()
@@ -149,7 +116,7 @@ namespace BilibiliLiveRecordDownLoader
 						outputTemplate: Constants.OutputTemplate,
 						rollingInterval: RollingInterval.Day,
 						fileSizeLimitBytes: Constants.MaxLogFileSize))
-				.WriteTo.Sink(Constants.SubjectMemorySink)
+				.WriteTo.Async(c => c.Sink(memorySink))
 				.CreateLogger();
 
 			var services = new ServiceCollection();
@@ -159,9 +126,7 @@ namespace BilibiliLiveRecordDownLoader
 			Locator.CurrentMutable.InitializeReactiveUI();
 
 			ConfigureServices(services);
-
-			var container = services.BuildServiceProvider();
-			container.UseMicrosoftDependencyResolver();
+			services.TryAddSingleton(memorySink);
 		}
 	}
 }

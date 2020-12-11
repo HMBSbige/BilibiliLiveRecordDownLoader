@@ -11,7 +11,7 @@ using System.Windows.Forms;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
-	public sealed class MainWindowViewModel : ReactiveObject
+	public sealed class MainWindowViewModel : ReactiveObject, IScreen
 	{
 		#region Command
 
@@ -23,16 +23,15 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private readonly SourceList<TaskViewModel> _taskSourceList;
 		private readonly SourceList<RoomStatus> _roomList;
 
-		public IScreen HostScreen { get; }
+		public RoutingState Router { get; } = new();
+
 		public readonly Config Config;
 
 		public MainWindowViewModel(
-			IScreen screen,
 			SourceList<TaskViewModel> taskSourceList,
 			Config config,
 			SourceList<RoomStatus> roomList)
 		{
-			HostScreen = screen;
 			_taskSourceList = taskSourceList;
 			Config = config;
 			_roomList = roomList;

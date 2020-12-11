@@ -26,9 +26,9 @@ namespace BilibiliLiveRecordDownLoader.Services
 				throw new ArgumentNullException(nameof(logEvent));
 			}
 
-			var renderSpace = new StringWriter();
-			_textFormatter.Format(logEvent, renderSpace);
-			LogSubject.OnNext(renderSpace.ToString());
+			using var writer = new StringWriter();
+			_textFormatter.Format(logEvent, writer);
+			LogSubject.OnNext(writer.ToString());
 		}
 	}
 }

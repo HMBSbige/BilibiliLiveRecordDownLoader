@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
+using Splat;
 using System;
 using System.IO;
 using System.Reactive;
@@ -12,6 +13,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media;
 using Constants = BilibiliLiveRecordDownLoader.Utils.Constants;
+using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
@@ -88,7 +90,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		{
 			try
 			{
-				using var ffmpeg = new FFmpegCommand();
+				using var ffmpeg = Locator.Current.GetService<FFmpegCommand>();
 				if (await ffmpeg.VerifyAsync(token))
 				{
 					FFmpegStatus = @"成功";

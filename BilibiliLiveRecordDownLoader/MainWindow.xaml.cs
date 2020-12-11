@@ -35,14 +35,14 @@ namespace BilibiliLiveRecordDownLoader
 				this.BindCommand(ViewModel, vm => vm.ShowWindowCommand, v => v.ShowMenuItem).DisposeWith(d);
 				this.BindCommand(ViewModel, vm => vm.ExitCommand, v => v.ExitMenuItem).DisposeWith(d);
 
-				this.Bind(ViewModel, vm => vm.HostScreen.Router, v => v.RoutedViewHost.Router).DisposeWith(d);
+				this.Bind(ViewModel, vm => vm.Router, v => v.RoutedViewHost.Router).DisposeWith(d);
 
 				Observable.FromEventPattern<NavigationViewSelectionChangedEventArgs>(NavigationView, nameof(NavigationView.SelectionChanged))
 				.Subscribe(args =>
 				{
 					if (args.EventArgs.IsSettingsSelected)
 					{
-						ViewModel.HostScreen.Router.Navigate.Execute(settings);
+						ViewModel.Router.Navigate.Execute(settings);
 						return;
 					}
 
@@ -55,32 +55,32 @@ namespace BilibiliLiveRecordDownLoader
 					{
 						case @"1":
 						{
-							ViewModel.HostScreen.Router.Navigate.Execute(liveRecordList);
+							ViewModel.Router.Navigate.Execute(liveRecordList);
 							break;
 						}
 						case @"2":
 						{
-							ViewModel.HostScreen.Router.Navigate.Execute(taskList);
+							ViewModel.Router.Navigate.Execute(taskList);
 							break;
 						}
 						case @"3":
 						{
-							ViewModel.HostScreen.Router.Navigate.Execute(log);
+							ViewModel.Router.Navigate.Execute(log);
 							break;
 						}
 						case @"4":
 						{
-							ViewModel.HostScreen.Router.Navigate.Execute(streamRecord);
+							ViewModel.Router.Navigate.Execute(streamRecord);
 							break;
 						}
 						case @"5":
 						{
-							ViewModel.HostScreen.Router.Navigate.Execute(userSettings);
+							ViewModel.Router.Navigate.Execute(userSettings);
 							break;
 						}
 						case @"6":
 						{
-							ViewModel.HostScreen.Router.Navigate.Execute(ffmpegCommand);
+							ViewModel.Router.Navigate.Execute(ffmpegCommand);
 							break;
 						}
 					}

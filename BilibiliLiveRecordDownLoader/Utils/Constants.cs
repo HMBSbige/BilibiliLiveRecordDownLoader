@@ -1,4 +1,3 @@
-using BilibiliLiveRecordDownLoader.Services;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using System.Windows.Media;
 
@@ -16,7 +15,6 @@ namespace BilibiliLiveRecordDownLoader.Utils
 		public const string FFmpegCopyConvert = @"-i ""{0}"" -c:v copy -c:a copy -y ""{1}""";
 		public const string FFmpegSplitTo = @"-ss {0} -to {1} -accurate_seek -i ""{2}"" -codec copy -avoid_negative_ts 1 ""{3}"" -y";
 
-		public static readonly SubjectMemorySink SubjectMemorySink = new(OutputTemplate);
 		public static readonly SolidColorBrush RedBrush = new(Colors.Red);
 		public static readonly SolidColorBrush GreenBrush = new(Colors.Green);
 		public static readonly SolidColorBrush YellowBrush = new(Colors.Coral);

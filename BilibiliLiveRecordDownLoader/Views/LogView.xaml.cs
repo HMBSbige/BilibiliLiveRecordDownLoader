@@ -1,4 +1,4 @@
-using BilibiliLiveRecordDownLoader.Utils;
+using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI;
 using System;
@@ -9,7 +9,9 @@ namespace BilibiliLiveRecordDownLoader.Views
 {
 	public partial class LogView
 	{
-		public LogView(LogViewModel viewModel)
+		public LogView(
+			LogViewModel viewModel,
+			SubjectMemorySink memorySink)
 		{
 			InitializeComponent();
 			ViewModel = viewModel;
@@ -17,7 +19,7 @@ namespace BilibiliLiveRecordDownLoader.Views
 			this.WhenActivated(d =>
 			{
 				LogTextBox.Clear();
-				Constants.SubjectMemorySink.LogSubject.ObserveOnDispatcher().Subscribe(str => LogTextBox.AppendText(str)).DisposeWith(d);
+				memorySink.LogSubject.ObserveOnDispatcher().Subscribe(str => LogTextBox.AppendText(str)).DisposeWith(d);
 			});
 		}
 	}
