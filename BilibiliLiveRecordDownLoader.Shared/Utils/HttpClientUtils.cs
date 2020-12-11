@@ -11,7 +11,7 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 		{
 			if (string.IsNullOrEmpty(userAgent))
 			{
-				userAgent = Constants.ChromeUserAgent;
+				userAgent = UserAgents.Chrome;
 			}
 			var client = new HttpClient(handler, false);
 			if (!string.IsNullOrWhiteSpace(cookie))
@@ -32,7 +32,7 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 		{
 			if (string.IsNullOrEmpty(userAgent))
 			{
-				userAgent = Constants.IdmUserAgent;
+				userAgent = UserAgents.Idm;
 			}
 			var client = new HttpClient(new RetryHandler(handler, 10), false);
 			if (!string.IsNullOrWhiteSpace(cookie))
@@ -51,7 +51,7 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 		{
 			if (string.IsNullOrEmpty(userAgent))
 			{
-				userAgent = Constants.ChromeUserAgent;
+				userAgent = UserAgents.Chrome;
 			}
 
 			var client = new HttpClient(handler, false);

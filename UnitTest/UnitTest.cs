@@ -98,7 +98,7 @@ namespace UnitTest
 			var outFile = Path.Combine(path, filename);
 			try
 			{
-				await using var downloader = new HttpDownloader(TimeSpan.FromSeconds(10), null, Constants.ChromeUserAgent, new SocketsHttpHandler())
+				await using var downloader = new HttpDownloader(TimeSpan.FromSeconds(10), null, UserAgents.Chrome, new SocketsHttpHandler())
 				{
 					Target = new(url),
 					OutFileName = outFile

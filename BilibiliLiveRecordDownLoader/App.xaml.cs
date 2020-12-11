@@ -25,8 +25,11 @@ namespace BilibiliLiveRecordDownLoader
 		private void Application_Startup(object sender, StartupEventArgs e)
 		{
 			Directory.SetCurrentDirectory(Path.GetDirectoryName(Utils.Utils.GetExecutablePath())!);
+#if DEBUG
+			var identifier = $@"Global\{nameof(BilibiliLiveRecordDownLoader)}_Debug";
+#else
 			var identifier = $@"Global\{nameof(BilibiliLiveRecordDownLoader)}";
-
+#endif
 			var singleInstance = new SingleInstance.SingleInstance(identifier);
 			if (!singleInstance.IsFirstInstance)
 			{
@@ -88,16 +91,16 @@ namespace BilibiliLiveRecordDownLoader
 
 		private static void ConfigureServices(IServiceCollection services)
 		{
-			services.AddLogging(c => c.AddSerilog());
-			services.AddViewModels();
-			services.AddViews();
-			services.AddDanmuClients();
-			services.AddConfig();
-			services.AddDynamicData();
-			services.AddFlvProcessor();
-			services.AddStartupService();
-			services.AddGlobalTaskQueue();
-			services.AddBilibiliApiClient();
+			services.AddViewModels()
+					.AddViews()
+					.AddDanmuClients()
+					.AddConfig()
+					.AddDynamicData()
+					.AddFlvProcessor()
+					.AddStartupService()
+					.AddGlobalTaskQueue()
+					.AddBilibiliApiClient()
+					.AddLogging(c => c.AddSerilog());
 		}
 
 		private static void Register()
@@ -123,7 +126,7 @@ namespace BilibiliLiveRecordDownLoader
 
 			services.UseMicrosoftDependencyResolver();
 			Locator.CurrentMutable.InitializeSplat();
-			Locator.CurrentMutable.InitializeReactiveUI();
+			Locator.CurrentMutable.InitializeReactiveUI(RegistrationNamespace.Wpf);
 
 			ConfigureServices(services);
 			services.TryAddSingleton(memorySink);

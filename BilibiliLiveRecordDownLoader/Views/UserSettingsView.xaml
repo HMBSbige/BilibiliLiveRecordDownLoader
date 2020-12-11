@@ -18,7 +18,7 @@
                     <ui:SimpleStackPanel Spacing="10">
                         <TextBox x:Name="UserAgentTextBox"
                                  ui:ControlHelper.Header="User Agent"
-                                 ui:ControlHelper.PlaceholderText="{x:Static constants:Constants.ChromeUserAgent}" />
+                                 ui:ControlHelper.PlaceholderText="{x:Static constants:UserAgents.Chrome}" />
                         <TextBox x:Name="CookieTextBox"
                                  ui:ControlHelper.Header="Cookie"
                                  VerticalContentAlignment="Top"
