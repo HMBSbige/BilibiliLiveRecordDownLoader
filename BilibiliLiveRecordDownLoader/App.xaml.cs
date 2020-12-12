@@ -13,65 +13,55 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reactive.Linq;
-using System.Threading;
 using System.Windows;
 
 namespace BilibiliLiveRecordDownLoader
 {
 	public partial class App
 	{
-		private static int _exited;
+		private readonly SingleInstance.SingleInstance _singleInstance;
+		private readonly SubjectMemorySink _memorySink;
+
+		public App()
+		{
+			try
+			{
+#if DEBUG
+				var identifier = $@"Global\{nameof(BilibiliLiveRecordDownLoader)}_Debug";
+#else
+				var identifier = $@"Global\{nameof(BilibiliLiveRecordDownLoader)}";
+#endif
+				_singleInstance = new(identifier);
+
+				_memorySink = new SubjectMemorySink(Constants.OutputTemplate);
+				CreateLogger();
+			}
+			catch (Exception ex)
+			{
+				MessageBox.Show($@"WTF??? {ex}", nameof(BilibiliLiveRecordDownLoader), MessageBoxButton.OK, MessageBoxImage.Error);
+				Environment.Exit(1);
+			}
+		}
 
 		private void Application_Startup(object sender, StartupEventArgs e)
 		{
+			Current.Events().Exit.Subscribe(args => AppExit(args.ApplicationExitCode));
+			Current.Events().DispatcherUnhandledException.Subscribe(args => UnhandledException(args.Exception));
+
 			Directory.SetCurrentDirectory(Path.GetDirectoryName(Utils.Utils.GetExecutablePath())!);
-#if DEBUG
-			var identifier = $@"Global\{nameof(BilibiliLiveRecordDownLoader)}_Debug";
-#else
-			var identifier = $@"Global\{nameof(BilibiliLiveRecordDownLoader)}";
-#endif
-			var singleInstance = new SingleInstance.SingleInstance(identifier);
-			if (!singleInstance.IsFirstInstance)
+
+			if (!_singleInstance.IsFirstInstance)
 			{
-				singleInstance.PassArgumentsToFirstInstance(e.Args.Append(Constants.ParameterShow));
-				Current.Shutdown();
-				return;
+				_singleInstance.PassArgumentsToFirstInstance(e.Args.Append(Constants.ParameterShow));
+				AppExit(0);
 			}
 
-			singleInstance.ArgumentsReceived.ObserveOnDispatcher().Subscribe(SingleInstance_ArgumentsReceived);
-			singleInstance.ListenForArgumentsFromSuccessiveInstances();
-
-			Current.Events().Exit.Subscribe(_ =>
-			{
-				singleInstance.Dispose();
-				Log.CloseAndFlush();
-			});
-			Current.Events().DispatcherUnhandledException.Subscribe(args =>
-			{
-				try
-				{
-					if (Interlocked.Increment(ref _exited) != 1)
-					{
-						return;
-					}
-
-					var exStr = $@"未捕获异常：{args.Exception}";
-
-					Log.Fatal(args.Exception, @"未捕获异常");
-					MessageBox.Show(exStr, nameof(BilibiliLiveRecordDownLoader), MessageBoxButton.OK, MessageBoxImage.Error);
-
-					Current.Shutdown();
-				}
-				finally
-				{
-					singleInstance.Dispose();
-					Log.CloseAndFlush();
-				}
-			});
+			_singleInstance.ArgumentsReceived.ObserveOnDispatcher().Subscribe(SingleInstance_ArgumentsReceived);
+			_singleInstance.ListenForArgumentsFromSuccessiveInstances();
 
 			ThemeManager.Current.ApplicationTheme = null;
 
-			Register();
+			Register().TryAddSingleton(_memorySink);
 
 			MainWindow = Locator.Current.GetService<MainWindow>();
 			if (e.Args.Contains(Constants.ParameterSilent))
@@ -79,6 +69,19 @@ namespace BilibiliLiveRecordDownLoader
 				MainWindow.Visibility = Visibility.Hidden;
 			}
 			MainWindow.ShowWindow();
+		}
+
+		private void UnhandledException(Exception ex)
+		{
+			try
+			{
+				Log.Fatal(ex, @"未捕获异常");
+				MessageBox.Show($@"未捕获异常：{ex}", nameof(BilibiliLiveRecordDownLoader), MessageBoxButton.OK, MessageBoxImage.Error);
+			}
+			finally
+			{
+				AppExit(1);
+			}
 		}
 
 		private void SingleInstance_ArgumentsReceived(IEnumerable<string> args)
@@ -103,9 +106,8 @@ namespace BilibiliLiveRecordDownLoader
 					.AddLogging(c => c.AddSerilog());
 		}
 
-		private static void Register()
+		private void CreateLogger()
 		{
-			var memorySink = new SubjectMemorySink(Constants.OutputTemplate);
 			Log.Logger = new LoggerConfiguration()
 #if DEBUG
 				.MinimumLevel.Debug()
@@ -119,9 +121,12 @@ namespace BilibiliLiveRecordDownLoader
 						outputTemplate: Constants.OutputTemplate,
 						rollingInterval: RollingInterval.Day,
 						fileSizeLimitBytes: Constants.MaxLogFileSize))
-				.WriteTo.Async(c => c.Sink(memorySink))
+				.WriteTo.Async(c => c.Sink(_memorySink))
 				.CreateLogger();
+		}
 
+		private static IServiceCollection Register()
+		{
 			var services = new ServiceCollection();
 
 			services.UseMicrosoftDependencyResolver();
@@ -129,7 +134,16 @@ namespace BilibiliLiveRecordDownLoader
 			Locator.CurrentMutable.InitializeReactiveUI(RegistrationNamespace.Wpf);
 
 			ConfigureServices(services);
-			services.TryAddSingleton(memorySink);
+
+			return services;
+		}
+
+		private void AppExit(int exitCode)
+		{
+			_singleInstance.Dispose();
+			Log.CloseAndFlush();
+			Current.Shutdown(exitCode);
+			Environment.Exit(exitCode);
 		}
 	}
 }
