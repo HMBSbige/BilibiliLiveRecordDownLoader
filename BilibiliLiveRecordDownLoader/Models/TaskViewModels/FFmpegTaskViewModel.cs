@@ -1,11 +1,10 @@
 using BilibiliLiveRecordDownLoader.FFmpeg;
+using BilibiliLiveRecordDownLoader.Services;
 using Microsoft.Extensions.Logging;
-using Splat;
 using System;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 {
@@ -18,7 +17,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 
 		public FFmpegTaskViewModel(string args)
 		{
-			_logger = Locator.Current.GetService<ILogger<FFmpegTaskViewModel>>();
+			_logger = DI.GetService<ILogger<FFmpegTaskViewModel>>();
 			_args = args;
 
 			Description = args;
@@ -41,7 +40,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 					}
 				}))
 				{
-					using var ffmpeg = Locator.Current.GetService<FFmpegCommand>();
+					using var ffmpeg = DI.GetService<FFmpegCommand>();
 					using var messageMonitor = ffmpeg.MessageUpdated.Subscribe(str => Status = str);
 
 					await ffmpeg.StartAsync(_args, _cts.Token);

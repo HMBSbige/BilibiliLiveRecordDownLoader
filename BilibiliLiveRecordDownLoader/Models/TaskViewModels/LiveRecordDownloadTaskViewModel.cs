@@ -1,15 +1,14 @@
 using BilibiliApi.Clients;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
 using BilibiliLiveRecordDownLoader.Http.Clients;
+using BilibiliLiveRecordDownLoader.Services;
 using Microsoft.Extensions.Logging;
-using Splat;
 using System;
 using System.IO;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 {
@@ -26,8 +25,8 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 
 		public LiveRecordDownloadTaskViewModel(LiveRecordViewModel liveRecord, string path, ushort threadsCount)
 		{
-			_logger = Locator.Current.GetService<ILogger<LiveRecordDownloadTaskViewModel>>();
-			_apiClient = Locator.Current.GetService<BililiveApiClient>();
+			_logger = DI.GetService<ILogger<LiveRecordDownloadTaskViewModel>>();
+			_apiClient = DI.GetService<BililiveApiClient>();
 			_liveRecord = liveRecord;
 			_path = path;
 			_threadsCount = threadsCount;
@@ -75,7 +74,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 						continue;
 					}
 
-					await using var downloader = Locator.Current.GetService<MultiThreadedDownloader>();
+					await using var downloader = DI.GetService<MultiThreadedDownloader>();
 					downloader.Target = new(url);
 					downloader.Threads = _threadsCount;
 					downloader.OutFileName = outfile;
@@ -111,7 +110,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 				var mergeFlv = Path.Combine(_path, $@"{filename}.flv");
 				if (l.Length > 1)
 				{
-					await using var flv = Locator.Current.GetService<IFlvMerger>();
+					await using var flv = DI.GetService<IFlvMerger>();
 					flv.AddRange(Enumerable.Range(1, l.Length).Select(i => Path.Combine(_recordPath, $@"{i}.flv")));
 
 					using var ds = flv.Status.DistinctUntilChanged().Subscribe(s => Status = s);

@@ -1,13 +1,7 @@
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using ModernWpf;
-using ReactiveUI;
 using Serilog;
-using Serilog.Events;
-using Splat;
-using Splat.Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -20,7 +14,6 @@ namespace BilibiliLiveRecordDownLoader
 	public partial class App
 	{
 		private readonly SingleInstance.SingleInstance _singleInstance;
-		private readonly SubjectMemorySink _memorySink;
 
 		public App()
 		{
@@ -32,9 +25,7 @@ namespace BilibiliLiveRecordDownLoader
 				var identifier = $@"Global\{nameof(BilibiliLiveRecordDownLoader)}";
 #endif
 				_singleInstance = new(identifier);
-
-				_memorySink = new SubjectMemorySink(Constants.OutputTemplate);
-				CreateLogger();
+				DI.CreateLogger();
 			}
 			catch (Exception ex)
 			{
@@ -61,9 +52,9 @@ namespace BilibiliLiveRecordDownLoader
 
 			ThemeManager.Current.ApplicationTheme = null;
 
-			Register().TryAddSingleton(_memorySink);
+			DI.Register();
 
-			MainWindow = Locator.Current.GetService<MainWindow>();
+			MainWindow = DI.GetService<MainWindow>();
 			if (e.Args.Contains(Constants.ParameterSilent))
 			{
 				MainWindow.Visibility = Visibility.Hidden;
@@ -90,53 +81,6 @@ namespace BilibiliLiveRecordDownLoader
 			{
 				MainWindow?.ShowWindow();
 			}
-		}
-
-		private static IServiceCollection ConfigureServices(IServiceCollection services)
-		{
-			services.AddViewModels()
-					.AddViews()
-					.AddDanmuClients()
-					.AddConfig()
-					.AddDynamicData()
-					.AddFlvProcessor()
-					.AddStartupService()
-					.AddGlobalTaskQueue()
-					.AddBilibiliApiClient()
-					.AddHttpDownloader()
-					.AddLogging(c => c.AddSerilog());
-
-			return services;
-		}
-
-		private void CreateLogger()
-		{
-			Log.Logger = new LoggerConfiguration()
-#if DEBUG
-				.MinimumLevel.Debug()
-				.WriteTo.Async(c => c.Debug(outputTemplate: Constants.OutputTemplate))
-#else
-				.MinimumLevel.Information()
-#endif
-				.MinimumLevel.Override(@"Microsoft", LogEventLevel.Information)
-				.Enrich.FromLogContext()
-				.WriteTo.Async(c => c.File(Constants.LogFile,
-						outputTemplate: Constants.OutputTemplate,
-						rollingInterval: RollingInterval.Day,
-						fileSizeLimitBytes: Constants.MaxLogFileSize))
-				.WriteTo.Async(c => c.Sink(_memorySink))
-				.CreateLogger();
-		}
-
-		private static IServiceCollection Register()
-		{
-			var services = new ServiceCollection();
-
-			services.UseMicrosoftDependencyResolver();
-			Locator.CurrentMutable.InitializeSplat();
-			Locator.CurrentMutable.InitializeReactiveUI(RegistrationNamespace.Wpf);
-
-			return ConfigureServices(services);
 		}
 
 		private void AppExit(int exitCode)

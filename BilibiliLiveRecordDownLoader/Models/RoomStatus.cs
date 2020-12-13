@@ -6,12 +6,12 @@ using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.Http.Clients;
 using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
+using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
-using Splat;
 using System;
 using System.IO;
 using System.Linq;
@@ -22,7 +22,6 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace BilibiliLiveRecordDownLoader.Models
 {
@@ -154,10 +153,10 @@ namespace BilibiliLiveRecordDownLoader.Models
 
 		public RoomStatus()
 		{
-			_logger = Locator.Current.GetService<ILogger<RoomStatus>>();
-			_config = Locator.Current.GetService<Config>();
-			_apiClient = Locator.Current.GetService<BililiveApiClient>();
-			_taskList = Locator.Current.GetService<TaskListViewModel>();
+			_logger = DI.GetService<ILogger<RoomStatus>>();
+			_config = DI.GetService<Config>();
+			_apiClient = DI.GetService<BililiveApiClient>();
+			_taskList = DI.GetService<TaskListViewModel>();
 		}
 
 		#region ApiRequest
@@ -243,9 +242,9 @@ namespace BilibiliLiveRecordDownLoader.Models
 		{
 			_danmuClient = ClientType switch
 			{
-				DanmuClientType.TCP => Locator.Current.GetService<TcpDanmuClient>(),
-				DanmuClientType.Websocket => Locator.Current.GetService<WsDanmuClient>(),
-				_ => Locator.Current.GetService<WssDanmuClient>(),
+				DanmuClientType.TCP => DI.GetService<TcpDanmuClient>(),
+				DanmuClientType.Websocket => DI.GetService<WsDanmuClient>(),
+				_ => DI.GetService<WssDanmuClient>(),
 			};
 			_danmuClient.RetryInterval = TimeSpan.FromSeconds(DanMuReconnectLatency);
 			_danmuClient.RoomId = RoomId;
@@ -277,7 +276,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 						var urlData = await _apiClient.GetPlayUrlDataAsync(RoomId, (long)Qn, _token);
 						var url = urlData.durl!.First().url;
 
-						await using var downloader = Locator.Current.GetService<HttpDownloader>();
+						await using var downloader = DI.GetService<HttpDownloader>();
 						downloader.Target = new(url!);
 						downloader.Client.Timeout = TimeSpan.FromSeconds(StreamConnectTimeout);
 

@@ -1,15 +1,14 @@
 using BilibiliApi.Clients;
 using BilibiliApi.Model.Login.QrCode.GetLoginUrl;
+using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
 using Microsoft.Extensions.Logging;
 using QRCoder;
 using ReactiveUI;
-using Splat;
 using System;
 using System.Net.Http;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
-using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace BilibiliLiveRecordDownLoader.Views.Dialogs
 {
@@ -24,8 +23,8 @@ namespace BilibiliLiveRecordDownLoader.Views.Dialogs
 
 		public QrCodeLoginDialog(GetLoginUrlData data)
 		{
-			_logger = Locator.Current.GetService<ILogger<QrCodeLoginDialog>>();
-			_apiClient = Locator.Current.GetService<BililiveApiClient>();
+			_logger = DI.GetService<ILogger<QrCodeLoginDialog>>();
+			_apiClient = DI.GetService<BililiveApiClient>();
 			_data = data;
 
 			InitializeComponent();

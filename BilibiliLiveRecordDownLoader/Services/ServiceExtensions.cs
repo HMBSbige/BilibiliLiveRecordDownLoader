@@ -7,7 +7,6 @@ using BilibiliLiveRecordDownLoader.Http.Clients;
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
-using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using BilibiliLiveRecordDownLoader.Views;
@@ -19,7 +18,7 @@ using Punchclock;
 using ReactiveUI;
 using RunAtStartup;
 
-namespace BilibiliLiveRecordDownLoader.Utils
+namespace BilibiliLiveRecordDownLoader.Services
 {
 	public static class ServiceExtensions
 	{

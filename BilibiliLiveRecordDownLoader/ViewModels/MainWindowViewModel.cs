@@ -1,10 +1,10 @@
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
+using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
 using DynamicData;
 using ReactiveUI;
-using Splat;
 using System.Linq;
 using System.Reactive;
 using System.Windows.Forms;
@@ -48,16 +48,16 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		private static void ShowWindow()
 		{
-			Locator.Current.GetService<MainWindow>().ShowWindow();
+			DI.GetService<MainWindow>().ShowWindow();
 		}
 
 		private void Exit()
 		{
 			StopAllTask();
 
-			Locator.Current.GetService<IConfigService>().Dispose();
+			DI.GetService<IConfigService>().Dispose();
 
-			var window = Locator.Current.GetService<MainWindow>();
+			var window = DI.GetService<MainWindow>();
 			window.CloseReason = CloseReason.ApplicationExitCall;
 			window.Close();
 		}

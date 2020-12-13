@@ -3,6 +3,7 @@ using BilibiliApi.Model.LiveRecordList;
 using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
+using BilibiliLiveRecordDownLoader.Utils;
 using DynamicData;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
@@ -15,7 +16,6 @@ using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
-using Constants = BilibiliLiveRecordDownLoader.Utils.Constants;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
 {
