@@ -144,7 +144,10 @@ namespace BilibiliLiveRecordDownLoader
 			_singleInstance.Dispose();
 			Log.CloseAndFlush();
 			Current.Shutdown(exitCode);
-			Environment.Exit(exitCode);
+			if (exitCode != 0)
+			{
+				Environment.Exit(exitCode);
+			}
 		}
 	}
 }
