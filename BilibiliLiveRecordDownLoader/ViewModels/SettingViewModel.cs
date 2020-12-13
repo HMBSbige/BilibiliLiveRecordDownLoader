@@ -129,7 +129,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 						Config.IsCheckPreRelease,
 						version
 				);
-				if (await updateChecker.CheckAsync(HttpClientUtils.BuildClient(Config.Cookie, Config.UserAgent, _configService.HttpHandler), token))
+				if (await updateChecker.CheckAsync(HttpClientUtils.BuildClient(Config.Cookie, Config.UserAgent, Config.HttpHandler), token))
 				{
 					if (updateChecker.LatestVersionUrl is null)
 					{

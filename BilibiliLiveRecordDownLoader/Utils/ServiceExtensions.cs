@@ -3,15 +3,18 @@ using BilibiliApi.Model.LiveRecordList;
 using BilibiliLiveRecordDownLoader.FFmpeg;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Clients;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
+using BilibiliLiveRecordDownLoader.Http.Clients;
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
 using BilibiliLiveRecordDownLoader.Services;
+using BilibiliLiveRecordDownLoader.Shared.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using BilibiliLiveRecordDownLoader.Views;
 using DynamicData;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Punchclock;
 using ReactiveUI;
 using RunAtStartup;
@@ -100,7 +103,32 @@ namespace BilibiliLiveRecordDownLoader.Utils
 
 		public static IServiceCollection AddBilibiliApiClient(this IServiceCollection services)
 		{
-			services.TryAddSingleton(new BililiveApiClient(default, string.Empty));
+			services.TryAddSingleton(provider =>
+			{
+				var config = provider.GetRequiredService<Config>();
+				var client = HttpClientUtils.BuildClientForBilibili(config.UserAgent, config.Cookie, config.HttpHandler);
+				return new BililiveApiClient(client);
+			});
+
+			return services;
+		}
+
+		public static IServiceCollection AddHttpDownloader(this IServiceCollection services)
+		{
+			services.TryAddTransient(provider =>
+			{
+				var config = provider.GetRequiredService<Config>();
+				var client = HttpClientUtils.BuildClientForBilibili(config.UserAgent, config.Cookie, config.HttpHandler);
+				return new HttpDownloader(client);
+			});
+
+			services.TryAddTransient(provider =>
+			{
+				var logger = provider.GetRequiredService<ILogger<MultiThreadedDownloader>>();
+				var config = provider.GetRequiredService<Config>();
+				var client = HttpClientUtils.BuildClientForMultiThreadedDownloader(config.Cookie, config.UserAgent, config.HttpHandler);
+				return new MultiThreadedDownloader(logger, client);
+			});
 
 			return services;
 		}

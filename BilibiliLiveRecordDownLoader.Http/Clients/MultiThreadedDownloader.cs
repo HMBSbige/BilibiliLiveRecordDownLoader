@@ -1,6 +1,7 @@
 using BilibiliLiveRecordDownLoader.Http.Interfaces;
 using BilibiliLiveRecordDownLoader.Http.Models;
 using BilibiliLiveRecordDownLoader.Shared.Abstracts;
+using BilibiliLiveRecordDownLoader.Shared.Interfaces;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.Extensions.Logging;
 using Punchclock;
@@ -19,7 +20,7 @@ using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.Http.Clients
 {
-	public class MultiThreadedDownloader : ProgressBase, IDownloader
+	public class MultiThreadedDownloader : ProgressBase, IDownloader, IHttpClient
 	{
 		private readonly ILogger _logger;
 
@@ -37,12 +38,12 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 		/// </summary>
 		public string TempDir { get; set; } = Path.GetTempPath();
 
-		private readonly HttpClient _client;
+		public HttpClient Client { get; set; }
 
-		public MultiThreadedDownloader(ILogger logger, string? cookie, string userAgent, HttpMessageHandler handler)
+		public MultiThreadedDownloader(ILogger<MultiThreadedDownloader> logger, HttpClient client)
 		{
 			_logger = logger;
-			_client = HttpClientUtils.BuildClientForMultiThreadedDownloader(cookie, userAgent, handler);
+			Client = client;
 		}
 
 		/// <summary>
@@ -54,7 +55,7 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 		{
 			token.ThrowIfCancellationRequested();
 
-			var result = await _client.GetAsync(Target, HttpCompletionOption.ResponseHeadersRead, token);
+			var result = await Client.GetAsync(Target, HttpCompletionOption.ResponseHeadersRead, token);
 
 			var length = result.Content.Headers.ContentLength;
 			if (length is not null)
@@ -175,7 +176,7 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 			request.Headers.ConnectionClose = false;
 			request.Headers.Range = info.Range;
 
-			var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+			var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
 
 			var stream = await response.Content.ReadAsStreamAsync(token);
 

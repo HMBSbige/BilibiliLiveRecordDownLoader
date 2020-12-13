@@ -5,7 +5,6 @@ using BilibiliApi.Model.RoomInfo;
 using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.Http.Clients;
-using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
@@ -32,7 +31,6 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private readonly ILogger _logger;
 		private readonly BililiveApiClient _apiClient;
 		private readonly Config _config;
-		private readonly IConfigService _configService;
 		private readonly TaskListViewModel _taskList;
 
 		private IDanmuClient? _danmuClient;
@@ -160,7 +158,6 @@ namespace BilibiliLiveRecordDownLoader.Models
 			_config = Locator.Current.GetService<Config>();
 			_apiClient = Locator.Current.GetService<BililiveApiClient>();
 			_taskList = Locator.Current.GetService<TaskListViewModel>();
-			_configService = Locator.Current.GetService<IConfigService>();
 		}
 
 		#region ApiRequest
@@ -280,10 +277,10 @@ namespace BilibiliLiveRecordDownLoader.Models
 						var urlData = await _apiClient.GetPlayUrlDataAsync(RoomId, (long)Qn, _token);
 						var url = urlData.durl!.First().url;
 
-						await using var downloader = new HttpDownloader(TimeSpan.FromSeconds(StreamConnectTimeout), _config.Cookie, _config.UserAgent, _configService.HttpHandler)
-						{
-							Target = new(url!)
-						};
+						await using var downloader = Locator.Current.GetService<HttpDownloader>();
+						downloader.Target = new(url!);
+						downloader.Client.Timeout = TimeSpan.FromSeconds(StreamConnectTimeout);
+
 						await downloader.GetStreamAsync(_token);
 						RecordStatus = RecordStatus.录制中;
 						var flv = Path.Combine(_config.MainDir, $@"{RoomId}", $@"{DateTime.Now:yyyyMMdd_HHmmss}.flv");

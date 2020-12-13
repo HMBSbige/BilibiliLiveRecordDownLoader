@@ -5,8 +5,7 @@ using BilibiliApi.Model.LiveRecordUrl;
 using BilibiliApi.Model.PlayUrl;
 using BilibiliApi.Model.RoomInfo;
 using BilibiliApi.Model.RoomInit;
-using BilibiliLiveRecordDownLoader.Shared.Utils;
-using System;
+using BilibiliLiveRecordDownLoader.Shared.Interfaces;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -15,20 +14,15 @@ using System.Threading.Tasks;
 
 namespace BilibiliApi.Clients
 {
-	public sealed partial class BililiveApiClient
+	public partial class BililiveApiClient : IHttpClient
 	{
-		private HttpClient _client = null!;
+		public HttpClient Client { get; set; }
 
 		private static readonly SemaphoreSlim SemaphoreSlim = new(1, 1);
 
-		public BililiveApiClient(string? cookie, string userAgent)
+		public BililiveApiClient(HttpClient client)
 		{
-			BuildClient(cookie, userAgent, new SocketsHttpHandler());
-		}
-
-		public void BuildClient(string? cookie, string userAgent, HttpMessageHandler handler)
-		{
-			_client = HttpClientUtils.BuildClientForBilibili(TimeSpan.FromSeconds(10), userAgent, cookie, handler);
+			Client = client;
 		}
 
 		/// <summary>
@@ -197,7 +191,7 @@ namespace BilibiliApi.Clients
 			await SemaphoreSlim.WaitAsync(token);
 			try
 			{
-				return await _client.GetFromJsonAsync<T>(url, token);
+				return await Client.GetFromJsonAsync<T>(url, token);
 			}
 			finally
 			{
@@ -210,7 +204,7 @@ namespace BilibiliApi.Clients
 			await SemaphoreSlim.WaitAsync(token);
 			try
 			{
-				return await _client.PostAsync(url, content, token);
+				return await Client.PostAsync(url, content, token);
 			}
 			finally
 			{

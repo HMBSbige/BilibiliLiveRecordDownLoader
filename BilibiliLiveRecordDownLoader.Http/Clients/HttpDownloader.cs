@@ -1,6 +1,6 @@
 using BilibiliLiveRecordDownLoader.Http.Interfaces;
 using BilibiliLiveRecordDownLoader.Shared.Abstracts;
-using BilibiliLiveRecordDownLoader.Shared.Utils;
+using BilibiliLiveRecordDownLoader.Shared.Interfaces;
 using System;
 using System.Buffers;
 using System.IO;
@@ -10,23 +10,23 @@ using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.Http.Clients
 {
-	public class HttpDownloader : ProgressBase, IDownloader
+	public class HttpDownloader : ProgressBase, IDownloader, IHttpClient
 	{
 		public Uri? Target { get; set; }
 
 		public string? OutFileName { get; set; }
 
-		private readonly HttpClient _httpClient;
+		public HttpClient Client { get; set; }
 		private Stream? _netStream;
 
-		public HttpDownloader(TimeSpan timeout, string? cookie, string userAgent, HttpMessageHandler handler)
+		public HttpDownloader(HttpClient client)
 		{
-			_httpClient = HttpClientUtils.BuildClientForBilibili(timeout, userAgent, cookie, handler);
+			Client = client;
 		}
 
 		public async Task GetStreamAsync(CancellationToken token)
 		{
-			_netStream = await _httpClient.GetStreamAsync(Target, token);
+			_netStream = await Client.GetStreamAsync(Target, token);
 		}
 
 		public async ValueTask CloseStream()
@@ -44,7 +44,7 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 				throw new ArgumentNullException(nameof(OutFileName));
 			}
 
-			_netStream ??= await _httpClient.GetStreamAsync(Target, token);
+			_netStream ??= await Client.GetStreamAsync(Target, token);
 			EnsureDirectory(OutFileName);
 			await using var fs = new FileStream(OutFileName, FileMode.Create, FileAccess.Write, FileShare.Read);
 

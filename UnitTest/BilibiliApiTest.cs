@@ -1,4 +1,5 @@
 using BilibiliApi.Clients;
+using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Net.Http;
@@ -12,8 +13,7 @@ namespace UnitTest
 	[TestClass]
 	public class BilibiliApiTest
 	{
-		private readonly BililiveApiClient _apiClient = new(default, string.Empty);
-
+		private readonly BililiveApiClient _apiClient = new(HttpClientUtils.BuildClientForBilibili(string.Empty, default, new SocketsHttpHandler()));
 		[TestMethod]
 		public async Task GetLiveRecordUrlTestAsync()
 		{

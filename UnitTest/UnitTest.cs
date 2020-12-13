@@ -35,7 +35,8 @@ namespace UnitTest
 			var outFile = Path.Combine(path, filename);
 			try
 			{
-				await using var downloader = new MultiThreadedDownloader(NullLogger.Instance, default, string.Empty, new SocketsHttpHandler())
+				var client = HttpClientUtils.BuildClientForMultiThreadedDownloader(default, string.Empty, new SocketsHttpHandler());
+				await using var downloader = new MultiThreadedDownloader(NullLogger<MultiThreadedDownloader>.Instance, client)
 				{
 					Target = new(url),
 					Threads = 4,
@@ -98,7 +99,8 @@ namespace UnitTest
 			var outFile = Path.Combine(path, filename);
 			try
 			{
-				await using var downloader = new HttpDownloader(TimeSpan.FromSeconds(10), null, UserAgents.Chrome, new SocketsHttpHandler())
+				var client = HttpClientUtils.BuildClientForBilibili(string.Empty, default, new SocketsHttpHandler());
+				await using var downloader = new HttpDownloader(client)
 				{
 					Target = new(url),
 					OutFileName = outFile

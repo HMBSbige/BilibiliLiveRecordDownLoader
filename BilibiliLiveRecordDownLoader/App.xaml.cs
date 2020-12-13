@@ -103,6 +103,7 @@ namespace BilibiliLiveRecordDownLoader
 					.AddStartupService()
 					.AddGlobalTaskQueue()
 					.AddBilibiliApiClient()
+					.AddHttpDownloader()
 					.AddLogging(c => c.AddSerilog());
 		}
 
