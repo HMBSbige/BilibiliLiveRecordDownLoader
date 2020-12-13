@@ -92,7 +92,7 @@ namespace BilibiliLiveRecordDownLoader
 			}
 		}
 
-		private static void ConfigureServices(IServiceCollection services)
+		private static IServiceCollection ConfigureServices(IServiceCollection services)
 		{
 			services.AddViewModels()
 					.AddViews()
@@ -105,6 +105,8 @@ namespace BilibiliLiveRecordDownLoader
 					.AddBilibiliApiClient()
 					.AddHttpDownloader()
 					.AddLogging(c => c.AddSerilog());
+
+			return services;
 		}
 
 		private void CreateLogger()
@@ -134,9 +136,7 @@ namespace BilibiliLiveRecordDownLoader
 			Locator.CurrentMutable.InitializeSplat();
 			Locator.CurrentMutable.InitializeReactiveUI(RegistrationNamespace.Wpf);
 
-			ConfigureServices(services);
-
-			return services;
+			return ConfigureServices(services);
 		}
 
 		private void AppExit(int exitCode)
