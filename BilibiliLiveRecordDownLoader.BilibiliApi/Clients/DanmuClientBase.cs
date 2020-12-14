@@ -307,9 +307,10 @@ namespace BilibiliApi.Clients
 			}
 			catch (Exception ex)
 			{
-				Close();
 				_logger.LogWarning(ex, @"{0} 弹幕服务器连接被断开，尝试重连...", logHeader);
 			}
+
+			Close();
 			await WaitAsync(token);
 			await ConnectWithRetryAsync(token);
 		}
