@@ -286,7 +286,8 @@ namespace BilibiliLiveRecordDownLoader.Models
 						downloader.OutFileName = flv;
 						_logger.LogInformation($@"[{RoomId}] 开始录制");
 						var lastDataReceivedTime = DateTime.Now;
-						using var speedMonitor = downloader.CurrentSpeed.Subscribe(b =>
+#pragma warning disable VSTHRD101
+						var speedMonitor = downloader.CurrentSpeed.Subscribe(async b =>
 						{
 							Speed = $@"{Utils.Utils.CountSize(Convert.ToInt64(b))}/s";
 							var now = DateTime.Now;
@@ -297,16 +298,18 @@ namespace BilibiliLiveRecordDownLoader.Models
 							else if (now - lastDataReceivedTime > TimeSpan.FromSeconds(StreamTimeout))
 							{
 								// ReSharper disable once AccessToDisposedClosure
-								downloader.CloseStream().NoWarning();
+								await downloader.CloseStream();
 								_logger.LogWarning($@"[{RoomId}] 网络不稳定，即将尝试重连");
 							}
 						});
+#pragma warning restore VSTHRD101
 						try
 						{
 							await downloader.DownloadAsync(_token);
 						}
 						finally
 						{
+							speedMonitor.Dispose();
 							_logger.LogInformation($@"[{RoomId}] 录制结束");
 							ConvertToMp4Async(flv).NoWarning();
 						}
