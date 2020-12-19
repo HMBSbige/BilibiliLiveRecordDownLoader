@@ -29,12 +29,9 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 			_netStream = await Client.GetStreamAsync(Target, token);
 		}
 
-		public async ValueTask CloseStream()
+		public void CloseStream()
 		{
-			if (_netStream is not null)
-			{
-				await _netStream.DisposeAsync();
-			}
+			_netStream?.Dispose();
 		}
 
 		public async ValueTask DownloadAsync(CancellationToken token)

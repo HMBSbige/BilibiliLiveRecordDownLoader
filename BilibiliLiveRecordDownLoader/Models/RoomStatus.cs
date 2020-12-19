@@ -38,7 +38,6 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private IDisposable? _enableMonitor;
 		private IDisposable? _titleMonitor;
 		private CancellationTokenSource _recordCts = new();
-		private CancellationToken _token => _recordCts.Token;
 
 		#region 属性
 
@@ -266,6 +265,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 				_recordCts = new CancellationTokenSource();
 			}
 
+			var token = _recordCts.Token;
 			try
 			{
 				while (LiveStatus == LiveStatus.直播)
@@ -273,21 +273,20 @@ namespace BilibiliLiveRecordDownLoader.Models
 					try
 					{
 						RecordStatus = RecordStatus.启动中;
-						var urlData = await _apiClient.GetPlayUrlDataAsync(RoomId, (long)Qn, _token);
+						var urlData = await _apiClient.GetPlayUrlDataAsync(RoomId, (long)Qn, token);
 						var url = urlData.durl!.First().url;
 
 						await using var downloader = DI.GetService<HttpDownloader>();
 						downloader.Target = new(url!);
 						downloader.Client.Timeout = TimeSpan.FromSeconds(StreamConnectTimeout);
 
-						await downloader.GetStreamAsync(_token);
+						await downloader.GetStreamAsync(token);
 						RecordStatus = RecordStatus.录制中;
 						var flv = Path.Combine(_config.MainDir, $@"{RoomId}", $@"{DateTime.Now:yyyyMMdd_HHmmss}.flv");
 						downloader.OutFileName = flv;
 						_logger.LogInformation($@"[{RoomId}] 开始录制");
 						var lastDataReceivedTime = DateTime.Now;
-#pragma warning disable VSTHRD101
-						var speedMonitor = downloader.CurrentSpeed.Subscribe(async b =>
+						var speedMonitor = downloader.CurrentSpeed.Subscribe(b =>
 						{
 							Speed = $@"{Utils.Utils.CountSize(Convert.ToInt64(b))}/s";
 							var now = DateTime.Now;
@@ -298,14 +297,13 @@ namespace BilibiliLiveRecordDownLoader.Models
 							else if (now - lastDataReceivedTime > TimeSpan.FromSeconds(StreamTimeout))
 							{
 								// ReSharper disable once AccessToDisposedClosure
-								await downloader.CloseStream();
+								downloader.CloseStream();
 								_logger.LogWarning($@"[{RoomId}] 网络不稳定，即将尝试重连");
 							}
 						});
-#pragma warning restore VSTHRD101
 						try
 						{
-							await downloader.DownloadAsync(_token);
+							await downloader.DownloadAsync(token);
 						}
 						finally
 						{
@@ -332,7 +330,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 						{
 							_logger.LogError(e, $@"[{RoomId}] 尝试下载直播流错误");
 						}
-						await Task.Delay(TimeSpan.FromSeconds(StreamReconnectLatency), _token);
+						await Task.Delay(TimeSpan.FromSeconds(StreamReconnectLatency), token);
 					}
 				}
 				_logger.LogInformation($@"[{RoomId}] 不再录制");
