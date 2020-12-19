@@ -25,6 +25,8 @@ namespace BilibiliLiveRecordDownLoader.Utils
 
 			window.Topmost = true;
 			window.Topmost = false;
+
+			window.Focus();
 		}
 
 		public static bool IsOnScreen(double x, double y)

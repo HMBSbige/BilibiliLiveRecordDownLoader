@@ -1,12 +1,16 @@
+using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
+using BilibiliLiveRecordDownLoader.Views.Dialogs;
 using DynamicData;
+using ModernWpf.Controls;
 using ReactiveUI;
 using System.Linq;
 using System.Reactive;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
@@ -37,7 +41,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			_roomList = roomList;
 
 			ShowWindowCommand = ReactiveCommand.Create(ShowWindow);
-			ExitCommand = ReactiveCommand.Create(Exit);
+			ExitCommand = ReactiveCommand.CreateFromTask(ExitAsync);
 		}
 
 		private void StopAllTask()
@@ -51,8 +55,31 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			DI.GetService<MainWindow>().ShowWindow();
 		}
 
-		private void Exit()
+		private bool HasTaskRunning()
 		{
+			return _taskSourceList.Items.ToList().Any(t => !t.Status.Contains(@"完成"))
+				|| _roomList.Items.ToList().Any(room => room.RecordStatus != RecordStatus.未录制);
+		}
+
+		private async Task ExitAsync()
+		{
+			if (HasTaskRunning())
+			{
+				ShowWindow();
+				using var dialog = new DisposableContentDialog
+				{
+					Title = @"退出程序？",
+					Content = @"还有任务正在进行",
+					PrimaryButtonText = @"确定",
+					SecondaryButtonText = @"取消",
+					DefaultButton = ContentDialogButton.Primary
+				};
+				if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+				{
+					return;
+				}
+			}
+
 			StopAllTask();
 
 			DI.GetService<IConfigService>().Dispose();
