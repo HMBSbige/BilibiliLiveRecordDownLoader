@@ -66,7 +66,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				var data = await _apiClient.GetLoginUrlDataAsync(token);
 				LoginStatus = @"请扫描二维码";
 				using var dialog = new QrCodeLoginDialog(data);
-				await dialog.ShowAsync();
+				await dialog.SafeShowAsync();
 				if (!string.IsNullOrEmpty(dialog.Cookie))
 				{
 					Config.Cookie = dialog.Cookie;

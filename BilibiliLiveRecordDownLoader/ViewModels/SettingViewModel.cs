@@ -146,7 +146,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 						SecondaryButtonText = @"否",
 						DefaultButton = ContentDialogButton.Primary
 					};
-					if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+					if (await dialog.SafeShowAsync() == ContentDialogResult.Primary)
 					{
 						Utils.Utils.OpenUrl(updateChecker.LatestVersionUrl);
 					}

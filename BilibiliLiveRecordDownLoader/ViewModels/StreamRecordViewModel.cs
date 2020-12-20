@@ -137,7 +137,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				var room = new RoomStatus();
 				using (var dialog = new RoomDialog(RoomDialogType.Add, room))
 				{
-					if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+					if (await dialog.SafeShowAsync() != ContentDialogResult.Primary)
 					{
 						return;
 					}
@@ -154,7 +154,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 						PrimaryButtonText = @"确定",
 						DefaultButton = ContentDialogButton.Primary
 					};
-					await dialog.ShowAsync();
+					await dialog.SafeShowAsync();
 					return;
 				}
 
@@ -171,7 +171,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					PrimaryButtonText = @"确定",
 					DefaultButton = ContentDialogButton.Primary
 				};
-				await dialog.ShowAsync();
+				await dialog.SafeShowAsync();
 			}
 		}
 
@@ -193,7 +193,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				var roomCopy = room.Clone();
 				using (var dialog = new RoomDialog(RoomDialogType.Modify, roomCopy))
 				{
-					if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+					if (await dialog.SafeShowAsync() != ContentDialogResult.Primary)
 					{
 						return default;
 					}
@@ -210,7 +210,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					PrimaryButtonText = @"确定",
 					DefaultButton = ContentDialogButton.Primary
 				};
-				await dialog.ShowAsync();
+				await dialog.SafeShowAsync();
 			}
 			return default;
 		}
@@ -242,7 +242,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					DefaultButton = ContentDialogButton.Close
 				})
 				{
-					if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+					if (await dialog.SafeShowAsync() != ContentDialogResult.Primary)
 					{
 						return default;
 					}
@@ -259,7 +259,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					PrimaryButtonText = @"确定",
 					DefaultButton = ContentDialogButton.Primary
 				};
-				await dialog.ShowAsync();
+				await dialog.SafeShowAsync();
 			}
 			return default;
 		}

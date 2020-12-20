@@ -99,7 +99,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					CloseButtonText = @"取消",
 					DefaultButton = ContentDialogButton.Close
 				};
-				if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+				if (await dialog.SafeShowAsync() == ContentDialogResult.Primary)
 				{
 					_taskSourceList.Items.ToList().ForEach(RemoveTask);
 				}

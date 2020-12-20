@@ -206,7 +206,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 						var root = Path.Combine(Config.MainDir, $@"{RoomId}", Constants.LiveRecordPath);
 						var task = new LiveRecordDownloadTaskViewModel(liveRecord, root, Config.DownloadThreads);
-						_taskList.AddTaskAsync(task, Constants.LiveRecordKey).NoWarning();
+						_taskList.AddTaskAsync(task, TaskQueueKeyConstants.LiveRecordKey).NoWarning();
 					}
 				}
 				catch (Exception ex)

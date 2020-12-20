@@ -74,7 +74,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					SecondaryButtonText = @"取消",
 					DefaultButton = ContentDialogButton.Primary
 				};
-				if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+				if (await dialog.SafeShowAsync(10, ContentDialogResult.Primary) != ContentDialogResult.Primary)
 				{
 					return;
 				}

@@ -1,29 +1,47 @@
 using BilibiliLiveRecordDownLoader.Services;
+using BilibiliLiveRecordDownLoader.Utils;
 using ModernWpf.Controls;
+using Punchclock;
 using System;
 using System.Threading.Tasks;
 
+#pragma warning disable VSTHRD001
 namespace BilibiliLiveRecordDownLoader.Views.Dialogs
 {
 	public class DisposableContentDialog : ContentDialog, IDisposable
 	{
+		private readonly OperationQueue _queue;
+
+		public DisposableContentDialog()
+		{
+			_queue = DI.GetService<OperationQueue>();
+			Owner = DI.GetService<MainWindow>();
+		}
+
 		public virtual void Dispose()
 		{
 			Hide();
 		}
 
-		public new Task<ContentDialogResult> ShowAsync()
+		public async Task<ContentDialogResult> SafeShowAsync(int priority = 1, ContentDialogResult defaultResult = ContentDialogResult.None)
 		{
-			Hide();
-			if (Owner is not null)
+			return await _queue.Enqueue(priority, TaskQueueKeyConstants.ContentDialogKey, async () =>
 			{
-				Owner.Focus();
-			}
-			else
-			{
-				DI.GetService<MainWindow>().Focus();
-			}
-			return base.ShowAsync();
+				var res = defaultResult;
+				try
+				{
+					await Dispatcher.Invoke(async () =>
+					{
+						Owner!.Focus();
+						res = await ShowAsync();
+					});
+				}
+				catch (InvalidOperationException)
+				{
+
+				}
+				return res;
+			});
 		}
 	}
 }
