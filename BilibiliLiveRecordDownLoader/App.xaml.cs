@@ -1,6 +1,5 @@
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
-using ModernWpf;
 using Serilog;
 using System;
 using System.Collections.Generic;
@@ -49,8 +48,6 @@ namespace BilibiliLiveRecordDownLoader
 
 			_singleInstance.ArgumentsReceived.ObserveOnDispatcher().Subscribe(SingleInstance_ArgumentsReceived);
 			_singleInstance.ListenForArgumentsFromSuccessiveInstances();
-
-			ThemeManager.Current.ApplicationTheme = null;
 
 			DI.Register();
 

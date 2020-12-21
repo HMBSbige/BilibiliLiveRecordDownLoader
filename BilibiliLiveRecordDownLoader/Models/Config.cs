@@ -1,3 +1,4 @@
+using BilibiliLiveRecordDownLoader.Enums;
 using DynamicData.Kernel;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
@@ -69,6 +70,9 @@ namespace BilibiliLiveRecordDownLoader.Models
 		[Reactive]
 		public bool IsUseProxy { get; set; } = true;
 
+		[Reactive]
+		public Theme Theme { get; set; } = Theme.跟随系统;
+
 		#endregion
 
 		/// <summary>
@@ -92,6 +96,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 			IsAutoConvertMp4 = config.IsAutoConvertMp4;
 			IsDeleteAfterConvert = config.IsDeleteAfterConvert;
 			IsUseProxy = config.IsUseProxy;
+			Theme = config.Theme;
 		}
 	}
 }

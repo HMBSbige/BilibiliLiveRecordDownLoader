@@ -77,6 +77,16 @@
                                          OnContent="" OffContent="" />
                     </StackPanel>
                 </GroupBox>
+                <GroupBox Header="外观">
+                    <StackPanel>
+                        <ui:RadioButtons x:Name="ThemeRadioButtons"
+                                         Header="主题">
+                            <RadioButton Content="跟随系统" d:IsChecked="True" />
+                            <RadioButton Content="亮" />
+                            <RadioButton Content="暗" />
+                        </ui:RadioButtons>
+                    </StackPanel>
+                </GroupBox>
             </ui:SimpleStackPanel>
         </ScrollViewer>
     </Grid>

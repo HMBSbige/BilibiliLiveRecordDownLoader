@@ -2,10 +2,12 @@ using BilibiliApi.Clients;
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
+using BilibiliLiveRecordDownLoader.Utils;
 using DynamicData;
 using DynamicData.Binding;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.Threading;
+using ModernWpf;
 using ReactiveUI;
 using System;
 using System.IO;
@@ -29,6 +31,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 
 		private readonly IDisposable _configMonitor;
 		private readonly IDisposable _networkSettingMonitor;
+		private readonly IDisposable _themeMonitor;
 		private IDisposable? _roomsMonitor;
 
 		private readonly AsyncReaderWriterLock _lock = new();
@@ -79,6 +82,10 @@ namespace BilibiliLiveRecordDownLoader.Services
 						Config.HttpHandler = handler;
 						apiClient.Client = HttpClientUtils.BuildClientForBilibili(ua, cookie, handler);
 					});
+
+			_themeMonitor = Config.WhenAnyValue(x => x.Theme)
+					.DistinctUntilChanged()
+					.Subscribe(theme => ThemeManager.Current.SetTheme(theme));
 		}
 
 		public async ValueTask SaveAsync(CancellationToken token)
@@ -126,6 +133,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 		{
 			_configMonitor.Dispose();
 			_networkSettingMonitor.Dispose();
+			_themeMonitor.Dispose();
 			_roomsMonitor?.Dispose();
 		}
 	}

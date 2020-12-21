@@ -1,3 +1,4 @@
+using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI;
@@ -50,6 +51,23 @@ namespace BilibiliLiveRecordDownLoader.Views
 				this.Bind(ViewModel, vm => vm.Config.IsCheckUpdateOnStart, v => v.IsCheckUpdateOnStartSwitch.IsOn).DisposeWith(d);
 
 				Observable.FromEventPattern(StartupSwitch, nameof(StartupSwitch.Toggled)).Subscribe(_ => ViewModel.SwitchStartup(StartupSwitch.IsOn)).DisposeWith(d);
+
+				this.Bind(ViewModel,
+					vm => vm.Config.Theme,
+					v => v.ThemeRadioButtons.SelectedIndex,
+					theme => theme switch
+					{
+						Theme.跟随系统 => 0,
+						Theme.亮 => 1,
+						Theme.暗 => 2,
+						_ => 0
+					},
+					i => i switch
+					{
+						0 or 1 or 2 => (Theme)i,
+						_ => Theme.跟随系统
+					}
+					).DisposeWith(d);
 			});
 		}
 	}
