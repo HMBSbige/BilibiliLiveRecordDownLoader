@@ -1,4 +1,3 @@
-using BilibiliLiveRecordDownLoader.Enums;
 using ModernWpf;
 using ReactiveUI;
 using System.Reactive.Concurrency;
@@ -7,16 +6,16 @@ namespace BilibiliLiveRecordDownLoader.Utils
 {
 	public static class ThemeManagerExtensions
 	{
-		public static void SetTheme(this ThemeManager manager, Theme theme)
+		public static void SetTheme(this ThemeManager manager, ElementTheme theme)
 		{
 			switch (theme)
 			{
-				case Theme.亮:
+				case ElementTheme.Light:
 				{
 					manager.SetTheme(ApplicationTheme.Light);
 					break;
 				}
-				case Theme.暗:
+				case ElementTheme.Dark:
 				{
 					manager.SetTheme(ApplicationTheme.Dark);
 					break;

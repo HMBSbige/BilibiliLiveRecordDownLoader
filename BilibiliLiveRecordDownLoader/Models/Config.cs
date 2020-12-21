@@ -1,5 +1,5 @@
-using BilibiliLiveRecordDownLoader.Enums;
 using DynamicData.Kernel;
+using ModernWpf;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using System;
@@ -71,7 +71,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 		public bool IsUseProxy { get; set; } = true;
 
 		[Reactive]
-		public Theme Theme { get; set; } = Theme.跟随系统;
+		public ElementTheme Theme { get; set; } = ElementTheme.Default;
 
 		#endregion
 

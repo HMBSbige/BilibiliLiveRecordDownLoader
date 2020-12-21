@@ -1,6 +1,6 @@
-using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
+using ModernWpf;
 using ReactiveUI;
 using System;
 using System.Reactive.Disposables;
@@ -57,15 +57,17 @@ namespace BilibiliLiveRecordDownLoader.Views
 					v => v.ThemeRadioButtons.SelectedIndex,
 					theme => theme switch
 					{
-						Theme.跟随系统 => 0,
-						Theme.亮 => 1,
-						Theme.暗 => 2,
+						ElementTheme.Default => 0,
+						ElementTheme.Light => 1,
+						ElementTheme.Dark => 2,
 						_ => 0
 					},
 					i => i switch
 					{
-						0 or 1 or 2 => (Theme)i,
-						_ => Theme.跟随系统
+						0 => ElementTheme.Default,
+						1 => ElementTheme.Light,
+						2 => ElementTheme.Dark,
+						_ => ElementTheme.Default
 					}
 					).DisposeWith(d);
 			});
