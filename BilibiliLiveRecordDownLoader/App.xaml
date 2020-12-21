@@ -9,27 +9,27 @@
             <ResourceDictionary.MergedDictionaries>
                 <!-- FluentWPF Controls -->
                 <ResourceDictionary Source="/FluentWPF;component/Styles/Controls.xaml" />
-                
+
                 <ui:ThemeResources>
-                    <ResourceDictionary x:Key="Light">
-                        <ResourceDictionary.MergedDictionaries>
-                            <!-- FluentWPF theme resources -->
-                            <ResourceDictionary Source="/FluentWPF;component/Styles/Colors.Light.xaml" />
-                            <ResourceDictionary Source="/FluentWPF;component/Styles/Brushes.xaml" />
-                            <!-- ModernWPF theme resources -->
-                            <ResourceDictionary Source="/ModernWpf;component/ThemeResources/Light.xaml" />
-                        </ResourceDictionary.MergedDictionaries>
-                    </ResourceDictionary>
-                    <ResourceDictionary x:Key="Dark">
-                        <ResourceDictionary.MergedDictionaries>
-                            <ResourceDictionary Source="/FluentWPF;component/Styles/Colors.Dark.xaml" />
-                            <ResourceDictionary Source="/FluentWPF;component/Styles/Brushes.xaml" />
-                            <ResourceDictionary Source="/ModernWpf;component/ThemeResources/Dark.xaml" />
-                        </ResourceDictionary.MergedDictionaries>
-                        <SolidColorBrush x:Key="NavigationViewSelectionIndicatorForeground" Color="{StaticResource SystemBaseHighColor}" />
-                    </ResourceDictionary>
+                    <ui:ThemeResources.ThemeDictionaries>
+                        <ResourceDictionary x:Key="Light">
+                            <ResourceDictionary.MergedDictionaries>
+                                <ResourceDictionary Source="/FluentWPF;component/Styles/Colors.Light.xaml" />
+                                <ResourceDictionary Source="/FluentWPF;component/Styles/Brushes.xaml" />
+                                <ResourceDictionary Source="/ModernWpf;component/ThemeResources/Light.xaml" />
+                            </ResourceDictionary.MergedDictionaries>
+                        </ResourceDictionary>
+                        <ResourceDictionary x:Key="Dark">
+                            <ResourceDictionary.MergedDictionaries>
+                                <ResourceDictionary Source="/FluentWPF;component/Styles/Colors.Dark.xaml" />
+                                <ResourceDictionary Source="/FluentWPF;component/Styles/Brushes.xaml" />
+                                <ResourceDictionary Source="/ModernWpf;component/ThemeResources/Dark.xaml" />
+                            </ResourceDictionary.MergedDictionaries>
+                            <SolidColorBrush x:Key="NavigationViewSelectionIndicatorForeground" Color="{StaticResource SystemBaseHighColor}" />
+                        </ResourceDictionary>
+                    </ui:ThemeResources.ThemeDictionaries>
                 </ui:ThemeResources>
-                
+
                 <!-- ModernWPF controls resources -->
                 <ui:XamlControlsResources />
             </ResourceDictionary.MergedDictionaries>
