@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace BilibiliApi.Clients
 {
-	public partial class BililiveApiClient
+	public partial class BilibiliApiClient
 	{
 		#region 检查登录状态
 

@@ -48,7 +48,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 		public ConfigService(
 			ILogger<ConfigService> logger,
 			Config config,
-			BililiveApiClient apiClient)
+			BilibiliApiClient apiClient)
 		{
 			_logger = logger;
 			Config = config;

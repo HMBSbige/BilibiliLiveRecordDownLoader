@@ -14,13 +14,13 @@ using System.Threading.Tasks;
 
 namespace BilibiliApi.Clients
 {
-	public partial class BililiveApiClient : IHttpClient
+	public partial class BilibiliApiClient : IHttpClient
 	{
 		public HttpClient Client { get; set; }
 
 		private static readonly SemaphoreSlim SemaphoreSlim = new(1, 1);
 
-		public BililiveApiClient(HttpClient client)
+		public BilibiliApiClient(HttpClient client)
 		{
 			Client = client;
 		}

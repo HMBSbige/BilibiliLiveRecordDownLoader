@@ -106,7 +106,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 			{
 				var config = provider.GetRequiredService<Config>();
 				var client = HttpClientUtils.BuildClientForBilibili(config.UserAgent, config.Cookie, config.HttpHandler);
-				return new BililiveApiClient(client);
+				return new BilibiliApiClient(client);
 			});
 
 			return services;

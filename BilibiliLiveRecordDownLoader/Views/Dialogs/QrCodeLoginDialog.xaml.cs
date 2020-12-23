@@ -16,7 +16,7 @@ namespace BilibiliLiveRecordDownLoader.Views.Dialogs
 	{
 		private readonly IDisposable _loginInfoMonitor;
 		private readonly ILogger _logger;
-		private readonly BililiveApiClient _apiClient;
+		private readonly BilibiliApiClient _apiClient;
 		private readonly GetLoginUrlData _data;
 
 		public string? Cookie { get; private set; }
@@ -24,7 +24,7 @@ namespace BilibiliLiveRecordDownLoader.Views.Dialogs
 		public QrCodeLoginDialog(GetLoginUrlData data)
 		{
 			_logger = DI.GetService<ILogger<QrCodeLoginDialog>>();
-			_apiClient = DI.GetService<BililiveApiClient>();
+			_apiClient = DI.GetService<BilibiliApiClient>();
 			_data = data;
 
 			InitializeComponent();

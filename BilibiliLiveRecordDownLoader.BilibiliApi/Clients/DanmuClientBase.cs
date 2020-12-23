@@ -32,7 +32,7 @@ namespace BilibiliApi.Clients
 		private readonly Subject<DanmuPacket> _danMuSubj = new();
 		public IObservable<DanmuPacket> Received => _danMuSubj.AsObservable();
 
-		private readonly BililiveApiClient _apiClient;
+		private readonly BilibiliApiClient _apiClient;
 
 		protected string? Host;
 		protected ushort Port;
@@ -59,7 +59,7 @@ namespace BilibiliApi.Clients
 		private static readonly TimeSpan GetServerInterval = TimeSpan.FromSeconds(20);
 		private DateTime _lastGetServerSuccess;
 
-		protected DanmuClientBase(ILogger logger, BililiveApiClient apiClient)
+		protected DanmuClientBase(ILogger logger, BilibiliApiClient apiClient)
 		{
 			_logger = logger;
 			_apiClient = apiClient;

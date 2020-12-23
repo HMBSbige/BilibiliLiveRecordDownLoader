@@ -8,7 +8,7 @@ namespace BilibiliApi.Clients
 		protected override string Server => $@"ws://{Host}:{Port}/sub";
 		protected override ushort DefaultPort => 2244;
 
-		public WsDanmuClient(ILogger<WsDanmuClient> logger, BililiveApiClient apiClient) : base(logger, apiClient) { }
+		public WsDanmuClient(ILogger<WsDanmuClient> logger, BilibiliApiClient apiClient) : base(logger, apiClient) { }
 
 		protected override ushort GetPort(HostServerList server)
 		{

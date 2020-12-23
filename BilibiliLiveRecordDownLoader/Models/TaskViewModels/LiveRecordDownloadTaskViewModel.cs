@@ -15,7 +15,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 	public class LiveRecordDownloadTaskViewModel : TaskViewModel
 	{
 		private readonly ILogger _logger;
-		private readonly BililiveApiClient _apiClient;
+		private readonly BilibiliApiClient _apiClient;
 
 		private readonly CancellationTokenSource _cts = new();
 		private readonly LiveRecordViewModel _liveRecord;
@@ -26,7 +26,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 		public LiveRecordDownloadTaskViewModel(LiveRecordViewModel liveRecord, string path, ushort threadsCount)
 		{
 			_logger = DI.GetService<ILogger<LiveRecordDownloadTaskViewModel>>();
-			_apiClient = DI.GetService<BililiveApiClient>();
+			_apiClient = DI.GetService<BilibiliApiClient>();
 			_liveRecord = liveRecord;
 			_path = path;
 			_threadsCount = threadsCount;

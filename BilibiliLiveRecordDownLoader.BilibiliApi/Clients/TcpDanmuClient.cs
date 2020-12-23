@@ -16,7 +16,7 @@ namespace BilibiliApi.Clients
 		private TcpClient? _client;
 		private NetworkStream? _netStream;
 
-		public TcpDanmuClient(ILogger<TcpDanmuClient> logger, BililiveApiClient apiClient) : base(logger, apiClient) { }
+		public TcpDanmuClient(ILogger<TcpDanmuClient> logger, BilibiliApiClient apiClient) : base(logger, apiClient) { }
 
 		protected override ushort GetPort(HostServerList server)
 		{

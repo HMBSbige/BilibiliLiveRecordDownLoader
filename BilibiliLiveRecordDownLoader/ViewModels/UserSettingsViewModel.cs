@@ -38,7 +38,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		#endregion
 
 		private readonly ILogger _logger;
-		private readonly BililiveApiClient _apiClient;
+		private readonly BilibiliApiClient _apiClient;
 
 		public readonly Config Config;
 
@@ -46,7 +46,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			IScreen hostScreen,
 			ILogger<UserSettingsViewModel> logger,
 			Config config,
-			BililiveApiClient apiClient)
+			BilibiliApiClient apiClient)
 		{
 			HostScreen = hostScreen;
 			_logger = logger;

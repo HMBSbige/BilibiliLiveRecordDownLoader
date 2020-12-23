@@ -28,7 +28,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 	public class RoomStatus : ReactiveObject
 	{
 		private readonly ILogger _logger;
-		private readonly BililiveApiClient _apiClient;
+		private readonly BilibiliApiClient _apiClient;
 		private readonly Config _config;
 		private readonly TaskListViewModel _taskList;
 
@@ -154,7 +154,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 		{
 			_logger = DI.GetService<ILogger<RoomStatus>>();
 			_config = DI.GetService<Config>();
-			_apiClient = DI.GetService<BililiveApiClient>();
+			_apiClient = DI.GetService<BilibiliApiClient>();
 			_taskList = DI.GetService<TaskListViewModel>();
 		}
 

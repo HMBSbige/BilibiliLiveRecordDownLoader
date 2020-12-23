@@ -13,7 +13,7 @@ namespace UnitTest
 	[TestClass]
 	public class BilibiliApiTest
 	{
-		private readonly BililiveApiClient _apiClient = new(HttpClientUtils.BuildClientForBilibili(string.Empty, default, new SocketsHttpHandler()));
+		private readonly BilibiliApiClient _apiClient = new(HttpClientUtils.BuildClientForBilibili(string.Empty, default, new SocketsHttpHandler()));
 		[TestMethod]
 		public async Task GetLiveRecordUrlTestAsync()
 		{

@@ -73,7 +73,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private readonly ILogger _logger;
 		private readonly TaskListViewModel _taskList;
 		private readonly SourceList<LiveRecordList> _liveRecordSourceList;
-		private readonly BililiveApiClient _apiClient;
+		private readonly BilibiliApiClient _apiClient;
 
 		public readonly ReadOnlyObservableCollection<LiveRecordViewModel> LiveRecordList;
 		public readonly Config Config;
@@ -85,7 +85,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				Config config,
 				SourceList<LiveRecordList> liveRecordSourceList,
 				TaskListViewModel taskList,
-				BililiveApiClient apiClient)
+				BilibiliApiClient apiClient)
 		{
 			HostScreen = hostScreen;
 			_logger = logger;
