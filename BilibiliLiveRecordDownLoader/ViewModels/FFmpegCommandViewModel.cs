@@ -10,6 +10,7 @@ using ReactiveUI.Fody.Helpers;
 using System;
 using System.IO;
 using System.Reactive;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media;
@@ -115,10 +116,18 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 			var oldName = Path.ChangeExtension(filename, null);
 			var extension = Path.GetExtension(filename);
+
+			var match = Regex.Match(CutOutput, $@"^{Regex.Escape(oldName)}_(\d+){extension}$", RegexOptions.IgnoreCase);
+			if (match.Groups.Count == 2 && ulong.TryParse(match.Groups[1].Value, out var l) && l < ulong.MaxValue)
+			{
+				CutOutput = Path.ChangeExtension($@"{oldName}_{l + 1}", extension);
+				return;
+			}
+
 			for (var i = 1; i < 10000; ++i)
 			{
 				var newPath = Path.ChangeExtension($@"{oldName}_{i}", extension);
-				if (File.Exists(newPath))
+				if (newPath == CutOutput || File.Exists(newPath))
 				{
 					continue;
 				}
