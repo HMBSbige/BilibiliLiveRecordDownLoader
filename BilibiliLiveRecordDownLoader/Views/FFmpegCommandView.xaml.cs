@@ -1,3 +1,4 @@
+using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI;
 using System;
@@ -42,6 +43,16 @@ namespace BilibiliLiveRecordDownLoader.Views
 					CutButton.IsEnabled = b;
 					ConvertButton.IsEnabled = b;
 				}).DisposeWith(d);
+
+				CutInputTextBox.ShowDragOverIconEvent().DisposeWith(d);
+				CutOutputTextBox.ShowDragOverIconEvent().DisposeWith(d);
+				ConvertInputTextBox.ShowDragOverIconEvent().DisposeWith(d);
+				ConvertOutputTextBox.ShowDragOverIconEvent().DisposeWith(d);
+
+				CutInputTextBox.DropPathEvent().DisposeWith(d);
+				CutOutputTextBox.DropPathEvent().DisposeWith(d);
+				ConvertInputTextBox.DropPathEvent().DisposeWith(d);
+				ConvertOutputTextBox.DropPathEvent().DisposeWith(d);
 			});
 		}
 	}

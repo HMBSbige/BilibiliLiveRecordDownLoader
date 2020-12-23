@@ -221,7 +221,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			ConvertOutput = string.Empty;
 		}
 
-		private async Task ConvertVideoAsync(string input, string output, bool isDelete)
+		private async ValueTask ConvertVideoAsync(string input, string output, bool isDelete)
 		{
 			try
 			{

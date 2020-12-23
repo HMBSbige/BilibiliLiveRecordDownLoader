@@ -1,4 +1,8 @@
+using System;
+using System.IO;
+using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace BilibiliLiveRecordDownLoader.Utils
 {
@@ -62,6 +66,36 @@ namespace BilibiliLiveRecordDownLoader.Utils
 
 			window.Left = SystemParameters.PrimaryScreenWidth / 2 - window.Width / 2;
 			window.Top = SystemParameters.PrimaryScreenHeight / 2 - window.Height / 2;
+		}
+
+		public static string? GetDropPath(DragEventArgs e)
+		{
+			var data = e.Data.GetData(DataFormats.FileDrop);
+			if (data is string?[] { Length: > 0 } array)
+			{
+				return array.FirstOrDefault(File.Exists);
+			}
+
+			return null;
+		}
+
+		public static IDisposable DropPathEvent(this TextBox textBox)
+		{
+			return textBox.Events().PreviewDrop.Subscribe(e =>
+			{
+				var s = GetDropPath(e);
+				if (s is null)
+				{
+					return;
+				}
+				textBox.Text = s;
+				e.Handled = true;
+			});
+		}
+
+		public static IDisposable ShowDragOverIconEvent(this FrameworkElement control)
+		{
+			return control.Events().PreviewDragOver.Subscribe(e => e.Handled = true);
 		}
 	}
 }
