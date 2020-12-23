@@ -89,7 +89,7 @@
                 
                 d:DataContext="{d:DesignInstance models:LiveRecordViewModel}"
                 BorderThickness="1"
-                BorderBrush="{DynamicResource GridLinesBrush}"
+                BorderBrush="{Binding Path=HorizontalGridLinesBrush, RelativeSource={RelativeSource Self}}"
                 >
                 <DataGrid.CellStyle>
                     <Style TargetType="DataGridCell">

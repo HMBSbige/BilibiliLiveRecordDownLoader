@@ -33,7 +33,7 @@
 
             d:DataContext="{d:DesignInstance taskViewModels:TaskViewModel}"
             BorderThickness="1"
-            BorderBrush="{DynamicResource GridLinesBrush}"
+            BorderBrush="{Binding Path=HorizontalGridLinesBrush, RelativeSource={RelativeSource Self}}"
             >
             <DataGrid.CellStyle>
                 <Style TargetType="DataGridCell">
