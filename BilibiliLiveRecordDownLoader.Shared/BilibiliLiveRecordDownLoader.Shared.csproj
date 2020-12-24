@@ -4,6 +4,14 @@
     <TargetFramework>net5.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Authors>HMBSbige</Authors>
+    <Copyright>Copyright © HMBSbige 2020</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/HMBSbige/BilibiliLiveRecordDownLoader</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/HMBSbige/BilibiliLiveRecordDownLoader</RepositoryUrl>
+    <PackageTags>bilibili</PackageTags>
+    <Version>1.0.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
