@@ -13,7 +13,9 @@ namespace UnitTest
 	[TestClass]
 	public class BilibiliApiTest
 	{
-		private readonly BilibiliApiClient _apiClient = new(HttpClientUtils.BuildClientForBilibili(string.Empty, default, new SocketsHttpHandler()));
+		private const string Cookie = @"";
+		private readonly BilibiliApiClient _apiClient = new(HttpClientUtils.BuildClientForBilibili(string.Empty, Cookie, new SocketsHttpHandler()));
+
 		[TestMethod]
 		public async Task GetLiveRecordUrlTestAsync()
 		{
@@ -163,6 +165,17 @@ namespace UnitTest
 		public async Task GetUidTestAsync()
 		{
 			await Assert.ThrowsExceptionAsync<InvalidOperationException>(async () => await _apiClient.GetUidAsync());
+		}
+
+		[TestMethod]
+		public async Task FansMedalTestAsync()
+		{
+			var message0 = await _apiClient.GetLiveFansMedalMessageAsync();
+			Assert.AreEqual(0, message0.code);
+			var count = message0.data.count;
+
+			var list = await _apiClient.GetLiveFansMedalListAsync();
+			Assert.AreEqual(count, list.Count);
 		}
 	}
 }
