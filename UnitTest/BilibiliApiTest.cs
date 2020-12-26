@@ -177,5 +177,12 @@ namespace UnitTest
 			var list = await _apiClient.GetLiveFansMedalListAsync();
 			Assert.AreEqual(count, list.Count);
 		}
+
+		[TestMethod]
+		public async Task DanmuSendTestAsync()
+		{
+			const string csrf = @"";
+			await _apiClient.SendDanmuAsync(40462, csrf);
+		}
 	}
 }
