@@ -44,6 +44,7 @@ namespace BilibiliLiveRecordDownLoader
 			{
 				_singleInstance.PassArgumentsToFirstInstance(e.Args.Append(Constants.ParameterShow));
 				AppExit(0);
+				return;
 			}
 
 			_singleInstance.ArgumentsReceived.ObserveOnDispatcher().Subscribe(SingleInstance_ArgumentsReceived);
