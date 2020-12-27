@@ -20,12 +20,12 @@ namespace BilibiliLiveRecordDownLoader.Views
 				this.OneWayBind(ViewModel, vm => vm.FFmpegStatusForeground, vm => vm.FFmpegStatusTextBlock.Foreground).DisposeWith(d);
 				this.BindCommand(ViewModel, vm => vm.CheckFFmpegStatusCommand, vm => vm.FFmpegStatusTextBlock, nameof(FFmpegStatusTextBlock.MouseLeftButtonUp)).DisposeWith(d);
 
-				this.OneWayBind(ViewModel, vm => vm.CutInput, vm => vm.CutInputTextBox.Text).DisposeWith(d);
+				this.Bind(ViewModel, vm => vm.CutInput, vm => vm.CutInputTextBox.Text).DisposeWith(d);
 				this.Bind(ViewModel, vm => vm.CutOutput, vm => vm.CutOutputTextBox.Text).DisposeWith(d);
 				this.Bind(ViewModel, vm => vm.CutStartTime, vm => vm.CutStartTimeTextBox.Text).DisposeWith(d);
 				this.Bind(ViewModel, vm => vm.CutEndTime, vm => vm.CutEndTimeTextBox.Text).DisposeWith(d);
 
-				this.OneWayBind(ViewModel, vm => vm.ConvertInput, vm => vm.ConvertInputTextBox.Text).DisposeWith(d);
+				this.Bind(ViewModel, vm => vm.ConvertInput, vm => vm.ConvertInputTextBox.Text).DisposeWith(d);
 				this.Bind(ViewModel, vm => vm.ConvertOutput, vm => vm.ConvertOutputTextBox.Text).DisposeWith(d);
 				this.Bind(ViewModel, vm => vm.IsDelete, vm => vm.IsDeleteToggleSwitch.IsOn).DisposeWith(d);
 

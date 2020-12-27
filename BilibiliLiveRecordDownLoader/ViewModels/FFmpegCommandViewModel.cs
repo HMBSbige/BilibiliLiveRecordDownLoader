@@ -84,6 +84,19 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			ConvertOpenFileCommand = ReactiveCommand.Create(ConvertOpenFile);
 			ConvertSaveFileCommand = ReactiveCommand.Create(ConvertSaveFile);
 			ConvertCommand = ReactiveCommand.Create(CreateConvertVideoTask);
+
+			this.WhenAnyValue(x => x.CutInput).Subscribe(_ =>
+			{
+				NewOutputFile();
+			});
+
+			this.WhenAnyValue(x => x.ConvertInput).Subscribe(file =>
+			{
+				if (Path.GetExtension(file) == @".flv")
+				{
+					ConvertOutput = Path.ChangeExtension(file, @"mp4");
+				}
+			});
 		}
 
 		private async Task<bool> CheckFFmpegStatusAsync(CancellationToken token)
@@ -113,6 +126,10 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private void NewOutputFile()
 		{
 			var filename = CutInput;
+			if (!File.Exists(filename))
+			{
+				return;
+			}
 
 			var oldName = Path.ChangeExtension(filename, null);
 			var extension = Path.GetExtension(filename);
@@ -146,8 +163,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			}
 
 			CutInput = filename;
-
-			NewOutputFile();
 		}
 
 		private void CutSaveFile()
@@ -170,11 +185,6 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			}
 
 			ConvertInput = filename;
-
-			if (Path.GetExtension(filename) == @".flv")
-			{
-				ConvertOutput = Path.ChangeExtension(filename, @"mp4");
-			}
 		}
 
 		private void ConvertSaveFile()
