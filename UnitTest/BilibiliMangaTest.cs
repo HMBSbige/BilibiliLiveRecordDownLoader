@@ -32,7 +32,6 @@ namespace UnitTest
 		[TestMethod]
 		public async Task ShareComicTestAsync()
 		{
-			//TODO
 			var status = await _apiClient.ShareComicAsync(AccessToken);
 			Assert.IsTrue(status is null or true);
 		}
