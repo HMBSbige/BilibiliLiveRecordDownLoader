@@ -156,13 +156,13 @@ namespace UnitTest
 		[TestMethod]
 		public async Task CheckLoginStatusTestAsync()
 		{
-			Assert.IsFalse(await _apiClient.CheckLoginStatusAsync());
+			Assert.AreNotEqual(await _apiClient.CheckLoginStatusAsync(), string.IsNullOrEmpty(Cookie));
 		}
 
 		[TestMethod]
 		public async Task GetUidTestAsync()
 		{
-			await Assert.ThrowsExceptionAsync<InvalidOperationException>(async () => await _apiClient.GetUidAsync());
+			Assert.IsTrue(await _apiClient.GetUidAsync() > 0);
 		}
 
 		[TestMethod]
@@ -179,8 +179,7 @@ namespace UnitTest
 		[TestMethod]
 		public async Task DanmuSendTestAsync()
 		{
-			const string csrf = @"";
-			await _apiClient.SendDanmuAsync(40462, csrf);
+			await _apiClient.SendDanmuAsync(40462, Csrf);
 		}
 	}
 }
