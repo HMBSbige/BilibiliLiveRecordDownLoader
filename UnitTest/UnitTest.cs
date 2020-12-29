@@ -123,5 +123,24 @@ namespace UnitTest
 				File.Delete(outFile);
 			}
 		}
+
+		[TestMethod]
+		public async Task TestNtpAsync()
+		{
+			var time = await Ntp.GetCurrentTime();
+			var now = DateTime.UtcNow;
+			Assert.IsTrue(now >= time);
+			Assert.IsTrue(now - time < TimeSpan.FromSeconds(2));
+		}
+
+		[TestMethod]
+		public void TestTimestamp()
+		{
+			var time = DateTime.UtcNow;
+			var timestamp = Timestamp.GetTimestamp(time);
+			var t2 = Timestamp.GetTime(timestamp);
+			Assert.IsTrue(time >= t2);
+			Assert.IsTrue(time - t2 < TimeSpan.FromSeconds(1));
+		}
 	}
 }
