@@ -1,3 +1,6 @@
+using BilibiliApi.Model.Login.Password.GetKey;
+using BilibiliApi.Model.Login.Password.GetTokenInfo;
+using BilibiliApi.Model.Login.Password.OAuth2;
 using BilibiliApi.Model.Login.QrCode.GetLoginInfo;
 using BilibiliApi.Model.Login.QrCode.GetLoginUrl;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
@@ -109,6 +112,104 @@ namespace BilibiliApi.Clients
 				throw new HttpRequestException(@"无法获取 Cookie");
 			}
 			return values.ToCookie();
+		}
+
+		#endregion
+
+		#region App 登录
+
+		private const string PassportBaseAddress = @"https://passport.bilibili.com/";
+
+		/// <summary>
+		/// 获取加密公钥及密码盐值
+		/// </summary>
+		public async Task<GetKeyData> GetKeyAsync(CancellationToken token = default)
+		{
+			const string url = PassportBaseAddress + @"api/oauth2/getKey";
+			var pair = new Dictionary<string, string>
+			{
+				{@"platform", @"android"}
+			};
+			var response = await PostAsync(url, pair, true, token);
+			var message = await response.Content.ReadFromJsonAsync<GetKeyMessage>(cancellationToken: token);
+			if (message?.code != 0
+				|| message.data?.hash is null
+				|| message.data.key is null)
+			{
+				throw new HttpRequestException(@"获取公钥失败");
+			}
+
+			return message.data;
+		}
+
+		public async Task<AppLoginMessage> LoginAsync(string username, string password, CancellationToken token = default)
+		{
+			const string url = PassportBaseAddress + @"api/v3/oauth2/login";
+			var data = await GetKeyAsync(token);
+			password = Rsa.Encrypt(data.key!, data.hash + password);
+			var pair = new Dictionary<string, string>
+			{
+				{@"platform", @"android"},
+				{@"username", username},
+				{@"password", password}
+			};
+			var response = await PostAsync(url, pair, true, token);
+			var message = await response.Content.ReadFromJsonAsync<AppLoginMessage>(cancellationToken: token);
+			if (message?.code != 0
+				|| message.data?.cookie_info?.cookies is null
+				|| message.data.token_info?.access_token is null)
+			{
+				throw new HttpRequestException(@"获取登录信息失败");
+			}
+			return message;
+		}
+
+		public async Task<TokenInfoMessage> GetTokenInfoAsync(string accessToken, CancellationToken token = default)
+		{
+			var pair = new Dictionary<string, string>
+			{
+				{@"platform", @"android"},
+				{@"access_token", accessToken}
+			};
+			using var body = await GetBody(pair, true);
+			var para = await body.ReadAsStringAsync(token);
+			var message = await GetJsonAsync<TokenInfoMessage>(PassportBaseAddress + @"api/oauth2/info?" + para, token);
+			if (message is null)
+			{
+				throw new HttpRequestException(@"获取 Token 信息失败");
+			}
+			return message;
+		}
+
+		public async Task<bool> RevokeAsync(string accessToken, CancellationToken token = default)
+		{
+			const string url = PassportBaseAddress + @"api/oauth2/revoke";
+			var pair = new Dictionary<string, string>
+			{
+				{@"platform", @"android"},
+				{@"access_token", accessToken}
+			};
+			var response = await PostAsync(url, pair, true, token);
+			var message = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: token);
+			return message.TryGetProperty(@"code", out var codeElement) && codeElement.TryGetInt64(out var code) && code == 0;
+		}
+
+		public async Task<AppRefreshTokenMessage> RefreshTokenAsync(string accessToken, string refreshToken, CancellationToken token = default)
+		{
+			const string url = PassportBaseAddress + @"api/oauth2/refreshToken";
+			var pair = new Dictionary<string, string>
+			{
+				{@"platform", @"android"},
+				{@"access_token", accessToken},
+				{@"refresh_token", refreshToken}
+			};
+			var response = await PostAsync(url, pair, true, token);
+			var message = await response.Content.ReadFromJsonAsync<AppRefreshTokenMessage>(cancellationToken: token);
+			if (message is null)
+			{
+				throw new HttpRequestException(@"刷新 Token 失败");
+			}
+			return message;
 		}
 
 		#endregion

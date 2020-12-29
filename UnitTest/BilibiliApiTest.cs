@@ -4,16 +4,14 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Net.Http;
 using System.Threading.Tasks;
+using static UnitTest.TestConstants;
 
-#nullable disable warnings
-// ReSharper disable PossibleNullReferenceException
-
+#pragma warning disable 8602
 namespace UnitTest
 {
 	[TestClass]
 	public class BilibiliApiTest
 	{
-		private const string Cookie = @"";
 		private readonly BilibiliApiClient _apiClient = new(HttpClientUtils.BuildClientForBilibili(string.Empty, Cookie, new SocketsHttpHandler()));
 
 		[TestMethod]

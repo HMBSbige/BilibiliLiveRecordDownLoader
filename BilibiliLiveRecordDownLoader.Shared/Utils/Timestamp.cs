@@ -4,15 +4,14 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 {
 	public static class Timestamp
 	{
-		public static string GetTimestamp(DateTime time)
+		public static long GetTimestamp(DateTime time)
 		{
-			return ((ulong)time.Subtract(DateTime.UnixEpoch).TotalSeconds).ToString();
+			return (long)time.Subtract(DateTime.UnixEpoch).TotalSeconds;
 		}
 
-		public static DateTime GetTime(string timeStamp)
+		public static DateTime GetTime(long timeStamp)
 		{
-			var time = ulong.Parse(timeStamp);
-			return DateTime.UnixEpoch.AddSeconds(time);
+			return DateTime.UnixEpoch.AddSeconds(timeStamp);
 		}
 	}
 }
