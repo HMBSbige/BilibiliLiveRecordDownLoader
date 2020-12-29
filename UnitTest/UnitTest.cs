@@ -129,8 +129,7 @@ namespace UnitTest
 		{
 			var time = await Ntp.GetCurrentTime();
 			var now = DateTime.UtcNow;
-			Assert.IsTrue(now >= time);
-			Assert.IsTrue(now - time < TimeSpan.FromSeconds(2));
+			Assert.IsTrue((now - time).Duration() < TimeSpan.FromSeconds(1));
 		}
 
 		[TestMethod]
