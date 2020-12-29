@@ -6,7 +6,7 @@ using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace BilibiliLiveRecordDownLoader.Shared.Abstracts
+namespace BilibiliLiveRecordDownLoader.Shared.Abstractions
 {
 	public abstract class ProgressBase : IProgress
 	{

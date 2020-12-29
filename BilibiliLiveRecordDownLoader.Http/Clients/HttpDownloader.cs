@@ -1,5 +1,5 @@
 using BilibiliLiveRecordDownLoader.Http.Interfaces;
-using BilibiliLiveRecordDownLoader.Shared.Abstracts;
+using BilibiliLiveRecordDownLoader.Shared.Abstractions;
 using BilibiliLiveRecordDownLoader.Shared.Interfaces;
 using System;
 using System.Buffers;

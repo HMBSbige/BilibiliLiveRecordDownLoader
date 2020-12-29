@@ -5,7 +5,7 @@ using BilibiliLiveRecordDownLoader.FlvProcessor.Models;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagHeaders;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Utils;
 using BilibiliLiveRecordDownLoader.FlvProcessor.VideoWriters;
-using BilibiliLiveRecordDownLoader.Shared.Abstracts;
+using BilibiliLiveRecordDownLoader.Shared.Abstractions;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.Extensions.Logging;
 using System;
