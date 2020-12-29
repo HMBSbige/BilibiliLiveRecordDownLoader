@@ -41,17 +41,16 @@ namespace BilibiliApi.Clients
 			CancellationToken token = default)
 		{
 			const string url = @"https://api.live.bilibili.com/msg/send";
-			IEnumerable<KeyValuePair<string?, string?>> pair = new[]
+			var pair = new Dictionary<string, string>
 			{
-				new KeyValuePair<string?, string?>(@"roomid", $@"{roomId}"),
-				new KeyValuePair<string?, string?>(@"csrf", csrf),
-				new KeyValuePair<string?, string?>(@"msg", msg),
-				new KeyValuePair<string?, string?>(@"rnd", rnd),
-				new KeyValuePair<string?, string?>(@"color", color),
-				new KeyValuePair<string?, string?>(@"fontsize", fontSize),
+				{@"roomid", $@"{roomId}"},
+				{@"csrf", csrf},
+				{@"msg", msg},
+				{@"rnd", rnd},
+				{@"color", color},
+				{@"fontsize", fontSize},
 			};
-			using var content = new FormUrlEncodedContent(pair);
-			var response = await PostAsync(url, content, token);
+			var response = await PostAsync(url, pair, false, token);
 			var message = await response.Content.ReadFromJsonAsync<DanmuSendResponse>(cancellationToken: token);
 			if (message is null)
 			{

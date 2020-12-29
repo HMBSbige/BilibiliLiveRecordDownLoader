@@ -49,5 +49,13 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 			}
 			return string.Join(';', hashSet);
 		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static IEnumerable<KeyValuePair<string?, string?>> Cast(this Dictionary<string, string> pair)
+		{
+			//TODO: .NET 6.0
+			// ReSharper disable once RedundantCast
+			return (IEnumerable<KeyValuePair<string?, string?>>)pair;
+		}
 	}
 }

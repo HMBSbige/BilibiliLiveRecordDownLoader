@@ -61,12 +61,11 @@ namespace BilibiliApi.Clients
 		public async Task<string> GetLoginInfoAsync(string oauthKey, CancellationToken token = default)
 		{
 			const string url = @"https://passport.bilibili.com/qrcode/getLoginInfo";
-			IEnumerable<KeyValuePair<string?, string?>> pair = new[]
+			var pair = new Dictionary<string, string>
 			{
-				new KeyValuePair<string?, string?>(@"oauthKey", oauthKey)
+				{@"oauthKey", oauthKey}
 			};
-			using var content = new FormUrlEncodedContent(pair);
-			var response = await PostAsync(url, content, token);
+			var response = await PostAsync(url, pair, false, token);
 			var message = await response.Content.ReadFromJsonAsync<GetLoginInfoMessage>(cancellationToken: token);
 			if (message is null)
 			{
