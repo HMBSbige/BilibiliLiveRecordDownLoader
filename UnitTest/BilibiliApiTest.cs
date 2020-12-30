@@ -1,7 +1,6 @@
 using BilibiliApi.Clients;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
 using System.Net.Http;
 using System.Threading.Tasks;
 using static UnitTest.TestConstants;
