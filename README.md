@@ -1,5 +1,11 @@
 # BilibiliLiveRecordDownLoader
-[![CI](https://github.com/HMBSbige/BilibiliLiveRecordDownLoader/workflows/CI/badge.svg)](https://github.com/HMBSbige/BilibiliLiveRecordDownLoader/actions)
+Channel | Status
+-|-
+CI | [![CI](https://github.com/HMBSbige/BilibiliLiveRecordDownLoader/workflows/CI/badge.svg)](https://github.com/HMBSbige/BilibiliLiveRecordDownLoader/actions)
+BilibiliLiveRecordDownLoader.BilibiliApi | [![NuGet.org](https://img.shields.io/nuget/v/BilibiliLiveRecordDownLoader.BilibiliApi.svg)](https://www.nuget.org/packages/BilibiliLiveRecordDownLoader.BilibiliApi/)
+BilibiliLiveRecordDownLoader.Shared | [![NuGet.org](https://img.shields.io/nuget/v/BilibiliLiveRecordDownLoader.Shared.svg)](https://www.nuget.org/packages/BilibiliLiveRecordDownLoader.Shared/)
+
+
 
 Bilibili 直播录制与回放下载
 
