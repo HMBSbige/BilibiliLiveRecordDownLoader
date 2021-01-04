@@ -218,7 +218,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private void StartMonitor()
 		{
 			_statusMonitor = this.WhenAnyValue(x => x.LiveStatus).Subscribe(_ => StatusUpdatedAsync().NoWarning());
-			_enableMonitor = this.WhenAnyValue(x => x.IsEnable).Subscribe(_ => EnableUpdated());
+			_enableMonitor = this.WhenAnyValue(x => x.IsEnable).Subscribe(_ => EnableUpdatedAsync().NoWarning());
 			this.RaisePropertyChanged(nameof(LiveStatus));
 			_titleMonitor = this.WhenAnyValue(x => x.Title).Subscribe(title =>
 			{
@@ -243,7 +243,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 			{
 				DanmuClientType.TCP => DI.GetService<TcpDanmuClient>(),
 				DanmuClientType.Websocket => DI.GetService<WsDanmuClient>(),
-				_ => DI.GetService<WssDanmuClient>(),
+				_ => DI.GetService<WssDanmuClient>()
 			};
 			_danmuClient.RetryInterval = TimeSpan.FromSeconds(DanMuReconnectLatency);
 			_danmuClient.RoomId = RoomId;
@@ -252,20 +252,8 @@ namespace BilibiliLiveRecordDownLoader.Models
 			await _danmuClient.StartAsync();
 		}
 
-		private async Task StartRecordAsync()
+		private async Task StartRecordAsync(CancellationToken token)
 		{
-			lock (this)
-			{
-				if (RecordStatus != RecordStatus.未录制)
-				{
-					_logger.LogDebug($@"[{RoomId}] 重复录制，已跳过");
-					return;
-				}
-				RecordStatus = RecordStatus.启动中;
-				_recordCts = new CancellationTokenSource();
-			}
-
-			var token = _recordCts.Token;
 			try
 			{
 				while (LiveStatus == LiveStatus.直播)
@@ -372,6 +360,24 @@ namespace BilibiliLiveRecordDownLoader.Models
 			}
 		}
 
+		private async Task StartRecordAsync()
+		{
+			CancellationToken token;
+			lock (this)
+			{
+				if (RecordStatus != RecordStatus.未录制)
+				{
+					_logger.LogDebug($@"[{RoomId}] 重复录制，已跳过");
+					return;
+				}
+
+				RecordStatus = RecordStatus.启动中;
+				_recordCts = new CancellationTokenSource();
+				token = _recordCts.Token;
+			}
+			await StartRecordAsync(token);
+		}
+
 		#endregion
 
 		#region Stop
@@ -460,7 +466,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 			}
 		}
 
-		private void EnableUpdated()
+		private async ValueTask EnableUpdatedAsync()
 		{
 			try
 			{
@@ -468,7 +474,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 				{
 					if (LiveStatus == LiveStatus.直播)
 					{
-						StartRecordAsync().NoWarning();
+						await StartRecordAsync();
 					}
 				}
 				else
