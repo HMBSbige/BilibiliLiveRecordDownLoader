@@ -33,18 +33,26 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 
 		public static async ValueTask<DateTime> GetCurrentTime()
 		{
-			var ipS = await Dns.GetHostAddressesAsync(@"cn.ntp.org.cn");
-			foreach (var ip in ipS)
+			try
 			{
-				try
+				var ipS = await Dns.GetHostAddressesAsync(@"cn.ntp.org.cn");
+				foreach (var ip in ipS)
 				{
-					return await GetWebTimeAsync(new IPEndPoint(ip, 123));
-				}
-				catch
-				{
-					// ignored
+					try
+					{
+						return await GetWebTimeAsync(new IPEndPoint(ip, 123));
+					}
+					catch
+					{
+						// ignored
+					}
 				}
 			}
+			catch
+			{
+				// ignored
+			}
+
 			return DateTime.UtcNow;
 		}
 	}
