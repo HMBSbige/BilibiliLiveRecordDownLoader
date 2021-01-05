@@ -1,6 +1,7 @@
 using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Shared.Interfaces;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -58,6 +59,7 @@ namespace BilibiliApi.Clients
 			if (isSign)
 			{
 				pair[@"appkey"] = AppConstants.AppKey;
+				pair[@"ts"] = Timestamp.GetTimestamp(DateTime.UtcNow).ToString();
 				pair = pair.OrderBy(p => p.Key).ToDictionary(p => p.Key, o => o.Value);
 				using var temp = new FormUrlEncodedContent(pair.Cast());
 				var str = await temp.ReadAsStringAsync();
