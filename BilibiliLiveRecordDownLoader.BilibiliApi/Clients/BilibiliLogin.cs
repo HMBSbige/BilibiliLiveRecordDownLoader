@@ -173,7 +173,7 @@ namespace BilibiliApi.Clients
 			};
 			using var body = await GetBody(pair, true);
 			var para = await body.ReadAsStringAsync(token);
-			var message = await GetJsonAsync<TokenInfoMessage>(PassportBaseAddress + @"api/oauth2/info?" + para, token);
+			var message = await GetJsonAsync<TokenInfoMessage>(PassportBaseAddress + @"api/v3/oauth2/info?" + para, token);
 			if (message is null)
 			{
 				throw new HttpRequestException(@"获取 Token 信息失败");

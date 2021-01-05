@@ -64,9 +64,6 @@ namespace UnitTest
 			Assert.IsTrue(message.data.mid > 0);
 			Assert.AreEqual(32, message.data.access_token.Length);
 			Console.WriteLine(TimeSpan.FromSeconds(message.data.expires_in));
-
-			Assert.IsTrue(!string.IsNullOrEmpty(message.data.uname));
-			Assert.IsTrue(!string.IsNullOrEmpty(message.data.userid));
 		}
 
 		[TestMethod]
