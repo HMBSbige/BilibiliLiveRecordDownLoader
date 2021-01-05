@@ -194,9 +194,9 @@ namespace BilibiliApi.Clients
 			return message.TryGetProperty(@"code", out var codeElement) && codeElement.TryGetInt64(out var code) && code == 0;
 		}
 
-		public async Task<AppRefreshTokenMessage> RefreshTokenAsync(string accessToken, string refreshToken, CancellationToken token = default)
+		public async Task<AppLoginMessage> RefreshTokenAsync(string accessToken, string refreshToken, CancellationToken token = default)
 		{
-			const string url = PassportBaseAddress + @"api/oauth2/refreshToken";
+			const string url = PassportBaseAddress + @"api/v2/oauth2/refresh_token";
 			var pair = new Dictionary<string, string>
 			{
 				{@"platform", @"android"},
@@ -204,7 +204,7 @@ namespace BilibiliApi.Clients
 				{@"refresh_token", refreshToken}
 			};
 			var response = await PostAsync(url, pair, true, token);
-			var message = await response.Content.ReadFromJsonAsync<AppRefreshTokenMessage>(cancellationToken: token);
+			var message = await response.Content.ReadFromJsonAsync<AppLoginMessage>(cancellationToken: token);
 			if (message is null)
 			{
 				throw new HttpRequestException(@"刷新 Token 失败");

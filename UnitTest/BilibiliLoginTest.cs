@@ -80,14 +80,27 @@ namespace UnitTest
 		public async Task RefreshTokenTestAsync()
 		{
 			var message = await _apiClient.RefreshTokenAsync(AccessToken, RefreshToken);
+			Console.WriteLine(message.data.token_info.access_token);
+			Console.WriteLine(message.data.token_info.refresh_token);
 
 			Assert.AreEqual(0, message.code);
 			Console.WriteLine(Timestamp.GetTime(message.ts).ToLocalTime().ToString(@"yyyyMMdd_HHmmss"));
 
-			Assert.IsTrue(message.data.mid > 0);
-			Assert.AreEqual(32, message.data.access_token.Length);
-			Assert.AreEqual(32, message.data.refresh_token.Length);
-			Console.WriteLine(TimeSpan.FromSeconds(message.data.expires_in));
+			//token_info
+			Assert.IsTrue(message.data.token_info.mid > 0);
+			Assert.AreEqual(32, message.data.token_info.access_token.Length);
+			Assert.AreEqual(32, message.data.token_info.refresh_token.Length);
+			Console.WriteLine(TimeSpan.FromSeconds(message.data.token_info.expires_in));
+
+			//cookie_info
+			var cookies = message.data.cookie_info.cookies;
+			Assert.IsTrue(cookies.Length > 0);
+			var names = cookies.Select(x => x.name).ToArray();
+			Assert.IsTrue(names.Contains(@"bili_jct"));
+			Assert.IsTrue(names.Contains(@"DedeUserID"));
+			Assert.IsTrue(names.Contains(@"DedeUserID__ckMd5"));
+			Assert.IsTrue(names.Contains(@"sid"));
+			Assert.IsTrue(names.Contains(@"SESSDATA"));
 		}
 	}
 }
