@@ -54,6 +54,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private readonly StartupService _startup;
 
 		public readonly Config Config;
+		private readonly string _startUpData = $@"""{Utils.Utils.GetExecutablePath()}"" {Utils.Constants.ParameterSilent}";
 
 		public SettingViewModel(
 			IScreen hostScreen,
@@ -188,7 +189,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		{
 			try
 			{
-				IsRunOnStartup = _startup.Check();
+				IsRunOnStartup = _startup.Check(_startUpData);
 			}
 			catch (Exception ex)
 			{
@@ -200,8 +201,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		{
 			try
 			{
-				var data = $@"""{Utils.Utils.GetExecutablePath()}"" {Utils.Constants.ParameterSilent}";
-				_startup.Set(data);
+				_startup.Set(_startUpData);
 			}
 			catch (Exception ex)
 			{
