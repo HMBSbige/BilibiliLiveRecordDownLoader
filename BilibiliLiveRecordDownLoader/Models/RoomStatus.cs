@@ -286,7 +286,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 							{
 								// ReSharper disable once AccessToDisposedClosure
 								downloader.CloseStream();
-								_logger.LogWarning($@"[{RoomId}] 网络不稳定，即将尝试重连");
+								_logger.LogWarning($@"[{RoomId}] 录播不稳定，即将尝试重连");
 							}
 						});
 						try
@@ -316,7 +316,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 						}
 						else
 						{
-							_logger.LogError(e, $@"[{RoomId}] 尝试下载直播流错误");
+							_logger.LogError($@"[{RoomId}] 尝试下载直播流错误 {e.Message}");
 						}
 						await Task.Delay(TimeSpan.FromSeconds(StreamReconnectLatency), token);
 					}
