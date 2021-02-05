@@ -11,7 +11,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 {
 	public static class DI
 	{
-		private readonly static SubjectMemorySink MemorySink = new(Constants.OutputTemplate);
+		private static readonly SubjectMemorySink MemorySink = new(Constants.OutputTemplate);
 
 		public static T GetService<T>()
 		{
