@@ -12,6 +12,6 @@ namespace BilibiliApi.Model.Login.Password.GetTokenInfo
 		/// <summary>
 		/// 剩余有效时间，单位秒
 		/// </summary>
-		public int expires_in { get; set; }
+		public long expires_in { get; set; }
 	}
 }
