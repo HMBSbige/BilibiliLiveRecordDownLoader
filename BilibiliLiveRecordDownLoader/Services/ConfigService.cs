@@ -34,7 +34,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 		private readonly IDisposable _themeMonitor;
 		private IDisposable? _roomsMonitor;
 
-		private readonly AsyncReaderWriterLock _lock = new();
+		private readonly AsyncReaderWriterLock _lock = new(null);
 
 		private static readonly JsonSerializerOptions JsonOptions = new()
 		{
