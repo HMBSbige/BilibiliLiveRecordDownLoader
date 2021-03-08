@@ -1,5 +1,6 @@
 using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI;
+using System;
 using System.Reactive.Disposables;
 
 namespace BilibiliLiveRecordDownLoader.Views
@@ -22,7 +23,7 @@ namespace BilibiliLiveRecordDownLoader.Views
 				this.OneWayBind(ViewModel, vm => vm.LoginStatus, v => v.LoginStatusTextBlock.Text).DisposeWith(d);
 				this.OneWayBind(ViewModel, vm => vm.LoginStatusForeground, v => v.LoginStatusTextBlock.Foreground).DisposeWith(d);
 
-				ViewModel.CheckLoginCommand.Execute();
+				ViewModel.CheckLoginCommand.Execute().Subscribe().DisposeWith(d);
 			});
 		}
 	}
