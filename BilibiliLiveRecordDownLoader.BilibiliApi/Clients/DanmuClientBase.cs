@@ -418,12 +418,13 @@ namespace BilibiliApi.Clients
 						var packetLength = BinaryPrimitives.ReadInt32BigEndian(header.Memory.Span);
 						var remainSize = packetLength - headerLength;
 
-						using var subBuffer = MemoryPool<byte>.Shared.Rent(remainSize);
-
-						await deflate.ReadAsync(subBuffer.Memory.Slice(0, remainSize), token);
-
 						var subPacket = new DanmuPacket { PacketLength = packetLength };
-						subPacket.ReadDanMu(subBuffer.Memory);
+
+						using (var subBuffer = MemoryPool<byte>.Shared.Rent(remainSize))
+						{
+							await deflate.ReadAsync(subBuffer.Memory.Slice(0, remainSize), token);
+							subPacket.ReadDanMu(subBuffer.Memory);
+						}
 
 						await ProcessDanMuPacketAsync(subPacket, token);
 					}

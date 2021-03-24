@@ -2,50 +2,51 @@ using BilibiliApi.Enums;
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
+using System.IO;
 
 namespace BilibiliApi.Model.Danmu
 {
-	public class DanmuPacket
+	public struct DanmuPacket
 	{
 		/// <summary>
 		/// 消息总长度，HeaderLength + bytes(Body).Length
 		/// </summary>
-		public int PacketLength { get; set; }
+		public int PacketLength;
 
 		/// <summary>
 		/// 消息头长度，默认 16
 		/// </summary>
-		public short HeaderLength { get; set; }
+		public short HeaderLength;
 
 		/// <summary>
 		/// 消息版本号
 		/// </summary>
-		public short ProtocolVersion { get; set; }
+		public short ProtocolVersion;
 
 		/// <summary>
 		/// 消息类型
 		/// </summary>
-		public Operation Operation { get; set; }
+		public Operation Operation;
 
 		/// <summary>
 		/// 参数
 		/// </summary>
-		public int SequenceId { get; set; }
+		public int SequenceId;
 
 		/// <summary>
 		/// 数据
 		/// </summary>
-		public Memory<byte> Body { get; set; }
+		public Memory<byte> Body;
 
 		public Memory<byte> ToMemory(Memory<byte> array)
 		{
 			var res = array.Slice(0, PacketLength);
 
 			BinaryPrimitives.WriteInt32BigEndian(res.Span, PacketLength);
-			BinaryPrimitives.WriteInt16BigEndian(res.Span[4..], HeaderLength);
-			BinaryPrimitives.WriteInt16BigEndian(res.Span[6..], ProtocolVersion);
-			BinaryPrimitives.WriteInt32BigEndian(res.Span[8..], (int)Operation);
-			BinaryPrimitives.WriteInt32BigEndian(res.Span[12..], SequenceId);
+			BinaryPrimitives.WriteInt16BigEndian(res.Span.Slice(4), HeaderLength);
+			BinaryPrimitives.WriteInt16BigEndian(res.Span.Slice(6), ProtocolVersion);
+			BinaryPrimitives.WriteInt32BigEndian(res.Span.Slice(8), (int)Operation);
+			BinaryPrimitives.WriteInt32BigEndian(res.Span.Slice(12), SequenceId);
 			Body.CopyTo(res[HeaderLength..]);
 
 			return res;
@@ -57,7 +58,7 @@ namespace BilibiliApi.Model.Danmu
 			ProtocolVersion = BinaryPrimitives.ReadInt16BigEndian(buffer.Span[2..]);
 			Operation = (Operation)BinaryPrimitives.ReadInt32BigEndian(buffer.Span[4..]);
 			SequenceId = BinaryPrimitives.ReadInt32BigEndian(buffer.Span[8..]);
-			Body = buffer.Slice(HeaderLength - 4, PacketLength - HeaderLength);
+			Body = buffer.Slice(HeaderLength - 4, PacketLength - HeaderLength).ToArray();
 		}
 
 		/// <summary>
@@ -75,27 +76,29 @@ namespace BilibiliApi.Model.Danmu
 
 			var reader = new SequenceReader<byte>(sequence);
 
-			reader.TryReadBigEndian(out int packetLength);
-			if (packetLength > length)
+			if (!reader.TryReadBigEndian(out PacketLength))
+			{
+				goto Unreachable;
+			}
+			if (length < PacketLength)
 			{
 				return false;
 			}
 
-			reader.TryReadBigEndian(out short headerLength);
-			reader.TryReadBigEndian(out short version);
-			reader.TryReadBigEndian(out int operation);
-			reader.TryReadBigEndian(out int seqId);
+			if (reader.TryReadBigEndian(out HeaderLength) &&
+				reader.TryReadBigEndian(out ProtocolVersion) &&
+				reader.TryReadBigEndian(out int operation) &&
+				reader.TryReadBigEndian(out SequenceId))
+			{
+				Operation = (Operation)operation;
 
-			PacketLength = packetLength;
-			HeaderLength = headerLength;
-			ProtocolVersion = version;
-			Operation = (Operation)operation;
-			SequenceId = seqId;
+				Body = reader.UnreadSequence.Slice(0, PacketLength - HeaderLength).ToArray();
 
-			Body = reader.UnreadSequence.Slice(0, PacketLength - HeaderLength).ToArray();
-
-			sequence = sequence.Slice(packetLength);
-			return true;
+				sequence = sequence.Slice(PacketLength);
+				return true;
+			}
+Unreachable:
+			throw new InvalidDataException(@"错误的弹幕格式");
 		}
 	}
 }
