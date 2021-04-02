@@ -125,17 +125,39 @@ namespace BilibiliLiveRecordDownLoader.Services
 
 				await using var _ = await _lock.ReadLockAsync(token);
 
-				await using var fs = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, true);
+				if (await LoadAsync(FilePath, token))
+				{
+					return;
+				}
+
+				_logger.LogInformation($@"尝试加载备份文件 {BackupFilePath}");
+				await LoadAsync(BackupFilePath, token);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, @"Load Config Error!");
+			}
+		}
+
+		private async ValueTask<bool> LoadAsync(string filename, CancellationToken token)
+		{
+			try
+			{
+				await using var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, true);
 
 				var config = await JsonSerializer.DeserializeAsync<Config>(fs, cancellationToken: token);
 				if (config is not null)
 				{
 					Config.Clone(config);
 				}
+
+				return true;
 			}
 			catch (Exception ex)
 			{
-				_logger.LogError(ex, @"Load Config Error!");
+				_logger.LogError(ex, $@"Load {filename} Error!");
+
+				return false;
 			}
 		}
 
