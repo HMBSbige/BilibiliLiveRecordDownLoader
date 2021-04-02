@@ -125,7 +125,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 
 				await using var _ = await _lock.ReadLockAsync(token);
 
-				await using var fs = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, true);
+				await using var fs = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, true);
 
 				var config = await JsonSerializer.DeserializeAsync<Config>(fs, cancellationToken: token);
 				if (config is not null)
