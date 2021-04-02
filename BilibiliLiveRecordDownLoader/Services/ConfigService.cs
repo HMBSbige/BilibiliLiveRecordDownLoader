@@ -96,7 +96,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 			{
 				await using var _ = await _lock.WriteLockAsync(token);
 
-				var tempFile = Path.ChangeExtension(Path.GetRandomFileName(), @".json");
+				var tempFile = Path.ChangeExtension(@"TMP" + Path.GetRandomFileName(), Path.GetExtension(FilePath));
 
 				await using (var fs = new FileStream(tempFile, FileMode.Create, FileAccess.Write, FileShare.None, 4096, true))
 				{
