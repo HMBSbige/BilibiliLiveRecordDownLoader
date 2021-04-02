@@ -140,7 +140,7 @@ namespace BilibiliLiveRecordDownLoader.Utils
 			return typeof(App).Assembly.GetName().Version?.ToString();
 		}
 
-		public static IEnumerable<string> GetPropertiesNameExcludeJsonIgnore(Type type)
+		public static IEnumerable<string> GetPropertiesNameExcludeJsonIgnore(this Type type)
 		{
 			return type.GetProperties()
 				.Where(pi => !Attribute.IsDefined(pi, typeof(JsonIgnoreAttribute)) && !Attribute.IsDefined(pi, typeof(IgnoreDataMemberAttribute)))

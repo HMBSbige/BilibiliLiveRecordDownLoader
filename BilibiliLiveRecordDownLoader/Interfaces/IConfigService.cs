@@ -15,7 +15,12 @@ namespace BilibiliLiveRecordDownLoader.Interfaces
 		/// <summary>
 		/// 配置文件路径
 		/// </summary>
-		string FilePath { get; set; }
+		string FilePath { get; }
+
+		/// <summary>
+		/// 备份配置文件路径
+		/// </summary>
+		string BackupFilePath { get; }
 
 		/// <summary>
 		/// 保存配置

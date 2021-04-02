@@ -25,7 +25,9 @@ namespace BilibiliLiveRecordDownLoader.Services
 	{
 		public Config Config { get; }
 
-		public string FilePath { get; set; } = $@"{nameof(BilibiliLiveRecordDownLoader)}.json";
+		public string FilePath => $@"{nameof(BilibiliLiveRecordDownLoader)}.json";
+
+		public string BackupFilePath => $@"{nameof(BilibiliLiveRecordDownLoader)}.backup.json";
 
 		private readonly ILogger _logger;
 
@@ -43,7 +45,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 			IgnoreReadOnlyProperties = true,
 		};
 
-		private static readonly string[] RoomProperties = Utils.Utils.GetPropertiesNameExcludeJsonIgnore(typeof(RoomStatus)).ToArray();
+		private static readonly string[] RoomProperties = typeof(RoomStatus).GetPropertiesNameExcludeJsonIgnore().ToArray();
 
 		public ConfigService(
 			ILogger<ConfigService> logger,
@@ -94,9 +96,16 @@ namespace BilibiliLiveRecordDownLoader.Services
 			{
 				await using var _ = await _lock.WriteLockAsync(token);
 
-				await using var fs = new FileStream(FilePath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, true);
+				var tempFile = Path.ChangeExtension(Path.GetRandomFileName(), @".json");
 
-				await JsonSerializer.SerializeAsync(fs, Config, JsonOptions, token);
+				await using (var fs = new FileStream(tempFile, FileMode.Create, FileAccess.Write, FileShare.None, 4096, true))
+				{
+					await JsonSerializer.SerializeAsync(fs, Config, JsonOptions, token);
+				}
+
+				await EnsureConfigFileExistsAsync();
+
+				File.Replace(tempFile, FilePath, BackupFilePath);
 			}
 			catch (Exception ex)
 			{
@@ -108,6 +117,12 @@ namespace BilibiliLiveRecordDownLoader.Services
 		{
 			try
 			{
+				if (!await EnsureConfigFileExistsAsync())
+				{
+					await SaveAsync(token);
+					return;
+				}
+
 				await using var _ = await _lock.ReadLockAsync(token);
 
 				await using var fs = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, true);
@@ -122,6 +137,17 @@ namespace BilibiliLiveRecordDownLoader.Services
 			{
 				_logger.LogError(ex, @"Load Config Error!");
 			}
+		}
+
+		private async ValueTask<bool> EnsureConfigFileExistsAsync()
+		{
+			if (File.Exists(FilePath))
+			{
+				return true;
+			}
+
+			await File.Create(FilePath).DisposeAsync();
+			return false;
 		}
 
 		private void RaiseRoomsChanged()
