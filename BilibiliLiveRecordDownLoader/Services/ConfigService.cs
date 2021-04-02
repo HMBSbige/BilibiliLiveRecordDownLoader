@@ -117,7 +117,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 		{
 			try
 			{
-				if (!await EnsureConfigFileExistsAsync())
+				if (!File.Exists(FilePath))
 				{
 					await SaveAsync(token);
 					return;
@@ -139,15 +139,12 @@ namespace BilibiliLiveRecordDownLoader.Services
 			}
 		}
 
-		private async ValueTask<bool> EnsureConfigFileExistsAsync()
+		private async ValueTask EnsureConfigFileExistsAsync()
 		{
-			if (File.Exists(FilePath))
+			if (!File.Exists(FilePath))
 			{
-				return true;
+				await File.Create(FilePath).DisposeAsync();
 			}
-
-			await File.Create(FilePath).DisposeAsync();
-			return false;
 		}
 
 		private void RaiseRoomsChanged()
