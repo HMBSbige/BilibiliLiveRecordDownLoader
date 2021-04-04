@@ -37,13 +37,14 @@
                 <GroupBox Header="直播回放"
                                   HorizontalAlignment="Left">
                     <ui:NumberBox x:Name="ThreadsTextBox"
-                                          Header="下载线程数："
-                                          Maximum="128"
-                                          Minimum="1"
-                                          SpinButtonPlacementMode="Compact"
-                                          PlaceholderText="8"
-                                          SmallChange="1"
-                                          LargeChange="10" />
+                                  Description="1-128"
+                                  Header="下载线程数："
+                                  Maximum="128"
+                                  Minimum="1"
+                                  SpinButtonPlacementMode="Compact"
+                                  PlaceholderText="8"
+                                  SmallChange="1"
+                                  LargeChange="10" />
                 </GroupBox>
                 <GroupBox Header="直播录制">
                     <StackPanel>

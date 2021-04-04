@@ -29,7 +29,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 
 		public byte DownloadThreads
 		{
-			get => Math.Max((byte)1, _downloadThreads);
+			get => Math.Clamp(_downloadThreads, (byte)1, (byte)128);
 			set => this.RaiseAndSetIfChanged(ref _downloadThreads, value);
 		}
 

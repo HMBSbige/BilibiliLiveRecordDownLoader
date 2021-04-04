@@ -38,7 +38,16 @@ namespace BilibiliLiveRecordDownLoader.Views
 						vm => vm.Config.DownloadThreads,
 						v => v.ThreadsTextBox.Value,
 						x => x,
-						Convert.ToByte).DisposeWith(d);
+						x =>
+						{
+							var r = (byte)x;
+							if (r is < 1 or > 128)
+							{
+								r = 8;
+							}
+							ThreadsTextBox.Text = r.ToString();
+							return r;
+						}).DisposeWith(d);
 
 				this.Bind(ViewModel, vm => vm.Config.IsCheckPreRelease, v => v.IsCheckPreReleaseSwitch.IsOn).DisposeWith(d);
 				this.BindCommand(ViewModel, vm => vm.CheckUpdateCommand, v => v.CheckUpdateButton).DisposeWith(d);
