@@ -19,6 +19,10 @@
             IsReadOnly="True"
             GridLinesVisibility="All"
 
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Stretch"
+            ColumnWidth="*"
+
             VirtualizingPanel.VirtualizationMode="Recycling"
             EnableColumnVirtualization="True"
             EnableRowVirtualization="True"
@@ -63,7 +67,7 @@
                 <DataGridTextColumn
                             Header="状态"
                             Binding="{Binding Status, Mode=OneWay}" />
-                <DataGridTemplateColumn Header="进度" Width="*">
+                <DataGridTemplateColumn Header="进度">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Grid>
