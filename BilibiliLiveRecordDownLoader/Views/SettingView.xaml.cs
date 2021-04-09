@@ -44,8 +44,8 @@ namespace BilibiliLiveRecordDownLoader.Views
 							if (r is < 1 or > 128)
 							{
 								r = 8;
+								ThreadsTextBox.Text = r.ToString();
 							}
-							ThreadsTextBox.Text = r.ToString();
 							return r;
 						}).DisposeWith(d);
 
