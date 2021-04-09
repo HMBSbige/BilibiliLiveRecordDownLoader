@@ -52,7 +52,7 @@ namespace BilibiliLiveRecordDownLoader
 
 			DI.Register();
 
-			MainWindow = DI.GetService<MainWindow>();
+			MainWindow = DI.GetRequiredService<MainWindow>();
 			if (e.Args.Contains(Constants.ParameterSilent))
 			{
 				MainWindow.Visibility = Visibility.Hidden;

@@ -52,7 +52,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		private static void ShowWindow()
 		{
-			DI.GetService<MainWindow>().ShowWindow();
+			DI.GetRequiredService<MainWindow>().ShowWindow();
 		}
 
 		private bool HasTaskRunning()
@@ -82,9 +82,9 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 			StopAllTask();
 
-			DI.GetService<IConfigService>().Dispose();
+			DI.GetRequiredService<IConfigService>().Dispose();
 
-			var window = DI.GetService<MainWindow>();
+			var window = DI.GetRequiredService<MainWindow>();
 			window.CloseReason = CloseReason.ApplicationExitCall;
 			window.Close();
 		}

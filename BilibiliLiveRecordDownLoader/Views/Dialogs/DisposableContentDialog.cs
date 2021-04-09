@@ -14,8 +14,8 @@ namespace BilibiliLiveRecordDownLoader.Views.Dialogs
 
 		public DisposableContentDialog()
 		{
-			_queue = DI.GetService<OperationQueue>();
-			Owner = DI.GetService<MainWindow>();
+			_queue = DI.GetRequiredService<OperationQueue>();
+			Owner = DI.GetRequiredService<MainWindow>();
 		}
 
 		public virtual void Dispose()

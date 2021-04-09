@@ -152,10 +152,10 @@ namespace BilibiliLiveRecordDownLoader.Models
 
 		public RoomStatus()
 		{
-			_logger = DI.GetService<ILogger<RoomStatus>>();
-			_config = DI.GetService<Config>();
-			_apiClient = DI.GetService<BilibiliApiClient>();
-			_taskList = DI.GetService<TaskListViewModel>();
+			_logger = DI.GetRequiredService<ILogger<RoomStatus>>();
+			_config = DI.GetRequiredService<Config>();
+			_apiClient = DI.GetRequiredService<BilibiliApiClient>();
+			_taskList = DI.GetRequiredService<TaskListViewModel>();
 		}
 
 		#region ApiRequest
@@ -241,9 +241,9 @@ namespace BilibiliLiveRecordDownLoader.Models
 		{
 			_danmuClient = ClientType switch
 			{
-				DanmuClientType.TCP => DI.GetService<TcpDanmuClient>(),
-				DanmuClientType.Websocket => DI.GetService<WsDanmuClient>(),
-				_ => DI.GetService<WssDanmuClient>()
+				DanmuClientType.TCP => DI.GetRequiredService<TcpDanmuClient>(),
+				DanmuClientType.Websocket => DI.GetRequiredService<WsDanmuClient>(),
+				_ => DI.GetRequiredService<WssDanmuClient>()
 			};
 			_danmuClient.RetryInterval = TimeSpan.FromSeconds(DanMuReconnectLatency);
 			_danmuClient.RoomId = RoomId;
@@ -264,7 +264,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 						var urlData = await _apiClient.GetPlayUrlDataAsync(RoomId, (long)Qn, token);
 						var url = urlData.durl!.First().url;
 
-						await using var downloader = DI.GetService<HttpDownloader>();
+						await using var downloader = DI.GetRequiredService<HttpDownloader>();
 						downloader.Target = new(url!);
 						downloader.Client.Timeout = TimeSpan.FromSeconds(StreamConnectTimeout);
 

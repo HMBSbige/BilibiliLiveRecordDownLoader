@@ -17,7 +17,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 
 		public FFmpegTaskViewModel(string args)
 		{
-			_logger = DI.GetService<ILogger<FFmpegTaskViewModel>>();
+			_logger = DI.GetRequiredService<ILogger<FFmpegTaskViewModel>>();
 			_args = args;
 
 			Description = args;
@@ -40,7 +40,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 					}
 				}))
 				{
-					using var ffmpeg = DI.GetService<FFmpegCommand>();
+					using var ffmpeg = DI.GetRequiredService<FFmpegCommand>();
 					using var messageMonitor = ffmpeg.MessageUpdated.Subscribe(str => Status = str);
 
 					await ffmpeg.StartAsync(_args, _cts.Token);

@@ -103,7 +103,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		{
 			try
 			{
-				using var ffmpeg = DI.GetService<FFmpegCommand>();
+				using var ffmpeg = DI.GetRequiredService<FFmpegCommand>();
 				if (await ffmpeg.VerifyAsync(token))
 				{
 					FFmpegStatus = @"成功";

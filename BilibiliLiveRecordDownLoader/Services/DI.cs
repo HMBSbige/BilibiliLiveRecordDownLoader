@@ -6,6 +6,7 @@ using Serilog;
 using Serilog.Events;
 using Splat;
 using Splat.Microsoft.Extensions.DependencyInjection;
+using System;
 
 namespace BilibiliLiveRecordDownLoader.Services
 {
@@ -13,9 +14,16 @@ namespace BilibiliLiveRecordDownLoader.Services
 	{
 		private static readonly SubjectMemorySink MemorySink = new(Constants.OutputTemplate);
 
-		public static T GetService<T>()
+		public static T GetRequiredService<T>()
 		{
-			return Locator.Current.GetService<T>();
+			var service = Locator.Current.GetService<T>();
+
+			if (service is null)
+			{
+				throw new InvalidOperationException($@"No service for type {typeof(T)} has been registered.");
+			}
+
+			return service;
 		}
 
 		public static void CreateLogger()
