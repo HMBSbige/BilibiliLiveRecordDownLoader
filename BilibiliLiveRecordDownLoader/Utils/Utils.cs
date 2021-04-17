@@ -14,31 +14,35 @@ namespace BilibiliLiveRecordDownLoader.Utils
 {
 	public static class Utils
 	{
-		public static string CountSize(long size)
+		public static string ToHumanBytesString(this double size)
 		{
 			const ushort step = 1024;
-			const int step2 = step * step;
-			const int step3 = step2 * step;
-			const long step4 = (long)step3 * step;
-			const long step5 = step4 * step;
-			const long step6 = step5 * step;
-			double factSize = size >= 0 ? size : (ulong)size;
-			var mStrSize = factSize switch
+			const uint step2 = step * step;
+			const uint step3 = step2 * step;
+			const ulong step4 = (ulong)step3 * step;
+			const ulong step5 = step4 * step;
+			const ulong step6 = step5 * step;
+			var mStrSize = size switch
 			{
-				0.0 => $@"{factSize:F2} Byte",
-				> 0.0 and < step => $@"{factSize:F2} Bytes",
-				>= step and < step2 => $@"{factSize / step:F2} KB",
-				>= step2 and < step3 => $@"{factSize / step2:F2} MB",
-				>= step3 and < step4 => $@"{factSize / step3:F2} GB",
-				>= step4 and < step5 => $@"{factSize / step4:F2} TB",
-				>= step5 and < step6 => $@"{factSize / step5:F2} PB",
-				>= step6 => $@"{factSize / step6:F2} EB",
+				0.0 => $@"{size:F2} Byte",
+				> 0.0 and < step => $@"{size:F2} Bytes",
+				>= step and < step2 => $@"{size / step:F2} KB",
+				>= step2 and < step3 => $@"{size / step2:F2} MB",
+				>= step3 and < step4 => $@"{size / step3:F2} GB",
+				>= step4 and < step5 => $@"{size / step4:F2} TB",
+				>= step5 and < step6 => $@"{size / step5:F2} PB",
+				>= step6 => $@"{size / step6:F2} EB",
 				_ => $@"{size}"
 			};
 			return mStrSize;
 		}
 
-		public static (long, long) GetDiskUsage(string path)
+		public static string ToHumanBytesString(this ulong size)
+		{
+			return ToHumanBytesString((double)size);
+		}
+
+		public static (ulong, ulong) GetDiskUsage(string path)
 		{
 			try
 			{
@@ -51,23 +55,15 @@ namespace BilibiliLiveRecordDownLoader.Utils
 						ulong totalFreeSpace;
 						if (PInvoke.GetDiskFreeSpaceEx(path, &availableFreeSpace, &totalSize, &totalFreeSpace))
 						{
-							return ((long)availableFreeSpace, (long)totalSize);
+							return (availableFreeSpace, totalSize);
 						}
 					}
 				}
 
-				var allDrives = DriveInfo.GetDrives();
-				foreach (var d in allDrives)
+				var d = new DriveInfo(path);
+				if (d.IsReady)
 				{
-					if (d.Name != Path.GetPathRoot(path))
-					{
-						continue;
-					}
-
-					if (d.IsReady)
-					{
-						return (d.AvailableFreeSpace, d.TotalSize);
-					}
+					return ((ulong)d.AvailableFreeSpace, (ulong)d.TotalSize);
 				}
 			}
 			catch

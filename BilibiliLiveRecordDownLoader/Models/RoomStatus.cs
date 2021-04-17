@@ -8,6 +8,7 @@ using BilibiliLiveRecordDownLoader.Http.Clients;
 using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
+using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using Microsoft.Extensions.Logging;
 using ReactiveUI;
@@ -276,7 +277,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 						var lastDataReceivedTime = DateTime.Now;
 						var speedMonitor = downloader.CurrentSpeed.Subscribe(b =>
 						{
-							Speed = $@"{Utils.Utils.CountSize(Convert.ToInt64(b))}/s";
+							Speed = $@"{b.ToHumanBytesString()}/s";
 							var now = DateTime.Now;
 							if (b > 0.0)
 							{
@@ -344,7 +345,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 			{
 				if (_config.IsAutoConvertMp4 && File.Exists(flv))
 				{
-					var args = string.Format(Utils.Constants.FFmpegCopyConvert, flv, Path.ChangeExtension(flv, @"mp4"));
+					var args = string.Format(Constants.FFmpegCopyConvert, flv, Path.ChangeExtension(flv, @"mp4"));
 					var task = new FFmpegTaskViewModel(args);
 					await _taskList.AddTaskAsync(task, Path.GetPathRoot(flv) ?? string.Empty);
 					_taskList.RemoveTask(task);

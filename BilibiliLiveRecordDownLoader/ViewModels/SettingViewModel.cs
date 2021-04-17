@@ -1,6 +1,7 @@
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
+using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.Views.Dialogs;
 using DynamicData;
 using Microsoft.Extensions.Logging;
@@ -54,7 +55,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		private readonly StartupService _startup;
 
 		public readonly Config Config;
-		private readonly string _startUpData = $@"""{Utils.Utils.GetExecutablePath()}"" {Utils.Constants.ParameterSilent}";
+		private readonly string _startUpData = $@"""{Utils.Utils.GetExecutablePath()}"" {Constants.ParameterSilent}";
 
 		public SettingViewModel(
 			IScreen hostScreen,
@@ -174,7 +175,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			var (availableFreeSpace, totalSize) = Utils.Utils.GetDiskUsage(Config.MainDir);
 			if (totalSize != 0)
 			{
-				DiskUsageProgressBarText = $@"已使用 {Utils.Utils.CountSize(totalSize - availableFreeSpace)}/{Utils.Utils.CountSize(totalSize)} 剩余 {Utils.Utils.CountSize(availableFreeSpace)}";
+				DiskUsageProgressBarText = $@"已使用 {(totalSize - availableFreeSpace).ToHumanBytesString()}/{totalSize.ToHumanBytesString()} 剩余 {availableFreeSpace.ToHumanBytesString()}";
 				var percentage = (totalSize - availableFreeSpace) / (double)totalSize;
 				DiskUsageProgressBarValue = percentage * 100;
 			}

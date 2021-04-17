@@ -2,6 +2,7 @@ using BilibiliApi.Clients;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
 using BilibiliLiveRecordDownLoader.Http.Clients;
 using BilibiliLiveRecordDownLoader.Services;
+using BilibiliLiveRecordDownLoader.Utils;
 using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
@@ -85,7 +86,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 							Status = $@"[{i + 1}/{l.Length}] {s}");
 
 					using var d = downloader.CurrentSpeed.DistinctUntilChanged().Subscribe(speed =>
-							Speed = $@"{Utils.Utils.CountSize(Convert.ToInt64(speed))}/s");
+							Speed = $@"{speed.ToHumanBytesString()}/s");
 
 					using var dp = Observable.Interval(TimeSpan.FromSeconds(0.2))
 							.DistinctUntilChanged()
@@ -115,7 +116,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 
 					using var ds = flv.Status.DistinctUntilChanged().Subscribe(s => Status = s);
 
-					using var d = flv.CurrentSpeed.DistinctUntilChanged().Subscribe(speed => Speed = $@"{Utils.Utils.CountSize(Convert.ToInt64(speed))}/s");
+					using var d = flv.CurrentSpeed.DistinctUntilChanged().Subscribe(speed => Speed = $@"{speed.ToHumanBytesString()}/s");
 
 					using var dp = Observable.Interval(TimeSpan.FromSeconds(0.1))
 							.DistinctUntilChanged()
