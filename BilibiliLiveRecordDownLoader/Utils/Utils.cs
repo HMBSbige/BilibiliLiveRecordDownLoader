@@ -1,9 +1,11 @@
+using Microsoft.Windows.Sdk;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
 using System.Windows;
@@ -40,6 +42,20 @@ namespace BilibiliLiveRecordDownLoader.Utils
 		{
 			try
 			{
+				if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+				{
+					unsafe
+					{
+						ulong availableFreeSpace;
+						ulong totalSize;
+						ulong totalFreeSpace;
+						if (PInvoke.GetDiskFreeSpaceEx(path, &availableFreeSpace, &totalSize, &totalFreeSpace))
+						{
+							return ((long)availableFreeSpace, (long)totalSize);
+						}
+					}
+				}
+
 				var allDrives = DriveInfo.GetDrives();
 				foreach (var d in allDrives)
 				{
