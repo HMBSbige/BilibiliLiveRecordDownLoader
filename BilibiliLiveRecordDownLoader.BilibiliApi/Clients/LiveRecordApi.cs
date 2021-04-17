@@ -1,3 +1,5 @@
+using BilibiliApi.Model.LiveRecordDanmu;
+using BilibiliApi.Model.LiveRecordDanmuList;
 using BilibiliApi.Model.LiveRecordList;
 using BilibiliApi.Model.LiveRecordUrl;
 using System.Threading;
@@ -29,6 +31,29 @@ namespace BilibiliApi.Clients
 		{
 			var url = $@"https://api.live.bilibili.com/xlive/web-room/v1/record/getList?room_id={roomId}&page={page}&page_size={pageSize}";
 			return await GetJsonAsync<LiveRecordListMessage>(url, token);
+		}
+
+		/// <summary>
+		/// 获取直播回放弹幕信息
+		/// </summary>
+		/// <param name="rid">视频id</param>
+		/// <param name="token"></param>
+		public async Task<LiveRecordDanmuListMessage?> GetDanmuInfoByLiveRecordAsync(string rid, CancellationToken token = default)
+		{
+			var url = $@"https://api.live.bilibili.com/xlive/web-room/v1/record/getInfoByLiveRecord?rid={rid}";
+			return await GetJsonAsync<LiveRecordDanmuListMessage>(url, token);
+		}
+
+		/// <summary>
+		/// 获取直播回放弹幕
+		/// </summary>
+		/// <param name="rid">视频id</param>
+		/// <param name="index">页数</param>
+		/// <param name="token"></param>
+		public async Task<LiveRecordDanmuMessage?> GetDmMsgByPlayBackIdAsync(string rid, long index, CancellationToken token = default)
+		{
+			var url = $@"https://api.live.bilibili.com/xlive/web-room/v1/dM/getDMMsgByPlayBackID?rid={rid}&index={index}";
+			return await GetJsonAsync<LiveRecordDanmuMessage>(url, token);
 		}
 	}
 }

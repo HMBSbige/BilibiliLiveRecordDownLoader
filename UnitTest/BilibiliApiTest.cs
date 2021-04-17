@@ -2,6 +2,7 @@ using BilibiliApi.Clients;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
+using System.Diagnostics;
 using System.Net.Http;
 using System.Threading.Tasks;
 using static UnitTest.TestConstants;
@@ -13,11 +14,12 @@ namespace UnitTest
 	public class BilibiliApiTest
 	{
 		private readonly BilibiliApiClient _apiClient = new(HttpClientUtils.BuildClientForBilibili(string.Empty, Cookie, new SocketsHttpHandler()));
+		private const string Rid = @"R1Bx411w7Wk"; // 视频链接会过期
 
 		[TestMethod]
 		public async Task GetLiveRecordUrlTestAsync()
 		{
-			var json = await _apiClient.GetLiveRecordUrlAsync(@"R12x411c7PL"); // 视频链接会过期
+			var json = await _apiClient.GetLiveRecordUrlAsync(Rid);
 			Assert.AreEqual(json.code, 0);
 			Assert.AreEqual(json.message, @"0");
 			Assert.IsTrue(json.data.size > 0);
@@ -181,6 +183,42 @@ namespace UnitTest
 		public async Task DanmuSendTestAsync()
 		{
 			await _apiClient.SendDanmuAsync(40462, Csrf);
+		}
+
+		[TestMethod]
+		public async Task GetDanmuInfoByLiveRecordTestAsync()
+		{
+			var danmuInfo = await _apiClient.GetDanmuInfoByLiveRecordAsync(Rid);
+			Assert.IsNotNull(danmuInfo);
+			Assert.AreEqual(0L, danmuInfo.code);
+			Assert.AreEqual(@"0", danmuInfo.message);
+			Assert.IsNotNull(danmuInfo.data?.dm_info);
+
+			var totalIndex = danmuInfo.data.dm_info.num;
+			Assert.IsTrue(totalIndex > 0);
+
+			var d = 0L;
+			var ix = 0L;
+			for (var i = 0L; i < totalIndex; ++i)
+			{
+				var danmuMsgInfo = await _apiClient.GetDmMsgByPlayBackIdAsync(Rid, i);
+				Assert.IsNotNull(danmuMsgInfo.data?.dm);
+
+				if (danmuMsgInfo.data?.dm?.dm_info is not null)
+				{
+					d += danmuMsgInfo.data.dm.dm_info.Length;
+				}
+
+				if (danmuMsgInfo.data.dm.interactive_info is not null)
+				{
+					ix += danmuMsgInfo.data.dm.interactive_info.Length;
+				}
+			}
+
+			Debug.WriteLine($@"{d} 条弹幕");
+			Debug.WriteLine($@"{ix} 条礼物");
+
+			Assert.AreEqual(danmuInfo.data.dm_info.total_num, d + ix);
 		}
 	}
 }
