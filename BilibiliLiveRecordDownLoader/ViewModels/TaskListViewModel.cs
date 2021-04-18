@@ -114,7 +114,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		{
 			if (_taskSourceList.Items.Any(x => x.Description == task.Description))
 			{
-				_logger.LogWarning($@"已跳过重复任务：{task.Description}");
+				_logger.LogWarning(@"已跳过重复任务：{0}", task.Description);
 				return;
 			}
 

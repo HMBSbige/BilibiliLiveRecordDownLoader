@@ -172,11 +172,12 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		private void GetDiskUsage(long _)
 		{
-			var (availableFreeSpace, totalSize) = Utils.Utils.GetDiskUsage(Config.MainDir);
+			var (availableFreeSpace, totalSize, totalFree) = Utils.Utils.GetDiskUsage(Config.MainDir);
 			if (totalSize != 0)
 			{
-				DiskUsageProgressBarText = $@"已使用 {(totalSize - availableFreeSpace).ToHumanBytesString()}/{totalSize.ToHumanBytesString()} 剩余 {availableFreeSpace.ToHumanBytesString()}";
-				var percentage = (totalSize - availableFreeSpace) / (double)totalSize;
+				var usedSize = totalSize - totalFree;
+				DiskUsageProgressBarText = $@"已使用 {usedSize.ToHumanBytesString()}/{totalSize.ToHumanBytesString()} 剩余可用 {availableFreeSpace.ToHumanBytesString()}";
+				var percentage = usedSize / (double)totalSize;
 				DiskUsageProgressBarValue = percentage * 100;
 			}
 			else

@@ -42,7 +42,7 @@ namespace BilibiliLiveRecordDownLoader.Utils
 			return ToHumanBytesString((double)size);
 		}
 
-		public static (ulong, ulong) GetDiskUsage(string path)
+		public static (ulong, ulong, ulong) GetDiskUsage(string path)
 		{
 			try
 			{
@@ -55,7 +55,7 @@ namespace BilibiliLiveRecordDownLoader.Utils
 						ulong totalFreeSpace;
 						if (PInvoke.GetDiskFreeSpaceEx(path, &availableFreeSpace, &totalSize, &totalFreeSpace))
 						{
-							return (availableFreeSpace, totalSize);
+							return (availableFreeSpace, totalSize, totalFreeSpace);
 						}
 					}
 				}
@@ -63,7 +63,7 @@ namespace BilibiliLiveRecordDownLoader.Utils
 				var d = new DriveInfo(path);
 				if (d.IsReady)
 				{
-					return ((ulong)d.AvailableFreeSpace, (ulong)d.TotalSize);
+					return ((ulong)d.AvailableFreeSpace, (ulong)d.TotalSize, (ulong)d.TotalFreeSpace);
 				}
 			}
 			catch
@@ -71,7 +71,7 @@ namespace BilibiliLiveRecordDownLoader.Utils
 				// ignored
 			}
 
-			return (0, 0);
+			return (0, 0, 0);
 		}
 
 		public static bool OpenUrl(string path)
@@ -121,7 +121,7 @@ namespace BilibiliLiveRecordDownLoader.Utils
 			return Assembly.GetExecutingAssembly().Location;
 		}
 
-		public static void CopyToClipboard(object obj)
+		public static void CopyToClipboard(this object obj)
 		{
 			try
 			{

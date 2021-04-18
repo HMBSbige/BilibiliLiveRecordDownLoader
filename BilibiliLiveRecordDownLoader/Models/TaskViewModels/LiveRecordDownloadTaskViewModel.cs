@@ -24,10 +24,14 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 		private readonly string _recordPath;
 		private readonly ushort _threadsCount;
 
-		public LiveRecordDownloadTaskViewModel(LiveRecordViewModel liveRecord, string path, ushort threadsCount)
+		public LiveRecordDownloadTaskViewModel(
+			ILogger logger,
+			BilibiliApiClient apiClient,
+			LiveRecordViewModel liveRecord, string path, ushort threadsCount)
 		{
-			_logger = DI.GetRequiredService<ILogger<LiveRecordDownloadTaskViewModel>>();
-			_apiClient = DI.GetRequiredService<BilibiliApiClient>();
+			_logger = logger;
+			_apiClient = apiClient;
+
 			_liveRecord = liveRecord;
 			_path = path;
 			_threadsCount = threadsCount;
@@ -48,7 +52,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 				var list = message?.data?.list;
 				if (list is null)
 				{
-					return;
+					throw new Exception(@"获取回放地址失败！");
 				}
 
 				var l = list.Where(x => !string.IsNullOrEmpty(x.url) || !string.IsNullOrEmpty(x.backup_url))

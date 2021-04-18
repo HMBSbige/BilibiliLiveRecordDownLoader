@@ -46,8 +46,12 @@ namespace BilibiliLiveRecordDownLoader.Views
 				var selectedItems = this.WhenAnyValue(v => v.LiveRecordListDataGrid.SelectedItems);
 				var selectedItem = this.WhenAnyValue(v => v.LiveRecordListDataGrid.SelectedItem);
 				this.BindCommand(ViewModel,
-					vm => vm.DownLoadCommand,
-					v => v.DownLoadMenuItem,
+					vm => vm.DownLoadVideoCommand,
+					v => v.DownLoadVideoMenuItem,
+					selectedItems).DisposeWith(d);
+				this.BindCommand(ViewModel,
+					vm => vm.DownLoadDanmuCommand,
+					v => v.DownLoadDanmuMenuItem,
 					selectedItems).DisposeWith(d);
 				this.BindCommand(ViewModel,
 					vm => vm.CopyLiveRecordDownloadUrlCommand,

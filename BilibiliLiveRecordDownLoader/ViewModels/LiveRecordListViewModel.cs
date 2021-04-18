@@ -65,7 +65,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		public ReactiveCommand<object?, Unit> CopyLiveRecordDownloadUrlCommand { get; }
 		public ReactiveCommand<object?, Unit> OpenLiveRecordUrlCommand { get; }
-		public ReactiveCommand<object?, Unit> DownLoadCommand { get; }
+		public ReactiveCommand<object?, Unit> DownLoadVideoCommand { get; }
+		public ReactiveCommand<object?, Unit> DownLoadDanmuCommand { get; }
 		public ReactiveCommand<object?, Unit> OpenDirCommand { get; }
 
 		#endregion
@@ -116,7 +117,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			CopyLiveRecordDownloadUrlCommand = ReactiveCommand.CreateFromTask<object?>(CopyLiveRecordDownloadUrlAsync);
 			OpenLiveRecordUrlCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(OpenLiveRecordUrl);
 			OpenDirCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(OpenDir);
-			DownLoadCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(Download);
+			DownLoadVideoCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(DownloadVideo);
+			DownLoadDanmuCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(DownloadDanmu);
 		}
 
 		private async Task CopyLiveRecordDownloadUrlAsync(object? info)
@@ -132,9 +134,9 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 						&& list.All(x => !string.IsNullOrEmpty(x.url) || !string.IsNullOrEmpty(x.backup_url))
 						)
 					{
-						Utils.Utils.CopyToClipboard(string.Join(Environment.NewLine,
-								list.Select(x => string.IsNullOrEmpty(x.url) ? x.backup_url : x.url)
-						));
+						string.Join(Environment.NewLine,
+							list.Select(x => string.IsNullOrEmpty(x.url) ? x.backup_url : x.url)
+						).CopyToClipboard();
 					}
 				}
 			}
@@ -186,7 +188,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			});
 		}
 
-		private IObservable<Unit> Download(object? info)
+		private IObservable<Unit> DownloadVideo(object? info)
 		{
 			return Observable.Start(() =>
 			{
@@ -205,13 +207,43 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 						}
 
 						var root = Path.Combine(Config.MainDir, $@"{RoomId}", Constants.LiveRecordPath);
-						var task = new LiveRecordDownloadTaskViewModel(liveRecord, root, Config.DownloadThreads);
+						var task = new LiveRecordDownloadTaskViewModel(_logger, _apiClient, liveRecord, root, Config.DownloadThreads);
 						_taskList.AddTaskAsync(task, TaskQueueKeyConstants.LiveRecordKey).NoWarning();
 					}
 				}
 				catch (Exception ex)
 				{
 					_logger.LogError(ex, @"下载回放出错");
+				}
+			});
+		}
+
+		private IObservable<Unit> DownloadDanmu(object? info)
+		{
+			return Observable.Start(() =>
+			{
+				try
+				{
+					if (info is not IList { Count: > 0 } list)
+					{
+						return;
+					}
+
+					foreach (var item in list)
+					{
+						if (item is not LiveRecordViewModel { Rid: not null and not @"" } liveRecord)
+						{
+							continue;
+						}
+
+						var root = Path.Combine(Config.MainDir, $@"{RoomId}", Constants.LiveRecordPath);
+						var task = new LiveRecordDanmuDownloadTaskViewModel(_logger, _apiClient, liveRecord, root);
+						_taskList.AddTaskAsync(task, TaskQueueKeyConstants.LiveRecordDanmuKey).NoWarning();
+					}
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, @"下载回放弹幕出错");
 				}
 			});
 		}

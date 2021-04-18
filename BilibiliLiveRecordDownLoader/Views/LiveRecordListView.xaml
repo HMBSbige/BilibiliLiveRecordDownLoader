@@ -104,7 +104,8 @@
                 </DataGrid.CellStyle>
                 <DataGrid.ContextMenu>
                     <ContextMenu>
-                        <MenuItem x:Name="DownLoadMenuItem" Header="加入下载队列" />
+                        <MenuItem x:Name="DownLoadVideoMenuItem" Header="下载视频" />
+                        <MenuItem x:Name="DownLoadDanmuMenuItem" Header="下载弹幕" />
                         <Separator />
                         <MenuItem x:Name="CopyLiveRecordDownloadUrlMenuItem" Header="复制下载地址" />
                         <MenuItem x:Name="OpenDirMenuItem" Header="打开目录" />
