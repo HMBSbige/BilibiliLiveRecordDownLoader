@@ -37,7 +37,7 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 
 			_liveRecord = liveRecord;
 			_dir = path;
-			_path = Path.Combine(path, $@"{liveRecord.Rid}.xml");
+			_path = Path.Combine(path, $@"{_liveRecord.StartTime:yyyyMMdd_HHmmss}_{_liveRecord.Title}.xml".RemoveInvalidFileNameChars());
 
 			Description = $@"{liveRecord.Rid} 弹幕";
 		}

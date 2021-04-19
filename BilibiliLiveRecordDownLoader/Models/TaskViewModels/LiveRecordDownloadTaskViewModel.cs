@@ -109,10 +109,9 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 				Status = @"正在合并分段...";
 				Progress = 0.0;
 
-				var filename = _liveRecord.StartTime == default
-						? _liveRecord.Rid
-						: $@"{_liveRecord.StartTime:yyyyMMdd_HHmmss}";
-				var mergeFlv = Path.Combine(_path, $@"{filename}.flv");
+				var filename = $@"{_liveRecord.StartTime:yyyyMMdd_HHmmss}_{_liveRecord.Title}.flv".RemoveInvalidFileNameChars();
+
+				var mergeFlv = Path.Combine(_path, filename);
 				if (l.Length > 1)
 				{
 					await using var flv = DI.GetRequiredService<IFlvMerger>();
