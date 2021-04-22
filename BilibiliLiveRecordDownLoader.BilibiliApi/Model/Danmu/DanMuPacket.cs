@@ -58,7 +58,7 @@ namespace BilibiliApi.Model.Danmu
 			ProtocolVersion = BinaryPrimitives.ReadInt16BigEndian(buffer.Span[2..]);
 			Operation = (Operation)BinaryPrimitives.ReadInt32BigEndian(buffer.Span[4..]);
 			SequenceId = BinaryPrimitives.ReadInt32BigEndian(buffer.Span[8..]);
-			Body = buffer.Slice(HeaderLength - 4, PacketLength - HeaderLength).ToArray();
+			Body = buffer.Slice(HeaderLength - sizeof(int));
 		}
 
 		/// <summary>

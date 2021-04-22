@@ -362,12 +362,13 @@ namespace BilibiliApi.Clients
 						{
 							var packet = new DanmuPacket();
 							var success = packet.ReadDanMu(ref buffer);
-							await ProcessDanMuPacketAsync(packet, token);
 
 							if (!success)
 							{
 								break;
 							}
+
+							await ProcessDanMuPacketAsync(packet, token);
 						}
 
 						if (result.IsCompleted)
@@ -420,11 +421,10 @@ namespace BilibiliApi.Clients
 
 						var subPacket = new DanmuPacket { PacketLength = packetLength };
 
-						using (var subBuffer = MemoryPool<byte>.Shared.Rent(remainSize))
-						{
-							await deflate.ReadAsync(subBuffer.Memory.Slice(0, remainSize), token);
-							subPacket.ReadDanMu(subBuffer.Memory);
-						}
+						Memory<byte> subBuffer = GC.AllocateUninitializedArray<byte>(remainSize);
+
+						await deflate.ReadAsync(subBuffer, token);
+						subPacket.ReadDanMu(subBuffer);
 
 						await ProcessDanMuPacketAsync(subPacket, token);
 					}
