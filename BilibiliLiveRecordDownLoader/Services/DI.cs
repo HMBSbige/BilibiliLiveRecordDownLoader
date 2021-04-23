@@ -40,6 +40,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 				.WriteTo.Async(c => c.File(Constants.LogFile,
 						outputTemplate: Constants.OutputTemplate,
 						rollingInterval: RollingInterval.Day,
+						rollOnFileSizeLimit: true,
 						fileSizeLimitBytes: Constants.MaxLogFileSize))
 				.WriteTo.Async(c => c.Sink(MemorySink))
 				.CreateLogger();

@@ -25,9 +25,9 @@ namespace BilibiliLiveRecordDownLoader.Services
 	{
 		public Config Config { get; }
 
-		public string FilePath => $@"{nameof(BilibiliLiveRecordDownLoader)}.json";
+		public string FilePath => nameof(BilibiliLiveRecordDownLoader) + @".json";
 
-		public string BackupFilePath => $@"{nameof(BilibiliLiveRecordDownLoader)}.backup.json";
+		public string BackupFilePath => nameof(BilibiliLiveRecordDownLoader) + @".backup.json";
 
 		private readonly ILogger _logger;
 
