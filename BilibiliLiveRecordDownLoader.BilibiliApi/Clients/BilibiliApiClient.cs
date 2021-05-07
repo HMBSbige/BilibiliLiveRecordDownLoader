@@ -50,11 +50,11 @@ namespace BilibiliApi.Clients
 
 		private async Task<HttpResponseMessage> PostAsync(string url, Dictionary<string, string> pair, bool isSign, CancellationToken token)
 		{
-			using var content = await GetBody(pair, isSign);
+			using var content = await GetBodyAsync(pair, isSign);
 			return await PostAsync(url, content, token);
 		}
 
-		private static async ValueTask<FormUrlEncodedContent> GetBody(Dictionary<string, string> pair, bool isSign)
+		private static async ValueTask<FormUrlEncodedContent> GetBodyAsync(Dictionary<string, string> pair, bool isSign)
 		{
 			if (isSign)
 			{

@@ -36,7 +36,7 @@ namespace BilibiliApi.Model.Danmu
 		/// <summary>
 		/// 数据
 		/// </summary>
-		public Memory<byte> Body;
+		public ReadOnlySequence<byte> Body;
 
 		public Memory<byte> ToMemory(Memory<byte> array)
 		{
@@ -47,18 +47,9 @@ namespace BilibiliApi.Model.Danmu
 			BinaryPrimitives.WriteInt16BigEndian(res.Span.Slice(6), ProtocolVersion);
 			BinaryPrimitives.WriteInt32BigEndian(res.Span.Slice(8), (int)Operation);
 			BinaryPrimitives.WriteInt32BigEndian(res.Span.Slice(12), SequenceId);
-			Body.CopyTo(res[HeaderLength..]);
+			Body.CopyTo(res.Span.Slice(HeaderLength));
 
 			return res;
-		}
-
-		public void ReadDanMu(Memory<byte> buffer)
-		{
-			HeaderLength = BinaryPrimitives.ReadInt16BigEndian(buffer.Span);
-			ProtocolVersion = BinaryPrimitives.ReadInt16BigEndian(buffer.Span[2..]);
-			Operation = (Operation)BinaryPrimitives.ReadInt32BigEndian(buffer.Span[4..]);
-			SequenceId = BinaryPrimitives.ReadInt32BigEndian(buffer.Span[8..]);
-			Body = buffer.Slice(HeaderLength - sizeof(int));
 		}
 
 		/// <summary>
@@ -92,7 +83,7 @@ namespace BilibiliApi.Model.Danmu
 			{
 				Operation = (Operation)operation;
 
-				Body = reader.UnreadSequence.Slice(0, PacketLength - HeaderLength).ToArray();
+				Body = reader.UnreadSequence.Slice(0, PacketLength - HeaderLength);
 
 				sequence = sequence.Slice(PacketLength);
 				return true;

@@ -171,7 +171,7 @@ namespace BilibiliApi.Clients
 				{@"platform", @"android"},
 				{@"access_token", accessToken}
 			};
-			using var body = await GetBody(pair, true);
+			using var body = await GetBodyAsync(pair, true);
 			var para = await body.ReadAsStringAsync(token);
 			var message = await GetJsonAsync<TokenInfoMessage>(PassportBaseAddress + @"api/v3/oauth2/info?" + para, token);
 			if (message is null)

@@ -416,7 +416,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 					return;
 				}
 
-				var danMu = DanmuFactory.ParseJson(packet.Body.Span);
+				var danMu = DanmuFactory.ParseJson(packet.Body);
 				if (danMu is null)
 				{
 					return;
@@ -436,7 +436,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 			}
 			catch (Exception ex)
 			{
-				_logger.LogError(ex, $@"[{RoomId}] 弹幕解析失败：{packet.Operation} {packet.ProtocolVersion} {Encoding.UTF8.GetString(packet.Body.Span)}");
+				_logger.LogError(ex, $@"[{RoomId}] 弹幕解析失败：{packet.Operation} {packet.ProtocolVersion} {Encoding.UTF8.GetString(packet.Body)}");
 			}
 		}
 

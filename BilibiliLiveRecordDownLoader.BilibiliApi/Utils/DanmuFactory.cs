@@ -2,6 +2,7 @@ using BilibiliApi.Enums;
 using BilibiliApi.Model.Danmu;
 using BilibiliApi.Model.Danmu.DanmuBody;
 using System;
+using System.Buffers;
 using System.Text;
 using System.Text.Json;
 
@@ -9,32 +10,19 @@ namespace BilibiliApi.Utils
 {
 	public static class DanmuFactory
 	{
-		public static IDanmu GetDanmu(DanmuPacket packet)
+		public static IDanmu? ParseJson(ReadOnlySequence<byte> body)
 		{
-			switch (packet.Operation)
-			{
-				case Operation.SendMsgReply:
-				{
-					var danmu = ParseJson(packet.Body.Span);
-					if (danmu is null)
-					{
-						break;
-					}
-					return danmu;
-				}
-			}
-
-			return CreateDefaultDanmu();
+			return ParseJson(Encoding.UTF8.GetString(body));
 		}
 
-		public static IDanmu CreateDefaultDanmu()
-		{
-			return new DanmuBase { Cmd = DanmuCommand.Unknown };
-		}
-
-		public static IDanmu? ParseJson(Span<byte> body)
+		public static IDanmu? ParseJson(ReadOnlySpan<byte> body)
 		{
 			var json = Encoding.UTF8.GetString(body);
+			return ParseJson(json);
+		}
+
+		public static IDanmu? ParseJson(string json)
+		{
 			using var document = JsonDocument.Parse(json);
 			var root = document.RootElement;
 

@@ -3,10 +3,10 @@ using BilibiliApi.Model.Danmu;
 using BilibiliApi.Model.DanmuConf;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.Extensions.Logging;
+using Nerdbank.Streams;
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
-using System.IO;
 using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Linq;
@@ -162,7 +162,7 @@ namespace BilibiliApi.Clients
 			{
 				if (packet.Operation == Operation.AuthReply)
 				{
-					var json = Encoding.UTF8.GetString(packet.Body.Span);
+					var json = Encoding.UTF8.GetString(packet.Body);
 					_logger.LogDebug(@"{0} 进房回应 {1}", logHeader, json);
 					if (json == @"{""code"":0}")
 					{
@@ -228,7 +228,10 @@ namespace BilibiliApi.Clients
 				await SendAuthAsync(token);
 
 				_heartBeatTask = Observable.Interval(HeartBeatInterval)
+#pragma warning disable VSTHRD101
 					.Subscribe(async _ => await SendHeartbeatAsync(token));
+#pragma warning restore VSTHRD101
+
 				_disposableServices.Add(_heartBeatTask);
 
 				return true;
@@ -242,20 +245,23 @@ namespace BilibiliApi.Clients
 
 		private async ValueTask SendDataAsync(Operation operation, string body, CancellationToken token)
 		{
-			var data = Encoding.UTF8.GetBytes(body);
+			using var dataMemory = MemoryPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(body.Length));
+			var memory = dataMemory.Memory;
+
+			var dataLength = Encoding.UTF8.GetBytes(body, memory.Span);
 			var packet = new DanmuPacket
 			{
-				PacketLength = data.Length + 16,
+				PacketLength = dataLength + 16,
 				HeaderLength = 16,
 				ProtocolVersion = 1,
 				Operation = operation,
 				SequenceId = 1,
-				Body = data
+				Body = new ReadOnlySequence<byte>(memory.Slice(0, dataLength))
 			};
 
-			using var memory = MemoryPool<byte>.Shared.Rent(packet.PacketLength);
+			using var bufferMemory = MemoryPool<byte>.Shared.Rent(packet.PacketLength);
 
-			var buffer = packet.ToMemory(memory.Memory);
+			var buffer = packet.ToMemory(bufferMemory.Memory);
 
 			await SendAsync(buffer, token);
 		}
@@ -400,34 +406,11 @@ namespace BilibiliApi.Clients
 				}
 				case 2:
 				{
-					await using var ms = new MemoryStream();
-					await ms.WriteAsync(packet.Body[2..], token); // Drop header
-					ms.Seek(0, SeekOrigin.Begin);
+					var stream = packet.Body.Slice(2).AsStream(); // Drop header
+					await using var deflate = new DeflateStream(stream, CompressionMode.Decompress, false);
+					var reader = PipeReader.Create(deflate);
 
-					await using var deflate = new DeflateStream(ms, CompressionMode.Decompress);
-
-					using var header = MemoryPool<byte>.Shared.Rent(4);
-					while (true)
-					{
-						var headerLength = await deflate.ReadAsync(header.Memory.Slice(0, 4), token);
-
-						if (headerLength < 4)
-						{
-							break;
-						}
-
-						var packetLength = BinaryPrimitives.ReadInt32BigEndian(header.Memory.Span);
-						var remainSize = packetLength - headerLength;
-
-						var subPacket = new DanmuPacket { PacketLength = packetLength };
-
-						Memory<byte> subBuffer = GC.AllocateUninitializedArray<byte>(remainSize);
-
-						await deflate.ReadAsync(subBuffer, token);
-						subPacket.ReadDanMu(subBuffer);
-
-						await ProcessDanMuPacketAsync(subPacket, token);
-					}
+					await ReadPipeAsync(reader, token);
 
 					break;
 				}
@@ -446,13 +429,13 @@ namespace BilibiliApi.Clients
 			{
 				case Operation.HeartbeatReply:
 				{
-					_logger.LogDebug(@"{0} 收到弹幕[{1}] 人气值: {2}", logHeader, packet.Operation, BinaryPrimitives.ReadUInt32BigEndian(packet.Body.Span));
+					_logger.LogDebug(@"{0} 收到弹幕[{1}] 人气值: {2}", logHeader, packet.Operation, BinaryPrimitives.ReadUInt32BigEndian(packet.Body.ToArray()));
 					break;
 				}
 				case Operation.SendMsgReply:
 				case Operation.AuthReply:
 				{
-					_logger.LogDebug(@"{0} 收到弹幕[{1}]:{2}", logHeader, packet.Operation, Encoding.UTF8.GetString(packet.Body.Span));
+					_logger.LogDebug(@"{0} 收到弹幕[{1}]:{2}", logHeader, packet.Operation, Encoding.UTF8.GetString(packet.Body));
 					break;
 				}
 				default:
