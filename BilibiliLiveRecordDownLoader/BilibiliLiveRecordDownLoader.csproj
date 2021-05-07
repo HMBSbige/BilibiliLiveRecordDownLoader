@@ -7,7 +7,7 @@
     <UseWPF>true</UseWPF>
     <IncludePackageReferencesDuringMarkupCompilation>true</IncludePackageReferencesDuringMarkupCompilation>
     <ApplicationIcon>Resources\Asaki.ico</ApplicationIcon>
-    <Version>3.6.1</Version>
+    <Version>3.7.0</Version>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
