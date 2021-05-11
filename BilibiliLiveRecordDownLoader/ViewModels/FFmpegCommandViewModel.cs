@@ -85,10 +85,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			ConvertSaveFileCommand = ReactiveCommand.Create(ConvertSaveFile);
 			ConvertCommand = ReactiveCommand.Create(CreateConvertVideoTask);
 
-			this.WhenAnyValue(x => x.CutInput).Subscribe(_ =>
-			{
-				NewOutputFile();
-			});
+			this.WhenAnyValue(x => x.CutInput).Subscribe(_ => NewOutputFile());
 
 			this.WhenAnyValue(x => x.ConvertInput).Subscribe(file =>
 			{

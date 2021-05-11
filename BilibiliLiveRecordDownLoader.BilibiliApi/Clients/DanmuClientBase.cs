@@ -39,7 +39,9 @@ namespace BilibiliApi.Clients
 		protected abstract string Server { get; }
 		private string? _token;
 		private long _uid;
-		private const long ProtocolVersion = 2;
+		private const short ReceiveProtocolVersion = 2;
+		private const short SendProtocolVersion = 1;
+		private const int SendHeaderLength = 16;
 
 		private const string DefaultHost = @"broadcastlv.chat.bilibili.com";
 		protected abstract ushort DefaultPort { get; }
@@ -52,9 +54,9 @@ namespace BilibiliApi.Clients
 		private CancellationTokenSource? _cts;
 		private readonly CompositeDisposable _disposableServices = new();
 
-		private const int BufferSize = 1024;
+		protected const int BufferSize = 1024;
 
-		private string logHeader => $@"[{RoomId}]";
+		private string LogHeader => $@"[{RoomId}]";
 
 		private static readonly TimeSpan GetServerInterval = TimeSpan.FromSeconds(20);
 		private DateTime _lastGetServerSuccess;
@@ -69,11 +71,7 @@ namespace BilibiliApi.Clients
 
 		protected abstract IDisposable CreateClient();
 
-		protected abstract ValueTask ClientHandshakeAsync(CancellationToken token);
-
-		protected abstract ValueTask SendAsync(ReadOnlyMemory<byte> buffer, CancellationToken token);
-
-		protected abstract ValueTask<int> ReceiveAsync(Memory<byte> buffer, CancellationToken token);
+		protected abstract ValueTask<IDuplexPipe> ClientHandshakeAsync(CancellationToken token);
 
 		public virtual async ValueTask StartAsync()
 		{
@@ -100,7 +98,7 @@ namespace BilibiliApi.Clients
 
 				if (DateTime.Now - _lastGetServerSuccess < GetServerInterval)
 				{
-					_logger.LogDebug(@"{0} 跳过获取弹幕服务器", logHeader);
+					_logger.LogDebug(@"{0} 跳过获取弹幕服务器", LogHeader);
 					return;
 				}
 				_lastGetServerSuccess = DateTime.Now;
@@ -127,13 +125,13 @@ namespace BilibiliApi.Clients
 			}
 			catch (Exception ex)
 			{
-				_logger.LogWarning(ex, @"{0} 获取弹幕服务器失败", logHeader);
+				_logger.LogWarning(ex, @"{0} 获取弹幕服务器失败", LogHeader);
 			}
 			finally
 			{
 				if (string.IsNullOrEmpty(_token) || string.IsNullOrWhiteSpace(Host))
 				{
-					_logger.LogWarning(@"{0} 使用默认弹幕服务器", logHeader);
+					_logger.LogWarning(@"{0} 使用默认弹幕服务器", LogHeader);
 					Host = DefaultHost;
 				}
 
@@ -152,7 +150,7 @@ namespace BilibiliApi.Clients
 			}
 			catch (TaskCanceledException)
 			{
-				_logger.LogInformation(@"{0} 不再连接弹幕服务器", logHeader);
+				_logger.LogInformation(@"{0} 不再连接弹幕服务器", LogHeader);
 			}
 		}
 
@@ -163,7 +161,7 @@ namespace BilibiliApi.Clients
 				if (packet.Operation == Operation.AuthReply)
 				{
 					var json = Encoding.UTF8.GetString(packet.Body);
-					_logger.LogDebug(@"{0} 进房回应 {1}", logHeader, json);
+					_logger.LogDebug(@"{0} 进房回应 {1}", LogHeader, json);
 					if (json == @"{""code"":0}")
 					{
 						return true;
@@ -187,171 +185,132 @@ namespace BilibiliApi.Clients
 			{
 				await GetServerAsync(token);
 
-				_logger.LogInformation(@"{0} 正在连接弹幕服务器 {1}", logHeader, Server);
+				_logger.LogInformation(@"{0} 正在连接弹幕服务器 {1}", LogHeader, Server);
 
-				if (!await ConnectAsync(token))
+				var pipe = await ConnectAsync(token);
+				if (pipe is null)
 				{
 					Close();
 					await WaitAsync(token);
 					continue;
 				}
 
-				_logger.LogInformation(@"{0} 连接弹幕服务器成功", logHeader);
+				_logger.LogInformation(@"{0} 连接弹幕服务器成功", LogHeader);
 
 				Received.Take(1).Subscribe(packet =>
 				{
 					if (IsAuthSuccess(packet))
 					{
-						_logger.LogInformation(@"{0} 进房成功", logHeader);
+						_logger.LogInformation(@"{0} 进房成功", LogHeader);
 					}
 					else
 					{
-						_logger.LogWarning(@"{0} 进房失败", logHeader);
+						_logger.LogWarning(@"{0} 进房失败", LogHeader);
 						Close();
 					}
 				});
 
-				ProcessDanMuAsync(token).Forget();
+				ProcessDanMuAsync(pipe.Input, token).Forget();
 				break;
 			}
 		}
 
-		private async ValueTask<bool> ConnectAsync(CancellationToken token)
+		private async ValueTask<IDuplexPipe?> ConnectAsync(CancellationToken token)
 		{
 			try
 			{
 				var client = CreateClient();
 				_disposableServices.Add(client);
 
-				await ClientHandshakeAsync(token);
+				var pipe = await ClientHandshakeAsync(token);
+				var writer = pipe.Output;
 
-				await SendAuthAsync(token);
+				await SendAuthAsync(writer, token);
 
 				_heartBeatTask = Observable.Interval(HeartBeatInterval)
 #pragma warning disable VSTHRD101
-					.Subscribe(async _ => await SendHeartbeatAsync(token));
+					.Subscribe(async _ => await SendHeartbeatAsync(writer, token));
 #pragma warning restore VSTHRD101
 
 				_disposableServices.Add(_heartBeatTask);
 
-				return true;
+				return pipe;
 			}
 			catch (Exception ex)
 			{
-				_logger.LogError(ex, @"{0} 连接弹幕服务器错误", logHeader);
-				return false;
+				_logger.LogError(ex, @"{0} 连接弹幕服务器错误", LogHeader);
+				return null;
 			}
 		}
 
-		private async ValueTask SendDataAsync(Operation operation, string body, CancellationToken token)
+		private static async ValueTask SendDataAsync(PipeWriter writer, Operation operation, string body, CancellationToken token)
 		{
-			using var dataMemory = MemoryPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(body.Length));
-			var memory = dataMemory.Memory;
+			var memory = writer.GetMemory(SendHeaderLength + Encoding.UTF8.GetMaxByteCount(body.Length));
 
-			var dataLength = Encoding.UTF8.GetBytes(body, memory.Span);
+			var dataLength = Encoding.UTF8.GetBytes(body, memory.Span.Slice(SendHeaderLength));
 			var packet = new DanmuPacket
 			{
-				PacketLength = dataLength + 16,
-				HeaderLength = 16,
-				ProtocolVersion = 1,
+				PacketLength = dataLength + SendHeaderLength,
+				HeaderLength = SendHeaderLength,
+				ProtocolVersion = SendProtocolVersion,
 				Operation = operation,
-				SequenceId = 1,
-				Body = new ReadOnlySequence<byte>(memory.Slice(0, dataLength))
+				SequenceId = 1
 			};
+			packet.HeaderTo(memory.Span);
 
-			using var bufferMemory = MemoryPool<byte>.Shared.Rent(packet.PacketLength);
-
-			var buffer = packet.ToMemory(bufferMemory.Memory);
-
-			await SendAsync(buffer, token);
+			writer.Advance(packet.PacketLength);
+			await writer.FlushAsync(token);
 		}
 
-		private async ValueTask SendAuthAsync(CancellationToken token)
+		private async ValueTask SendAuthAsync(PipeWriter writer, CancellationToken token)
 		{
 			string json;
 			if (string.IsNullOrEmpty(_token))
 			{
-				json = @$"{{""roomid"":{RoomId},""uid"":{_uid},""protover"":{ProtocolVersion}}}";
+				json = @$"{{""roomid"":{RoomId},""uid"":{_uid},""protover"":{ReceiveProtocolVersion}}}";
 			}
 			else
 			{
-				json = @$"{{""roomid"":{RoomId},""uid"":{_uid},""protover"":{ProtocolVersion},""key"":""{_token}""}}";
+				json = @$"{{""roomid"":{RoomId},""uid"":{_uid},""protover"":{ReceiveProtocolVersion},""key"":""{_token}""}}";
 			}
-			_logger.LogDebug(@"{0} AuthJson: {1}", logHeader, json);
-			await SendDataAsync(Operation.Auth, json, token);
+			_logger.LogDebug(@"{0} AuthJson: {1}", LogHeader, json);
+			await SendDataAsync(writer, Operation.Auth, json, token);
 		}
 
-		private async ValueTask SendHeartbeatAsync(CancellationToken token)
+		private async ValueTask SendHeartbeatAsync(PipeWriter writer, CancellationToken token)
 		{
 			try
 			{
-				_logger.LogDebug(@"{0} 发送心跳包", logHeader);
-				await SendDataAsync(Operation.Heartbeat, string.Empty, token);
+				_logger.LogDebug(@"{0} 发送心跳包", LogHeader);
+				await SendDataAsync(writer, Operation.Heartbeat, string.Empty, token);
 			}
 			catch (Exception ex)
 			{
-				_logger.LogWarning(ex, @"{0} 心跳包发送失败", logHeader);
+				_logger.LogWarning(ex, @"{0} 心跳包发送失败", LogHeader);
 				Close();
 			}
 		}
 
-		private async ValueTask ProcessDanMuAsync(CancellationToken token)
+		private async ValueTask ProcessDanMuAsync(PipeReader reader, CancellationToken token)
 		{
 			try
 			{
-				var pipe = new Pipe();
-				var writing = FillPipeAsync(pipe.Writer, token);
-				var reading = ReadPipeAsync(pipe.Reader, token);
-				await reading;
-				await writing;
-				_logger.LogWarning(@"{0} 弹幕服务器不再发送弹幕，尝试重连...", logHeader);
+				await ReadPipeAsync(reader, token);
+				_logger.LogWarning(@"{0} 弹幕服务器不再发送弹幕，尝试重连...", LogHeader);
 			}
 			catch (OperationCanceledException)
 			{
-				_logger.LogInformation(@"{0} 不再连接弹幕服务器", logHeader);
+				_logger.LogInformation(@"{0} 不再连接弹幕服务器", LogHeader);
 				return;
 			}
 			catch (Exception ex)
 			{
-				_logger.LogWarning(ex, @"{0} 弹幕服务器连接被断开，尝试重连...", logHeader);
+				_logger.LogWarning(ex, @"{0} 弹幕服务器连接被断开，尝试重连...", LogHeader);
 			}
 
 			Close();
 			await WaitAsync(token);
 			await ConnectWithRetryAsync(token);
-		}
-
-		private async ValueTask FillPipeAsync(PipeWriter writer, CancellationToken token)
-		{
-			try
-			{
-				while (!token.IsCancellationRequested)
-				{
-					var memory = writer.GetMemory(BufferSize);
-
-					var bytesRead = await ReceiveAsync(memory, token);
-
-					_logger.LogDebug(@"{0} 收到 {1} 字节", logHeader, bytesRead);
-
-					if (bytesRead == 0)
-					{
-						break;
-					}
-
-					writer.Advance(bytesRead);
-
-					var result = await writer.FlushAsync(token);
-
-					if (result.IsCompleted)
-					{
-						break;
-					}
-				}
-			}
-			finally
-			{
-				await writer.CompleteAsync();
-			}
 		}
 
 		private async ValueTask ReadPipeAsync(PipeReader reader, CancellationToken token)
@@ -416,7 +375,7 @@ namespace BilibiliApi.Clients
 				}
 				default:
 				{
-					_logger.LogWarning(@"{0} 弹幕协议不支持。Version: {1}", logHeader, packet.ProtocolVersion);
+					_logger.LogWarning(@"{0} 弹幕协议不支持。Version: {1}", LogHeader, packet.ProtocolVersion);
 					break;
 				}
 			}
@@ -429,18 +388,18 @@ namespace BilibiliApi.Clients
 			{
 				case Operation.HeartbeatReply:
 				{
-					_logger.LogDebug(@"{0} 收到弹幕[{1}] 人气值: {2}", logHeader, packet.Operation, BinaryPrimitives.ReadUInt32BigEndian(packet.Body.ToArray()));
+					_logger.LogDebug(@"{0} 收到弹幕[{1}] 人气值: {2}", LogHeader, packet.Operation, BinaryPrimitives.ReadUInt32BigEndian(packet.Body.ToArray()));
 					break;
 				}
 				case Operation.SendMsgReply:
 				case Operation.AuthReply:
 				{
-					_logger.LogDebug(@"{0} 收到弹幕[{1}]:{2}", logHeader, packet.Operation, Encoding.UTF8.GetString(packet.Body));
+					_logger.LogDebug(@"{0} 收到弹幕[{1}]:{2}", LogHeader, packet.Operation, Encoding.UTF8.GetString(packet.Body));
 					break;
 				}
 				default:
 				{
-					_logger.LogDebug(@"{0} 收到弹幕[{1}]", logHeader, packet.Operation);
+					_logger.LogDebug(@"{0} 收到弹幕[{1}]", LogHeader, packet.Operation);
 					break;
 				}
 			}

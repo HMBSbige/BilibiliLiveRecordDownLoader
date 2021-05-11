@@ -1,6 +1,8 @@
 using BilibiliApi.Model.DanmuConf;
 using Microsoft.Extensions.Logging;
+using Nerdbank.Streams;
 using System;
+using System.IO.Pipelines;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,20 +30,10 @@ namespace BilibiliApi.Clients
 			return _client;
 		}
 
-		protected override async ValueTask ClientHandshakeAsync(CancellationToken token)
+		protected override async ValueTask<IDuplexPipe> ClientHandshakeAsync(CancellationToken token)
 		{
 			await _client!.ConnectAsync(new(Server), token);
-		}
-
-		protected override async ValueTask SendAsync(ReadOnlyMemory<byte> buffer, CancellationToken token)
-		{
-			await _client!.SendAsync(buffer, WebSocketMessageType.Binary, true, token);
-		}
-
-		protected override async ValueTask<int> ReceiveAsync(Memory<byte> buffer, CancellationToken token)
-		{
-			var rcvResult = await _client!.ReceiveAsync(buffer, token);
-			return rcvResult.Count;
+			return _client.UsePipe(BufferSize, cancellationToken: token);
 		}
 	}
 }

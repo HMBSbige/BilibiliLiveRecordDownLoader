@@ -38,18 +38,13 @@ namespace BilibiliApi.Model.Danmu
 		/// </summary>
 		public ReadOnlySequence<byte> Body;
 
-		public Memory<byte> ToMemory(Memory<byte> array)
+		public void HeaderTo(Span<byte> span)
 		{
-			var res = array.Slice(0, PacketLength);
-
-			BinaryPrimitives.WriteInt32BigEndian(res.Span, PacketLength);
-			BinaryPrimitives.WriteInt16BigEndian(res.Span.Slice(4), HeaderLength);
-			BinaryPrimitives.WriteInt16BigEndian(res.Span.Slice(6), ProtocolVersion);
-			BinaryPrimitives.WriteInt32BigEndian(res.Span.Slice(8), (int)Operation);
-			BinaryPrimitives.WriteInt32BigEndian(res.Span.Slice(12), SequenceId);
-			Body.CopyTo(res.Span.Slice(HeaderLength));
-
-			return res;
+			BinaryPrimitives.WriteInt32BigEndian(span, PacketLength);
+			BinaryPrimitives.WriteInt16BigEndian(span.Slice(4), HeaderLength);
+			BinaryPrimitives.WriteInt16BigEndian(span.Slice(6), ProtocolVersion);
+			BinaryPrimitives.WriteInt32BigEndian(span.Slice(8), (int)Operation);
+			BinaryPrimitives.WriteInt32BigEndian(span.Slice(12), SequenceId);
 		}
 
 		/// <summary>
