@@ -45,7 +45,7 @@ namespace UnitTest
 			//cookie_info
 			var cookies = message.data.cookie_info.cookies;
 			Assert.IsTrue(cookies.Length > 0);
-			var names = cookies.Select(x => x.name).ToArray();
+			var names = cookies.Select(x => x.name).ToHashSet();
 			Assert.IsTrue(names.Contains(@"bili_jct"));
 			Assert.IsTrue(names.Contains(@"DedeUserID"));
 			Assert.IsTrue(names.Contains(@"DedeUserID__ckMd5"));
@@ -93,7 +93,7 @@ namespace UnitTest
 			//cookie_info
 			var cookies = message.data.cookie_info.cookies;
 			Assert.IsTrue(cookies.Length > 0);
-			var names = cookies.Select(x => x.name).ToArray();
+			var names = cookies.Select(x => x.name).ToHashSet();
 			Assert.IsTrue(names.Contains(@"bili_jct"));
 			Assert.IsTrue(names.Contains(@"DedeUserID"));
 			Assert.IsTrue(names.Contains(@"DedeUserID__ckMd5"));

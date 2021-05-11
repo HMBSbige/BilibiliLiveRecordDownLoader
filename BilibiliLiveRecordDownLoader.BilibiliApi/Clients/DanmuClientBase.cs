@@ -6,7 +6,6 @@ using Microsoft.VisualStudio.Threading;
 using Nerdbank.Streams;
 using System;
 using System.Buffers;
-using System.Buffers.Binary;
 using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Linq;
@@ -388,7 +387,9 @@ namespace BilibiliApi.Clients
 			{
 				case Operation.HeartbeatReply:
 				{
-					_logger.LogDebug(@"{0} 收到弹幕[{1}] 人气值: {2}", LogHeader, packet.Operation, BinaryPrimitives.ReadUInt32BigEndian(packet.Body.ToArray()));
+					var reader = new SequenceReader<byte>(packet.Body);
+					reader.TryReadBigEndian(out int num);
+					_logger.LogDebug(@"{0} 收到弹幕[{1}] 人气值: {2}", LogHeader, packet.Operation, num);
 					break;
 				}
 				case Operation.SendMsgReply:
