@@ -18,6 +18,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="CryptoBase" Version="1.2.3" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="5.0.0" />
     <PackageReference Include="Nerdbank.Streams" Version="2.7.74" />
     <PackageReference Include="System.IO.Pipelines" Version="5.0.1" />

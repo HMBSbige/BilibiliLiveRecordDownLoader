@@ -1,11 +1,16 @@
 using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Shared.Interfaces;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
+using CryptoBase;
+using CryptoBase.Abstractions.Digests;
+using CryptoBase.Digests.MD5;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -63,11 +68,30 @@ namespace BilibiliApi.Clients
 				pair = pair.OrderBy(p => p.Key).ToDictionary(p => p.Key, o => o.Value);
 				using var temp = new FormUrlEncodedContent(pair.Cast());
 				var str = await temp.ReadAsStringAsync();
-				var md5 = Md5.ComputeHash(str + AppConstants.AppSecret);
+				var md5 = Md5String(str + AppConstants.AppSecret);
 				pair.Add(@"sign", md5);
 			}
 
 			return new FormUrlEncodedContent(pair.Cast());
+		}
+
+		private static string Md5String(in string str)
+		{
+			var buffer = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(str.Length));
+			try
+			{
+				var length = Encoding.UTF8.GetBytes(str, buffer);
+
+				Span<byte> hash = stackalloc byte[HashConstants.Md5Length];
+
+				MD5Utils.Default(buffer.AsSpan(0, length), hash);
+
+				return hash.ToHex();
+			}
+			finally
+			{
+				ArrayPool<byte>.Shared.Return(buffer);
+			}
 		}
 	}
 }
