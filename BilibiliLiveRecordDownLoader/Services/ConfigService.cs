@@ -60,7 +60,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 				.Where(_ => !_lock.IsWriteLockHeld)
 				.Subscribe(_ =>
 				{
-					SaveAsync(default).NoWarning();
+					SaveAsync(default).Forget();
 
 					// 监控 房间设置 变化
 					_roomsMonitor?.Dispose();

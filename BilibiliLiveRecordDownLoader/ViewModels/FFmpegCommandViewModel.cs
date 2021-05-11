@@ -1,9 +1,9 @@
 using BilibiliLiveRecordDownLoader.FFmpeg;
 using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
 using BilibiliLiveRecordDownLoader.Services;
-using BilibiliLiveRecordDownLoader.Shared.Utils;
 using BilibiliLiveRecordDownLoader.Utils;
 using Microsoft.Extensions.Logging;
+using Microsoft.VisualStudio.Threading;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
@@ -208,7 +208,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				}
 				var args = string.Format(Constants.FFmpegSplitTo, CutStartTime, CutEndTime, CutInput, CutOutput);
 				var task = new FFmpegTaskViewModel(args);
-				_taskList.AddTaskAsync(task, Path.GetPathRoot(CutOutput) ?? string.Empty).NoWarning();
+				_taskList.AddTaskAsync(task, Path.GetPathRoot(CutOutput) ?? string.Empty).Forget();
 
 				NewOutputFile();
 			}
@@ -225,7 +225,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				return;
 			}
 
-			ConvertVideoAsync(ConvertInput, ConvertOutput, IsDelete).NoWarning();
+			ConvertVideoAsync(ConvertInput, ConvertOutput, IsDelete).Forget();
 
 			ConvertInput = string.Empty;
 			ConvertOutput = string.Empty;

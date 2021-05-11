@@ -2,10 +2,10 @@ using BilibiliApi.Clients;
 using BilibiliApi.Model.LiveRecordList;
 using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
-using BilibiliLiveRecordDownLoader.Shared.Utils;
 using BilibiliLiveRecordDownLoader.Utils;
 using DynamicData;
 using Microsoft.Extensions.Logging;
+using Microsoft.VisualStudio.Threading;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using System;
@@ -103,8 +103,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 					.Select(i => i.Item1)
 					.Subscribe(i =>
 					{
-						GetAnchorInfoAsync(i).NoWarning();
-						GetRecordListAsync(i).NoWarning();
+						GetAnchorInfoAsync(i).Forget();
+						GetRecordListAsync(i).Forget();
 					});
 
 			_liveRecordSourceList.Connect()
@@ -208,7 +208,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 						var root = Path.Combine(Config.MainDir, $@"{RoomId}", Constants.LiveRecordPath);
 						var task = new LiveRecordDownloadTaskViewModel(_logger, _apiClient, liveRecord, root, Config.DownloadThreads);
-						_taskList.AddTaskAsync(task, TaskQueueKeyConstants.LiveRecordKey).NoWarning();
+						_taskList.AddTaskAsync(task, TaskQueueKeyConstants.LiveRecordKey).Forget();
 					}
 				}
 				catch (Exception ex)
@@ -238,7 +238,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 						var root = Path.Combine(Config.MainDir, $@"{RoomId}", Constants.LiveRecordPath);
 						var task = new LiveRecordDanmuDownloadTaskViewModel(_logger, _apiClient, liveRecord, root);
-						_taskList.AddTaskAsync(task, TaskQueueKeyConstants.LiveRecordDanmuKey).NoWarning();
+						_taskList.AddTaskAsync(task, TaskQueueKeyConstants.LiveRecordDanmuKey).Forget();
 					}
 				}
 				catch (Exception ex)

@@ -127,7 +127,7 @@ namespace UnitTest
 		[TestMethod]
 		public async Task TestNtpAsync()
 		{
-			var time = await Ntp.GetCurrentTime();
+			var time = await Ntp.GetCurrentTimeAsync();
 			var now = DateTime.UtcNow;
 			Assert.IsTrue((now - time).Duration() < TimeSpan.FromSeconds(1));
 		}

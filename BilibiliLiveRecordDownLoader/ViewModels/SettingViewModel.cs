@@ -5,6 +5,7 @@ using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.Views.Dialogs;
 using DynamicData;
 using Microsoft.Extensions.Logging;
+using Microsoft.VisualStudio.Threading;
 using Microsoft.WindowsAPICodePack.Dialogs;
 using ModernWpf.Controls;
 using ReactiveUI;
@@ -76,7 +77,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			OpenMainDirCommand = ReactiveCommand.CreateFromObservable(OpenDirectory);
 			CheckUpdateCommand = ReactiveCommand.CreateFromTask(CheckUpdateAsync);
 
-			InitAsync().NoWarning();
+			InitAsync().Forget();
 		}
 
 		private async ValueTask InitAsync()

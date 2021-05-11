@@ -47,11 +47,11 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 
 			using (CreateSpeedMonitor())
 			{
-				await CopyToAsyncWithProgress(_netStream, fs, token);
+				await CopyToWithProgressAsync(_netStream, fs, token);
 			}
 		}
 
-		private async Task CopyToAsyncWithProgress(Stream from, Stream to, CancellationToken token, int bufferSize = 81920)
+		private async Task CopyToWithProgressAsync(Stream from, Stream to, CancellationToken token, int bufferSize = 81920)
 		{
 			using var memory = MemoryPool<byte>.Shared.Rent(bufferSize);
 			while (true)

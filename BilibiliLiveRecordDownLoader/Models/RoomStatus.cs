@@ -7,10 +7,10 @@ using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.Http.Clients;
 using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
 using BilibiliLiveRecordDownLoader.Services;
-using BilibiliLiveRecordDownLoader.Shared.Utils;
 using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using Microsoft.Extensions.Logging;
+using Microsoft.VisualStudio.Threading;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using System;
@@ -218,8 +218,8 @@ namespace BilibiliLiveRecordDownLoader.Models
 
 		private void StartMonitor()
 		{
-			_statusMonitor = this.WhenAnyValue(x => x.LiveStatus).Subscribe(_ => StatusUpdatedAsync().NoWarning());
-			_enableMonitor = this.WhenAnyValue(x => x.IsEnable).Subscribe(_ => EnableUpdatedAsync().NoWarning());
+			_statusMonitor = this.WhenAnyValue(x => x.LiveStatus).Subscribe(_ => StatusUpdatedAsync().Forget());
+			_enableMonitor = this.WhenAnyValue(x => x.IsEnable).Subscribe(_ => EnableUpdatedAsync().Forget());
 			this.RaisePropertyChanged(nameof(LiveStatus));
 			_titleMonitor = this.WhenAnyValue(x => x.Title).Subscribe(title =>
 			{
@@ -229,13 +229,13 @@ namespace BilibiliLiveRecordDownLoader.Models
 				}
 			});
 			this.RaisePropertyChanged(nameof(Title));
-			BuildDanmuClientAsync().NoWarning();
+			BuildDanmuClientAsync().Forget();
 			BuildHttpCheckMonitor();
 		}
 
 		private void BuildHttpCheckMonitor()
 		{
-			_httpMonitor = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(HttpCheckLatency)).Subscribe(_ => RefreshStatusAsync(default).NoWarning());
+			_httpMonitor = Observable.Timer(TimeSpan.Zero, TimeSpan.FromSeconds(HttpCheckLatency)).Subscribe(_ => RefreshStatusAsync(default).Forget());
 		}
 
 		private async ValueTask BuildDanmuClientAsync()
@@ -298,7 +298,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 						{
 							speedMonitor.Dispose();
 							_logger.LogInformation($@"[{RoomId}] 录制结束");
-							ConvertToMp4Async(flv).NoWarning();
+							ConvertToMp4Async(flv).Forget();
 						}
 					}
 					catch (OperationCanceledException ex) when (ex.InnerException is not TimeoutException)
@@ -394,7 +394,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 			_titleMonitor?.Dispose();
 			_enableMonitor?.Dispose();
 			_statusMonitor?.Dispose();
-			_danmuClient?.DisposeAsync().NoWarning();
+			_danmuClient?.DisposeAsync().Forget();
 			_httpMonitor?.Dispose();
 		}
 

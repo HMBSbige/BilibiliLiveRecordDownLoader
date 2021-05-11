@@ -1,8 +1,8 @@
 using BilibiliApi.Enums;
 using BilibiliApi.Model.Danmu;
 using BilibiliApi.Model.DanmuConf;
-using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.Extensions.Logging;
+using Microsoft.VisualStudio.Threading;
 using Nerdbank.Streams;
 using System;
 using System.Buffers;
@@ -211,7 +211,7 @@ namespace BilibiliApi.Clients
 					}
 				});
 
-				ProcessDanMuAsync(token).NoWarning();
+				ProcessDanMuAsync(token).Forget();
 				break;
 			}
 		}

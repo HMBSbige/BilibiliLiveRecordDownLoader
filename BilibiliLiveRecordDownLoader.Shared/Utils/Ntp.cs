@@ -21,7 +21,10 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 			udp.Connect(server);
 			udp.Client.ReceiveTimeout = (int)TimeSpan.FromSeconds(1).TotalMilliseconds;
 			await udp.SendAsync(ntpData, ntpData.Length);
+#pragma warning disable VSTHRD103
+			//TODO: .NET 6.0 ReceiveAsync use ReceiveTimeout or CancellationToken
 			ntpData = udp.Receive(ref server);
+#pragma warning restore VSTHRD103
 
 			const byte serverReplyTime = 40;
 			var integer = BinaryPrimitives.ReadUInt32BigEndian(ntpData.AsSpan(serverReplyTime));
@@ -31,7 +34,7 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 			return BaseTime.AddMilliseconds(milliseconds);
 		}
 
-		public static async ValueTask<DateTime> GetCurrentTime()
+		public static async ValueTask<DateTime> GetCurrentTimeAsync()
 		{
 			try
 			{

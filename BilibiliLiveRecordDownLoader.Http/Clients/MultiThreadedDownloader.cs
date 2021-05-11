@@ -2,8 +2,8 @@ using BilibiliLiveRecordDownLoader.Http.Interfaces;
 using BilibiliLiveRecordDownLoader.Http.Models;
 using BilibiliLiveRecordDownLoader.Shared.Abstractions;
 using BilibiliLiveRecordDownLoader.Shared.Interfaces;
-using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.Extensions.Logging;
+using Microsoft.VisualStudio.Threading;
 using Punchclock;
 using System;
 using System.Buffers;
@@ -117,7 +117,7 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 					{
 						await DeleteFileWithRetryAsync(range.FileName);
 					}
-				}, CancellationToken.None).NoWarning();
+				}, CancellationToken.None).Forget();
 			}
 		}
 
@@ -188,7 +188,7 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 			token.ThrowIfCancellationRequested();
 
 			await using var fs = File.Create(tempFileName);
-			await CopyStreamAsyncWithProgress(stream, fs, true, token);
+			await CopyStreamWithProgressAsync(stream, fs, true, token);
 			return Unit.Default;
 		}
 
@@ -207,7 +207,7 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 				{
 					await using (var inputFileStream = File.OpenRead(file.FileName))
 					{
-						await CopyStreamAsyncWithProgress(inputFileStream, outFileStream, false, token);
+						await CopyStreamWithProgressAsync(inputFileStream, outFileStream, false, token);
 					}
 					await DeleteFileWithRetryAsync(file.FileName);
 				}
@@ -246,7 +246,7 @@ namespace BilibiliLiveRecordDownLoader.Http.Clients
 			}
 		}
 
-		private async ValueTask CopyStreamAsyncWithProgress(Stream from, Stream to, bool reportSpeed, CancellationToken token, int bufferSize = 81920)
+		private async ValueTask CopyStreamWithProgressAsync(Stream from, Stream to, bool reportSpeed, CancellationToken token, int bufferSize = 81920)
 		{
 			using var memory = MemoryPool<byte>.Shared.Rent(bufferSize);
 			while (true)

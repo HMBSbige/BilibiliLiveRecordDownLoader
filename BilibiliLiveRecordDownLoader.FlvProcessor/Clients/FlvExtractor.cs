@@ -6,8 +6,8 @@ using BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagHeaders;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Utils;
 using BilibiliLiveRecordDownLoader.FlvProcessor.VideoWriters;
 using BilibiliLiveRecordDownLoader.Shared.Abstractions;
-using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.Extensions.Logging;
+using Microsoft.VisualStudio.Threading;
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
@@ -141,7 +141,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 
 			var averageFrameRate = CalculateAverageFrameRate();
 			var trueFrameRate = CalculateTrueFrameRate();
-			await CloseOutput(averageFrameRate, false);
+			await CloseOutputAsync(averageFrameRate, false);
 
 			_logger.LogDebug($@"平均帧数：{averageFrameRate}");
 			_logger.LogDebug($@"真实帧数：{trueFrameRate}");
@@ -291,14 +291,14 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 			return null;
 		}
 
-		private async ValueTask CloseOutput(FractionUInt32? frameRate, bool disposing)
+		private async ValueTask CloseOutputAsync(FractionUInt32? frameRate, bool disposing)
 		{
 			if (_videoWriter is not null)
 			{
 				await _videoWriter.FinishAsync(frameRate ?? new FractionUInt32(25, 1));
 				if (disposing)
 				{
-					DeleteFileWithRetryAsync(_videoWriter.Path).NoWarning();
+					DeleteFileWithRetryAsync(_videoWriter.Path).Forget();
 				}
 				_videoWriter = null;
 			}
@@ -308,7 +308,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 				await _audioWriter.DisposeAsync();
 				if (disposing)
 				{
-					DeleteFileWithRetryAsync(_audioWriter.Path).NoWarning();
+					DeleteFileWithRetryAsync(_audioWriter.Path).Forget();
 				}
 				_audioWriter = null;
 			}
@@ -347,7 +347,7 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Clients
 		{
 			await base.DisposeAsync();
 
-			await CloseOutput(null, true);
+			await CloseOutputAsync(null, true);
 		}
 	}
 }
