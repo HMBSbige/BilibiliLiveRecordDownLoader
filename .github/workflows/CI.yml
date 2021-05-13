@@ -20,6 +20,9 @@ jobs:
       with:
         submodules: true
 
+    - name: dotnet restore
+      run: dotnet restore
+
     - name: Run dotnet format check
       run: dotnet format -wsa --check
 
