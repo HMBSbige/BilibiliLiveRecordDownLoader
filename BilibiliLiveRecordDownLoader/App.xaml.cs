@@ -24,6 +24,9 @@ namespace BilibiliLiveRecordDownLoader
 				var identifier = $@"Global\{nameof(BilibiliLiveRecordDownLoader)}";
 #endif
 				_singleInstance = new(identifier);
+
+				Directory.SetCurrentDirectory(Path.GetDirectoryName(Utils.Utils.GetExecutablePath())!);
+
 				DI.CreateLogger();
 			}
 			catch (Exception ex)
@@ -37,8 +40,6 @@ namespace BilibiliLiveRecordDownLoader
 		{
 			Current.Events().Exit.Subscribe(args => AppExit(args.ApplicationExitCode));
 			Current.Events().DispatcherUnhandledException.Subscribe(args => UnhandledException(args.Exception));
-
-			Directory.SetCurrentDirectory(Path.GetDirectoryName(Utils.Utils.GetExecutablePath())!);
 
 			if (!_singleInstance.IsFirstInstance)
 			{
