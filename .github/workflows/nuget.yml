@@ -2,8 +2,28 @@ name: Nuget
 on: [push, pull_request]
 
 jobs:
+  check_format:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 5.0.x
+
+    - name: Install dotnet-format
+      run: dotnet tool install -g dotnet-format
+
+    - name: Checkout code
+      uses: actions/checkout@v2
+      with:
+        submodules: true
+
+    - name: Run dotnet format check
+      run: dotnet format -wsa --check
+
   build:
     name: Build
+    needs: check_format
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -12,12 +32,6 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-
-    - name: Lint Code Base
-      uses: github/super-linter@v3
-      env:
-        DEFAULT_BRANCH: master
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v1
