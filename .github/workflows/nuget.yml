@@ -3,6 +3,7 @@ on: [push, pull_request]
 
 jobs:
   check_format:
+    name: Check format
     runs-on: windows-latest
     steps:
     - name: Setup .NET

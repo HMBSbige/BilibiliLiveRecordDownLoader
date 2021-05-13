@@ -5,6 +5,7 @@ env:
 
 jobs:
   check_format:
+    name: Check format
     runs-on: windows-latest
     steps:
     - name: Setup .NET

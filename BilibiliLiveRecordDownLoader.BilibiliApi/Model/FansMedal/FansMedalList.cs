@@ -1,4 +1,4 @@
-﻿namespace BilibiliApi.Model.FansMedal
+namespace BilibiliApi.Model.FansMedal
 {
 	public class FansMedalList
 	{
