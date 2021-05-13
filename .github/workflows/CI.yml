@@ -16,6 +16,12 @@ jobs:
       with:
         submodules: true
 
+    - name: Lint Code Base
+      uses: github/super-linter@v3
+      env:
+        DEFAULT_BRANCH: master
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v1
       with:
