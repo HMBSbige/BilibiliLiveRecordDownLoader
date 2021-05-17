@@ -12,6 +12,7 @@ using ReactiveUI;
 using System;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Reactive.Linq;
 using System.Text.Encodings.Web;
@@ -83,6 +84,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 						};
 						Config.HttpHandler = handler;
 						apiClient.Client = HttpClientUtils.BuildClientForBilibili(ua, cookie, handler);
+						WebRequest.DefaultWebProxy = useProxy ? WebRequest.GetSystemWebProxy() : null;
 					});
 
 			_themeMonitor = Config.WhenAnyValue(x => x.Theme)

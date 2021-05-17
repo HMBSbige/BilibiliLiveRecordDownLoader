@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Nerdbank.Streams;
 using System;
 using System.IO.Pipelines;
+using System.Net;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -27,6 +28,7 @@ namespace BilibiliApi.Clients
 		protected override IDisposable CreateClient()
 		{
 			_client = new();
+			_client.Options.Proxy = WebRequest.DefaultWebProxy;
 			return _client;
 		}
 
