@@ -101,9 +101,10 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			try
 			{
 				using var ffmpeg = DI.GetRequiredService<FFmpegCommand>();
-				if (await ffmpeg.VerifyAsync(token))
+				var version = await ffmpeg.GetVersionAsync(token);
+				if (version is not null)
 				{
-					FFmpegStatus = @"成功";
+					FFmpegStatus = $@"版本：{version}";
 					FFmpegStatusForeground = Constants.GreenBrush;
 					return true;
 				}

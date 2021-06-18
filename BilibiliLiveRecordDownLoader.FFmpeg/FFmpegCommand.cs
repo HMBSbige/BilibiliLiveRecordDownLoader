@@ -57,6 +57,31 @@ namespace BilibiliLiveRecordDownLoader.FFmpeg
 			_messageUpdated.OnNext($@"[已完成]{lastMessage}");
 		}
 
+		public async Task<string?> GetVersionAsync(CancellationToken token)
+		{
+			try
+			{
+				using var process = CreateProcess(FFmpegPath, @"-version");
+				process.StartInfo.RedirectStandardOutput = true;
+				process.Start();
+				_job.AddProcess(process);
+				var output = await process.StandardOutput.ReadToEndAsync();
+				await process.WaitForExitAsync(token);
+
+				const string versionString = @"ffmpeg version";
+				if (!output.StartsWith(versionString))
+				{
+					return null;
+				}
+				var ss = output.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+				return ss.Length < 3 ? @"Unknown" : ss[2];
+			}
+			catch
+			{
+				return null;
+			}
+		}
+
 		public async Task<bool> VerifyAsync(CancellationToken token)
 		{
 			try
