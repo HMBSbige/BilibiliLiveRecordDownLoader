@@ -1,3 +1,4 @@
+using Microsoft.VisualStudio.Threading;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -119,11 +120,8 @@ namespace BilibiliLiveRecordDownLoader.FFmpeg
 				_process.Start();
 				_job.AddProcess(_process);
 
-				var output = ReadOutputAsync(_process.StandardOutput, token);
-				var error = ReadOutputAsync(_process.StandardError, token);
-
-				await output;
-				await error;
+				ReadOutputAsync(_process.StandardOutput, token).Forget();
+				ReadOutputAsync(_process.StandardError, token).Forget();
 
 				await _process.WaitForExitAsync(token);
 			}

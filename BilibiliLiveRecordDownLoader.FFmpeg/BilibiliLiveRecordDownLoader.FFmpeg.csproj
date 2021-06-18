@@ -7,8 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Reactive" Version="5.0.0" />
     <PackageReference Include="WindowsJobAPI" Version="5.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BilibiliLiveRecordDownLoader.Shared\BilibiliLiveRecordDownLoader.Shared.csproj" />
   </ItemGroup>
 
 </Project>
