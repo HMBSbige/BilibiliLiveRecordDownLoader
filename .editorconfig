@@ -121,7 +121,7 @@ csharp_style_prefer_index_operator = true:warning
 csharp_style_prefer_range_operator = true:suggestion
 csharp_style_throw_expression = true:suggestion
 csharp_style_unused_value_assignment_preference = discard_variable:silent
-csharp_style_unused_value_expression_statement_preference = discard_variable:silent
+csharp_style_unused_value_expression_statement_preference = discard_variable:none
 
 # "using" 指令首选项
 csharp_using_directive_placement = outside_namespace:warning
