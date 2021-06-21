@@ -7,17 +7,20 @@ namespace BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces
 {
 	public interface IFlvExtractor : IAsyncDisposable, IProgress
 	{
-		int BufferSize { get; init; }
+		/// <summary>
+		/// 默认 4096
+		/// </summary>
+		int BufferSize { get; set; }
 
 		/// <summary>
 		/// 输出时是否使用异步
 		/// </summary>
-		bool IsAsync { get; init; }
+		bool IsAsync { get; set; }
 
 		/// <summary>
 		/// 输出目录
 		/// </summary>
-		string? OutputDir { get; init; }
+		string? OutputDir { get; set; }
 
 		/// <summary>
 		/// 输出的视频路径

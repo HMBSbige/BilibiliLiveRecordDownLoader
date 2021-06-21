@@ -28,7 +28,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 {
 	public class RoomStatus : ReactiveObject
 	{
-		private readonly ILogger _logger;
+		private readonly ILogger<RoomStatus> _logger;
 		private readonly BilibiliApiClient _apiClient;
 		private readonly Config _config;
 		private readonly TaskListViewModel _taskList;
@@ -153,7 +153,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 
 		public RoomStatus()
 		{
-			_logger = DI.GetRequiredService<ILogger<RoomStatus>>();
+			_logger = DI.GetLogger<RoomStatus>();
 			_config = DI.GetRequiredService<Config>();
 			_apiClient = DI.GetRequiredService<BilibiliApiClient>();
 			_taskList = DI.GetRequiredService<TaskListViewModel>();
@@ -351,7 +351,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 					_taskList.RemoveTask(task);
 					if (_config.IsDeleteAfterConvert)
 					{
-						File.Delete(flv);
+						FileUtils.DeleteWithoutException(flv);
 					}
 				}
 			}

@@ -1,6 +1,7 @@
 using BilibiliLiveRecordDownLoader.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using ReactiveUI;
 using Serilog;
 using Serilog.Events;
@@ -24,6 +25,11 @@ namespace BilibiliLiveRecordDownLoader.Services
 			}
 
 			return service;
+		}
+
+		public static ILogger<T> GetLogger<T>()
+		{
+			return GetRequiredService<ILogger<T>>();
 		}
 
 		public static void CreateLogger()

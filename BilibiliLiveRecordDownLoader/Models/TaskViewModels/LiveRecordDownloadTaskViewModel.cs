@@ -144,11 +144,12 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 			catch (OperationCanceledException)
 			{
 				_logger.LogInformation($@"下载已取消：{_liveRecord.Rid}");
+				throw;
 			}
-			catch (Exception ex)
+			catch (Exception)
 			{
 				Status = @"出错";
-				_logger.LogError(ex, @"下载直播回放出错");
+				throw;
 			}
 			finally
 			{

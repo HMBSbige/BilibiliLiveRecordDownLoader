@@ -76,6 +76,8 @@ namespace BilibiliLiveRecordDownLoader.Services
 					.Subscribe(x =>
 					{
 						var (cookie, ua, useProxy) = x;
+						ua ??= string.Empty;
+
 						var handler = new SocketsHttpHandler
 						{
 							PooledConnectionLifetime = TimeSpan.FromMinutes(10),
@@ -83,6 +85,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 							UseProxy = useProxy
 						};
 						Config.HttpHandler = handler;
+
 						apiClient.Client = HttpClientUtils.BuildClientForBilibili(ua, cookie, handler);
 						WebRequest.DefaultWebProxy = useProxy ? WebRequest.GetSystemWebProxy() : null;
 					});

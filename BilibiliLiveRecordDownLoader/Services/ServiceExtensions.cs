@@ -81,6 +81,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 		public static IServiceCollection AddFlvProcessor(this IServiceCollection services)
 		{
 			services.TryAddTransient<IFlvMerger, FlvMerger>();
+			services.TryAddTransient<IFlvExtractor, FlvExtractor>();
 			services.TryAddTransient<FFmpegCommand>();
 
 			return services;

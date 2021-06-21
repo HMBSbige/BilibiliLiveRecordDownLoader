@@ -12,6 +12,7 @@ namespace BilibiliLiveRecordDownLoader.Utils
 		public const string LogFile = @"Logs/BilibiliLiveRecordDownLoader.log";
 		public const string LiveRecordPath = @"Replay";
 		public const string FFmpegCopyConvert = @"-i ""{0}"" -c:v copy -c:a copy -y ""{1}""";
+		public const string FFmpegVideoAudioConvert = @"-i ""{0}"" -i ""{1}"" -vcodec copy -acodec copy ""{2}"" -y";
 		public const string FFmpegSplitTo = @"-ss {0} -to {1} -accurate_seek -i ""{2}"" -codec copy -avoid_negative_ts 1 ""{3}"" -y";
 
 		public static readonly SolidColorBrush NormalBlueBrush = new(Color.FromRgb(38, 160, 218));

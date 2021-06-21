@@ -1,11 +1,9 @@
-using Microsoft.Windows.Sdk;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
 using System.Windows;
@@ -40,38 +38,6 @@ namespace BilibiliLiveRecordDownLoader.Utils
 		public static string ToHumanBytesString(this ulong size)
 		{
 			return ToHumanBytesString((double)size);
-		}
-
-		public static (ulong, ulong, ulong) GetDiskUsage(string path)
-		{
-			try
-			{
-				if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-				{
-					unsafe
-					{
-						ulong availableFreeSpace;
-						ulong totalSize;
-						ulong totalFreeSpace;
-						if (PInvoke.GetDiskFreeSpaceEx(path, &availableFreeSpace, &totalSize, &totalFreeSpace))
-						{
-							return (availableFreeSpace, totalSize, totalFreeSpace);
-						}
-					}
-				}
-
-				var d = new DriveInfo(path);
-				if (d.IsReady)
-				{
-					return ((ulong)d.AvailableFreeSpace, (ulong)d.TotalSize, (ulong)d.TotalFreeSpace);
-				}
-			}
-			catch
-			{
-				// ignored
-			}
-
-			return (0, 0, 0);
 		}
 
 		public static bool OpenUrl(string path)

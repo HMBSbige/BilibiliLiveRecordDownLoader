@@ -173,7 +173,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		private void GetDiskUsage(long _)
 		{
-			var (availableFreeSpace, totalSize, totalFree) = Utils.Utils.GetDiskUsage(Config.MainDir);
+			var (availableFreeSpace, totalSize, totalFree) = FileUtils.GetDiskUsage(Config.MainDir);
 			if (totalSize != 0)
 			{
 				var usedSize = totalSize - totalFree;

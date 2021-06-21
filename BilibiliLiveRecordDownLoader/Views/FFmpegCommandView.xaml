@@ -74,10 +74,19 @@
                             <ColumnDefinition />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <ui:ToggleSwitch x:Name="IsDeleteToggleSwitch" Grid.Row="2" Grid.Column="0"
-                                         d:IsOn="True"
-                                         OnContent="转换完成后删除原文件" 
-                                         OffContent="转换完成后删除原文件" />
+                        <ui:SimpleStackPanel Grid.Row="2" Grid.Column="0"
+                                             Orientation="Horizontal"
+                                             Spacing="10"
+                                             >
+                            <ui:ToggleSwitch x:Name="IsDeleteToggleSwitch"
+                                             d:IsOn="True"
+                                             OnContent="转换完成后删除原文件"
+                                             OffContent="转换完成后保留原文件" />
+                            <ui:ToggleSwitch x:Name="IsFlvFixConvertToggleSwitch"
+                                             d:IsOn="True"
+                                             OnContent="修复时间戳(仅支持 FLV)"
+                                             OffContent="默认" />
+                        </ui:SimpleStackPanel>
                         <TextBox Grid.Row="0" Grid.Column="0" x:Name="ConvertInputTextBox" d:Text="114514" IsReadOnly="True" Margin="0,5,5,5" />
                         <TextBox Grid.Row="1" Grid.Column="0" x:Name="ConvertOutputTextBox" d:Text="1919810" Margin="0,5,5,5" />
 

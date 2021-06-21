@@ -10,14 +10,14 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 {
 	public class FFmpegTaskViewModel : TaskViewModel
 	{
-		private readonly ILogger _logger;
+		private readonly ILogger<FFmpegTaskViewModel> _logger;
 
 		private readonly string _args;
 		private readonly CancellationTokenSource _cts = new();
 
 		public FFmpegTaskViewModel(string args)
 		{
-			_logger = DI.GetRequiredService<ILogger<FFmpegTaskViewModel>>();
+			_logger = DI.GetLogger<FFmpegTaskViewModel>();
 			_args = args;
 
 			Description = args;
@@ -50,11 +50,12 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 			catch (OperationCanceledException)
 			{
 				_logger.LogInformation($@"FFmpeg 已取消：{_args}");
+				throw;
 			}
-			catch (Exception ex)
+			catch (Exception)
 			{
 				Status = @"出错";
-				_logger.LogError(ex, @"FFmpeg 出错");
+				throw;
 			}
 		}
 

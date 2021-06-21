@@ -23,7 +23,7 @@ namespace BilibiliLiveRecordDownLoader.Views.Dialogs
 
 		public QrCodeLoginDialog(GetLoginUrlData data)
 		{
-			_logger = DI.GetRequiredService<ILogger<QrCodeLoginDialog>>();
+			_logger = DI.GetLogger<QrCodeLoginDialog>();
 			_apiClient = DI.GetRequiredService<BilibiliApiClient>();
 			_data = data;
 

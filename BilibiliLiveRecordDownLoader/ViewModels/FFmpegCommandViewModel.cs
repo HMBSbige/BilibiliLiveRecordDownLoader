@@ -63,6 +63,9 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		[Reactive]
 		public bool IsDelete { get; set; }
 
+		[Reactive]
+		public bool IsFlvFixConvert { get; set; } = true;
+
 		#endregion
 
 		private readonly ILogger _logger;
@@ -91,7 +94,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			{
 				if (Path.GetExtension(file) == @".flv")
 				{
-					ConvertOutput = Path.ChangeExtension(file, @"mp4");
+					ConvertOutput = Path.ChangeExtension(file!, @"mp4");
 				}
 			});
 		}
@@ -223,22 +226,47 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 				return;
 			}
 
-			ConvertVideoAsync(ConvertInput, ConvertOutput, IsDelete).Forget();
+			ConvertVideoWithFixAsync(ConvertInput, ConvertOutput, IsDelete, IsFlvFixConvert).Forget();
 
 			ConvertInput = string.Empty;
 			ConvertOutput = string.Empty;
 		}
 
-		private async ValueTask ConvertVideoAsync(string input, string output, bool isDelete)
+		private async ValueTask ConvertVideoAsync(string input, string output, bool isDelete, string args)
+		{
+			var task = new FFmpegTaskViewModel(args);
+			await _taskList.AddTaskAsync(task, Path.GetPathRoot(output) ?? string.Empty);
+			if (isDelete)
+			{
+				FileUtils.DeleteWithoutException(input);
+			}
+		}
+
+		private async ValueTask ConvertVideoWithFixAsync(string input, string output, bool isDelete, bool isFlvFixConvert)
 		{
 			try
 			{
-				var args = string.Format(Constants.FFmpegCopyConvert, input, output);
-				var task = new FFmpegTaskViewModel(args);
-				await _taskList.AddTaskAsync(task, Path.GetPathRoot(output) ?? string.Empty);
-				if (isDelete)
+				string args;
+				if (isFlvFixConvert)
 				{
-					File.Delete(input);
+					var flv = new FlvExtractTaskViewModel(input);
+
+					await _taskList.AddTaskAsync(flv, Path.GetPathRoot(output) ?? string.Empty);
+					try
+					{
+						args = string.Format(Constants.FFmpegVideoAudioConvert, flv.OutputVideo, flv.OutputAudio, output);
+						await ConvertVideoAsync(input, output, isDelete, args);
+					}
+					finally
+					{
+						FileUtils.DeleteWithoutException(flv.OutputVideo);
+						FileUtils.DeleteWithoutException(flv.OutputAudio);
+					}
+				}
+				else
+				{
+					args = string.Format(Constants.FFmpegCopyConvert, input, output);
+					await ConvertVideoAsync(input, output, isDelete, args);
 				}
 			}
 			catch (Exception ex)
