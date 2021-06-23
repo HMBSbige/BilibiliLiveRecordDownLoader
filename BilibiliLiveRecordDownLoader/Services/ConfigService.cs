@@ -46,7 +46,7 @@ namespace BilibiliLiveRecordDownLoader.Services
 			IgnoreReadOnlyProperties = true,
 		};
 
-		private static readonly string[] RoomProperties = typeof(RoomStatus).GetPropertiesNameExcludeJsonIgnore().ToArray();
+		private static readonly string[] RoomProperties = typeof(RoomStatus).GetPropertiesExcludeJsonIgnore().Select(p => p.Name).ToArray();
 
 		public ConfigService(
 			ILogger<ConfigService> logger,

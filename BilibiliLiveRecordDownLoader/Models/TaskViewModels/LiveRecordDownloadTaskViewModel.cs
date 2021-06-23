@@ -128,14 +128,14 @@ namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
 								Progress = flv.Progress);
 
 					await flv.MergeAsync(mergeFlv, _cts.Token);
-					Utils.Utils.DeleteFiles(_recordPath);
+					FileUtils.DeleteFilesWithoutException(_recordPath);
 				}
 				else if (l.Length == 1)
 				{
 					Status = @"只有一段，进行移动...";
 					var inputFile = Path.Combine(_recordPath, @"1.flv");
 					File.Move(inputFile, mergeFlv, true);
-					Utils.Utils.DeleteFiles(_recordPath);
+					FileUtils.DeleteFilesWithoutException(_recordPath);
 				}
 
 				Status = @"完成";

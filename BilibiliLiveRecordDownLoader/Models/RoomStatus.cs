@@ -5,6 +5,7 @@ using BilibiliApi.Model.RoomInfo;
 using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.Http.Clients;
+using BilibiliLiveRecordDownLoader.JsonConverters;
 using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
@@ -14,6 +15,7 @@ using Microsoft.VisualStudio.Threading;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using System;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -26,6 +28,7 @@ using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.Models
 {
+	[JsonConverter(typeof(RoomStatusConverter))]
 	public class RoomStatus : ReactiveObject
 	{
 		private readonly ILogger<RoomStatus> _logger;
@@ -40,11 +43,26 @@ namespace BilibiliLiveRecordDownLoader.Models
 		private IDisposable? _titleMonitor;
 		private CancellationTokenSource _recordCts = new();
 
+		#region 默认值
+
+		public const bool DefaultIsEnable = true;
+		public const double DefaultDanMuReconnectLatency = 2.0;
+		public const double DefaultHttpCheckLatency = 300.0;
+		public const double DefaultStreamReconnectLatency = 6.0;
+		public const double DefaultStreamConnectTimeout = 3.0;
+		public const double DefaultStreamTimeout = 5.0;
+		public const DanmuClientType DefaultClientType = DanmuClientType.SecureWebsocket;
+		public const Qn DefaultQn = Qn.原画;
+
+		#endregion
+
 		#region 属性
 
 		/// <summary>
 		/// 是否启用录制
 		/// </summary>
+		[DefaultValue(DefaultIsEnable)]
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		[Reactive]
 		public bool IsEnable { get; set; } = true;
 
@@ -92,6 +110,7 @@ namespace BilibiliLiveRecordDownLoader.Models
 		/// <summary>
 		/// 是否开播提醒
 		/// </summary>
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		[Reactive]
 		public bool IsNotify { get; set; }
 
@@ -99,36 +118,46 @@ namespace BilibiliLiveRecordDownLoader.Models
 		/// 弹幕重连间隔
 		/// 单位 秒
 		/// </summary>
+		[DefaultValue(DefaultDanMuReconnectLatency)]
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		[Reactive]
-		public double DanMuReconnectLatency { get; set; } = 2.0;
+		public double DanMuReconnectLatency { get; set; } = DefaultDanMuReconnectLatency;
 
 		/// <summary>
 		/// Http 开播检查间隔
 		/// 单位 秒
 		/// </summary>
+		[DefaultValue(DefaultHttpCheckLatency)]
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		[Reactive]
-		public double HttpCheckLatency { get; set; } = 300.0;
+		public double HttpCheckLatency { get; set; } = DefaultHttpCheckLatency;
 
 		/// <summary>
 		/// 直播重连间隔
 		/// 单位 秒
 		/// </summary>
+		[DefaultValue(DefaultStreamReconnectLatency)]
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		[Reactive]
-		public double StreamReconnectLatency { get; set; } = 6.0;
+		public double StreamReconnectLatency { get; set; } = DefaultStreamReconnectLatency;
 
 		/// <summary>
 		/// 直播连接超时
 		/// 单位 秒
 		/// </summary>
+		[DefaultValue(DefaultStreamConnectTimeout)]
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		[Reactive]
-		public double StreamConnectTimeout { get; set; } = 3.0;
+		public double StreamConnectTimeout { get; set; } = DefaultStreamConnectTimeout;
 
 		/// <summary>
 		/// 直播流超时
 		/// 单位 秒
 		/// </summary>
+		[DefaultValue(DefaultStreamTimeout)]
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		[Reactive]
-		public double StreamTimeout { get; set; } = 5.0;
+		public double StreamTimeout { get; set; } = DefaultStreamTimeout;
 
 		/// <summary>
 		/// 速度
@@ -140,14 +169,18 @@ namespace BilibiliLiveRecordDownLoader.Models
 		/// <summary>
 		/// 弹幕服务器类型
 		/// </summary>
+		[DefaultValue(DefaultClientType)]
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		[Reactive]
-		public DanmuClientType ClientType { get; set; } = DanmuClientType.SecureWebsocket;
+		public DanmuClientType ClientType { get; set; } = DefaultClientType;
 
 		/// <summary>
 		/// qn 参数
 		/// </summary>
+		[DefaultValue(DefaultQn)]
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		[Reactive]
-		public Qn Qn { get; set; } = Qn.原画;
+		public Qn Qn { get; set; } = DefaultQn;
 
 		#endregion
 

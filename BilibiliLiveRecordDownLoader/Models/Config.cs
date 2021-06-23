@@ -1,56 +1,85 @@
+using BilibiliLiveRecordDownLoader.JsonConverters;
 using DynamicData.Kernel;
 using ModernWpf;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json.Serialization;
 
 namespace BilibiliLiveRecordDownLoader.Models
 {
+	[JsonConverter(typeof(GlobalConfigConverter))]
 	public class Config : ReactiveObject
 	{
-		#region 字段
+		#region 默认值
 
-		private byte _downloadThreads = 8;
-		private List<RoomStatus> _rooms = new();
+		public const long DefaultRoomId = 732;
+		public static string DefaultMainDir => Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+		public const byte DefaultDownloadThreads = 8;
+		public const bool DefaultIsCheckUpdateOnStart = true;
+		public const double DefaultMainWindowsWidth = 1280.0;
+		public const double DefaultMainWindowsHeight = 720.0;
+		public const string DefaultUserAgent = @"";
+		public const string DefaultCookie = @"";
+		public const bool DefaultIsAutoConvertMp4 = true;
+		public const bool DefaultIsUseProxy = true;
+		public const ElementTheme DefaultTheme = ElementTheme.Default;
 
 		#endregion
 
 		#region 属性
 
+		[DefaultValue(DefaultRoomId)]
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		[Reactive]
-		public long RoomId { get; set; } = 732;
+		public long RoomId { get; set; } = DefaultRoomId;
 
 		[Reactive]
-		public string MainDir { get; set; } = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+		public string MainDir { get; set; } = DefaultMainDir;
 
+		[DefaultValue(DefaultDownloadThreads)]
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		public byte DownloadThreads
 		{
 			get => Math.Clamp(_downloadThreads, (byte)1, (byte)128);
 			set => this.RaiseAndSetIfChanged(ref _downloadThreads, value);
 		}
+		private byte _downloadThreads = DefaultDownloadThreads;
 
+		[DefaultValue(DefaultIsCheckUpdateOnStart)]
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		[Reactive]
-		public bool IsCheckUpdateOnStart { get; set; } = true;
+		public bool IsCheckUpdateOnStart { get; set; } = DefaultIsCheckUpdateOnStart;
 
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		[Reactive]
 		public bool IsCheckPreRelease { get; set; }
 
+		[DefaultValue(DefaultMainWindowsWidth)]
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		[Reactive]
-		public double MainWindowsWidth { get; set; } = 1280;
+		public double MainWindowsWidth { get; set; } = DefaultMainWindowsWidth;
 
+		[DefaultValue(DefaultMainWindowsHeight)]
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		[Reactive]
-		public double MainWindowsHeight { get; set; } = 720;
+		public double MainWindowsHeight { get; set; } = DefaultMainWindowsHeight;
 
+		[DefaultValue(DefaultUserAgent)]
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		[Reactive]
-		public string UserAgent { get; set; } = string.Empty;
+		public string UserAgent { get; set; } = DefaultUserAgent;
 
+		[DefaultValue(DefaultCookie)]
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		[Reactive]
-		public string Cookie { get; set; } = string.Empty;
+		public string Cookie { get; set; } = DefaultCookie;
 
+		private List<RoomStatus> _rooms = new();
 		public List<RoomStatus> Rooms
 		{
 			get => _rooms;
@@ -61,17 +90,24 @@ namespace BilibiliLiveRecordDownLoader.Models
 			}
 		}
 
+		[DefaultValue(DefaultIsAutoConvertMp4)]
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		[Reactive]
-		public bool IsAutoConvertMp4 { get; set; } = true;
+		public bool IsAutoConvertMp4 { get; set; } = DefaultIsAutoConvertMp4;
 
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		[Reactive]
 		public bool IsDeleteAfterConvert { get; set; }
 
+		[DefaultValue(DefaultIsUseProxy)]
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		[Reactive]
-		public bool IsUseProxy { get; set; } = true;
+		public bool IsUseProxy { get; set; } = DefaultIsUseProxy;
 
+		[DefaultValue(DefaultTheme)]
+		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 		[Reactive]
-		public ElementTheme Theme { get; set; } = ElementTheme.Default;
+		public ElementTheme Theme { get; set; } = DefaultTheme;
 
 		#endregion
 

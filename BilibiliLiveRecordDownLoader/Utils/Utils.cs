@@ -44,7 +44,13 @@ namespace BilibiliLiveRecordDownLoader.Utils
 		{
 			try
 			{
-				new Process { StartInfo = new ProcessStartInfo(path) { UseShellExecute = true } }.Start();
+				new Process
+				{
+					StartInfo = new ProcessStartInfo(path)
+					{
+						UseShellExecute = true
+					}
+				}.Start();
 				return true;
 			}
 			catch
@@ -99,30 +105,32 @@ namespace BilibiliLiveRecordDownLoader.Utils
 			}
 		}
 
-		public static bool DeleteFiles(string path)
-		{
-			try
-			{
-				var di = new DirectoryInfo(path);
-				di.Delete(true);
-				return true;
-			}
-			catch
-			{
-				return false;
-			}
-		}
-
 		public static string? GetAppVersion()
 		{
 			return typeof(App).Assembly.GetName().Version?.ToString();
 		}
 
-		public static IEnumerable<string> GetPropertiesNameExcludeJsonIgnore(this Type type)
+		public static bool ShouldIgnore(PropertyInfo propertyInfo)
 		{
-			return type.GetProperties()
-				.Where(pi => !Attribute.IsDefined(pi, typeof(JsonIgnoreAttribute)) && !Attribute.IsDefined(pi, typeof(IgnoreDataMemberAttribute)))
-				.Select(p => p.Name);
+			if (Attribute.IsDefined(propertyInfo, typeof(IgnoreDataMemberAttribute)))
+			{
+				return true;
+			}
+
+			var jsonIgnore = propertyInfo.GetCustomAttribute<JsonIgnoreAttribute>();
+			if (jsonIgnore is not null && jsonIgnore.Condition == JsonIgnoreCondition.Always)
+			{
+				return true;
+			}
+
+			return false;
+		}
+
+		public static IEnumerable<PropertyInfo> GetPropertiesExcludeJsonIgnore(this Type type)
+		{
+			return type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+					.Where(p => p.GetMethod is not null && p.GetMethod.IsPublic)
+					.Where(p => !ShouldIgnore(p));
 		}
 	}
 }

@@ -59,5 +59,21 @@ namespace BilibiliLiveRecordDownLoader.Utils
 				Logger.LogWarning(ex, $@"删除文件错误：{path}");
 			}
 		}
+
+		public static void DeleteFilesWithoutException(string dirPath)
+		{
+			try
+			{
+				var di = new DirectoryInfo(dirPath);
+				if (di.Exists)
+				{
+					di.Delete(true);
+				}
+			}
+			catch
+			{
+				// ignored
+			}
+		}
 	}
 }
