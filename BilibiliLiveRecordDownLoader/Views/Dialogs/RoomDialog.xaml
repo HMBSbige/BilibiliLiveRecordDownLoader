@@ -53,8 +53,8 @@
                       IsEditable="True"
                       HorizontalAlignment="Stretch"
                       Text="{Binding Path=Qn,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource QnToStringConverter}}">
+                <ComboBoxItem Content="{x:Static constants:Constants.Qn20000}" />
                 <ComboBoxItem Content="{x:Static constants:Constants.Qn10000}" />
-                <ComboBoxItem Content="{x:Static constants:Constants.Qn800}" />
                 <ComboBoxItem Content="{x:Static constants:Constants.Qn401}" />
                 <ComboBoxItem Content="{x:Static constants:Constants.Qn400}" />
                 <ComboBoxItem Content="{x:Static constants:Constants.Qn250}" />

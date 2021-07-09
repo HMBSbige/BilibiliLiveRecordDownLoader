@@ -24,8 +24,8 @@ namespace BilibiliLiveRecordDownLoader.Utils
 		public static readonly CommonFileDialogFilter VideoFilter = new(@"视频文件", @"*.mp4;*.flv;*.mkv");
 		public static readonly CommonFileDialogFilter AllFilter = new(@"所有文件", @"*.*");
 
+		public const string Qn20000 = @"4K(20000)";
 		public const string Qn10000 = @"原画(10000)";
-		public const string Qn800 = @"4K(800)";
 		public const string Qn401 = @"蓝光(杜比)(401)";
 		public const string Qn400 = @"蓝光(400)";
 		public const string Qn250 = @"超清(250)";

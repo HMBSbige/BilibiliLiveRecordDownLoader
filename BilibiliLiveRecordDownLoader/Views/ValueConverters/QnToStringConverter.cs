@@ -15,8 +15,8 @@ namespace BilibiliLiveRecordDownLoader.Views.ValueConverters
 			{
 				return qn switch
 				{
+					Qn._4K => Constants.Qn20000,
 					Qn.原画 => Constants.Qn10000,
-					Qn._4K => Constants.Qn800,
 					Qn.蓝光杜比 => Constants.Qn401,
 					Qn.蓝光 => Constants.Qn400,
 					Qn.超清 => Constants.Qn250,
@@ -39,8 +39,8 @@ namespace BilibiliLiveRecordDownLoader.Views.ValueConverters
 				}
 				return str switch
 				{
+					Constants.Qn20000 => Qn._4K,
 					Constants.Qn10000 => Qn.原画,
-					Constants.Qn800 => Qn._4K,
 					Constants.Qn401 => Qn.蓝光杜比,
 					Constants.Qn400 => Qn.蓝光,
 					Constants.Qn250 => Qn.超清,
