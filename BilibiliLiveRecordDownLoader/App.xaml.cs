@@ -1,6 +1,7 @@
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
 using Serilog;
+using SingleInstance;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,7 +13,7 @@ namespace BilibiliLiveRecordDownLoader
 {
 	public partial class App
 	{
-		private readonly SingleInstance.SingleInstance _singleInstance;
+		private readonly SingleInstanceService _singleInstance;
 
 		public App()
 		{
