@@ -21,8 +21,11 @@ jobs:
       with:
         submodules: true
 
+    - name: Build
+      run: dotnet build
+
     - name: Run dotnet format check
-      run: dotnet format -wsa --check
+      run: dotnet format -wsa -v diag --check --no-restore
 
   build:
     name: Build
