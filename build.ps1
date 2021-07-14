@@ -72,5 +72,5 @@ if ($buildX86)
 
 if($buildARM64)
 { 
-    Build-SelfContained win-x86
+    Build-SelfContained win-arm64
 }
