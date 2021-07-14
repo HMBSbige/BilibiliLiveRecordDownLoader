@@ -20,7 +20,7 @@ jobs:
         submodules: true
 
     - name: Run dotnet format check
-      run: dotnet format -wsa --check
+      run: dotnet format -wa -v diag --check
 
   build:
     name: Build
