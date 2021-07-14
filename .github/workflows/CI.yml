@@ -25,7 +25,7 @@ jobs:
       run: dotnet build
 
     - name: Run dotnet format check
-      run: dotnet format -wsa -v diag --check --no-restore
+      run: dotnet format -wa -v diag --check --no-restore
 
   build:
     name: Build
