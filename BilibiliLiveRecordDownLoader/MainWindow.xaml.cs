@@ -42,7 +42,7 @@ namespace BilibiliLiveRecordDownLoader
 				{
 					if (args.EventArgs.IsSettingsSelected)
 					{
-						ViewModel.Router.Navigate.Execute(settings);
+						ViewModel.Router.NavigateAndReset.Execute(settings);
 						return;
 					}
 
@@ -55,32 +55,32 @@ namespace BilibiliLiveRecordDownLoader
 					{
 						case @"1":
 						{
-							ViewModel.Router.Navigate.Execute(liveRecordList);
+							ViewModel.Router.NavigateAndReset.Execute(liveRecordList);
 							break;
 						}
 						case @"2":
 						{
-							ViewModel.Router.Navigate.Execute(taskList);
+							ViewModel.Router.NavigateAndReset.Execute(taskList);
 							break;
 						}
 						case @"3":
 						{
-							ViewModel.Router.Navigate.Execute(log);
+							ViewModel.Router.NavigateAndReset.Execute(log);
 							break;
 						}
 						case @"4":
 						{
-							ViewModel.Router.Navigate.Execute(streamRecord);
+							ViewModel.Router.NavigateAndReset.Execute(streamRecord);
 							break;
 						}
 						case @"5":
 						{
-							ViewModel.Router.Navigate.Execute(userSettings);
+							ViewModel.Router.NavigateAndReset.Execute(userSettings);
 							break;
 						}
 						case @"6":
 						{
-							ViewModel.Router.Navigate.Execute(ffmpegCommand);
+							ViewModel.Router.NavigateAndReset.Execute(ffmpegCommand);
 							break;
 						}
 					}

@@ -33,6 +33,11 @@
                 <!-- ModernWPF controls resources -->
                 <ui:XamlControlsResources />
             </ResourceDictionary.MergedDictionaries>
+            <!-- Override Colors -->
+            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="Transparent" />
+            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="Transparent" />
+            <SolidColorBrush x:Key="NavigationViewTopPaneBackground" Color="Transparent" />
+            <!-- Converters -->
             <valueConverters:LiveStatusToBrushConverter x:Key="LiveStatusToBrushConverter" />
             <valueConverters:DanmuClientTypeToIntConverter x:Key="DanmuClientTypeToIntConverter" />
             <valueConverters:QnToStringConverter x:Key="QnToStringConverter" />

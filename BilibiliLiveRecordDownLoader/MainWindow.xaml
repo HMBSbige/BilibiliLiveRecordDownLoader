@@ -38,7 +38,7 @@
         <ui:NavigationView
             x:Name="NavigationView"
             IsBackButtonVisible="Collapsed"
-            PaneDisplayMode="Auto"
+            PaneDisplayMode="Left"
             IsTabStop="False"
             IsPaneOpen="False">
             <ui:NavigationView.MenuItems>
@@ -49,13 +49,15 @@
                 <ui:NavigationViewItem Icon="Message" Content="日志" Tag="3" />
                 <ui:NavigationViewItem Icon="61272" Content="用户设置" Tag="5" />
             </ui:NavigationView.MenuItems>
-            <reactiveUi:RoutedViewHost
-                x:Name="RoutedViewHost"
-                HorizontalContentAlignment="Stretch"
-                VerticalContentAlignment="Stretch"
-                Transition="Fade"
-                Direction="Up"
-                Duration="0:0:0.3" />
+            <Border Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+                <reactiveUi:RoutedViewHost
+                    x:Name="RoutedViewHost"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Stretch"
+                    Transition="Fade"
+                    Direction="Up"
+                    Duration="0:0:0.3" />
+            </Border>
         </ui:NavigationView>
     </Grid>
 </reactiveUi:ReactiveWindow>

@@ -11,7 +11,7 @@
     xmlns:controls="http://schemas.modernwpf.com/2019"
     mc:Ignorable="d"
     d:DesignHeight="450" d:DesignWidth="800"
-    Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+    d:Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
     <Grid Margin="0,30,0,0">
         <DataGrid
             x:Name="RoomListDataGrid"

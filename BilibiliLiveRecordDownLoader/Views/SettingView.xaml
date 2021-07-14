@@ -9,7 +9,8 @@
     xmlns:viewModels="clr-namespace:BilibiliLiveRecordDownLoader.ViewModels"
     xmlns:ui="http://schemas.modernwpf.com/2019"
     mc:Ignorable="d"
-    d:DesignHeight="1200" d:DesignWidth="800" Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
+    d:DesignHeight="1200" d:DesignWidth="800"
+    d:Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
     <Grid Margin="20,25,0,0">
         <ScrollViewer>
             <ui:SimpleStackPanel Spacing="0" Margin="0,0,20,0">
