@@ -13,9 +13,10 @@ $dllpatcher_dir = "$PSScriptRoot\Build\DotNetDllPathPatcher"
 $dllpatcher_exe = "$dllpatcher_dir\bin\$configuration\$dllpatcher_tfm\DotNetDllPathPatcher.exe"
 $proj_path = "$PSScriptRoot\BilibiliLiveRecordDownLoader\BilibiliLiveRecordDownLoader.csproj"
 
-$build    = $buildtfm -eq 'all' -or $buildtfm -eq 'app'
-$buildX86 = $buildtfm -eq 'all' -or $buildtfm -eq 'x86'
-$buildX64 = $buildtfm -eq 'all' -or $buildtfm -eq 'x64'
+$build      = $buildtfm -eq 'all' -or $buildtfm -eq 'app'
+$buildX86   = $buildtfm -eq 'all' -or $buildtfm -eq 'x86'
+$buildX64   = $buildtfm -eq 'all' -or $buildtfm -eq 'x64'
+$buildARM64 = $buildtfm -eq 'all' -or $buildtfm -eq 'arm64'
 
 function Build-App
 {
@@ -66,5 +67,10 @@ if ($buildX64)
 
 if ($buildX86)
 {
+    Build-SelfContained win-x86
+}
+
+if($buildARM64)
+{ 
     Build-SelfContained win-x86
 }

@@ -1,9 +1,9 @@
 using BilibiliLiveRecordDownLoader.Services;
 using Microsoft.Extensions.Logging;
-using Microsoft.Windows.Sdk;
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using Windows.Win32;
 
 namespace BilibiliLiveRecordDownLoader.Utils
 {
