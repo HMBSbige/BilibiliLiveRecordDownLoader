@@ -20,7 +20,7 @@
   <ItemGroup>
     <PackageReference Include="CryptoBase" Version="1.5.1" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="5.0.0" />
-    <PackageReference Include="Nerdbank.Streams" Version="2.7.74" />
+    <PackageReference Include="Nerdbank.Streams" Version="2.8.46" />
     <PackageReference Include="System.IO.Pipelines" Version="5.0.1" />
   </ItemGroup>
 
