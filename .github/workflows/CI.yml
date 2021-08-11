@@ -50,6 +50,10 @@ jobs:
         shell: pwsh
         run: .\build.ps1 x64
 
+      - name: Build arm64
+        shell: pwsh
+        run: .\build.ps1 arm64
+
       - name: Build x86
         shell: pwsh
         run: .\build.ps1 x86
@@ -69,6 +73,14 @@ jobs:
         with:
           name: ${{ env.ProjectName }}-Win64
           path: ${{ env.ProjectName }}\bin\${{ env.Configuration }}\${{ env.NET_TFM }}\win-x64\publish\
+
+      - name: Upload arm64
+        continue-on-error: true
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ env.ProjectName }}-WinArm64
+          path: ${{ env.ProjectName }}\bin\${{ env.Configuration }}\${{ env.NET_TFM }}\win-arm64\publish\
 
       - name: Upload x86
         continue-on-error: true
@@ -101,6 +113,15 @@ jobs:
           7z rn "C:\builtfiles\$env:ProjectName-Win64-${{ steps.tag.outputs.tag }}.7z" publish $env:ProjectName
           echo "NET64_SHA256=$(.\Build\GetSHA256\GetSHA256.ps1 C:\builtfiles\$env:ProjectName-Win64-${{ steps.tag.outputs.tag }}.7z)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      - name: Package arm64
+        if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path C:\builtfiles -Force > $null
+          7z a -mx9 "C:\builtfiles\$env:ProjectName-WinArm64-${{ steps.tag.outputs.tag }}.7z" ".\$env:ProjectName\bin\$env:Configuration\$env:NET_TFM\win-arm64\publish\"
+          7z rn "C:\builtfiles\$env:ProjectName-WinArm64-${{ steps.tag.outputs.tag }}.7z" publish $env:ProjectName
+          echo "NETARM64_SHA256=$(.\Build\GetSHA256\GetSHA256.ps1 C:\builtfiles\$env:ProjectName-WinArm64-${{ steps.tag.outputs.tag }}.7z)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Package x86
         if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
         shell: pwsh
@@ -128,4 +149,5 @@ jobs:
             | :- | :- |
             | <sub>${{ env.ProjectName }}-${{ steps.tag.outputs.tag }}.7z</sub> | <sub>${{ env.NET_SHA256 }}</sub> |
             | <sub>${{ env.ProjectName }}-Win64-${{ steps.tag.outputs.tag }}.7z</sub> | <sub>${{ env.NET64_SHA256 }}</sub> |
+            | <sub>${{ env.ProjectName }}-WinArm64-${{ steps.tag.outputs.tag }}.7z</sub> | <sub>${{ env.NETARM64_SHA256 }}</sub> |
             | <sub>${{ env.ProjectName }}-Win32-${{ steps.tag.outputs.tag }}.7z</sub> | <sub>${{ env.NET86_SHA256 }}</sub> |
