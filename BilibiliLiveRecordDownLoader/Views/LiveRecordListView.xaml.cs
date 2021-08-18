@@ -17,11 +17,7 @@ namespace BilibiliLiveRecordDownLoader.Views
 
 			this.WhenActivated(d =>
 			{
-				this.Bind(ViewModel,
-						vm => vm.Config.RoomId,
-						v => v.RoomIdTextBox.Text,
-						x => $@"{x}",
-						x => long.TryParse(x, out var v) ? v : 732).DisposeWith(d);
+				this.Bind(ViewModel, vm => vm.Config.RoomId, v => v.RoomIdTextBox.Text).DisposeWith(d);
 
 				RoomIdTextBox.Events().KeyUp.Subscribe(args =>
 				{
