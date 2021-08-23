@@ -5,7 +5,6 @@ using Punchclock;
 using System;
 using System.Threading.Tasks;
 
-#pragma warning disable VSTHRD001
 namespace BilibiliLiveRecordDownLoader.Views.Dialogs
 {
 	public class DisposableContentDialog : ContentDialog, IDisposable
@@ -32,7 +31,7 @@ namespace BilibiliLiveRecordDownLoader.Views.Dialogs
 				{
 					await Dispatcher.Invoke(async () =>
 					{
-						Owner!.Focus();
+						Owner.Focus();
 						res = await ShowAsync();
 					});
 				}

@@ -76,7 +76,6 @@ namespace BilibiliLiveRecordDownLoader.Services
 					.Subscribe(x =>
 					{
 						var (cookie, ua, useProxy) = x;
-						ua ??= string.Empty;
 
 						var handler = new SocketsHttpHandler
 						{

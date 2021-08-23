@@ -6,12 +6,12 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils
 	{
 		public static long GetTimestamp(DateTime time)
 		{
-			return (long)time.Subtract(DateTime.UnixEpoch).TotalSeconds;
+			return new DateTimeOffset(time).ToUnixTimeSeconds();
 		}
 
 		public static DateTime GetTime(long timeStamp)
 		{
-			return DateTime.UnixEpoch.AddSeconds(timeStamp);
+			return DateTimeOffset.FromUnixTimeSeconds(timeStamp).DateTime;
 		}
 	}
 }

@@ -5,7 +5,6 @@ using ReactiveMarbles.ObservableEvents;
 using ReactiveUI;
 using System;
 using System.Reactive.Disposables;
-using System.Reactive.Linq;
 
 namespace BilibiliLiveRecordDownLoader.Views
 {

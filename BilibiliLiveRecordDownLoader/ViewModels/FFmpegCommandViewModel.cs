@@ -94,7 +94,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			{
 				if (Path.GetExtension(file) == @".flv")
 				{
-					ConvertOutput = Path.ChangeExtension(file!, @"mp4");
+					ConvertOutput = Path.ChangeExtension(file, @"mp4");
 				}
 			});
 		}

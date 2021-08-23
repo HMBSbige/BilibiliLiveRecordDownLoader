@@ -7,6 +7,7 @@ using QRCoder;
 using ReactiveUI;
 using System;
 using System.Net.Http;
+using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 
@@ -41,9 +42,16 @@ namespace BilibiliLiveRecordDownLoader.Views.Dialogs
 
 		private IDisposable CreateMonitor()
 		{
-#pragma warning disable VSTHRD101
-			return Observable.Interval(TimeSpan.FromSeconds(3)).ObserveOnDispatcher().Subscribe(async _ => await GetLoginInfoAsync());
-#pragma warning restore VSTHRD101
+			return Observable.Interval(TimeSpan.FromSeconds(3))
+				.ObserveOnDispatcher()
+				.SelectMany(Async)
+				.Subscribe();
+
+			async Task<Unit> Async(long i)
+			{
+				await GetLoginInfoAsync();
+				return default;
+			}
 		}
 
 		private async Task GetLoginInfoAsync()

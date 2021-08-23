@@ -10,6 +10,7 @@ using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Linq;
 using System.Net.Http;
+using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -226,14 +227,17 @@ namespace BilibiliApi.Clients
 
 				await SendAuthAsync(writer, token);
 
-				_heartBeatTask = Observable.Interval(HeartBeatInterval)
-#pragma warning disable VSTHRD101
-					.Subscribe(async _ => await SendHeartbeatAsync(writer, token));
-#pragma warning restore VSTHRD101
+				_heartBeatTask = Observable.Interval(HeartBeatInterval).SelectMany(SendAsync).Subscribe();
 
 				_disposableServices.Add(_heartBeatTask);
 
 				return pipe;
+
+				async Task<Unit> SendAsync(long i)
+				{
+					await SendHeartbeatAsync(writer, token);
+					return default;
+				}
 			}
 			catch (Exception ex)
 			{
