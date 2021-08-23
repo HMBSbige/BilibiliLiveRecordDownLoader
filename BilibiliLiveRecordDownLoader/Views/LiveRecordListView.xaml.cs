@@ -1,8 +1,8 @@
 using BilibiliLiveRecordDownLoader.ViewModels;
+using ReactiveMarbles.ObservableEvents;
 using ReactiveUI;
 using System;
 using System.Reactive.Disposables;
-using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 

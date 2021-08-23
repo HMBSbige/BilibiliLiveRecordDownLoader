@@ -1,6 +1,7 @@
 using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using ModernWpf;
+using ReactiveMarbles.ObservableEvents;
 using ReactiveUI;
 using System;
 using System.Reactive.Disposables;
@@ -59,7 +60,7 @@ namespace BilibiliLiveRecordDownLoader.Views
 				this.Bind(ViewModel, vm => vm.IsRunOnStartup, v => v.StartupSwitch.IsOn).DisposeWith(d);
 				this.Bind(ViewModel, vm => vm.Config.IsCheckUpdateOnStart, v => v.IsCheckUpdateOnStartSwitch.IsOn).DisposeWith(d);
 
-				Observable.FromEventPattern(StartupSwitch, nameof(StartupSwitch.Toggled)).Subscribe(_ => ViewModel.SwitchStartup(StartupSwitch.IsOn)).DisposeWith(d);
+				StartupSwitch.Events().Toggled.Subscribe(_ => ViewModel.SwitchStartup(StartupSwitch.IsOn)).DisposeWith(d);
 
 				this.Bind(ViewModel,
 					vm => vm.Config.Theme,

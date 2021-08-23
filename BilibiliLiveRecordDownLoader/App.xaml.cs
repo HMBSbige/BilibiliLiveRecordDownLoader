@@ -1,5 +1,6 @@
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
+using ReactiveMarbles.ObservableEvents;
 using Serilog;
 using SingleInstance;
 using System;

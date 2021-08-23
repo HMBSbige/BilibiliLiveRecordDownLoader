@@ -3,6 +3,7 @@ using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using Hardcodet.Wpf.TaskbarNotification;
 using ModernWpf.Controls;
+using ReactiveMarbles.ObservableEvents;
 using ReactiveUI;
 using System;
 using System.Linq;
@@ -37,16 +38,16 @@ namespace BilibiliLiveRecordDownLoader
 
 				this.Bind(ViewModel, vm => vm.Router, v => v.RoutedViewHost.Router).DisposeWith(d);
 
-				Observable.FromEventPattern<NavigationViewSelectionChangedEventArgs>(NavigationView, nameof(NavigationView.SelectionChanged))
-				.Subscribe(args =>
+				NavigationView.Events().SelectionChanged
+				.Subscribe(parameter =>
 				{
-					if (args.EventArgs.IsSettingsSelected)
+					if (parameter.args.IsSettingsSelected)
 					{
 						ViewModel.Router.NavigateAndReset.Execute(settings);
 						return;
 					}
 
-					if (args.EventArgs.SelectedItem is not NavigationViewItem { Tag: string tag })
+					if (parameter.args.SelectedItem is not NavigationViewItem { Tag: string tag })
 					{
 						return;
 					}
