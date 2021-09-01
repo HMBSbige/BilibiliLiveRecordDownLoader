@@ -1,6 +1,6 @@
 using BilibiliApi.Model.DanmuConf;
 using Microsoft.Extensions.Logging;
-using Nerdbank.Streams;
+using Pipelines.Extensions;
 using System;
 using System.IO.Pipelines;
 using System.Net;
@@ -27,15 +27,15 @@ namespace BilibiliApi.Clients
 
 		protected override IDisposable CreateClient()
 		{
-			_client = new();
+			_client = new ClientWebSocket();
 			_client.Options.Proxy = WebRequest.DefaultWebProxy;
 			return _client;
 		}
 
 		protected override async ValueTask<IDuplexPipe> ClientHandshakeAsync(CancellationToken token)
 		{
-			await _client!.ConnectAsync(new(Server), token);
-			return _client.UsePipe(BufferSize, cancellationToken: token);
+			await _client!.ConnectAsync(new Uri(Server), token);
+			return _client.AsDuplexPipe();
 		}
 	}
 }

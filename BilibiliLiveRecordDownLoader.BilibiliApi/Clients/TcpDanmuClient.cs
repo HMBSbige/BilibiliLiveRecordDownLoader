@@ -1,6 +1,7 @@
 using BilibiliApi.Model.DanmuConf;
 using Microsoft.Extensions.Logging;
-using Nerdbank.Streams;
+using Pipelines.Extensions;
+using Pipelines.Extensions.SocketPipe;
 using System;
 using System.IO.Pipelines;
 using System.Net.Sockets;
@@ -17,6 +18,9 @@ namespace BilibiliApi.Clients
 
 		private TcpClient? _client;
 
+		private static readonly SocketPipeReaderOptions ReaderOptions = new(shutDownReceive: false);
+		private static readonly SocketPipeWriterOptions WriterOptions = new(shutDownSend: false);
+
 		public TcpDanmuClient(ILogger<TcpDanmuClient> logger, BilibiliApiClient apiClient) : base(logger, apiClient) { }
 
 		protected override ushort GetPort(HostServerList server)
@@ -26,14 +30,13 @@ namespace BilibiliApi.Clients
 
 		protected override IDisposable CreateClient()
 		{
-			_client = new();
-			return _client;
+			return _client = new TcpClient();
 		}
 
 		protected override async ValueTask<IDuplexPipe> ClientHandshakeAsync(CancellationToken token)
 		{
 			await _client!.ConnectAsync(Host!, Port, token);
-			return _client.GetStream().UsePipe(BufferSize, cancellationToken: token);
+			return _client.Client.AsDuplexPipe(ReaderOptions, WriterOptions);
 		}
 	}
 }

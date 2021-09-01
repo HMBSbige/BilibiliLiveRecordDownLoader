@@ -3,7 +3,7 @@ using BilibiliApi.Model.Danmu;
 using BilibiliApi.Model.DanmuConf;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.Threading;
-using Nerdbank.Streams;
+using Pipelines.Extensions;
 using System;
 using System.Buffers;
 using System.IO.Compression;
@@ -53,8 +53,6 @@ namespace BilibiliApi.Clients
 
 		private CancellationTokenSource? _cts;
 		private readonly CompositeDisposable _disposableServices = new();
-
-		protected const int BufferSize = 1024;
 
 		private string LogHeader => $@"[{RoomId}]";
 
@@ -301,7 +299,7 @@ namespace BilibiliApi.Clients
 				await ReadPipeAsync(reader, token);
 				_logger.LogWarning(@"{0} 弹幕服务器不再发送弹幕，尝试重连...", LogHeader);
 			}
-			catch (OperationCanceledException)
+			catch (Exception) when (token.IsCancellationRequested)
 			{
 				_logger.LogInformation(@"{0} 不再连接弹幕服务器", LogHeader);
 				return;
