@@ -18,7 +18,7 @@
 
   <ItemGroup>
     <PackageReference Include="Dns.Net" Version="0.1.0" />
-    <PackageReference Include="Microsoft.VisualStudio.Threading" Version="16.10.56" />
+    <PackageReference Include="Microsoft.VisualStudio.Threading" Version="17.0.63" />
     <PackageReference Include="System.Reactive" Version="5.0.0" />
   </ItemGroup>
 
