@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.30330.147
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31717.71
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BilibiliLiveRecordDownLoader", "BilibiliLiveRecordDownLoader\BilibiliLiveRecordDownLoader.csproj", "{BF54D295-B8CA-448C-8198-22E1F0867595}"
 EndProject
@@ -15,7 +15,13 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BilibiliLiveRecordDownLoade
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BilibiliLiveRecordDownLoader.Shared", "BilibiliLiveRecordDownLoader.Shared\BilibiliLiveRecordDownLoader.Shared.csproj", "{02363E7D-62AD-4660-9391-18267E5B38FE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BilibiliLiveRecordDownLoader.FFmpeg", "BilibiliLiveRecordDownLoader.FFmpeg\BilibiliLiveRecordDownLoader.FFmpeg.csproj", "{06D76D8D-B3D2-4EA6-AA5D-BA9B6E469B3B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BilibiliLiveRecordDownLoader.FFmpeg", "BilibiliLiveRecordDownLoader.FFmpeg\BilibiliLiveRecordDownLoader.FFmpeg.csproj", "{06D76D8D-B3D2-4EA6-AA5D-BA9B6E469B3B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{A17249E7-B8E9-4E7E-9633-D61C82D6DA7D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApiTest", "ApiTest\ApiTest.csproj", "{51ECAABA-E1DB-49D4-8878-2888F09225AF}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{7D963B79-7C11-4220-8AC4-2EC6A05BE1DD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -51,9 +57,23 @@ Global
 		{06D76D8D-B3D2-4EA6-AA5D-BA9B6E469B3B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{06D76D8D-B3D2-4EA6-AA5D-BA9B6E469B3B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{06D76D8D-B3D2-4EA6-AA5D-BA9B6E469B3B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{51ECAABA-E1DB-49D4-8878-2888F09225AF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{51ECAABA-E1DB-49D4-8878-2888F09225AF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{51ECAABA-E1DB-49D4-8878-2888F09225AF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{51ECAABA-E1DB-49D4-8878-2888F09225AF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{BF54D295-B8CA-448C-8198-22E1F0867595} = {7D963B79-7C11-4220-8AC4-2EC6A05BE1DD}
+		{CF5D6AF6-1445-4209-9185-7115B90B8DFB} = {A17249E7-B8E9-4E7E-9633-D61C82D6DA7D}
+		{48FAF392-BFF5-48D0-8409-2BAC8E2AB312} = {7D963B79-7C11-4220-8AC4-2EC6A05BE1DD}
+		{495DD80E-FCE7-46C9-B3E3-2DEA6415836D} = {7D963B79-7C11-4220-8AC4-2EC6A05BE1DD}
+		{730D37CA-5458-4171-ADBB-1D7379B9FD4E} = {7D963B79-7C11-4220-8AC4-2EC6A05BE1DD}
+		{02363E7D-62AD-4660-9391-18267E5B38FE} = {7D963B79-7C11-4220-8AC4-2EC6A05BE1DD}
+		{06D76D8D-B3D2-4EA6-AA5D-BA9B6E469B3B} = {7D963B79-7C11-4220-8AC4-2EC6A05BE1DD}
+		{51ECAABA-E1DB-49D4-8878-2888F09225AF} = {A17249E7-B8E9-4E7E-9633-D61C82D6DA7D}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {57A75898-3DF9-48A7-A736-DADB650DD460}

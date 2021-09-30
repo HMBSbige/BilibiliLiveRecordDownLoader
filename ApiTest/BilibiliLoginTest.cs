@@ -5,10 +5,10 @@ using System;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
-using static UnitTest.TestConstants;
+using static ApiTest.TestConstants;
 
 #pragma warning disable 8602
-namespace UnitTest
+namespace ApiTest
 {
 	[TestClass]
 	public class BilibiliLoginTest

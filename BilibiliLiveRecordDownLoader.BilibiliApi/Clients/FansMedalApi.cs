@@ -28,7 +28,7 @@ namespace BilibiliApi.Clients
 		public async Task<List<FansMedalList>> GetLiveFansMedalListAsync(CancellationToken token = default)
 		{
 			var res = new List<FansMedalList>();
-			const long pageSize = 100;
+			const long pageSize = 10;
 			var totalPages = 2L;
 			for (var i = 1L; i <= totalPages; ++i)
 			{

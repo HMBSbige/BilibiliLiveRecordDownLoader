@@ -1,4 +1,4 @@
-namespace UnitTest
+namespace ApiTest
 {
 	public static class TestConstants
 	{
