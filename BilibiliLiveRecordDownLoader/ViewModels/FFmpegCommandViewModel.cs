@@ -4,7 +4,7 @@ using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.Threading;
-using Microsoft.WindowsAPICodePack.Dialogs;
+using Microsoft.Win32;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using System;
@@ -277,21 +277,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		private static string? GetOpenFileName()
 		{
-			var dlg = new CommonOpenFileDialog
+			var dlg = new OpenFileDialog
 			{
-				IsFolderPicker = false,
-				Multiselect = false,
-				Title = @"打开",
-				AddToMostRecentlyUsedList = false,
-				EnsurePathExists = true,
-				NavigateToShortcut = true,
-				Filters =
-				{
-					Constants.VideoFilter,
-					Constants.AllFilter
-				}
+				Filter = Constants.VideoFilter
 			};
-			if (dlg.ShowDialog() == CommonFileDialogResult.Ok)
+			if (dlg.ShowDialog() is true)
 			{
 				return dlg.FileName;
 			}
@@ -300,21 +290,14 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		private static string? GetSaveFileName(string defaultPath)
 		{
-			var dlg = new CommonSaveFileDialog
+			var dlg = new SaveFileDialog
 			{
-				Title = @"另存为",
-				AddToMostRecentlyUsedList = false,
-				NavigateToShortcut = true,
-				DefaultFileName = Path.GetFileName(defaultPath),
-				DefaultExtension = Path.GetExtension(defaultPath),
-				DefaultDirectory = Path.GetDirectoryName(defaultPath),
-				Filters =
-				{
-					Constants.VideoFilter,
-					Constants.AllFilter
-				}
+				DefaultExt = Path.GetExtension(defaultPath),
+				FileName = Path.GetFileName(defaultPath),
+				InitialDirectory = Path.GetDirectoryName(defaultPath),
+				Filter = Constants.VideoFilter
 			};
-			if (dlg.ShowDialog() == CommonFileDialogResult.Ok)
+			if (dlg.ShowDialog() is true)
 			{
 				return dlg.FileName;
 			}

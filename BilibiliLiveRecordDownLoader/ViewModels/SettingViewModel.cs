@@ -6,7 +6,6 @@ using BilibiliLiveRecordDownLoader.Views.Dialogs;
 using DynamicData;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.Threading;
-using Microsoft.WindowsAPICodePack.Dialogs;
 using ModernWpf.Controls;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
@@ -16,6 +15,7 @@ using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using UpdateChecker;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels
@@ -95,19 +95,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 
 		private void SelectDirectory()
 		{
-			var dlg = new CommonOpenFileDialog
+			var dlg = new FolderBrowserDialog
 			{
-				IsFolderPicker = true,
-				Multiselect = false,
-				Title = @"选择存储目录",
-				AddToMostRecentlyUsedList = false,
-				EnsurePathExists = true,
-				NavigateToShortcut = true,
-				InitialDirectory = Config.MainDir
+				SelectedPath = Config.MainDir
 			};
-			if (dlg.ShowDialog() == CommonFileDialogResult.Ok)
+			if (dlg.ShowDialog() is DialogResult.OK)
 			{
-				Config.MainDir = dlg.FileName;
+				Config.MainDir = dlg.SelectedPath;
 			}
 		}
 

@@ -3,7 +3,6 @@ using BilibiliLiveRecordDownLoader.Http.Clients;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Microsoft.WindowsAPICodePack.Shell;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -31,7 +30,7 @@ namespace UnitTest
 			const string url = @"https://www.mediacollege.com/video-gallery/testclips/4sec.flv";
 			var filename = Path.ChangeExtension(Path.GetRandomFileName(), @"flv");
 			const string sha256 = @"9657166E7865880954FD6BEE8A7F9E2BBF2F32D7729BB8184A2AA2BA1261FAB6";
-			var path = KnownFolders.Downloads.Path;
+			var path = Path.GetTempPath();
 			var outFile = Path.Combine(path, filename);
 			try
 			{
@@ -67,7 +66,8 @@ namespace UnitTest
 			const string sha256 = @"1FA16CA4A31343F43262E90E31EF63C8247574B14F4764D1BFB37AFDEDF3EB84";
 
 			var outFile = await DownloadAsync();
-			var outFlv = Path.Combine(KnownFolders.Downloads.Path, @"test.flv");
+			var path = Path.GetTempPath();
+			var outFlv = Path.Combine(path, @"test.flv");
 			try
 			{
 				var flvMerger = new FlvMerger(NullLogger<FlvMerger>.Instance);
@@ -95,7 +95,7 @@ namespace UnitTest
 			const string url = @"https://www.mediacollege.com/video-gallery/testclips/4sec.flv";
 			var filename = Path.ChangeExtension(Path.GetRandomFileName(), @"flv");
 			const string sha256 = @"9657166E7865880954FD6BEE8A7F9E2BBF2F32D7729BB8184A2AA2BA1261FAB6";
-			var path = KnownFolders.Downloads.Path;
+			var path = Path.GetTempPath();
 			var outFile = Path.Combine(path, filename);
 			try
 			{
