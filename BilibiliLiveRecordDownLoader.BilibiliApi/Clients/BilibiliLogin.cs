@@ -125,13 +125,14 @@ namespace BilibiliApi.Clients
 		/// </summary>
 		public async Task<GetKeyData> GetKeyAsync(CancellationToken token = default)
 		{
-			const string url = PassportBaseAddress + @"api/oauth2/getKey";
+			const string url = PassportBaseAddress + @"x/passport-login/web/key?";
 			var pair = new Dictionary<string, string>
 			{
 				{@"platform", @"android"}
 			};
-			var response = await PostAsync(url, pair, true, token);
-			var message = await response.Content.ReadFromJsonAsync<GetKeyMessage>(cancellationToken: token);
+			using var body = await GetBodyAsync(pair, true);
+			var para = await body.ReadAsStringAsync(token);
+			var message = await GetJsonAsync<GetKeyMessage>(url + para, token);
 			if (message?.code != 0
 				|| message.data?.hash is null
 				|| message.data.key is null)
@@ -144,7 +145,7 @@ namespace BilibiliApi.Clients
 
 		public async Task<AppLoginMessage> LoginAsync(string username, string password, CancellationToken token = default)
 		{
-			const string url = PassportBaseAddress + @"api/v3/oauth2/login";
+			const string url = PassportBaseAddress + @"x/passport-login/oauth2/login";
 			var data = await GetKeyAsync(token);
 			password = Rsa.Encrypt(data.key!, data.hash + password);
 			var pair = new Dictionary<string, string>
