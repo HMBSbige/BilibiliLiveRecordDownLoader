@@ -4,29 +4,8 @@ env:
   ProjectName: BilibiliLiveRecordDownLoader
 
 jobs:
-  check_format:
-    name: Check format
-    runs-on: windows-latest
-    steps:
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v1
-        with:
-          dotnet-version: 5.0.x
-
-      - name: Install dotnet-format
-        run: dotnet tool install -g dotnet-format
-
-      - name: Checkout code
-        uses: actions/checkout@v2
-        with:
-          submodules: true
-
-      - name: Run dotnet format check
-        run: dotnet format -wa -v diag --check
-
   build:
     name: Build
-    needs: check_format
     runs-on: windows-latest
     env:
       NET_TFM: net5.0-windows10.0.20348.0
