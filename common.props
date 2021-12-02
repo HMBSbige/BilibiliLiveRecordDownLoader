@@ -10,6 +10,5 @@
     <PackageProjectUrl>https://github.com/HMBSbige/BilibiliLiveRecordDownLoader</PackageProjectUrl>
     <RepositoryUrl>https://github.com/HMBSbige/BilibiliLiveRecordDownLoader</RepositoryUrl>
     <PackageTags>bilibili</PackageTags>
-    <Version>3.8.2</Version>
   </PropertyGroup>
 </Project>

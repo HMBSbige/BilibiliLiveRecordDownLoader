@@ -8,6 +8,7 @@
     <UseWPF>true</UseWPF>
     <IncludePackageReferencesDuringMarkupCompilation>true</IncludePackageReferencesDuringMarkupCompilation>
     <ApplicationIcon>Resources\Asaki.ico</ApplicationIcon>
+    <Version>3.9.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
