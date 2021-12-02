@@ -13,7 +13,7 @@
   <ItemGroup>
     <PackageReference Include="CryptoBase" Version="1.6.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.0" />
-    <PackageReference Include="Pipelines.Extensions" Version="0.9.9" />
+    <PackageReference Include="Pipelines.Extensions" Version="1.0.0" />
     <PackageReference Include="System.IO.Pipelines" Version="6.0.0" />
   </ItemGroup>
 
