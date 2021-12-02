@@ -1,36 +1,33 @@
-param([string]$buildtfm = 'all')
+param([string]$rid = 'all')
 $ErrorActionPreference = 'Stop'
 
 Write-Host 'dotnet SDK info'
 dotnet --info
 
-$exe = 'BilibiliLiveRecordDownLoader.exe'
-$net_tfm = 'net5.0-windows10.0.20348.0'
-$dllpatcher_tfm = 'net5.0'
+$proj = 'BilibiliLiveRecordDownLoader'
+$exe = "$proj.exe"
+$net_tfm = 'net6.0-windows10.0.22000.0'
 $configuration = 'Release'
-$output_dir = "$PSScriptRoot\BilibiliLiveRecordDownLoader\bin\$configuration"
+$output_dir = "$PSScriptRoot\$proj\bin\$configuration"
+$proj_path = "$PSScriptRoot\$proj\$proj.csproj"
+
+$dllpatcher_tfm = 'net6.0'
 $dllpatcher_dir = "$PSScriptRoot\Build\DotNetDllPathPatcher"
 $dllpatcher_exe = "$dllpatcher_dir\bin\$configuration\$dllpatcher_tfm\DotNetDllPathPatcher.exe"
-$proj_path = "$PSScriptRoot\BilibiliLiveRecordDownLoader\BilibiliLiveRecordDownLoader.csproj"
 
-$build      = $buildtfm -eq 'all' -or $buildtfm -eq 'app'
-$buildX86   = $buildtfm -eq 'all' -or $buildtfm -eq 'x86'
-$buildX64   = $buildtfm -eq 'all' -or $buildtfm -eq 'x64'
-$buildARM64 = $buildtfm -eq 'all' -or $buildtfm -eq 'arm64'
-
-function Build-App
+function Build-Generic
 {
-    Write-Host 'Building .NET App'
+    Write-Host 'Building generic'
 
-    $outdir = "$output_dir\$net_tfm"
+    $outdir = "$output_dir\$net_tfm\generic"
     $publishDir = "$outdir\publish"
 
     Remove-Item $publishDir -Recurse -Force -Confirm:$false -ErrorAction Ignore
 
-    dotnet publish -c $configuration -f $net_tfm $proj_path
+    dotnet publish -c $configuration -f $net_tfm $proj_path -o $publishDir
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
-    & $dllpatcher_exe $publishDir\$exe bin
+    & "$dllpatcher_exe" "$publishDir\$exe" bin
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
 }
 
@@ -38,7 +35,7 @@ function Build-SelfContained
 {
     param([string]$rid)
 
-    Write-Host "Building .NET App SelfContained $rid"
+    Write-Host "Building $rid"
 
     $outdir = "$output_dir\$net_tfm\$rid"
     $publishDir = "$outdir\publish"
@@ -48,29 +45,25 @@ function Build-SelfContained
     dotnet publish -c $configuration -f $net_tfm -r $rid --self-contained true $proj_path
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
-    & $dllpatcher_exe $publishDir\$exe bin
+    & "$dllpatcher_exe" "$publishDir\$exe" bin
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
 }
 
 dotnet build -c $configuration -f $dllpatcher_tfm $dllpatcher_dir\DotNetDllPathPatcher.csproj
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
-if ($build)
+if($rid -eq 'all' -or $rid -eq 'generic')
 {
-    Build-App
+    Build-Generic
 }
 
-if ($buildX64)
-{
-    Build-SelfContained win-x64
-}
-
-if ($buildX86)
+if($rid -eq 'all')
 {
     Build-SelfContained win-x86
-}
-
-if($buildARM64)
-{ 
+    Build-SelfContained win-x64
     Build-SelfContained win-arm64
+}
+elseif($rid -ne 'generic')
+{
+    Build-SelfContained $rid
 }

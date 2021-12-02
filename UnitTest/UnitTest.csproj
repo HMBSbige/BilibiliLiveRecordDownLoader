@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="..\common.props" />
+
   <PropertyGroup>
-    <TargetFramework>net5.0-windows10.0.20348.0</TargetFramework>
-    <LangVersion>latest</LangVersion>
+    <TargetFramework>net6.0-windows10.0.22000.0</TargetFramework>
     <IsPackable>false</IsPackable>
-    <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
