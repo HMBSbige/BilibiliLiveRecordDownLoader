@@ -2,6 +2,8 @@ name: CI
 on: [push, pull_request]
 env:
   ProjectName: BilibiliLiveRecordDownLoader
+  NET_TFM: net6.0-windows10.0.22000.0
+  Configuration: Release
 
 jobs:
   build:
@@ -67,7 +69,6 @@ jobs:
   release:
     name: Release
     if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') }}
-    needs: nuget
     runs-on: windows-latest
 
     steps:
