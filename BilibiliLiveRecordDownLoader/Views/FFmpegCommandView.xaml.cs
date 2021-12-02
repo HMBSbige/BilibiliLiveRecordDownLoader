@@ -3,6 +3,7 @@ using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI;
 using System;
 using System.Reactive.Disposables;
+using System.Reactive.Linq;
 using System.Windows;
 
 namespace BilibiliLiveRecordDownLoader.Views
@@ -38,7 +39,10 @@ namespace BilibiliLiveRecordDownLoader.Views
 				this.BindCommand(ViewModel, vm => vm.ConvertSaveFileCommand, vm => vm.ConvertOutputButton).DisposeWith(d);
 				this.BindCommand(ViewModel, vm => vm.ConvertCommand, vm => vm.ConvertButton).DisposeWith(d);
 
-				ViewModel.CheckFFmpegStatusCommand.Execute().Subscribe(b =>
+				ViewModel.CheckFFmpegStatusCommand
+					.Execute()
+					.ObserveOn(RxApp.MainThreadScheduler)
+					.Subscribe(b =>
 				{
 					HyperlinkButton.Visibility = b ? Visibility.Collapsed : Visibility.Visible;
 					CutButton.IsEnabled = b;
