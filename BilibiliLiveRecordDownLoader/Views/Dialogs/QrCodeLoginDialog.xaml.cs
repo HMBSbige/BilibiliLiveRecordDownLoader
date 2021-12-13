@@ -1,15 +1,13 @@
 using BilibiliApi.Clients;
 using BilibiliApi.Model.Login.QrCode.GetLoginUrl;
 using BilibiliLiveRecordDownLoader.Services;
-using BilibiliLiveRecordDownLoader.Utils;
 using Microsoft.Extensions.Logging;
 using QRCoder;
+using QRCoder.Xaml;
 using ReactiveUI;
-using System;
 using System.Net.Http;
 using System.Reactive;
 using System.Reactive.Linq;
-using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.Views.Dialogs
 {
