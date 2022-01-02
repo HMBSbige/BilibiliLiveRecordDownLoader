@@ -1,15 +1,14 @@
-namespace BilibiliApi.Model.FansMedal
-{
-	public class Pageinfo
-	{
-		/// <summary>
-		/// 总页数
-		/// </summary>
-		public long totalpages { get; set; }
+namespace BilibiliApi.Model.FansMedal;
 
-		/// <summary>
-		/// 当前请求页数
-		/// </summary>
-		public long curPage { get; set; }
-	}
+public class Pageinfo
+{
+	/// <summary>
+	/// 当前请求页数
+	/// </summary>
+	public long cur_page { get; set; }
+
+	/// <summary>
+	/// 总页数
+	/// </summary>
+	public long total_page { get; set; }
 }
