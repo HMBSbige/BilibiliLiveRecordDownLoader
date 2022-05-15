@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Dns.Net" Version="0.1.0" />
+    <PackageReference Include="Dns.Net" Version="0.2.0" />
     <PackageReference Include="Microsoft.VisualStudio.Threading" Version="17.1.46" />
     <PackageReference Include="System.Reactive" Version="5.0.0" />
   </ItemGroup>
