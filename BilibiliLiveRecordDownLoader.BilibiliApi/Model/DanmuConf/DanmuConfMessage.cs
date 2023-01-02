@@ -8,12 +8,7 @@ namespace BilibiliApi.Model.DanmuConf
 		public long code { get; set; }
 
 		/// <summary>
-		/// 正常返回 "ok"，否则返回错误信息
-		/// </summary>
-		public string? msg { get; set; }
-
-		/// <summary>
-		/// 正常返回 "ok"，否则返回错误信息
+		/// 正常返回 "0"，否则返回错误信息
 		/// </summary>
 		public string? message { get; set; }
 

@@ -17,7 +17,7 @@ namespace BilibiliApi.Clients
 		/// <param name="token"></param>
 		public async Task<DanmuConfMessage?> GetDanmuConfAsync(long roomId, CancellationToken token = default)
 		{
-			var url = $@"https://api.live.bilibili.com/room/v1/Danmu/getConf?room_id={roomId}";
+			var url = $@"https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id={roomId}";
 			return await GetJsonAsync<DanmuConfMessage>(url, token);
 		}
 
