@@ -14,7 +14,6 @@ public class Config : ReactiveObject
 {
 	#region 默认值
 
-	public const long DefaultRoomId = 732;
 	public static string DefaultMainDir => Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
 	public const byte DefaultDownloadThreads = 8;
 	public const bool DefaultIsCheckUpdateOnStart = true;
@@ -29,11 +28,6 @@ public class Config : ReactiveObject
 	#endregion
 
 	#region 属性
-
-	[DefaultValue(DefaultRoomId)]
-	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-	[Reactive]
-	public long RoomId { get; set; } = DefaultRoomId;
 
 	[Reactive]
 	public string MainDir { get; set; } = DefaultMainDir;
@@ -116,7 +110,6 @@ public class Config : ReactiveObject
 
 	public void Clone(Config config)
 	{
-		RoomId = config.RoomId;
 		MainDir = config.MainDir;
 		DownloadThreads = config.DownloadThreads;
 		IsCheckUpdateOnStart = config.IsCheckUpdateOnStart;
