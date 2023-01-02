@@ -1,10 +1,5 @@
 name: CI
-on:
-  push:
-    branches:
-      - master
-  pull_request:
-  workflow_dispatch:
+on: [push, pull_request, workflow_dispatch]
 env:
   ProjectName: BilibiliLiveRecordDownLoader
   NET_TFM: net6.0-windows10.0.22000.0
