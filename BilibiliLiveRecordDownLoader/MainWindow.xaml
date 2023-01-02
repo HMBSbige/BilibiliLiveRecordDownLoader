@@ -42,7 +42,6 @@
             IsTabStop="False"
             IsPaneOpen="False">
             <ui:NavigationView.MenuItems>
-                <ui:NavigationViewItem Icon="Download" Content="直播回放" Tag="1" />
                 <ui:NavigationViewItem Icon="59230" Content="直播录制" Tag="4" />
                 <ui:NavigationViewItem Icon="59765" Content="视频处理" Tag="6" />
                 <ui:NavigationViewItem Icon="59645" Content="任务列表" Tag="2" />

@@ -14,17 +14,13 @@ using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.Threading;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
-using System;
 using System.ComponentModel;
 using System.IO;
-using System.Linq;
 using System.Net.Http;
 using System.Net.Sockets;
 using System.Reactive.Linq;
 using System.Text;
 using System.Text.Json.Serialization;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.Models
 {
@@ -381,28 +377,14 @@ namespace BilibiliLiveRecordDownLoader.Models
 					return;
 				}
 
-				var mp4 = Path.ChangeExtension(flv, @"mp4");
+				string mp4 = Path.ChangeExtension(flv, @"mp4");
+				string args = string.Format(Constants.FFmpegCopyConvert, flv, mp4);
 
-				var extract = new FlvExtractTaskViewModel(flv);
-				await _taskList.AddTaskAsync(extract, Path.GetPathRoot(mp4) ?? string.Empty);
-				_taskList.RemoveTask(extract);
-				try
+				FFmpegTaskViewModel task = new(args);
+				await _taskList.AddTaskAsync(task, Path.GetPathRoot(mp4) ?? string.Empty);
+				if (_config.IsDeleteAfterConvert)
 				{
-					var args = string.Format(Constants.FFmpegVideoAudioConvert, extract.OutputVideo, extract.OutputAudio, mp4);
-
-					var task = new FFmpegTaskViewModel(args);
-					await _taskList.AddTaskAsync(task, Path.GetPathRoot(mp4) ?? string.Empty);
-					_taskList.RemoveTask(task);
-
-					if (_config.IsDeleteAfterConvert)
-					{
-						FileUtils.DeleteWithoutException(flv);
-					}
-				}
-				finally
-				{
-					FileUtils.DeleteWithoutException(extract.OutputVideo);
-					FileUtils.DeleteWithoutException(extract.OutputAudio);
+					FileUtils.DeleteWithoutException(flv);
 				}
 			}
 			catch (Exception ex)

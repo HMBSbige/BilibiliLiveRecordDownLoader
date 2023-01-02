@@ -64,7 +64,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 		public bool IsDelete { get; set; }
 
 		[Reactive]
-		public bool IsFlvFixConvert { get; set; } = true;
+		public bool IsFlvFixConvert { get; set; }
 
 		#endregion
 

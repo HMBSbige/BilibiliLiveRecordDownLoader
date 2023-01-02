@@ -85,8 +85,8 @@
                                              OffContent="转换完成后删除原文件" />
                             <ui:ToggleSwitch x:Name="IsFlvFixConvertToggleSwitch"
                                              d:IsOn="True"
-                                             OnContent="修复时间戳(仅支持 FLV)"
-                                             OffContent="修复时间戳(仅支持 FLV)" />
+                                             OnContent="尝试修复时间戳(仅支持 FLV)"
+                                             OffContent="尝试修复时间戳(仅支持 FLV)" />
                         </ui:SimpleStackPanel>
                         <TextBox Grid.Row="0" Grid.Column="0" x:Name="ConvertInputTextBox" d:Text="114514" IsReadOnly="True" Margin="0,5,5,5" />
                         <TextBox Grid.Row="1" Grid.Column="0" x:Name="ConvertOutputTextBox" d:Text="1919810" Margin="0,5,5,5" />
