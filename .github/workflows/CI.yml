@@ -126,7 +126,7 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          name: ${{ env.ProjectName }} V${{ github.ref_name }}
+          name: v${{ github.ref_name }}
           prerelease: true
           draft: false
           artifacts: C:\builtfiles\*
