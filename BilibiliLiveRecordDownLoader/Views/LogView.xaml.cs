@@ -1,7 +1,6 @@
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI;
-using System;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 
@@ -19,7 +18,7 @@ namespace BilibiliLiveRecordDownLoader.Views
 			this.WhenActivated(d =>
 			{
 				LogTextBox.Clear();
-				memorySink.LogSubject.ObserveOnDispatcher().Subscribe(str => LogTextBox.AppendText(str)).DisposeWith(d);
+				memorySink.LogSubject.ObserveOn(RxApp.MainThreadScheduler).Subscribe(str => LogTextBox.AppendText(str)).DisposeWith(d);
 			});
 		}
 	}

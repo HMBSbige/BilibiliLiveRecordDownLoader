@@ -86,7 +86,7 @@ public partial class MainWindow
 
 			MessageBus.Current.Listen<RoomStatus>()
 				.Where(room => room.LiveStatus == LiveStatus.直播)
-				.ObserveOnDispatcher()
+				.ObserveOn(RxApp.MainThreadScheduler)
 				.Subscribe(room => NotifyIcon.ShowBalloonTip($@"{room.UserName} 开播了！", room.Title, BalloonIcon.Info)).DisposeWith(d);
 
 			#region CloseReasonHack

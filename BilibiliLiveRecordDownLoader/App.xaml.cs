@@ -1,12 +1,10 @@
 using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Utils;
 using ReactiveMarbles.ObservableEvents;
+using ReactiveUI;
 using Serilog;
 using SingleInstance;
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Reactive.Linq;
 using System.Windows;
 
@@ -50,7 +48,7 @@ namespace BilibiliLiveRecordDownLoader
 				return;
 			}
 
-			_singleInstance.ArgumentsReceived.ObserveOnDispatcher().Subscribe(SingleInstance_ArgumentsReceived);
+			_singleInstance.ArgumentsReceived.ObserveOn(RxApp.MainThreadScheduler).Subscribe(SingleInstance_ArgumentsReceived);
 			_singleInstance.ListenForArgumentsFromSuccessiveInstances();
 
 			DI.Register();

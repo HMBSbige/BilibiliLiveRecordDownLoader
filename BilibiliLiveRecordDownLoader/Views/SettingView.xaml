@@ -35,18 +35,6 @@
                         <Button x:Name="OpenMainDirButton" Grid.Row="1" Grid.Column="1" Margin="0,3,0,5" Content="打开目录" />
                     </Grid>
                 </GroupBox>
-                <GroupBox Header="直播回放"
-                                  HorizontalAlignment="Left">
-                    <ui:NumberBox x:Name="ThreadsTextBox"
-                                  Description="1-128"
-                                  Header="下载线程数："
-                                  Maximum="128"
-                                  Minimum="1"
-                                  SpinButtonPlacementMode="Compact"
-                                  PlaceholderText="8"
-                                  SmallChange="1"
-                                  LargeChange="10" />
-                </GroupBox>
                 <GroupBox Header="直播录制">
                     <StackPanel>
                         <ui:ToggleSwitch x:Name="IsAutoConvertMp4Switch"

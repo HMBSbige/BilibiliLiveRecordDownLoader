@@ -53,7 +53,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			_config = config;
 
 			_roomList.Connect()
-					.ObserveOnDispatcher()
+					.ObserveOn(RxApp.MainThreadScheduler)
 					.Bind(out RoomList)
 					.DisposeMany()
 					.Subscribe(RoomListChanged);

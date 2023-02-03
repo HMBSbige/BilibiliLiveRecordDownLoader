@@ -45,7 +45,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels
 			_taskQueue = taskQueue;
 
 			_taskSourceList.Connect()
-					.ObserveOnDispatcher()
+					.ObserveOn(RxApp.MainThreadScheduler)
 					.Bind(out TaskList)
 					.DisposeMany()
 					.Subscribe();

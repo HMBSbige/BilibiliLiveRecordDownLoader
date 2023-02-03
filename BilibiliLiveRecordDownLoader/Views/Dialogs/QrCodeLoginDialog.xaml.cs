@@ -41,7 +41,7 @@ namespace BilibiliLiveRecordDownLoader.Views.Dialogs
 		private IDisposable CreateMonitor()
 		{
 			return Observable.Interval(TimeSpan.FromSeconds(3))
-				.ObserveOnDispatcher()
+				.ObserveOn(RxApp.MainThreadScheduler)
 				.SelectMany(Async)
 				.Subscribe();
 

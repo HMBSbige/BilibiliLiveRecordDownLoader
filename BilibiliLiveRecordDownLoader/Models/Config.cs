@@ -15,7 +15,6 @@ public class Config : ReactiveObject
 	#region 默认值
 
 	public static string DefaultMainDir => Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
-	public const byte DefaultDownloadThreads = 8;
 	public const bool DefaultIsCheckUpdateOnStart = true;
 	public const double DefaultMainWindowsWidth = 1280.0;
 	public const double DefaultMainWindowsHeight = 720.0;
@@ -31,15 +30,6 @@ public class Config : ReactiveObject
 
 	[Reactive]
 	public string MainDir { get; set; } = DefaultMainDir;
-
-	[DefaultValue(DefaultDownloadThreads)]
-	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-	public byte DownloadThreads
-	{
-		get => Math.Clamp(_downloadThreads, (byte)1, (byte)128);
-		set => this.RaiseAndSetIfChanged(ref _downloadThreads, value);
-	}
-	private byte _downloadThreads = DefaultDownloadThreads;
 
 	[DefaultValue(DefaultIsCheckUpdateOnStart)]
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -111,7 +101,6 @@ public class Config : ReactiveObject
 	public void Clone(Config config)
 	{
 		MainDir = config.MainDir;
-		DownloadThreads = config.DownloadThreads;
 		IsCheckUpdateOnStart = config.IsCheckUpdateOnStart;
 		IsCheckPreRelease = config.IsCheckPreRelease;
 		MainWindowsWidth = config.MainWindowsWidth;
