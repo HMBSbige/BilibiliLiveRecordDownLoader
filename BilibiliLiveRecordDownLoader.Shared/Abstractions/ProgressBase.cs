@@ -29,10 +29,10 @@ public abstract class ProgressBase : IProgress
 
 	protected IDisposable CreateSpeedMonitor()
 	{
-		var sw = Stopwatch.StartNew();
+		Stopwatch sw = Stopwatch.StartNew();
 		return Observable.Interval(TimeSpan.FromSeconds(1)).Subscribe(_ =>
 		{
-			var last = Interlocked.Read(ref Last);
+			long last = Interlocked.Read(ref Last);
 			CurrentSpeedSubject.OnNext(last / sw.Elapsed.TotalSeconds);
 			sw.Restart();
 			Interlocked.Add(ref Last, -last);

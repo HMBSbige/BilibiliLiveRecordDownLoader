@@ -30,10 +30,10 @@ public class UnitTest
 		var outFile = Path.Combine(path, filename);
 		try
 		{
-			var client = HttpClientUtils.BuildClientForMultiThreadedDownloader(default, string.Empty, new SocketsHttpHandler());
-			await using var downloader = new MultiThreadedDownloader(NullLogger<MultiThreadedDownloader>.Instance, client)
+			HttpClient client = HttpClientUtils.BuildClientForMultiThreadedDownloader(default, string.Empty, new SocketsHttpHandler());
+			await using MultiThreadedDownloader downloader = new(NullLogger<MultiThreadedDownloader>.Instance, client)
 			{
-				Target = new(url),
+				Target = new Uri(url),
 				Threads = 4,
 				OutFileName = outFile,
 				TempDir = path
@@ -49,7 +49,7 @@ public class UnitTest
 
 			return outFile;
 		}
-		catch (Exception)
+		catch
 		{
 			File.Delete(outFile);
 			throw;
@@ -89,16 +89,16 @@ public class UnitTest
 	public async Task DownloadTestAsync()
 	{
 		const string url = @"https://www.mediacollege.com/video-gallery/testclips/4sec.flv";
-		var filename = Path.ChangeExtension(Path.GetRandomFileName(), @"flv");
+		string filename = Path.ChangeExtension(Path.GetRandomFileName(), @"flv");
 		const string sha256 = @"9657166E7865880954FD6BEE8A7F9E2BBF2F32D7729BB8184A2AA2BA1261FAB6";
-		var path = Path.GetTempPath();
-		var outFile = Path.Combine(path, filename);
+		string path = Path.GetTempPath();
+		string outFile = Path.Combine(path, filename);
 		try
 		{
-			var client = HttpClientUtils.BuildClientForBilibili(string.Empty, default, new SocketsHttpHandler());
-			await using var downloader = new HttpDownloader(client)
+			HttpClient client = HttpClientUtils.BuildClientForBilibili(string.Empty, default, new SocketsHttpHandler());
+			await using HttpDownloader downloader = new(client)
 			{
-				Target = new(url),
+				Target = new Uri(url),
 				OutFileName = outFile
 			};
 
@@ -108,11 +108,6 @@ public class UnitTest
 
 			Assert.IsTrue(File.Exists(outFile));
 			Assert.AreEqual(await CalculateSHA256Async(outFile), sha256);
-		}
-		catch (Exception)
-		{
-			File.Delete(outFile);
-			throw;
 		}
 		finally
 		{
