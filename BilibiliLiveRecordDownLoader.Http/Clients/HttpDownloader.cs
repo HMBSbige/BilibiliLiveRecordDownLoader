@@ -26,7 +26,7 @@ public class HttpDownloader : ProgressBase, IDownloader, IHttpClient
 	}
 
 	[MemberNotNull(nameof(_netStream))]
-	public async Task GetStreamAsync(CancellationToken token)
+	public async ValueTask GetStreamAsync(CancellationToken token)
 	{
 		_netStream = await Client.GetStreamAsync(Target, token);
 	}
@@ -78,7 +78,7 @@ public class HttpDownloader : ProgressBase, IDownloader, IHttpClient
 		}
 	}
 
-	private async Task CopyToWithProgressAsync(Stream from, PipeWriter to, CancellationToken cancellationToken)
+	private async ValueTask CopyToWithProgressAsync(Stream from, PipeWriter to, CancellationToken cancellationToken)
 	{
 		const int bufferSize = 81920;
 		using IMemoryOwner<byte> memory = MemoryPool<byte>.Shared.Rent(bufferSize);

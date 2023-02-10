@@ -1,6 +1,7 @@
 using BilibiliApi.Clients;
 using BilibiliApi.Enums;
 using BilibiliApi.Model.Danmu;
+using BilibiliApi.Model.PlayUrl;
 using BilibiliApi.Model.RoomInfo;
 using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Enums;
@@ -291,23 +292,23 @@ public class RoomStatus : ReactiveObject
 				try
 				{
 					RecordStatus = RecordStatus.启动中;
-					var urlData = await _apiClient.GetPlayUrlDataAsync(RoomId, (long)Qn, token);
-					var url = urlData.durl!.First().url;
+					PlayUrlData urlData = await _apiClient.GetPlayUrlDataAsync(RoomId, (long)Qn, token);
+					string? url = urlData.durl!.First().url;
 
-					await using var downloader = DI.GetRequiredService<HttpDownloader>();
-					downloader.Target = new(url!);
+					await using HttpDownloader downloader = DI.GetRequiredService<HttpDownloader>();
+					downloader.Target = new Uri(url!);
 					downloader.Client.Timeout = TimeSpan.FromSeconds(StreamConnectTimeout);
 
 					await downloader.GetStreamAsync(token);
 					RecordStatus = RecordStatus.录制中;
-					var flv = Path.Combine(_config.MainDir, $@"{RoomId}", $@"{DateTime.Now:yyyyMMdd_HHmmss}.flv");
+					string flv = Path.Combine(_config.MainDir, $@"{RoomId}", $@"{DateTime.Now:yyyyMMdd_HHmmss}.flv");
 					downloader.OutFileName = flv;
 					_logger.LogInformation($@"[{RoomId}] 开始录制");
-					var lastDataReceivedTime = DateTime.Now;
-					var speedMonitor = downloader.CurrentSpeed.Subscribe(b =>
+					DateTime lastDataReceivedTime = DateTime.Now;
+					IDisposable speedMonitor = downloader.CurrentSpeed.Subscribe(b =>
 					{
 						Speed = $@"{b.ToHumanBytesString()}/s";
-						var now = DateTime.Now;
+						DateTime now = DateTime.Now;
 						if (b > 0.0)
 						{
 							lastDataReceivedTime = now;

@@ -17,7 +17,7 @@ public static class Utils
 		const ulong step4 = (ulong)step3 * step;
 		const ulong step5 = step4 * step;
 		const ulong step6 = step5 * step;
-		var mStrSize = size switch
+		string mStrSize = size switch
 		{
 			0.0 => $@"{size:F2} Byte",
 			> 0.0 and < step => $@"{size:F2} Bytes",

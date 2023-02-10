@@ -40,7 +40,7 @@ public partial class MainWindow
 				{
 					if (parameter.args.IsSettingsSelected)
 					{
-						ViewModel.Router.NavigateAndReset.Execute(settings);
+						ViewModel.Router.NavigateAndReset.Execute(settings).Subscribe();
 						return;
 					}
 
@@ -53,27 +53,27 @@ public partial class MainWindow
 					{
 						case @"2":
 						{
-							ViewModel.Router.NavigateAndReset.Execute(taskList);
+							ViewModel.Router.NavigateAndReset.Execute(taskList).Subscribe();
 							break;
 						}
 						case @"3":
 						{
-							ViewModel.Router.NavigateAndReset.Execute(log);
+							ViewModel.Router.NavigateAndReset.Execute(log).Subscribe();
 							break;
 						}
 						case @"4":
 						{
-							ViewModel.Router.NavigateAndReset.Execute(streamRecord);
+							ViewModel.Router.NavigateAndReset.Execute(streamRecord).Subscribe();
 							break;
 						}
 						case @"5":
 						{
-							ViewModel.Router.NavigateAndReset.Execute(userSettings);
+							ViewModel.Router.NavigateAndReset.Execute(userSettings).Subscribe();
 							break;
 						}
 						case @"6":
 						{
-							ViewModel.Router.NavigateAndReset.Execute(ffmpegCommand);
+							ViewModel.Router.NavigateAndReset.Execute(ffmpegCommand).Subscribe();
 							break;
 						}
 					}
