@@ -1,48 +1,47 @@
-namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models
+namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models;
+
+public sealed record FractionUInt32
 {
-	public sealed record FractionUInt32
+	public uint N { get; private set; }
+	public uint D { get; private set; }
+
+	public FractionUInt32(uint n, uint d)
 	{
-		public uint N { get; private set; }
-		public uint D { get; private set; }
+		N = n;
+		D = d;
+		Reduce();
+	}
 
-		public FractionUInt32(uint n, uint d)
+	private static uint Gcd(uint left, uint right)
+	{
+		// Executes the classic Euclidean algorithm.
+
+		// https://en.wikipedia.org/wiki/Euclidean_algorithm
+
+		while (right != 0)
 		{
-			N = n;
-			D = d;
-			Reduce();
+			var temp = left % right;
+			left = right;
+			right = temp;
 		}
 
-		private static uint Gcd(uint left, uint right)
-		{
-			// Executes the classic Euclidean algorithm.
+		return left;
+	}
 
-			// https://en.wikipedia.org/wiki/Euclidean_algorithm
+	private double ToDouble()
+	{
+		return (double)N / D;
+	}
 
-			while (right != 0)
-			{
-				var temp = left % right;
-				left = right;
-				right = temp;
-			}
+	private void Reduce()
+	{
+		var gcd = Gcd(N, D);
+		N /= gcd;
+		D /= gcd;
+	}
 
-			return left;
-		}
-
-		private double ToDouble()
-		{
-			return (double)N / D;
-		}
-
-		private void Reduce()
-		{
-			var gcd = Gcd(N, D);
-			N /= gcd;
-			D /= gcd;
-		}
-
-		public override string ToString()
-		{
-			return $@"{ToDouble()} ({N}/{D})";
-		}
+	public override string ToString()
+	{
+		return $@"{ToDouble()} ({N}/{D})";
 	}
 }

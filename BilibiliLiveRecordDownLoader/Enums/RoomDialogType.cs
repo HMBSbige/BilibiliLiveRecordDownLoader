@@ -1,8 +1,7 @@
-namespace BilibiliLiveRecordDownLoader.Enums
+namespace BilibiliLiveRecordDownLoader.Enums;
+
+public enum RoomDialogType
 {
-	public enum RoomDialogType
-	{
-		Add,
-		Modify
-	}
+	Add,
+	Modify
 }

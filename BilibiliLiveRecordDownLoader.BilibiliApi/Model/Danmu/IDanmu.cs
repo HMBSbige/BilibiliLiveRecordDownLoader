@@ -1,9 +1,8 @@
 using BilibiliApi.Enums;
 
-namespace BilibiliApi.Model.Danmu
+namespace BilibiliApi.Model.Danmu;
+
+public interface IDanmu
 {
-	public interface IDanmu
-	{
-		DanmuCommand Cmd { get; set; }
-	}
+	DanmuCommand Cmd { get; set; }
 }

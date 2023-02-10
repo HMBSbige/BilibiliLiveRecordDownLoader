@@ -1,9 +1,6 @@
-using System.Net.Http;
+namespace BilibiliLiveRecordDownLoader.Shared.Interfaces;
 
-namespace BilibiliLiveRecordDownLoader.Shared.Interfaces
+public interface IHttpClient
 {
-	public interface IHttpClient
-	{
-		HttpClient Client { get; set; }
-	}
+	HttpClient Client { get; set; }
 }

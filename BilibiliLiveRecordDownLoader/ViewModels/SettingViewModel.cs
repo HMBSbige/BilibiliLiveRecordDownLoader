@@ -10,224 +10,220 @@ using ModernWpf.Controls;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using RunAtStartup;
-using System;
 using System.Reactive;
 using System.Reactive.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 using UpdateChecker;
 
-namespace BilibiliLiveRecordDownLoader.ViewModels
+namespace BilibiliLiveRecordDownLoader.ViewModels;
+
+public class SettingViewModel : ReactiveObject, IRoutableViewModel
 {
-	public class SettingViewModel : ReactiveObject, IRoutableViewModel
+	public string UrlPathSegment => @"Settings";
+
+	public IScreen HostScreen { get; }
+
+	#region 属性
+
+	[Reactive]
+	public string? DiskUsageProgressBarText { get; set; }
+
+	[Reactive]
+	public double DiskUsageProgressBarValue { get; set; }
+
+	[Reactive]
+	public string? UpdateStatus { get; set; }
+
+	[Reactive]
+	public bool IsRunOnStartup { get; set; }
+
+	#endregion
+
+	#region Command
+
+	public ReactiveCommand<Unit, Unit> SelectMainDirCommand { get; }
+	public ReactiveCommand<Unit, Unit> OpenMainDirCommand { get; }
+	public ReactiveCommand<Unit, Unit> CheckUpdateCommand { get; }
+
+	#endregion
+
+	private readonly ILogger _logger;
+	private readonly IConfigService _configService;
+	private readonly SourceList<RoomStatus> _roomList;
+	private readonly StartupService _startup;
+
+	public readonly Config Config;
+	private readonly string _startUpData = $@"""{Utils.Utils.GetExecutablePath()}"" {Constants.ParameterSilent}";
+
+	public SettingViewModel(
+		IScreen hostScreen,
+		ILogger<SettingViewModel> logger,
+		IConfigService configService,
+		Config config,
+		SourceList<RoomStatus> roomList,
+		StartupService startup)
 	{
-		public string UrlPathSegment => @"Settings";
+		HostScreen = hostScreen;
+		_logger = logger;
+		_configService = configService;
+		Config = config;
+		_roomList = roomList;
+		_startup = startup;
 
-		public IScreen HostScreen { get; }
+		SelectMainDirCommand = ReactiveCommand.Create(SelectDirectory);
+		OpenMainDirCommand = ReactiveCommand.CreateFromObservable(OpenDirectory);
+		CheckUpdateCommand = ReactiveCommand.CreateFromTask(CheckUpdateAsync);
 
-		#region 属性
+		InitAsync().Forget();
+	}
 
-		[Reactive]
-		public string? DiskUsageProgressBarText { get; set; }
+	private async ValueTask InitAsync()
+	{
+		await _configService.LoadAsync(default);
+		await Task.Delay(TimeSpan.FromSeconds(1)); // Wait apiClient to load settings
 
-		[Reactive]
-		public double DiskUsageProgressBarValue { get; set; }
+		_roomList.AddRange(Config.Rooms);
 
-		[Reactive]
-		public string? UpdateStatus { get; set; }
-
-		[Reactive]
-		public bool IsRunOnStartup { get; set; }
-
-		#endregion
-
-		#region Command
-
-		public ReactiveCommand<Unit, Unit> SelectMainDirCommand { get; }
-		public ReactiveCommand<Unit, Unit> OpenMainDirCommand { get; }
-		public ReactiveCommand<Unit, Unit> CheckUpdateCommand { get; }
-
-		#endregion
-
-		private readonly ILogger _logger;
-		private readonly IConfigService _configService;
-		private readonly SourceList<RoomStatus> _roomList;
-		private readonly StartupService _startup;
-
-		public readonly Config Config;
-		private readonly string _startUpData = $@"""{Utils.Utils.GetExecutablePath()}"" {Constants.ParameterSilent}";
-
-		public SettingViewModel(
-			IScreen hostScreen,
-			ILogger<SettingViewModel> logger,
-			IConfigService configService,
-			Config config,
-			SourceList<RoomStatus> roomList,
-			StartupService startup)
+		if (Config.IsCheckUpdateOnStart)
 		{
-			HostScreen = hostScreen;
-			_logger = logger;
-			_configService = configService;
-			Config = config;
-			_roomList = roomList;
-			_startup = startup;
-
-			SelectMainDirCommand = ReactiveCommand.Create(SelectDirectory);
-			OpenMainDirCommand = ReactiveCommand.CreateFromObservable(OpenDirectory);
-			CheckUpdateCommand = ReactiveCommand.CreateFromTask(CheckUpdateAsync);
-
-			InitAsync().Forget();
+			await CheckUpdateCommand.Execute();
 		}
+	}
 
-		private async ValueTask InitAsync()
+	private void SelectDirectory()
+	{
+		var dlg = new FolderBrowserDialog
 		{
-			await _configService.LoadAsync(default);
-			await Task.Delay(TimeSpan.FromSeconds(1)); // Wait apiClient to load settings
-
-			_roomList.AddRange(Config.Rooms);
-
-			if (Config.IsCheckUpdateOnStart)
-			{
-				await CheckUpdateCommand.Execute();
-			}
+			SelectedPath = Config.MainDir
+		};
+		if (dlg.ShowDialog() is DialogResult.OK)
+		{
+			Config.MainDir = dlg.SelectedPath;
 		}
+	}
 
-		private void SelectDirectory()
+	private IObservable<Unit> OpenDirectory()
+	{
+		return Observable.Start(() =>
 		{
-			var dlg = new FolderBrowserDialog
-			{
-				SelectedPath = Config.MainDir
-			};
-			if (dlg.ShowDialog() is DialogResult.OK)
-			{
-				Config.MainDir = dlg.SelectedPath;
-			}
-		}
+			Utils.Utils.OpenDir(Config.MainDir);
+			return Unit.Default;
+		});
+	}
 
-		private IObservable<Unit> OpenDirectory()
+	private async Task CheckUpdateAsync(CancellationToken token)
+	{
+		try
 		{
-			return Observable.Start(() =>
+			UpdateStatus = @"正在检查更新...";
+			var version = Utils.Utils.GetAppVersion()!;
+			var updateChecker = new GitHubReleasesUpdateChecker(
+				@"HMBSbige",
+				@"BilibiliLiveRecordDownLoader",
+				Config.IsCheckPreRelease,
+				version
+			);
+			if (await updateChecker.CheckAsync(HttpClientUtils.BuildClient(Config.Cookie, Config.UserAgent, Config.HttpHandler), token))
 			{
-				Utils.Utils.OpenDir(Config.MainDir);
-				return Unit.Default;
-			});
-		}
-
-		private async Task CheckUpdateAsync(CancellationToken token)
-		{
-			try
-			{
-				UpdateStatus = @"正在检查更新...";
-				var version = Utils.Utils.GetAppVersion()!;
-				var updateChecker = new GitHubReleasesUpdateChecker(
-						@"HMBSbige",
-						@"BilibiliLiveRecordDownLoader",
-						Config.IsCheckPreRelease,
-						version
-				);
-				if (await updateChecker.CheckAsync(HttpClientUtils.BuildClient(Config.Cookie, Config.UserAgent, Config.HttpHandler), token))
+				if (updateChecker.LatestVersionUrl is null)
 				{
-					if (updateChecker.LatestVersionUrl is null)
-					{
-						UpdateStatus = @"更新地址获取出错";
-						return;
-					}
-
-					UpdateStatus = $@"发现新版本：{updateChecker.LatestVersion}";
-					using var dialog = new DisposableContentDialog
-					{
-						Title = UpdateStatus,
-						Content = @"是否跳转到下载页？",
-						PrimaryButtonText = @"是",
-						SecondaryButtonText = @"否",
-						DefaultButton = ContentDialogButton.Primary
-					};
-					if (await dialog.SafeShowAsync() == ContentDialogResult.Primary)
-					{
-						Utils.Utils.OpenUrl(updateChecker.LatestVersionUrl);
-					}
+					UpdateStatus = @"更新地址获取出错";
+					return;
 				}
-				else
+
+				UpdateStatus = $@"发现新版本：{updateChecker.LatestVersion}";
+				using var dialog = new DisposableContentDialog
 				{
-					UpdateStatus = $@"没有找到新版本：{version} ≥ {updateChecker.LatestVersion}";
+					Title = UpdateStatus,
+					Content = @"是否跳转到下载页？",
+					PrimaryButtonText = @"是",
+					SecondaryButtonText = @"否",
+					DefaultButton = ContentDialogButton.Primary
+				};
+				if (await dialog.SafeShowAsync() == ContentDialogResult.Primary)
+				{
+					Utils.Utils.OpenUrl(updateChecker.LatestVersionUrl);
 				}
-			}
-			catch (Exception ex)
-			{
-				UpdateStatus = @"检查更新出错";
-				_logger.LogError(ex, UpdateStatus);
-			}
-		}
-
-		public IDisposable CreateDiskMonitor()
-		{
-			return Observable.Interval(TimeSpan.FromSeconds(1), RxApp.MainThreadScheduler).Subscribe(GetDiskUsage);
-		}
-
-		private void GetDiskUsage(long _)
-		{
-			var (availableFreeSpace, totalSize, totalFree) = FileUtils.GetDiskUsage(Config.MainDir);
-			if (totalSize != 0)
-			{
-				var usedSize = totalSize - totalFree;
-				DiskUsageProgressBarText = $@"已使用 {usedSize.ToHumanBytesString()}/{totalSize.ToHumanBytesString()} 剩余可用 {availableFreeSpace.ToHumanBytesString()}";
-				var percentage = usedSize / (double)totalSize;
-				DiskUsageProgressBarValue = percentage * 100;
 			}
 			else
 			{
-				DiskUsageProgressBarText = string.Empty;
-				DiskUsageProgressBarValue = 0;
+				UpdateStatus = $@"没有找到新版本：{version} ≥ {updateChecker.LatestVersion}";
 			}
 		}
-
-		public void CheckStartupStatus()
+		catch (Exception ex)
 		{
-			try
-			{
-				IsRunOnStartup = _startup.Check(_startUpData);
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, @"检查自启动状态失败");
-			}
+			UpdateStatus = @"检查更新出错";
+			_logger.LogError(ex, UpdateStatus);
 		}
+	}
 
-		private void SetStartup()
+	public IDisposable CreateDiskMonitor()
+	{
+		return Observable.Interval(TimeSpan.FromSeconds(1), RxApp.MainThreadScheduler).Subscribe(GetDiskUsage);
+	}
+
+	private void GetDiskUsage(long _)
+	{
+		var (availableFreeSpace, totalSize, totalFree) = FileUtils.GetDiskUsage(Config.MainDir);
+		if (totalSize != 0)
 		{
-			try
-			{
-				_startup.Set(_startUpData);
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, @"设置自启动失败");
-			}
+			var usedSize = totalSize - totalFree;
+			DiskUsageProgressBarText = $@"已使用 {usedSize.ToHumanBytesString()}/{totalSize.ToHumanBytesString()} 剩余可用 {availableFreeSpace.ToHumanBytesString()}";
+			var percentage = usedSize / (double)totalSize;
+			DiskUsageProgressBarValue = percentage * 100;
 		}
-
-		private void RemoveStartup()
+		else
 		{
-			try
-			{
-				_startup.Delete();
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, @"取消自启动失败");
-			}
+			DiskUsageProgressBarText = string.Empty;
+			DiskUsageProgressBarValue = 0;
 		}
+	}
 
-		public void SwitchStartup(bool enable)
+	public void CheckStartupStatus()
+	{
+		try
 		{
-			if (enable)
-			{
-				SetStartup();
-			}
-			else
-			{
-				RemoveStartup();
-			}
+			IsRunOnStartup = _startup.Check(_startUpData);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, @"检查自启动状态失败");
+		}
+	}
+
+	private void SetStartup()
+	{
+		try
+		{
+			_startup.Set(_startUpData);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, @"设置自启动失败");
+		}
+	}
+
+	private void RemoveStartup()
+	{
+		try
+		{
+			_startup.Delete();
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, @"取消自启动失败");
+		}
+	}
+
+	public void SwitchStartup(bool enable)
+	{
+		if (enable)
+		{
+			SetStartup();
+		}
+		else
+		{
+			RemoveStartup();
 		}
 	}
 }

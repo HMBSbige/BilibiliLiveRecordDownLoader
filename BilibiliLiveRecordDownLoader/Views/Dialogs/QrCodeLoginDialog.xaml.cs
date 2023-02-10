@@ -9,73 +9,72 @@ using System.Net.Http;
 using System.Reactive;
 using System.Reactive.Linq;
 
-namespace BilibiliLiveRecordDownLoader.Views.Dialogs
+namespace BilibiliLiveRecordDownLoader.Views.Dialogs;
+
+public partial class QrCodeLoginDialog
 {
-	public partial class QrCodeLoginDialog
+	private readonly IDisposable _loginInfoMonitor;
+	private readonly ILogger _logger;
+	private readonly BilibiliApiClient _apiClient;
+	private readonly GetLoginUrlData _data;
+
+	public string? Cookie { get; private set; }
+
+	public QrCodeLoginDialog(GetLoginUrlData data)
 	{
-		private readonly IDisposable _loginInfoMonitor;
-		private readonly ILogger _logger;
-		private readonly BilibiliApiClient _apiClient;
-		private readonly GetLoginUrlData _data;
+		_logger = DI.GetLogger<QrCodeLoginDialog>();
+		_apiClient = DI.GetRequiredService<BilibiliApiClient>();
+		_data = data;
 
-		public string? Cookie { get; private set; }
+		InitializeComponent();
 
-		public QrCodeLoginDialog(GetLoginUrlData data)
+		using var qrGenerator = new QRCodeGenerator();
+		using var qrCodeData = qrGenerator.CreateQrCode(data.url, QRCodeGenerator.ECCLevel.H, true);
+		using var qrCode = new XamlQRCode(qrCodeData);
+		QrCodeImage.Source = qrCode.GetGraphic(20);
+
+		_loginInfoMonitor = CreateMonitor();
+
+		PrimaryButtonCommand = ReactiveCommand.CreateFromTask(GetLoginInfoAsync);
+	}
+
+	private IDisposable CreateMonitor()
+	{
+		return Observable.Interval(TimeSpan.FromSeconds(3))
+			.ObserveOn(RxApp.MainThreadScheduler)
+			.SelectMany(Async)
+			.Subscribe();
+
+		async Task<Unit> Async(long i)
 		{
-			_logger = DI.GetLogger<QrCodeLoginDialog>();
-			_apiClient = DI.GetRequiredService<BilibiliApiClient>();
-			_data = data;
-
-			InitializeComponent();
-
-			using var qrGenerator = new QRCodeGenerator();
-			using var qrCodeData = qrGenerator.CreateQrCode(data.url, QRCodeGenerator.ECCLevel.H, true);
-			using var qrCode = new XamlQRCode(qrCodeData);
-			QrCodeImage.Source = qrCode.GetGraphic(20);
-
-			_loginInfoMonitor = CreateMonitor();
-
-			PrimaryButtonCommand = ReactiveCommand.CreateFromTask(GetLoginInfoAsync);
+			await GetLoginInfoAsync();
+			return default;
 		}
+	}
 
-		private IDisposable CreateMonitor()
+	private async Task GetLoginInfoAsync()
+	{
+		try
 		{
-			return Observable.Interval(TimeSpan.FromSeconds(3))
-				.ObserveOn(RxApp.MainThreadScheduler)
-				.SelectMany(Async)
-				.Subscribe();
-
-			async Task<Unit> Async(long i)
+			Cookie = await _apiClient.GetLoginInfoAsync(_data.oauthKey!);
+			if (!string.IsNullOrEmpty(Cookie))
 			{
-				await GetLoginInfoAsync();
-				return default;
+				Dispose();
 			}
 		}
-
-		private async Task GetLoginInfoAsync()
+		catch (HttpRequestException ex)
 		{
-			try
-			{
-				Cookie = await _apiClient.GetLoginInfoAsync(_data.oauthKey!);
-				if (!string.IsNullOrEmpty(Cookie))
-				{
-					Dispose();
-				}
-			}
-			catch (HttpRequestException ex)
-			{
-				_logger.LogDebug(ex.Message);
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, @"获取登录信息失败");
-			}
+			_logger.LogDebug(ex.Message);
 		}
-
-		public override void Dispose()
+		catch (Exception ex)
 		{
-			_loginInfoMonitor.Dispose();
-			base.Dispose();
+			_logger.LogError(ex, @"获取登录信息失败");
 		}
+	}
+
+	public override void Dispose()
+	{
+		_loginInfoMonitor.Dispose();
+		base.Dispose();
 	}
 }

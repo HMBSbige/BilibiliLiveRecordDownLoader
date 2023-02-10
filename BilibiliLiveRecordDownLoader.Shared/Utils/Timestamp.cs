@@ -1,17 +1,14 @@
-using System;
+namespace BilibiliLiveRecordDownLoader.Shared.Utils;
 
-namespace BilibiliLiveRecordDownLoader.Shared.Utils
+public static class Timestamp
 {
-	public static class Timestamp
+	public static long GetTimestamp(DateTime time)
 	{
-		public static long GetTimestamp(DateTime time)
-		{
-			return new DateTimeOffset(time).ToUnixTimeSeconds();
-		}
+		return new DateTimeOffset(time).ToUnixTimeSeconds();
+	}
 
-		public static DateTime GetTime(long timeStamp)
-		{
-			return DateTimeOffset.FromUnixTimeSeconds(timeStamp).DateTime;
-		}
+	public static DateTime GetTime(long timeStamp)
+	{
+		return DateTimeOffset.FromUnixTimeSeconds(timeStamp).DateTime;
 	}
 }

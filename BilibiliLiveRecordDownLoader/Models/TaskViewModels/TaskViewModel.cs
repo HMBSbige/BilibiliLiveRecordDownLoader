@@ -1,30 +1,28 @@
 using BilibiliLiveRecordDownLoader.Interfaces;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
-using System.Threading.Tasks;
 
-namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels
+namespace BilibiliLiveRecordDownLoader.Models.TaskViewModels;
+
+public abstract class TaskViewModel : ReactiveObject, ITask
 {
-	public abstract class TaskViewModel : ReactiveObject, ITask
-	{
-		#region 属性
+	#region 属性
 
-		[Reactive]
-		public string? Description { get; set; }
+	[Reactive]
+	public string? Description { get; set; }
 
-		[Reactive]
-		public double Progress { get; set; }
+	[Reactive]
+	public double Progress { get; set; }
 
-		[Reactive]
-		public string? Speed { get; set; }
+	[Reactive]
+	public string? Speed { get; set; }
 
-		[Reactive]
-		public string Status { get; set; } = @"未开始";
+	[Reactive]
+	public string Status { get; set; } = @"未开始";
 
-		#endregion
+	#endregion
 
-		public abstract Task StartAsync();
+	public abstract Task StartAsync();
 
-		public abstract void Stop();
-	}
+	public abstract void Stop();
 }

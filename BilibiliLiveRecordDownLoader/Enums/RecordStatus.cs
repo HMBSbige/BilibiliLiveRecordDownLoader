@@ -1,9 +1,8 @@
-namespace BilibiliLiveRecordDownLoader.Enums
+namespace BilibiliLiveRecordDownLoader.Enums;
+
+public enum RecordStatus
 {
-	public enum RecordStatus
-	{
-		未录制,
-		启动中,
-		录制中
-	}
+	未录制,
+	启动中,
+	录制中
 }

@@ -1,315 +1,311 @@
 using BilibiliLiveRecordDownLoader.FlvProcessor.Enums;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
-using System;
 using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 
-namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets
+namespace BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets;
+
+public class AMFMetadata : IBytesStruct
 {
-	public class AMFMetadata : IBytesStruct
+	#region Data
+
+	private Dictionary<string, object?> _data;
+	public IDictionary<string, object?> Data => _data;
+
+	#endregion
+
+	public bool UseArray { get; set; }
+
+	public AMFMetadata()
 	{
-		#region Data
-
-		private Dictionary<string, object?> _data;
-		public IDictionary<string, object?> Data => _data;
-
-		#endregion
-
-		public bool UseArray { get; set; }
-
-		public AMFMetadata()
+		_data = new()
 		{
-			_data = new()
+			[@"duration"] = 0.0
+		};
+	}
+
+	public int Size => Count(@"onMetaData") + Count(_data);
+
+	public Memory<byte> ToMemory(Memory<byte> array)
+	{
+		var res = array[..Size];
+
+		var offset = Encode(res.Span, @"onMetaData");
+
+		Encode(res.Span[offset..], _data);
+
+		return res;
+	}
+
+	public void Read(Span<byte> buffer)
+	{
+		buffer = Decode(buffer, out var value);
+		if (value is string name && name == @"onMetaData")
+		{
+			Decode(buffer, out value);
+			if (value is Dictionary<string, object?> d)
 			{
-				[@"duration"] = 0.0
-			};
-		}
-
-		public int Size => Count(@"onMetaData") + Count(_data);
-
-		public Memory<byte> ToMemory(Memory<byte> array)
-		{
-			var res = array.Slice(0, Size);
-
-			var offset = Encode(res.Span, @"onMetaData");
-
-			Encode(res.Span[offset..], _data);
-
-			return res;
-		}
-
-		public void Read(Span<byte> buffer)
-		{
-			buffer = Decode(buffer, out var value);
-			if (value is string name && name == @"onMetaData")
-			{
-				Decode(buffer, out value);
-				if (value is Dictionary<string, object?> d)
+				_data = d;
+				if (!_data.ContainsKey(@"duration"))
 				{
-					_data = d;
-					if (!_data.ContainsKey(@"duration"))
-					{
-						_data[@"duration"] = 0.0;
-					}
-
-					_data.Remove(string.Empty);
-					foreach (var (key, o) in _data.ToArray())
-					{
-						if (o is string str && str.Contains('\0'))
-						{
-							_data[key] = str.Replace("\0", string.Empty);
-						}
-					}
-					return;
+					_data[@"duration"] = 0.0;
 				}
+
+				_data.Remove(string.Empty);
+				foreach (var (key, o) in _data.ToArray())
+				{
+					if (o is string str && str.Contains('\0'))
+					{
+						_data[key] = str.Replace("\0", string.Empty);
+					}
+				}
+				return;
 			}
-			throw new NotSupportedException($@"MetaData parse error: {value}");
 		}
+		throw new NotSupportedException($@"MetaData parse error: {value}");
+	}
 
-		private static Span<byte> DecodeString(Span<byte> buffer, out object value)
+	private static Span<byte> DecodeString(Span<byte> buffer, out object value)
+	{
+		var length = BinaryPrimitives.ReadUInt16BigEndian(buffer);
+		value = Encoding.UTF8.GetString(buffer.Slice(sizeof(ushort), length));
+		buffer = buffer[(length + sizeof(ushort))..];
+		return buffer;
+	}
+
+	private static Span<byte> Decode(Span<byte> buffer, out object? value)
+	{
+		var type = (AMF0)buffer[0];
+		value = null;
+		buffer = buffer[1..];
+
+		switch (type)
 		{
-			var length = BinaryPrimitives.ReadUInt16BigEndian(buffer);
-			value = Encoding.UTF8.GetString(buffer.Slice(sizeof(ushort), length));
-			buffer = buffer[(length + sizeof(ushort))..];
-			return buffer;
-		}
-
-		private static Span<byte> Decode(Span<byte> buffer, out object? value)
-		{
-			var type = (AMF0)buffer[0];
-			value = null;
-			buffer = buffer[1..];
-
-			switch (type)
+			case AMF0.Number:
 			{
-				case AMF0.Number:
-				{
-					value = BinaryPrimitives.ReadDoubleBigEndian(buffer);
-					buffer = buffer[sizeof(double)..];
-					break;
-				}
-				case AMF0.Boolean:
-				{
-					value = Convert.ToBoolean(buffer[0]);
-					buffer = buffer[1..];
-					break;
-				}
-				case AMF0.String:
-				{
-					buffer = DecodeString(buffer, out value);
-					break;
-				}
-				case AMF0.Object:
-				{
-					var o = new Dictionary<string, object?>();
-					while (buffer[0] != 0 || buffer[1] != 0 || buffer[2] != 9)
-					{
-						buffer = DecodeString(buffer, out var key);
-						buffer = Decode(buffer, out var v);
-						o[(string)key] = v;
-					}
-					value = o;
-					buffer = buffer[3..]; // AMF0.ObjectEnd 00 00 09
-					break;
-				}
-				case AMF0.Null:
-				case AMF0.Undefined:
-				{
-					break;
-				}
-				case AMF0.ECMAArray:
-				{
-					buffer = buffer[sizeof(uint)..]; // length
-					goto case AMF0.Object;
-				}
-				case AMF0.StrictArray:
-				{
-					var length = BinaryPrimitives.ReadUInt32BigEndian(buffer);
-					var list = new List<object?>(Math.Max(0, (int)length));
-					for (var i = 0u; i < length; ++i)
-					{
-						buffer = Decode(buffer, out var v);
-						list.Add(v);
-					}
-					value = list;
-					break;
-				}
-				case AMF0.Date:
-				{
-					var datetime = BinaryPrimitives.ReadDoubleBigEndian(buffer);
-					var localDateTimeOffset = BinaryPrimitives.ReadInt16BigEndian(buffer);
-
-					value = DateTime.UnixEpoch.AddMilliseconds(datetime).AddMinutes(-localDateTimeOffset);
-					buffer = buffer[(sizeof(double) + sizeof(short))..];
-					break;
-				}
-				case AMF0.LongString:
-				{
-					var length = BinaryPrimitives.ReadUInt32BigEndian(buffer);
-					if (length > int.MaxValue)
-					{
-						throw new OutOfMemoryException($@"String is too long: {length} > {int.MaxValue}");
-					}
-					value = Encoding.UTF8.GetString(buffer.Slice(sizeof(uint), (int)length));
-					buffer = buffer[((int)length + sizeof(uint))..];
-					break;
-				}
-				default:
-				{
-					throw new NotSupportedException($@"Unsupported AMF type: {type}");
-				}
+				value = BinaryPrimitives.ReadDoubleBigEndian(buffer);
+				buffer = buffer[sizeof(double)..];
+				break;
 			}
-
-			return buffer;
-		}
-
-		private int Encode(Span<byte> array, object? value)
-		{
-			switch (value)
+			case AMF0.Boolean:
 			{
-				case double number:
+				value = Convert.ToBoolean(buffer[0]);
+				buffer = buffer[1..];
+				break;
+			}
+			case AMF0.String:
+			{
+				buffer = DecodeString(buffer, out value);
+				break;
+			}
+			case AMF0.Object:
+			{
+				var o = new Dictionary<string, object?>();
+				while (buffer[0] != 0 || buffer[1] != 0 || buffer[2] != 9)
 				{
-					array[0] = (byte)AMF0.Number;
-					BinaryPrimitives.WriteDoubleBigEndian(array[1..], number);
-					return Count(number);
+					buffer = DecodeString(buffer, out var key);
+					buffer = Decode(buffer, out var v);
+					o[(string)key] = v;
 				}
-				case bool b:
+				value = o;
+				buffer = buffer[3..]; // AMF0.ObjectEnd 00 00 09
+				break;
+			}
+			case AMF0.Null:
+			case AMF0.Undefined:
+			{
+				break;
+			}
+			case AMF0.ECMAArray:
+			{
+				buffer = buffer[sizeof(uint)..]; // length
+				goto case AMF0.Object;
+			}
+			case AMF0.StrictArray:
+			{
+				var length = BinaryPrimitives.ReadUInt32BigEndian(buffer);
+				var list = new List<object?>(Math.Max(0, (int)length));
+				for (var i = 0u; i < length; ++i)
 				{
-					array[0] = (byte)AMF0.Boolean;
-					array[1] = Convert.ToByte(b);
-					return Count(b);
+					buffer = Decode(buffer, out var v);
+					list.Add(v);
 				}
-				case string str:
-				{
-					var strCount = Encoding.UTF8.GetByteCount(str);
-					if (strCount > ushort.MaxValue)
-					{
-						array[0] = (byte)AMF0.LongString;
-						BinaryPrimitives.WriteUInt32BigEndian(array[1..], (uint)strCount);
-						Encoding.UTF8.GetBytes(str, array[(1 + sizeof(uint))..]);
-						return 1 + strCount + sizeof(uint);
-					}
+				value = list;
+				break;
+			}
+			case AMF0.Date:
+			{
+				var datetime = BinaryPrimitives.ReadDoubleBigEndian(buffer);
+				var localDateTimeOffset = BinaryPrimitives.ReadInt16BigEndian(buffer);
 
-					array[0] = (byte)AMF0.String;
-					BinaryPrimitives.WriteUInt16BigEndian(array[1..], (ushort)strCount);
-					Encoding.UTF8.GetBytes(str, array[(1 + sizeof(ushort))..]);
-					return 1 + strCount + sizeof(ushort);
-				}
-				case Dictionary<string, object?> o:
+				value = DateTime.UnixEpoch.AddMilliseconds(datetime).AddMinutes(-localDateTimeOffset);
+				buffer = buffer[(sizeof(double) + sizeof(short))..];
+				break;
+			}
+			case AMF0.LongString:
+			{
+				var length = BinaryPrimitives.ReadUInt32BigEndian(buffer);
+				if (length > int.MaxValue)
 				{
-					int current;
-					if (UseArray)
-					{
-						array[0] = (byte)AMF0.ECMAArray;
-						BinaryPrimitives.WriteUInt32BigEndian(array[1..], (uint)o.Count);
-						current = 5;
-					}
-					else
-					{
-						array[0] = (byte)AMF0.Object;
-						current = 1;
-					}
-					foreach (var (key, v) in o)
-					{
-						var length = Math.Min(Encoding.UTF8.GetByteCount(key), ushort.MaxValue);
-						BinaryPrimitives.WriteUInt16BigEndian(array[current..], (ushort)length);
-						current += 2;
-
-						Encoding.UTF8.GetBytes(key, array[current..]);
-						current += length;
-
-						current += Encode(array[current..], v);
-					}
-
-					var span = array[current..];
-					span[0] = 0;
-					span[1] = 0;
-					span[2] = 9;
-					return current + 3;
+					throw new OutOfMemoryException($@"String is too long: {length} > {int.MaxValue}");
 				}
-				case List<object?> list:
-				{
-					array[0] = (byte)AMF0.StrictArray;
-					BinaryPrimitives.WriteUInt32BigEndian(array[1..], (uint)list.Count);
-					var current = 5;
-					foreach (var o in list)
-					{
-						current += Encode(array[current..], o);
-					}
-					return current;
-				}
-				case DateTime dataTime:
-				{
-					array[0] = (byte)AMF0.Date;
-
-					var time = dataTime.ToUniversalTime().Subtract(DateTime.UnixEpoch).TotalMilliseconds;
-					BinaryPrimitives.WriteDoubleBigEndian(array[1..], time);
-
-					BinaryPrimitives.WriteInt16BigEndian(array[(1 + sizeof(double))..], 0);
-
-					return Count(dataTime);
-				}
-				case null:
-				{
-					return 0;
-				}
-				default:
-				{
-					throw new NotSupportedException($@"{value.GetType().FullName} is not supported");
-				}
+				value = Encoding.UTF8.GetString(buffer.Slice(sizeof(uint), (int)length));
+				buffer = buffer[((int)length + sizeof(uint))..];
+				break;
+			}
+			default:
+			{
+				throw new NotSupportedException($@"Unsupported AMF type: {type}");
 			}
 		}
 
-		private int Count(object? value)
+		return buffer;
+	}
+
+	private int Encode(Span<byte> array, object? value)
+	{
+		switch (value)
 		{
-			switch (value)
+			case double number:
 			{
-				case double _:
+				array[0] = (byte)AMF0.Number;
+				BinaryPrimitives.WriteDoubleBigEndian(array[1..], number);
+				return Count(number);
+			}
+			case bool b:
+			{
+				array[0] = (byte)AMF0.Boolean;
+				array[1] = Convert.ToByte(b);
+				return Count(b);
+			}
+			case string str:
+			{
+				var strCount = Encoding.UTF8.GetByteCount(str);
+				if (strCount > ushort.MaxValue)
 				{
-					return 1 + sizeof(double);
+					array[0] = (byte)AMF0.LongString;
+					BinaryPrimitives.WriteUInt32BigEndian(array[1..], (uint)strCount);
+					Encoding.UTF8.GetBytes(str, array[(1 + sizeof(uint))..]);
+					return 1 + strCount + sizeof(uint);
 				}
-				case bool _:
+
+				array[0] = (byte)AMF0.String;
+				BinaryPrimitives.WriteUInt16BigEndian(array[1..], (ushort)strCount);
+				Encoding.UTF8.GetBytes(str, array[(1 + sizeof(ushort))..]);
+				return 1 + strCount + sizeof(ushort);
+			}
+			case Dictionary<string, object?> o:
+			{
+				int current;
+				if (UseArray)
 				{
-					return 1 + sizeof(bool);
+					array[0] = (byte)AMF0.ECMAArray;
+					BinaryPrimitives.WriteUInt32BigEndian(array[1..], (uint)o.Count);
+					current = 5;
 				}
-				case string str:
+				else
 				{
-					var strCount = Encoding.UTF8.GetByteCount(str);
-					if (strCount > ushort.MaxValue)
-					{
-						return 1 + sizeof(int) + strCount;
-					}
-					return 1 + sizeof(ushort) + strCount;
+					array[0] = (byte)AMF0.Object;
+					current = 1;
 				}
-				case Dictionary<string, object?> o:
+				foreach (var (key, v) in o)
 				{
-					var count = UseArray ? 1 + 4 + 3 : 1 + 3;
-					foreach (var (key, v) in o)
-					{
-						count += sizeof(ushort);
-						count += Math.Min(Encoding.UTF8.GetByteCount(key), ushort.MaxValue);
-						count += Count(v);
-					}
-					return count;
+					var length = Math.Min(Encoding.UTF8.GetByteCount(key), ushort.MaxValue);
+					BinaryPrimitives.WriteUInt16BigEndian(array[current..], (ushort)length);
+					current += 2;
+
+					Encoding.UTF8.GetBytes(key, array[current..]);
+					current += length;
+
+					current += Encode(array[current..], v);
 				}
-				case List<object?> list:
+
+				var span = array[current..];
+				span[0] = 0;
+				span[1] = 0;
+				span[2] = 9;
+				return current + 3;
+			}
+			case List<object?> list:
+			{
+				array[0] = (byte)AMF0.StrictArray;
+				BinaryPrimitives.WriteUInt32BigEndian(array[1..], (uint)list.Count);
+				var current = 5;
+				foreach (var o in list)
 				{
-					return 1 + sizeof(uint) + list.Sum(Count);
+					current += Encode(array[current..], o);
 				}
-				case DateTime _:
+				return current;
+			}
+			case DateTime dataTime:
+			{
+				array[0] = (byte)AMF0.Date;
+
+				var time = dataTime.ToUniversalTime().Subtract(DateTime.UnixEpoch).TotalMilliseconds;
+				BinaryPrimitives.WriteDoubleBigEndian(array[1..], time);
+
+				BinaryPrimitives.WriteInt16BigEndian(array[(1 + sizeof(double))..], 0);
+
+				return Count(dataTime);
+			}
+			case null:
+			{
+				return 0;
+			}
+			default:
+			{
+				throw new NotSupportedException($@"{value.GetType().FullName} is not supported");
+			}
+		}
+	}
+
+	private int Count(object? value)
+	{
+		switch (value)
+		{
+			case double _:
+			{
+				return 1 + sizeof(double);
+			}
+			case bool _:
+			{
+				return 1 + sizeof(bool);
+			}
+			case string str:
+			{
+				var strCount = Encoding.UTF8.GetByteCount(str);
+				if (strCount > ushort.MaxValue)
 				{
-					return 1 + sizeof(double) + sizeof(short);
+					return 1 + sizeof(int) + strCount;
 				}
-				case null:
+				return 1 + sizeof(ushort) + strCount;
+			}
+			case Dictionary<string, object?> o:
+			{
+				var count = UseArray ? 1 + 4 + 3 : 1 + 3;
+				foreach (var (key, v) in o)
 				{
-					return 0;
+					count += sizeof(ushort);
+					count += Math.Min(Encoding.UTF8.GetByteCount(key), ushort.MaxValue);
+					count += Count(v);
 				}
-				default:
-				{
-					throw new NotSupportedException($@"{value.GetType().FullName} is not supported");
-				}
+				return count;
+			}
+			case List<object?> list:
+			{
+				return 1 + sizeof(uint) + list.Sum(Count);
+			}
+			case DateTime _:
+			{
+				return 1 + sizeof(double) + sizeof(short);
+			}
+			case null:
+			{
+				return 0;
+			}
+			default:
+			{
+				throw new NotSupportedException($@"{value.GetType().FullName} is not supported");
 			}
 		}
 	}

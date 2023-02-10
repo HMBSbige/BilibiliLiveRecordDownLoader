@@ -1,8 +1,7 @@
 using BilibiliLiveRecordDownLoader.Models;
 
-namespace BilibiliLiveRecordDownLoader.JsonConverters
+namespace BilibiliLiveRecordDownLoader.JsonConverters;
+
+public class RoomStatusConverter : IgnoreValueConverter<RoomStatus>
 {
-	public class RoomStatusConverter : IgnoreValueConverter<RoomStatus>
-	{
-	}
 }

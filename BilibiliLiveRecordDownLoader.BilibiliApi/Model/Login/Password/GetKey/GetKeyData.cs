@@ -1,8 +1,7 @@
-namespace BilibiliApi.Model.Login.Password.GetKey
+namespace BilibiliApi.Model.Login.Password.GetKey;
+
+public class GetKeyData
 {
-	public class GetKeyData
-	{
-		public string? hash { get; set; }
-		public string? key { get; set; }
-	}
+	public string? hash { get; set; }
+	public string? key { get; set; }
 }

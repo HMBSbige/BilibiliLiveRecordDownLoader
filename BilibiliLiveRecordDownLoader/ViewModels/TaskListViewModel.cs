@@ -5,127 +5,123 @@ using Microsoft.Extensions.Logging;
 using ModernWpf.Controls;
 using Punchclock;
 using ReactiveUI;
-using System;
 using System.Collections;
 using System.Collections.ObjectModel;
-using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
-using System.Threading.Tasks;
 
-namespace BilibiliLiveRecordDownLoader.ViewModels
+namespace BilibiliLiveRecordDownLoader.ViewModels;
+
+public class TaskListViewModel : ReactiveObject, IRoutableViewModel
 {
-	public class TaskListViewModel : ReactiveObject, IRoutableViewModel
+	public string UrlPathSegment => @"TaskList";
+	public IScreen HostScreen { get; }
+
+	#region Command
+
+	public ReactiveCommand<object?, Unit> StopTaskCommand { get; }
+	public ReactiveCommand<Unit, Unit> ClearAllTasksCommand { get; }
+
+	#endregion
+
+	private readonly ILogger _logger;
+	private readonly SourceList<TaskViewModel> _taskSourceList;
+	private readonly OperationQueue _taskQueue;
+
+	public readonly ReadOnlyObservableCollection<TaskViewModel> TaskList;
+
+	public TaskListViewModel(
+		IScreen hostScreen,
+		ILogger<TaskListViewModel> logger,
+		SourceList<TaskViewModel> taskSourceList,
+		OperationQueue taskQueue)
 	{
-		public string UrlPathSegment => @"TaskList";
-		public IScreen HostScreen { get; }
+		HostScreen = hostScreen;
+		_logger = logger;
+		_taskSourceList = taskSourceList;
+		_taskQueue = taskQueue;
 
-		#region Command
+		_taskSourceList.Connect()
+			.ObserveOn(RxApp.MainThreadScheduler)
+			.Bind(out TaskList)
+			.DisposeMany()
+			.Subscribe();
 
-		public ReactiveCommand<object?, Unit> StopTaskCommand { get; }
-		public ReactiveCommand<Unit, Unit> ClearAllTasksCommand { get; }
+		StopTaskCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(StopTask);
+		ClearAllTasksCommand = ReactiveCommand.CreateFromTask(ClearAllTasksAsync);
+	}
 
-		#endregion
-
-		private readonly ILogger _logger;
-		private readonly SourceList<TaskViewModel> _taskSourceList;
-		private readonly OperationQueue _taskQueue;
-
-		public readonly ReadOnlyObservableCollection<TaskViewModel> TaskList;
-
-		public TaskListViewModel(
-			IScreen hostScreen,
-			ILogger<TaskListViewModel> logger,
-			SourceList<TaskViewModel> taskSourceList,
-			OperationQueue taskQueue)
-		{
-			HostScreen = hostScreen;
-			_logger = logger;
-			_taskSourceList = taskSourceList;
-			_taskQueue = taskQueue;
-
-			_taskSourceList.Connect()
-					.ObserveOn(RxApp.MainThreadScheduler)
-					.Bind(out TaskList)
-					.DisposeMany()
-					.Subscribe();
-
-			StopTaskCommand = ReactiveCommand.CreateFromObservable<object?, Unit>(StopTask);
-			ClearAllTasksCommand = ReactiveCommand.CreateFromTask(ClearAllTasksAsync);
-		}
-
-		private IObservable<Unit> StopTask(object? info)
-		{
-			return Observable.Start(() =>
-			{
-				try
-				{
-					if (info is not IList { Count: > 0 } list)
-					{
-						return;
-					}
-
-					foreach (var item in list)
-					{
-						if (item is not TaskViewModel task)
-						{
-							continue;
-						}
-
-						RemoveTask(task);
-					}
-				}
-				catch (Exception ex)
-				{
-					_logger.LogError(ex, @"停止任务出错");
-				}
-			});
-		}
-
-		private async Task ClearAllTasksAsync()
+	private IObservable<Unit> StopTask(object? info)
+	{
+		return Observable.Start(() =>
 		{
 			try
 			{
-				if (_taskSourceList.Count == 0)
+				if (info is not IList { Count: > 0 } list)
 				{
 					return;
 				}
 
-				using var dialog = new DisposableContentDialog
+				foreach (var item in list)
 				{
-					Title = @"确定清空所有任务？",
-					Content = @"将会停止所有任务并清空列表",
-					PrimaryButtonText = @"确定",
-					CloseButtonText = @"取消",
-					DefaultButton = ContentDialogButton.Close
-				};
-				if (await dialog.SafeShowAsync() == ContentDialogResult.Primary)
-				{
-					_taskSourceList.Items.ToList().ForEach(RemoveTask);
+					if (item is not TaskViewModel task)
+					{
+						continue;
+					}
+
+					RemoveTask(task);
 				}
 			}
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, @"停止任务出错");
 			}
-		}
+		});
+	}
 
-		public async Task AddTaskAsync(TaskViewModel task, string key, int priority = 1)
+	private async Task ClearAllTasksAsync()
+	{
+		try
 		{
-			if (_taskSourceList.Items.Any(x => x.Description == task.Description))
+			if (_taskSourceList.Count == 0)
 			{
-				_logger.LogWarning(@"已跳过重复任务：{0}", task.Description);
 				return;
 			}
 
-			_taskSourceList.Add(task);
-			await _taskQueue.Enqueue(priority, key, task.StartAsync);
+			using var dialog = new DisposableContentDialog
+			{
+				Title = @"确定清空所有任务？",
+				Content = @"将会停止所有任务并清空列表",
+				PrimaryButtonText = @"确定",
+				CloseButtonText = @"取消",
+				DefaultButton = ContentDialogButton.Close
+			};
+			if (await dialog.SafeShowAsync() == ContentDialogResult.Primary)
+			{
+				_taskSourceList.Items.ToList().ForEach(RemoveTask);
+			}
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, @"停止任务出错");
+		}
+	}
+
+	public async Task AddTaskAsync(TaskViewModel task, string key, int priority = 1)
+	{
+		if (_taskSourceList.Items.Any(x => x.Description == task.Description))
+		{
+			_logger.LogWarning(@"已跳过重复任务：{0}", task.Description);
+			return;
 		}
 
-		public void RemoveTask(TaskViewModel task)
-		{
-			task.Stop();
-			_taskSourceList.Remove(task);
-		}
+		_taskSourceList.Add(task);
+		await _taskQueue.Enqueue(priority, key, task.StartAsync);
+	}
+
+	public void RemoveTask(TaskViewModel task)
+	{
+		task.Stop();
+		_taskSourceList.Remove(task);
 	}
 }

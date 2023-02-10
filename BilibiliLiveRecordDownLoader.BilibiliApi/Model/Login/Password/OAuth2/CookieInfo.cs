@@ -1,7 +1,6 @@
-namespace BilibiliApi.Model.Login.Password.OAuth2
+namespace BilibiliApi.Model.Login.Password.OAuth2;
+
+public class CookieInfo
 {
-	public class CookieInfo
-	{
-		public BilibiliCookie[]? cookies { get; set; }
-	}
+	public BilibiliCookie[]? cookies { get; set; }
 }

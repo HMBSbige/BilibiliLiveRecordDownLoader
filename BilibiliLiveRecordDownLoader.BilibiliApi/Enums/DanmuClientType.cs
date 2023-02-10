@@ -1,9 +1,8 @@
-namespace BilibiliApi.Enums
+namespace BilibiliApi.Enums;
+
+public enum DanmuClientType
 {
-	public enum DanmuClientType
-	{
-		TCP = 0,
-		SecureWebsocket = 1,
-		Websocket = 2,
-	}
+	TCP = 0,
+	SecureWebsocket = 1,
+	Websocket = 2,
 }

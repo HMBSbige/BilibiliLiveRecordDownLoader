@@ -8,89 +8,88 @@ using System.IO;
 using System.Reactive.Linq;
 using System.Windows;
 
-namespace BilibiliLiveRecordDownLoader
-{
-	public partial class App
-	{
-		private readonly SingleInstanceService _singleInstance;
+namespace BilibiliLiveRecordDownLoader;
 
-		public App()
+public partial class App
+{
+	private readonly SingleInstanceService _singleInstance;
+
+	public App()
+	{
+		try
 		{
-			try
-			{
 #if DEBUG
-				var identifier = $@"Global\{nameof(BilibiliLiveRecordDownLoader)}_Debug";
+			var identifier = $@"Global\{nameof(BilibiliLiveRecordDownLoader)}_Debug";
 #else
 				var identifier = $@"Global\{nameof(BilibiliLiveRecordDownLoader)}";
 #endif
-				_singleInstance = new(identifier);
+			_singleInstance = new(identifier);
 
-				Directory.SetCurrentDirectory(Path.GetDirectoryName(Utils.Utils.GetExecutablePath())!);
+			Directory.SetCurrentDirectory(Path.GetDirectoryName(Utils.Utils.GetExecutablePath())!);
 
-				DI.CreateLogger();
-			}
-			catch (Exception ex)
-			{
-				MessageBox.Show($@"WTF??? {ex}", nameof(BilibiliLiveRecordDownLoader), MessageBoxButton.OK, MessageBoxImage.Error);
-				Environment.Exit(1);
-			}
+			DI.CreateLogger();
+		}
+		catch (Exception ex)
+		{
+			MessageBox.Show($@"WTF??? {ex}", nameof(BilibiliLiveRecordDownLoader), MessageBoxButton.OK, MessageBoxImage.Error);
+			Environment.Exit(1);
+		}
+	}
+
+	private void Application_Startup(object sender, StartupEventArgs e)
+	{
+		Current.Events().Exit.Subscribe(args => AppExit(args.ApplicationExitCode));
+		Current.Events().DispatcherUnhandledException.Subscribe(args => UnhandledException(args.Exception));
+
+		if (!_singleInstance.IsFirstInstance)
+		{
+			_singleInstance.PassArgumentsToFirstInstance(e.Args.Append(Constants.ParameterShow));
+			AppExit(0);
+			return;
 		}
 
-		private void Application_Startup(object sender, StartupEventArgs e)
+		_singleInstance.ArgumentsReceived.ObserveOn(RxApp.MainThreadScheduler).Subscribe(SingleInstance_ArgumentsReceived);
+		_singleInstance.ListenForArgumentsFromSuccessiveInstances();
+
+		DI.Register();
+
+		MainWindow = DI.GetRequiredService<MainWindow>();
+		if (e.Args.Contains(Constants.ParameterSilent))
 		{
-			Current.Events().Exit.Subscribe(args => AppExit(args.ApplicationExitCode));
-			Current.Events().DispatcherUnhandledException.Subscribe(args => UnhandledException(args.Exception));
-
-			if (!_singleInstance.IsFirstInstance)
-			{
-				_singleInstance.PassArgumentsToFirstInstance(e.Args.Append(Constants.ParameterShow));
-				AppExit(0);
-				return;
-			}
-
-			_singleInstance.ArgumentsReceived.ObserveOn(RxApp.MainThreadScheduler).Subscribe(SingleInstance_ArgumentsReceived);
-			_singleInstance.ListenForArgumentsFromSuccessiveInstances();
-
-			DI.Register();
-
-			MainWindow = DI.GetRequiredService<MainWindow>();
-			if (e.Args.Contains(Constants.ParameterSilent))
-			{
-				MainWindow.Visibility = Visibility.Hidden;
-			}
-			MainWindow.ShowWindow();
+			MainWindow.Visibility = Visibility.Hidden;
 		}
+		MainWindow.ShowWindow();
+	}
 
-		private void UnhandledException(Exception ex)
+	private void UnhandledException(Exception ex)
+	{
+		try
 		{
-			try
-			{
-				Log.Fatal(ex, @"未捕获异常");
-				MessageBox.Show($@"未捕获异常：{ex}", nameof(BilibiliLiveRecordDownLoader), MessageBoxButton.OK, MessageBoxImage.Error);
-			}
-			finally
-			{
-				AppExit(1);
-			}
+			Log.Fatal(ex, @"未捕获异常");
+			MessageBox.Show($@"未捕获异常：{ex}", nameof(BilibiliLiveRecordDownLoader), MessageBoxButton.OK, MessageBoxImage.Error);
 		}
-
-		private void SingleInstance_ArgumentsReceived(IEnumerable<string> args)
+		finally
 		{
-			if (args.Contains(Constants.ParameterShow))
-			{
-				MainWindow?.ShowWindow();
-			}
+			AppExit(1);
 		}
+	}
 
-		private void AppExit(int exitCode)
+	private void SingleInstance_ArgumentsReceived(IEnumerable<string> args)
+	{
+		if (args.Contains(Constants.ParameterShow))
 		{
-			_singleInstance.Dispose();
-			Log.CloseAndFlush();
-			Current.Shutdown(exitCode);
-			if (exitCode != 0)
-			{
-				Environment.Exit(exitCode);
-			}
+			MainWindow?.ShowWindow();
+		}
+	}
+
+	private void AppExit(int exitCode)
+	{
+		_singleInstance.Dispose();
+		Log.CloseAndFlush();
+		Current.Shutdown(exitCode);
+		if (exitCode != 0)
+		{
+			Environment.Exit(exitCode);
 		}
 	}
 }

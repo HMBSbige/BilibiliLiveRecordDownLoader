@@ -1,32 +1,27 @@
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
+namespace BilibiliLiveRecordDownLoader.Shared.HttpPolicy;
 
-namespace BilibiliLiveRecordDownLoader.Shared.HttpPolicy
+public class RetryHandler : DelegatingHandler
 {
-	public class RetryHandler : DelegatingHandler
+	private readonly uint _maxRetries;
+
+	public RetryHandler(HttpMessageHandler innerHandler, uint maxRetries) : base(innerHandler)
 	{
-		private readonly uint _maxRetries;
+		_maxRetries = maxRetries;
+	}
 
-		public RetryHandler(HttpMessageHandler innerHandler, uint maxRetries) : base(innerHandler)
+	protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+	{
+		HttpResponseMessage response;
+		var i = 0;
+		do
 		{
-			_maxRetries = maxRetries;
-		}
-
-		protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-		{
-			HttpResponseMessage response;
-			var i = 0;
-			do
+			response = await base.SendAsync(request, cancellationToken);
+			if (response.IsSuccessStatusCode)
 			{
-				response = await base.SendAsync(request, cancellationToken);
-				if (response.IsSuccessStatusCode)
-				{
-					return response;
-				}
-			} while (++i < _maxRetries);
+				return response;
+			}
+		} while (++i < _maxRetries);
 
-			return response;
-		}
+		return response;
 	}
 }

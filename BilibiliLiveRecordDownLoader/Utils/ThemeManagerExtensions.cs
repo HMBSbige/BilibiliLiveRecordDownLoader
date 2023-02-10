@@ -2,35 +2,34 @@ using ModernWpf;
 using ReactiveUI;
 using System.Reactive.Concurrency;
 
-namespace BilibiliLiveRecordDownLoader.Utils
+namespace BilibiliLiveRecordDownLoader.Utils;
+
+public static class ThemeManagerExtensions
 {
-	public static class ThemeManagerExtensions
+	public static void SetTheme(this ThemeManager manager, ElementTheme theme)
 	{
-		public static void SetTheme(this ThemeManager manager, ElementTheme theme)
+		switch (theme)
 		{
-			switch (theme)
+			case ElementTheme.Light:
 			{
-				case ElementTheme.Light:
-				{
-					manager.SetTheme(ApplicationTheme.Light);
-					break;
-				}
-				case ElementTheme.Dark:
-				{
-					manager.SetTheme(ApplicationTheme.Dark);
-					break;
-				}
-				default:
-				{
-					manager.SetTheme(null);
-					break;
-				}
+				manager.SetTheme(ApplicationTheme.Light);
+				break;
+			}
+			case ElementTheme.Dark:
+			{
+				manager.SetTheme(ApplicationTheme.Dark);
+				break;
+			}
+			default:
+			{
+				manager.SetTheme(null);
+				break;
 			}
 		}
+	}
 
-		private static void SetTheme(this ThemeManager manager, ApplicationTheme? theme)
-		{
-			RxApp.MainThreadScheduler.Schedule(() => manager.ApplicationTheme = theme);
-		}
+	private static void SetTheme(this ThemeManager manager, ApplicationTheme? theme)
+	{
+		RxApp.MainThreadScheduler.Schedule(() => manager.ApplicationTheme = theme);
 	}
 }

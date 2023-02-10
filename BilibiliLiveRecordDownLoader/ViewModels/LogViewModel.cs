@@ -1,15 +1,14 @@
 using ReactiveUI;
 
-namespace BilibiliLiveRecordDownLoader.ViewModels
-{
-	public class LogViewModel : ReactiveObject, IRoutableViewModel
-	{
-		public string UrlPathSegment => @"Log";
-		public IScreen HostScreen { get; }
+namespace BilibiliLiveRecordDownLoader.ViewModels;
 
-		public LogViewModel(IScreen hostScreen)
-		{
-			HostScreen = hostScreen;
-		}
+public class LogViewModel : ReactiveObject, IRoutableViewModel
+{
+	public string UrlPathSegment => @"Log";
+	public IScreen HostScreen { get; }
+
+	public LogViewModel(IScreen hostScreen)
+	{
+		HostScreen = hostScreen;
 	}
 }
