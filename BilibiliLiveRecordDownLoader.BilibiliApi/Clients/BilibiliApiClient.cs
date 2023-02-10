@@ -49,7 +49,7 @@ public partial class BilibiliApiClient : IHttpClient
 
 	private async Task<HttpResponseMessage> PostAsync(string url, Dictionary<string, string> pair, bool isSign, CancellationToken token)
 	{
-		using var content = await GetBodyAsync(pair, isSign);
+		using FormUrlEncodedContent content = await GetBodyAsync(pair, isSign);
 		return await PostAsync(url, content, token);
 	}
 
@@ -60,24 +60,24 @@ public partial class BilibiliApiClient : IHttpClient
 			pair[@"appkey"] = AppConstants.AppKey;
 			pair[@"ts"] = Timestamp.GetTimestamp(DateTime.UtcNow).ToString();
 			pair = pair.OrderBy(p => p.Key).ToDictionary(p => p.Key, o => o.Value);
-			using var temp = new FormUrlEncodedContent(pair.Cast());
-			var str = await temp.ReadAsStringAsync();
-			var md5 = Md5String(str + AppConstants.AppSecret);
+			using FormUrlEncodedContent temp = new(pair);
+			string str = await temp.ReadAsStringAsync();
+			string md5 = Md5String(str + AppConstants.AppSecret);
 			pair.Add(@"sign", md5);
 		}
 
-		return new FormUrlEncodedContent(pair.Cast());
+		return new FormUrlEncodedContent(pair);
 	}
 
 	private static string Md5String(in string str)
 	{
-		var buffer = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(str.Length));
+		byte[] buffer = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(str.Length));
 		try
 		{
-			var length = Encoding.UTF8.GetBytes(str, buffer);
+			int length = Encoding.UTF8.GetBytes(str, buffer);
 
 			Span<byte> hash = stackalloc byte[HashConstants.Md5Length];
-			using var md5 = DigestUtils.Create(DigestType.Md5);
+			using IHash md5 = DigestUtils.Create(DigestType.Md5);
 			md5.UpdateFinal(buffer.AsSpan(0, length), hash);
 
 			return hash.ToHex();
