@@ -19,6 +19,10 @@ public class HttpDownloader : ProgressBase, IDownloader, IHttpClient
 
 	private Stream? _netStream;
 
+	public Task WriteToFileTask { get; private set; } = Task.CompletedTask;
+
+	public bool WaitWriteToFile { get; set; } = true;
+
 	public HttpDownloader(HttpClient client)
 	{
 		Client = client;
@@ -36,33 +40,37 @@ public class HttpDownloader : ProgressBase, IDownloader, IHttpClient
 		_netStream?.Dispose();
 	}
 
-	public async ValueTask DownloadAsync(CancellationToken token)
+	public async ValueTask DownloadAsync(CancellationToken cancellationToken = default)
 	{
-		if (OutFileName is null or @"")
+		if (string.IsNullOrEmpty(OutFileName))
 		{
-			throw new ArgumentNullException(nameof(OutFileName));
+			throw new OperationCanceledException(@"no output file path");
 		}
 
 		if (_netStream is null)
 		{
-			await GetStreamAsync(token);
+			await GetStreamAsync(cancellationToken);
 		}
 
 		EnsureDirectory(OutFileName);
-		await using FileStream fs = new(OutFileName, FileMode.Create, FileAccess.Write, FileShare.Read);
+		Pipe pipe = new(PipeOptions);
+		FileStream fs = new(OutFileName, FileMode.Create, FileAccess.Write, FileShare.Read);
 
-		using (CreateSpeedMonitor())
+		WriteToFileTask = pipe.Reader.CopyToAsync(fs, cancellationToken)
+			.ContinueWith(_ => fs.Dispose(), default, TaskContinuationOptions.None, TaskScheduler.Default);
+		try
 		{
-			Pipe pipe = new(PipeOptions);
-			Task task = pipe.Reader.CopyToAsync(fs, token);
-			try
+			using (CreateSpeedMonitor())
 			{
-				await CopyToWithProgressAsync(_netStream, pipe.Writer, token);
+				await CopyToWithProgressAsync(_netStream, pipe.Writer, cancellationToken);
 			}
-			finally
+		}
+		finally
+		{
+			await pipe.Writer.CompleteAsync();
+			if (WaitWriteToFile)
 			{
-				await pipe.Writer.CompleteAsync();
-				await task;
+				await WriteToFileTask;
 			}
 		}
 

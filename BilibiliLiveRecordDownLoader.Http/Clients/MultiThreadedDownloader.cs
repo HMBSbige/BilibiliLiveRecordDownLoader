@@ -62,10 +62,10 @@ public class MultiThreadedDownloader : ProgressBase, IDownloader, IHttpClient
 	/// <summary>
 	/// 开始下载，若获取大小失败，则会抛出异常
 	/// </summary>
-	public async ValueTask DownloadAsync(CancellationToken token)
+	public async ValueTask DownloadAsync(CancellationToken cancellationToken)
 	{
 		StatusSubject.OnNext(@"正在获取下载文件大小...");
-		FileSize = await GetContentLengthAsync(token); //总大小
+		FileSize = await GetContentLengthAsync(cancellationToken); //总大小
 
 		TempDir = EnsureDirectory(TempDir);
 		var list = GetFileRangeList();
@@ -80,14 +80,14 @@ public class MultiThreadedDownloader : ProgressBase, IDownloader, IHttpClient
 			StatusSubject.OnNext(@"正在下载...");
 			await list.Select(info =>
 				// ReSharper disable once AccessToDisposedClosure
-				opQueue.Enqueue(1, () => GetStreamAsync(info, token))
+				opQueue.Enqueue(1, () => GetStreamAsync(info, cancellationToken))
 					.ToObservable()
-					.SelectMany(res => WriteToFileAsync(res.Item1, res.Item2, token))
+					.SelectMany(res => WriteToFileAsync(res.Item1, res.Item2, cancellationToken))
 			).Merge();
 
 			StatusSubject.OnNext(@"下载完成，正在合并文件...");
 			Current = 0;
-			await MergeFilesAsync(list, token);
+			await MergeFilesAsync(list, cancellationToken);
 		}
 		catch (OperationCanceledException)
 		{

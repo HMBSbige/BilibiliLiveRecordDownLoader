@@ -17,5 +17,5 @@ public interface IDownloader : IAsyncDisposable, IProgress
 	/// <summary>
 	/// 下载
 	/// </summary>
-	ValueTask DownloadAsync(CancellationToken token);
+	ValueTask DownloadAsync(CancellationToken cancellationToken);
 }

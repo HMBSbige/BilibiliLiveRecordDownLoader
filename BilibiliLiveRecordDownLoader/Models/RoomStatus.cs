@@ -298,6 +298,7 @@ public class RoomStatus : ReactiveObject
 					await using HttpDownloader downloader = DI.GetRequiredService<HttpDownloader>();
 					downloader.Target = new Uri(url!);
 					downloader.Client.Timeout = TimeSpan.FromSeconds(StreamConnectTimeout);
+					downloader.WaitWriteToFile = false;
 
 					await downloader.GetStreamAsync(token);
 					RecordStatus = RecordStatus.录制中;
@@ -328,7 +329,8 @@ public class RoomStatus : ReactiveObject
 					{
 						speedMonitor.Dispose();
 						_logger.LogInformation($@"[{RoomId}] 录制结束");
-						ConvertToMp4Async(flv).Forget();
+
+						downloader.WriteToFileTask.ContinueWith(_ => ConvertToMp4Async(flv), default, TaskContinuationOptions.None, TaskScheduler.Default).Forget();
 					}
 				}
 				catch (OperationCanceledException ex) when (ex.InnerException is not TimeoutException)

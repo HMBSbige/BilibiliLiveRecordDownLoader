@@ -104,7 +104,7 @@ public class UnitTest
 
 			//downloader.CurrentSpeed.Subscribe(i => { Console.WriteLine($@"{i} Bytes/s"); });
 
-			await downloader.DownloadAsync(default);
+			await downloader.DownloadAsync();
 
 			Assert.IsTrue(File.Exists(outFile));
 			Assert.AreEqual(await CalculateSHA256Async(outFile), sha256);
