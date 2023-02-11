@@ -57,7 +57,7 @@ public class HttpDownloader : ProgressBase, IDownloader, IHttpClient
 		FileStream fs = new(OutFileName, FileMode.Create, FileAccess.Write, FileShare.Read);
 
 		WriteToFileTask = pipe.Reader.CopyToAsync(fs, cancellationToken)
-			.ContinueWith(_ => fs.Dispose(), default, TaskContinuationOptions.None, TaskScheduler.Default);
+			.ContinueWith(_ => fs.Dispose(), default, TaskContinuationOptions.None, TaskScheduler.Current);
 		try
 		{
 			using (CreateSpeedMonitor())

@@ -330,7 +330,7 @@ public class RoomStatus : ReactiveObject
 						speedMonitor.Dispose();
 						_logger.LogInformation($@"[{RoomId}] 录制结束");
 
-						downloader.WriteToFileTask.ContinueWith(_ => ConvertToMp4Async(flv), default, TaskContinuationOptions.None, TaskScheduler.Default).Forget();
+						downloader.WriteToFileTask.ContinueWith(_ => ConvertToMp4Async(flv), token, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Current).Forget();
 					}
 				}
 				catch (OperationCanceledException ex) when (ex.InnerException is not TimeoutException)
