@@ -6,7 +6,7 @@
     <NoWarn>CS1591</NoWarn>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>1.8.1</Version>
+    <Version>1.9.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
