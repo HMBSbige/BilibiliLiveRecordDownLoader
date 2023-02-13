@@ -1,62 +1,11 @@
-using BilibiliApi.Model.AnchorInfo;
 using BilibiliApi.Model.PlayUrl;
 using BilibiliApi.Model.RoomInfo;
-using BilibiliApi.Model.RoomInit;
+using static BilibiliApi.Model.PlayUrl.RoomPlayInfo.Data.PlayurlInfo.Playurl.Stream.Format.Codec;
 
 namespace BilibiliApi.Clients;
 
 public partial class BilibiliApiClient
 {
-	/// <summary>
-	/// 获取房间信息
-	/// </summary>
-	/// <param name="roomId">房间号（允许短号）</param>
-	/// <param name="token"></param>
-	/// <returns></returns>
-	public async Task<RoomInitMessage?> GetRoomInitAsync(long roomId, CancellationToken token = default)
-	{
-		var url = $@"https://api.live.bilibili.com/room/v1/Room/room_init?id={roomId}";
-		return await GetJsonAsync<RoomInitMessage>(url, token);
-	}
-
-	#region 获取直播间主播信息
-
-	/// <summary>
-	/// 获取直播间主播信息
-	/// </summary>
-	/// <param name="roomId">房间号（允许短号）</param>
-	/// <param name="token"></param>
-	/// <returns></returns>
-	public async Task<AnchorInfoMessage?> GetAnchorInfoAsync(long roomId, CancellationToken token = default)
-	{
-		var url = $@"https://api.live.bilibili.com/live_user/v1/UserInfo/get_anchor_in_room?roomid={roomId}";
-		return await GetJsonAsync<AnchorInfoMessage>(url, token);
-	}
-
-	/// <summary>
-	/// 获取直播间主播信息
-	/// </summary>
-	/// <param name="roomId">房间号（允许短号）</param>
-	/// <param name="token"></param>
-	/// <returns></returns>
-	public async Task<AnchorInfo> GetAnchorInfoDataAsync(long roomId, CancellationToken token = default)
-	{
-		var roomInfo = await GetAnchorInfoAsync(roomId, token);
-		if (roomInfo?.data?.info is null || roomInfo.code != 0)
-		{
-			if (roomInfo is not null)
-			{
-				throw new HttpRequestException($@"[{roomId}] 获取主播信息出错，可能该房间号的主播不存在: {roomInfo.message} {roomInfo.msg}");
-			}
-
-			throw new HttpRequestException($@"[{roomId}] 获取主播信息出错，可能该房间号的主播不存在");
-		}
-
-		return roomInfo.data.info;
-	}
-
-	#endregion
-
 	#region 获取直播间播放地址
 
 	/// <summary>
@@ -66,10 +15,10 @@ public partial class BilibiliApiClient
 	/// <param name="qn"></param>
 	/// <param name="token"></param>
 	/// <returns></returns>
-	public async Task<PlayUrlMessage?> GetPlayUrlAsync(long roomId, long qn = 10000, CancellationToken token = default)
+	public async Task<RoomPlayInfo?> GetRoomPlayInfoAsync(long roomId, long qn = 10000, CancellationToken token = default)
 	{
-		var url = $@"https://api.live.bilibili.com/room/v1/Room/playUrl?cid={roomId}&qn={qn}&platform=web";
-		return await GetJsonAsync<PlayUrlMessage>(url, token);
+		string url = $@"https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id={roomId}&no_playurl=0&qn={qn}&platform=web&protocol=0&format=0&codec=0,1";
+		return await GetJsonAsync<RoomPlayInfo>(url, token);
 	}
 
 	/// <summary>
@@ -79,18 +28,32 @@ public partial class BilibiliApiClient
 	/// <param name="qn"></param>
 	/// <param name="token"></param>
 	/// <returns></returns>
-	public async Task<PlayUrlData> GetPlayUrlDataAsync(long roomId, long qn = 10000, CancellationToken token = default)
+	public async Task<string> GetRoomStreamUrlAsync(long roomId, long qn = 10000, CancellationToken token = default)
 	{
-		var message = await GetPlayUrlAsync(roomId, qn, token);
-		if (message?.code != 0 || message.data?.durl?.FirstOrDefault()?.url is null)
+		RoomPlayInfo? message = await GetRoomPlayInfoAsync(roomId, qn, token);
+
+		RoomPlayInfo.Data.PlayurlInfo.Playurl.Stream.Format.Codec? codec = message?.data?.playurl_info?.playurl?
+			.stream?.FirstOrDefault(x => x.protocol_name is @"http_stream")?
+			.format?.FirstOrDefault(x => x.format_name is @"flv")?
+			.codec?.FirstOrDefault(x => x.url_info?.FirstOrDefault(GetValidUrlInfo) is not null);
+
+		if (message?.code is not 0 || codec is null)
 		{
-			if (message is not null)
+			if (message?.message is not null)
 			{
 				throw new HttpRequestException($@"[{roomId}] 获取直播地址失败: {message.message}");
 			}
 			throw new HttpRequestException($@"[{roomId}] 获取直播地址失败");
 		}
-		return message.data;
+
+		UrlInfo urlInfo = codec.url_info!.First(GetValidUrlInfo);
+
+		return $@"{urlInfo.host}{codec.base_url}{urlInfo.extra}";
+
+		static bool GetValidUrlInfo(UrlInfo x)
+		{
+			return !string.IsNullOrEmpty(x.host) && x.host.StartsWith(@"https://") && !x.host.Contains(@".mcdn.");
+		}
 	}
 
 	#endregion
@@ -105,7 +68,7 @@ public partial class BilibiliApiClient
 	/// <returns></returns>
 	public async Task<RoomInfoMessage?> GetRoomInfoAsync(long roomId, CancellationToken token = default)
 	{
-		var url = $@"https://api.live.bilibili.com/room/v1/Room/get_info?id={roomId}";
+		string url = $@"https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id={roomId}";
 		return await GetJsonAsync<RoomInfoMessage>(url, token);
 	}
 
@@ -115,14 +78,14 @@ public partial class BilibiliApiClient
 	/// <param name="roomId">房间号（允许短号）</param>
 	/// <param name="token"></param>
 	/// <returns></returns>
-	public async Task<RoomInfoData> GetRoomInfoDataAsync(long roomId, CancellationToken token = default)
+	public async Task<RoomInfoMessage.RoomInfoData> GetRoomInfoDataAsync(long roomId, CancellationToken token = default)
 	{
-		var roomInfo = await GetRoomInfoAsync(roomId, token);
+		RoomInfoMessage? roomInfo = await GetRoomInfoAsync(roomId, token);
 		if (roomInfo?.data is null || roomInfo.code != 0)
 		{
-			if (roomInfo is not null)
+			if (roomInfo?.message is not null)
 			{
-				throw new HttpRequestException($@"[{roomId}] 获取房间信息失败: {roomInfo.message} {roomInfo.msg}");
+				throw new HttpRequestException($@"[{roomId}] 获取房间信息失败: {roomInfo.message}");
 			}
 
 			throw new HttpRequestException($@"[{roomId}] 获取房间信息失败");

@@ -1,5 +1,4 @@
 using BilibiliApi.Clients;
-using BilibiliApi.Model.LiveRecordList;
 using BilibiliLiveRecordDownLoader.FFmpeg;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Clients;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
@@ -69,7 +68,6 @@ public static class ServiceExtensions
 
 	public static IServiceCollection AddDynamicData(this IServiceCollection services)
 	{
-		services.TryAddSingleton<SourceList<LiveRecordList>>();
 		services.TryAddSingleton<SourceList<RoomStatus>>();
 		services.TryAddSingleton<SourceList<TaskViewModel>>();
 

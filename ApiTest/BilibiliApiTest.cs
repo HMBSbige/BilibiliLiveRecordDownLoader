@@ -1,93 +1,30 @@
 using BilibiliApi.Clients;
+using BilibiliApi.Model.DanmuConf;
+using BilibiliApi.Model.FansMedal;
+using BilibiliApi.Model.Login.QrCode.GetLoginUrl;
+using BilibiliApi.Model.PlayUrl;
+using BilibiliApi.Model.RoomInfo;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System.Diagnostics;
 using static ApiTest.TestConstants;
 
-#pragma warning disable 8602
 namespace ApiTest;
 
 [TestClass]
 public class BilibiliApiTest
 {
 	private readonly BilibiliApiClient _apiClient = new(HttpClientUtils.BuildClientForBilibili(string.Empty, Cookie, new SocketsHttpHandler()));
-	private const string Rid = @"R1Bx411w7Wk"; // 视频链接会过期
-
-	[TestMethod]
-	public async Task GetLiveRecordUrlTestAsync()
-	{
-		var json = await _apiClient.GetLiveRecordUrlAsync(Rid);
-		Assert.AreEqual(json.code, 0);
-		Assert.AreEqual(json.message, @"0");
-		Assert.IsTrue(json.data.size > 0);
-		Assert.IsTrue(json.data.length > 0);
-		Assert.IsTrue(json.data.list.Length > 0);
-	}
-
-	[TestMethod]
-	public async Task GetRoomInitTestAsync()
-	{
-		var json = await _apiClient.GetRoomInitAsync(732);
-		Assert.AreEqual(json.code, 0);
-		Assert.AreEqual(json.msg, @"ok");
-		Assert.AreEqual(json.message, @"ok");
-		Assert.AreEqual(json.data.room_id, 6154037);
-		Assert.AreEqual(json.data.short_id, 732);
-	}
-
-	[TestMethod]
-	public async Task GetLiveRecordListTestAsync()
-	{
-		var json = await _apiClient.GetLiveRecordListAsync(6154037);
-		Assert.AreEqual(json.code, 0);
-		Assert.AreEqual(json.message, @"0");
-
-		var all = json.data.count;
-		Assert.IsTrue(all > 0);
-		json = await _apiClient.GetLiveRecordListAsync(6154037, 1, all);
-
-		Assert.AreEqual(json.code, 0);
-		Assert.AreEqual(json.message, @"0");
-		Assert.IsTrue(json.data.count > 0);
-		Assert.IsTrue(json.data.list.Length > 0);
-		Assert.IsTrue(json.data.list.Length == all);
-
-		foreach (var data in json.data.list)
-		{
-			Assert.IsFalse(string.IsNullOrEmpty(data.rid));
-			Assert.IsFalse(string.IsNullOrEmpty(data.title));
-			Assert.IsFalse(string.IsNullOrEmpty(data.cover));
-			Assert.IsFalse(string.IsNullOrEmpty(data.area_name));
-			Assert.IsFalse(string.IsNullOrEmpty(data.parent_area_name));
-			Assert.IsTrue(data.start_timestamp > 0);
-			Assert.IsTrue(data.end_timestamp > 0);
-			Assert.IsTrue(data.end_timestamp > data.start_timestamp);
-			Assert.IsTrue(data.online > 0);
-			Assert.IsTrue(data.danmu_num > 0);
-			Assert.IsTrue(data.length > 0);
-			Assert.IsTrue((data.end_timestamp - data.start_timestamp) * 1000 >= data.length);
-		}
-	}
-
-	[TestMethod]
-	public async Task GetAnchorInfoTestAsync()
-	{
-		var json = await _apiClient.GetAnchorInfoAsync(732);
-		Assert.AreEqual(json.code, 0);
-		Assert.AreEqual(json.msg, @"success");
-		Assert.AreEqual(json.message, @"success");
-		Assert.AreEqual(json.data.info.uid, 194484313);
-		Assert.AreEqual(json.data.info.uname, @"Asaki大人");
-		Assert.IsTrue(json.data.info.face.StartsWith(@"https://"));
-		Assert.AreEqual(json.data.info.platform_user_level, 6);
-	}
 
 	[TestMethod]
 	public async Task GetDanmuConfTestAsync()
 	{
-		var json = await _apiClient.GetDanmuConfAsync(732);
+		DanmuConfMessage? json = await _apiClient.GetDanmuConfAsync(732);
+		Assert.IsNotNull(json);
 		Assert.AreEqual(0, json.code);
 		Assert.AreEqual(@"0", json.message);
+
+		Assert.IsNotNull(json.data);
+		Assert.IsNotNull(json.data.host_list);
 		Assert.IsTrue(json.data.host_list.Length > 0);
 		Assert.IsTrue(!string.IsNullOrWhiteSpace(json.data.token));
 
@@ -100,39 +37,55 @@ public class BilibiliApiTest
 	[TestMethod]
 	public async Task GetPlayUrlTestAsync()
 	{
-		var json = await _apiClient.GetPlayUrlAsync(732);
+		RoomPlayInfo? json = await _apiClient.GetRoomPlayInfoAsync(3);
+		Assert.IsNotNull(json);
 		Assert.AreEqual(json.code, 0);
 		Assert.AreEqual(json.message, @"0");
-		Assert.AreEqual(json.data.current_qn, 10000);
-		Assert.IsTrue(json.data.quality_description.Length > 0);
-		Assert.IsTrue(json.data.durl.Length > 0);
-		foreach (var durl in json.data.durl)
-		{
-			Assert.IsTrue(durl.url.StartsWith(@"https://"));
-			Console.WriteLine(durl.url);
-		}
+
+		RoomPlayInfo.Data.PlayurlInfo.Playurl.Stream.Format.Codec? codec = json.data?.playurl_info?.playurl?
+			.stream?.FirstOrDefault(x => x.protocol_name is @"http_stream")?
+			.format?.FirstOrDefault(x => x.format_name is @"flv")?
+			.codec?.FirstOrDefault(x => x.codec_name is @"avc");
+		Assert.IsNotNull(codec);
+		Assert.AreEqual(10000, codec.current_qn);
+		Assert.IsNotNull(codec.base_url);
+		Assert.IsTrue(codec.base_url.EndsWith(@".flv?"));
+		Assert.IsNotNull(codec.url_info?.FirstOrDefault(x => !string.IsNullOrEmpty(x.host) && !string.IsNullOrEmpty(x.extra) && x.host.StartsWith(@"https://") && !x.host.Contains(@".mcdn.")));
 	}
 
 	[TestMethod]
 	public async Task GetRoomInfoTestAsync()
 	{
-		var json = await _apiClient.GetRoomInfoAsync(732);
-		Assert.AreEqual(json.code, 0);
-		Assert.AreEqual(json.msg, @"ok");
-		Assert.AreEqual(json.message, @"ok");
-		Assert.AreEqual(json.data.room_id, 6154037);
-		Assert.AreEqual(json.data.short_id, 732);
-		Assert.IsTrue(json.data.live_status is 0 or 1 or 2);
-		Assert.IsTrue(!string.IsNullOrWhiteSpace(json.data.title));
+		RoomInfoMessage? json = await _apiClient.GetRoomInfoAsync(732);
+		Assert.IsNotNull(json);
+		Assert.AreEqual(0, json.code);
+		Assert.AreEqual(@"0", json.message);
+		Assert.IsNotNull(json.data);
+
+		Assert.IsNotNull(json.data.room_info);
+		Assert.AreEqual(6154037, json.data.room_info.room_id);
+		Assert.AreEqual(732, json.data.room_info.short_id);
+		Assert.IsTrue(json.data.room_info.live_status is 0 or 1 or 2);
+		Assert.IsTrue(!string.IsNullOrWhiteSpace(json.data.room_info.title));
+
+		Assert.IsNotNull(json.data.anchor_info);
+		Assert.IsNotNull(json.data.anchor_info.base_info);
+		Assert.AreEqual(@"Asaki大人", json.data.anchor_info.base_info.uname);
 	}
 
 	[TestMethod]
 	public async Task GetLoginUrlTestAsync()
 	{
-		var json = await _apiClient.GetLoginUrlAsync();
+		GetLoginUrlMessage? json = await _apiClient.GetLoginUrlAsync();
+		Assert.IsNotNull(json);
 		Assert.AreEqual(json.code, 0);
 		Assert.AreEqual(json.status, true);
+		Assert.IsNotNull(json.data);
+
+		Assert.IsNotNull(json.data.url);
 		Assert.IsTrue(json.data.url.StartsWith(@"https://"));
+
+		Assert.IsNotNull(json.data.oauthKey);
 		Assert.AreEqual(json.data.oauthKey.Length, 32);
 	}
 
@@ -169,11 +122,13 @@ public class BilibiliApiTest
 	[TestMethod]
 	public async Task FansMedalTestAsync()
 	{
-		var message0 = await _apiClient.GetLiveFansMedalMessageAsync();
+		LiveFansMedalMessage? message0 = await _apiClient.GetLiveFansMedalMessageAsync();
+		Assert.IsNotNull(message0);
 		Assert.AreEqual(0, message0.code);
-		var count = message0.data.count;
+		Assert.IsNotNull(message0.data);
+		long count = message0.data.count;
 
-		var list = await _apiClient.GetLiveFansMedalListAsync();
+		List<FansMedalList> list = await _apiClient.GetLiveFansMedalListAsync();
 		Assert.AreEqual(count, list.Count);
 	}
 
@@ -181,41 +136,5 @@ public class BilibiliApiTest
 	public async Task DanmuSendTestAsync()
 	{
 		await _apiClient.SendDanmuAsync(40462, Csrf);
-	}
-
-	[TestMethod]
-	public async Task GetDanmuInfoByLiveRecordTestAsync()
-	{
-		var danmuInfo = await _apiClient.GetDanmuInfoByLiveRecordAsync(Rid);
-		Assert.IsNotNull(danmuInfo);
-		Assert.AreEqual(0L, danmuInfo.code);
-		Assert.AreEqual(@"0", danmuInfo.message);
-		Assert.IsNotNull(danmuInfo.data?.dm_info);
-
-		var totalIndex = danmuInfo.data.dm_info.num;
-		Assert.IsTrue(totalIndex > 0);
-
-		var d = 0L;
-		var ix = 0L;
-		for (var i = 0L; i < totalIndex; ++i)
-		{
-			var danmuMsgInfo = await _apiClient.GetDmMsgByPlayBackIdAsync(Rid, i);
-			Assert.IsNotNull(danmuMsgInfo.data?.dm);
-
-			if (danmuMsgInfo.data?.dm?.dm_info is not null)
-			{
-				d += danmuMsgInfo.data.dm.dm_info.Length;
-			}
-
-			if (danmuMsgInfo.data.dm.interactive_info is not null)
-			{
-				ix += danmuMsgInfo.data.dm.interactive_info.Length;
-			}
-		}
-
-		Debug.WriteLine($@"{d} 条弹幕");
-		Debug.WriteLine($@"{ix} 条礼物");
-
-		Assert.AreEqual(danmuInfo.data.dm_info.total_num, d + ix);
 	}
 }

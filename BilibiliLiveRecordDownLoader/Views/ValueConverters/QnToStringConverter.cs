@@ -14,9 +14,9 @@ public class QnToStringConverter : IValueConverter
 		{
 			return qn switch
 			{
+				Qn.杜比 => Constants.Qn30000,
 				Qn._4K => Constants.Qn20000,
 				Qn.原画 => Constants.Qn10000,
-				Qn.蓝光杜比 => Constants.Qn401,
 				Qn.蓝光 => Constants.Qn400,
 				Qn.超清 => Constants.Qn250,
 				Qn.高清 => Constants.Qn150,
@@ -38,9 +38,9 @@ public class QnToStringConverter : IValueConverter
 			}
 			return str switch
 			{
+				Constants.Qn30000 => Qn.杜比,
 				Constants.Qn20000 => Qn._4K,
 				Constants.Qn10000 => Qn.原画,
-				Constants.Qn401 => Qn.蓝光杜比,
 				Constants.Qn400 => Qn.蓝光,
 				Constants.Qn250 => Qn.超清,
 				Constants.Qn150 => Qn.高清,

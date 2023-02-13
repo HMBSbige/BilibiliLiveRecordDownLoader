@@ -1,7 +1,6 @@
 using BilibiliApi.Clients;
 using BilibiliApi.Enums;
 using BilibiliApi.Model.Danmu;
-using BilibiliApi.Model.PlayUrl;
 using BilibiliApi.Model.RoomInfo;
 using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Enums;
@@ -195,7 +194,7 @@ public class RoomStatus : ReactiveObject
 	{
 		try
 		{
-			var data = await _apiClient.GetRoomInfoDataAsync(RoomId, token);
+			RoomInfoMessage.RoomInfoData data = await _apiClient.GetRoomInfoDataAsync(RoomId, token);
 			CopyFromRoomInfoData(data);
 		}
 		catch (Exception ex)
@@ -211,25 +210,11 @@ public class RoomStatus : ReactiveObject
 		}
 	}
 
-	private async Task GetAnchorInfoAsync(CancellationToken token)
-	{
-		try
-		{
-			var info = await _apiClient.GetAnchorInfoDataAsync(RoomId, token);
-			UserName = info.uname;
-		}
-		catch (Exception ex)
-		{
-			_logger.LogError(ex, $@"[{RoomId}] 获取主播信息出错");
-		}
-	}
-
 	public async Task RefreshStatusAsync(CancellationToken token)
 	{
 		try
 		{
 			await GetRoomInfoDataAsync(true, token);
-			await GetAnchorInfoAsync(token);
 		}
 		catch (Exception ex)
 		{
@@ -292,11 +277,10 @@ public class RoomStatus : ReactiveObject
 				try
 				{
 					RecordStatus = RecordStatus.启动中;
-					PlayUrlData urlData = await _apiClient.GetPlayUrlDataAsync(RoomId, (long)Qn, token);
-					string? url = urlData.durl!.First().url;
+					string url = await _apiClient.GetRoomStreamUrlAsync(RoomId, (long)Qn, token);
 
 					await using HttpDownloader downloader = DI.GetRequiredService<HttpDownloader>();
-					downloader.Target = new Uri(url!);
+					downloader.Target = new Uri(url);
 					downloader.Client.Timeout = TimeSpan.FromSeconds(StreamConnectTimeout);
 					downloader.WaitWriteToFile = false;
 
@@ -343,7 +327,7 @@ public class RoomStatus : ReactiveObject
 				}
 				catch (Exception e)
 				{
-					if (e is HttpRequestException ex)
+					if (e is HttpRequestException { StatusCode: { } } ex)
 					{
 						_logger.LogInformation($@"[{RoomId}] 尝试下载直播流时服务器返回了 {ex.StatusCode}");
 					}
@@ -528,12 +512,20 @@ public class RoomStatus : ReactiveObject
 
 	#region Clone
 
-	private void CopyFromRoomInfoData(RoomInfoData roomData)
+	private void CopyFromRoomInfoData(RoomInfoMessage.RoomInfoData roomData)
 	{
-		RoomId = roomData.room_id;
-		ShortId = roomData.short_id;
-		LiveStatus = (LiveStatus)roomData.live_status;
-		Title = roomData.title;
+		if (roomData.room_info is not null)
+		{
+			RoomId = roomData.room_info.room_id;
+			ShortId = roomData.room_info.short_id;
+			LiveStatus = (LiveStatus)roomData.room_info.live_status;
+			Title = roomData.room_info.title;
+		}
+
+		if (roomData.anchor_info?.base_info is not null)
+		{
+			UserName = roomData.anchor_info.base_info.uname;
+		}
 	}
 
 	public RoomStatus Clone()
