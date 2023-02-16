@@ -2,7 +2,6 @@ using BilibiliLiveRecordDownLoader.Http.Interfaces;
 using BilibiliLiveRecordDownLoader.Shared.Abstractions;
 using BilibiliLiveRecordDownLoader.Shared.Interfaces;
 using System.Buffers;
-using System.Diagnostics.CodeAnalysis;
 using System.IO.Pipelines;
 
 namespace BilibiliLiveRecordDownLoader.Http.Clients;
@@ -29,15 +28,10 @@ public class HttpDownloader : ProgressBase, IDownloader, IHttpClient
 		PipeOptions = new PipeOptions(pauseWriterThreshold: 0);
 	}
 
-	[MemberNotNull(nameof(_netStream))]
-	public async ValueTask GetStreamAsync(CancellationToken token)
+	public async ValueTask<Stream> GetStreamAsync(CancellationToken token)
 	{
 		_netStream = await Client.GetStreamAsync(Target, token);
-	}
-
-	public void CloseStream()
-	{
-		_netStream?.Dispose();
+		return _netStream;
 	}
 
 	public async ValueTask DownloadAsync(CancellationToken cancellationToken = default)
@@ -47,22 +41,19 @@ public class HttpDownloader : ProgressBase, IDownloader, IHttpClient
 			throw new OperationCanceledException(@"no output file path");
 		}
 
-		if (_netStream is null)
-		{
-			await GetStreamAsync(cancellationToken);
-		}
+		await using Stream remoteStream = _netStream ?? await GetStreamAsync(cancellationToken);
 
-		EnsureDirectory(OutFileName);
 		Pipe pipe = new(PipeOptions);
+		EnsureDirectory(OutFileName);
 		FileStream fs = new(OutFileName, FileMode.Create, FileAccess.Write, FileShare.Read);
 
-		WriteToFileTask = pipe.Reader.CopyToAsync(fs, cancellationToken)
+		WriteToFileTask = pipe.Reader.CopyToAsync(fs)
 			.ContinueWith(_ => fs.Dispose(), default, TaskContinuationOptions.None, TaskScheduler.Current);
 		try
 		{
 			using (CreateSpeedMonitor())
 			{
-				await CopyToWithProgressAsync(_netStream, pipe.Writer, cancellationToken);
+				await CopyToWithProgressAsync(remoteStream, pipe.Writer, cancellationToken);
 			}
 		}
 		finally
@@ -107,6 +98,15 @@ public class HttpDownloader : ProgressBase, IDownloader, IHttpClient
 		void ReportProgress(long length)
 		{
 			Interlocked.Add(ref Last, length);
+		}
+	}
+
+	public override async ValueTask DisposeAsync()
+	{
+		await base.DisposeAsync();
+		if (_netStream is not null)
+		{
+			await _netStream.DisposeAsync();
 		}
 	}
 }

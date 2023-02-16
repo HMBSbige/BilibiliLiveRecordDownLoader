@@ -138,7 +138,7 @@ public class StreamRecordViewModel : ReactiveObject, IRoutableViewModel
 				}
 			}
 
-			await room.GetRoomInfoDataAsync(true, token);
+			await room.GetRoomInfoDataAsync(token);
 
 			if (_roomList.Items.Any(x => x.RoomId == room.RoomId))
 			{
@@ -229,13 +229,13 @@ public class StreamRecordViewModel : ReactiveObject, IRoutableViewModel
 			}
 			var roomList = string.Join('，', rooms.Select(room => string.IsNullOrWhiteSpace(room.UserName) ? $@"{room.RoomId}" : room.UserName));
 			using (var dialog = new DisposableContentDialog
-			       {
-				       Title = @"确定移除直播间？",
-				       Content = roomList,
-				       PrimaryButtonText = @"确定",
-				       CloseButtonText = @"取消",
-				       DefaultButton = ContentDialogButton.Close
-			       })
+			{
+				Title = @"确定移除直播间？",
+				Content = roomList,
+				PrimaryButtonText = @"确定",
+				CloseButtonText = @"取消",
+				DefaultButton = ContentDialogButton.Close
+			})
 			{
 				if (await dialog.SafeShowAsync() != ContentDialogResult.Primary)
 				{

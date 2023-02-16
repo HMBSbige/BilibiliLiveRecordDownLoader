@@ -75,7 +75,7 @@ public abstract class DanmuClientBase : IDanmuClient
 
 		await StopAsync();
 
-		_cts = new();
+		_cts = new CancellationTokenSource();
 
 		await ConnectWithRetryAsync(_cts.Token);
 	}
@@ -180,7 +180,7 @@ public abstract class DanmuClientBase : IDanmuClient
 
 			_logger.LogInformation(@"{0} 正在连接弹幕服务器 {1}", LogHeader, Server);
 
-			var pipe = await ConnectAsync(token);
+			IDuplexPipe? pipe = await ConnectAsync(token);
 			if (pipe is null)
 			{
 				Close();

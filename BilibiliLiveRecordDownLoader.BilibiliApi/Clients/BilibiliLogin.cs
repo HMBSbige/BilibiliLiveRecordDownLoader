@@ -16,17 +16,17 @@ public partial class BilibiliApiClient
 	public async Task<bool> CheckLoginStatusAsync(CancellationToken token = default)
 	{
 		const string url = @"https://api.bilibili.com/x/web-interface/nav/stat";
-		var json = await GetJsonAsync<JsonElement>(url, token);
-		return json.TryGetProperty(@"code", out var codeElement) && codeElement.TryGetInt64(out var code) && code == 0;
+		JsonElement json = await GetJsonAsync<JsonElement>(url, token);
+		return json.TryGetProperty(@"code", out JsonElement codeElement) && codeElement.TryGetInt64(out long code) && code == 0;
 	}
 
 	public async Task<long> GetUidAsync(CancellationToken token = default)
 	{
 		const string url = @"https://api.live.bilibili.com/User/getUserInfo";
-		var json = await GetJsonAsync<JsonElement>(url, token);
-		if (json.TryGetProperty(@"data", out var dataElement)
-		    && dataElement.TryGetProperty(@"uid", out var uidElement)
-		    && uidElement.TryGetInt64(out var uid))
+		JsonElement json = await GetJsonAsync<JsonElement>(url, token);
+		if (json.TryGetProperty(@"data", out JsonElement dataElement)
+			&& dataElement.TryGetProperty(@"uid", out JsonElement uidElement)
+			&& uidElement.TryGetInt64(out long uid))
 		{
 			return uid;
 		}
@@ -130,8 +130,8 @@ public partial class BilibiliApiClient
 		var para = await body.ReadAsStringAsync(token);
 		var message = await GetJsonAsync<GetKeyMessage>(url + para, token);
 		if (message?.code != 0
-		    || message.data?.hash is null
-		    || message.data.key is null)
+			|| message.data?.hash is null
+			|| message.data.key is null)
 		{
 			throw new HttpRequestException(@"获取公钥失败");
 		}
@@ -153,8 +153,8 @@ public partial class BilibiliApiClient
 		var response = await PostAsync(url, pair, true, token);
 		var message = await response.Content.ReadFromJsonAsync<AppLoginMessage>(cancellationToken: token);
 		if (message?.code != 0
-		    || message.data?.cookie_info?.cookies is null
-		    || message.data.token_info?.access_token is null)
+			|| message.data?.cookie_info?.cookies is null
+			|| message.data.token_info?.access_token is null)
 		{
 			throw new HttpRequestException(@"获取登录信息失败");
 		}
