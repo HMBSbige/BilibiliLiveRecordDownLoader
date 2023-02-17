@@ -87,7 +87,7 @@ public sealed class ConfigService : ReactiveObject, IConfigService
 
 		_themeMonitor = Config.WhenAnyValue(x => x.Theme)
 			.DistinctUntilChanged()
-			.Subscribe(theme => ThemeManager.Current.SetTheme(theme));
+			.Subscribe(ThemeManager.Current.SetTheme);
 	}
 
 	public async ValueTask SaveAsync(CancellationToken token)

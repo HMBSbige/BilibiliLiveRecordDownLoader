@@ -1,4 +1,6 @@
 using BilibiliApi.Model.DanmuConf;
+using Microsoft;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Pipelines.Extensions;
 using System.IO.Pipelines;
@@ -10,12 +12,11 @@ namespace BilibiliApi.Clients;
 public class WssDanmuClient : DanmuClientBase
 {
 	protected override string Server => $@"wss://{Host}:{Port}/sub";
-	protected override ushort DefaultPort => 2245;
-	protected override bool ClientConnected => _client?.State == WebSocketState.Open;
+	protected override ushort DefaultPort => 443;
 
 	private ClientWebSocket? _client;
 
-	public WssDanmuClient(ILogger<WssDanmuClient> logger, BilibiliApiClient apiClient) : base(logger, apiClient) { }
+	public WssDanmuClient(ILogger<WssDanmuClient> logger, BilibiliApiClient apiClient, IDistributedCache cacheService) : base(logger, apiClient, cacheService) { }
 
 	protected override ushort GetPort(HostServerList server)
 	{
@@ -29,9 +30,11 @@ public class WssDanmuClient : DanmuClientBase
 		return _client;
 	}
 
-	protected override async ValueTask<IDuplexPipe> ClientHandshakeAsync(CancellationToken token)
+	protected override async ValueTask<IDuplexPipe> ClientHandshakeAsync(CancellationToken cancellationToken)
 	{
-		await _client!.ConnectAsync(new Uri(Server), token);
+		Assumes.NotNull(_client);
+
+		await _client.ConnectAsync(new Uri(Server), cancellationToken);
 		return _client.AsDuplexPipe();
 	}
 }

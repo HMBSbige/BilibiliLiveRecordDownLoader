@@ -1,8 +1,10 @@
 using BilibiliApi.Enums;
 using BilibiliApi.Model.Danmu;
+using BilibiliApi.Model.Danmu.DanmuBody;
 using BilibiliApi.Model.DanmuConf;
+using Microsoft;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
-using Microsoft.VisualStudio.Threading;
 using Pipelines.Extensions;
 using System.Buffers;
 using System.IO.Compression;
@@ -11,6 +13,7 @@ using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
@@ -18,233 +21,295 @@ namespace BilibiliApi.Clients;
 
 public abstract class DanmuClientBase : IDanmuClient
 {
-	private readonly ILogger _logger;
+	private readonly ILogger<DanmuClientBase> _logger;
+	private readonly BilibiliApiClient _apiClient;
+	private readonly IDistributedCache _cacheService;
 
 	public long RoomId { get; set; }
 
 	public TimeSpan RetryInterval { get; set; } = TimeSpan.FromSeconds(2);
+	private static readonly TimeSpan HeartBeatInterval = TimeSpan.FromSeconds(30);
 
-	private readonly Subject<DanmuPacket> _danMuSubj = new();
-	public IObservable<DanmuPacket> Received => _danMuSubj.AsObservable();
+	private string DanmuServerCacheKey => @"🤣DanmuClient.Servers." + RoomId;
+	private static readonly DistributedCacheEntryOptions DanmuServerCacheOptions = new()
+	{
+		AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1)
+	};
 
-	private readonly BilibiliApiClient _apiClient;
-
-	protected string? Host;
-	protected ushort Port;
-	protected abstract string Server { get; }
-	private string? _token;
-	private long _uid;
 	private const short ReceiveProtocolVersion = 2;
 	private const short SendProtocolVersion = 1;
 	private const int SendHeaderLength = 16;
 
+	private readonly Subject<DanmuPacket> _danMuSubj = new();
+	public IObservable<DanmuPacket> Received => _danMuSubj.AsObservable();
+
+	protected abstract string Server { get; }
+	protected string? Host;
+	protected ushort Port;
+	private string? _token;
+	private long _uid;
+
 	private const string DefaultHost = @"broadcastlv.chat.bilibili.com";
 	protected abstract ushort DefaultPort { get; }
-
-	protected abstract bool ClientConnected { get; }
-
-	private IDisposable? _heartBeatTask;
-	private static readonly TimeSpan HeartBeatInterval = TimeSpan.FromSeconds(30);
 
 	private CancellationTokenSource? _cts;
 	private readonly CompositeDisposable _disposableServices = new();
 
-	private string LogHeader => $@"[{RoomId}]";
-
-	private static readonly TimeSpan GetServerInterval = TimeSpan.FromSeconds(20);
-	private DateTime _lastGetServerSuccess;
-
-	protected DanmuClientBase(ILogger logger, BilibiliApiClient apiClient)
+	protected DanmuClientBase(ILogger<DanmuClientBase> logger, BilibiliApiClient apiClient, IDistributedCache cacheService)
 	{
 		_logger = logger;
 		_apiClient = apiClient;
+		_cacheService = cacheService;
 	}
 
 	protected abstract ushort GetPort(HostServerList server);
 
 	protected abstract IDisposable CreateClient();
 
-	protected abstract ValueTask<IDuplexPipe> ClientHandshakeAsync(CancellationToken token);
+	protected abstract ValueTask<IDuplexPipe> ClientHandshakeAsync(CancellationToken cancellationToken);
 
 	public virtual async ValueTask StartAsync()
 	{
-		if (_isDisposed)
-		{
-			throw new ObjectDisposedException(GetType().FullName);
-		}
+		Verify.NotDisposed(this);
 
-		await StopAsync();
+		Stop();
 
 		_cts = new CancellationTokenSource();
 
 		await ConnectWithRetryAsync(_cts.Token);
 	}
 
-	private async ValueTask GetServerAsync(CancellationToken token)
+	private async ValueTask ConnectWithRetryAsync(CancellationToken cancellationToken)
 	{
 		try
 		{
-			_uid = default;
-			_token = default;
-			Host = default;
-			Port = default;
-
-			if (DateTime.Now - _lastGetServerSuccess < GetServerInterval)
+			while (true)
 			{
-				_logger.LogDebug(@"{0} 跳过获取弹幕服务器", LogHeader);
-				return;
-			}
-			_lastGetServerSuccess = DateTime.Now;
+				cancellationToken.ThrowIfCancellationRequested();
 
-			DanmuConfMessage? conf = await _apiClient.GetDanmuConfAsync(RoomId, token);
-			if (conf?.data?.host_list is null || conf.data.host_list.Length is 0)
-			{
-				throw new HttpRequestException(@"Wrong response");
-			}
+				await GetServerAsync(cancellationToken);
+				await GetUidAsync();
 
-			HostServerList server = conf.data.host_list.First();
-			Host = server.host;
-			Port = GetPort(server);
-			_token = conf.data.token;
+				_logger.LogInformation(@"[{roomId}] 正在连接弹幕服务器 {server}", RoomId, Server);
 
-			try
-			{
-				_uid = await _apiClient.GetUidAsync(token);
+				IDuplexPipe? pipe = await ConnectAsync(cancellationToken);
+				if (pipe is not null)
+				{
+					_logger.LogInformation(@"[{roomId}] 连接弹幕服务器成功", RoomId);
+
+					IDisposable receiveAuthTask = Received.Take(1).Subscribe(packet =>
+					{
+						if (IsAuthSuccess())
+						{
+							_logger.LogInformation(@"[{roomId}] 进房成功", RoomId);
+						}
+						else
+						{
+							_logger.LogWarning(@"[{roomId}] 进房失败", RoomId);
+							Close();
+						}
+
+						bool IsAuthSuccess()
+						{
+							try
+							{
+								if (packet.Operation is not Operation.AuthReply)
+								{
+									return false;
+								}
+
+								string json = Encoding.UTF8.GetString(packet.Body);
+								_logger.LogDebug(@"[{roomId}] 进房回应 {jsonString}", RoomId, json);
+
+								if (json is """{"code":0}""")
+								{
+									return true;
+								}
+
+								JsonElement root = JsonSerializer.Deserialize<JsonElement>(json);
+								return root.TryGetProperty(@"code", out JsonElement codeElement) && codeElement.TryGetInt64(out long code) && code is 0;
+							}
+							catch
+							{
+								return false;
+							}
+						}
+					});
+					_disposableServices.Add(receiveAuthTask);
+
+					await ProcessDanMuAsync(pipe.Input);
+				}
+
+				Close();
+				await Task.Delay(RetryInterval, cancellationToken);
 			}
-			catch
-			{
-				// ignored
-			}
+		}
+		catch (Exception) when (cancellationToken.IsCancellationRequested)
+		{
+			_logger.LogInformation(@"[{roomId}] 不再连接弹幕服务器", RoomId);
 		}
 		catch (Exception ex)
 		{
-			_logger.LogWarning(ex, @"{0} 获取弹幕服务器失败", LogHeader);
+			_logger.LogError(ex, @"[{roomId}] 连接弹幕服务器发生未知错误", RoomId);
 		}
 		finally
 		{
-			if (string.IsNullOrEmpty(_token) || string.IsNullOrWhiteSpace(Host))
-			{
-				_logger.LogWarning(@"{0} 使用默认弹幕服务器", LogHeader);
-				Host = DefaultHost;
-			}
+			Close();
+		}
 
-			if (Port == default)
+		async ValueTask GetUidAsync()
+		{
+			try
 			{
-				Port = DefaultPort;
+				_uid = await _apiClient.GetUidAsync(cancellationToken);
+			}
+			catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+			{
+				_logger.LogWarning(ex, @"[{roomId}] 获取 uid 失败", RoomId);
+			}
+		}
+
+		async ValueTask ProcessDanMuAsync(PipeReader reader)
+		{
+			try
+			{
+				await ReadPipeAsync(reader, cancellationToken);
+				_logger.LogWarning(@"[{roomId}] 弹幕服务器不再发送弹幕，尝试重连...", RoomId);
+			}
+			catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+			{
+				_logger.LogWarning(ex, @"[{roomId}] 弹幕服务器连接被断开，尝试重连...", RoomId);
 			}
 		}
 	}
 
-	private async ValueTask WaitAsync(CancellationToken token)
+	/// <summary>
+	/// 获取弹幕服务器
+	/// </summary>
+	private async ValueTask GetServerAsync(CancellationToken cancellationToken)
 	{
+		_token = default;
+
 		try
 		{
-			await Task.Delay(RetryInterval, token);
-		}
-		catch (TaskCanceledException)
-		{
-			_logger.LogInformation(@"{0} 不再连接弹幕服务器", LogHeader);
-		}
-	}
+			DanmuConfData? danmuInfoData;
+			HostServerList? server;
 
-	private bool IsAuthSuccess(in DanmuPacket packet)
-	{
-		try
-		{
-			if (packet.Operation == Operation.AuthReply)
+			byte[]? cacheBytes = await _cacheService.GetAsync(DanmuServerCacheKey, cancellationToken);
+			if (cacheBytes is not null)
 			{
-				var json = Encoding.UTF8.GetString(packet.Body);
-				_logger.LogDebug(@"{0} 进房回应 {1}", LogHeader, json);
-				if (json == @"{""code"":0}")
+				danmuInfoData = JsonSerializer.Deserialize<DanmuConfData>(cacheBytes);
+				Assumes.NotNull(danmuInfoData?.host_list);
+
+				server = string.IsNullOrEmpty(Host) ? danmuInfoData.host_list.First() : danmuInfoData.host_list[RandomNumberGenerator.GetInt32(danmuInfoData.host_list.Length)];
+			}
+			else
+			{
+				Host = default;
+
+				DanmuConfMessage? conf = await _apiClient.GetDanmuConfAsync(RoomId, cancellationToken);
+				if (conf?.code is not 0 && !string.IsNullOrEmpty(conf?.message))
 				{
-					return true;
+					_logger.LogError(@"[{roomId}] 获取弹幕服务器失败：{message}", RoomId, conf.message);
+					return;
 				}
-				var jsonElement = JsonSerializer.Deserialize<JsonElement>(json);
-				var code = jsonElement.GetProperty(@"code").GetInt64();
-				return code == 0;
+
+				danmuInfoData = conf?.data;
+
+				if (string.IsNullOrEmpty(danmuInfoData?.token) || danmuInfoData.host_list is null || danmuInfoData.host_list.Length is 0)
+				{
+					_logger.LogError(@"[{roomId}] 获取弹幕服务器失败：返回信息中未包含服务器地址", RoomId);
+					return;
+				}
+
+				await _cacheService.SetAsync(DanmuServerCacheKey, JsonSerializer.SerializeToUtf8Bytes(danmuInfoData), DanmuServerCacheOptions, cancellationToken);
+				server = danmuInfoData.host_list.First();
 			}
 
-			return false;
+			Host = server.host;
+			Port = GetPort(server);
+			_token = danmuInfoData.token;
 		}
-		catch
+		catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 		{
-			return false;
+			_logger.LogWarning(ex, @"[{roomId}] 获取弹幕服务器失败", RoomId);
 		}
-	}
-
-	private async ValueTask ConnectWithRetryAsync(CancellationToken token)
-	{
-		while (!ClientConnected && !token.IsCancellationRequested)
+		finally
 		{
-			await GetServerAsync(token);
-
-			_logger.LogInformation(@"{0} 正在连接弹幕服务器 {1}", LogHeader, Server);
-
-			IDuplexPipe? pipe = await ConnectAsync(token);
-			if (pipe is null)
+			if (!cancellationToken.IsCancellationRequested)
 			{
-				Close();
-				await WaitAsync(token);
-				continue;
+				if (string.IsNullOrEmpty(_token) || string.IsNullOrEmpty(Host))
+				{
+					_logger.LogWarning(@"[{roomId}] 使用默认弹幕服务器", RoomId);
+					Host = DefaultHost;
+					Port = DefaultPort;
+					_token = default;
+				}
 			}
-
-			_logger.LogInformation(@"{0} 连接弹幕服务器成功", LogHeader);
-
-			Received.Take(1).Subscribe(packet =>
-			{
-				if (IsAuthSuccess(packet))
-				{
-					_logger.LogInformation(@"{0} 进房成功", LogHeader);
-				}
-				else
-				{
-					_logger.LogWarning(@"{0} 进房失败", LogHeader);
-					Close();
-				}
-			});
-
-			ProcessDanMuAsync(pipe.Input, token).Forget();
-			break;
 		}
 	}
 
-	private async ValueTask<IDuplexPipe?> ConnectAsync(CancellationToken token)
+	private async ValueTask<IDuplexPipe?> ConnectAsync(CancellationToken cancellationToken)
 	{
+		cancellationToken.ThrowIfCancellationRequested();
+
 		try
 		{
-			var client = CreateClient();
+			IDisposable client = CreateClient();
 			_disposableServices.Add(client);
 
-			var pipe = await ClientHandshakeAsync(token);
-			var writer = pipe.Output;
+			IDuplexPipe pipe = await ClientHandshakeAsync(cancellationToken);
 
-			await SendAuthAsync(writer, token);
+			await SendAuthAsync(pipe.Output);
 
-			_heartBeatTask = Observable.Interval(HeartBeatInterval).SelectMany(SendAsync).Subscribe();
-
-			_disposableServices.Add(_heartBeatTask);
+			IDisposable heartBeatTask = Observable.Interval(HeartBeatInterval).SelectMany(_ => SendHeartBeatAsync(pipe.Output)).Subscribe();
+			_disposableServices.Add(heartBeatTask);
 
 			return pipe;
-
-			async Task<Unit> SendAsync(long i)
-			{
-				await SendHeartbeatAsync(writer, token);
-				return default;
-			}
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 		{
-			_logger.LogError(ex, @"{0} 连接弹幕服务器错误", LogHeader);
+			_logger.LogError(ex, @"[{roomId}] 连接弹幕服务器错误", RoomId);
 			return null;
+		}
+
+		async ValueTask SendAuthAsync(PipeWriter writer)
+		{
+			AuthDanmu authBody = new()
+			{
+				RoomId = RoomId,
+				UserId = _uid,
+				ProtocolVersion = ReceiveProtocolVersion,
+				Token = _token
+			};
+			string json = JsonSerializer.Serialize(authBody, AuthDanmuJsonSerializerContext.Default.AuthDanmu);
+
+			_logger.LogDebug(@"[{roomId}] AuthJson: {jsonString}", RoomId, json);
+			await SendDataAsync(writer, Operation.Auth, json, cancellationToken);
+		}
+
+		async Task<Unit> SendHeartBeatAsync(PipeWriter writer)
+		{
+			try
+			{
+				_logger.LogDebug(@"[{roomId}] 发送心跳包", RoomId);
+				await SendDataAsync(writer, Operation.Heartbeat, string.Empty, cancellationToken);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogWarning(ex, @"[{roomId}] 心跳包发送失败", RoomId);
+				Close();
+			}
+			return default;
 		}
 	}
 
-	private static async ValueTask SendDataAsync(PipeWriter writer, Operation operation, string body, CancellationToken token)
+	private static async ValueTask SendDataAsync(PipeWriter writer, Operation operation, string body, CancellationToken cancellationToken)
 	{
-		var memory = writer.GetMemory(SendHeaderLength + Encoding.UTF8.GetMaxByteCount(body.Length));
+		Memory<byte> memory = writer.GetMemory(SendHeaderLength + Encoding.UTF8.GetMaxByteCount(body.Length));
 
-		var dataLength = Encoding.UTF8.GetBytes(body, memory.Span[SendHeaderLength..]);
-		var packet = new DanmuPacket
+		int dataLength = Encoding.UTF8.GetBytes(body, memory.Span[SendHeaderLength..]);
+		DanmuPacket packet = new()
 		{
 			PacketLength = dataLength + SendHeaderLength,
 			HeaderLength = SendHeaderLength,
@@ -252,84 +317,35 @@ public abstract class DanmuClientBase : IDanmuClient
 			Operation = operation,
 			SequenceId = 1
 		};
-		packet.HeaderTo(memory.Span);
+		packet.GetHeaderBytes(memory.Span);
 
 		writer.Advance(packet.PacketLength);
-		await writer.FlushAsync(token);
+		await writer.FlushAsync(cancellationToken);
 	}
 
-	private async ValueTask SendAuthAsync(PipeWriter writer, CancellationToken token)
-	{
-		string json;
-		if (string.IsNullOrEmpty(_token))
-		{
-			json = @$"{{""roomid"":{RoomId},""uid"":{_uid},""protover"":{ReceiveProtocolVersion}}}";
-		}
-		else
-		{
-			json = @$"{{""roomid"":{RoomId},""uid"":{_uid},""protover"":{ReceiveProtocolVersion},""key"":""{_token}""}}";
-		}
-		_logger.LogDebug(@"{0} AuthJson: {1}", LogHeader, json);
-		await SendDataAsync(writer, Operation.Auth, json, token);
-	}
-
-	private async ValueTask SendHeartbeatAsync(PipeWriter writer, CancellationToken token)
+	private async ValueTask ReadPipeAsync(PipeReader reader, CancellationToken cancellationToken)
 	{
 		try
 		{
-			_logger.LogDebug(@"{0} 发送心跳包", LogHeader);
-			await SendDataAsync(writer, Operation.Heartbeat, string.Empty, token);
-		}
-		catch (Exception ex)
-		{
-			_logger.LogWarning(ex, @"{0} 心跳包发送失败", LogHeader);
-			Close();
-		}
-	}
-
-	private async ValueTask ProcessDanMuAsync(PipeReader reader, CancellationToken token)
-	{
-		try
-		{
-			await ReadPipeAsync(reader, token);
-			_logger.LogWarning(@"{0} 弹幕服务器不再发送弹幕，尝试重连...", LogHeader);
-		}
-		catch (Exception) when (token.IsCancellationRequested)
-		{
-			_logger.LogInformation(@"{0} 不再连接弹幕服务器", LogHeader);
-			return;
-		}
-		catch (Exception ex)
-		{
-			_logger.LogWarning(ex, @"{0} 弹幕服务器连接被断开，尝试重连...", LogHeader);
-		}
-
-		Close();
-		await WaitAsync(token);
-		await ConnectWithRetryAsync(token);
-	}
-
-	private async ValueTask ReadPipeAsync(PipeReader reader, CancellationToken token)
-	{
-		try
-		{
-			while (!token.IsCancellationRequested)
+			while (true)
 			{
-				var result = await reader.ReadAsync(token);
-				var buffer = result.Buffer;
+				cancellationToken.ThrowIfCancellationRequested();
+
+				ReadResult result = await reader.ReadAsync(cancellationToken);
+				ReadOnlySequence<byte> buffer = result.Buffer;
 				try
 				{
 					while (buffer.Length >= 16)
 					{
-						var packet = new DanmuPacket();
-						var success = packet.ReadDanMu(ref buffer);
+						DanmuPacket packet = new();
+						bool success = packet.ReadDanMu(ref buffer);
 
 						if (!success)
 						{
 							break;
 						}
 
-						await ProcessDanMuPacketAsync(packet, token);
+						await ProcessDanMuPacketAsync(packet, cancellationToken);
 					}
 
 					if (result.IsCompleted)
@@ -349,60 +365,59 @@ public abstract class DanmuClientBase : IDanmuClient
 		}
 	}
 
-	private async ValueTask ProcessDanMuPacketAsync(DanmuPacket packet, CancellationToken token)
+	private async ValueTask ProcessDanMuPacketAsync(DanmuPacket packet, CancellationToken cancellationToken)
 	{
 		switch (packet.ProtocolVersion)
 		{
 			case 0:
 			case 1:
 			{
-				EmitDanmu(packet);
+				EmitDanmu();
 				break;
 			}
 			case 2:
 			{
-				var stream = packet.Body.Slice(2).AsStream(); // Drop header
-				await using var deflate = new DeflateStream(stream, CompressionMode.Decompress, false);
-				var reader = PipeReader.Create(deflate);
-
-				await ReadPipeAsync(reader, token);
+				Stream stream = packet.Body.Slice(2).AsStream(); // Drop header
+				await using DeflateStream deflate = new(stream, CompressionMode.Decompress, false);
+				PipeReader reader = PipeReader.Create(deflate);
+				await ReadPipeAsync(reader, cancellationToken);
 
 				break;
 			}
 			default:
 			{
-				_logger.LogWarning(@"{0} 弹幕协议不支持。Version: {1}", LogHeader, packet.ProtocolVersion);
+				_logger.LogWarning(@"[{roomId}] 弹幕协议不支持。Version: {protocolVersion}", RoomId, packet.ProtocolVersion);
 				break;
 			}
 		}
-	}
 
-	private void EmitDanmu(in DanmuPacket packet)
-	{
-#if DEBUG
-		switch (packet.Operation)
+		void EmitDanmu()
 		{
-			case Operation.HeartbeatReply:
+#if DEBUG
+			switch (packet.Operation)
 			{
-				var reader = new SequenceReader<byte>(packet.Body);
-				reader.TryReadBigEndian(out int num);
-				_logger.LogDebug(@"{0} 收到弹幕[{1}] 人气值: {2}", LogHeader, packet.Operation, num);
-				break;
+				case Operation.HeartbeatReply:
+				{
+					SequenceReader<byte> reader = new(packet.Body);
+					reader.TryReadBigEndian(out int num);
+					_logger.LogDebug(@"[{roomId}] 收到弹幕[{operation}] 人气值: {number}", RoomId, packet.Operation, num);
+					break;
+				}
+				case Operation.SendMsgReply:
+				case Operation.AuthReply:
+				{
+					_logger.LogDebug(@"[{roomId}] 收到弹幕[{operation}]:{body}", RoomId, packet.Operation, Encoding.UTF8.GetString(packet.Body));
+					break;
+				}
+				default:
+				{
+					_logger.LogDebug(@"[{roomId}] 收到弹幕[{operation}]", RoomId, packet.Operation);
+					break;
+				}
 			}
-			case Operation.SendMsgReply:
-			case Operation.AuthReply:
-			{
-				_logger.LogDebug(@"{0} 收到弹幕[{1}]:{2}", LogHeader, packet.Operation, Encoding.UTF8.GetString(packet.Body));
-				break;
-			}
-			default:
-			{
-				_logger.LogDebug(@"{0} 收到弹幕[{1}]", LogHeader, packet.Operation);
-				break;
-			}
-		}
 #endif
-		_danMuSubj.OnNext(packet);
+			_danMuSubj.OnNext(packet);
+		}
 	}
 
 	private void Close()
@@ -410,26 +425,33 @@ public abstract class DanmuClientBase : IDanmuClient
 		_disposableServices.Clear();
 	}
 
-	public virtual ValueTask StopAsync()
+	private void Stop()
 	{
-		_cts?.Cancel();
+		if (_cts is not null)
+		{
+			_cts.Cancel();
+			_cts.Dispose();
+		}
+
 		Close();
-		return default;
 	}
 
-	private volatile bool _isDisposed;
+	public bool IsDisposed { get; private set; }
 
-	public virtual async ValueTask DisposeAsync()
+	public void Dispose()
 	{
-		if (_isDisposed)
+		if (IsDisposed)
 		{
 			return;
 		}
-		_isDisposed = true;
+		IsDisposed = true;
 
 		_danMuSubj.OnCompleted();
-		await StopAsync();
-		_cts?.Dispose();
+
+		Stop();
+
 		_disposableServices.Dispose();
+
+		GC.SuppressFinalize(this);
 	}
 }

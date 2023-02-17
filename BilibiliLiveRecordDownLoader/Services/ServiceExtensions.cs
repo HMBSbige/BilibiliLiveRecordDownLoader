@@ -51,6 +51,7 @@ public static class ServiceExtensions
 
 	public static IServiceCollection AddDanmuClients(this IServiceCollection services)
 	{
+		services.AddDistributedMemoryCache();
 		services.TryAddTransient<TcpDanmuClient>();
 		services.TryAddTransient<WsDanmuClient>();
 		services.TryAddTransient<WssDanmuClient>();

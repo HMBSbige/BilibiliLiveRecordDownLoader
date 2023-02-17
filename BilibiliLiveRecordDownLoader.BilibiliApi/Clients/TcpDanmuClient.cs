@@ -1,4 +1,6 @@
 using BilibiliApi.Model.DanmuConf;
+using Microsoft;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Pipelines.Extensions;
 using Pipelines.Extensions.SocketPipe;
@@ -11,14 +13,13 @@ public class TcpDanmuClient : DanmuClientBase
 {
 	protected override string Server => $@"{Host}:{Port}";
 	protected override ushort DefaultPort => 2243;
-	protected override bool ClientConnected => _client?.Connected ?? false;
 
 	private TcpClient? _client;
 
 	private static readonly SocketPipeReaderOptions ReaderOptions = new(shutDownReceive: false);
 	private static readonly SocketPipeWriterOptions WriterOptions = new(shutDownSend: false);
 
-	public TcpDanmuClient(ILogger<TcpDanmuClient> logger, BilibiliApiClient apiClient) : base(logger, apiClient) { }
+	public TcpDanmuClient(ILogger<TcpDanmuClient> logger, BilibiliApiClient apiClient, IDistributedCache cacheService) : base(logger, apiClient, cacheService) { }
 
 	protected override ushort GetPort(HostServerList server)
 	{
@@ -30,9 +31,12 @@ public class TcpDanmuClient : DanmuClientBase
 		return _client = new TcpClient();
 	}
 
-	protected override async ValueTask<IDuplexPipe> ClientHandshakeAsync(CancellationToken token)
+	protected override async ValueTask<IDuplexPipe> ClientHandshakeAsync(CancellationToken cancellationToken)
 	{
-		await _client!.ConnectAsync(Host!, Port, token);
+		Assumes.NotNull(_client);
+		Assumes.NotNullOrEmpty(Host);
+
+		await _client.ConnectAsync(Host, Port, cancellationToken);
 		return _client.Client.AsDuplexPipe(ReaderOptions, WriterOptions);
 	}
 }

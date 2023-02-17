@@ -22,9 +22,9 @@ public partial class BilibiliApiClient
 
 	public async Task<long> GetUidAsync(CancellationToken token = default)
 	{
-		const string url = @"https://api.live.bilibili.com/User/getUserInfo";
-		JsonElement json = await GetJsonAsync<JsonElement>(url, token);
-		if (json.TryGetProperty(@"data", out JsonElement dataElement)
+		const string url = @"https://api.live.bilibili.com/xlive/web-ucenter/user/get_user_info";
+		JsonElement root = await GetJsonAsync<JsonElement>(url, token);
+		if (root.TryGetProperty(@"data", out JsonElement dataElement)
 			&& dataElement.TryGetProperty(@"uid", out JsonElement uidElement)
 			&& uidElement.TryGetInt64(out long uid))
 		{

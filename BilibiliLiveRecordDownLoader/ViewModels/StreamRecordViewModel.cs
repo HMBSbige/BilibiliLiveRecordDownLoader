@@ -185,20 +185,20 @@ public class StreamRecordViewModel : ReactiveObject, IRoutableViewModel
 			{
 				return default;
 			}
-			var roomCopy = room.Clone();
-			using (var dialog = new RoomDialog(RoomDialogType.Modify, roomCopy))
+			RoomStatus roomCopy = room.Clone();
+			using (RoomDialog dialog = new(RoomDialogType.Modify, roomCopy))
 			{
 				if (await dialog.SafeShowAsync() != ContentDialogResult.Primary)
 				{
 					return default;
 				}
 			}
-			await room.UpdateAsync(roomCopy);
+			room.Update(roomCopy);
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, @"修改房间出错");
-			using var dialog = new DisposableContentDialog
+			using DisposableContentDialog dialog = new()
 			{
 				Title = @"修改房间出错",
 				Content = ex.Message,

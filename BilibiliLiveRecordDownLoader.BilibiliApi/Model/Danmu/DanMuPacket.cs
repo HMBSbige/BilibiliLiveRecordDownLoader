@@ -36,7 +36,7 @@ public struct DanmuPacket
 	/// </summary>
 	public ReadOnlySequence<byte> Body;
 
-	public void HeaderTo(Span<byte> span)
+	public void GetHeaderBytes(Span<byte> span)
 	{
 		BinaryPrimitives.WriteInt32BigEndian(span, PacketLength);
 		BinaryPrimitives.WriteInt16BigEndian(span[4..], HeaderLength);
@@ -52,27 +52,28 @@ public struct DanmuPacket
 	/// <returns>是否成功读取</returns>
 	public bool ReadDanMu(ref ReadOnlySequence<byte> sequence)
 	{
-		var length = sequence.Length;
+		long length = sequence.Length;
 		if (length < 16)
 		{
 			return false;
 		}
 
-		var reader = new SequenceReader<byte>(sequence);
+		SequenceReader<byte> reader = new(sequence);
 
 		if (!reader.TryReadBigEndian(out PacketLength))
 		{
 			goto Unreachable;
 		}
+
 		if (length < PacketLength)
 		{
 			return false;
 		}
 
 		if (reader.TryReadBigEndian(out HeaderLength) &&
-		    reader.TryReadBigEndian(out ProtocolVersion) &&
-		    reader.TryReadBigEndian(out int operation) &&
-		    reader.TryReadBigEndian(out SequenceId))
+			reader.TryReadBigEndian(out ProtocolVersion) &&
+			reader.TryReadBigEndian(out int operation) &&
+			reader.TryReadBigEndian(out SequenceId))
 		{
 			Operation = (Operation)operation;
 
@@ -81,7 +82,8 @@ public struct DanmuPacket
 			sequence = sequence.Slice(PacketLength);
 			return true;
 		}
-		Unreachable:
+
+	Unreachable:
 		throw new InvalidDataException(@"错误的弹幕格式");
 	}
 }

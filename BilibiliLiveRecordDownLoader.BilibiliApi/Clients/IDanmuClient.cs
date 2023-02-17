@@ -1,8 +1,9 @@
 using BilibiliApi.Model.Danmu;
+using Microsoft;
 
 namespace BilibiliApi.Clients;
 
-public interface IDanmuClient : IAsyncDisposable
+public interface IDanmuClient : IDisposableObservable
 {
 	/// <summary>
 	/// 真实房间号
@@ -15,5 +16,4 @@ public interface IDanmuClient : IAsyncDisposable
 	TimeSpan RetryInterval { get; set; }
 	IObservable<DanmuPacket> Received { get; }
 	ValueTask StartAsync();
-	ValueTask StopAsync();
 }

@@ -315,9 +315,16 @@ public class RoomStatus : ReactiveObject
 					_logger.LogInformation(@"[{roomId}] 尝试下载直播流超时", RoomId);
 					await Task.Delay(TimeSpan.FromSeconds(StreamReconnectLatency), cancellationToken);
 				}
-				catch (HttpRequestException ex) when (ex.StatusCode is not null)
+				catch (HttpRequestException ex)
 				{
-					_logger.LogInformation(@"[{roomId}] 尝试下载直播流时服务器返回了 {statusCode}", RoomId, ex.StatusCode);
+					if (ex.StatusCode is not null)
+					{
+						_logger.LogInformation(@"[{roomId}] 尝试下载直播流时服务器返回了 {statusCode}", RoomId, ex.StatusCode);
+					}
+					else
+					{
+						_logger.LogInformation(@"[{roomId}] 尝试下载直播流时发生错误 {message}", RoomId, ex.Message);
+					}
 					await Task.Delay(TimeSpan.FromSeconds(StreamReconnectLatency), cancellationToken);
 				}
 				catch (TaskCanceledException ex) when (ex.InnerException is null)
@@ -326,8 +333,7 @@ public class RoomStatus : ReactiveObject
 				}
 				catch (Exception ex)
 				{
-					_logger.LogError(@"[{roomId}] 尝试下载直播流错误 {message}", RoomId, ex.Message);
-					await Task.Delay(TimeSpan.FromSeconds(StreamReconnectLatency), cancellationToken);
+					_logger.LogError(ex, @"[{roomId}] 尝试下载直播流时发生未知错误", RoomId);
 				}
 			}
 			_logger.LogInformation(@"[{roomId}] 不再录制", RoomId);
@@ -405,7 +411,7 @@ public class RoomStatus : ReactiveObject
 		_titleMonitor?.Dispose();
 		_enableMonitor?.Dispose();
 		_statusMonitor?.Dispose();
-		_danmuClient?.DisposeAsync().Forget();
+		_danmuClient?.Dispose();
 		_httpMonitor?.Dispose();
 	}
 
@@ -457,7 +463,7 @@ public class RoomStatus : ReactiveObject
 		{
 			if (LiveStatus != LiveStatus.未知)
 			{
-				_logger.LogInformation(@"[{roomId}] 直播状态：{liveStatus}", RoomId, LiveStatus);
+				_logger.LogInformation(@"[{roomId}] 直播状态：{liveStatus}", RoomId, LiveStatus.ToString());
 			}
 
 			if (LiveStatus == LiveStatus.直播)
@@ -537,7 +543,7 @@ public class RoomStatus : ReactiveObject
 		};
 	}
 
-	public async ValueTask UpdateAsync(RoomStatus room)
+	public void Update(RoomStatus room)
 	{
 		IsEnable = room.IsEnable;
 		IsNotify = room.IsNotify;
@@ -566,11 +572,8 @@ public class RoomStatus : ReactiveObject
 		if (ClientType != room.ClientType)
 		{
 			ClientType = room.ClientType;
-			if (_danmuClient is not null)
-			{
-				await _danmuClient.DisposeAsync();
-			}
-			await BuildDanmuClientAsync();
+			_danmuClient?.Dispose();
+			BuildDanmuClientAsync().Forget();
 		}
 
 		Qn = room.Qn;

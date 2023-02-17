@@ -18,13 +18,14 @@ public class DisposableContentDialog : ContentDialog, IDisposable
 	public virtual void Dispose()
 	{
 		Hide();
+		GC.SuppressFinalize(this);
 	}
 
 	public async Task<ContentDialogResult> SafeShowAsync(int priority = 1, ContentDialogResult defaultResult = ContentDialogResult.None)
 	{
 		return await _queue.Enqueue(priority, TaskQueueKeyConstants.ContentDialogKey, async () =>
 		{
-			var res = defaultResult;
+			ContentDialogResult res = defaultResult;
 			try
 			{
 				await Dispatcher.Invoke(async () =>
