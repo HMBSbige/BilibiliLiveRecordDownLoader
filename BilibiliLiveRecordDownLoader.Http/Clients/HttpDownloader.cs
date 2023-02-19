@@ -14,7 +14,7 @@ public class HttpDownloader : ProgressBase, IDownloader, IHttpClient
 
 	public HttpClient Client { get; set; }
 
-	public PipeOptions PipeOptions { get; set; }
+	public PipeOptions PipeOptions { get; set; } = new(pauseWriterThreshold: 0);
 
 	private Stream? _netStream;
 
@@ -25,7 +25,6 @@ public class HttpDownloader : ProgressBase, IDownloader, IHttpClient
 	public HttpDownloader(HttpClient client)
 	{
 		Client = client;
-		PipeOptions = new PipeOptions(pauseWriterThreshold: 0);
 	}
 
 	public async ValueTask<Stream> GetStreamAsync(CancellationToken token)
@@ -47,8 +46,8 @@ public class HttpDownloader : ProgressBase, IDownloader, IHttpClient
 		EnsureDirectory(OutFileName);
 		FileStream fs = new(OutFileName, FileMode.Create, FileAccess.Write, FileShare.Read);
 
-		WriteToFileTask = pipe.Reader.CopyToAsync(fs)
-			.ContinueWith(_ => fs.Dispose(), default, TaskContinuationOptions.None, TaskScheduler.Current);
+		WriteToFileTask = pipe.Reader.CopyToAsync(fs, CancellationToken.None)
+			.ContinueWith(_ => fs.Dispose(), CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Current);
 		try
 		{
 			using (CreateSpeedMonitor())

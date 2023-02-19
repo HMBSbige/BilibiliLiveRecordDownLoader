@@ -292,6 +292,7 @@ public class RoomStatus : ReactiveObject
 							}
 							else if (now - lastDataReceivedTime > TimeSpan.FromSeconds(StreamTimeout))
 							{
+								_logger.LogWarning(@"[{roomId}] 录播不稳定，即将尝试重连", RoomId);
 								// ReSharper disable once AccessToDisposedClosure
 								recordStreamCts.Cancel();
 							}
@@ -302,7 +303,7 @@ public class RoomStatus : ReactiveObject
 					{
 						_logger.LogInformation(@"[{roomId}] 录制结束", RoomId);
 
-						downloader.WriteToFileTask.ContinueWith(_ => ConvertToMp4Async(flv), cancellationToken, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Current).Forget();
+						downloader.WriteToFileTask.ContinueWith(_ => ConvertToMp4Async(flv), CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Current).Forget();
 					}
 				}
 				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -327,9 +328,9 @@ public class RoomStatus : ReactiveObject
 					}
 					await Task.Delay(TimeSpan.FromSeconds(StreamReconnectLatency), cancellationToken);
 				}
-				catch (TaskCanceledException ex) when (ex.InnerException is null)
+				catch (OperationCanceledException ex)
 				{
-					_logger.LogWarning(@"[{roomId}] 录播不稳定，即将尝试重连", RoomId);
+					_logger.LogError(ex, @"[{roomId}] 录制被取消", RoomId);
 				}
 				catch (Exception ex)
 				{
