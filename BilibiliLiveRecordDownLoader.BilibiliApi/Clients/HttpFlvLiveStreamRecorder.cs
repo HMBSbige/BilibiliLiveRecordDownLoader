@@ -8,10 +8,6 @@ public class HttpFlvLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 {
 	public HttpClient Client { get; set; }
 
-	public Uri? Source { get; set; }
-
-	public string? OutFilePath { get; set; }
-
 	public Task WriteToFileTask { get; private set; } = Task.CompletedTask;
 
 	private static readonly PipeOptions PipeOptions = new(pauseWriterThreshold: 0);
@@ -23,29 +19,25 @@ public class HttpFlvLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 		Client = client;
 	}
 
-	public async ValueTask InitAsync(CancellationToken cancellationToken = default)
+	public async ValueTask InitializeAsync(Uri[] source, CancellationToken cancellationToken = default)
 	{
-		_netStream = await Client.GetStreamAsync(Source, cancellationToken);
+		_netStream = await Client.GetStreamAsync(source.First(), cancellationToken);
 	}
 
-	public async ValueTask DownloadAsync(CancellationToken cancellationToken = default)
+	public async ValueTask DownloadAsync(string outFilePath, CancellationToken cancellationToken = default)
 	{
-		if (string.IsNullOrEmpty(OutFilePath))
-		{
-			throw new InvalidOperationException(@"No output file path");
-		}
-
 		if (_netStream is null)
 		{
 			throw new InvalidOperationException(@"Do InitAsync first");
 		}
 
-		string filePath = Path.ChangeExtension(OutFilePath, @".flv");
+		string filePath = Path.ChangeExtension(outFilePath, @".flv");
+		FileInfo file = new(filePath);
 		await using Stream remoteStream = _netStream;
 
 		Pipe pipe = new(PipeOptions);
-		EnsureDirectory(filePath);
-		FileStream fs = new(filePath, FileMode.Create, FileAccess.Write, FileShare.Read);
+		file.Directory?.Create();
+		FileStream fs = file.Open(FileMode.Create, FileAccess.Write, FileShare.Read);
 
 		WriteToFileTask = pipe.Reader.CopyToAsync(fs, CancellationToken.None)
 			.ContinueWith(_ => fs.Dispose(), CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Current);
@@ -59,17 +51,6 @@ public class HttpFlvLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 		finally
 		{
 			await pipe.Writer.CompleteAsync();
-		}
-
-		static void EnsureDirectory(string path)
-		{
-			string? dir = Path.GetDirectoryName(path);
-			if (dir is null)
-			{
-				return;
-			}
-
-			Directory.CreateDirectory(dir);
 		}
 	}
 

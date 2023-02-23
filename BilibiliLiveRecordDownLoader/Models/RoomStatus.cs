@@ -268,14 +268,12 @@ public class RoomStatus : ReactiveObject
 					_logger.LogDebug(@"[{roomId}] 直播流: {uri}", RoomId, uri);
 
 					await using ILiveStreamRecorder recorder = DI.GetRequiredService<HttpFlvLiveStreamRecorder>();
-					recorder.Source = uri;
 					recorder.Client.Timeout = TimeSpan.FromSeconds(StreamConnectTimeout);
 
-					await recorder.InitAsync(cancellationToken);
+					await recorder.InitializeAsync(new[] { uri }, cancellationToken);
 					RecordStatus = RecordStatus.录制中;
 
-					string flv = Path.Combine(_config.MainDir, $@"{RoomId}", DateTime.Now.ToString(@"yyyyMMdd_HHmmss"));
-					recorder.OutFilePath = flv;
+					string filePath = Path.Combine(_config.MainDir, $@"{RoomId}", DateTime.Now.ToString(@"yyyyMMdd_HHmmss"));
 
 					_logger.LogInformation(@"[{roomId}] 开始录制", RoomId);
 
@@ -298,13 +296,13 @@ public class RoomStatus : ReactiveObject
 								recordStreamCts.Cancel();
 							}
 						});
-						await recorder.DownloadAsync(recordStreamCts.Token);
+						await recorder.DownloadAsync(filePath, recordStreamCts.Token);
 					}
 					finally
 					{
 						_logger.LogInformation(@"[{roomId}] 录制结束", RoomId);
 
-						recorder.WriteToFileTask.ContinueWith(_ => ConvertToMp4Async(flv), CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Current).Forget();
+						recorder.WriteToFileTask.ContinueWith(_ => ConvertToMp4Async(filePath), CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Current).Forget();
 					}
 				}
 				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
