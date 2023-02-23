@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\BilibiliLiveRecordDownLoader.Http\BilibiliLiveRecordDownLoader.Http.csproj" />
     <ProjectReference Include="..\BilibiliLiveRecordDownLoader\BilibiliLiveRecordDownLoader.csproj" />
   </ItemGroup>
 

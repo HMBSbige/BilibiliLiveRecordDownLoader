@@ -4,7 +4,6 @@ using BilibiliApi.Model.Danmu;
 using BilibiliApi.Model.RoomInfo;
 using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Enums;
-using BilibiliLiveRecordDownLoader.Http.Clients;
 using BilibiliLiveRecordDownLoader.JsonConverters;
 using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
 using BilibiliLiveRecordDownLoader.Services;
@@ -257,24 +256,26 @@ public class RoomStatus : ReactiveObject
 	{
 		try
 		{
-			while (LiveStatus == LiveStatus.直播)
+			while (LiveStatus is LiveStatus.直播)
 			{
 				try
 				{
 					RecordStatus = RecordStatus.启动中;
 					cancellationToken.ThrowIfCancellationRequested();
 
-					string url = await _apiClient.GetRoomStreamUrlAsync(RoomId, (long)Qn, cancellationToken);
+					Uri uri = await _apiClient.GetRoomStreamUriAsync(RoomId, (long)Qn, cancellationToken);
 
-					await using HttpDownloader downloader = DI.GetRequiredService<HttpDownloader>();
-					downloader.Target = new Uri(url);
-					downloader.Client.Timeout = TimeSpan.FromSeconds(StreamConnectTimeout);
-					downloader.WaitWriteToFile = false;
+					_logger.LogDebug(@"[{roomId}] 直播流: {uri}", RoomId, uri);
 
-					await downloader.GetStreamAsync(cancellationToken);
+					await using ILiveStreamRecorder recorder = DI.GetRequiredService<HttpFlvLiveStreamRecorder>();
+					recorder.Source = uri;
+					recorder.Client.Timeout = TimeSpan.FromSeconds(StreamConnectTimeout);
+
+					await recorder.InitAsync(cancellationToken);
 					RecordStatus = RecordStatus.录制中;
-					string flv = Path.Combine(_config.MainDir, $@"{RoomId}", $@"{DateTime.Now:yyyyMMdd_HHmmss}.flv");
-					downloader.OutFileName = flv;
+
+					string flv = Path.Combine(_config.MainDir, $@"{RoomId}", DateTime.Now.ToString(@"yyyyMMdd_HHmmss"));
+					recorder.OutFilePath = flv;
 
 					_logger.LogInformation(@"[{roomId}] 开始录制", RoomId);
 
@@ -282,7 +283,7 @@ public class RoomStatus : ReactiveObject
 					{
 						DateTime lastDataReceivedTime = DateTime.Now;
 						using CancellationTokenSource recordStreamCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-						using IDisposable speedMonitor = downloader.CurrentSpeed.Subscribe(b =>
+						using IDisposable speedMonitor = recorder.CurrentSpeed.Subscribe(b =>
 						{
 							Speed = b.ToHumanBytesString() + @"/s";
 							DateTime now = DateTime.Now;
@@ -297,13 +298,13 @@ public class RoomStatus : ReactiveObject
 								recordStreamCts.Cancel();
 							}
 						});
-						await downloader.DownloadAsync(recordStreamCts.Token);
+						await recorder.DownloadAsync(recordStreamCts.Token);
 					}
 					finally
 					{
 						_logger.LogInformation(@"[{roomId}] 录制结束", RoomId);
 
-						downloader.WriteToFileTask.ContinueWith(_ => ConvertToMp4Async(flv), CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Current).Forget();
+						recorder.WriteToFileTask.ContinueWith(_ => ConvertToMp4Async(flv), CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Current).Forget();
 					}
 				}
 				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

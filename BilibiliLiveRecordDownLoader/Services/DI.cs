@@ -73,7 +73,7 @@ public static class DI
 			.AddStartupService()
 			.AddGlobalTaskQueue()
 			.AddBilibiliApiClient()
-			.AddHttpDownloader()
+			.AddRecorder()
 			.AddLogging(c => c.AddSerilog());
 
 		services.TryAddSingleton(MemorySink);

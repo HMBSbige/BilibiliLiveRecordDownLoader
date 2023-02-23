@@ -2,7 +2,6 @@ using BilibiliApi.Clients;
 using BilibiliLiveRecordDownLoader.FFmpeg;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Clients;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
-using BilibiliLiveRecordDownLoader.Http.Clients;
 using BilibiliLiveRecordDownLoader.Interfaces;
 using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
@@ -12,10 +11,10 @@ using BilibiliLiveRecordDownLoader.Views;
 using DynamicData;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Logging;
 using Punchclock;
 using ReactiveUI;
 using RunAtStartup;
+using System.Net.Http;
 
 namespace BilibiliLiveRecordDownLoader.Services;
 
@@ -109,21 +108,13 @@ public static class ServiceExtensions
 		return services;
 	}
 
-	public static IServiceCollection AddHttpDownloader(this IServiceCollection services)
+	public static IServiceCollection AddRecorder(this IServiceCollection services)
 	{
 		services.TryAddTransient(provider =>
 		{
-			var config = provider.GetRequiredService<Config>();
-			var client = HttpClientUtils.BuildClientForBilibili(config.UserAgent, config.Cookie, config.HttpHandler);
-			return new HttpDownloader(client);
-		});
-
-		services.TryAddTransient(provider =>
-		{
-			var logger = provider.GetRequiredService<ILogger<MultiThreadedDownloader>>();
-			var config = provider.GetRequiredService<Config>();
-			var client = HttpClientUtils.BuildClientForMultiThreadedDownloader(config.Cookie, config.UserAgent, config.HttpHandler);
-			return new MultiThreadedDownloader(logger, client);
+			Config config = provider.GetRequiredService<Config>();
+			HttpClient client = HttpClientUtils.BuildClientForBilibili(config.UserAgent, config.Cookie, config.HttpHandler);
+			return new HttpFlvLiveStreamRecorder(client);
 		});
 
 		return services;

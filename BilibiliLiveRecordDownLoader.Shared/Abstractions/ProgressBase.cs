@@ -5,7 +5,7 @@ using System.Reactive.Subjects;
 
 namespace BilibiliLiveRecordDownLoader.Shared.Abstractions;
 
-public abstract class ProgressBase : IProgress
+public abstract class ProgressBase : IProgress, IAsyncDisposable
 {
 	protected long FileSize;
 	protected long Current;

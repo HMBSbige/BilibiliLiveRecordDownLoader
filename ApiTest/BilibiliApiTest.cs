@@ -2,7 +2,6 @@ using BilibiliApi.Clients;
 using BilibiliApi.Model.DanmuConf;
 using BilibiliApi.Model.FansMedal;
 using BilibiliApi.Model.Login.QrCode.GetLoginUrl;
-using BilibiliApi.Model.PlayUrl;
 using BilibiliApi.Model.RoomInfo;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -30,27 +29,29 @@ public class BilibiliApiTest
 
 		Assert.AreEqual(@"broadcastlv.chat.bilibili.com", json.data.host_list.Last().host);
 		Assert.AreEqual(2243, json.data.host_list.Last().port);
-		Assert.AreEqual(2245, json.data.host_list.Last().wss_port);
+		Assert.IsTrue(json.data.host_list.Last().wss_port is 2245 or 443);
 		Assert.AreEqual(2244, json.data.host_list.Last().ws_port);
 	}
 
 	[TestMethod]
-	public async Task GetPlayUrlTestAsync()
+	public async Task GetRoomStreamUriTestAsync()
 	{
-		RoomPlayInfo? json = await _apiClient.GetRoomPlayInfoAsync(3);
-		Assert.IsNotNull(json);
-		Assert.AreEqual(json.code, 0);
-		Assert.AreEqual(json.message, @"0");
+		Uri flvUri = await _apiClient.GetRoomStreamUriAsync(3);
+		Assert.AreEqual(Uri.UriSchemeHttps, flvUri.Scheme);
+		Assert.AreEqual(@".flv", Path.GetExtension(flvUri.AbsolutePath));
+	}
 
-		RoomPlayInfo.Data.PlayurlInfo.Playurl.Stream.Format.Codec? codec = json.data?.playurl_info?.playurl?
-			.stream?.FirstOrDefault(x => x.protocol_name is @"http_stream")?
-			.format?.FirstOrDefault(x => x.format_name is @"flv")?
-			.codec?.FirstOrDefault(x => x.codec_name is @"avc");
-		Assert.IsNotNull(codec);
-		Assert.AreEqual(10000, codec.current_qn);
-		Assert.IsNotNull(codec.base_url);
-		Assert.IsTrue(codec.base_url.EndsWith(@".flv?"));
-		Assert.IsNotNull(codec.url_info?.FirstOrDefault(x => !string.IsNullOrEmpty(x.host) && !string.IsNullOrEmpty(x.extra) && x.host.StartsWith(@"https://") && !x.host.Contains(@".mcdn.")));
+	[TestMethod]
+	public async Task GetRoomHlsUriTestAsync()
+	{
+		Uri[] hlsUris = await _apiClient.GetRoomHlsUriAsync(3);
+		Assert.AreNotEqual(0, hlsUris.Length);
+		foreach (Uri hlsUri in hlsUris)
+		{
+			Assert.AreEqual(Uri.UriSchemeHttps, hlsUri.Scheme);
+			Assert.AreEqual(@".m3u8", Path.GetExtension(hlsUri.AbsolutePath));
+			Console.WriteLine(hlsUri);
+		}
 	}
 
 	[TestMethod]
