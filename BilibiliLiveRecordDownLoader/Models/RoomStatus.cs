@@ -43,7 +43,7 @@ public class RoomStatus : ReactiveObject
 	public const double DefaultDanMuReconnectLatency = 2.0;
 	public const double DefaultHttpCheckLatency = 300.0;
 	public const double DefaultStreamReconnectLatency = 6.0;
-	public const double DefaultStreamTimeout = 5.0;
+	public const double DefaultStreamTimeout = 10.0;
 	public const DanmuClientType DefaultClientType = DanmuClientType.SecureWebsocket;
 	public const Qn DefaultQn = Qn.原画;
 	public const RecorderType DefaultRecorderType = RecorderType.Default;
@@ -292,7 +292,7 @@ public class RoomStatus : ReactiveObject
 						? new[] { await _apiClient.GetRoomStreamUriAsync(RoomId, (long)Qn, cancellationToken) }
 						: await _apiClient.GetRoomHlsUriAsync(RoomId, @"TS", (long)Qn, cancellationToken);
 
-					_logger.LogDebug(@"[{roomId}] 直播流: {uri}", RoomId, uri);
+					_logger.LogInformation(@"[{roomId}] 直播流: {uri}", RoomId, uri);
 
 					await using ILiveStreamRecorder recorder = type is RecorderType.HttpFlv
 						? DI.GetRequiredService<HttpFlvLiveStreamRecorder>()
