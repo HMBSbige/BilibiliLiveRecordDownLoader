@@ -53,7 +53,9 @@ public class SettingViewModel : ReactiveObject, IRoutableViewModel
 	private readonly StartupService _startup;
 
 	public readonly Config Config;
-	private readonly string _startUpData = $@"""{Utils.Utils.GetExecutablePath()}"" {Constants.ParameterSilent}";
+	private readonly string _startUpData = $"""
+		"{Environment.ProcessPath}" {Constants.ParameterSilent}
+		""";
 
 	public SettingViewModel(
 		IScreen hostScreen,

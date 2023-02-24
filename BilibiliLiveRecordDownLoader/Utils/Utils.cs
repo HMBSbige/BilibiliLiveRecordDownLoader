@@ -3,7 +3,6 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
-using System.Windows;
 
 namespace BilibiliLiveRecordDownLoader.Utils;
 
@@ -41,13 +40,10 @@ public static class Utils
 	{
 		try
 		{
-			new Process
-			{
-				StartInfo = new ProcessStartInfo(path)
-				{
-					UseShellExecute = true
-				}
-			}.Start();
+			using Process process = new();
+			process.StartInfo.UseShellExecute = true;
+			process.StartInfo.FileName = path;
+			process.Start();
 			return true;
 		}
 		catch
@@ -58,48 +54,20 @@ public static class Utils
 
 	public static bool OpenDir(string dir)
 	{
-		if (Directory.Exists(dir))
+		if (!Directory.Exists(dir))
 		{
-			try
-			{
-				return OpenUrl(dir);
-			}
-			catch
-			{
-				// ignored
-			}
-		}
-		return false;
-	}
-
-	public static string GetExecutablePath()
-	{
-		var p = Process.GetCurrentProcess();
-		var res = p.MainModule?.FileName;
-		if (res is not null)
-		{
-			return res;
+			return false;
 		}
 
-		var dllPath = GetDllPath();
-		return Path.ChangeExtension(dllPath, @"exe");
-	}
-
-	public static string GetDllPath()
-	{
-		return Assembly.GetExecutingAssembly().Location;
-	}
-
-	public static void CopyToClipboard(this object obj)
-	{
 		try
 		{
-			Clipboard.SetDataObject(obj);
+			return OpenUrl(dir);
 		}
 		catch
 		{
 			// ignored
 		}
+		return false;
 	}
 
 	public static string? GetAppVersion()
@@ -114,13 +82,8 @@ public static class Utils
 			return true;
 		}
 
-		var jsonIgnore = propertyInfo.GetCustomAttribute<JsonIgnoreAttribute>();
-		if (jsonIgnore is not null && jsonIgnore.Condition == JsonIgnoreCondition.Always)
-		{
-			return true;
-		}
-
-		return false;
+		JsonIgnoreAttribute? jsonIgnore = propertyInfo.GetCustomAttribute<JsonIgnoreAttribute>();
+		return jsonIgnore?.Condition is JsonIgnoreCondition.Always;
 	}
 
 	public static IEnumerable<PropertyInfo> GetPropertiesExcludeJsonIgnore(this Type type)

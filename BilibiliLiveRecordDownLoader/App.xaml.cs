@@ -23,9 +23,10 @@ public partial class App
 #else
 				var identifier = $@"Global\{nameof(BilibiliLiveRecordDownLoader)}";
 #endif
-			_singleInstance = new(identifier);
+			_singleInstance = new SingleInstanceService(identifier);
 
-			Directory.SetCurrentDirectory(Path.GetDirectoryName(Utils.Utils.GetExecutablePath())!);
+			string dir = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
+			Environment.CurrentDirectory = Path.GetFullPath(dir);
 
 			DI.CreateLogger();
 		}

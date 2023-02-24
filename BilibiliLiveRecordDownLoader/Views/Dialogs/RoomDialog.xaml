@@ -27,23 +27,18 @@
                 OnContent="启用"
                 OffContent="禁用"
                 IsOn="{Binding Path=IsNotify,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+            <ui:RadioButtons Header="录制方式"
+                             MaxColumns="3"
+                             SelectedIndex="{Binding RecorderType,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource RecorderTypeToIntConverter}}">
+                <RadioButton Content="默认" />
+                <RadioButton Content="HTTP-FLV" />
+                <RadioButton Content="HLS-TS" />
+            </ui:RadioButtons>
             <ui:NumberBox x:Name="RoomIdNumberBox"
                           Header="房间号"
                           Minimum="0"
                           Maximum="9223372036854775807"
                           Value="{Binding Path=RoomId,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-            <ui:NumberBox Header="弹幕重连间隔(秒)"
-                          Minimum="0.0"
-                          Value="{Binding Path=DanMuReconnectLatency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-            <ui:NumberBox Header="开播检查间隔(秒)"
-                          Minimum="0.0"
-                          Value="{Binding Path=HttpCheckLatency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-            <ui:NumberBox Header="直播重连间隔(秒)"
-                          Minimum="0.0"
-                          Value="{Binding Path=StreamReconnectLatency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-            <ui:NumberBox Header="直播流超时(秒)"
-                          Minimum="0.0"
-                          Value="{Binding Path=StreamTimeout,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
             <ComboBox ui:ControlHelper.Header="画质"
                       ui:ControlHelper.PlaceholderText="原画"
                       ui:ControlHelper.Description="下次录制生效"
@@ -58,27 +53,40 @@
                 <ComboBoxItem Content="{x:Static constants:Constants.Qn150}" />
                 <ComboBoxItem Content="{x:Static constants:Constants.Qn80}" />
             </ComboBox>
-            <ui:RadioButtons Header="录制方式"
-                             MaxColumns="3"
-                             SelectedIndex="{Binding RecorderType,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource RecorderTypeToIntConverter}}"
-                             >
-                <RadioButton Content="默认" />
-                <RadioButton Content="HTTP-FLV" />
-                <RadioButton Content="HLS-TS" />
-            </ui:RadioButtons>
-            <ui:NumberBox Header="HTTP-FLV 连接超时(秒)"
-                          Minimum="0.0"
-                          Value="{Binding Path=StreamConnectTimeout,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-            <ui:NumberBox Header="HLS-TS 连接超时(秒)"
-                          Minimum="0.0"
-                          Value="{Binding Path=HlsTsConnectTimeout,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+            <ui:ToggleSwitch
+                Name="AdvanceSettingsSwitch"
+                Header="高级设置"
+                OnContent=""
+                OffContent=""
+                d:IsOn="True" />
             <ui:RadioButtons Header="弹幕服务器类型"
                              MaxColumns="1"
+                             Visibility="{Binding IsOn,ElementName=AdvanceSettingsSwitch,Converter={StaticResource BooleanToVisibilityConverter}}"
                              SelectedIndex="{Binding ClientType,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource DanmuClientTypeToIntConverter}}">
                 <RadioButton Content="TCP" />
                 <RadioButton Content="SecureWebsocket" />
                 <RadioButton Content="Websocket" />
             </ui:RadioButtons>
+            <ui:NumberBox Header="弹幕重连间隔(秒)"
+                          Minimum="0.0"
+                          Visibility="{Binding IsOn,ElementName=AdvanceSettingsSwitch,Converter={StaticResource BooleanToVisibilityConverter}}"
+                          Value="{Binding Path=DanMuReconnectLatency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+            <ui:NumberBox Header="开播检查间隔(秒)"
+                          Minimum="0.0"
+                          Visibility="{Binding IsOn,ElementName=AdvanceSettingsSwitch,Converter={StaticResource BooleanToVisibilityConverter}}"
+                          Value="{Binding Path=HttpCheckLatency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+            <ui:NumberBox Header="直播重连间隔(秒)"
+                          Minimum="0.0"
+                          Visibility="{Binding IsOn,ElementName=AdvanceSettingsSwitch,Converter={StaticResource BooleanToVisibilityConverter}}"
+                          Value="{Binding Path=StreamReconnectLatency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+            <ui:NumberBox Header="直播连接超时(秒)"
+                          Minimum="0.0"
+                          Visibility="{Binding IsOn,ElementName=AdvanceSettingsSwitch,Converter={StaticResource BooleanToVisibilityConverter}}"
+                          Value="{Binding Path=StreamConnectTimeout,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+            <ui:NumberBox Header="直播流超时(秒)"
+                          Minimum="0.0"
+                          Visibility="{Binding IsOn,ElementName=AdvanceSettingsSwitch,Converter={StaticResource BooleanToVisibilityConverter}}"
+                          Value="{Binding Path=StreamTimeout,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
         </ui:SimpleStackPanel>
     </ScrollViewer>
 </dialogs:DisposableContentDialog>

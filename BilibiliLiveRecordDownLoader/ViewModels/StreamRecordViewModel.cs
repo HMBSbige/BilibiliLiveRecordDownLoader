@@ -275,7 +275,7 @@ public class StreamRecordViewModel : ReactiveObject, IRoutableViewModel
 				return default;
 			}
 
-			foreach (var item in list)
+			foreach (object? item in list)
 			{
 				if (item is not RoomStatus room)
 				{
@@ -297,15 +297,14 @@ public class StreamRecordViewModel : ReactiveObject, IRoutableViewModel
 		{
 			try
 			{
-				if (data is RoomStatus room)
+				if (data is not RoomStatus room)
 				{
-					var path = Path.Combine(_config.MainDir, $@"{room.RoomId}");
-					if (!Directory.Exists(path))
-					{
-						Directory.CreateDirectory(path);
-					}
-					Utils.Utils.OpenDir(path);
+					return;
 				}
+
+				string path = Path.Combine(_config.MainDir, $@"{room.RoomId}");
+				Directory.CreateDirectory(path);
+				Utils.Utils.OpenDir(path);
 			}
 			catch (Exception ex)
 			{
@@ -324,7 +323,7 @@ public class StreamRecordViewModel : ReactiveObject, IRoutableViewModel
 				{
 					return;
 				}
-				foreach (var item in list)
+				foreach (object? item in list)
 				{
 					if (item is not RoomStatus room)
 					{

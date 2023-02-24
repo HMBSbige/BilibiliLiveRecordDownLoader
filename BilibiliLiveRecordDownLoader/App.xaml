@@ -42,6 +42,7 @@
             <valueConverters:DanmuClientTypeToIntConverter x:Key="DanmuClientTypeToIntConverter" />
             <valueConverters:QnToStringConverter x:Key="QnToStringConverter" />
             <valueConverters:RecorderTypeToIntConverter x:Key="RecorderTypeToIntConverter" />
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>
