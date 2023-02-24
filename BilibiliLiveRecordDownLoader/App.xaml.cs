@@ -12,6 +12,7 @@ using System.Windows;
 
 namespace BilibiliLiveRecordDownLoader;
 
+#pragma warning disable VSTHRD100
 public partial class App
 {
 	private readonly CompositeDisposable _disposable;

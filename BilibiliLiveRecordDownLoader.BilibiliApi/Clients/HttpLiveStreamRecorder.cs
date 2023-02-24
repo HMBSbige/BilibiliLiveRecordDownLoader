@@ -1,5 +1,6 @@
 using BilibiliApi.Model;
 using BilibiliLiveRecordDownLoader.Shared.Abstractions;
+using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Pipelines;
@@ -10,35 +11,35 @@ namespace BilibiliApi.Clients;
 
 public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 {
+	private readonly ILogger<HttpLiveStreamRecorder> _logger;
+
 	public HttpClient Client { get; set; }
 
 	public Task WriteToFileTask { get; private set; } = Task.CompletedTask;
 
 	private static readonly PipeOptions PipeOptions = new(pauseWriterThreshold: 0);
 
-	private Uri[] _source = Array.Empty<Uri>();
+	private Uri? _source;
 
-	public HttpLiveStreamRecorder(HttpClient client)
+	public HttpLiveStreamRecorder(HttpClient client, ILogger<HttpLiveStreamRecorder> logger)
 	{
 		Client = client;
+		_logger = logger;
 	}
 
 	public async ValueTask InitializeAsync(IEnumerable<Uri> source, CancellationToken cancellationToken = default)
 	{
-		Uri[] result = (await source.Select(uri => Observable.FromAsync(ct => Test(uri, ct))
+		Uri? result = await source.Select(uri => Observable.FromAsync(ct => Test(uri, ct))
 				.Catch<Uri?, HttpRequestException>(_ => Observable.Return<Uri?>(null))
 				.Where(r => r is not null)
 			)
 			.Merge()
-			.ToArray()
-			.ToTask(cancellationToken))!;
+			.FirstOrDefaultAsync()
+			.ToTask(cancellationToken);
 
-		if (!result.Any())
-		{
-			throw new HttpRequestException(@"没有可用的直播地址");
-		}
+		_source = result ?? throw new HttpRequestException(@"没有可用的直播地址");
 
-		_source = result;
+		_logger.LogInformation(@"选择直播地址：{uri}", _source);
 
 		async Task<Uri> Test(Uri uri, CancellationToken ct)
 		{
@@ -49,7 +50,7 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 
 	public async ValueTask DownloadAsync(string outFilePath, CancellationToken cancellationToken = default)
 	{
-		if (!_source.Any())
+		if (_source is null)
 		{
 			throw new InvalidOperationException(@"Do InitializeAsync first");
 		}
@@ -87,81 +88,45 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 		{
 			try
 			{
-				string lastFile = string.Empty;
+				CircleCollection<string> buffer = new(20);
 
 				using PeriodicTimer timer = new(TimeSpan.FromSeconds(1));
 				do
 				{
-					int retry = 0;
-					const int maxRetry = 3;
-					try
+					await using Stream m3u8Stream = await Client.GetStreamAsync(_source, cancellationToken);
+
+					M3U m3u8 = new(m3u8Stream);
+
+					foreach (string segment in m3u8.Segments)
 					{
-						await using Stream m3u8Stream = await Client.GetStreamAsync(_source.First(), cancellationToken);
-
-						M3U m3u8 = new(m3u8Stream);
-
-						IEnumerable<string> segments = GetSequenceExcept(m3u8.Segments, lastFile);
-
-						foreach (string segment in segments)
+						if (buffer.AddIfNotContains(segment))
 						{
 							queue.Add(segment, cancellationToken);
-							lastFile = segment;
 						}
 					}
-					catch (HttpRequestException) when (++retry < maxRetry)
-					{
-
-					}
 				} while (await timer.WaitForNextTickAsync(cancellationToken));
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, @"处理 m3u8 时发生错误({uri})", _source);
 			}
 			finally
 			{
 				queue.CompleteAdding();
 			}
-
-			IEnumerable<string> GetSequenceExcept(IReadOnlyList<string> current, string last)
-			{
-				return current.Contains(last) ? current.SkipWhile(x => x != last).Skip(1) : current;
-			}
 		}
 
 		async ValueTask CopySegmentToWithProgressAsync(string segment)
 		{
-			Exception? exception = null;
-
-			foreach (Uri baseUri in _source)
+			if (!Uri.TryCreate(_source, segment, out Uri? uri))
 			{
-				if (!Uri.TryCreate(baseUri, segment, out Uri? uri))
-				{
-					continue;
-				}
-
-				try
-				{
-					byte[] buffer = await Client.GetByteArrayAsync(uri, cancellationToken);
-
-					await pipe.Writer.WriteAsync(buffer, cancellationToken);
-					ReportProgress(buffer.LongLength);
-
-					return;
-				}
-				catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-				{
-					exception = ex;
-				}
+				throw new FormatException(@"Uri 格式错误");
 			}
 
-			if (exception is not null)
-			{
-				throw exception;
-			}
+			byte[] buffer = await Client.GetByteArrayAsync(uri, cancellationToken);
 
-			throw new FormatException(@"所有 Uri 格式错误");
-
-			void ReportProgress(long length)
-			{
-				Interlocked.Add(ref Last, length);
-			}
+			await pipe.Writer.WriteAsync(buffer, cancellationToken);
+			Interlocked.Add(ref Last, buffer.LongLength);
 		}
 	}
 }

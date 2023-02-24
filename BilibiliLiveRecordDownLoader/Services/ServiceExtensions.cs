@@ -11,6 +11,7 @@ using BilibiliLiveRecordDownLoader.Views;
 using DynamicData;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Punchclock;
 using ReactiveUI;
 using RunAtStartup;
@@ -120,7 +121,7 @@ public static class ServiceExtensions
 		{
 			Config config = provider.GetRequiredService<Config>();
 			HttpClient client = HttpClientUtils.BuildClientForBilibili(config.UserAgent, config.Cookie, config.HttpHandler);
-			return new HttpLiveStreamRecorder(client);
+			return new HttpLiveStreamRecorder(client, provider.GetRequiredService<ILogger<HttpLiveStreamRecorder>>());
 		});
 
 		return services;
