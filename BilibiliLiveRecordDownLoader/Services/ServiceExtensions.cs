@@ -116,6 +116,12 @@ public static class ServiceExtensions
 			HttpClient client = HttpClientUtils.BuildClientForBilibili(config.UserAgent, config.Cookie, config.HttpHandler);
 			return new HttpFlvLiveStreamRecorder(client);
 		});
+		services.TryAddTransient(provider =>
+		{
+			Config config = provider.GetRequiredService<Config>();
+			HttpClient client = HttpClientUtils.BuildClientForBilibili(config.UserAgent, config.Cookie, config.HttpHandler);
+			return new HttpLiveStreamRecorder(client);
+		});
 
 		return services;
 	}

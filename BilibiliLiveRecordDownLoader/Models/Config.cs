@@ -1,3 +1,4 @@
+using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.JsonConverters;
 using DynamicData.Kernel;
 using ModernWpf;
@@ -23,6 +24,7 @@ public class Config : ReactiveObject
 	public const bool DefaultIsAutoConvertMp4 = false;
 	public const bool DefaultIsUseProxy = true;
 	public const ElementTheme DefaultTheme = ElementTheme.Default;
+	public const RecorderType DefaultRecorderType = RecorderType.HttpFlv;
 
 	#endregion
 
@@ -90,6 +92,14 @@ public class Config : ReactiveObject
 	[Reactive]
 	public ElementTheme Theme { get; set; } = DefaultTheme;
 
+	/// <summary>
+	/// 全局默认录制方式
+	/// </summary>
+	[DefaultValue(DefaultRecorderType)]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	[Reactive]
+	public RecorderType RecorderType { get; set; } = DefaultRecorderType;
+
 	#endregion
 
 	/// <summary>
@@ -112,5 +122,6 @@ public class Config : ReactiveObject
 		IsDeleteAfterConvert = config.IsDeleteAfterConvert;
 		IsUseProxy = config.IsUseProxy;
 		Theme = config.Theme;
+		RecorderType = config.RecorderType;
 	}
 }

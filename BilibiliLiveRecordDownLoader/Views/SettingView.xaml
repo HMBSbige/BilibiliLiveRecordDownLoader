@@ -45,6 +45,15 @@
                                          Header="转换完成后删除原文件"
                                          IsEnabled="{Binding ElementName=IsAutoConvertMp4Switch,Path=IsOn}"
                                          OnContent="" OffContent="" />
+                        <GroupBox Header="默认值">
+                            <StackPanel>
+                                <ui:RadioButtons x:Name="DefaultRecorderTypeRadioButtons"
+                                                 Header="录制方式">
+                                    <RadioButton Content="HTTP-FLV" d:IsChecked="True" />
+                                    <RadioButton Content="HLS-TS" />
+                                </ui:RadioButtons>
+                            </StackPanel>
+                        </GroupBox>
                     </StackPanel>
                 </GroupBox>
                 <GroupBox Header="更新">

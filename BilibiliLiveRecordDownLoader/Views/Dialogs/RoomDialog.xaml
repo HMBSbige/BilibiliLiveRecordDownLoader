@@ -2,7 +2,7 @@
     x:Class="BilibiliLiveRecordDownLoader.Views.Dialogs.RoomDialog"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:dialogs="clr-namespace:BilibiliLiveRecordDownLoader.Views.Dialogs"
     xmlns:ui="http://schemas.modernwpf.com/2019"
@@ -31,7 +31,7 @@
                           Header="房间号"
                           Minimum="0"
                           Maximum="9223372036854775807"
-                          Value="{Binding Path=RoomId,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"/>
+                          Value="{Binding Path=RoomId,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
             <ui:NumberBox Header="弹幕重连间隔(秒)"
                           Minimum="0.0"
                           Value="{Binding Path=DanMuReconnectLatency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
@@ -41,9 +41,6 @@
             <ui:NumberBox Header="直播重连间隔(秒)"
                           Minimum="0.0"
                           Value="{Binding Path=StreamReconnectLatency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-            <ui:NumberBox Header="直播连接超时(秒)"
-                          Minimum="0.0"
-                          Value="{Binding Path=StreamConnectTimeout,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
             <ui:NumberBox Header="直播流超时(秒)"
                           Minimum="0.0"
                           Value="{Binding Path=StreamTimeout,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
@@ -61,6 +58,20 @@
                 <ComboBoxItem Content="{x:Static constants:Constants.Qn150}" />
                 <ComboBoxItem Content="{x:Static constants:Constants.Qn80}" />
             </ComboBox>
+            <ui:RadioButtons Header="录制方式"
+                             MaxColumns="3"
+                             SelectedIndex="{Binding RecorderType,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource RecorderTypeToIntConverter}}"
+                             >
+                <RadioButton Content="默认" />
+                <RadioButton Content="HTTP-FLV" />
+                <RadioButton Content="HLS-TS" />
+            </ui:RadioButtons>
+            <ui:NumberBox Header="HTTP-FLV 连接超时(秒)"
+                          Minimum="0.0"
+                          Value="{Binding Path=StreamConnectTimeout,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+            <ui:NumberBox Header="HLS-TS 连接超时(秒)"
+                          Minimum="0.0"
+                          Value="{Binding Path=HlsTsConnectTimeout,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
             <ui:RadioButtons Header="弹幕服务器类型"
                              MaxColumns="1"
                              SelectedIndex="{Binding ClientType,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource DanmuClientTypeToIntConverter}}">

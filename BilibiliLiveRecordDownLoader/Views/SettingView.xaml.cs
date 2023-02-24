@@ -1,3 +1,4 @@
+using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using ModernWpf;
@@ -39,6 +40,24 @@ public partial class SettingView
 
 			this.Bind(ViewModel, vm => vm.Config.IsAutoConvertMp4, v => v.IsAutoConvertMp4Switch.IsOn).DisposeWith(d);
 			this.Bind(ViewModel, vm => vm.Config.IsDeleteAfterConvert, v => v.IsDeleteAfterConvertSwitch.IsOn).DisposeWith(d);
+
+			this.Bind(ViewModel,
+				vm => vm.Config.RecorderType,
+				v => v.DefaultRecorderTypeRadioButtons.SelectedIndex,
+				type => type switch
+				{
+					RecorderType.Default => 0,
+					RecorderType.HttpFlv => 0,
+					RecorderType.HlsTs => 1,
+					_ => 0
+				},
+				i => i switch
+				{
+					0 => RecorderType.HttpFlv,
+					1 => RecorderType.HlsTs,
+					_ => RecorderType.HttpFlv
+				}
+			).DisposeWith(d);
 
 			this.Bind(ViewModel, vm => vm.IsRunOnStartup, v => v.StartupSwitch.IsOn).DisposeWith(d);
 			this.Bind(ViewModel, vm => vm.Config.IsCheckUpdateOnStart, v => v.IsCheckUpdateOnStartSwitch.IsOn).DisposeWith(d);

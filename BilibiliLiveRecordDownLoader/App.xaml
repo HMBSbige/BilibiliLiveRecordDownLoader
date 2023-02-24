@@ -41,6 +41,7 @@
             <valueConverters:LiveStatusToBrushConverter x:Key="LiveStatusToBrushConverter" />
             <valueConverters:DanmuClientTypeToIntConverter x:Key="DanmuClientTypeToIntConverter" />
             <valueConverters:QnToStringConverter x:Key="QnToStringConverter" />
+            <valueConverters:RecorderTypeToIntConverter x:Key="RecorderTypeToIntConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

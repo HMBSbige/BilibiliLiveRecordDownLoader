@@ -19,7 +19,7 @@ public class HttpFlvLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 		Client = client;
 	}
 
-	public async ValueTask InitializeAsync(Uri[] source, CancellationToken cancellationToken = default)
+	public async ValueTask InitializeAsync(IEnumerable<Uri> source, CancellationToken cancellationToken = default)
 	{
 		_netStream = await Client.GetStreamAsync(source.First(), cancellationToken);
 	}
@@ -28,7 +28,7 @@ public class HttpFlvLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 	{
 		if (_netStream is null)
 		{
-			throw new InvalidOperationException(@"Do InitAsync first");
+			throw new InvalidOperationException(@"Do InitializeAsync first");
 		}
 
 		string filePath = Path.ChangeExtension(outFilePath, @".flv");

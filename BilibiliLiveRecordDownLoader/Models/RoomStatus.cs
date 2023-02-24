@@ -43,10 +43,12 @@ public class RoomStatus : ReactiveObject
 	public const double DefaultDanMuReconnectLatency = 2.0;
 	public const double DefaultHttpCheckLatency = 300.0;
 	public const double DefaultStreamReconnectLatency = 6.0;
-	public const double DefaultStreamConnectTimeout = 3.0;
 	public const double DefaultStreamTimeout = 5.0;
 	public const DanmuClientType DefaultClientType = DanmuClientType.SecureWebsocket;
 	public const Qn DefaultQn = Qn.原画;
+	public const RecorderType DefaultRecorderType = RecorderType.Default;
+	public const double DefaultStreamConnectTimeout = 3.0;
+	public const double DefaultHlsTsConnectTimeout = 5.0;
 
 	#endregion
 
@@ -136,15 +138,6 @@ public class RoomStatus : ReactiveObject
 	public double StreamReconnectLatency { get; set; } = DefaultStreamReconnectLatency;
 
 	/// <summary>
-	/// 直播连接超时
-	/// 单位 秒
-	/// </summary>
-	[DefaultValue(DefaultStreamConnectTimeout)]
-	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-	[Reactive]
-	public double StreamConnectTimeout { get; set; } = DefaultStreamConnectTimeout;
-
-	/// <summary>
 	/// 直播流超时
 	/// 单位 秒
 	/// </summary>
@@ -175,6 +168,32 @@ public class RoomStatus : ReactiveObject
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 	[Reactive]
 	public Qn Qn { get; set; } = DefaultQn;
+
+	/// <summary>
+	/// 录制方式
+	/// </summary>
+	[DefaultValue(DefaultRecorderType)]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	[Reactive]
+	public RecorderType RecorderType { get; set; } = DefaultRecorderType;
+
+	/// <summary>
+	/// HTTP-FLV 连接超时
+	/// 单位 秒
+	/// </summary>
+	[DefaultValue(DefaultStreamConnectTimeout)]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	[Reactive]
+	public double StreamConnectTimeout { get; set; } = DefaultStreamConnectTimeout;
+
+	/// <summary>
+	/// HLS-TS 连接超时
+	/// 单位 秒
+	/// </summary>
+	[DefaultValue(DefaultHlsTsConnectTimeout)]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	[Reactive]
+	public double HlsTsConnectTimeout { get; set; } = DefaultHlsTsConnectTimeout;
 
 	#endregion
 
@@ -217,8 +236,8 @@ public class RoomStatus : ReactiveObject
 
 	private void StartMonitor()
 	{
-		_statusMonitor = this.WhenAnyValue(x => x.LiveStatus).Subscribe(_ => StatusUpdatedAsync().Forget());
-		_enableMonitor = this.WhenAnyValue(x => x.IsEnable).Subscribe(_ => EnableUpdatedAsync().Forget());
+		_statusMonitor = this.WhenAnyValue(x => x.LiveStatus).ObserveOn(RxApp.TaskpoolScheduler).Subscribe(_ => StatusUpdatedAsync().Forget());
+		_enableMonitor = this.WhenAnyValue(x => x.IsEnable).ObserveOn(RxApp.TaskpoolScheduler).Subscribe(_ => EnableUpdatedAsync().Forget());
 		this.RaisePropertyChanged(nameof(LiveStatus));
 		_titleMonitor = this.WhenAnyValue(x => x.Title).Subscribe(title =>
 		{
@@ -263,14 +282,27 @@ public class RoomStatus : ReactiveObject
 					RecordStatus = RecordStatus.启动中;
 					cancellationToken.ThrowIfCancellationRequested();
 
-					Uri uri = await _apiClient.GetRoomStreamUriAsync(RoomId, (long)Qn, cancellationToken);
+					RecorderType type = RecorderType is RecorderType.Default ? _config.RecorderType : RecorderType;
+					if (type is RecorderType.Default)
+					{
+						type = RecorderType.HttpFlv;
+					}
+
+					Uri[] uri = type is RecorderType.HttpFlv
+						? new[] { await _apiClient.GetRoomStreamUriAsync(RoomId, (long)Qn, cancellationToken) }
+						: await _apiClient.GetRoomHlsUriAsync(RoomId, @"TS", (long)Qn, cancellationToken);
 
 					_logger.LogDebug(@"[{roomId}] 直播流: {uri}", RoomId, uri);
 
-					await using ILiveStreamRecorder recorder = DI.GetRequiredService<HttpFlvLiveStreamRecorder>();
-					recorder.Client.Timeout = TimeSpan.FromSeconds(StreamConnectTimeout);
+					await using ILiveStreamRecorder recorder = type is RecorderType.HttpFlv
+						? DI.GetRequiredService<HttpFlvLiveStreamRecorder>()
+						: DI.GetRequiredService<HttpLiveStreamRecorder>();
 
-					await recorder.InitializeAsync(new[] { uri }, cancellationToken);
+					recorder.Client.Timeout = type is RecorderType.HttpFlv
+						? TimeSpan.FromSeconds(StreamConnectTimeout)
+						: TimeSpan.FromSeconds(HlsTsConnectTimeout);
+
+					await recorder.InitializeAsync(uri, cancellationToken);
 					RecordStatus = RecordStatus.录制中;
 
 					string filePath = Path.Combine(_config.MainDir, $@"{RoomId}", DateTime.Now.ToString(@"yyyyMMdd_HHmmss"));
@@ -536,10 +568,12 @@ public class RoomStatus : ReactiveObject
 			DanMuReconnectLatency = DanMuReconnectLatency,
 			HttpCheckLatency = HttpCheckLatency,
 			StreamReconnectLatency = StreamReconnectLatency,
-			StreamConnectTimeout = StreamConnectTimeout,
 			StreamTimeout = StreamTimeout,
 			ClientType = ClientType,
-			Qn = Qn
+			Qn = Qn,
+			RecorderType = RecorderType,
+			StreamConnectTimeout = StreamConnectTimeout,
+			HlsTsConnectTimeout = HlsTsConnectTimeout
 		};
 	}
 
@@ -566,7 +600,6 @@ public class RoomStatus : ReactiveObject
 		}
 
 		StreamReconnectLatency = room.StreamReconnectLatency;
-		StreamConnectTimeout = room.StreamConnectTimeout;
 		StreamTimeout = room.StreamTimeout;
 
 		if (ClientType != room.ClientType)
@@ -577,6 +610,10 @@ public class RoomStatus : ReactiveObject
 		}
 
 		Qn = room.Qn;
+
+		RecorderType = room.RecorderType;
+		StreamConnectTimeout = room.StreamConnectTimeout;
+		HlsTsConnectTimeout = room.HlsTsConnectTimeout;
 	}
 
 	#endregion

@@ -14,7 +14,7 @@ public interface ILiveStreamRecorder : IProgress, IHttpClient, IAsyncDisposable
 	/// </summary>
 	/// <param name="source">下载源</param>
 	/// <param name="cancellationToken"></param>
-	ValueTask InitializeAsync(Uri[] source, CancellationToken cancellationToken = default);
+	ValueTask InitializeAsync(IEnumerable<Uri> source, CancellationToken cancellationToken = default);
 
 	/// <summary>
 	/// 开始下载

@@ -7,6 +7,8 @@ using Serilog;
 using Serilog.Events;
 using Splat;
 using Splat.Microsoft.Extensions.DependencyInjection;
+using System.ComponentModel;
+using System.Windows;
 
 namespace BilibiliLiveRecordDownLoader.Services;
 
@@ -16,7 +18,14 @@ public static class DI
 
 	public static T GetRequiredService<T>()
 	{
-		var service = Locator.Current.GetService<T>();
+#if DEBUG
+		if (DesignerProperties.IsInDesignModeProperty.GetMetadata(typeof(DependencyObject)).DefaultValue is true)
+		{
+			return default!;
+		}
+#endif
+
+		T? service = Locator.Current.GetService<T>();
 
 		if (service is null)
 		{
