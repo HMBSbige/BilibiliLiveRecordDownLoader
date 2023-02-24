@@ -5,11 +5,7 @@ CI | [![CI](https://github.com/HMBSbige/BilibiliLiveRecordDownLoader/workflows/C
 BilibiliLiveRecordDownLoader.BilibiliApi | [![NuGet.org](https://img.shields.io/nuget/v/BilibiliLiveRecordDownLoader.BilibiliApi.svg)](https://www.nuget.org/packages/BilibiliLiveRecordDownLoader.BilibiliApi/)
 BilibiliLiveRecordDownLoader.Shared | [![NuGet.org](https://img.shields.io/nuget/v/BilibiliLiveRecordDownLoader.Shared.svg)](https://www.nuget.org/packages/BilibiliLiveRecordDownLoader.Shared/)
 
-
-
 Bilibili 直播录制
-
-~~也是 WPF 最佳实践~~
 
 ## 主要功能
 - [x] 多直播间录制
@@ -18,6 +14,8 @@ Bilibili 直播录制
 - [x] 录制完成后自动转 MP4
 - [x] 简单剪辑分段、手动转封装
 - [x] 记录直播间标题变化
+- [x] 录制 HTTP-FLV 流
+- [x] 录制 HLS-TS 流
 
 ## 下载
 [正式版](https://github.com/HMBSbige/BilibiliLiveRecordDownLoader/releases)
