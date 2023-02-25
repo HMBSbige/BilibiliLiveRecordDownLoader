@@ -1,7 +1,9 @@
+using Microsoft;
 using Serilog.Core;
 using Serilog.Events;
 using Serilog.Formatting;
 using Serilog.Formatting.Display;
+using System.Globalization;
 using System.IO;
 using System.Reactive.Subjects;
 
@@ -15,17 +17,14 @@ public class SubjectMemorySink : ILogEventSink
 
 	public SubjectMemorySink(string outputTemplate)
 	{
-		_textFormatter = new MessageTemplateTextFormatter(outputTemplate);
+		_textFormatter = new MessageTemplateTextFormatter(outputTemplate, CultureInfo.CurrentCulture);
 	}
 
 	public void Emit(LogEvent logEvent)
 	{
-		if (logEvent is null)
-		{
-			throw new ArgumentNullException(nameof(logEvent));
-		}
+		Requires.NotNull(logEvent, nameof(logEvent));
 
-		using var writer = new StringWriter();
+		using StringWriter writer = new();
 		_textFormatter.Format(logEvent, writer);
 		LogSubject.OnNext(writer.ToString());
 	}

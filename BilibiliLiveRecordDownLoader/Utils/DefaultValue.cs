@@ -2,7 +2,7 @@ namespace BilibiliLiveRecordDownLoader.Utils;
 
 internal static class DefaultValue
 {
-	private static readonly Dictionary<Type, object> DefaultValues = new();
+	private static readonly Dictionary<Type, object?> DefaultValues = new();
 
 	public static object? Get(Type type)
 	{
@@ -11,13 +11,13 @@ internal static class DefaultValue
 			return null;
 		}
 
-		if (DefaultValues.TryGetValue(type, out var cachedValue))
+		if (DefaultValues.TryGetValue(type, out object? cachedValue))
 		{
 			return cachedValue;
 		}
 
-		var defaultValue = Activator.CreateInstance(type);
-		DefaultValues[type] = defaultValue!;
+		object? defaultValue = Activator.CreateInstance(type);
+		DefaultValues[type] = defaultValue;
 
 		return defaultValue;
 	}

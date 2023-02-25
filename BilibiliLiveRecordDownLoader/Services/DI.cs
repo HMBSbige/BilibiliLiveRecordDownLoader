@@ -8,13 +8,14 @@ using Serilog.Events;
 using Splat;
 using Splat.Microsoft.Extensions.DependencyInjection;
 using System.ComponentModel;
+using System.Globalization;
 using System.Windows;
 
 namespace BilibiliLiveRecordDownLoader.Services;
 
 public static class DI
 {
-	private static readonly SubjectMemorySink MemorySink = new(Constants.OutputTemplate);
+	private static readonly SubjectMemorySink MemorySink = new(@"[{Timestamp:G}] [{LevelCN}] {Message:lj}{NewLine}{Exception}");
 
 	public static T GetRequiredService<T>()
 	{
@@ -45,17 +46,19 @@ public static class DI
 		Log.Logger = new LoggerConfiguration()
 #if DEBUG
 			.MinimumLevel.Debug()
-			.WriteTo.Async(c => c.Debug(outputTemplate: Constants.OutputTemplate))
+			.WriteTo.Async(c => c.Debug(outputTemplate: Constants.OutputTemplate, formatProvider: CultureInfo.CurrentCulture))
 #else
 			.MinimumLevel.Information()
 #endif
 			.MinimumLevel.Override(@"Microsoft", LogEventLevel.Information)
 			.Enrich.FromLogContext()
+			.Enrich.With<LogLevelEnricher>()
 			.WriteTo.Async(c => c.File(Constants.LogFile,
 				outputTemplate: Constants.OutputTemplate,
 				rollingInterval: RollingInterval.Day,
 				rollOnFileSizeLimit: true,
-				fileSizeLimitBytes: Constants.MaxLogFileSize))
+				fileSizeLimitBytes: Constants.MaxLogFileSize,
+				formatProvider: CultureInfo.CurrentCulture))
 			.WriteTo.Async(c => c.Sink(MemorySink))
 			.CreateLogger();
 	}
