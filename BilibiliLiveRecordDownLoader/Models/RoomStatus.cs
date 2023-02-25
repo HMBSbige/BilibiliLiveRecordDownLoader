@@ -289,6 +289,7 @@ public class RoomStatus : ReactiveObject
 						: DI.GetRequiredService<HttpLiveStreamRecorder>();
 
 					recorder.Client.Timeout = TimeSpan.FromSeconds(StreamConnectTimeout);
+					recorder.RoomId = RoomId;
 
 					await recorder.InitializeAsync(uri, cancellationToken);
 					RecordStatus = RecordStatus.录制中;

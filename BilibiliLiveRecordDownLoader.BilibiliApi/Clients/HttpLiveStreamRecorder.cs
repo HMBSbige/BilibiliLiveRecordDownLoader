@@ -2,7 +2,6 @@ using BilibiliApi.Model;
 using BilibiliLiveRecordDownLoader.Shared.Abstractions;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
-using System.Diagnostics.CodeAnalysis;
 using System.IO.Pipelines;
 using System.Reactive.Linq;
 using System.Reactive.Threading.Tasks;
@@ -14,6 +13,8 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 	private readonly ILogger<HttpLiveStreamRecorder> _logger;
 
 	public HttpClient Client { get; set; }
+
+	public long RoomId { get; set; }
 
 	public Task WriteToFileTask { get; private set; } = Task.CompletedTask;
 
@@ -39,7 +40,7 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 
 		_source = result ?? throw new HttpRequestException(@"没有可用的直播地址");
 
-		_logger.LogInformation(@"选择直播地址：{uri}", _source);
+		_logger.LogInformation(@"[{roomId}] 选择直播地址：{uri}", RoomId, _source);
 
 		async Task<Uri> Test(Uri uri, CancellationToken ct)
 		{
@@ -65,26 +66,35 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 		WriteToFileTask = pipe.Reader.CopyToAsync(fs, CancellationToken.None)
 			.ContinueWith(_ => fs.Dispose(), CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Current);
 
-		using BlockingCollection<string> queue = new();
-		ValueTask _ = GetListAsync();
-
 		try
 		{
-			using (CreateSpeedMonitor())
+			using BlockingCollection<string> queue = new();
+			using CancellationTokenSource getListCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+			ValueTask task = GetListAsync(queue, getListCts.Token);
+
+			try
 			{
-				foreach (string segment in queue.GetConsumingEnumerable(cancellationToken))
+				using (CreateSpeedMonitor())
 				{
-					await CopySegmentToWithProgressAsync(segment);
+					foreach (string segment in queue.GetConsumingEnumerable(cancellationToken))
+					{
+						await CopySegmentToWithProgressAsync(segment);
+					}
 				}
 			}
+			finally
+			{
+				getListCts.Cancel();
+			}
+
+			await task;
 		}
 		finally
 		{
 			await pipe.Writer.CompleteAsync();
 		}
 
-		[SuppressMessage("ReSharper", "AccessToDisposedClosure")]
-		async ValueTask GetListAsync()
+		async ValueTask GetListAsync(BlockingCollection<string> queue, CancellationToken token)
 		{
 			try
 			{
@@ -93,22 +103,22 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 				using PeriodicTimer timer = new(TimeSpan.FromSeconds(1));
 				do
 				{
-					await using Stream m3u8Stream = await Client.GetStreamAsync(_source, cancellationToken);
+					await using Stream stream = await Client.GetStreamAsync(_source, token);
 
-					M3U m3u8 = new(m3u8Stream);
+					M3U m3u8 = new(stream);
 
 					foreach (string segment in m3u8.Segments)
 					{
 						if (buffer.AddIfNotContains(segment))
 						{
-							queue.Add(segment, cancellationToken);
+							queue.Add(segment, token);
 						}
 					}
-				} while (await timer.WaitForNextTickAsync(cancellationToken));
+				} while (await timer.WaitForNextTickAsync(token));
 			}
-			catch (Exception ex)
+			catch (HttpRequestException ex)
 			{
-				_logger.LogError(ex, @"处理 m3u8 时发生错误({uri})", _source);
+				_logger.LogWarning(@"[{roomId}] 尝试下载 m3u8 时服务器返回了 {statusCode}", RoomId, ex.StatusCode);
 			}
 			finally
 			{
@@ -124,9 +134,9 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 			}
 
 			byte[] buffer = await Client.GetByteArrayAsync(uri, cancellationToken);
+			Interlocked.Add(ref Last, buffer.LongLength);
 
 			await pipe.Writer.WriteAsync(buffer, cancellationToken);
-			Interlocked.Add(ref Last, buffer.LongLength);
 		}
 	}
 }

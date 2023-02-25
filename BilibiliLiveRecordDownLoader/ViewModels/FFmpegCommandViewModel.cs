@@ -85,14 +85,11 @@ public class FFmpegCommandViewModel : ReactiveObject, IRoutableViewModel
 		ConvertSaveFileCommand = ReactiveCommand.Create(ConvertSaveFile);
 		ConvertCommand = ReactiveCommand.Create(CreateConvertVideoTask);
 
-		this.WhenAnyValue(x => x.CutInput).Subscribe(_ => NewOutputFile());
+		this.WhenAnyValue(x => x.CutInput).Subscribe(NewOutputFile);
 
 		this.WhenAnyValue(x => x.ConvertInput).Subscribe(file =>
 		{
-			if (Path.GetExtension(file) == @".flv")
-			{
-				ConvertOutput = Path.ChangeExtension(file, @"mp4");
-			}
+			ConvertOutput = Path.GetExtension(file).ToLowerInvariant() is @".flv" or @".mkv" or @".ts" ? Path.ChangeExtension(file, @".mp4") : string.Empty;
 		});
 	}
 
@@ -100,8 +97,8 @@ public class FFmpegCommandViewModel : ReactiveObject, IRoutableViewModel
 	{
 		try
 		{
-			using var ffmpeg = DI.GetRequiredService<FFmpegCommand>();
-			var version = await ffmpeg.GetVersionAsync(token);
+			using FFmpegCommand ffmpeg = DI.GetRequiredService<FFmpegCommand>();
+			string? version = await ffmpeg.GetVersionAsync(token);
 			if (version is not null)
 			{
 				FFmpegStatus = $@"版本：{version}";
@@ -121,27 +118,26 @@ public class FFmpegCommandViewModel : ReactiveObject, IRoutableViewModel
 		return false;
 	}
 
-	private void NewOutputFile()
+	private void NewOutputFile(string filename)
 	{
-		var filename = CutInput;
 		if (!File.Exists(filename))
 		{
 			return;
 		}
 
-		var oldName = Path.ChangeExtension(filename, null);
-		var extension = Path.GetExtension(filename);
+		string oldName = Path.ChangeExtension(filename, null);
+		string extension = Path.GetExtension(filename);
 
-		var match = Regex.Match(CutOutput, $@"^{Regex.Escape(oldName)}_(\d+){extension}$", RegexOptions.IgnoreCase);
-		if (match.Groups.Count == 2 && ulong.TryParse(match.Groups[1].Value, out var l) && l < ulong.MaxValue)
+		Match match = Regex.Match(CutOutput, $@"^{Regex.Escape(oldName)}_(\d+){extension}$", RegexOptions.IgnoreCase);
+		if (match.Groups.Count == 2 && ulong.TryParse(match.Groups[1].Value, out ulong l) && l < ulong.MaxValue)
 		{
 			CutOutput = Path.ChangeExtension($@"{oldName}_{l + 1}", extension);
 			return;
 		}
 
-		for (var i = 1; i < 10000; ++i)
+		for (int i = 1; i < 10000; ++i)
 		{
-			var newPath = Path.ChangeExtension($@"{oldName}_{i}", extension);
+			string newPath = Path.ChangeExtension($@"{oldName}_{i}", extension);
 			if (newPath == CutOutput || File.Exists(newPath))
 			{
 				continue;
@@ -154,7 +150,7 @@ public class FFmpegCommandViewModel : ReactiveObject, IRoutableViewModel
 
 	private void CutOpenFile()
 	{
-		var filename = GetOpenFileName();
+		string? filename = GetOpenFileName();
 		if (filename is null)
 		{
 			return;
@@ -165,7 +161,7 @@ public class FFmpegCommandViewModel : ReactiveObject, IRoutableViewModel
 
 	private void CutSaveFile()
 	{
-		var filename = GetSaveFileName(CutOutput);
+		string? filename = GetSaveFileName(CutOutput);
 		if (filename is null)
 		{
 			return;
@@ -176,7 +172,7 @@ public class FFmpegCommandViewModel : ReactiveObject, IRoutableViewModel
 
 	private void ConvertOpenFile()
 	{
-		var filename = GetOpenFileName();
+		string? filename = GetOpenFileName();
 		if (filename is null)
 		{
 			return;
@@ -187,7 +183,7 @@ public class FFmpegCommandViewModel : ReactiveObject, IRoutableViewModel
 
 	private void ConvertSaveFile()
 	{
-		var filename = GetSaveFileName(ConvertOutput);
+		string? filename = GetSaveFileName(ConvertOutput);
 		if (filename is null)
 		{
 			return;
@@ -204,11 +200,11 @@ public class FFmpegCommandViewModel : ReactiveObject, IRoutableViewModel
 			{
 				return;
 			}
-			var args = string.Format(Constants.FFmpegSplitTo, CutStartTime, CutEndTime, CutInput, CutOutput);
-			var task = new FFmpegTaskViewModel(args);
+			string args = string.Format(Constants.FFmpegSplitTo, CutStartTime, CutEndTime, CutInput, CutOutput);
+			FFmpegTaskViewModel task = new(args);
 			_taskList.AddTaskAsync(task, Path.GetPathRoot(CutOutput) ?? string.Empty).Forget();
 
-			NewOutputFile();
+			NewOutputFile(CutInput);
 		}
 		catch (Exception ex)
 		{
@@ -231,7 +227,7 @@ public class FFmpegCommandViewModel : ReactiveObject, IRoutableViewModel
 
 	private async ValueTask ConvertVideoAsync(string input, string output, bool isDelete, string args)
 	{
-		var task = new FFmpegTaskViewModel(args);
+		FFmpegTaskViewModel task = new(args);
 		await _taskList.AddTaskAsync(task, Path.GetPathRoot(output) ?? string.Empty);
 		if (isDelete)
 		{
@@ -244,9 +240,12 @@ public class FFmpegCommandViewModel : ReactiveObject, IRoutableViewModel
 		try
 		{
 			string args;
-			if (isFlvFixConvert)
+			if (isFlvFixConvert
+				&& Path.GetExtension(input).Equals(@".flv", StringComparison.OrdinalIgnoreCase)
+				&& Path.GetExtension(output).Equals(@".mp4", StringComparison.OrdinalIgnoreCase)
+				)
 			{
-				var flv = new FlvExtractTaskViewModel(input);
+				FlvExtractTaskViewModel flv = new(input);
 
 				await _taskList.AddTaskAsync(flv, Path.GetPathRoot(output) ?? string.Empty);
 				try
@@ -274,7 +273,7 @@ public class FFmpegCommandViewModel : ReactiveObject, IRoutableViewModel
 
 	private static string? GetOpenFileName()
 	{
-		var dlg = new OpenFileDialog
+		OpenFileDialog dlg = new()
 		{
 			Filter = Constants.VideoFilter
 		};
@@ -287,7 +286,7 @@ public class FFmpegCommandViewModel : ReactiveObject, IRoutableViewModel
 
 	private static string? GetSaveFileName(string defaultPath)
 	{
-		var dlg = new SaveFileDialog
+		SaveFileDialog dlg = new()
 		{
 			DefaultExt = Path.GetExtension(defaultPath),
 			FileName = Path.GetFileName(defaultPath),

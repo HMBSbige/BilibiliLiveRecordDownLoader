@@ -47,7 +47,7 @@ public static class DI
 			.MinimumLevel.Debug()
 			.WriteTo.Async(c => c.Debug(outputTemplate: Constants.OutputTemplate))
 #else
-				.MinimumLevel.Information()
+			.MinimumLevel.Information()
 #endif
 			.MinimumLevel.Override(@"Microsoft", LogEventLevel.Information)
 			.Enrich.FromLogContext()
@@ -62,7 +62,7 @@ public static class DI
 
 	public static void Register()
 	{
-		var services = new ServiceCollection();
+		ServiceCollection services = new();
 
 		services.UseMicrosoftDependencyResolver();
 		Locator.CurrentMutable.InitializeSplat();
