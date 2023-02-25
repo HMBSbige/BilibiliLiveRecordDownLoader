@@ -82,6 +82,10 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 					}
 				}
 			}
+			catch (HttpRequestException ex)
+			{
+				_logger.LogError(@"[{roomId}] 尝试下载分片时服务器返回了 {statusCode}", RoomId, ex.StatusCode);
+			}
 			finally
 			{
 				getListCts.Cancel();
