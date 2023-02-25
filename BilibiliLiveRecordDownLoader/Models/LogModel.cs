@@ -17,7 +17,4 @@ public class LogModel : ReactiveObject
 
 	[Reactive]
 	public string? Message { get; set; }
-
-	[Reactive]
-	public Exception? Exception { get; set; }
 }

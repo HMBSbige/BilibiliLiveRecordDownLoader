@@ -32,9 +32,13 @@ public class SubjectMemorySink : ILogEventSink
 		{
 			Timestamp = logEvent.Timestamp,
 			Level = logEvent.Level,
-			Message = logEvent.RenderMessage(),
-			Exception = logEvent.Exception
+			Message = logEvent.RenderMessage()
 		};
+
+		if (logEvent.Exception is not null)
+		{
+			log.Message += Environment.NewLine + logEvent.Exception.Message;
+		}
 
 		if (logEvent.Properties.TryGetValue(LoggerProperties.RoomIdPropertyName, out LogEventPropertyValue? value)
 			&& value is ScalarValue { Value: long id })

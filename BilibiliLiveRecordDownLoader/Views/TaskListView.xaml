@@ -38,8 +38,7 @@
 
             d:DataContext="{d:DesignInstance taskViewModels:TaskViewModel}"
             BorderThickness="1"
-            BorderBrush="{Binding Path=HorizontalGridLinesBrush, RelativeSource={RelativeSource Self}}"
-            >
+            BorderBrush="{Binding Path=HorizontalGridLinesBrush, RelativeSource={RelativeSource Self}}">
             <DataGrid.CellStyle>
                 <Style TargetType="DataGridCell">
                     <Style.Triggers>
@@ -60,32 +59,33 @@
             </DataGrid.ContextMenu>
             <DataGrid.Columns>
                 <DataGridTextColumn
-                            Header="任务描述"
-                            Binding="{Binding Description, Mode=OneWay}" />
+                    Header="任务描述"
+                    Binding="{Binding Description, Mode=OneWay}" />
                 <DataGridTextColumn
-                            Header="速度"
-                            Binding="{Binding Speed, Mode=OneWay}" />
-                <DataGridTextColumn
-                            Header="状态"
-                            Binding="{Binding Status, Mode=OneWay}" />
+                    Header="速度"
+                    Binding="{Binding Speed, Mode=OneWay}" />
                 <DataGridTemplateColumn Header="进度">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Grid>
                                 <ui:ProgressBar x:Name="progressBar"
-                                                        Background="Transparent"
-                                                        Minimum="0" Maximum="1"
-                                                        Height="30"
-                                                        Value="{Binding Progress, Mode=OneWay}" />
+                                                Background="Transparent"
+                                                Minimum="0" Maximum="1"
+                                                Height="30"
+                                                Value="{Binding Progress, Mode=OneWay}" />
                                 <TextBlock
-                                            Text="{Binding Progress, Mode=OneWay, StringFormat={}{0:P2}}"
-                                            HorizontalAlignment="Center"
-                                            Foreground="Black"
-                                            VerticalAlignment="Center" TextAlignment="Center" />
+                                    Text="{Binding Progress, Mode=OneWay, StringFormat={}{0:P2}}"
+                                    HorizontalAlignment="Center"
+                                    Foreground="Black"
+                                    VerticalAlignment="Center" TextAlignment="Center" />
                             </Grid>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
+                <DataGridTextColumn
+                    Header="状态"
+                    Binding="{Binding Status, Mode=OneWay}"
+                    Width="*" />
             </DataGrid.Columns>
         </DataGrid>
     </Grid>

@@ -69,10 +69,6 @@
                     Header="消息"
                     Binding="{Binding Message, Mode=OneWay}"
                     Width="*" />
-                <DataGridTextColumn
-                    Header="异常"
-                    Binding="{Binding Exception, Mode=OneWay}"
-                    Width="*" />
             </DataGrid.Columns>
         </DataGrid>
     </Grid>
