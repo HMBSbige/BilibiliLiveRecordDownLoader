@@ -102,7 +102,7 @@ public class FFmpegCommandViewModel : ReactiveObject, IRoutableViewModel
 			if (version is not null)
 			{
 				FFmpegStatus = $@"版本：{version}";
-				FFmpegStatusForeground = Constants.GreenBrush;
+				FFmpegStatusForeground = Constants.NormalBlueBrush;
 				return true;
 			}
 

@@ -1,5 +1,6 @@
 using BilibiliApi.Model;
 using BilibiliLiveRecordDownLoader.Shared.Abstractions;
+using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.IO.Pipelines;
@@ -22,6 +23,8 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 
 	private Uri? _source;
 
+	private IDisposable? _scope;
+
 	public HttpLiveStreamRecorder(HttpClient client, ILogger<HttpLiveStreamRecorder> logger)
 	{
 		Client = client;
@@ -40,7 +43,8 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 
 		_source = result ?? throw new HttpRequestException(@"没有可用的直播地址");
 
-		_logger.LogInformation(@"[{roomId}] 选择直播地址：{uri}", RoomId, _source);
+		_scope = _logger.BeginScope($@"{{{LoggerProperties.RoomIdPropertyName}}}", RoomId);
+		_logger.LogInformation(@"选择直播地址：{uri}", _source);
 
 		async Task<Uri> Test(Uri uri, CancellationToken ct)
 		{
@@ -84,7 +88,7 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 			}
 			catch (HttpRequestException ex)
 			{
-				_logger.LogError(@"[{roomId}] 尝试下载分片时服务器返回了 {statusCode}", RoomId, ex.StatusCode);
+				_logger.LogError(@"尝试下载分片时服务器返回了 {statusCode}", ex.StatusCode);
 			}
 			finally
 			{
@@ -122,7 +126,7 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 			}
 			catch (HttpRequestException ex)
 			{
-				_logger.LogWarning(@"[{roomId}] 尝试下载 m3u8 时服务器返回了 {statusCode}", RoomId, ex.StatusCode);
+				_logger.LogWarning(@"尝试下载 m3u8 时服务器返回了 {statusCode}", ex.StatusCode);
 			}
 			finally
 			{
@@ -142,5 +146,12 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 
 			await pipe.Writer.WriteAsync(buffer, cancellationToken);
 		}
+	}
+
+	public override async ValueTask DisposeAsync()
+	{
+		await base.DisposeAsync();
+
+		_scope?.Dispose();
 	}
 }

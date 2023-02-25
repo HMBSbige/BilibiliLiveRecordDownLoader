@@ -95,7 +95,7 @@
                                        FontSize="{DynamicResource ControlContentThemeFontSize}"
                                        Padding="12,0"
                                        VerticalAlignment="Center"
-                                       Foreground="{Binding LiveStatus, Converter={StaticResource LiveStatusToBrushConverter}}" />
+                                       Foreground="{Binding LiveStatus, Converter={StaticResource ViewBindToBrushConverter}}" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
@@ -106,7 +106,7 @@
                                        FontSize="{DynamicResource ControlContentThemeFontSize}"
                                        Padding="12,0"
                                        VerticalAlignment="Center"
-                                       Foreground="{Binding RecordStatus, Converter={StaticResource LiveStatusToBrushConverter}}" />
+                                       Foreground="{Binding RecordStatus, Converter={StaticResource ViewBindToBrushConverter}}" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>

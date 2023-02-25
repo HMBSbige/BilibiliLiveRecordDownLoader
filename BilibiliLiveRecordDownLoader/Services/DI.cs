@@ -1,4 +1,5 @@
 using BilibiliLiveRecordDownLoader.Utils;
+using Microsoft;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -15,7 +16,7 @@ namespace BilibiliLiveRecordDownLoader.Services;
 
 public static class DI
 {
-	private static readonly SubjectMemorySink MemorySink = new(@"[{Timestamp:G}] [{LevelCN}] {Message:lj}{NewLine}{Exception}");
+	private static readonly SubjectMemorySink MemorySink = new();
 
 	public static T GetRequiredService<T>()
 	{
@@ -28,10 +29,7 @@ public static class DI
 
 		T? service = Locator.Current.GetService<T>();
 
-		if (service is null)
-		{
-			throw new InvalidOperationException($@"No service for type {typeof(T)} has been registered.");
-		}
+		Verify.Operation(service is not null, $@"No service for type {typeof(T)} has been registered.");
 
 		return service;
 	}
@@ -52,7 +50,6 @@ public static class DI
 #endif
 			.MinimumLevel.Override(@"Microsoft", LogEventLevel.Information)
 			.Enrich.FromLogContext()
-			.Enrich.With<LogLevelEnricher>()
 			.WriteTo.Async(c => c.File(Constants.LogFile,
 				outputTemplate: Constants.OutputTemplate,
 				rollingInterval: RollingInterval.Day,
@@ -89,6 +86,7 @@ public static class DI
 			.AddLogging(c => c.AddSerilog());
 
 		services.TryAddSingleton(MemorySink);
+		services.TryAddSingleton(MemorySink.Logs);
 
 		return services;
 	}

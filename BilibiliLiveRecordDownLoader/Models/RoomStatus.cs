@@ -7,6 +7,7 @@ using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.JsonConverters;
 using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
 using BilibiliLiveRecordDownLoader.Services;
+using BilibiliLiveRecordDownLoader.Shared.Utils;
 using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using Microsoft.Extensions.Logging;
@@ -14,6 +15,7 @@ using Microsoft.VisualStudio.Threading;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Reactive.Linq;
@@ -35,6 +37,7 @@ public class RoomStatus : ReactiveObject
 	private IDisposable? _statusMonitor;
 	private IDisposable? _enableMonitor;
 	private IDisposable? _titleMonitor;
+	private IDisposable? _scope;
 	private CancellationTokenSource _recordCts = new();
 
 	#region 默认值
@@ -211,7 +214,7 @@ public class RoomStatus : ReactiveObject
 		}
 		catch (Exception ex)
 		{
-			_logger.LogError(ex, @"[{roomId}] 刷新房间状态出错", RoomId);
+			_logger.LogError(ex, @"刷新房间状态出错");
 		}
 	}
 
@@ -226,6 +229,7 @@ public class RoomStatus : ReactiveObject
 
 	private void StartMonitor()
 	{
+		_scope = _logger.BeginScope($@"开始监控房间 {{{LoggerProperties.RoomIdPropertyName}}}", RoomId);
 		_statusMonitor = this.WhenAnyValue(x => x.LiveStatus).ObserveOn(RxApp.TaskpoolScheduler).Subscribe(_ => StatusUpdatedAsync().Forget());
 		_enableMonitor = this.WhenAnyValue(x => x.IsEnable).ObserveOn(RxApp.TaskpoolScheduler).Subscribe(_ => EnableUpdatedAsync().Forget());
 		this.RaisePropertyChanged(nameof(LiveStatus));
@@ -233,7 +237,7 @@ public class RoomStatus : ReactiveObject
 		{
 			if (title is not null)
 			{
-				_logger.LogInformation(@"[{roomId}] [TitleChanged] {title}", RoomId, title);
+				_logger.LogInformation(@"[TitleChanged] {title}", title);
 			}
 		});
 		this.RaisePropertyChanged(nameof(Title));
@@ -282,7 +286,7 @@ public class RoomStatus : ReactiveObject
 						? new[] { await _apiClient.GetRoomStreamUriAsync(RoomId, (long)Qn, cancellationToken) }
 						: await _apiClient.GetRoomHlsUriAsync(RoomId, @"TS", (long)Qn, cancellationToken);
 
-					_logger.LogInformation(@"[{roomId}] 直播流：{uri}", RoomId, uri);
+					_logger.LogInformation(@"直播流：{uri}", (object)uri);
 
 					await using ILiveStreamRecorder recorder = type is RecorderType.HttpFlv
 						? DI.GetRequiredService<HttpFlvLiveStreamRecorder>()
@@ -294,9 +298,9 @@ public class RoomStatus : ReactiveObject
 					await recorder.InitializeAsync(uri, cancellationToken);
 					RecordStatus = RecordStatus.录制中;
 
-					string filePath = Path.Combine(_config.MainDir, $@"{RoomId}", DateTime.Now.ToString(@"yyyyMMdd_HHmmss"));
+					string filePath = Path.Combine(_config.MainDir, RoomId.ToString(CultureInfo.InvariantCulture), DateTime.Now.ToString(@"yyyyMMdd_HHmmss"));
 
-					_logger.LogInformation(@"[{roomId}] 开始录制", RoomId);
+					_logger.LogInformation(@"开始录制");
 
 					try
 					{
@@ -312,7 +316,7 @@ public class RoomStatus : ReactiveObject
 							}
 							else if (now - lastDataReceivedTime > TimeSpan.FromSeconds(StreamTimeout))
 							{
-								_logger.LogWarning(@"[{roomId}] 录播不稳定，即将尝试重连", RoomId);
+								_logger.LogWarning(@"录播不稳定，即将尝试重连");
 								// ReSharper disable once AccessToDisposedClosure
 								recordStreamCts.Cancel();
 							}
@@ -321,7 +325,7 @@ public class RoomStatus : ReactiveObject
 					}
 					finally
 					{
-						_logger.LogInformation(@"[{roomId}] 录制结束", RoomId);
+						_logger.LogInformation(@"录制结束");
 
 						recorder.WriteToFileTask.ContinueWith(_ => ConvertToMp4Async(filePath), CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Current).Forget();
 					}
@@ -333,39 +337,39 @@ public class RoomStatus : ReactiveObject
 				}
 				catch (TaskCanceledException ex) when (ex is { InnerException: TimeoutException, Source: @"System.Net.Http" })
 				{
-					_logger.LogInformation(@"[{roomId}] 尝试下载直播流超时", RoomId);
+					_logger.LogInformation(@"尝试下载直播流超时");
 					await Task.Delay(TimeSpan.FromSeconds(StreamReconnectLatency), cancellationToken);
 				}
 				catch (HttpRequestException ex)
 				{
 					if (ex.StatusCode is not null)
 					{
-						_logger.LogInformation(@"[{roomId}] 尝试下载直播流时服务器返回了 {statusCode}", RoomId, ex.StatusCode);
+						_logger.LogInformation(@"尝试下载直播流时服务器返回了 {statusCode}", ex.StatusCode);
 					}
 					else
 					{
-						_logger.LogInformation(@"[{roomId}] 尝试下载直播流时发生错误 {message}", RoomId, ex.Message);
+						_logger.LogInformation(@"尝试下载直播流时发生错误 {message}", ex.Message);
 					}
 					await Task.Delay(TimeSpan.FromSeconds(StreamReconnectLatency), cancellationToken);
 				}
 				catch (OperationCanceledException ex)
 				{
-					_logger.LogError(ex, @"[{roomId}] 录制被取消", RoomId);
+					_logger.LogError(ex, @"录制被取消");
 				}
 				catch (Exception ex)
 				{
-					_logger.LogError(ex, @"[{roomId}] 尝试下载直播流时发生未知错误", RoomId);
+					_logger.LogError(ex, @"尝试下载直播流时发生未知错误");
 				}
 			}
-			_logger.LogInformation(@"[{roomId}] 不再录制", RoomId);
+			_logger.LogInformation(@"不再录制");
 		}
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
-			_logger.LogInformation(@"[{roomId}] 录制已取消", RoomId);
+			_logger.LogInformation(@"录制已取消");
 		}
 		catch (Exception ex)
 		{
-			_logger.LogError(ex, @"[{roomId}] 录制出现错误", RoomId);
+			_logger.LogError(ex, @"录制出现错误");
 		}
 		finally
 		{
@@ -404,9 +408,9 @@ public class RoomStatus : ReactiveObject
 		CancellationToken token;
 		lock (this)
 		{
-			if (RecordStatus != RecordStatus.未录制)
+			if (RecordStatus is not RecordStatus.未录制)
 			{
-				_logger.LogDebug(@"[{roomId}] 重复录制，已跳过", RoomId);
+				_logger.LogDebug(@"重复录制，已跳过");
 				return;
 			}
 
@@ -434,6 +438,7 @@ public class RoomStatus : ReactiveObject
 		_statusMonitor?.Dispose();
 		_danmuClient?.Dispose();
 		_httpMonitor?.Dispose();
+		_scope?.Dispose();
 	}
 
 	private void StopRecord()
@@ -474,7 +479,7 @@ public class RoomStatus : ReactiveObject
 		}
 		catch (Exception ex)
 		{
-			_logger.LogError(ex, @"[{roomId}] 弹幕解析失败：{operation} {protocolVersion} {body}", RoomId, packet.Operation, packet.ProtocolVersion, Encoding.UTF8.GetString(packet.Body));
+			_logger.LogError(ex, @"弹幕解析失败：{operation} {protocolVersion} {body}", packet.Operation, packet.ProtocolVersion, Encoding.UTF8.GetString(packet.Body));
 		}
 	}
 
@@ -482,12 +487,12 @@ public class RoomStatus : ReactiveObject
 	{
 		try
 		{
-			if (LiveStatus != LiveStatus.未知)
+			if (LiveStatus is not LiveStatus.未知)
 			{
-				_logger.LogInformation(@"[{roomId}] 直播状态：{liveStatus}", RoomId, LiveStatus.ToString());
+				_logger.LogInformation(@"直播状态：{liveStatus}", LiveStatus);
 			}
 
-			if (LiveStatus == LiveStatus.直播)
+			if (LiveStatus is LiveStatus.直播)
 			{
 				if (IsNotify)
 				{
@@ -501,7 +506,7 @@ public class RoomStatus : ReactiveObject
 		}
 		catch (Exception ex)
 		{
-			_logger.LogError(ex, @"[{roomId}] 启动/停止录制出现错误", RoomId);
+			_logger.LogError(ex, @"启动/停止录制出现错误");
 		}
 	}
 
@@ -523,7 +528,7 @@ public class RoomStatus : ReactiveObject
 		}
 		catch (Exception ex)
 		{
-			_logger.LogError(ex, @"[{roomId}] 启动/停止录制出现错误", RoomId);
+			_logger.LogError(ex, @"启动/停止录制出现错误");
 		}
 	}
 

@@ -94,7 +94,7 @@ public class UserSettingsViewModel : ReactiveObject, IRoutableViewModel
 			if (await _apiClient.CheckLoginStatusAsync(token))
 			{
 				LoginStatus = @"已登录";
-				LoginStatusForeground = Constants.GreenBrush;
+				LoginStatusForeground = Constants.NormalBlueBrush;
 			}
 			else
 			{

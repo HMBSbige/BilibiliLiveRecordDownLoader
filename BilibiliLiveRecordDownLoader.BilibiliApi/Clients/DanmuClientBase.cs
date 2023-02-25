@@ -2,6 +2,7 @@ using BilibiliApi.Enums;
 using BilibiliApi.Model.Danmu;
 using BilibiliApi.Model.Danmu.DanmuBody;
 using BilibiliApi.Model.DanmuConf;
+using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
@@ -76,6 +77,7 @@ public abstract class DanmuClientBase : IDanmuClient
 
 		_cts = new CancellationTokenSource();
 
+		using IDisposable? _ = _logger.BeginScope($@"开始连接弹幕服务器 {{{LoggerProperties.RoomIdPropertyName}}}", RoomId);
 		await ConnectWithRetryAsync(_cts.Token);
 	}
 
@@ -90,22 +92,23 @@ public abstract class DanmuClientBase : IDanmuClient
 				await GetServerAsync(cancellationToken);
 				await GetUidAsync();
 
-				_logger.LogInformation(@"[{roomId}] 正在连接弹幕服务器 {server}", RoomId, Server);
+
+				_logger.LogInformation(@"正在连接弹幕服务器 {server}", Server);
 
 				IDuplexPipe? pipe = await ConnectAsync(cancellationToken);
 				if (pipe is not null)
 				{
-					_logger.LogInformation(@"[{roomId}] 连接弹幕服务器成功", RoomId);
+					_logger.LogInformation(@"连接弹幕服务器成功");
 
 					IDisposable receiveAuthTask = Received.Take(1).Subscribe(packet =>
 					{
 						if (IsAuthSuccess())
 						{
-							_logger.LogInformation(@"[{roomId}] 进房成功", RoomId);
+							_logger.LogInformation(@"进房成功");
 						}
 						else
 						{
-							_logger.LogWarning(@"[{roomId}] 进房失败", RoomId);
+							_logger.LogWarning(@"进房失败");
 							Close();
 						}
 
@@ -119,7 +122,7 @@ public abstract class DanmuClientBase : IDanmuClient
 								}
 
 								string json = Encoding.UTF8.GetString(packet.Body);
-								_logger.LogDebug(@"[{roomId}] 进房回应 {jsonString}", RoomId, json);
+								_logger.LogDebug(@"进房回应 {jsonString}", json);
 
 								if (json is """{"code":0}""")
 								{
@@ -146,11 +149,11 @@ public abstract class DanmuClientBase : IDanmuClient
 		}
 		catch (Exception) when (cancellationToken.IsCancellationRequested)
 		{
-			_logger.LogInformation(@"[{roomId}] 不再连接弹幕服务器", RoomId);
+			_logger.LogInformation(@"不再连接弹幕服务器");
 		}
 		catch (Exception ex)
 		{
-			_logger.LogError(ex, @"[{roomId}] 连接弹幕服务器发生未知错误", RoomId);
+			_logger.LogError(ex, @"连接弹幕服务器发生未知错误");
 		}
 		finally
 		{
@@ -165,7 +168,7 @@ public abstract class DanmuClientBase : IDanmuClient
 			}
 			catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 			{
-				_logger.LogWarning(ex, @"[{roomId}] 获取 uid 失败", RoomId);
+				_logger.LogWarning(ex, @"获取 uid 失败");
 			}
 		}
 
@@ -174,11 +177,11 @@ public abstract class DanmuClientBase : IDanmuClient
 			try
 			{
 				await ReadPipeAsync(reader, cancellationToken);
-				_logger.LogWarning(@"[{roomId}] 弹幕服务器不再发送弹幕，尝试重连...", RoomId);
+				_logger.LogWarning(@"弹幕服务器不再发送弹幕，尝试重连...");
 			}
 			catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 			{
-				_logger.LogWarning(ex, @"[{roomId}] 弹幕服务器连接被断开，尝试重连...", RoomId);
+				_logger.LogWarning(ex, @"弹幕服务器连接被断开，尝试重连...");
 			}
 		}
 	}
@@ -210,7 +213,7 @@ public abstract class DanmuClientBase : IDanmuClient
 				DanmuConfMessage? conf = await _apiClient.GetDanmuConfAsync(RoomId, cancellationToken);
 				if (conf?.code is not 0 && !string.IsNullOrEmpty(conf?.message))
 				{
-					_logger.LogError(@"[{roomId}] 获取弹幕服务器失败：{message}", RoomId, conf.message);
+					_logger.LogError(@"获取弹幕服务器失败：{message}", conf.message);
 					return;
 				}
 
@@ -218,7 +221,7 @@ public abstract class DanmuClientBase : IDanmuClient
 
 				if (string.IsNullOrEmpty(danmuInfoData?.token) || danmuInfoData.host_list is null || danmuInfoData.host_list.Length is 0)
 				{
-					_logger.LogError(@"[{roomId}] 获取弹幕服务器失败：返回信息中未包含服务器地址", RoomId);
+					_logger.LogError(@"获取弹幕服务器失败：返回信息中未包含服务器地址");
 					return;
 				}
 
@@ -232,7 +235,7 @@ public abstract class DanmuClientBase : IDanmuClient
 		}
 		catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 		{
-			_logger.LogWarning(ex, @"[{roomId}] 获取弹幕服务器失败", RoomId);
+			_logger.LogWarning(ex, @"获取弹幕服务器失败");
 		}
 		finally
 		{
@@ -240,7 +243,7 @@ public abstract class DanmuClientBase : IDanmuClient
 			{
 				if (string.IsNullOrEmpty(_token) || string.IsNullOrEmpty(Host))
 				{
-					_logger.LogWarning(@"[{roomId}] 使用默认弹幕服务器", RoomId);
+					_logger.LogWarning(@"使用默认弹幕服务器");
 					Host = DefaultHost;
 					Port = DefaultPort;
 					_token = default;
@@ -269,7 +272,7 @@ public abstract class DanmuClientBase : IDanmuClient
 		}
 		catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 		{
-			_logger.LogError(ex, @"[{roomId}] 连接弹幕服务器错误", RoomId);
+			_logger.LogError(ex, @"连接弹幕服务器错误");
 			return null;
 		}
 
@@ -284,7 +287,7 @@ public abstract class DanmuClientBase : IDanmuClient
 			};
 			string json = JsonSerializer.Serialize(authBody, AuthDanmuJsonSerializerContext.Default.AuthDanmu);
 
-			_logger.LogDebug(@"[{roomId}] AuthJson: {jsonString}", RoomId, json);
+			_logger.LogDebug(@"AuthJson: {jsonString}", json);
 			await SendDataAsync(writer, Operation.Auth, json, cancellationToken);
 		}
 
@@ -292,12 +295,12 @@ public abstract class DanmuClientBase : IDanmuClient
 		{
 			try
 			{
-				_logger.LogDebug(@"[{roomId}] 发送心跳包", RoomId);
+				_logger.LogDebug(@"发送心跳包");
 				await SendDataAsync(writer, Operation.Heartbeat, string.Empty, cancellationToken);
 			}
 			catch (Exception ex)
 			{
-				_logger.LogWarning(ex, @"[{roomId}] 心跳包发送失败", RoomId);
+				_logger.LogWarning(ex, @"心跳包发送失败");
 				Close();
 			}
 			return default;
@@ -386,7 +389,7 @@ public abstract class DanmuClientBase : IDanmuClient
 			}
 			default:
 			{
-				_logger.LogWarning(@"[{roomId}] 弹幕协议不支持。Version: {protocolVersion}", RoomId, packet.ProtocolVersion);
+				_logger.LogWarning(@"弹幕协议不支持。Version: {protocolVersion}", packet.ProtocolVersion);
 				break;
 			}
 		}
@@ -400,18 +403,18 @@ public abstract class DanmuClientBase : IDanmuClient
 				{
 					SequenceReader<byte> reader = new(packet.Body);
 					reader.TryReadBigEndian(out int num);
-					_logger.LogDebug(@"[{roomId}] 收到弹幕[{operation}] 人气值: {number}", RoomId, packet.Operation, num);
+					_logger.LogDebug(@"收到弹幕[{operation}] 人气值: {number}", packet.Operation, num);
 					break;
 				}
 				case Operation.SendMsgReply:
 				case Operation.AuthReply:
 				{
-					_logger.LogDebug(@"[{roomId}] 收到弹幕[{operation}]:{body}", RoomId, packet.Operation, Encoding.UTF8.GetString(packet.Body));
+					_logger.LogDebug(@"收到弹幕[{operation}]:{body}", packet.Operation, Encoding.UTF8.GetString(packet.Body));
 					break;
 				}
 				default:
 				{
-					_logger.LogDebug(@"[{roomId}] 收到弹幕[{operation}]", RoomId, packet.Operation);
+					_logger.LogDebug(@"收到弹幕[{operation}]", packet.Operation);
 					break;
 				}
 			}

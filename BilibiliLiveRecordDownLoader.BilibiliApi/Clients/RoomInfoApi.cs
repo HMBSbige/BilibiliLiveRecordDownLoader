@@ -35,20 +35,20 @@ public partial class BilibiliApiClient
 		{
 			if (message?.Message is not null)
 			{
-				throw new HttpRequestException($@"[{roomId}] 获取直播地址失败: {message.Message}");
+				throw new HttpRequestException($@"获取直播地址失败: {message.Message}");
 			}
-			throw new HttpRequestException($@"[{roomId}] 获取直播地址失败");
+			throw new HttpRequestException(@"获取直播地址失败");
 		}
 
 		if (message.Data?.LiveStatus is not LiveStatus.直播)
 		{
-			throw new HttpRequestException($@"[{roomId}] 直播间未在直播");
+			throw new HttpRequestException(@"直播间未在直播");
 		}
 
 		RoomPlayInfoStreamCodec codec = message.Data.PlayUrlInfo?.PlayUrl?
 			.StreamInfo?.FirstOrDefault(x => x.ProtocolName is @"http_stream")?
 			.Format?.FirstOrDefault(x => x.FormatName is @"flv")?
-			.Codec?.FirstOrDefault(x => x.UrlInfo?.FirstOrDefault(GetValidUrlInfo) is not null) ?? throw new HttpRequestException($@"[{roomId}] 获取直播地址失败: 无法找到 FLV 流");
+			.Codec?.FirstOrDefault(x => x.UrlInfo?.FirstOrDefault(GetValidUrlInfo) is not null) ?? throw new HttpRequestException(@"获取直播地址失败: 无法找到 FLV 流");
 
 		RoomPlayInfoStreamUrlInfo urlInfo = codec.UrlInfo!.First(GetValidUrlInfo);
 
@@ -75,14 +75,14 @@ public partial class BilibiliApiClient
 		{
 			if (message?.Message is not null)
 			{
-				throw new HttpRequestException($@"[{roomId}] 获取直播地址失败: {message.Message}");
+				throw new HttpRequestException($@"获取直播地址失败: {message.Message}");
 			}
-			throw new HttpRequestException($@"[{roomId}] 获取直播地址失败");
+			throw new HttpRequestException(@"获取直播地址失败");
 		}
 
 		if (message.Data?.LiveStatus is not LiveStatus.直播)
 		{
-			throw new HttpRequestException($@"[{roomId}] 直播间未在直播");
+			throw new HttpRequestException(@"直播间未在直播");
 		}
 
 		RoomPlayInfoStreamFormat[]? formats = message.Data.PlayUrlInfo?.PlayUrl?
@@ -91,14 +91,14 @@ public partial class BilibiliApiClient
 
 		if (formats is null || !formats.Any())
 		{
-			throw new HttpRequestException($@"[{roomId}] 获取直播地址失败: 无法找到 HLS 流");
+			throw new HttpRequestException(@"获取直播地址失败: 无法找到 HLS 流");
 		}
 
 		RoomPlayInfoStreamCodec? codecs = formats.FirstOrDefault(x => formatName.Equals(x.FormatName, StringComparison.OrdinalIgnoreCase))?.Codec?.FirstOrDefault();
 
 		if (codecs?.UrlInfo?.FirstOrDefault() is null || codecs.BaseUrl is null)
 		{
-			throw new HttpRequestException($@"[{roomId}] 获取直播地址失败: 无法找到 HLS-{formatName} 流");
+			throw new HttpRequestException($@"获取直播地址失败: 无法找到 HLS-{formatName} 流");
 		}
 
 		string baseUrl = codecs.BaseUrl.Replace(@"_bluray", string.Empty);
@@ -142,10 +142,10 @@ public partial class BilibiliApiClient
 		{
 			if (roomInfo?.message is not null)
 			{
-				throw new HttpRequestException($@"[{roomId}] 获取房间信息失败: {roomInfo.message}");
+				throw new HttpRequestException($@"获取房间信息失败: {roomInfo.message}");
 			}
 
-			throw new HttpRequestException($@"[{roomId}] 获取房间信息失败");
+			throw new HttpRequestException(@"获取房间信息失败");
 		}
 		return roomInfo.data;
 	}

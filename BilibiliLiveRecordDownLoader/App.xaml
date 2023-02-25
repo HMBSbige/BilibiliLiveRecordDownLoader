@@ -38,7 +38,8 @@
             <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="Transparent" />
             <SolidColorBrush x:Key="NavigationViewTopPaneBackground" Color="Transparent" />
             <!-- Converters -->
-            <valueConverters:LiveStatusToBrushConverter x:Key="LiveStatusToBrushConverter" />
+            <valueConverters:ViewBindToBrushConverter x:Key="ViewBindToBrushConverter" />
+            <valueConverters:ViewBindToStringConverter x:Key="ViewBindToStringConverter" />
             <valueConverters:DanmuClientTypeToIntConverter x:Key="DanmuClientTypeToIntConverter" />
             <valueConverters:QnToStringConverter x:Key="QnToStringConverter" />
             <valueConverters:RecorderTypeToIntConverter x:Key="RecorderTypeToIntConverter" />

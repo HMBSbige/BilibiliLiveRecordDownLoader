@@ -1,31 +1,47 @@
+using BilibiliLiveRecordDownLoader.Models;
+using BilibiliLiveRecordDownLoader.Shared.Utils;
+using DynamicData;
 using Microsoft;
+using ReactiveUI;
 using Serilog.Core;
 using Serilog.Events;
-using Serilog.Formatting;
-using Serilog.Formatting.Display;
-using System.Globalization;
-using System.IO;
-using System.Reactive.Subjects;
+using System.Collections.ObjectModel;
+using System.Reactive.Linq;
 
 namespace BilibiliLiveRecordDownLoader.Services;
 
 public class SubjectMemorySink : ILogEventSink
 {
-	private readonly ITextFormatter _textFormatter;
+	private readonly SourceList<LogModel> _list = new();
+	public readonly ReadOnlyObservableCollection<LogModel> Logs;
 
-	public readonly ReplaySubject<string> LogSubject = new(100);
-
-	public SubjectMemorySink(string outputTemplate)
+	public SubjectMemorySink()
 	{
-		_textFormatter = new MessageTemplateTextFormatter(outputTemplate, CultureInfo.CurrentCulture);
+		_list.Connect()
+			.ObserveOn(RxApp.MainThreadScheduler)
+			.Bind(out Logs)
+			.Subscribe();
+		_list.LimitSizeTo(200).Subscribe();
 	}
 
 	public void Emit(LogEvent logEvent)
 	{
 		Requires.NotNull(logEvent, nameof(logEvent));
 
-		using StringWriter writer = new();
-		_textFormatter.Format(logEvent, writer);
-		LogSubject.OnNext(writer.ToString());
+		LogModel log = new()
+		{
+			Timestamp = logEvent.Timestamp,
+			Level = logEvent.Level,
+			Message = logEvent.RenderMessage(),
+			Exception = logEvent.Exception
+		};
+
+		if (logEvent.Properties.TryGetValue(LoggerProperties.RoomIdPropertyName, out LogEventPropertyValue? value)
+			&& value is ScalarValue { Value: long id })
+		{
+			log.RoomId = id;
+		}
+
+		_list.Add(log);
 	}
 }
