@@ -71,9 +71,9 @@ public sealed class ConfigService : ReactiveObject, IConfigService
 			.DistinctUntilChanged()
 			.Subscribe(x =>
 			{
-				var (cookie, ua, useProxy) = x;
+				(string cookie, string ua, bool useProxy) = x;
 
-				var handler = new SocketsHttpHandler
+				SocketsHttpHandler handler = new()
 				{
 					PooledConnectionLifetime = TimeSpan.FromMinutes(10),
 					UseCookies = string.IsNullOrWhiteSpace(cookie),

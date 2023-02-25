@@ -282,7 +282,7 @@ public class RoomStatus : ReactiveObject
 						? new[] { await _apiClient.GetRoomStreamUriAsync(RoomId, (long)Qn, cancellationToken) }
 						: await _apiClient.GetRoomHlsUriAsync(RoomId, @"TS", (long)Qn, cancellationToken);
 
-					_logger.LogInformation(@"[{roomId}] 直播流: {uri}", RoomId, uri);
+					_logger.LogInformation(@"[{roomId}] 直播流：{uri}", RoomId, uri);
 
 					await using ILiveStreamRecorder recorder = type is RecorderType.HttpFlv
 						? DI.GetRequiredService<HttpFlvLiveStreamRecorder>()
