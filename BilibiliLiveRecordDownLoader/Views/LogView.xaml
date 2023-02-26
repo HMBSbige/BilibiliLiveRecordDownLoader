@@ -49,25 +49,25 @@
             <DataGrid.Columns>
                 <DataGridTextColumn
                     Header="时间"
-                    Binding="{Binding Timestamp, Mode=OneWay, StringFormat='G', ConverterCulture={x:Static gl:CultureInfo.CurrentUICulture}}" />
+                    Binding="{Binding Timestamp, Mode=OneTime, StringFormat='G', ConverterCulture={x:Static gl:CultureInfo.CurrentUICulture}}" />
                 <DataGridTemplateColumn Header="级别">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <TextBlock
-                                Text="{Binding Level, Mode=OneWay, Converter={StaticResource ViewBindToStringConverter}}"
+                                Text="{Binding Level, Mode=OneTime, Converter={StaticResource ViewBindToStringConverter}}"
                                 FontSize="{DynamicResource ControlContentThemeFontSize}"
                                 Padding="12,0"
                                 VerticalAlignment="Center"
-                                Foreground="{Binding Level, Converter={StaticResource ViewBindToBrushConverter}}" />
+                                Foreground="{Binding Level, Mode=OneTime, Converter={StaticResource ViewBindToBrushConverter}}" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
                 <DataGridTextColumn
                     Header="房间号"
-                    Binding="{Binding RoomId, Mode=OneWay}" />
+                    Binding="{Binding RoomId, Mode=OneTime}" />
                 <DataGridTextColumn
                     Header="消息"
-                    Binding="{Binding Message, Mode=OneWay}"
+                    Binding="{Binding Message, Mode=OneTime}"
                     Width="*" />
             </DataGrid.Columns>
         </DataGrid>

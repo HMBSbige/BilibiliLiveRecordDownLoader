@@ -11,6 +11,8 @@ public readonly struct M3U
 
 	public int Version { get; }
 
+	public bool EndOfList { get; }
+
 	public IReadOnlyList<string> Segments { get; }
 
 	public M3U(Stream stream)
@@ -40,6 +42,7 @@ public readonly struct M3U
 			}
 			else if (line.StartsWith(EndOfListSignalDirective))
 			{
+				EndOfList = true;
 				break;
 			}
 		}

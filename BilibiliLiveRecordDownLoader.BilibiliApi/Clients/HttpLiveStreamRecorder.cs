@@ -107,6 +107,7 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 			try
 			{
 				CircleCollection<string> buffer = new(20);
+				DateTime lastSegmentReceivedTime = DateTime.Now;
 
 				using PeriodicTimer timer = new(TimeSpan.FromSeconds(1));
 				do
@@ -114,13 +115,27 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 					await using Stream stream = await Client.GetStreamAsync(_source, token);
 
 					M3U m3u8 = new(stream);
+					DateTime now = DateTime.Now;
 
 					foreach (string segment in m3u8.Segments)
 					{
 						if (buffer.AddIfNotContains(segment))
 						{
 							queue.Add(segment, token);
+							lastSegmentReceivedTime = now;
 						}
+					}
+
+					if (m3u8.EndOfList)
+					{
+						_logger.LogInformation(@"收到结束信号直播流结束");
+						break;
+					}
+
+					if (now - lastSegmentReceivedTime > Client.Timeout)
+					{
+						_logger.LogInformation(@"超过 {timeout} 秒未收到新分片，直播流可能结束", Client.Timeout.TotalSeconds);
+						break;
 					}
 				} while (await timer.WaitForNextTickAsync(token));
 			}
