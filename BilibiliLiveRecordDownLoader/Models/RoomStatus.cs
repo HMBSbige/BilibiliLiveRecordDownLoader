@@ -396,23 +396,15 @@ public class RoomStatus : ReactiveObject
 				return;
 			}
 
-			using FFmpegCommand ffmpeg = DI.GetRequiredService<FFmpegCommand>();
-			string? version = await ffmpeg.GetVersionAsync(default);
-
-			if (version is null)
+			if (!File.Exists(file))
 			{
 				return;
 			}
 
-			if (File.Exists(Path.ChangeExtension(file, @".flv")))
-			{
-				file = Path.ChangeExtension(file, @".flv");
-			}
-			else if (File.Exists(Path.ChangeExtension(file, @".ts")))
-			{
-				file = Path.ChangeExtension(file, @".ts");
-			}
-			else
+			using FFmpegCommand ffmpeg = DI.GetRequiredService<FFmpegCommand>();
+			string? version = await ffmpeg.GetVersionAsync(default);
+
+			if (version is null)
 			{
 				return;
 			}
