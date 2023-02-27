@@ -53,40 +53,55 @@
                 <ComboBoxItem Content="{x:Static constants:Constants.Qn150}" />
                 <ComboBoxItem Content="{x:Static constants:Constants.Qn80}" />
             </ComboBox>
+            <GroupBox Header="录制完成">
+                <StackPanel>
+                    <ui:RadioButtons Header="自动转 MP4（需要 FFmpeg）"
+                                     MaxColumns="3"
+                                     SelectedIndex="{Binding IsAutoConvertMp4,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource NullableBoolToIntConverter}}">
+                        <RadioButton Content="默认" />
+                        <RadioButton Content="是" />
+                        <RadioButton Content="否" />
+                    </ui:RadioButtons>
+                    <ui:RadioButtons Header="转换完成删除原文件"
+                                     MaxColumns="3"
+                                     SelectedIndex="{Binding IsDeleteAfterConvert,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource NullableBoolToIntConverter}}">
+                        <RadioButton Content="默认" />
+                        <RadioButton Content="是" />
+                        <RadioButton Content="否" />
+                    </ui:RadioButtons>
+                </StackPanel>
+            </GroupBox>
             <ui:ToggleSwitch
                 Name="AdvanceSettingsSwitch"
                 Header="高级设置"
                 OnContent=""
                 OffContent=""
                 d:IsOn="True" />
-            <ui:RadioButtons Header="弹幕服务器类型"
-                             MaxColumns="1"
-                             Visibility="{Binding IsOn,ElementName=AdvanceSettingsSwitch,Converter={StaticResource BooleanToVisibilityConverter}}"
-                             SelectedIndex="{Binding ClientType,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource DanmuClientTypeToIntConverter}}">
-                <RadioButton Content="TCP" />
-                <RadioButton Content="SecureWebsocket" />
-                <RadioButton Content="Websocket" />
-            </ui:RadioButtons>
-            <ui:NumberBox Header="弹幕重连间隔(秒)"
-                          Minimum="0.0"
-                          Visibility="{Binding IsOn,ElementName=AdvanceSettingsSwitch,Converter={StaticResource BooleanToVisibilityConverter}}"
-                          Value="{Binding Path=DanMuReconnectLatency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-            <ui:NumberBox Header="开播检查间隔(秒)"
-                          Minimum="0.0"
-                          Visibility="{Binding IsOn,ElementName=AdvanceSettingsSwitch,Converter={StaticResource BooleanToVisibilityConverter}}"
-                          Value="{Binding Path=HttpCheckLatency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-            <ui:NumberBox Header="直播重连间隔(秒)"
-                          Minimum="0.0"
-                          Visibility="{Binding IsOn,ElementName=AdvanceSettingsSwitch,Converter={StaticResource BooleanToVisibilityConverter}}"
-                          Value="{Binding Path=StreamReconnectLatency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-            <ui:NumberBox Header="直播连接超时(秒)"
-                          Minimum="0.0"
-                          Visibility="{Binding IsOn,ElementName=AdvanceSettingsSwitch,Converter={StaticResource BooleanToVisibilityConverter}}"
-                          Value="{Binding Path=StreamConnectTimeout,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-            <ui:NumberBox Header="直播流超时(秒)"
-                          Minimum="0.0"
-                          Visibility="{Binding IsOn,ElementName=AdvanceSettingsSwitch,Converter={StaticResource BooleanToVisibilityConverter}}"
-                          Value="{Binding Path=StreamTimeout,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+            <ui:SimpleStackPanel Spacing="10"
+                                 Visibility="{Binding IsOn,ElementName=AdvanceSettingsSwitch,Converter={StaticResource BooleanToVisibilityConverter}}">
+                <ui:RadioButtons Header="弹幕服务器类型"
+                                 MaxColumns="1"
+                                 SelectedIndex="{Binding ClientType,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource DanmuClientTypeToIntConverter}}">
+                    <RadioButton Content="TCP" />
+                    <RadioButton Content="SecureWebsocket" />
+                    <RadioButton Content="Websocket" />
+                </ui:RadioButtons>
+                <ui:NumberBox Header="弹幕重连间隔(秒)"
+                              Minimum="0.0"
+                              Value="{Binding Path=DanMuReconnectLatency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+                <ui:NumberBox Header="开播检查间隔(秒)"
+                              Minimum="0.0"
+                              Value="{Binding Path=HttpCheckLatency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+                <ui:NumberBox Header="直播重连间隔(秒)"
+                              Minimum="0.0"
+                              Value="{Binding Path=StreamReconnectLatency,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+                <ui:NumberBox Header="直播连接超时(秒)"
+                              Minimum="0.0"
+                              Value="{Binding Path=StreamConnectTimeout,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+                <ui:NumberBox Header="直播流超时(秒)"
+                              Minimum="0.0"
+                              Value="{Binding Path=StreamTimeout,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+            </ui:SimpleStackPanel>
         </ui:SimpleStackPanel>
     </ScrollViewer>
 </dialogs:DisposableContentDialog>

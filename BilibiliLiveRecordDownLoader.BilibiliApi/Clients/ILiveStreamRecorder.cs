@@ -12,7 +12,7 @@ public interface ILiveStreamRecorder : IProgress, IHttpClient, IAsyncDisposable
 	/// <summary>
 	/// 直播流下载完后，输出文件的 Task
 	/// </summary>
-	Task WriteToFileTask { get; }
+	Task<string>? WriteToFileTask { get; }
 
 	/// <summary>
 	/// 初始化

@@ -24,45 +24,42 @@
                             <ColumnDefinition />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBox x:Name="MainDirTextBox" Grid.Row="0" Grid.Column="0" IsReadOnly="True" Margin="0,3,5,5" VerticalContentAlignment="Center" d:Text="D:\Video" />
+                        <TextBox x:Name="MainDirTextBox" Grid.Row="0" Grid.Column="0" IsReadOnly="True"
+                                 Margin="0,3,5,5" VerticalContentAlignment="Center" d:Text="D:\Video" />
                         <Grid Grid.Row="1" Grid.Column="0" Margin="0,3,5,5">
                             <ui:ProgressBar x:Name="DiskUsageProgressBar" Height="30" d:Value="68" />
                             <TextBlock x:Name="DiskUsageProgressBarTextBlock"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                                               d:Text="114514 TB/1919810 TB"/>
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       d:Text="114514 TB/1919810 TB" />
                         </Grid>
-                        <Button x:Name="SelectMainDirButton" Grid.Row="0" Grid.Column="1" Margin="0,3,0,5" Content="选择目录" />
+                        <Button x:Name="SelectMainDirButton" Grid.Row="0" Grid.Column="1" Margin="0,3,0,5"
+                                Content="选择目录" />
                         <Button x:Name="OpenMainDirButton" Grid.Row="1" Grid.Column="1" Margin="0,3,0,5" Content="打开目录" />
                     </Grid>
                 </GroupBox>
-                <GroupBox Header="直播录制">
-                    <StackPanel>
+                <GroupBox Header="直播录制默认值">
+                    <ui:SimpleStackPanel Spacing="5">
+                        <ui:RadioButtons x:Name="DefaultRecorderTypeRadioButtons"
+                                         Header="录制方式">
+                            <RadioButton Content="HTTP-FLV" d:IsChecked="True" />
+                            <RadioButton Content="HLS-TS" />
+                        </ui:RadioButtons>
                         <ui:ToggleSwitch x:Name="IsAutoConvertMp4Switch"
-                                         Header="录制完成自动转 MP4"
+                                         Header="自动转 MP4（需要 FFmpeg）"
                                          d:IsOn="True"
-                                         OnContent="需要 FFmpeg" OffContent="" />
-                        <ui:ToggleSwitch x:Name="IsDeleteAfterConvertSwitch"
-                                         Header="转换完成后删除原文件"
-                                         IsEnabled="{Binding ElementName=IsAutoConvertMp4Switch,Path=IsOn}"
                                          OnContent="" OffContent="" />
-                        <GroupBox Header="默认值">
-                            <StackPanel>
-                                <ui:RadioButtons x:Name="DefaultRecorderTypeRadioButtons"
-                                                 Header="录制方式">
-                                    <RadioButton Content="HTTP-FLV" d:IsChecked="True" />
-                                    <RadioButton Content="HLS-TS" />
-                                </ui:RadioButtons>
-                            </StackPanel>
-                        </GroupBox>
-                    </StackPanel>
+                        <ui:ToggleSwitch x:Name="IsDeleteAfterConvertSwitch"
+                                         Header="转换完成删除原文件"
+                                         OnContent="" OffContent="" />
+                    </ui:SimpleStackPanel>
                 </GroupBox>
                 <GroupBox Header="更新">
                     <StackPanel>
                         <ui:ToggleSwitch x:Name="IsCheckPreReleaseSwitch"
-                                                 Header="包括预览版更新"
-                                                 OnContent="" OffContent="" />
+                                         Header="包括预览版更新"
+                                         OnContent="" OffContent="" />
                         <Button x:Name="CheckUpdateButton"
-                                        Content="检查更新" />
+                                Content="检查更新" />
                         <TextBlock x:Name="UpdateStatusTextBlock" d:Text="无更新" />
                     </StackPanel>
                 </GroupBox>

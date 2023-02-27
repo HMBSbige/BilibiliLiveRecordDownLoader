@@ -20,7 +20,7 @@ public sealed class FFmpegCommand : IDisposable
 
 	private static Process CreateProcess(string path, string args)
 	{
-		return new()
+		return new Process
 		{
 			StartInfo =
 			{

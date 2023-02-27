@@ -10,7 +10,7 @@ public class HttpFlvLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 
 	public long RoomId { get; set; }
 
-	public Task WriteToFileTask { get; private set; } = Task.CompletedTask;
+	public Task<string>? WriteToFileTask { get; private set; }
 
 	private static readonly PipeOptions PipeOptions = new(pauseWriterThreshold: 0);
 
@@ -41,7 +41,11 @@ public class HttpFlvLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 		FileStream fs = file.Open(FileMode.Create, FileAccess.Write, FileShare.Read);
 
 		WriteToFileTask = pipe.Reader.CopyToAsync(fs, CancellationToken.None)
-			.ContinueWith(_ => fs.Dispose(), CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Current);
+			.ContinueWith(_ =>
+			{
+				fs.Dispose();
+				return filePath;
+			}, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Current);
 
 		try
 		{

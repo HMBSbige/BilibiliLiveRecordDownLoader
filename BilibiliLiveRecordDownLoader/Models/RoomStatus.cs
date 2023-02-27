@@ -4,6 +4,7 @@ using BilibiliApi.Model.Danmu;
 using BilibiliApi.Model.RoomInfo;
 using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Enums;
+using BilibiliLiveRecordDownLoader.FFmpeg;
 using BilibiliLiveRecordDownLoader.JsonConverters;
 using BilibiliLiveRecordDownLoader.Models.TaskViewModels;
 using BilibiliLiveRecordDownLoader.Services;
@@ -46,11 +47,11 @@ public class RoomStatus : ReactiveObject
 	public const double DefaultDanMuReconnectLatency = 2.0;
 	public const double DefaultHttpCheckLatency = 300.0;
 	public const double DefaultStreamReconnectLatency = 6.0;
+	public const double DefaultStreamConnectTimeout = 5.0;
 	public const double DefaultStreamTimeout = 10.0;
 	public const DanmuClientType DefaultClientType = DanmuClientType.SecureWebsocket;
 	public const Qn DefaultQn = Qn.原画;
 	public const RecorderType DefaultRecorderType = RecorderType.Default;
-	public const double DefaultStreamConnectTimeout = 5.0;
 
 	#endregion
 
@@ -188,6 +189,14 @@ public class RoomStatus : ReactiveObject
 	[Reactive]
 	public RecorderType RecorderType { get; set; } = DefaultRecorderType;
 
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	[Reactive]
+	public bool? IsAutoConvertMp4 { get; set; }
+
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	[Reactive]
+	public bool? IsDeleteAfterConvert { get; set; }
+
 	#endregion
 
 	public RoomStatus()
@@ -300,7 +309,7 @@ public class RoomStatus : ReactiveObject
 
 					string filePath = Path.Combine(_config.MainDir, RoomId.ToString(CultureInfo.InvariantCulture), DateTime.Now.ToString(@"yyyyMMdd_HHmmss"));
 
-					_logger.LogInformation(@"开始录制");
+					_logger.LogInformation(@"开始录制：{filePath}", filePath);
 
 					try
 					{
@@ -327,7 +336,7 @@ public class RoomStatus : ReactiveObject
 					{
 						_logger.LogInformation(@"录制结束");
 
-						recorder.WriteToFileTask.ContinueWith(_ => ConvertToMp4Async(filePath), CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Current).Forget();
+						recorder.WriteToFileTask?.ContinueWith(task => ConvertToMp4Async(task.Result).Forget(), CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Current).Forget();
 					}
 				}
 				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -378,23 +387,44 @@ public class RoomStatus : ReactiveObject
 		}
 	}
 
-	private async Task ConvertToMp4Async(string flv)
+	private async Task ConvertToMp4Async(string file)
 	{
 		try
 		{
-			if (!_config.IsAutoConvertMp4 || !File.Exists(flv))
+			if (!(IsAutoConvertMp4 ?? _config.IsAutoConvertMp4))
 			{
 				return;
 			}
 
-			string mp4 = Path.ChangeExtension(flv, @"mp4");
-			string args = string.Format(Constants.FFmpegCopyConvert, flv, mp4);
+			using FFmpegCommand ffmpeg = DI.GetRequiredService<FFmpegCommand>();
+			string? version = await ffmpeg.GetVersionAsync(default);
+
+			if (version is null)
+			{
+				return;
+			}
+
+			if (File.Exists(Path.ChangeExtension(file, @".flv")))
+			{
+				file = Path.ChangeExtension(file, @".flv");
+			}
+			else if (File.Exists(Path.ChangeExtension(file, @".ts")))
+			{
+				file = Path.ChangeExtension(file, @".ts");
+			}
+			else
+			{
+				return;
+			}
+
+			string mp4 = Path.ChangeExtension(file, @".mp4");
+			string args = string.Format(Constants.FFmpegCopyConvert, file, mp4);
 
 			FFmpegTaskViewModel task = new(args);
 			await _taskList.AddTaskAsync(task, Path.GetPathRoot(mp4) ?? string.Empty);
-			if (_config.IsDeleteAfterConvert)
+			if (IsDeleteAfterConvert ?? _config.IsDeleteAfterConvert)
 			{
-				FileUtils.DeleteWithoutException(flv);
+				FileUtils.DeleteWithoutException(file);
 			}
 		}
 		catch (Exception ex)
@@ -566,7 +596,9 @@ public class RoomStatus : ReactiveObject
 			ClientType = ClientType,
 			Qn = Qn,
 			RecorderType = RecorderType,
-			StreamConnectTimeout = StreamConnectTimeout
+			StreamConnectTimeout = StreamConnectTimeout,
+			IsAutoConvertMp4 = IsAutoConvertMp4,
+			IsDeleteAfterConvert = IsDeleteAfterConvert
 		};
 	}
 
@@ -605,6 +637,9 @@ public class RoomStatus : ReactiveObject
 
 		Qn = room.Qn;
 		RecorderType = room.RecorderType;
+
+		IsAutoConvertMp4 = room.IsAutoConvertMp4;
+		IsDeleteAfterConvert = room.IsDeleteAfterConvert;
 	}
 
 	#endregion
