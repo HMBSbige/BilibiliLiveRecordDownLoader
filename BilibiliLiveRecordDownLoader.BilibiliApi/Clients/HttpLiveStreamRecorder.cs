@@ -111,8 +111,6 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 			try
 			{
 				CircleCollection<string> buffer = new(20);
-				int count = default;
-				int maxCount = (int)Math.Ceiling(Client.Timeout.TotalSeconds);
 
 				using PeriodicTimer timer = new(TimeSpan.FromSeconds(1));
 				do
@@ -126,19 +124,12 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 						if (buffer.AddIfNotContains(segment))
 						{
 							queue.Add(segment, token);
-							count = default;
 						}
 					}
 
 					if (m3u8.EndOfList)
 					{
 						_logger.LogInformation(@"收到结束信号直播流结束");
-						break;
-					}
-
-					if (++count > maxCount)
-					{
-						_logger.LogInformation(@"连续 {count} 次未收到新分片，直播流可能结束", maxCount);
 						break;
 					}
 				} while (await timer.WaitForNextTickAsync(token));

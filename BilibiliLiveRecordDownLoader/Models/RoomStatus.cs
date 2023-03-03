@@ -304,7 +304,40 @@ public class RoomStatus : ReactiveObject
 					recorder.Client.Timeout = TimeSpan.FromSeconds(StreamConnectTimeout);
 					recorder.RoomId = RoomId;
 
-					await recorder.InitializeAsync(uri, cancellationToken);
+					Task waitReconnect = Task.Delay(TimeSpan.FromSeconds(StreamReconnectLatency), cancellationToken);
+					try
+					{
+						await recorder.InitializeAsync(uri, cancellationToken);
+					}
+					catch (Exception ex)
+					{
+						switch (ex)
+						{
+							case TaskCanceledException:
+							{
+								_logger.LogInformation(@"尝试下载直播流超时");
+								break;
+							}
+							case HttpRequestException { StatusCode: { } } e:
+							{
+								_logger.LogInformation(@"尝试下载直播流时服务器返回了 {statusCode}", e.StatusCode);
+								break;
+							}
+							case HttpRequestException:
+							{
+								_logger.LogInformation(@"尝试下载直播流时发生错误 {message}", ex.Message);
+								break;
+							}
+							default:
+							{
+								_logger.LogError(ex, @"尝试下载直播流时发生错误");
+								break;
+							}
+						}
+						await waitReconnect;
+						continue;
+					}
+
 					RecordStatus = RecordStatus.录制中;
 
 					string filePath = Path.Combine(_config.MainDir, RoomId.ToString(CultureInfo.InvariantCulture), DateTime.Now.ToString(@"yyyyMMdd_HHmmss"));
@@ -325,7 +358,10 @@ public class RoomStatus : ReactiveObject
 							}
 							else if (now - lastDataReceivedTime > TimeSpan.FromSeconds(StreamTimeout))
 							{
-								_logger.LogWarning(@"录播不稳定，即将尝试重连");
+								if (LiveStatus is LiveStatus.直播)
+								{
+									_logger.LogWarning(@"录播不稳定，即将尝试重连");
+								}
 								// ReSharper disable once AccessToDisposedClosure
 								recordStreamCts.Cancel();
 							}
@@ -344,22 +380,9 @@ public class RoomStatus : ReactiveObject
 					// manually canceled
 					throw;
 				}
-				catch (TaskCanceledException ex) when (ex is { InnerException: TimeoutException, Source: @"System.Net.Http" })
+				catch (OperationCanceledException) when (LiveStatus is not LiveStatus.直播)
 				{
-					_logger.LogInformation(@"尝试下载直播流超时");
-					await Task.Delay(TimeSpan.FromSeconds(StreamReconnectLatency), cancellationToken);
-				}
-				catch (HttpRequestException ex)
-				{
-					if (ex.StatusCode is not null)
-					{
-						_logger.LogInformation(@"尝试下载直播流时服务器返回了 {statusCode}", ex.StatusCode);
-					}
-					else
-					{
-						_logger.LogInformation(@"尝试下载直播流时发生错误 {message}", ex.Message);
-					}
-					await Task.Delay(TimeSpan.FromSeconds(StreamReconnectLatency), cancellationToken);
+					break;
 				}
 				catch (OperationCanceledException ex)
 				{
@@ -367,7 +390,7 @@ public class RoomStatus : ReactiveObject
 				}
 				catch (Exception ex)
 				{
-					_logger.LogError(ex, @"尝试下载直播流时发生未知错误");
+					_logger.LogError(ex, @"下载直播流时发生错误");
 				}
 			}
 			_logger.LogInformation(@"不再录制");
