@@ -1,5 +1,3 @@
-using System.Diagnostics;
-using System.IO;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
@@ -34,40 +32,6 @@ public static class Utils
 	public static string ToHumanBytesString(this ulong size)
 	{
 		return ToHumanBytesString((double)size);
-	}
-
-	public static bool OpenUrl(string path)
-	{
-		try
-		{
-			using Process process = new();
-			process.StartInfo.UseShellExecute = true;
-			process.StartInfo.FileName = path;
-			process.Start();
-			return true;
-		}
-		catch
-		{
-			return false;
-		}
-	}
-
-	public static bool OpenDir(string dir)
-	{
-		if (!Directory.Exists(dir))
-		{
-			return false;
-		}
-
-		try
-		{
-			return OpenUrl(dir);
-		}
-		catch
-		{
-			// ignored
-		}
-		return false;
 	}
 
 	public static string? GetAppVersion()

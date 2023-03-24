@@ -108,7 +108,7 @@ public class SettingViewModel : ReactiveObject, IRoutableViewModel
 	{
 		return Observable.Start(() =>
 		{
-			Utils.Utils.OpenDir(Config.MainDir);
+			FileUtils.OpenDir(Config.MainDir);
 			return Unit.Default;
 		});
 	}
@@ -144,7 +144,7 @@ public class SettingViewModel : ReactiveObject, IRoutableViewModel
 				};
 				if (await dialog.SafeShowAsync() == ContentDialogResult.Primary)
 				{
-					Utils.Utils.OpenUrl(updateChecker.LatestVersionUrl);
+					FileUtils.OpenUrl(updateChecker.LatestVersionUrl);
 				}
 			}
 			else

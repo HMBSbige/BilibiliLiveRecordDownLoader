@@ -1,5 +1,6 @@
 using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.Models;
+using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.Views.Dialogs;
 using DynamicData;
 using Microsoft.Extensions.Logging;
@@ -304,7 +305,7 @@ public class StreamRecordViewModel : ReactiveObject, IRoutableViewModel
 
 				string path = Path.Combine(_config.MainDir, $@"{room.RoomId}");
 				Directory.CreateDirectory(path);
-				Utils.Utils.OpenDir(path);
+				FileUtils.OpenDir(path);
 			}
 			catch (Exception ex)
 			{
@@ -329,7 +330,7 @@ public class StreamRecordViewModel : ReactiveObject, IRoutableViewModel
 					{
 						continue;
 					}
-					Utils.Utils.OpenUrl($@"https://live.bilibili.com/{room.RoomId}");
+					FileUtils.OpenUrl($@"https://live.bilibili.com/{room.RoomId}");
 				}
 			}
 			catch (Exception ex)

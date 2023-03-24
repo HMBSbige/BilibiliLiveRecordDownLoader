@@ -1,5 +1,6 @@
 using BilibiliLiveRecordDownLoader.Services;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using Windows.Win32;
@@ -44,34 +45,51 @@ public class FileUtils
 
 	public static void DeleteWithoutException(string? path)
 	{
-		if (path is null || !File.Exists(path))
-		{
-			return;
-		}
-
 		try
 		{
+			if (path is null)
+			{
+				return;
+			}
 			File.Delete(path);
 		}
 		catch (Exception ex)
 		{
-			Logger.LogWarning(ex, $@"删除文件错误：{path}");
+			Logger.LogError(ex, $@"删除文件错误：{path}");
 		}
 	}
 
-	public static void DeleteFilesWithoutException(string dirPath)
+	public static bool OpenUrl(string path)
 	{
 		try
 		{
-			var di = new DirectoryInfo(dirPath);
-			if (di.Exists)
-			{
-				di.Delete(true);
-			}
+			using Process process = new();
+			process.StartInfo.UseShellExecute = true;
+			process.StartInfo.FileName = path;
+			process.Start();
+			return true;
+		}
+		catch
+		{
+			return false;
+		}
+	}
+
+	public static bool OpenDir(string dir)
+	{
+		if (!Directory.Exists(dir))
+		{
+			return false;
+		}
+
+		try
+		{
+			return OpenUrl(dir);
 		}
 		catch
 		{
 			// ignored
 		}
+		return false;
 	}
 }

@@ -1,4 +1,4 @@
-using System.Text;
+using System.Runtime.CompilerServices;
 using System.Xml;
 
 namespace BilibiliLiveRecordDownLoader.Utils;
@@ -12,20 +12,27 @@ public static class XmlExtensions
 			return string.Empty;
 		}
 
-		var sb = new StringBuilder(str.Length);
-		foreach (var c in str)
+		try
 		{
-			if (XmlConvert.IsXmlChar(c))
-			{
-				sb.Append(c);
-			}
-			else
-			{
-				sb.Append(@"\u");
-				sb.Append($@"{(uint)c:x4}");
-			}
+			return XmlConvert.VerifyXmlChars(str);
 		}
+		catch (XmlException)
+		{
+			DefaultInterpolatedStringHandler handler = new(2, str.Length);
+			foreach (char c in str)
+			{
+				if (XmlConvert.IsXmlChar(c))
+				{
+					handler.AppendFormatted(c);
+				}
+				else
+				{
+					handler.AppendLiteral(@"\u");
+					handler.AppendFormatted((int)c, @"x4");
+				}
+			}
 
-		return sb.ToString();
+			return handler.ToStringAndClear();
+		}
 	}
 }

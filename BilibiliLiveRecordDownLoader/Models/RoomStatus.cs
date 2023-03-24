@@ -372,7 +372,7 @@ public class RoomStatus : ReactiveObject
 					{
 						_logger.LogInformation(@"录制结束");
 
-						recorder.WriteToFileTask?.ContinueWith(task => ConvertToMp4Async(task.Result).Forget(), CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Current).Forget();
+						recorder.WriteToFileTask?.ContinueWith(task => ProcessVideoAsync(task.Result).Forget(), CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Current).Forget();
 					}
 				}
 				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -410,16 +410,23 @@ public class RoomStatus : ReactiveObject
 		}
 	}
 
-	private async Task ConvertToMp4Async(string file)
+	private async Task ProcessVideoAsync(string file)
 	{
 		try
 		{
-			if (!(IsAutoConvertMp4 ?? _config.IsAutoConvertMp4))
+			FileInfo fileInfo = new(file);
+			if (!fileInfo.Exists)
 			{
 				return;
 			}
 
-			if (!File.Exists(file))
+			if (fileInfo.Length is 0)
+			{
+				FileUtils.DeleteWithoutException(fileInfo.FullName);
+				return;
+			}
+
+			if (!(IsAutoConvertMp4 ?? _config.IsAutoConvertMp4))
 			{
 				return;
 			}
