@@ -46,10 +46,7 @@ public class AMFMetadata : IBytesStruct
 			if (value is Dictionary<string, object?> d)
 			{
 				_data = d;
-				if (!_data.ContainsKey(@"duration"))
-				{
-					_data[@"duration"] = 0.0;
-				}
+				_data.TryAdd(@"duration", 0.0);
 
 				_data.Remove(string.Empty);
 				foreach (var (key, o) in _data.ToArray())
