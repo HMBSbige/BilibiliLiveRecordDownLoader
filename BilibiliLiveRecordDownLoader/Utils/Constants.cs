@@ -14,7 +14,7 @@ public static class Constants
 		-i "{0}" -map 0 -c copy -y "{1}"
 		""";
 	public const string FFmpegVideoAudioConvert = """-i "{0}" -i "{1}" -vcodec copy -acodec copy "{2}" -y""";
-	public const string FFmpegSplitTo = """-ss {0} -to {1} -accurate_seek -i "{2}" -codec copy -avoid_negative_ts 1 "{3}" -y""";
+	public const string FFmpegSplitTo = """-ss {0} -to {1} -accurate_seek -i "{2}" -map 0 -c copy -avoid_negative_ts 1 "{3}" -y""";
 
 	public static readonly SolidColorBrush NormalBlueBrush = new(Color.FromRgb(38, 160, 218));
 	public static readonly SolidColorBrush RedBrush = new(Colors.Red);
