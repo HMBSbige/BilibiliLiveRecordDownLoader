@@ -75,7 +75,6 @@ public sealed class ConfigService : ReactiveObject, IConfigService
 
 				SocketsHttpHandler handler = new()
 				{
-					PooledConnectionLifetime = TimeSpan.FromMinutes(10),
 					UseCookies = string.IsNullOrWhiteSpace(cookie),
 					UseProxy = useProxy
 				};
@@ -96,9 +95,9 @@ public sealed class ConfigService : ReactiveObject, IConfigService
 		{
 			await using var _ = await _lock.WriteLockAsync(token);
 
-			var tempFile = Path.ChangeExtension(@"TMP" + Path.GetRandomFileName(), Path.GetExtension(FilePath));
+			string tempFile = Path.ChangeExtension(@"TMP" + Path.GetRandomFileName(), Path.GetExtension(FilePath));
 
-			await using (var fs = new FileStream(tempFile, FileMode.Create, FileAccess.Write, FileShare.None, 4096, true))
+			await using (FileStream fs = new(tempFile, FileMode.Create, FileAccess.Write, FileShare.None, 4096, true))
 			{
 				await JsonSerializer.SerializeAsync(fs, Config, JsonOptions, token);
 			}
@@ -130,7 +129,7 @@ public sealed class ConfigService : ReactiveObject, IConfigService
 				return;
 			}
 
-			_logger.LogInformation($@"尝试加载备份文件 {BackupFilePath}");
+			_logger.LogInformation(@"尝试加载备份文件 {file}", BackupFilePath);
 			await LoadAsync(BackupFilePath, token);
 		}
 		catch (Exception ex)
@@ -143,9 +142,9 @@ public sealed class ConfigService : ReactiveObject, IConfigService
 	{
 		try
 		{
-			await using var fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, true);
+			await using FileStream fs = new(filename, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, true);
 
-			var config = await JsonSerializer.DeserializeAsync<Config>(fs, cancellationToken: token);
+			Config? config = await JsonSerializer.DeserializeAsync<Config>(fs, cancellationToken: token);
 			if (config is not null)
 			{
 				Config.Clone(config);
@@ -155,7 +154,7 @@ public sealed class ConfigService : ReactiveObject, IConfigService
 		}
 		catch (Exception ex)
 		{
-			_logger.LogError(ex, $@"Load {filename} Error!");
+			_logger.LogError(ex, @"Load {file} Error!", filename);
 
 			return false;
 		}

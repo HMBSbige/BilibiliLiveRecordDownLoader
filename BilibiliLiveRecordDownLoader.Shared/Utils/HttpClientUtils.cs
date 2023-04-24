@@ -11,7 +11,8 @@ public static class HttpClientUtils
 		{
 			userAgent = UserAgents.Chrome;
 		}
-		var client = new HttpClient(handler, false);
+
+		HttpClient client = new(handler, false);
 		if (!string.IsNullOrWhiteSpace(cookie))
 		{
 			client.DefaultRequestHeaders.Add(@"Cookie", cookie);
@@ -20,7 +21,7 @@ public static class HttpClientUtils
 		client.DefaultRequestVersion = HttpVersion.Version20;
 		client.Timeout = TimeSpan.FromSeconds(10);
 		client.DefaultRequestHeaders.Accept.ParseAdd(@"application/json, text/javascript, */*; q=0.01");
-		client.DefaultRequestHeaders.Referrer = new(@"https://live.bilibili.com/");
+		client.DefaultRequestHeaders.Referrer = new Uri(@"https://live.bilibili.com/");
 		client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
 
 		return client;
