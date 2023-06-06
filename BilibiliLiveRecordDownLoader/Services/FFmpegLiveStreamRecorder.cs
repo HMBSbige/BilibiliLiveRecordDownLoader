@@ -26,7 +26,7 @@ public class FFmpegLiveStreamRecorder : HttpLiveStreamRecorder
 		file.Directory?.Create();
 
 		FFmpegCommand ffmpeg = new();
-		string args = $"""-i "{Source}" -c copy -f mp4 -movflags frag_keyframe+empty_moov+delay_moov "{filePath}" -y""";
+		string args = $"""-rw_timeout {Client.Timeout.TotalMicroseconds} -i "{Source}" -c copy -f mp4 -movflags frag_keyframe+empty_moov+delay_moov "{filePath}" -y""";
 
 		Task t = ffmpeg.StartAsync(args, cancellationToken);
 
@@ -54,10 +54,10 @@ public class FFmpegLiveStreamRecorder : HttpLiveStreamRecorder
 				}
 
 				long size = file.Length;
-				long last = Interlocked.Read(ref Last);
+				long last = Interlocked.Read(ref FileSize);
 				CurrentSpeedSubject.OnNext((size - last) / sw.Elapsed.TotalSeconds);
 				sw.Restart();
-				Interlocked.Exchange(ref Last, size);
+				Interlocked.Exchange(ref FileSize, size);
 			});
 		}
 	}
