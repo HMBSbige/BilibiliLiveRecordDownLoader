@@ -24,7 +24,7 @@ public class Config : ReactiveObject
 	public const bool DefaultIsAutoConvertMp4 = false;
 	public const bool DefaultIsUseProxy = true;
 	public const ElementTheme DefaultTheme = ElementTheme.Default;
-	public const RecorderType DefaultRecorderType = RecorderType.HlsTs;
+	public const RecorderType DefaultRecorderType = RecorderType.HttpFlv;
 
 	#endregion
 
