@@ -6,7 +6,7 @@ dotnet --info
 
 $proj = 'BilibiliLiveRecordDownLoader'
 $exe = "$proj.exe"
-$net_tfm = 'net6.0-windows10.0.22000.0'
+$net_tfm = 'net7.0-windows10.0.22621.0'
 $configuration = 'Release'
 $output_dir = "$PSScriptRoot\$proj\bin\$configuration"
 $proj_path = "$PSScriptRoot\$proj\$proj.csproj"

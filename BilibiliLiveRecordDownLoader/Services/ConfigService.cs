@@ -75,10 +75,8 @@ public sealed class ConfigService : ReactiveObject, IConfigService
 
 				SocketsHttpHandler handler = new()
 				{
-					PooledConnectionLifetime = TimeSpan.FromMinutes(10),
 					UseCookies = string.IsNullOrWhiteSpace(cookie),
-					UseProxy = useProxy,
-					ConnectTimeout = TimeSpan.FromSeconds(15)
+					UseProxy = useProxy
 				};
 				Config.HttpHandler = handler;
 
