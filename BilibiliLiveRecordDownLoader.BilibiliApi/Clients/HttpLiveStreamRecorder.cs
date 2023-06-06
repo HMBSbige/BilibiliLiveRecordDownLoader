@@ -11,24 +11,24 @@ namespace BilibiliApi.Clients;
 
 public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 {
-	private readonly ILogger<HttpLiveStreamRecorder> _logger;
+	protected readonly ILogger<HttpLiveStreamRecorder> Logger;
 
 	public HttpClient Client { get; set; }
 
 	public long RoomId { get; set; }
 
-	public Task<string>? WriteToFileTask { get; private set; }
+	public Task<string>? WriteToFileTask { get; protected set; }
 
 	private static readonly PipeOptions PipeOptions = new(pauseWriterThreshold: 0);
 
-	private Uri? _source;
+	protected Uri? Source;
 
 	private IDisposable? _scope;
 
 	public HttpLiveStreamRecorder(HttpClient client, ILogger<HttpLiveStreamRecorder> logger)
 	{
 		Client = client;
-		_logger = logger;
+		Logger = logger;
 	}
 
 	public async ValueTask InitializeAsync(IEnumerable<Uri> source, CancellationToken cancellationToken = default)
@@ -41,10 +41,10 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 			.FirstOrDefaultAsync()
 			.ToTask(cancellationToken);
 
-		_source = result ?? throw new HttpRequestException(@"没有可用的直播地址");
+		Source = result ?? throw new HttpRequestException(@"没有可用的直播地址");
 
-		_scope = _logger.BeginScope($@"{{{LoggerProperties.RoomIdPropertyName}}}", RoomId);
-		_logger.LogInformation(@"选择直播地址：{uri}", _source);
+		_scope = Logger.BeginScope($@"{{{LoggerProperties.RoomIdPropertyName}}}", RoomId);
+		Logger.LogInformation(@"选择直播地址：{uri}", Source);
 
 		async Task<Uri> Test(Uri uri, CancellationToken ct)
 		{
@@ -53,9 +53,9 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 		}
 	}
 
-	public async ValueTask DownloadAsync(string outFilePath, CancellationToken cancellationToken = default)
+	public virtual async ValueTask DownloadAsync(string outFilePath, CancellationToken cancellationToken = default)
 	{
-		if (_source is null)
+		if (Source is null)
 		{
 			throw new InvalidOperationException(@"Do InitializeAsync first");
 		}
@@ -92,7 +92,7 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 			}
 			catch (HttpRequestException ex)
 			{
-				_logger.LogError(@"尝试下载分片时服务器返回了 {statusCode}", ex.StatusCode);
+				Logger.LogError(@"尝试下载分片时服务器返回了 {statusCode}", ex.StatusCode);
 			}
 			finally
 			{
@@ -115,7 +115,7 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 				using PeriodicTimer timer = new(TimeSpan.FromSeconds(1));
 				do
 				{
-					await using Stream stream = await Client.GetStreamAsync(_source, token);
+					await using Stream stream = await Client.GetStreamAsync(Source, token);
 
 					M3U m3u8 = new(stream);
 
@@ -129,14 +129,14 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 
 					if (m3u8.EndOfList)
 					{
-						_logger.LogInformation(@"收到结束信号直播流结束");
+						Logger.LogInformation(@"收到结束信号直播流结束");
 						break;
 					}
 				} while (await timer.WaitForNextTickAsync(token));
 			}
 			catch (HttpRequestException ex)
 			{
-				_logger.LogWarning(@"尝试下载 m3u8 时服务器返回了 {statusCode}", ex.StatusCode);
+				Logger.LogWarning(@"尝试下载 m3u8 时服务器返回了 {statusCode}", ex.StatusCode);
 			}
 			finally
 			{
@@ -146,7 +146,7 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 
 		async ValueTask CopySegmentToWithProgressAsync(string segment)
 		{
-			if (!Uri.TryCreate(_source, segment, out Uri? uri))
+			if (!Uri.TryCreate(Source, segment, out Uri? uri))
 			{
 				throw new FormatException(@"Uri 格式错误");
 			}
@@ -163,5 +163,7 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 		await base.DisposeAsync();
 
 		_scope?.Dispose();
+
+		GC.SuppressFinalize(this);
 	}
 }

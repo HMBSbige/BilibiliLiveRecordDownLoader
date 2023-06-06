@@ -16,6 +16,7 @@ Bilibili 直播录制
 - [x] 记录直播间标题变化
 - [x] 录制 HTTP-FLV 流
 - [x] 录制 HLS-TS 流
+- [x] 录制 HLS-fMP4 流
 
 ## 下载
 [正式版](https://github.com/HMBSbige/BilibiliLiveRecordDownLoader/releases)

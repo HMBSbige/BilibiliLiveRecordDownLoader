@@ -95,7 +95,7 @@ public sealed class ConfigService : ReactiveObject, IConfigService
 		{
 			await using var _ = await _lock.WriteLockAsync(token);
 
-			string tempFile = Path.ChangeExtension(@"TMP" + Path.GetRandomFileName(), Path.GetExtension(FilePath));
+			string tempFile = Path.ChangeExtension(Path.GetFileNameWithoutExtension(Path.GetTempFileName()), Path.GetExtension(FilePath));
 
 			await using (FileStream fs = new(tempFile, FileMode.Create, FileAccess.Write, FileShare.None, 4096, true))
 			{

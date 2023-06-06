@@ -4,5 +4,6 @@ public enum RecorderType
 {
 	Default,
 	HttpFlv,
-	HlsTs
+	HlsTs,
+	HlsfMP4_FFmpeg
 }

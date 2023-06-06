@@ -11,6 +11,7 @@ using BilibiliLiveRecordDownLoader.Services;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
+using Microsoft;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.Threading;
 using ReactiveUI;
@@ -291,15 +292,23 @@ public class RoomStatus : ReactiveObject
 						type = RecorderType.HttpFlv;
 					}
 
-					Uri[] uri = type is RecorderType.HttpFlv
-						? new[] { await _apiClient.GetRoomStreamUriAsync(RoomId, (long)Qn, cancellationToken) }
-						: await _apiClient.GetRoomHlsUriAsync(RoomId, @"TS", (long)Qn, cancellationToken);
+					Uri[] uri = type switch
+					{
+						RecorderType.HttpFlv => new[] { await _apiClient.GetRoomStreamUriAsync(RoomId, (long)Qn, cancellationToken) },
+						RecorderType.HlsTs => await _apiClient.GetRoomHlsUriAsync(RoomId, @"TS", (long)Qn, cancellationToken),
+						RecorderType.HlsfMP4_FFmpeg => await _apiClient.GetRoomHlsUriAsync(RoomId, @"fMP4", (long)Qn, cancellationToken),
+						_ => throw Assumes.NotReachable()
+					};
 
 					_logger.LogInformation(@"直播流：{uri}", (object)uri);
 
-					await using ILiveStreamRecorder recorder = type is RecorderType.HttpFlv
-						? DI.GetRequiredService<HttpFlvLiveStreamRecorder>()
-						: DI.GetRequiredService<HttpLiveStreamRecorder>();
+					await using ILiveStreamRecorder recorder = type switch
+					{
+						RecorderType.HttpFlv => DI.GetRequiredService<HttpFlvLiveStreamRecorder>(),
+						RecorderType.HlsTs => DI.GetRequiredService<HttpLiveStreamRecorder>(),
+						RecorderType.HlsfMP4_FFmpeg => DI.GetRequiredService<FFmpegLiveStreamRecorder>(),
+						_ => throw Assumes.NotReachable()
+					};
 
 					recorder.Client.Timeout = TimeSpan.FromSeconds(StreamConnectTimeout);
 					recorder.RoomId = RoomId;
@@ -318,7 +327,7 @@ public class RoomStatus : ReactiveObject
 								_logger.LogInformation(@"尝试下载直播流超时");
 								break;
 							}
-							case HttpRequestException { StatusCode: { } } e:
+							case HttpRequestException { StatusCode: not null } e:
 							{
 								_logger.LogInformation(@"尝试下载直播流时服务器返回了 {statusCode}", e.StatusCode);
 								break;
@@ -427,6 +436,11 @@ public class RoomStatus : ReactiveObject
 			}
 
 			if (!(IsAutoConvertMp4 ?? _config.IsAutoConvertMp4))
+			{
+				return;
+			}
+
+			if (fileInfo.Extension.Equals(@".mp4", StringComparison.OrdinalIgnoreCase))
 			{
 				return;
 			}

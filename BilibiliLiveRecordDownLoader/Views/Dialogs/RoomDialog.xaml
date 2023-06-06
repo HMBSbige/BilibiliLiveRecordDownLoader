@@ -28,11 +28,11 @@
                 OffContent="禁用"
                 IsOn="{Binding Path=IsNotify,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
             <ui:RadioButtons Header="录制方式"
-                             MaxColumns="3"
                              SelectedIndex="{Binding RecorderType,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource RecorderTypeToIntConverter}}">
                 <RadioButton Content="默认" />
                 <RadioButton Content="HTTP-FLV" />
                 <RadioButton Content="HLS-TS" />
+                <RadioButton Content="HLS-fMP4（需要 FFmpeg）" />
             </ui:RadioButtons>
             <ui:NumberBox x:Name="RoomIdNumberBox"
                           Header="房间号"

@@ -49,12 +49,14 @@ public partial class SettingView
 					RecorderType.Default => 0,
 					RecorderType.HttpFlv => 0,
 					RecorderType.HlsTs => 1,
+					RecorderType.HlsfMP4_FFmpeg => 2,
 					_ => 0
 				},
 				i => i switch
 				{
 					0 => RecorderType.HttpFlv,
 					1 => RecorderType.HlsTs,
+					2 => RecorderType.HlsfMP4_FFmpeg,
 					_ => RecorderType.HttpFlv
 				}
 			).DisposeWith(d);

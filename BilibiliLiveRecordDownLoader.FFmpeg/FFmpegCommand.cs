@@ -42,7 +42,7 @@ public sealed class FFmpegCommand : IDisposable
 		{
 			token.ThrowIfCancellationRequested();
 
-			var processOutput = await reader.ReadLineAsync();
+			string? processOutput = await reader.ReadLineAsync(token);
 			if (processOutput is null)
 			{
 				break;
@@ -58,11 +58,11 @@ public sealed class FFmpegCommand : IDisposable
 	{
 		try
 		{
-			using var process = CreateProcess(FFmpegPath, @"-version");
+			using Process process = CreateProcess(FFmpegPath, @"-version");
 			process.StartInfo.RedirectStandardOutput = true;
 			process.Start();
 			_job.AddProcess(process);
-			var output = await process.StandardOutput.ReadToEndAsync();
+			string output = await process.StandardOutput.ReadToEndAsync(token);
 			await process.WaitForExitAsync(token);
 
 			const string versionString = @"ffmpeg version";
@@ -70,7 +70,7 @@ public sealed class FFmpegCommand : IDisposable
 			{
 				return null;
 			}
-			var ss = output.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+			string[] ss = output.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 			return ss.Length < 3 ? @"Unknown" : ss[2];
 		}
 		catch
@@ -83,11 +83,11 @@ public sealed class FFmpegCommand : IDisposable
 	{
 		try
 		{
-			using var process = CreateProcess(FFmpegPath, @"-version");
+			using Process process = CreateProcess(FFmpegPath, @"-version");
 			process.StartInfo.RedirectStandardOutput = true;
 			process.Start();
 			_job.AddProcess(process);
-			var output = await process.StandardOutput.ReadToEndAsync();
+			string output = await process.StandardOutput.ReadToEndAsync(token);
 			await process.WaitForExitAsync(token);
 			return output.StartsWith(@"ffmpeg version");
 		}
@@ -132,7 +132,13 @@ public sealed class FFmpegCommand : IDisposable
 	{
 		try
 		{
-			_process?.StandardInput.Write('q');
+			if (_process is null)
+			{
+				return;
+			}
+
+			_process.StandardInput.Write('q');
+			_process.WaitForExit();
 		}
 		catch
 		{

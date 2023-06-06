@@ -101,8 +101,8 @@ public static class ServiceExtensions
 	{
 		services.TryAddSingleton(provider =>
 		{
-			var config = provider.GetRequiredService<Config>();
-			var client = HttpClientUtils.BuildClientForBilibili(config.UserAgent, config.Cookie, config.HttpHandler);
+			Config config = provider.GetRequiredService<Config>();
+			HttpClient client = HttpClientUtils.BuildClientForBilibili(config.UserAgent, config.Cookie, config.HttpHandler);
 			return new BilibiliApiClient(client);
 		});
 
@@ -122,6 +122,12 @@ public static class ServiceExtensions
 			Config config = provider.GetRequiredService<Config>();
 			HttpClient client = HttpClientUtils.BuildClientForBilibili(config.UserAgent, config.Cookie, config.HttpHandler);
 			return new HttpLiveStreamRecorder(client, provider.GetRequiredService<ILogger<HttpLiveStreamRecorder>>());
+		});
+		services.TryAddTransient(provider =>
+		{
+			Config config = provider.GetRequiredService<Config>();
+			HttpClient client = HttpClientUtils.BuildClientForBilibili(config.UserAgent, config.Cookie, config.HttpHandler);
+			return new FFmpegLiveStreamRecorder(client, provider.GetRequiredService<ILogger<FFmpegLiveStreamRecorder>>());
 		});
 
 		return services;
