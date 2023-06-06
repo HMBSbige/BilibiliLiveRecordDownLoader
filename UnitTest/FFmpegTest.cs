@@ -14,7 +14,7 @@ public class FFmpegTest
 			FFmpegPath = @"ffmpeg"
 		};
 		using var _ = ffmpeg.MessageUpdated.Subscribe(Console.WriteLine);
-		Assert.IsTrue(await ffmpeg.VerifyAsync(default));
+		Assert.IsTrue(await ffmpeg.VerifyAsync());
 	}
 
 	[TestMethod]
@@ -25,6 +25,6 @@ public class FFmpegTest
 			FFmpegPath = @"ffmpeg"
 		};
 		using var _ = ffmpeg.MessageUpdated.Subscribe(Console.WriteLine);
-		await ffmpeg.StartAsync(@"-h", default);
+		await ffmpeg.StartAsync(@"-h");
 	}
 }

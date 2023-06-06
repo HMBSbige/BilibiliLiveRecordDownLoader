@@ -35,14 +35,14 @@ public sealed class FFmpegCommand : IDisposable
 		};
 	}
 
-	private async Task ReadOutputAsync(TextReader reader, CancellationToken token)
+	private async Task ReadOutputAsync(TextReader reader, CancellationToken cancellationToken = default)
 	{
 		string? lastMessage = null;
 		while (true)
 		{
-			token.ThrowIfCancellationRequested();
+			cancellationToken.ThrowIfCancellationRequested();
 
-			string? processOutput = await reader.ReadLineAsync(token);
+			string? processOutput = await reader.ReadLineAsync(cancellationToken);
 			if (processOutput is null)
 			{
 				break;
@@ -54,7 +54,7 @@ public sealed class FFmpegCommand : IDisposable
 		_messageUpdated.OnNext($@"[已完成]{lastMessage}");
 	}
 
-	public async Task<string?> GetVersionAsync(CancellationToken token)
+	public async Task<string?> GetVersionAsync(CancellationToken cancellationToken = default)
 	{
 		try
 		{
@@ -62,8 +62,8 @@ public sealed class FFmpegCommand : IDisposable
 			process.StartInfo.RedirectStandardOutput = true;
 			process.Start();
 			_job.AddProcess(process);
-			string output = await process.StandardOutput.ReadToEndAsync(token);
-			await process.WaitForExitAsync(token);
+			string output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+			await process.WaitForExitAsync(cancellationToken);
 
 			const string versionString = @"ffmpeg version";
 			if (!output.StartsWith(versionString))
@@ -79,7 +79,7 @@ public sealed class FFmpegCommand : IDisposable
 		}
 	}
 
-	public async Task<bool> VerifyAsync(CancellationToken token)
+	public async Task<bool> VerifyAsync(CancellationToken cancellationToken = default)
 	{
 		try
 		{
@@ -87,8 +87,8 @@ public sealed class FFmpegCommand : IDisposable
 			process.StartInfo.RedirectStandardOutput = true;
 			process.Start();
 			_job.AddProcess(process);
-			string output = await process.StandardOutput.ReadToEndAsync(token);
-			await process.WaitForExitAsync(token);
+			string output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+			await process.WaitForExitAsync(cancellationToken);
 			return output.StartsWith(@"ffmpeg version");
 		}
 		catch
@@ -97,7 +97,7 @@ public sealed class FFmpegCommand : IDisposable
 		}
 	}
 
-	public async Task StartAsync(string args, CancellationToken token)
+	public async Task StartAsync(string args, CancellationToken cancellationToken = default)
 	{
 		try
 		{
@@ -105,7 +105,7 @@ public sealed class FFmpegCommand : IDisposable
 			{
 				throw new FileLoadException(@"进程已在运行或未释放");
 			}
-			if (!await VerifyAsync(token))
+			if (!await VerifyAsync(cancellationToken))
 			{
 				throw new FileNotFoundException(@"未找到 FFmpeg", FFmpegPath);
 			}
@@ -116,10 +116,10 @@ public sealed class FFmpegCommand : IDisposable
 			_process.Start();
 			_job.AddProcess(_process);
 
-			ReadOutputAsync(_process.StandardOutput, token).Forget();
-			ReadOutputAsync(_process.StandardError, token).Forget();
+			ReadOutputAsync(_process.StandardOutput, cancellationToken).Forget();
+			ReadOutputAsync(_process.StandardError, cancellationToken).Forget();
 
-			await _process.WaitForExitAsync(token);
+			await _process.WaitForExitAsync(cancellationToken);
 		}
 		catch (OperationCanceledException)
 		{
@@ -138,7 +138,6 @@ public sealed class FFmpegCommand : IDisposable
 			}
 
 			_process.StandardInput.Write('q');
-			_process.WaitForExit();
 		}
 		catch
 		{
@@ -157,6 +156,8 @@ public sealed class FFmpegCommand : IDisposable
 		{
 			return;
 		}
+
+		_process.WaitForExit(TimeSpan.FromSeconds(5));
 
 		try
 		{

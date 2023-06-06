@@ -446,7 +446,7 @@ public class RoomStatus : ReactiveObject
 			}
 
 			using FFmpegCommand ffmpeg = DI.GetRequiredService<FFmpegCommand>();
-			string? version = await ffmpeg.GetVersionAsync(default);
+			string? version = await ffmpeg.GetVersionAsync();
 
 			if (version is null)
 			{
