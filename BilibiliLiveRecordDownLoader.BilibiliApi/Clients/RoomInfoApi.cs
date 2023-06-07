@@ -186,7 +186,9 @@ public partial class BilibiliApiClient
 			.ThenByDescending(x => formatOrderByDescending.IndexOf(x.Format, StringComparer.OrdinalIgnoreCase))
 			.First();
 
-		Uri[] result = new Uri[info.Codec.UrlInfo!.Length];
+		RoomPlayInfoStreamUrlInfo[] uriInfo = info.Codec.UrlInfo!.Where(GetValidUrlInfo).ToArray();
+
+		Uri[] result = new Uri[uriInfo.LongLength];
 
 		string baseUrl = info.Codec.BaseUrl!;
 
@@ -195,9 +197,9 @@ public partial class BilibiliApiClient
 			baseUrl = baseUrl.Replace(@"_bluray", string.Empty);
 		}
 
-		for (int i = 0; i < info.Codec.UrlInfo.Length; ++i)
+		for (long i = 0; i < result.LongLength; ++i)
 		{
-			result[i] = new Uri(info.Codec.UrlInfo[i].Host + baseUrl + info.Codec.UrlInfo[i].Extra);
+			result[i] = new Uri(uriInfo[i].Host + baseUrl + uriInfo[i].Extra);
 		}
 
 		return result;
@@ -221,6 +223,11 @@ public partial class BilibiliApiClient
 
 				order = defaultValue;
 			}
+		}
+
+		static bool GetValidUrlInfo(RoomPlayInfoStreamUrlInfo x)
+		{
+			return !string.IsNullOrEmpty(x.Host) && x.Host.StartsWith(@"https://") && !x.Host.Contains(@".mcdn.");
 		}
 	}
 
