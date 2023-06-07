@@ -115,7 +115,7 @@ public partial class BilibiliApiClient
 	}
 
 	public const string DefaultCodecOrder = @"avc;hevc";
-	public const string DefaultFormatOrder = @"fmp4;ts;flv";
+	public const string DefaultFormatOrder = @"ts;flv;fmp4";
 
 	private record StreamUriInfo(string Protocol, string Format, RoomPlayInfoStreamCodec Codec);
 
