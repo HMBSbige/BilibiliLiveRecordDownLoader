@@ -100,6 +100,22 @@ public class Config : ReactiveObject
 	[Reactive]
 	public RecorderType RecorderType { get; set; } = DefaultRecorderType;
 
+	/// <summary>
+	/// 自动录制方式的编码优先级
+	/// </summary>
+	[DefaultValue(@"")]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	[Reactive]
+	public string AutoRecordCodecOrder { get; set; } = string.Empty;
+
+	/// <summary>
+	/// 自动录制方式的格式优先级
+	/// </summary>
+	[DefaultValue(@"")]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	[Reactive]
+	public string AutoRecordFormatOrder { get; set; } = string.Empty;
+
 	#endregion
 
 	/// <summary>
@@ -123,5 +139,7 @@ public class Config : ReactiveObject
 		IsUseProxy = config.IsUseProxy;
 		Theme = config.Theme;
 		RecorderType = config.RecorderType;
+		AutoRecordCodecOrder = config.AutoRecordCodecOrder;
+		AutoRecordFormatOrder = config.AutoRecordFormatOrder;
 	}
 }

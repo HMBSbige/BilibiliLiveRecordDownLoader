@@ -61,6 +61,9 @@ public partial class SettingView
 				}
 			).DisposeWith(d);
 
+			this.Bind(ViewModel, vm => vm.Config.AutoRecordCodecOrder, v => v.AutoRecordCodecOrderTextBox.Text).DisposeWith(d);
+			this.Bind(ViewModel, vm => vm.Config.AutoRecordFormatOrder, v => v.AutoRecordFormatOrderTextBox.Text).DisposeWith(d);
+
 			this.Bind(ViewModel, vm => vm.IsRunOnStartup, v => v.StartupSwitch.IsOn).DisposeWith(d);
 			this.Bind(ViewModel, vm => vm.Config.IsCheckUpdateOnStart, v => v.IsCheckUpdateOnStartSwitch.IsOn).DisposeWith(d);
 

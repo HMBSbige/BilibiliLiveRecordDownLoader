@@ -114,13 +114,14 @@ public partial class BilibiliApiClient
 		return result;
 	}
 
-	private static readonly string[] ProtocolOrderByDescending = { @"http_stream", @"http_hls" };
-	private static readonly string[] FormatOrderByDescending = { @"flv", @"ts", @"fmp4" };
-	private static readonly string[] CodecOrderByDescending = { @"hevc", @"avc" };
+	public const string DefaultCodecOrder = @"avc;hevc";
+	public const string DefaultFormatOrder = @"fmp4;ts;flv";
 
 	private record StreamUriInfo(string Protocol, string Format, RoomPlayInfoStreamCodec Codec);
 
-	public async Task<Uri[]> GetRoomUriAsync(long roomId, long qn = 10000, CancellationToken cancellationToken = default)
+	public async Task<Uri[]> GetRoomUriAsync(long roomId, long qn = 10000,
+		string? codecOrder = default, string? formatOrder = default,
+		CancellationToken cancellationToken = default)
 	{
 		RoomPlayInfo? message = await GetRoomPlayInfoAsync(roomId, qn, cancellationToken);
 
@@ -178,9 +179,11 @@ public partial class BilibiliApiClient
 			throw new HttpRequestException(@"获取直播地址失败: 无法找到直播流");
 		}
 
-		StreamUriInfo info = list.OrderByDescending(static x => CodecOrderByDescending.IndexOf(x.Codec.CodecName, StringComparer.OrdinalIgnoreCase))
-			.ThenByDescending(static x => ProtocolOrderByDescending.IndexOf(x.Protocol, StringComparer.OrdinalIgnoreCase))
-			.ThenByDescending(static x => FormatOrderByDescending.IndexOf(x.Format, StringComparer.OrdinalIgnoreCase))
+		string[] codecOrderByDescending = GetOrderByDescending(codecOrder, DefaultCodecOrder);
+		string[] formatOrderByDescending = GetOrderByDescending(formatOrder, DefaultFormatOrder);
+
+		StreamUriInfo info = list.OrderByDescending(x => codecOrderByDescending.IndexOf(x.Codec.CodecName, StringComparer.OrdinalIgnoreCase))
+			.ThenByDescending(x => formatOrderByDescending.IndexOf(x.Format, StringComparer.OrdinalIgnoreCase))
 			.First();
 
 		Uri[] result = new Uri[info.Codec.UrlInfo!.Length];
@@ -198,6 +201,27 @@ public partial class BilibiliApiClient
 		}
 
 		return result;
+
+		static string[] GetOrderByDescending(string? order, string defaultValue)
+		{
+			while (true)
+			{
+				if (string.IsNullOrWhiteSpace(order))
+				{
+					order = defaultValue;
+					continue;
+				}
+
+				string[] r = order.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+				if (r.Length is not 0)
+				{
+					return r.Reverse().ToArray();
+				}
+
+				order = defaultValue;
+			}
+		}
 	}
 
 	#endregion

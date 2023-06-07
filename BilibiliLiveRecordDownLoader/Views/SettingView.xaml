@@ -8,6 +8,7 @@
     xmlns:reactiveUi="http://reactiveui.net"
     xmlns:viewModels="clr-namespace:BilibiliLiveRecordDownLoader.ViewModels"
     xmlns:ui="http://schemas.modernwpf.com/2019"
+    xmlns:clients="clr-namespace:BilibiliApi.Clients;assembly=BilibiliLiveRecordDownLoader.BilibiliApi"
     mc:Ignorable="d"
     d:DesignHeight="1200" d:DesignWidth="800"
     d:Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
@@ -45,6 +46,12 @@
                             <RadioButton Content="HLS-TS" />
                             <RadioButton Content="自动（需要 FFmpeg）" />
                         </ui:RadioButtons>
+                        <TextBox x:Name="AutoRecordCodecOrderTextBox"
+                                 ui:ControlHelper.Header="自动录制方式的编码优先级"
+                                 ui:ControlHelper.PlaceholderText="{x:Static clients:BilibiliApiClient.DefaultCodecOrder}" />
+                        <TextBox x:Name="AutoRecordFormatOrderTextBox"
+                                 ui:ControlHelper.Header="自动录制方式的格式优先级"
+                                 ui:ControlHelper.PlaceholderText="{x:Static clients:BilibiliApiClient.DefaultFormatOrder}" />
                         <ui:ToggleSwitch x:Name="IsAutoConvertMp4Switch"
                                          Header="自动转 MP4（需要 FFmpeg）"
                                          d:IsOn="True"

@@ -34,6 +34,12 @@
                 <RadioButton Content="HLS-TS" />
                 <RadioButton Content="自动（需要 FFmpeg）" />
             </ui:RadioButtons>
+            <TextBox ui:ControlHelper.Header="自动录制方式的编码优先级"
+                     ui:ControlHelper.PlaceholderText="默认"
+                     Text="{Binding Path=AutoRecordCodecOrder,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
+            <TextBox ui:ControlHelper.Header="自动录制方式的格式优先级"
+                     ui:ControlHelper.PlaceholderText="默认"
+                     Text="{Binding Path=AutoRecordFormatOrder,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
             <ui:NumberBox x:Name="RoomIdNumberBox"
                           Header="房间号"
                           Minimum="0"

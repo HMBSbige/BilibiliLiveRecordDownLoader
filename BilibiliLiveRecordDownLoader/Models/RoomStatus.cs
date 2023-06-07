@@ -198,6 +198,16 @@ public class RoomStatus : ReactiveObject
 	[Reactive]
 	public bool? IsDeleteAfterConvert { get; set; }
 
+	[DefaultValue(@"")]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	[Reactive]
+	public string AutoRecordCodecOrder { get; set; } = string.Empty;
+
+	[DefaultValue(@"")]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	[Reactive]
+	public string AutoRecordFormatOrder { get; set; } = string.Empty;
+
 	#endregion
 
 	public RoomStatus()
@@ -299,7 +309,10 @@ public class RoomStatus : ReactiveObject
 						{
 							RecorderType.HttpFlv => new[] { await _apiClient.GetRoomStreamUriAsync(RoomId, (long)Qn, cancellationToken) },
 							RecorderType.HlsTs => await _apiClient.GetRoomHlsUriAsync(RoomId, @"TS", (long)Qn, cancellationToken),
-							RecorderType.Auto_FFmpeg => await _apiClient.GetRoomUriAsync(RoomId, (long)Qn, cancellationToken),
+							RecorderType.Auto_FFmpeg => await _apiClient.GetRoomUriAsync(RoomId, (long)Qn,
+								!string.IsNullOrEmpty(AutoRecordCodecOrder) ? AutoRecordCodecOrder : _config.AutoRecordCodecOrder,
+								!string.IsNullOrEmpty(AutoRecordFormatOrder) ? AutoRecordFormatOrder : _config.AutoRecordFormatOrder,
+								cancellationToken),
 							_ => throw Assumes.NotReachable()
 						};
 					}
@@ -643,7 +656,9 @@ public class RoomStatus : ReactiveObject
 			RecorderType = RecorderType,
 			StreamConnectTimeout = StreamConnectTimeout,
 			IsAutoConvertMp4 = IsAutoConvertMp4,
-			IsDeleteAfterConvert = IsDeleteAfterConvert
+			IsDeleteAfterConvert = IsDeleteAfterConvert,
+			AutoRecordCodecOrder = AutoRecordCodecOrder,
+			AutoRecordFormatOrder = AutoRecordFormatOrder
 		};
 	}
 
@@ -685,6 +700,9 @@ public class RoomStatus : ReactiveObject
 
 		IsAutoConvertMp4 = room.IsAutoConvertMp4;
 		IsDeleteAfterConvert = room.IsDeleteAfterConvert;
+
+		AutoRecordCodecOrder = room.AutoRecordCodecOrder;
+		AutoRecordFormatOrder = room.AutoRecordFormatOrder;
 	}
 
 	#endregion
