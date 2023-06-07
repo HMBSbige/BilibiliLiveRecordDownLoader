@@ -55,6 +55,20 @@ public class BilibiliApiTest
 	}
 
 	[TestMethod]
+	public async Task GetRoomUriTestAsync()
+	{
+		Uri[] hlsUris = await _apiClient.GetRoomUriAsync(6);
+		Assert.AreNotEqual(0, hlsUris.Length);
+		foreach (Uri hlsUri in hlsUris)
+		{
+			Assert.AreEqual(Uri.UriSchemeHttps, hlsUri.Scheme);
+			Assert.AreEqual(@".m3u8", Path.GetExtension(hlsUri.AbsolutePath));
+			Console.WriteLine(hlsUri);
+		}
+	}
+
+
+	[TestMethod]
 	public async Task GetRoomInfoTestAsync()
 	{
 		RoomInfoMessage? json = await _apiClient.GetRoomInfoAsync(732);

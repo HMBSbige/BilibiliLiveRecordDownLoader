@@ -26,7 +26,9 @@ public class FFmpegLiveStreamRecorder : HttpLiveStreamRecorder
 		file.Directory?.Create();
 
 		FFmpegCommand ffmpeg = new();
-		string args = $"""-rw_timeout {Client.Timeout.TotalMicroseconds} -i "{Source}" -c copy -f mp4 -movflags frag_keyframe+empty_moov+delay_moov "{filePath}" -y""";
+		string args = $"""
+-y -user_agent "{Client.DefaultRequestHeaders.UserAgent}" -headers "Referer: https://live.bilibili.com/" -rw_timeout {Client.Timeout.TotalMicroseconds} -i "{Source}" -c copy -f mp4 -movflags frag_keyframe+empty_moov+delay_moov -bsf:a aac_adtstoasc "{filePath}"
+""";
 
 		Task t = ffmpeg.StartAsync(args, cancellationToken);
 

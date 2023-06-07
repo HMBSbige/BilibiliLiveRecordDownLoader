@@ -32,7 +32,7 @@
                 <RadioButton Content="默认" />
                 <RadioButton Content="HTTP-FLV" />
                 <RadioButton Content="HLS-TS" />
-                <RadioButton Content="HLS-fMP4（需要 FFmpeg）" />
+                <RadioButton Content="自动（需要 FFmpeg）" />
             </ui:RadioButtons>
             <ui:NumberBox x:Name="RoomIdNumberBox"
                           Header="房间号"

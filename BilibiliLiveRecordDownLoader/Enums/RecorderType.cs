@@ -5,5 +5,5 @@ public enum RecorderType
 	Default,
 	HttpFlv,
 	HlsTs,
-	HlsfMP4_FFmpeg
+	Auto_FFmpeg
 }

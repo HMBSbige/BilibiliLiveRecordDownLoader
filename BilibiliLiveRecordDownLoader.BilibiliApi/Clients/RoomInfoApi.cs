@@ -1,6 +1,7 @@
 using BilibiliApi.Enums;
 using BilibiliApi.Model.PlayUrl;
 using BilibiliApi.Model.RoomInfo;
+using DynamicData;
 
 namespace BilibiliApi.Clients;
 
@@ -17,7 +18,7 @@ public partial class BilibiliApiClient
 	/// <returns></returns>
 	public async Task<RoomPlayInfo?> GetRoomPlayInfoAsync(long roomId, long qn = 10000, CancellationToken token = default)
 	{
-		string url = $@"https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id={roomId}&no_playurl=0&qn={qn}&platform=web&protocol=0,1&format=0,1,2&codec=0";
+		string url = $@"https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id={roomId}&no_playurl=0&qn={qn}&platform=web&protocol=0,1&format=0,1,2&codec=0,1";
 		return await GetJsonAsync<RoomPlayInfo>(url, token);
 	}
 
@@ -108,6 +109,92 @@ public partial class BilibiliApiClient
 		for (int i = 0; i < codecs.UrlInfo.Length; ++i)
 		{
 			result[i] = new Uri(codecs.UrlInfo[i].Host + baseUrl + codecs.UrlInfo[i].Extra);
+		}
+
+		return result;
+	}
+
+	private static readonly string[] ProtocolOrderByDescending = { @"http_stream", @"http_hls" };
+	private static readonly string[] FormatOrderByDescending = { @"flv", @"ts", @"fmp4" };
+	private static readonly string[] CodecOrderByDescending = { @"hevc", @"avc" };
+
+	private record StreamUriInfo(string Protocol, string Format, RoomPlayInfoStreamCodec Codec);
+
+	public async Task<Uri[]> GetRoomUriAsync(long roomId, long qn = 10000, CancellationToken cancellationToken = default)
+	{
+		RoomPlayInfo? message = await GetRoomPlayInfoAsync(roomId, qn, cancellationToken);
+
+		if (message?.Code is not 0)
+		{
+			if (message?.Message is not null)
+			{
+				throw new HttpRequestException($@"获取直播地址失败: {message.Message}");
+			}
+			throw new HttpRequestException(@"获取直播地址失败");
+		}
+
+		if (message.Data?.LiveStatus is not LiveStatus.直播)
+		{
+			throw new HttpRequestException(@"直播间未在直播");
+		}
+
+		RoomPlayInfoStream[] playInfo = message.Data.PlayUrlInfo?.PlayUrl?.StreamInfo ?? throw new HttpRequestException(@"获取直播地址失败: 无法找到直播流");
+
+		List<StreamUriInfo> list = new();
+
+		foreach (RoomPlayInfoStream streamInfo in playInfo)
+		{
+			if (streamInfo.Format is null || streamInfo.ProtocolName is null)
+			{
+				continue;
+			}
+
+			foreach (RoomPlayInfoStreamFormat format in streamInfo.Format)
+			{
+				if (format.Codec is null || format.FormatName is null)
+				{
+					continue;
+				}
+
+				foreach (RoomPlayInfoStreamCodec codec in format.Codec)
+				{
+					if (codec.BaseUrl is null || codec.UrlInfo?.FirstOrDefault() is null || codec.CodecName is null)
+					{
+						continue;
+					}
+
+					if (codec.CodecName.Equals(@"hevc", StringComparison.OrdinalIgnoreCase) && format.FormatName.Equals(@"flv", StringComparison.OrdinalIgnoreCase))
+					{
+						continue;
+					}
+
+					list.Add(new StreamUriInfo(streamInfo.ProtocolName, format.FormatName, codec));
+				}
+			}
+		}
+
+		if (!list.Any())
+		{
+			throw new HttpRequestException(@"获取直播地址失败: 无法找到直播流");
+		}
+
+		StreamUriInfo info = list.OrderByDescending(static x => CodecOrderByDescending.IndexOf(x.Codec.CodecName, StringComparer.OrdinalIgnoreCase))
+			.ThenByDescending(static x => ProtocolOrderByDescending.IndexOf(x.Protocol, StringComparer.OrdinalIgnoreCase))
+			.ThenByDescending(static x => FormatOrderByDescending.IndexOf(x.Format, StringComparer.OrdinalIgnoreCase))
+			.First();
+
+		Uri[] result = new Uri[info.Codec.UrlInfo!.Length];
+
+		string baseUrl = info.Codec.BaseUrl!;
+
+		if (info.Protocol is @"http_hls")
+		{
+			baseUrl = baseUrl.Replace(@"_bluray", string.Empty);
+		}
+
+		for (int i = 0; i < info.Codec.UrlInfo.Length; ++i)
+		{
+			result[i] = new Uri(info.Codec.UrlInfo[i].Host + baseUrl + info.Codec.UrlInfo[i].Extra);
 		}
 
 		return result;
