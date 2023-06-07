@@ -101,7 +101,7 @@ public class Config : ReactiveObject
 	public RecorderType RecorderType { get; set; } = DefaultRecorderType;
 
 	/// <summary>
-	/// 自动录制方式的编码优先级
+	/// FFmpeg 录制的请求编码优先级
 	/// </summary>
 	[DefaultValue(@"")]
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -109,7 +109,7 @@ public class Config : ReactiveObject
 	public string AutoRecordCodecOrder { get; set; } = string.Empty;
 
 	/// <summary>
-	/// 自动录制方式的格式优先级
+	/// FFmpeg 录制的请求格式优先级
 	/// </summary>
 	[DefaultValue(@"")]
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

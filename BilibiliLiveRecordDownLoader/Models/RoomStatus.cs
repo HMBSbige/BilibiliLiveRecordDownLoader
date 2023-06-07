@@ -309,7 +309,7 @@ public class RoomStatus : ReactiveObject
 						{
 							RecorderType.HttpFlv => new[] { await _apiClient.GetRoomStreamUriAsync(RoomId, (long)Qn, cancellationToken) },
 							RecorderType.HlsTs => await _apiClient.GetRoomHlsUriAsync(RoomId, @"TS", (long)Qn, cancellationToken),
-							RecorderType.Auto_FFmpeg => await _apiClient.GetRoomUriAsync(RoomId, (long)Qn,
+							RecorderType.FFmpeg => await _apiClient.GetRoomUriAsync(RoomId, (long)Qn,
 								!string.IsNullOrEmpty(AutoRecordCodecOrder) ? AutoRecordCodecOrder : _config.AutoRecordCodecOrder,
 								!string.IsNullOrEmpty(AutoRecordFormatOrder) ? AutoRecordFormatOrder : _config.AutoRecordFormatOrder,
 								cancellationToken),
@@ -328,7 +328,7 @@ public class RoomStatus : ReactiveObject
 					{
 						RecorderType.HttpFlv => DI.GetRequiredService<HttpFlvLiveStreamRecorder>(),
 						RecorderType.HlsTs => DI.GetRequiredService<HttpLiveStreamRecorder>(),
-						RecorderType.Auto_FFmpeg => DI.GetRequiredService<FFmpegLiveStreamRecorder>(),
+						RecorderType.FFmpeg => DI.GetRequiredService<FFmpegLiveStreamRecorder>(),
 						_ => throw Assumes.NotReachable()
 					};
 

@@ -32,12 +32,12 @@
                 <RadioButton Content="默认" />
                 <RadioButton Content="HTTP-FLV" />
                 <RadioButton Content="HLS-TS" />
-                <RadioButton Content="自动（需要 FFmpeg）" />
+                <RadioButton Content="FFmpeg-fMP4" />
             </ui:RadioButtons>
-            <TextBox ui:ControlHelper.Header="自动录制方式的编码优先级"
+            <TextBox ui:ControlHelper.Header="FFmpeg 录制：请求源编码优先级"
                      ui:ControlHelper.PlaceholderText="默认"
                      Text="{Binding Path=AutoRecordCodecOrder,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-            <TextBox ui:ControlHelper.Header="自动录制方式的格式优先级"
+            <TextBox ui:ControlHelper.Header="FFmpeg 录制：请求源格式优先级"
                      ui:ControlHelper.PlaceholderText="默认"
                      Text="{Binding Path=AutoRecordFormatOrder,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
             <ui:NumberBox x:Name="RoomIdNumberBox"
