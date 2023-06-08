@@ -21,13 +21,13 @@ public class FFmpegLiveStreamRecorder : HttpLiveStreamRecorder
 			throw new InvalidOperationException(@"Do InitializeAsync first");
 		}
 
-		string filePath = Path.ChangeExtension(outFilePath, @".mp4");
+		string filePath = Path.ChangeExtension(outFilePath, @".mkv");
 		FileInfo file = new(filePath);
 		file.Directory?.Create();
 
 		FFmpegCommand ffmpeg = new();
 		string args = $"""
--y -user_agent "{Client.DefaultRequestHeaders.UserAgent}" -headers "Referer: https://live.bilibili.com/" -rw_timeout {Client.Timeout.TotalMicroseconds} -i "{Source}" -c copy -f mp4 -movflags frag_keyframe+empty_moov+delay_moov -bsf:a aac_adtstoasc "{filePath}"
+-y -user_agent "{Client.DefaultRequestHeaders.UserAgent}" -headers "Referer: https://live.bilibili.com/" -rw_timeout {Client.Timeout.TotalMicroseconds} -i "{Source}" -c copy "{filePath}"
 """;
 
 		Task t = ffmpeg.StartAsync(args, cancellationToken);
