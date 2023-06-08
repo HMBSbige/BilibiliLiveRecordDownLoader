@@ -21,7 +21,7 @@ public class FFmpegLiveStreamRecorder : HttpLiveStreamRecorder
 			throw new InvalidOperationException(@"Do InitializeAsync first");
 		}
 
-		string filePath = Path.ChangeExtension(outFilePath, @".mkv");
+		string filePath = Path.ChangeExtension(outFilePath, @".ts");
 		FileInfo file = new(filePath);
 		file.Directory?.Create();
 
