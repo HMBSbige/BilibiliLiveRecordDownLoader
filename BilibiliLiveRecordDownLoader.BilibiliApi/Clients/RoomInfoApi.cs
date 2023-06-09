@@ -57,7 +57,7 @@ public partial class BilibiliApiClient
 
 		static bool GetValidUrlInfo(RoomPlayInfoStreamUrlInfo x)
 		{
-			return !string.IsNullOrEmpty(x.Host) && x.Host.StartsWith(@"https://") && !x.Host.Contains(@".mcdn.");
+			return !string.IsNullOrEmpty(x.Host) && x.Host.StartsWith(@"https://");
 		}
 	}
 
@@ -227,7 +227,7 @@ public partial class BilibiliApiClient
 
 		static bool GetValidUrlInfo(RoomPlayInfoStreamUrlInfo x)
 		{
-			return !string.IsNullOrEmpty(x.Host) && x.Host.StartsWith(@"https://") && !x.Host.Contains(@".mcdn.");
+			return !string.IsNullOrEmpty(x.Host) && x.Host.StartsWith(@"https://");
 		}
 	}
 
