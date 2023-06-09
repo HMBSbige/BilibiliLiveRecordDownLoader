@@ -22,7 +22,7 @@ public class Config : ReactiveObject
 	public const string DefaultUserAgent = @"";
 	public const string DefaultCookie = @"";
 	public const bool DefaultIsAutoConvertMp4 = false;
-	public const bool DefaultIsUseProxy = true;
+	public const bool DefaultIsUseProxy = false;
 	public const ElementTheme DefaultTheme = ElementTheme.Default;
 	public const RecorderType DefaultRecorderType = RecorderType.HttpFlv;
 
