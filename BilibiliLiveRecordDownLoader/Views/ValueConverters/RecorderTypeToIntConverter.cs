@@ -1,6 +1,5 @@
 using BilibiliLiveRecordDownLoader.Enums;
 using System.Globalization;
-using System.Windows;
 using System.Windows.Data;
 
 namespace BilibiliLiveRecordDownLoader.Views.ValueConverters;
@@ -9,17 +8,17 @@ public class RecorderTypeToIntConverter : IValueConverter
 {
 	public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
 	{
-		if (value is RecorderType type && Enum.IsDefined(type))
+		if (value is RecorderType type && Enum.IsDefined(type) && int.TryParse(parameter.ToString(), out int i))
 		{
-			int i = (int)type;
-			return i;
+			return i == (int)type;
 		}
-		return DependencyProperty.UnsetValue;
+
+		return parameter is @"0";
 	}
 
 	public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
 	{
-		if (value is int i)
+		if (int.TryParse(parameter.ToString(), out int i))
 		{
 			RecorderType type = (RecorderType)i;
 			if (Enum.IsDefined(type))
@@ -27,6 +26,6 @@ public class RecorderTypeToIntConverter : IValueConverter
 				return type;
 			}
 		}
-		return DependencyProperty.UnsetValue;
+		return RecorderType.Default;
 	}
 }

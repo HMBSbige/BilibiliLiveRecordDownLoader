@@ -42,15 +42,14 @@
                     <ui:SimpleStackPanel Spacing="5">
                         <ui:RadioButtons x:Name="DefaultRecorderTypeRadioButtons"
                                          Header="录制方式" >
-                            <RadioButton Content="HTTP-FLV" d:IsChecked="True" />
-                            <RadioButton Content="HLS-TS" />
+                            <RadioButton Content="自动" d:IsChecked="True" />
                             <RadioButton Content="FFmpeg" />
                         </ui:RadioButtons>
                         <TextBox x:Name="AutoRecordCodecOrderTextBox"
-                                 ui:ControlHelper.Header="FFmpeg 录制：请求源编码"
+                                 ui:ControlHelper.Header="编码优先级"
                                  ui:ControlHelper.PlaceholderText="{x:Static clients:BilibiliApiClient.DefaultCodecOrder}" />
                         <TextBox x:Name="AutoRecordFormatOrderTextBox"
-                                 ui:ControlHelper.Header="FFmpeg 录制：请求源格式"
+                                 ui:ControlHelper.Header="格式优先级"
                                  ui:ControlHelper.PlaceholderText="{x:Static clients:BilibiliApiClient.DefaultFormatOrder}" />
                         <ui:ToggleSwitch x:Name="IsAutoConvertMp4Switch"
                                          Header="自动转 MP4（需要 FFmpeg）"

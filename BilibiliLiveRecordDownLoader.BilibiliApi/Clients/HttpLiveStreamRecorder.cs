@@ -60,8 +60,7 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 			throw new InvalidOperationException(@"Do InitializeAsync first");
 		}
 
-		string filePath = Path.ChangeExtension(outFilePath, @".ts");
-		FileInfo file = new(filePath);
+		FileInfo file = new(outFilePath);
 
 		Pipe pipe = new(PipeOptions);
 		file.Directory?.Create();
@@ -71,7 +70,7 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 			.ContinueWith(_ =>
 			{
 				fs.Dispose();
-				return filePath;
+				return outFilePath;
 			}, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Current);
 
 		try
@@ -111,6 +110,7 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 			try
 			{
 				CircleCollection<string> buffer = new(20);
+				bool isAdded = false;
 
 				using PeriodicTimer timer = new(TimeSpan.FromSeconds(1));
 				do
@@ -119,11 +119,18 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 
 					M3U m3u8 = new(stream);
 
+					if (!isAdded && !string.IsNullOrEmpty(m3u8.InitialUri))
+					{
+						queue.Add(m3u8.InitialUri, token);
+						isAdded = true;
+					}
+
 					foreach (string segment in m3u8.Segments)
 					{
 						if (buffer.AddIfNotContains(segment))
 						{
 							queue.Add(segment, token);
+							isAdded = true;
 						}
 					}
 

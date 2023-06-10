@@ -7,7 +7,12 @@ public readonly struct M3U
 	public const string FileHeader = @"#EXTM3U";
 	public const string VersionDirective = @"#EXT-X-VERSION:";
 	public const string TrackInfoDirective = @"#EXTINF:";
+	public const string MapDirective = @"#EXT-X-MAP:";
 	public const string EndOfListSignalDirective = @"#EXT-X-ENDLIST";
+
+	public const string InitialURI = @"URI=";
+
+	public string? InitialUri { get; }
 
 	public int Version { get; }
 
@@ -35,6 +40,10 @@ public readonly struct M3U
 					break;
 				}
 				list.Add(file);
+			}
+			else if (line.StartsWith(MapDirective + InitialURI))
+			{
+				InitialUri = line[(MapDirective + InitialURI).Length..].Trim('"');
 			}
 			else if (line.StartsWith(VersionDirective) && int.TryParse(line[VersionDirective.Length..], out int version))
 			{

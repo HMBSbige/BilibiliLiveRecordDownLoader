@@ -2,8 +2,7 @@ namespace BilibiliLiveRecordDownLoader.Enums;
 
 public enum RecorderType
 {
-	Default,
-	HttpFlv,
-	HlsTs,
-	FFmpeg
+	Default = 0,
+	Auto = 1,
+	FFmpeg = 3
 }

@@ -34,31 +34,13 @@ public class BilibiliApiTest
 	}
 
 	[TestMethod]
-	public async Task GetRoomStreamUriTestAsync()
-	{
-		Uri flvUri = await _apiClient.GetRoomStreamUriAsync(3);
-		Assert.AreEqual(Uri.UriSchemeHttps, flvUri.Scheme);
-		Assert.AreEqual(@".flv", Path.GetExtension(flvUri.AbsolutePath));
-	}
-
-	[TestMethod]
-	public async Task GetRoomHlsUriTestAsync()
-	{
-		Uri[] hlsUris = await _apiClient.GetRoomHlsUriAsync(3);
-		Assert.AreNotEqual(0, hlsUris.Length);
-		foreach (Uri hlsUri in hlsUris)
-		{
-			Assert.AreEqual(Uri.UriSchemeHttps, hlsUri.Scheme);
-			Assert.AreEqual(@".m3u8", Path.GetExtension(hlsUri.AbsolutePath));
-			Console.WriteLine(hlsUri);
-		}
-	}
-
-	[TestMethod]
 	public async Task GetRoomUriTestAsync()
 	{
-		Uri[] hlsUris = await _apiClient.GetRoomUriAsync(6);
+		(Uri[] hlsUris, string format) = await _apiClient.GetRoomStreamUriAsync(6);
+
 		Assert.AreNotEqual(0, hlsUris.Length);
+		Assert.AreNotEqual(@"fmp4", format);
+
 		foreach (Uri hlsUri in hlsUris)
 		{
 			Assert.AreEqual(Uri.UriSchemeHttps, hlsUri.Scheme);
@@ -66,7 +48,6 @@ public class BilibiliApiTest
 			Console.WriteLine(hlsUri);
 		}
 	}
-
 
 	[TestMethod]
 	public async Task GetRoomInfoTestAsync()

@@ -46,18 +46,15 @@ public partial class SettingView
 				v => v.DefaultRecorderTypeRadioButtons.SelectedIndex,
 				type => type switch
 				{
-					RecorderType.Default => 0,
-					RecorderType.HttpFlv => 0,
-					RecorderType.HlsTs => 1,
-					RecorderType.FFmpeg => 2,
+					RecorderType.Auto => 0,
+					RecorderType.FFmpeg => 1,
 					_ => 0
 				},
 				i => i switch
 				{
-					0 => RecorderType.HttpFlv,
-					1 => RecorderType.HlsTs,
-					2 => RecorderType.FFmpeg,
-					_ => RecorderType.HttpFlv
+					0 => RecorderType.Auto,
+					1 => RecorderType.FFmpeg,
+					_ => RecorderType.Auto
 				}
 			).DisposeWith(d);
 

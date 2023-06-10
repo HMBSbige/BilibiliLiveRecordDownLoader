@@ -21,13 +21,18 @@ public class FFmpegLiveStreamRecorder : HttpLiveStreamRecorder
 			throw new InvalidOperationException(@"Do InitializeAsync first");
 		}
 
-		string filePath = Path.ChangeExtension(outFilePath, @".ts");
-		FileInfo file = new(filePath);
+		if (!Path.GetExtension(outFilePath).Equals(@".ts"))
+		{
+			outFilePath = Path.ChangeExtension(outFilePath, @".ts");
+			Logger.LogInformation(@"FFmpeg 录制自动更改文件名=> {name}", outFilePath);
+		}
+
+		FileInfo file = new(outFilePath);
 		file.Directory?.Create();
 
 		FFmpegCommand ffmpeg = new();
 		string args = $"""
--y -user_agent "{Client.DefaultRequestHeaders.UserAgent}" -headers "Referer: https://live.bilibili.com/" -rw_timeout {Client.Timeout.TotalMicroseconds} -i "{Source}" -c copy "{filePath}"
+-y -user_agent "{Client.DefaultRequestHeaders.UserAgent}" -headers "Referer: https://live.bilibili.com/" -rw_timeout {Client.Timeout.TotalMicroseconds} -i "{Source}" -c copy "{outFilePath}"
 """;
 
 		Task t = ffmpeg.StartAsync(args, cancellationToken);
@@ -35,7 +40,7 @@ public class FFmpegLiveStreamRecorder : HttpLiveStreamRecorder
 		WriteToFileTask = t.ContinueWith(_ =>
 		{
 			ffmpeg.Dispose();
-			return filePath;
+			return outFilePath;
 		}, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Current);
 
 		using (CreateFileSizeMonitor())

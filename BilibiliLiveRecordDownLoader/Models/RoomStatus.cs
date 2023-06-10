@@ -42,6 +42,8 @@ public class RoomStatus : ReactiveObject
 	private IDisposable? _scope;
 	private CancellationTokenSource _recordCts = new();
 
+	private const string fMP4Suffix = @"_fmp4";
+
 	#region 默认值
 
 	public const bool DefaultIsEnable = true;
@@ -297,24 +299,19 @@ public class RoomStatus : ReactiveObject
 					cancellationToken.ThrowIfCancellationRequested();
 
 					RecorderType type = RecorderType is RecorderType.Default ? _config.RecorderType : RecorderType;
-					if (type is RecorderType.Default)
+					if (type is RecorderType.Default || !Enum.IsDefined(type))
 					{
-						type = RecorderType.HttpFlv;
+						type = RecorderType.Auto;
 					}
 
 					Uri[] uri;
+					string format;
 					try
 					{
-						uri = type switch
-						{
-							RecorderType.HttpFlv => new[] { await _apiClient.GetRoomStreamUriAsync(RoomId, (long)Qn, cancellationToken) },
-							RecorderType.HlsTs => await _apiClient.GetRoomHlsUriAsync(RoomId, @"TS", (long)Qn, cancellationToken),
-							RecorderType.FFmpeg => await _apiClient.GetRoomUriAsync(RoomId, (long)Qn,
-								!string.IsNullOrEmpty(AutoRecordCodecOrder) ? AutoRecordCodecOrder : _config.AutoRecordCodecOrder,
-								!string.IsNullOrEmpty(AutoRecordFormatOrder) ? AutoRecordFormatOrder : _config.AutoRecordFormatOrder,
-								cancellationToken),
-							_ => throw Assumes.NotReachable()
-						};
+						(uri, format) = await _apiClient.GetRoomStreamUriAsync(RoomId, (long)Qn,
+							!string.IsNullOrEmpty(AutoRecordCodecOrder) ? AutoRecordCodecOrder : _config.AutoRecordCodecOrder,
+							!string.IsNullOrEmpty(AutoRecordFormatOrder) ? AutoRecordFormatOrder : _config.AutoRecordFormatOrder,
+							cancellationToken);
 					}
 					catch (HttpRequestException)
 					{
@@ -323,13 +320,14 @@ public class RoomStatus : ReactiveObject
 					}
 
 					_logger.LogInformation(@"直播流：{uri}", (object)uri);
+					_logger.LogInformation(@"直播流格式：{format}", format);
 
 					await using ILiveStreamRecorder recorder = type switch
 					{
-						RecorderType.HttpFlv => DI.GetRequiredService<HttpFlvLiveStreamRecorder>(),
-						RecorderType.HlsTs => DI.GetRequiredService<HttpLiveStreamRecorder>(),
 						RecorderType.FFmpeg => DI.GetRequiredService<FFmpegLiveStreamRecorder>(),
-						_ => throw Assumes.NotReachable()
+						RecorderType.Auto when format.Equals(@"flv", StringComparison.OrdinalIgnoreCase) => DI.GetRequiredService<HttpFlvLiveStreamRecorder>(),
+						RecorderType.Auto => DI.GetRequiredService<HttpLiveStreamRecorder>(),
+						_ => throw Assumes.NotReachable(),
 					};
 
 					recorder.Client.Timeout = TimeSpan.FromSeconds(StreamConnectTimeout);
@@ -371,7 +369,27 @@ public class RoomStatus : ReactiveObject
 
 					RecordStatus = RecordStatus.录制中;
 
-					string filePath = Path.Combine(_config.MainDir, RoomId.ToString(CultureInfo.InvariantCulture), DateTime.Now.ToString(@"yyyyMMdd_HHmmss"));
+					if (format.Equals(@"flv", StringComparison.OrdinalIgnoreCase))
+					{
+						format = @".flv";
+					}
+					else if (format.Equals(@"fmp4", StringComparison.OrdinalIgnoreCase))
+					{
+						if (type is RecorderType.FFmpeg)
+						{
+							format = @".ts";
+						}
+						else
+						{
+							format = fMP4Suffix + @".mp4";
+						}
+					}
+					else
+					{
+						format = @".ts";
+					}
+
+					string filePath = Path.Combine(_config.MainDir, RoomId.ToString(CultureInfo.InvariantCulture), DateTime.Now.ToString(@"yyyyMMdd_HHmmss") + format);
 
 					_logger.LogInformation(@"开始录制：{filePath}", filePath);
 
@@ -462,7 +480,7 @@ public class RoomStatus : ReactiveObject
 				return;
 			}
 
-			if (fileInfo.Extension.Equals(@".mp4", StringComparison.OrdinalIgnoreCase))
+			if (fileInfo.Extension.Equals(@".mp4", StringComparison.OrdinalIgnoreCase) && !fileInfo.FullName.EndsWith(fMP4Suffix + @".mp4"))
 			{
 				return;
 			}
@@ -475,7 +493,9 @@ public class RoomStatus : ReactiveObject
 				return;
 			}
 
-			string mp4 = Path.ChangeExtension(file, @".mp4");
+			string mp4 = fileInfo.Extension.Equals(@".mp4", StringComparison.OrdinalIgnoreCase)
+				? Path.ChangeExtension(Path.ChangeExtension(file, default)[..^fMP4Suffix.Length], @".mp4")
+				: Path.ChangeExtension(file, @".mp4");
 			string args = string.Format(Constants.FFmpegCopyConvert, file, mp4);
 
 			FFmpegTaskViewModel task = new(args);

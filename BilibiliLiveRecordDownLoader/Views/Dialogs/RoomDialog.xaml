@@ -27,17 +27,18 @@
                 OnContent="启用"
                 OffContent="禁用"
                 IsOn="{Binding Path=IsNotify,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-            <ui:RadioButtons Header="录制方式"
-                             SelectedIndex="{Binding RecorderType,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource RecorderTypeToIntConverter}}">
-                <RadioButton Content="默认" />
-                <RadioButton Content="HTTP-FLV" />
-                <RadioButton Content="HLS-TS" />
-                <RadioButton Content="FFmpeg" />
+            <ui:RadioButtons Header="录制方式">
+                <RadioButton Content="默认"
+                             IsChecked="{Binding RecorderType,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource RecorderTypeToIntConverter},ConverterParameter=0}" />
+                <RadioButton Content="自动"
+                             IsChecked="{Binding RecorderType,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource RecorderTypeToIntConverter},ConverterParameter=1}" />
+                <RadioButton Content="FFmpeg"
+                             IsChecked="{Binding RecorderType,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged,Converter={StaticResource RecorderTypeToIntConverter},ConverterParameter=3}" />
             </ui:RadioButtons>
-            <TextBox ui:ControlHelper.Header="FFmpeg 录制：请求源编码"
+            <TextBox ui:ControlHelper.Header="编码优先级"
                      ui:ControlHelper.PlaceholderText="默认"
                      Text="{Binding Path=AutoRecordCodecOrder,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
-            <TextBox ui:ControlHelper.Header="FFmpeg 录制：请求源格式"
+            <TextBox ui:ControlHelper.Header="格式优先级"
                      ui:ControlHelper.PlaceholderText="默认"
                      Text="{Binding Path=AutoRecordFormatOrder,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" />
             <ui:NumberBox x:Name="RoomIdNumberBox"

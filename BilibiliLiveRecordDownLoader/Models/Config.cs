@@ -24,7 +24,7 @@ public class Config : ReactiveObject
 	public const bool DefaultIsAutoConvertMp4 = false;
 	public const bool DefaultIsUseProxy = false;
 	public const ElementTheme DefaultTheme = ElementTheme.Default;
-	public const RecorderType DefaultRecorderType = RecorderType.HttpFlv;
+	public const RecorderType DefaultRecorderType = RecorderType.Auto;
 
 	#endregion
 
@@ -101,7 +101,7 @@ public class Config : ReactiveObject
 	public RecorderType RecorderType { get; set; } = DefaultRecorderType;
 
 	/// <summary>
-	/// FFmpeg 录制的请求源编码
+	/// 编码优先级
 	/// </summary>
 	[DefaultValue(@"")]
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -109,7 +109,7 @@ public class Config : ReactiveObject
 	public string AutoRecordCodecOrder { get; set; } = string.Empty;
 
 	/// <summary>
-	/// FFmpeg 录制的请求源格式
+	/// 格式优先级
 	/// </summary>
 	[DefaultValue(@"")]
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

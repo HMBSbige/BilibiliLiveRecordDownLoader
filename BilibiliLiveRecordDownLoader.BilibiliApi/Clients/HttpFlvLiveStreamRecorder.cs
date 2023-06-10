@@ -1,6 +1,10 @@
 using BilibiliLiveRecordDownLoader.Shared.Abstractions;
+using BilibiliLiveRecordDownLoader.Shared.Utils;
+using Microsoft.Extensions.Logging;
 using System.Buffers;
 using System.IO.Pipelines;
+using System.Reactive.Linq;
+using System.Reactive.Threading.Tasks;
 
 namespace BilibiliApi.Clients;
 
@@ -16,14 +20,35 @@ public class HttpFlvLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 
 	private Stream? _netStream;
 
-	public HttpFlvLiveStreamRecorder(HttpClient client)
+	protected readonly ILogger<HttpFlvLiveStreamRecorder> Logger;
+	private IDisposable? _scope;
+
+	public HttpFlvLiveStreamRecorder(HttpClient client, ILogger<HttpFlvLiveStreamRecorder> logger)
 	{
 		Client = client;
+		Logger = logger;
 	}
 
 	public async ValueTask InitializeAsync(IEnumerable<Uri> source, CancellationToken cancellationToken = default)
 	{
-		_netStream = await Client.GetStreamAsync(source.First(), cancellationToken);
+		Uri result = await source.Select(uri => Observable.FromAsync(ct => Test(uri, ct))
+				.Catch<Uri?, HttpRequestException>(_ => Observable.Return<Uri?>(null))
+				.Where(r => r is not null)
+			)
+			.Merge()
+			.FirstOrDefaultAsync()
+			.ToTask(cancellationToken) ?? throw new HttpRequestException(@"没有可用的直播地址");
+
+		_scope = Logger.BeginScope($@"{{{LoggerProperties.RoomIdPropertyName}}}", RoomId);
+		Logger.LogInformation(@"选择直播地址：{uri}", result);
+
+		_netStream = await Client.GetStreamAsync(result, cancellationToken);
+
+		async Task<Uri> Test(Uri uri, CancellationToken ct)
+		{
+			await using Stream _ = await Client.GetStreamAsync(uri, ct);
+			return uri;
+		}
 	}
 
 	public async ValueTask DownloadAsync(string outFilePath, CancellationToken cancellationToken = default)
@@ -33,8 +58,7 @@ public class HttpFlvLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 			throw new InvalidOperationException(@"Do InitializeAsync first");
 		}
 
-		string filePath = Path.ChangeExtension(outFilePath, @".flv");
-		FileInfo file = new(filePath);
+		FileInfo file = new(outFilePath);
 
 		Pipe pipe = new(PipeOptions);
 		file.Directory?.Create();
@@ -44,7 +68,7 @@ public class HttpFlvLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 			.ContinueWith(_ =>
 			{
 				fs.Dispose();
-				return filePath;
+				return outFilePath;
 			}, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Current);
 
 		try
@@ -88,9 +112,14 @@ public class HttpFlvLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 	public override async ValueTask DisposeAsync()
 	{
 		await base.DisposeAsync();
+
+		_scope?.Dispose();
+
 		if (_netStream is not null)
 		{
 			await _netStream.DisposeAsync();
 		}
+
+		GC.SuppressFinalize(this);
 	}
 }

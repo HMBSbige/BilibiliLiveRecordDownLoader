@@ -26,6 +26,7 @@ public class M3uTest
 		""";
 		using MemoryStream stream = new(Encoding.UTF8.GetBytes(content));
 		M3U m3u8 = new(stream);
+		Assert.IsNull(m3u8.InitialUri);
 		Assert.AreEqual(3, m3u8.Version);
 		Assert.AreEqual(2, m3u8.Segments.Count);
 		Assert.AreEqual(@"0.ts", m3u8.Segments[0]);
@@ -49,6 +50,7 @@ public class M3uTest
 		""";
 		using MemoryStream stream = new(Encoding.UTF8.GetBytes(content));
 		M3U m3u8 = new(stream);
+		Assert.IsNull(m3u8.InitialUri);
 		Assert.AreEqual(3, m3u8.Version);
 		Assert.AreEqual(3, m3u8.Segments.Count);
 		Assert.AreEqual(@"/live-bvc/live_2051617240_30614556/1677132022560.ts?trid=100366f733ecb33e11edbec4850f533e18ab", m3u8.Segments[0]);
@@ -104,6 +106,7 @@ public class M3uTest
 		""";
 		using MemoryStream stream = new(Encoding.UTF8.GetBytes(content));
 		M3U m3u8 = new(stream);
+		Assert.AreEqual(@"h1676709149.m4s", m3u8.InitialUri);
 		Assert.AreEqual(7, m3u8.Version);
 		Assert.AreEqual(8, m3u8.Segments.Count);
 		Assert.AreEqual(@"36179519.m4s", m3u8.Segments[0]);
