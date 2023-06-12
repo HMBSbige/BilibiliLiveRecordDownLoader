@@ -19,7 +19,8 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 
 	public Task<string>? WriteToFileTask { get; protected set; }
 
-	private static readonly PipeOptions PipeOptions = new(pauseWriterThreshold: 0);
+	private const long CacheLength = 64 * 1024 * 1024;
+	private static readonly PipeOptions PipeOptions = new(pauseWriterThreshold: CacheLength, resumeWriterThreshold: CacheLength / 2);
 
 	protected Uri? Source;
 

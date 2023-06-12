@@ -16,7 +16,8 @@ public class HttpFlvLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 
 	public Task<string>? WriteToFileTask { get; private set; }
 
-	private static readonly PipeOptions PipeOptions = new(pauseWriterThreshold: 0);
+	private const long CacheLength = 64 * 1024 * 1024;
+	private static readonly PipeOptions PipeOptions = new(pauseWriterThreshold: CacheLength, resumeWriterThreshold: CacheLength / 2);
 
 	private Stream? _netStream;
 
