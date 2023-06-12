@@ -19,9 +19,9 @@ public class FirstResponseStreamUriSelector : IStreamUriSelector
 
 				return uri;
 			}
-			catch (HttpRequestException)
+			catch
 			{
-
+				// ignored
 			}
 		}
 

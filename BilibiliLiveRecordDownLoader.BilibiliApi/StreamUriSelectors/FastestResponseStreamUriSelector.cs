@@ -15,7 +15,7 @@ public class FastestResponseStreamUriSelector : IStreamUriSelector
 		}
 
 		Uri? result = await uris.Select(uri => Observable.FromAsync(ct => Test(uri, ct))
-				.Catch<Uri?, HttpRequestException>(_ => Observable.Return<Uri?>(null))
+				.Catch<Uri?, Exception>(_ => Observable.Return<Uri?>(null))
 				.Where(r => r is not null)
 			)
 			.Merge()
