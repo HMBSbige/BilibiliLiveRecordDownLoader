@@ -9,7 +9,7 @@ public partial class RoomDialog
 	{
 		DataContext = room;
 		InitializeComponent();
-		if (type == RoomDialogType.Add)
+		if (type is RoomDialogType.Add)
 		{
 			Title = @"添加直播间";
 			RoomIdNumberBox.IsEnabled = true;

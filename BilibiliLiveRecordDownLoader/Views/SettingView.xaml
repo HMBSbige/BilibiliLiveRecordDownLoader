@@ -38,26 +38,38 @@
                         <Button x:Name="OpenMainDirButton" Grid.Row="1" Grid.Column="1" Margin="0,3,0,5" Content="打开目录" />
                     </Grid>
                 </GroupBox>
-                <GroupBox Header="直播录制默认值">
+                <GroupBox Header="直播录制">
                     <ui:SimpleStackPanel Spacing="5">
-                        <ui:RadioButtons x:Name="DefaultRecorderTypeRadioButtons"
-                                         Header="录制方式" >
-                            <RadioButton Content="自动" d:IsChecked="True" />
-                            <RadioButton Content="FFmpeg" />
+                        <ui:RadioButtons x:Name="DefaultStreamHostRuleRadioButtons"
+                                         MaxColumns="3"
+                                         Header="线路选择">
+                            <RadioButton Content="首个响应" d:IsChecked="True" />
+                            <RadioButton Content="最快响应" />
+                            <RadioButton Content="随机" />
                         </ui:RadioButtons>
-                        <TextBox x:Name="AutoRecordCodecOrderTextBox"
-                                 ui:ControlHelper.Header="编码优先级"
-                                 ui:ControlHelper.PlaceholderText="{x:Static clients:BilibiliApiClient.DefaultCodecOrder}" />
-                        <TextBox x:Name="AutoRecordFormatOrderTextBox"
-                                 ui:ControlHelper.Header="格式优先级"
-                                 ui:ControlHelper.PlaceholderText="{x:Static clients:BilibiliApiClient.DefaultFormatOrder}" />
-                        <ui:ToggleSwitch x:Name="IsAutoConvertMp4Switch"
-                                         Header="自动转 MP4（需要 FFmpeg）"
-                                         d:IsOn="True"
-                                         OnContent="" OffContent="" />
-                        <ui:ToggleSwitch x:Name="IsDeleteAfterConvertSwitch"
-                                         Header="转换完成删除原文件"
-                                         OnContent="" OffContent="" />
+                        <GroupBox Header="默认值">
+                            <ui:SimpleStackPanel Spacing="5">
+                                <ui:RadioButtons x:Name="DefaultRecorderTypeRadioButtons"
+                                                 MaxColumns="2"
+                                                 Header="录制方式">
+                                    <RadioButton Content="自动" d:IsChecked="True" />
+                                    <RadioButton Content="FFmpeg" />
+                                </ui:RadioButtons>
+                                <TextBox x:Name="AutoRecordCodecOrderTextBox"
+                                         ui:ControlHelper.Header="编码优先级"
+                                         ui:ControlHelper.PlaceholderText="{x:Static clients:BilibiliApiClient.DefaultCodecOrder}" />
+                                <TextBox x:Name="AutoRecordFormatOrderTextBox"
+                                         ui:ControlHelper.Header="格式优先级"
+                                         ui:ControlHelper.PlaceholderText="{x:Static clients:BilibiliApiClient.DefaultFormatOrder}" />
+                                <ui:ToggleSwitch x:Name="IsAutoConvertMp4Switch"
+                                                 Header="自动转 MP4（需要 FFmpeg）"
+                                                 d:IsOn="True"
+                                                 OnContent="" OffContent="" />
+                                <ui:ToggleSwitch x:Name="IsDeleteAfterConvertSwitch"
+                                                 Header="转换完成删除原文件"
+                                                 OnContent="" OffContent="" />
+                            </ui:SimpleStackPanel>
+                        </GroupBox>
                     </ui:SimpleStackPanel>
                 </GroupBox>
                 <GroupBox Header="更新">

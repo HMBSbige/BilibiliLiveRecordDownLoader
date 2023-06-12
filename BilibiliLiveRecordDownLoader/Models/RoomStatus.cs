@@ -2,6 +2,7 @@ using BilibiliApi.Clients;
 using BilibiliApi.Enums;
 using BilibiliApi.Model.Danmu;
 using BilibiliApi.Model.RoomInfo;
+using BilibiliApi.StreamUriSelectors;
 using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.FFmpeg;
@@ -301,7 +302,19 @@ public class RoomStatus : ReactiveObject
 					RecorderType type = RecorderType is RecorderType.Default ? _config.RecorderType : RecorderType;
 					if (type is RecorderType.Default || !Enum.IsDefined(type))
 					{
-						type = RecorderType.Auto;
+						type = Config.DefaultRecorderType;
+					}
+
+					if (type is RecorderType.FFmpeg)
+					{
+						using FFmpegCommand ffmpeg = DI.GetRequiredService<FFmpegCommand>();
+						string? version = await ffmpeg.GetVersionAsync(cancellationToken);
+
+						if (version is null)
+						{
+							type = Config.DefaultRecorderType;
+							_logger.LogWarning(@"未检测到 FFmpeg，自动切换录制方式");
+						}
 					}
 
 					Uri[] uri;
@@ -327,7 +340,7 @@ public class RoomStatus : ReactiveObject
 						RecorderType.FFmpeg => DI.GetRequiredService<FFmpegLiveStreamRecorder>(),
 						RecorderType.Auto when format.Equals(@"flv", StringComparison.OrdinalIgnoreCase) => DI.GetRequiredService<HttpFlvLiveStreamRecorder>(),
 						RecorderType.Auto => DI.GetRequiredService<HttpLiveStreamRecorder>(),
-						_ => throw Assumes.NotReachable(),
+						_ => throw Assumes.NotReachable()
 					};
 
 					recorder.Client.Timeout = TimeSpan.FromSeconds(StreamConnectTimeout);
@@ -336,7 +349,13 @@ public class RoomStatus : ReactiveObject
 					Task waitReconnect = Task.Delay(TimeSpan.FromSeconds(StreamReconnectLatency), cancellationToken);
 					try
 					{
-						await recorder.InitializeAsync(uri, cancellationToken);
+						IStreamUriSelector selector = DI.GetRequiredService<IStreamUriSelector>();
+						selector.Client = recorder.Client;
+						Uri source = await selector.GetUriAsync(uri, cancellationToken);
+
+						_logger.LogInformation(@"选择直播地址：{uri}", source);
+
+						await recorder.InitializeAsync(source, cancellationToken);
 					}
 					catch (Exception ex)
 					{

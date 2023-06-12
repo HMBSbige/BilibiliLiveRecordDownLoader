@@ -4,8 +4,6 @@ using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.IO.Pipelines;
-using System.Reactive.Linq;
-using System.Reactive.Threading.Tasks;
 
 namespace BilibiliApi.Clients;
 
@@ -32,26 +30,12 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 		Logger = logger;
 	}
 
-	public async ValueTask InitializeAsync(IEnumerable<Uri> source, CancellationToken cancellationToken = default)
+	public ValueTask InitializeAsync(Uri source, CancellationToken cancellationToken = default)
 	{
-		Uri? result = await source.Select(uri => Observable.FromAsync(ct => Test(uri, ct))
-				.Catch<Uri?, HttpRequestException>(_ => Observable.Return<Uri?>(null))
-				.Where(r => r is not null)
-			)
-			.Merge()
-			.FirstOrDefaultAsync()
-			.ToTask(cancellationToken);
-
-		Source = result ?? throw new HttpRequestException(@"没有可用的直播地址");
-
 		_scope = Logger.BeginScope($@"{{{LoggerProperties.RoomIdPropertyName}}}", RoomId);
-		Logger.LogInformation(@"选择直播地址：{uri}", Source);
 
-		async Task<Uri> Test(Uri uri, CancellationToken ct)
-		{
-			await using Stream _ = await Client.GetStreamAsync(uri, ct);
-			return uri;
-		}
+		Source = source;
+		return default;
 	}
 
 	public virtual async ValueTask DownloadAsync(string outFilePath, CancellationToken cancellationToken = default)

@@ -1,4 +1,6 @@
 using BilibiliApi.Clients;
+using BilibiliApi.StreamUriSelectors;
+using BilibiliLiveRecordDownLoader.Enums;
 using BilibiliLiveRecordDownLoader.FFmpeg;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Clients;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Interfaces;
@@ -128,6 +130,43 @@ public static class ServiceExtensions
 			Config config = provider.GetRequiredService<Config>();
 			HttpClient client = HttpClientUtils.BuildClientForBilibili(config.UserAgent, config.Cookie, config.HttpHandler);
 			return new FFmpegLiveStreamRecorder(client, provider.GetRequiredService<ILogger<FFmpegLiveStreamRecorder>>());
+		});
+
+		return services;
+	}
+
+	public static IServiceCollection AddStreamUriSelectors(this IServiceCollection services)
+	{
+		services.TryAddTransient(provider =>
+		{
+			Config config = provider.GetRequiredService<Config>();
+
+			IStreamUriSelector res;
+
+			switch (config.StreamHostRule)
+			{
+				case StreamHostRule.FirstResponse:
+				{
+					res = new FirstResponseStreamUriSelector();
+					break;
+				}
+				case StreamHostRule.FastestResponse:
+				{
+					res = new FastestResponseStreamUriSelector();
+					break;
+				}
+				case StreamHostRule.Random:
+				{
+					res = new RandomStreamUriSelector();
+					break;
+				}
+				default:
+				{
+					goto case Config.DefaultStreamHostRule;
+				}
+			}
+
+			return res;
 		});
 
 		return services;

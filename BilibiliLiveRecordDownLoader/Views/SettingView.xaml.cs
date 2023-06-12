@@ -1,4 +1,5 @@
 using BilibiliLiveRecordDownLoader.Enums;
+using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using ModernWpf;
@@ -38,23 +39,42 @@ public partial class SettingView
 			this.BindCommand(ViewModel, vm => vm.CheckUpdateCommand, v => v.CheckUpdateButton).DisposeWith(d);
 			this.OneWayBind(ViewModel, vm => vm.UpdateStatus, v => v.UpdateStatusTextBlock.Text).DisposeWith(d);
 
+			this.Bind(ViewModel,
+				vm => vm.Config.StreamHostRule,
+				v => v.DefaultStreamHostRuleRadioButtons.SelectedIndex,
+				type => Enum.IsDefined(type) ? (int)type : (int)Config.DefaultStreamHostRule,
+				i => Enum.IsDefined((StreamHostRule)i) ? (StreamHostRule)i : Config.DefaultStreamHostRule).DisposeWith(d);
+
 			this.Bind(ViewModel, vm => vm.Config.IsAutoConvertMp4, v => v.IsAutoConvertMp4Switch.IsOn).DisposeWith(d);
 			this.Bind(ViewModel, vm => vm.Config.IsDeleteAfterConvert, v => v.IsDeleteAfterConvertSwitch.IsOn).DisposeWith(d);
 
 			this.Bind(ViewModel,
 				vm => vm.Config.RecorderType,
 				v => v.DefaultRecorderTypeRadioButtons.SelectedIndex,
-				type => type switch
+				type =>
 				{
-					RecorderType.Auto => 0,
-					RecorderType.FFmpeg => 1,
-					_ => 0
+					switch (type)
+					{
+						case RecorderType.Auto:
+						{
+							return 0;
+						}
+						case RecorderType.FFmpeg:
+						{
+							return 1;
+						}
+						case RecorderType.Default:
+						default:
+						{
+							goto case Config.DefaultRecorderType;
+						}
+					}
 				},
 				i => i switch
 				{
 					0 => RecorderType.Auto,
 					1 => RecorderType.FFmpeg,
-					_ => RecorderType.Auto
+					_ => Config.DefaultRecorderType
 				}
 			).DisposeWith(d);
 

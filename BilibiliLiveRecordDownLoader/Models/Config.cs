@@ -25,6 +25,7 @@ public class Config : ReactiveObject
 	public const bool DefaultIsUseProxy = false;
 	public const ElementTheme DefaultTheme = ElementTheme.Default;
 	public const RecorderType DefaultRecorderType = RecorderType.Auto;
+	public const StreamHostRule DefaultStreamHostRule = StreamHostRule.FirstResponse;
 
 	#endregion
 
@@ -116,6 +117,11 @@ public class Config : ReactiveObject
 	[Reactive]
 	public string AutoRecordFormatOrder { get; set; } = string.Empty;
 
+	[DefaultValue(DefaultStreamHostRule)]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	[Reactive]
+	public StreamHostRule StreamHostRule { get; set; } = DefaultStreamHostRule;
+
 	#endregion
 
 	/// <summary>
@@ -141,5 +147,6 @@ public class Config : ReactiveObject
 		RecorderType = config.RecorderType;
 		AutoRecordCodecOrder = config.AutoRecordCodecOrder;
 		AutoRecordFormatOrder = config.AutoRecordFormatOrder;
+		StreamHostRule = config.StreamHostRule;
 	}
 }
