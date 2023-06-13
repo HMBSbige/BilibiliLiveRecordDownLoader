@@ -14,7 +14,7 @@
     <PackageReference Include="CryptoBase" Version="1.7.2" />
     <PackageReference Include="DynamicData" Version="7.14.2" />
     <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="7.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="7.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="7.0.1" />
     <PackageReference Include="Pipelines.Extensions" Version="1.0.0" />
   </ItemGroup>
 
