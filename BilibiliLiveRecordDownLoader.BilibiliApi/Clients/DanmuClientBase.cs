@@ -23,7 +23,7 @@ namespace BilibiliApi.Clients;
 public abstract class DanmuClientBase : IDanmuClient
 {
 	private readonly ILogger<DanmuClientBase> _logger;
-	private readonly BilibiliApiClient _apiClient;
+	protected readonly BilibiliApiClient ApiClient;
 	private readonly IDistributedCache _cacheService;
 
 	public long RoomId { get; set; }
@@ -37,7 +37,7 @@ public abstract class DanmuClientBase : IDanmuClient
 		AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1)
 	};
 
-	private const short ReceiveProtocolVersion = 2;
+	private const short ReceiveProtocolVersion = 3;
 	private const short SendProtocolVersion = 1;
 	private const int SendHeaderLength = 16;
 
@@ -59,7 +59,7 @@ public abstract class DanmuClientBase : IDanmuClient
 	protected DanmuClientBase(ILogger<DanmuClientBase> logger, BilibiliApiClient apiClient, IDistributedCache cacheService)
 	{
 		_logger = logger;
-		_apiClient = apiClient;
+		ApiClient = apiClient;
 		_cacheService = cacheService;
 	}
 
@@ -164,7 +164,7 @@ public abstract class DanmuClientBase : IDanmuClient
 		{
 			try
 			{
-				_uid = await _apiClient.GetUidAsync(cancellationToken);
+				_uid = await ApiClient.GetUidAsync(cancellationToken);
 			}
 			catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 			{
@@ -210,7 +210,7 @@ public abstract class DanmuClientBase : IDanmuClient
 			{
 				Host = default;
 
-				DanmuConfMessage? conf = await _apiClient.GetDanmuConfAsync(RoomId, cancellationToken);
+				DanmuConfMessage? conf = await ApiClient.GetDanmuConfAsync(RoomId, cancellationToken);
 				if (conf?.code is not 0 && !string.IsNullOrEmpty(conf?.message))
 				{
 					_logger.LogError(@"获取弹幕服务器失败：{message}", conf.message);
@@ -382,6 +382,14 @@ public abstract class DanmuClientBase : IDanmuClient
 			{
 				Stream stream = packet.Body.Slice(2).AsStream(); // Drop header
 				await using DeflateStream deflate = new(stream, CompressionMode.Decompress, false);
+				PipeReader reader = PipeReader.Create(deflate);
+				await ReadPipeAsync(reader, cancellationToken);
+
+				break;
+			}
+			case 3:
+			{
+				await using BrotliStream deflate = new(packet.Body.AsStream(), CompressionMode.Decompress, false);
 				PipeReader reader = PipeReader.Create(deflate);
 				await ReadPipeAsync(reader, cancellationToken);
 

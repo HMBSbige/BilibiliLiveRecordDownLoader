@@ -27,6 +27,7 @@ public class WssDanmuClient : DanmuClientBase
 	{
 		_client = new ClientWebSocket();
 		_client.Options.Proxy = WebRequest.DefaultWebProxy;
+		_client.Options.SetRequestHeader(@"User-Agent", ApiClient.Client.DefaultRequestHeaders.UserAgent.ToString());
 		return _client;
 	}
 
