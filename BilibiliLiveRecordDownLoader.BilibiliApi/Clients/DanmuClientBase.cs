@@ -389,8 +389,8 @@ public abstract class DanmuClientBase : IDanmuClient
 			}
 			case 3:
 			{
-				await using BrotliStream deflate = new(packet.Body.AsStream(), CompressionMode.Decompress, false);
-				PipeReader reader = PipeReader.Create(deflate);
+				await using BrotliStream brotli = new(packet.Body.AsStream(), CompressionMode.Decompress, false);
+				PipeReader reader = PipeReader.Create(brotli);
 				await ReadPipeAsync(reader, cancellationToken);
 
 				break;
