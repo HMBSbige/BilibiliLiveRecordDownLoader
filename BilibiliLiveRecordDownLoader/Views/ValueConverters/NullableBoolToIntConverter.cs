@@ -6,7 +6,7 @@ namespace BilibiliLiveRecordDownLoader.Views.ValueConverters;
 
 public class NullableBoolToIntConverter : IValueConverter
 {
-	public object Convert(object? value, Type targetType, object parameter, CultureInfo culture)
+	public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
 	{
 		return value switch
 		{
@@ -17,7 +17,7 @@ public class NullableBoolToIntConverter : IValueConverter
 		};
 	}
 
-	public object? ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+	public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
 	{
 		return value switch
 		{

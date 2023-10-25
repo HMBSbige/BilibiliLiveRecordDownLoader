@@ -39,17 +39,12 @@ public sealed class FFmpegStdInCommand : IDisposable
 	{
 		try
 		{
-			using Process process = new()
-			{
-				StartInfo =
-				{
-					UseShellExecute = false,
-					CreateNoWindow = true,
-					RedirectStandardOutput = true,
-					FileName = FFmpegPath,
-					ArgumentList = { @"-version" }
-				}
-			};
+			using Process process = new();
+			process.StartInfo.UseShellExecute = false;
+			process.StartInfo.CreateNoWindow = true;
+			process.StartInfo.RedirectStandardOutput = true;
+			process.StartInfo.FileName = FFmpegPath;
+			process.StartInfo.ArgumentList.Add(@"-version");
 			process.Start();
 			_job.AddProcess(process);
 			string output = await process.StandardOutput.ReadToEndAsync(cancellationToken);

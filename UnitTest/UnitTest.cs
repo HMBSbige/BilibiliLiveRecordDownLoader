@@ -31,13 +31,11 @@ public class UnitTest
 		try
 		{
 			HttpClient client = HttpClientUtils.BuildClientForMultiThreadedDownloader(default, string.Empty, new SocketsHttpHandler());
-			await using MultiThreadedDownloader downloader = new(NullLogger<MultiThreadedDownloader>.Instance, client)
-			{
-				Target = new Uri(url),
-				Threads = 4,
-				OutFileName = outFile,
-				TempDir = path
-			};
+			await using MultiThreadedDownloader downloader = new(NullLogger<MultiThreadedDownloader>.Instance, client);
+			downloader.Target = new Uri(url);
+			downloader.Threads = 4;
+			downloader.OutFileName = outFile;
+			downloader.TempDir = path;
 
 			//downloader.ProgressUpdated.Subscribe(i => { Console.WriteLine($@"{i * 100:F2}%"); });
 			//downloader.CurrentSpeed.Subscribe(i => { Console.WriteLine($@"{i} Bytes/s"); });
@@ -96,11 +94,9 @@ public class UnitTest
 		try
 		{
 			HttpClient client = HttpClientUtils.BuildClientForBilibili(string.Empty, default, new SocketsHttpHandler());
-			await using HttpDownloader downloader = new(client)
-			{
-				Target = new Uri(url),
-				OutFileName = outFile
-			};
+			await using HttpDownloader downloader = new(client);
+			downloader.Target = new Uri(url);
+			downloader.OutFileName = outFile;
 
 			//downloader.CurrentSpeed.Subscribe(i => { Console.WriteLine($@"{i} Bytes/s"); });
 

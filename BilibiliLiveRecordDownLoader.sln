@@ -19,9 +19,23 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BilibiliLiveRecordDownLoade
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{A17249E7-B8E9-4E7E-9633-D61C82D6DA7D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ApiTest", "ApiTest\ApiTest.csproj", "{51ECAABA-E1DB-49D4-8878-2888F09225AF}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ApiTest", "ApiTest\ApiTest.csproj", "{51ECAABA-E1DB-49D4-8878-2888F09225AF}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{7D963B79-7C11-4220-8AC4-2EC6A05BE1DD}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BilibiliLiveDanmuPreviewer", "BilibiliLiveDanmuPreviewer\BilibiliLiveDanmuPreviewer.csproj", "{AC1F5958-4E1A-454E-A9C7-302F21F75468}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "conf", "conf", "{13F00F22-3100-4946-911A-AE64A4795C44}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+		.gitattributes = .gitattributes
+		.gitignore = .gitignore
+		build.ps1 = build.ps1
+		common.props = common.props
+		LICENSE = LICENSE
+		NuGet.Config = NuGet.Config
+		README.md = README.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -61,6 +75,10 @@ Global
 		{51ECAABA-E1DB-49D4-8878-2888F09225AF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{51ECAABA-E1DB-49D4-8878-2888F09225AF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{51ECAABA-E1DB-49D4-8878-2888F09225AF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AC1F5958-4E1A-454E-A9C7-302F21F75468}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AC1F5958-4E1A-454E-A9C7-302F21F75468}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AC1F5958-4E1A-454E-A9C7-302F21F75468}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AC1F5958-4E1A-454E-A9C7-302F21F75468}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -74,6 +92,7 @@ Global
 		{02363E7D-62AD-4660-9391-18267E5B38FE} = {7D963B79-7C11-4220-8AC4-2EC6A05BE1DD}
 		{06D76D8D-B3D2-4EA6-AA5D-BA9B6E469B3B} = {7D963B79-7C11-4220-8AC4-2EC6A05BE1DD}
 		{51ECAABA-E1DB-49D4-8878-2888F09225AF} = {A17249E7-B8E9-4E7E-9633-D61C82D6DA7D}
+		{AC1F5958-4E1A-454E-A9C7-302F21F75468} = {7D963B79-7C11-4220-8AC4-2EC6A05BE1DD}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {57A75898-3DF9-48A7-A736-DADB650DD460}

@@ -88,14 +88,12 @@ public class TaskListViewModel : ReactiveObject, IRoutableViewModel
 				return;
 			}
 
-			using var dialog = new DisposableContentDialog
-			{
-				Title = @"确定清空所有任务？",
-				Content = @"将会停止所有任务并清空列表",
-				PrimaryButtonText = @"确定",
-				CloseButtonText = @"取消",
-				DefaultButton = ContentDialogButton.Close
-			};
+			using DisposableContentDialog dialog = new();
+			dialog.Title = @"确定清空所有任务？";
+			dialog.Content = @"将会停止所有任务并清空列表";
+			dialog.PrimaryButtonText = @"确定";
+			dialog.CloseButtonText = @"取消";
+			dialog.DefaultButton = ContentDialogButton.Close;
 			if (await dialog.SafeShowAsync() == ContentDialogResult.Primary)
 			{
 				_taskSourceList.Items.ToList().ForEach(RemoveTask);

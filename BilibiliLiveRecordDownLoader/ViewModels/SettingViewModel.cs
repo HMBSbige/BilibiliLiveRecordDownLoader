@@ -94,7 +94,7 @@ public class SettingViewModel : ReactiveObject, IRoutableViewModel
 
 	private void SelectDirectory()
 	{
-		var dlg = new FolderBrowserDialog
+		FolderBrowserDialog dlg = new()
 		{
 			SelectedPath = Config.MainDir
 		};
@@ -118,8 +118,8 @@ public class SettingViewModel : ReactiveObject, IRoutableViewModel
 		try
 		{
 			UpdateStatus = @"正在检查更新...";
-			var version = Utils.Utils.GetAppVersion()!;
-			var updateChecker = new GitHubReleasesUpdateChecker(
+			string version = Utils.Utils.GetAppVersion()!;
+			GitHubReleasesUpdateChecker updateChecker = new(
 				@"HMBSbige",
 				@"BilibiliLiveRecordDownLoader",
 				Config.IsCheckPreRelease,
@@ -134,14 +134,12 @@ public class SettingViewModel : ReactiveObject, IRoutableViewModel
 				}
 
 				UpdateStatus = $@"发现新版本：{updateChecker.LatestVersion}";
-				using var dialog = new DisposableContentDialog
-				{
-					Title = UpdateStatus,
-					Content = @"是否跳转到下载页？",
-					PrimaryButtonText = @"是",
-					SecondaryButtonText = @"否",
-					DefaultButton = ContentDialogButton.Primary
-				};
+				using DisposableContentDialog dialog = new();
+				dialog.Title = UpdateStatus;
+				dialog.Content = @"是否跳转到下载页？";
+				dialog.PrimaryButtonText = @"是";
+				dialog.SecondaryButtonText = @"否";
+				dialog.DefaultButton = ContentDialogButton.Primary;
 				if (await dialog.SafeShowAsync() == ContentDialogResult.Primary)
 				{
 					FileUtils.OpenUrl(updateChecker.LatestVersionUrl);
@@ -166,12 +164,12 @@ public class SettingViewModel : ReactiveObject, IRoutableViewModel
 
 	private void GetDiskUsage(long _)
 	{
-		var (availableFreeSpace, totalSize, totalFree) = FileUtils.GetDiskUsage(Config.MainDir);
+		(ulong availableFreeSpace, ulong totalSize, ulong totalFree) = FileUtils.GetDiskUsage(Config.MainDir);
 		if (totalSize != 0)
 		{
-			var usedSize = totalSize - totalFree;
+			ulong usedSize = totalSize - totalFree;
 			DiskUsageProgressBarText = $@"已使用 {usedSize.ToHumanBytesString()}/{totalSize.ToHumanBytesString()} 剩余可用 {availableFreeSpace.ToHumanBytesString()}";
-			var percentage = usedSize / (double)totalSize;
+			double percentage = usedSize / (double)totalSize;
 			DiskUsageProgressBarValue = percentage * 100;
 		}
 		else

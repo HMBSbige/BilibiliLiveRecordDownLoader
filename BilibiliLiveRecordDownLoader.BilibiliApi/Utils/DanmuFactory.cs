@@ -16,30 +16,30 @@ public static class DanmuFactory
 
 	public static IDanmu? ParseJson(ReadOnlySpan<byte> body)
 	{
-		var json = Encoding.UTF8.GetString(body);
+		string json = Encoding.UTF8.GetString(body);
 		return ParseJson(json);
 	}
 
 	public static IDanmu? ParseJson(string json)
 	{
-		using var document = JsonDocument.Parse(json);
-		var root = document.RootElement;
+		using JsonDocument document = JsonDocument.Parse(json);
+		JsonElement root = document.RootElement;
 
-		var cmd = root.GetProperty(@"cmd").GetString();
+		string? cmd = root.GetProperty(@"cmd").GetString();
 
 		switch (cmd)
 		{
 			case @"LIVE":
 			{
-				var roomId = root.GetProperty(@"roomid").GetInt64();
+				long roomId = root.GetProperty(@"roomid").GetInt64();
 				return new StreamStatusDanmu { Cmd = DanmuCommand.LIVE, RoomId = roomId };
 			}
 			case @"PREPARING":
 			{
-				var roomId = long.Parse(root.GetProperty(@"roomid").GetString()!);
-				if (root.TryGetProperty(@"round", out var value))
+				long roomId = long.Parse(root.GetProperty(@"roomid").GetString()!);
+				if (root.TryGetProperty(@"round", out JsonElement value))
 				{
-					var round = value.GetInt64();
+					long round = value.GetInt64();
 					return new StreamStatusDanmu { Cmd = DanmuCommand.PREPARING, RoomId = roomId, Round = round };
 				}
 				return new StreamStatusDanmu
@@ -51,7 +51,7 @@ public static class DanmuFactory
 			}
 			case @"ROOM_CHANGE":
 			{
-				var data = root.GetProperty(@"data");
+				JsonElement data = root.GetProperty(@"data");
 				return new RoomChangeDanmu
 				{
 					Cmd = DanmuCommand.ROOM_CHANGE,

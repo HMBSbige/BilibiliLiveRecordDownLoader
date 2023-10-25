@@ -55,8 +55,7 @@ public sealed class MainWindowViewModel : ReactiveObject, IScreen
 
 	private bool HasTaskRunning()
 	{
-		return _taskSourceList.Items.ToList().Any(t => !t.Status.Contains(@"完成"))
-		       || _roomList.Items.ToList().Any(room => room.RecordStatus != RecordStatus.未录制);
+		return _taskSourceList.Items.ToList().Any(t => !t.Status.Contains(@"完成")) || _roomList.Items.ToList().Any(room => room.RecordStatus != RecordStatus.未录制);
 	}
 
 	private async Task ExitAsync()
@@ -64,14 +63,12 @@ public sealed class MainWindowViewModel : ReactiveObject, IScreen
 		if (HasTaskRunning())
 		{
 			ShowWindow();
-			using var dialog = new DisposableContentDialog
-			{
-				Title = @"退出程序？",
-				Content = @"还有任务正在进行",
-				PrimaryButtonText = @"确定",
-				SecondaryButtonText = @"取消",
-				DefaultButton = ContentDialogButton.Primary
-			};
+			using DisposableContentDialog dialog = new();
+			dialog.Title = @"退出程序？";
+			dialog.Content = @"还有任务正在进行";
+			dialog.PrimaryButtonText = @"确定";
+			dialog.SecondaryButtonText = @"取消";
+			dialog.DefaultButton = ContentDialogButton.Primary;
 			if (await dialog.SafeShowAsync(10, ContentDialogResult.Primary) != ContentDialogResult.Primary)
 			{
 				return;
@@ -82,7 +79,7 @@ public sealed class MainWindowViewModel : ReactiveObject, IScreen
 
 		DI.GetRequiredService<IConfigService>().Dispose();
 
-		var window = DI.GetRequiredService<MainWindow>();
+		MainWindow window = DI.GetRequiredService<MainWindow>();
 		window.CloseReason = CloseReason.ApplicationExitCall;
 		window.Close();
 	}

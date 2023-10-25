@@ -64,7 +64,7 @@ public class StreamRecordViewModel : ReactiveObject, IRoutableViewModel
 
 	private static void RoomListChanged(IChangeSet<RoomStatus> changeSet)
 	{
-		foreach (var change in changeSet)
+		foreach (Change<RoomStatus> change in changeSet)
 		{
 			switch (change.Reason)
 			{
@@ -75,13 +75,13 @@ public class StreamRecordViewModel : ReactiveObject, IRoutableViewModel
 					{
 						case ChangeType.Item:
 						{
-							var room = change.Item.Current;
+							RoomStatus room = change.Item.Current;
 							room.Start();
 							break;
 						}
 						case ChangeType.Range:
 						{
-							foreach (var room in change.Range)
+							foreach (RoomStatus room in change.Range)
 							{
 								room.Start();
 							}
@@ -100,13 +100,13 @@ public class StreamRecordViewModel : ReactiveObject, IRoutableViewModel
 					{
 						case ChangeType.Item:
 						{
-							var room = change.Item.Current;
+							RoomStatus room = change.Item.Current;
 							room.Stop();
 							break;
 						}
 						case ChangeType.Range:
 						{
-							foreach (var room in change.Range)
+							foreach (RoomStatus room in change.Range)
 							{
 								room.Stop();
 							}
@@ -130,8 +130,8 @@ public class StreamRecordViewModel : ReactiveObject, IRoutableViewModel
 	{
 		try
 		{
-			var room = new RoomStatus();
-			using (var dialog = new RoomDialog(RoomDialogType.Add, room))
+			RoomStatus room = new();
+			using (RoomDialog dialog = new(RoomDialogType.Add, room))
 			{
 				if (await dialog.SafeShowAsync() != ContentDialogResult.Primary)
 				{
@@ -143,13 +143,11 @@ public class StreamRecordViewModel : ReactiveObject, IRoutableViewModel
 
 			if (_roomList.Items.Any(x => x.RoomId == room.RoomId))
 			{
-				using var dialog = new DisposableContentDialog
-				{
-					Title = @"房间已存在",
-					Content = @"不能添加重复房间",
-					PrimaryButtonText = @"确定",
-					DefaultButton = ContentDialogButton.Primary
-				};
+				using DisposableContentDialog dialog = new();
+				dialog.Title = @"房间已存在";
+				dialog.Content = @"不能添加重复房间";
+				dialog.PrimaryButtonText = @"确定";
+				dialog.DefaultButton = ContentDialogButton.Primary;
 				await dialog.SafeShowAsync();
 				return;
 			}
@@ -159,14 +157,12 @@ public class StreamRecordViewModel : ReactiveObject, IRoutableViewModel
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, @"添加房间出错");
-			var message = ex is JsonException ? @"可能是房间号错误" : ex.Message;
-			using var dialog = new DisposableContentDialog
-			{
-				Title = @"添加房间出错",
-				Content = message,
-				PrimaryButtonText = @"确定",
-				DefaultButton = ContentDialogButton.Primary
-			};
+			string message = ex is JsonException ? @"可能是房间号错误" : ex.Message;
+			using DisposableContentDialog dialog = new();
+			dialog.Title = @"添加房间出错";
+			dialog.Content = message;
+			dialog.PrimaryButtonText = @"确定";
+			dialog.DefaultButton = ContentDialogButton.Primary;
 			await dialog.SafeShowAsync();
 		}
 	}
@@ -199,13 +195,11 @@ public class StreamRecordViewModel : ReactiveObject, IRoutableViewModel
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, @"修改房间出错");
-			using DisposableContentDialog dialog = new()
-			{
-				Title = @"修改房间出错",
-				Content = ex.Message,
-				PrimaryButtonText = @"确定",
-				DefaultButton = ContentDialogButton.Primary
-			};
+			using DisposableContentDialog dialog = new();
+			dialog.Title = @"修改房间出错";
+			dialog.Content = ex.Message;
+			dialog.PrimaryButtonText = @"确定";
+			dialog.DefaultButton = ContentDialogButton.Primary;
 			await dialog.SafeShowAsync();
 		}
 		return default;
@@ -219,8 +213,8 @@ public class StreamRecordViewModel : ReactiveObject, IRoutableViewModel
 			{
 				return default;
 			}
-			var rooms = new List<RoomStatus>();
-			foreach (var item in list)
+			List<RoomStatus> rooms = new();
+			foreach (object? item in list)
 			{
 				if (item is not RoomStatus room)
 				{
@@ -228,16 +222,14 @@ public class StreamRecordViewModel : ReactiveObject, IRoutableViewModel
 				}
 				rooms.Add(room);
 			}
-			var roomList = string.Join('，', rooms.Select(room => string.IsNullOrWhiteSpace(room.UserName) ? $@"{room.RoomId}" : room.UserName));
-			using (var dialog = new DisposableContentDialog
+			string roomList = string.Join('，', rooms.Select(room => string.IsNullOrWhiteSpace(room.UserName) ? $@"{room.RoomId}" : room.UserName));
+			using (DisposableContentDialog dialog = new())
 			{
-				Title = @"确定移除直播间？",
-				Content = roomList,
-				PrimaryButtonText = @"确定",
-				CloseButtonText = @"取消",
-				DefaultButton = ContentDialogButton.Close
-			})
-			{
+				dialog.Title = @"确定移除直播间？";
+				dialog.Content = roomList;
+				dialog.PrimaryButtonText = @"确定";
+				dialog.CloseButtonText = @"取消";
+				dialog.DefaultButton = ContentDialogButton.Close;
 				if (await dialog.SafeShowAsync() != ContentDialogResult.Primary)
 				{
 					return default;
@@ -248,13 +240,11 @@ public class StreamRecordViewModel : ReactiveObject, IRoutableViewModel
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, @"删除房间出错");
-			using var dialog = new DisposableContentDialog
-			{
-				Title = @"删除房间出错",
-				Content = ex.Message,
-				PrimaryButtonText = @"确定",
-				DefaultButton = ContentDialogButton.Primary
-			};
+			using DisposableContentDialog dialog = new();
+			dialog.Title = @"删除房间出错";
+			dialog.Content = ex.Message;
+			dialog.PrimaryButtonText = @"确定";
+			dialog.DefaultButton = ContentDialogButton.Primary;
 			await dialog.SafeShowAsync();
 		}
 		return default;
