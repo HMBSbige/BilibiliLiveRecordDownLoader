@@ -36,7 +36,7 @@ public struct DanmuPacket
 	/// </summary>
 	public ReadOnlySequence<byte> Body;
 
-	public void GetHeaderBytes(Span<byte> span)
+	public readonly void GetHeaderBytes(Span<byte> span)
 	{
 		BinaryPrimitives.WriteInt32BigEndian(span, PacketLength);
 		BinaryPrimitives.WriteInt16BigEndian(span[4..], HeaderLength);

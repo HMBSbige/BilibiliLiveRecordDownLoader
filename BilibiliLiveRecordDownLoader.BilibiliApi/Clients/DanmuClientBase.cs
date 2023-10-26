@@ -402,31 +402,10 @@ public abstract class DanmuClientBase : IDanmuClient
 			}
 		}
 
+		return;
+
 		void EmitDanmu()
 		{
-#if DEBUG
-			switch (packet.Operation)
-			{
-				case Operation.HeartbeatReply:
-				{
-					SequenceReader<byte> reader = new(packet.Body);
-					reader.TryReadBigEndian(out int num);
-					_logger.LogDebug(@"收到弹幕[{operation}] 人气值: {number}", packet.Operation, num);
-					break;
-				}
-				case Operation.SendMsgReply:
-				case Operation.AuthReply:
-				{
-					_logger.LogDebug(@"收到弹幕[{operation}]:{body}", packet.Operation, Encoding.UTF8.GetString(packet.Body));
-					break;
-				}
-				default:
-				{
-					_logger.LogDebug(@"收到弹幕[{operation}]", packet.Operation);
-					break;
-				}
-			}
-#endif
 			_danMuSubj.OnNext(packet);
 		}
 	}
