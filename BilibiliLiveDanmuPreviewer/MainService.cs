@@ -154,7 +154,7 @@ public class MainService : ServiceBase
 						string? areaName = data.GetProperty(@"area_name").GetString();
 						string? parentAreaName = data.GetProperty(@"parent_area_name").GetString();
 
-						Logger.LogInformation(@"[{cmd}] 标题：{title} 分区：{parentArea}|{area}", cmd, title, areaName, parentAreaName);
+						Logger.LogInformation(@"[{cmd}] 标题：{title} 分区：{parentArea}·{area}", cmd, title, parentAreaName, areaName);
 						break;
 					}
 					case @"WATCHED_CHANGE":
