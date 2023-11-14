@@ -20,8 +20,8 @@
     <PackageReference Include="Hardcodet.NotifyIcon.Wpf" Version="1.1.0" />
     <PackageReference Include="HMBSbige.SingleInstance" Version="6.0.1" />
     <PackageReference Include="HMBSbige.UpdateChecker" Version="6.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="7.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="7.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
     <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.2.164-beta" PrivateAssets="all" />
     <PackageReference Include="ModernWpfUI" Version="0.9.6" />
     <PackageReference Include="Punchclock" Version="3.4.3" />
