@@ -2,7 +2,7 @@ name: CI
 on: [push, pull_request, workflow_dispatch]
 env:
   ProjectName: BilibiliLiveRecordDownLoader
-  NET_TFM: net7.0-windows10.0.22621.0
+  NET_TFM: net8.0-windows10.0.22621.0
   Configuration: Release
 
 jobs:
@@ -22,7 +22,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 6.0.x
+          dotnet-version: 8.0.x
 
       - name: Build ${{ matrix.Rid }}
         shell: pwsh
@@ -54,7 +54,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 6.0.x
+          dotnet-version: 8.0.x
 
       - name: Build
         shell: pwsh
@@ -80,7 +80,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 6.0.x
+          dotnet-version: 8.0.x
 
       - name: Build
         shell: pwsh

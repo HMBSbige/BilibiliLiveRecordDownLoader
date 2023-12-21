@@ -22,6 +22,4 @@ public record AuthDanmu
 [JsonSourceGenerationOptions(
 	IgnoreReadOnlyProperties = true,
 	WriteIndented = false)]
-public partial class AuthDanmuJsonSerializerContext : JsonSerializerContext
-{
-}
+public partial class AuthDanmuJsonSerializerContext : JsonSerializerContext;

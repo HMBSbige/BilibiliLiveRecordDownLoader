@@ -6,13 +6,13 @@ using BilibiliLiveRecordDownLoader.Views.Dialogs;
 using DynamicData;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.Threading;
+using Microsoft.Win32;
 using ModernWpf.Controls;
 using ReactiveUI;
 using ReactiveUI.Fody.Helpers;
 using RunAtStartup;
 using System.Reactive;
 using System.Reactive.Linq;
-using System.Windows.Forms;
 using UpdateChecker;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels;
@@ -94,13 +94,13 @@ public class SettingViewModel : ReactiveObject, IRoutableViewModel
 
 	private void SelectDirectory()
 	{
-		FolderBrowserDialog dlg = new()
+		OpenFolderDialog dlg = new()
 		{
-			SelectedPath = Config.MainDir
+			InitialDirectory = Config.MainDir
 		};
-		if (dlg.ShowDialog() is DialogResult.OK)
+		if (dlg.ShowDialog() is true)
 		{
-			Config.MainDir = dlg.SelectedPath;
+			Config.MainDir = dlg.FolderName;
 		}
 	}
 
