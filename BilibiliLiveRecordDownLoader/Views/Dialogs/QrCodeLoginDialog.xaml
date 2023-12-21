@@ -12,11 +12,12 @@
     CloseButtonText="取消"
     DefaultButton="Primary">
     <Grid>
-        <Image Grid.RowSpan="3" 
+        <TextBlock x:Name="MessageTextBlock" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" />
+        <Image Grid.RowSpan="3"
                x:Name="QrCodeImage"
                Width="300" Margin="0,0,10,0"
                d:Source="https://i1.hdslb.com/bfs/face/d14fb85fd5f92761700ff9971a3d923f180598c1.jpg"
                RenderOptions.BitmapScalingMode="HighQuality"
                RenderOptions.EdgeMode="Aliased" />
-    </Grid>
+      </Grid>
 </local:DisposableContentDialog>

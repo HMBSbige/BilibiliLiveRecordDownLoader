@@ -1,4 +1,5 @@
 using BilibiliApi.Clients;
+using BilibiliApi.Model.Login.QrCode.GetLoginUrl;
 using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Utils;
 using BilibiliLiveRecordDownLoader.Views.Dialogs;
@@ -60,9 +61,9 @@ public class UserSettingsViewModel : ReactiveObject, IRoutableViewModel
 		{
 			LoginStatus = @"正在获取二维码...";
 			LoginStatusForeground = Constants.YellowBrush;
-			var data = await _apiClient.GetLoginUrlDataAsync(token);
+			GetLoginUrlData data = await _apiClient.GetLoginUrlDataAsync(token);
 			LoginStatus = @"请扫描二维码";
-			using var dialog = new QrCodeLoginDialog(data);
+			using QrCodeLoginDialog dialog = new(data);
 			await dialog.SafeShowAsync();
 			if (!string.IsNullOrEmpty(dialog.Cookie))
 			{

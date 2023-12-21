@@ -8,9 +8,9 @@ public class GetLoginUrlMessage
 	public long code { get; set; }
 
 	/// <summary>
-	/// 正常返回 true
+	/// 正常返回 "0"
 	/// </summary>
-	public bool status { get; set; }
+	public string? message { get; set; }
 
 	/// <summary>
 	/// 登录地址信息

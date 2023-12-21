@@ -8,6 +8,7 @@ using ReactiveUI;
 using System.Net.Http;
 using System.Reactive;
 using System.Reactive.Linq;
+using System.Windows;
 
 namespace BilibiliLiveRecordDownLoader.Views.Dialogs;
 
@@ -28,9 +29,9 @@ public partial class QrCodeLoginDialog
 
 		InitializeComponent();
 
-		using var qrGenerator = new QRCodeGenerator();
-		using var qrCodeData = qrGenerator.CreateQrCode(data.url, QRCodeGenerator.ECCLevel.H, true);
-		using var qrCode = new XamlQRCode(qrCodeData);
+		using QRCodeGenerator qrGenerator = new();
+		using QRCodeData qrCodeData = qrGenerator.CreateQrCode(data.url, QRCodeGenerator.ECCLevel.H, true);
+		using XamlQRCode qrCode = new(qrCodeData);
 		QrCodeImage.Source = qrCode.GetGraphic(20);
 
 		_loginInfoMonitor = CreateMonitor();
@@ -41,6 +42,7 @@ public partial class QrCodeLoginDialog
 	private IDisposable CreateMonitor()
 	{
 		return Observable.Interval(TimeSpan.FromSeconds(3))
+			.TakeWhile(x => x < TimeSpan.FromSeconds(180).TotalSeconds)
 			.ObserveOn(RxApp.MainThreadScheduler)
 			.SelectMany(Async)
 			.Subscribe();
@@ -56,7 +58,7 @@ public partial class QrCodeLoginDialog
 	{
 		try
 		{
-			Cookie = await _apiClient.GetLoginInfoAsync(_data.oauthKey!);
+			Cookie = await _apiClient.GetLoginInfoAsync(_data.qrcode_key!);
 			if (!string.IsNullOrEmpty(Cookie))
 			{
 				Dispose();
@@ -64,7 +66,12 @@ public partial class QrCodeLoginDialog
 		}
 		catch (HttpRequestException ex)
 		{
-			_logger.LogDebug(ex.Message);
+			_logger.LogDebug(@"{message}", ex.Message);
+			if (!ex.Message.Contains(@"未扫码"))
+			{
+				MessageTextBlock.Text = ex.Message;
+				QrCodeImage.Visibility = Visibility.Hidden;
+			}
 		}
 		catch (Exception ex)
 		{
@@ -76,5 +83,7 @@ public partial class QrCodeLoginDialog
 	{
 		_loginInfoMonitor.Dispose();
 		base.Dispose();
+
+		GC.SuppressFinalize(this);
 	}
 }

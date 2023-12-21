@@ -1,36 +1,31 @@
-using System.Text.Json;
-
 namespace BilibiliApi.Model.Login.QrCode.GetLoginInfo;
 
 public class GetLoginInfoMessage
 {
+	public GetLoginInfoMessageData? data { get; set; }
+}
+
+public record GetLoginInfoMessageData
+{
+	public string? url { get; set; }
+
+	public string? refresh_token { get; set; }
+
 	/// <summary>
-	/// 正常为 0
-	/// 可能无此字段
+	/// 登录时间
+	/// </summary>
+	public long timestamp { get; set; }
+
+	/// <summary>
+	/// 0：扫码登录成功
+	/// 86038：二维码已失效
+	/// 86090：二维码已扫码未确认
+	/// 86101：未扫码
 	/// </summary>
 	public long code { get; set; }
 
 	/// <summary>
-	/// 正常为 true
-	/// 可能无此字段
-	/// </summary>
-	public bool status { get; set; }
-
-	/// <summary>
-	/// 错误时才有此字段
-	/// 不存在该密钥：Not exist oauthKey~
-	/// 密钥错误：Can't Match oauthKey~
-	/// 未扫描：Can't scan~
-	/// 未确认：Can't confirm~
+	/// 扫码状态信息
 	/// </summary>
 	public string? message { get; set; }
-
-	/// <summary>
-	/// 不存在该密钥：-1
-	/// 密钥错误：-2
-	/// 未扫描：-4
-	/// 未确认：-5
-	/// 正常时："data":{"url":"https://..."}
-	/// </summary>
-	public JsonElement? data { get; set; }
 }

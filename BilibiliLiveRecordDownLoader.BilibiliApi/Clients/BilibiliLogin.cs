@@ -39,14 +39,14 @@ public partial class BilibiliApiClient
 
 	public async Task<GetLoginUrlMessage?> GetLoginUrlAsync(CancellationToken token = default)
 	{
-		const string url = @"https://passport.bilibili.com/qrcode/getLoginUrl";
+		const string url = @"https://passport.bilibili.com/x/passport-login/web/qrcode/generate";
 		return await GetJsonAsync<GetLoginUrlMessage>(url, token);
 	}
 
 	public async Task<GetLoginUrlData> GetLoginUrlDataAsync(CancellationToken token = default)
 	{
-		var message = await GetLoginUrlAsync(token);
-		if (message?.data?.url is null || message.code != 0 || message.data.oauthKey is null)
+		GetLoginUrlMessage? message = await GetLoginUrlAsync(token);
+		if (message?.data?.url is null || message.code != 0 || message.data.qrcode_key is null)
 		{
 			throw new HttpRequestException(@"获取二维码地址失败");
 		}
@@ -57,56 +57,32 @@ public partial class BilibiliApiClient
 	/// 获取登录信息
 	/// </summary>
 	/// <returns>Cookie</returns>
-	public async Task<string> GetLoginInfoAsync(string oauthKey, CancellationToken token = default)
+	public async Task<string> GetLoginInfoAsync(string qrcodeKey, CancellationToken token = default)
 	{
-		const string url = @"https://passport.bilibili.com/qrcode/getLoginInfo";
-		var pair = new Dictionary<string, string>
-		{
-			{@"oauthKey", oauthKey}
-		};
-		var response = await PostAsync(url, pair, false, token);
-		var message = await response.Content.ReadFromJsonAsync<GetLoginInfoMessage>(cancellationToken: token);
-		if (message is null)
+		string url = $@"https://passport.bilibili.com/x/passport-login/web/qrcode/poll?qrcode_key={qrcodeKey}&source=main-fe-header";
+		HttpResponseMessage response = await Client.GetAsync(url, token);
+		GetLoginInfoMessage? message = await response.Content.ReadFromJsonAsync<GetLoginInfoMessage>(cancellationToken: token);
+
+		if (message?.data is null)
 		{
 			throw new HttpRequestException(@"获取登录信息失败");
 		}
 
-		if (!message.status)
+		if (message.data.code is not 0)
 		{
-			if (message.data.HasValue && message.data.Value.ValueKind == JsonValueKind.Number)
+			if (!string.IsNullOrEmpty(message.data.message))
 			{
-				var i = message.data.Value.GetInt64();
-				switch (i)
-				{
-					case -1:
-					{
-						throw new HttpRequestException(@"不存在该密钥");
-					}
-					case -2:
-					{
-						throw new HttpRequestException(@"密钥错误");
-					}
-					case -4:
-					{
-						throw new HttpRequestException(@"尚未扫描");
-					}
-					case -5:
-					{
-						throw new HttpRequestException(@"已扫描，尚未确认");
-					}
-				}
+				throw new HttpRequestException(message.data.message);
 			}
 
-			if (message.message is not null and not @"")
-			{
-				throw new HttpRequestException(message.message);
-			}
+			throw new HttpRequestException($@"未知扫码状态：{message.data.code}");
 		}
 
-		if (!response.Headers.TryGetValues(@"Set-Cookie", out var values))
+		if (!response.Headers.TryGetValues(@"Set-Cookie", out IEnumerable<string>? values))
 		{
 			throw new HttpRequestException(@"无法获取 Cookie");
 		}
+
 		return values.ToCookie();
 	}
 
@@ -170,11 +146,7 @@ public partial class BilibiliApiClient
 		};
 		using var body = await GetBodyAsync(pair, true);
 		var para = await body.ReadAsStringAsync(token);
-		var message = await GetJsonAsync<TokenInfoMessage>(PassportBaseAddress + @"api/v3/oauth2/info?" + para, token);
-		if (message is null)
-		{
-			throw new HttpRequestException(@"获取 Token 信息失败");
-		}
+		var message = await GetJsonAsync<TokenInfoMessage>(PassportBaseAddress + @"api/v3/oauth2/info?" + para, token) ?? throw new HttpRequestException(@"获取 Token 信息失败");
 		return message;
 	}
 
@@ -201,11 +173,7 @@ public partial class BilibiliApiClient
 			{@"refresh_token", refreshToken}
 		};
 		var response = await PostAsync(url, pair, true, token);
-		var message = await response.Content.ReadFromJsonAsync<AppLoginMessage>(cancellationToken: token);
-		if (message is null)
-		{
-			throw new HttpRequestException(@"刷新 Token 失败");
-		}
+		var message = await response.Content.ReadFromJsonAsync<AppLoginMessage>(cancellationToken: token) ?? throw new HttpRequestException(@"刷新 Token 失败");
 		return message;
 	}
 

@@ -11,5 +11,5 @@ public class GetLoginUrlData
 	/// 扫码登录密钥
 	/// 应为 32 字符
 	/// </summary>
-	public string? oauthKey { get; set; }
+	public string? qrcode_key { get; set; }
 }

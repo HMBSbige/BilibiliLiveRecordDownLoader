@@ -75,14 +75,14 @@ public class BilibiliApiTest
 		GetLoginUrlMessage? json = await _apiClient.GetLoginUrlAsync();
 		Assert.IsNotNull(json);
 		Assert.AreEqual(json.code, 0);
-		Assert.AreEqual(json.status, true);
+		Assert.AreEqual(json.message, @"0");
 		Assert.IsNotNull(json.data);
 
 		Assert.IsNotNull(json.data.url);
 		Assert.IsTrue(json.data.url.StartsWith(@"https://"));
 
-		Assert.IsNotNull(json.data.oauthKey);
-		Assert.AreEqual(json.data.oauthKey.Length, 32);
+		Assert.IsNotNull(json.data.qrcode_key);
+		Assert.AreEqual(json.data.qrcode_key.Length, 32);
 	}
 
 	[TestMethod]
