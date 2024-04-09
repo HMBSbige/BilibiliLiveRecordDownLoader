@@ -100,7 +100,7 @@ public partial class BilibiliApiClient
 
 		string baseUrl = info.Codec.BaseUrl!;
 
-		if (info.Protocol is @"http_hls")
+		if (info.Format is @"fmp4")
 		{
 			baseUrl = baseUrl.Replace(@"_bluray", string.Empty);
 		}
