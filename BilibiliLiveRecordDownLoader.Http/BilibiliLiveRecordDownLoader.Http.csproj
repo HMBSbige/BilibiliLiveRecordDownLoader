@@ -4,7 +4,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.1" />
-    <PackageReference Include="Punchclock" Version="3.4.3" />
+    <PackageReference Include="Punchclock" Version="3.4.143" />
     <PackageReference Include="System.IO.Pipelines" Version="8.0.0" />
   </ItemGroup>
 
