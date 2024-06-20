@@ -178,9 +178,10 @@ public class MainService : ServiceBase
 					{
 						JsonElement data = root.GetProperty(@"data");
 						string? userName = data.GetProperty(@"uname").GetString();
+						ulong uid = data.GetProperty(@"uid").GetUInt64();
 						InteractiveType type = (InteractiveType)data.GetProperty(@"msg_type").GetInt32();
 
-						Logger.LogInformation(@"{user}{action}了直播间", userName, type);
+						Logger.LogInformation(@"{user}({uid}){action}了直播间", userName, uid, type);
 						break;
 					}
 					case @"ENTRY_EFFECT":
