@@ -100,11 +100,6 @@ public partial class BilibiliApiClient
 
 		string baseUrl = info.Codec.BaseUrl!;
 
-		if (info.Format is @"fmp4")
-		{
-			baseUrl = baseUrl.Replace(@"_bluray", string.Empty);
-		}
-
 		for (long i = 0; i < result.LongLength; ++i)
 		{
 			result[i] = new Uri(uriInfo[i].Host + baseUrl + uriInfo[i].Extra);
