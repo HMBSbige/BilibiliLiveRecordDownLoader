@@ -49,7 +49,7 @@ public partial class BilibiliApiClient
 
 		RoomPlayInfoStream[] playInfo = message.Data.PlayUrlInfo?.PlayUrl?.StreamInfo ?? throw new HttpRequestException(@"获取直播地址失败: 无法找到直播流");
 
-		List<StreamUriInfo> list = new();
+		List<StreamUriInfo> list = [];
 
 		foreach (RoomPlayInfoStream streamInfo in playInfo)
 		{

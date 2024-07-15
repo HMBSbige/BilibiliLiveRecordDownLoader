@@ -30,7 +30,7 @@ public partial class QrCodeLoginDialog
 		InitializeComponent();
 
 		using QRCodeGenerator qrGenerator = new();
-		using QRCodeData qrCodeData = qrGenerator.CreateQrCode(data.url, QRCodeGenerator.ECCLevel.H, true);
+		using QRCodeData qrCodeData = qrGenerator.CreateQrCode(data.url ?? string.Empty, QRCodeGenerator.ECCLevel.H, true);
 		using XamlQRCode qrCode = new(qrCodeData);
 		QrCodeImage.Source = qrCode.GetGraphic(20);
 
