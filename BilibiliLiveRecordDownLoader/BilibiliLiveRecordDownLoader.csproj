@@ -17,7 +17,7 @@
 
   <ItemGroup>
     <PackageReference Include="FluentWPF" Version="0.10.2" />
-    <PackageReference Include="Hardcodet.NotifyIcon.Wpf" Version="2.0.0" />
+    <PackageReference Include="Hardcodet.NotifyIcon.Wpf" Version="2.0.1" />
     <PackageReference Include="HMBSbige.SingleInstance" Version="6.0.1" />
     <PackageReference Include="HMBSbige.UpdateChecker" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
