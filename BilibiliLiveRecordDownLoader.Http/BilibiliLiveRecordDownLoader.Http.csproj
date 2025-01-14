@@ -3,9 +3,9 @@
   <Import Project="..\common.props" />
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.1" />
     <PackageReference Include="Punchclock" Version="3.4.143" />
-    <PackageReference Include="System.IO.Pipelines" Version="9.0.0" />
+    <PackageReference Include="System.IO.Pipelines" Version="9.0.1" />
   </ItemGroup>
 
   <ItemGroup>
