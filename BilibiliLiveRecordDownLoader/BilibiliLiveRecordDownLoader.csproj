@@ -22,7 +22,7 @@
     <PackageReference Include="HMBSbige.UpdateChecker" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.1" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.1" />
-    <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.106" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Windows.CsWin32" Version="0.3.162" PrivateAssets="all" />
     <PackageReference Include="ModernWpfUI" Version="0.9.6" />
     <PackageReference Include="Punchclock" Version="3.4.143" />
     <PackageReference Include="QRCoder" Version="1.6.0" />
