@@ -35,7 +35,7 @@
     <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.1" />
     <PackageReference Include="Serilog.Sinks.Async" Version="2.1.0" />
     <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" Condition=" '$(Configuration)' == 'Debug' " />
-    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageReference Include="Splat.Microsoft.Extensions.DependencyInjection" Version="15.3.1" />
     <PackageReference Include="WPFMaskedTextBox" Version="5.0.1" />
   </ItemGroup>
