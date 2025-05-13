@@ -13,8 +13,8 @@
   <ItemGroup>
     <PackageReference Include="CryptoBase" Version="1.7.2" />
     <PackageReference Include="DynamicData" Version="9.2.2" />
-    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="9.0.4" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.4" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="9.0.5" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.5" />
     <PackageReference Include="Pipelines.Extensions" Version="1.0.2" />
   </ItemGroup>
 
