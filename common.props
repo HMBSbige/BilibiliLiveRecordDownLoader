@@ -1,11 +1,11 @@
 <Project>
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <Authors>HMBSbige</Authors>
-    <Copyright>Copyright © 2020 - 2023 HMBSbige</Copyright>
+    <Copyright>Copyright © HMBSbige</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/HMBSbige/BilibiliLiveRecordDownLoader</PackageProjectUrl>
     <RepositoryUrl>https://github.com/HMBSbige/BilibiliLiveRecordDownLoader</RepositoryUrl>

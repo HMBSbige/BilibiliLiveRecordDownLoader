@@ -28,7 +28,9 @@ public class DisposableContentDialog : ContentDialog, IDisposable
 			ContentDialogResult res = defaultResult;
 			try
 			{
+#pragma warning disable VSTHRD001
 				await Dispatcher.Invoke(async () =>
+#pragma warning restore VSTHRD001
 				{
 					Owner.Focus();
 					res = await ShowAsync();
