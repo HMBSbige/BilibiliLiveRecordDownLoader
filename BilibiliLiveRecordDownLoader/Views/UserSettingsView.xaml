@@ -23,8 +23,9 @@
                         <TextBox x:Name="CookieTextBox"
                                  ui:ControlHelper.Header="Cookie"
                                  VerticalContentAlignment="Top"
-                                 TextWrapping="WrapWithOverflow"
-                                 Height="100" />
+                                 TextWrapping="Wrap"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 Height="150" />
                         <ui:ToggleSwitch x:Name="ProxySwitch"
                                          Header="代理"
                                          IsOn="True"
@@ -34,11 +35,11 @@
                 <GroupBox Header="登录">
                     <ui:SimpleStackPanel Spacing="10">
                         <Button x:Name="GetQrCodeButton"
-                                Content="扫描二维码登录"/>
+                                Content="扫描二维码登录" />
                         <Button x:Name="CheckLoginButton"
                                 Content="验证登录" />
                         <TextBlock x:Name="LoginStatusTextBlock"
-                                   d:Text="未登录" d:Foreground="Red"/>
+                                   d:Text="未登录" d:Foreground="Red" />
                     </ui:SimpleStackPanel>
                 </GroupBox>
             </ui:SimpleStackPanel>
