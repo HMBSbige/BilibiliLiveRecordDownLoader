@@ -8,7 +8,7 @@
     xmlns:reactiveUi="http://reactiveui.net"
     xmlns:viewModels="clr-namespace:BilibiliLiveRecordDownLoader.ViewModels"
     xmlns:ui="http://schemas.modernwpf.com/2019"
-    xmlns:constants="clr-namespace:BilibiliLiveRecordDownLoader.Shared.Utils;assembly=BilibiliLiveRecordDownLoader.Shared"
+    xmlns:models="clr-namespace:BilibiliLiveRecordDownLoader.Models"
     mc:Ignorable="d"
     d:DesignHeight="600" d:DesignWidth="800"
     d:Background="{DynamicResource SystemControlPageBackgroundAltHighBrush}">
@@ -19,7 +19,7 @@
                     <ui:SimpleStackPanel Spacing="10">
                         <TextBox x:Name="UserAgentTextBox"
                                  ui:ControlHelper.Header="User Agent"
-                                 ui:ControlHelper.PlaceholderText="{x:Static constants:UserAgents.Chrome}" />
+                                 ui:ControlHelper.PlaceholderText="{x:Static models:Config.DefaultUserAgent}" />
                         <TextBox x:Name="CookieTextBox"
                                  ui:ControlHelper.Header="Cookie"
                                  VerticalContentAlignment="Top"

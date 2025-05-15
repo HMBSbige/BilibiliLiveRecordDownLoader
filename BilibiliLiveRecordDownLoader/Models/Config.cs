@@ -19,7 +19,7 @@ public class Config : ReactiveObject
 	public const bool DefaultIsCheckUpdateOnStart = true;
 	public const double DefaultMainWindowsWidth = 1280.0;
 	public const double DefaultMainWindowsHeight = 720.0;
-	public const string DefaultUserAgent = @"";
+	public static string DefaultUserAgent => $@"Mozilla/5.0 {nameof(BilibiliLiveRecordDownLoader)}/{Utils.Utils.GetAppVersion()}";
 	public const string DefaultCookie = @"";
 	public const bool DefaultIsAutoConvertMp4 = false;
 	public const bool DefaultIsUseProxy = false;
@@ -53,10 +53,10 @@ public class Config : ReactiveObject
 	[Reactive]
 	public double MainWindowsHeight { get; set; } = DefaultMainWindowsHeight;
 
-	[DefaultValue(DefaultUserAgent)]
+	[DefaultValue(@"")]
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 	[Reactive]
-	public string UserAgent { get; set; } = DefaultUserAgent;
+	public string UserAgent { get; set; } = string.Empty;
 
 	[DefaultValue(DefaultCookie)]
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

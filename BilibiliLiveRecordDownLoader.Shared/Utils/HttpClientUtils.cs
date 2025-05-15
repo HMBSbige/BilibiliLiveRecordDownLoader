@@ -9,7 +9,7 @@ public static class HttpClientUtils
 	{
 		if (string.IsNullOrEmpty(userAgent))
 		{
-			userAgent = UserAgents.Chrome;
+			userAgent = @"Mozilla/5.0";
 		}
 
 		HttpClient client = new(handler, false);
@@ -50,7 +50,7 @@ public static class HttpClientUtils
 	{
 		if (string.IsNullOrEmpty(userAgent))
 		{
-			userAgent = UserAgents.Chrome;
+			userAgent = @"Mozilla/5.0";
 		}
 
 		var client = new HttpClient(handler, false);
