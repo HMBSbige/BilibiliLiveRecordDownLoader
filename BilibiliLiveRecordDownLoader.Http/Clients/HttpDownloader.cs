@@ -5,18 +5,13 @@ using System.Buffers;
 
 namespace BilibiliLiveRecordDownLoader.Http.Clients;
 
-public class HttpDownloader : ProgressBase, IDownloader, IHttpClient
+public class HttpDownloader(HttpClient client) : ProgressBase, IDownloader, IHttpClient
 {
 	public Uri? Target { get; set; }
 
 	public string? OutFileName { get; set; }
 
-	public HttpClient Client { get; set; }
-
-	public HttpDownloader(HttpClient client)
-	{
-		Client = client;
-	}
+	public HttpClient Client { get; set; } = client;
 
 	public async ValueTask DownloadAsync(CancellationToken cancellationToken = default)
 	{
@@ -38,6 +33,7 @@ public class HttpDownloader : ProgressBase, IDownloader, IHttpClient
 		static void EnsureDirectory(string path)
 		{
 			string? dir = Path.GetDirectoryName(path);
+
 			if (dir is null)
 			{
 				return;
@@ -51,9 +47,11 @@ public class HttpDownloader : ProgressBase, IDownloader, IHttpClient
 	{
 		const int bufferSize = 81920;
 		using IMemoryOwner<byte> memory = MemoryPool<byte>.Shared.Rent(bufferSize);
+
 		while (true)
 		{
 			int length = await from.ReadAsync(memory.Memory, cancellationToken);
+
 			if (length is not 0)
 			{
 				await to.WriteAsync(memory.Memory[..length], cancellationToken);

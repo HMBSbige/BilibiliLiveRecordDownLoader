@@ -1,4 +1,7 @@
 using BilibiliApi.Clients;
+using BilibiliApi.Model.Login.Password.GetKey;
+using BilibiliApi.Model.Login.Password.GetTokenInfo;
+using BilibiliApi.Model.Login.Password.OAuth2;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using static ApiTest.TestConstants;
@@ -9,12 +12,12 @@ namespace ApiTest;
 [TestClass]
 public class BilibiliLoginTest
 {
-	private readonly BilibiliApiClient _apiClient = new(HttpClientUtils.BuildClientForBilibili(UserAgents.BilibiliManga, Cookie, new SocketsHttpHandler()));
+	private readonly BilibiliApiClient _apiClient = new(HttpClientUtils.BuildClientForBilibili(string.Empty, Cookie, new SocketsHttpHandler()));
 
 	[TestMethod]
 	public async Task GetHashTestAsync()
 	{
-		var data = await _apiClient.GetKeyAsync();
+		GetKeyData data = await _apiClient.GetKeyAsync();
 		Console.WriteLine(data.hash);
 		Console.WriteLine(data.key);
 		Assert.AreEqual(data.hash.Length, 16);
@@ -25,7 +28,7 @@ public class BilibiliLoginTest
 	[TestMethod]
 	public async Task LoginTestAsync()
 	{
-		var message = await _apiClient.LoginAsync(Username, Password);
+		AppLoginMessage message = await _apiClient.LoginAsync(Username, Password);
 		Console.WriteLine(message.data.token_info.access_token);
 		Console.WriteLine(message.data.token_info.refresh_token);
 
@@ -39,9 +42,9 @@ public class BilibiliLoginTest
 		Console.WriteLine(TimeSpan.FromSeconds(message.data.token_info.expires_in));
 
 		//cookie_info
-		var cookies = message.data.cookie_info.cookies;
+		BilibiliCookie[]? cookies = message.data.cookie_info.cookies;
 		Assert.IsTrue(cookies.Length > 0);
-		var names = cookies.Select(x => x.name).ToHashSet();
+		HashSet<string?> names = cookies.Select(x => x.name).ToHashSet();
 		Assert.IsTrue(names.Contains(@"bili_jct"));
 		Assert.IsTrue(names.Contains(@"DedeUserID"));
 		Assert.IsTrue(names.Contains(@"DedeUserID__ckMd5"));
@@ -52,7 +55,7 @@ public class BilibiliLoginTest
 	[TestMethod]
 	public async Task GetTokenInfoTestAsync()
 	{
-		var message = await _apiClient.GetTokenInfoAsync(AccessToken);
+		TokenInfoMessage message = await _apiClient.GetTokenInfoAsync(AccessToken);
 
 		Assert.AreEqual(0, message.code);
 		Console.WriteLine(Timestamp.GetTime(message.ts).ToLocalTime().ToString(@"yyyyMMdd_HHmmss"));
@@ -73,7 +76,7 @@ public class BilibiliLoginTest
 	[TestMethod]
 	public async Task RefreshTokenTestAsync()
 	{
-		var message = await _apiClient.RefreshTokenAsync(AccessToken, RefreshToken);
+		AppLoginMessage message = await _apiClient.RefreshTokenAsync(AccessToken, RefreshToken);
 		Console.WriteLine(message.data.token_info.access_token);
 		Console.WriteLine(message.data.token_info.refresh_token);
 
@@ -87,9 +90,9 @@ public class BilibiliLoginTest
 		Console.WriteLine(TimeSpan.FromSeconds(message.data.token_info.expires_in));
 
 		//cookie_info
-		var cookies = message.data.cookie_info.cookies;
+		BilibiliCookie[]? cookies = message.data.cookie_info.cookies;
 		Assert.IsTrue(cookies.Length > 0);
-		var names = cookies.Select(x => x.name).ToHashSet();
+		HashSet<string?> names = cookies.Select(x => x.name).ToHashSet();
 		Assert.IsTrue(names.Contains(@"bili_jct"));
 		Assert.IsTrue(names.Contains(@"DedeUserID"));
 		Assert.IsTrue(names.Contains(@"DedeUserID__ckMd5"));

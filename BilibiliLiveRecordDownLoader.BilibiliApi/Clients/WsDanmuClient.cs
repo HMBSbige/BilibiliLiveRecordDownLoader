@@ -4,12 +4,12 @@ using Microsoft.Extensions.Logging;
 
 namespace BilibiliApi.Clients;
 
-public class WsDanmuClient : WssDanmuClient
+public class WsDanmuClient(ILogger<WsDanmuClient> logger, BilibiliApiClient apiClient, IDistributedCache cacheService)
+	: WssDanmuClient(logger, apiClient, cacheService)
 {
 	protected override string Server => $@"ws://{Host}:{Port}/sub";
-	protected override ushort DefaultPort => 2244;
 
-	public WsDanmuClient(ILogger<WsDanmuClient> logger, BilibiliApiClient apiClient, IDistributedCache cacheService) : base(logger, apiClient, cacheService) { }
+	protected override ushort DefaultPort => 2244;
 
 	protected override ushort GetPort(HostServerList server)
 	{

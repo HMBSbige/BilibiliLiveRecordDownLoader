@@ -9,6 +9,7 @@ namespace BilibiliLiveRecordDownLoader.FFmpeg;
 public sealed class FFmpegStdInCommand : IDisposable
 {
 	private const string DefaultFFmpegPath = @"ffmpeg";
+
 	public string FFmpegPath { get; init; } = DefaultFFmpegPath;
 
 	private Process? _process;
@@ -26,6 +27,7 @@ public sealed class FFmpegStdInCommand : IDisposable
 			cancellationToken.ThrowIfCancellationRequested();
 
 			string? processOutput = await reader.ReadLineAsync(cancellationToken);
+
 			if (processOutput is null)
 			{
 				break;
@@ -63,6 +65,7 @@ public sealed class FFmpegStdInCommand : IDisposable
 		{
 			throw new FileLoadException(@"进程已在运行或未释放");
 		}
+
 		if (!await VerifyAsync(cancellationToken))
 		{
 			throw new FileNotFoundException(@"未找到 FFmpeg", FFmpegPath);
@@ -124,6 +127,7 @@ public sealed class FFmpegStdInCommand : IDisposable
 		try
 		{
 			_job.Dispose();
+
 			if (!_process.HasExited)
 			{
 				_process.Kill();

@@ -12,11 +12,11 @@ public static class Rsa
 
 		if (pemContents.StartsWith(header))
 		{
-			var endIdx = pemContents.IndexOf(footer, header.Length, StringComparison.Ordinal);
-			var base64 = new string(pemContents.AsSpan(header.Length, endIdx - header.Length));
+			int endIdx = pemContents.IndexOf(footer, header.Length, StringComparison.Ordinal);
+			string base64 = new(pemContents.AsSpan(header.Length, endIdx - header.Length));
 
-			var der = Convert.FromBase64String(base64);
-			var rsa = RSA.Create();
+			byte[] der = Convert.FromBase64String(base64);
+			RSA rsa = RSA.Create();
 			rsa.ImportSubjectPublicKeyInfo(der, out _);
 			return rsa;
 		}
@@ -30,8 +30,8 @@ public static class Rsa
 
 	public static string Encrypt(string publicKey, string str)
 	{
-		using var rsa = ReadKey(publicKey);
-		var cipherBytes = rsa.Encrypt(Encoding.UTF8.GetBytes(str), RSAEncryptionPadding.Pkcs1);
+		using RSA rsa = ReadKey(publicKey);
+		byte[] cipherBytes = rsa.Encrypt(Encoding.UTF8.GetBytes(str), RSAEncryptionPadding.Pkcs1);
 		return Convert.ToBase64String(cipherBytes);
 	}
 }

@@ -39,7 +39,7 @@ public class BilibiliApiTest
 		(Uri[] hlsUris, string format) = await _apiClient.GetRoomStreamUriAsync(6);
 
 		Assert.AreNotEqual(0, hlsUris.Length);
-		Assert.AreNotEqual(@"fmp4", format);
+		Assert.AreEqual(@"fmp4", format);
 
 		foreach (Uri hlsUri in hlsUris)
 		{

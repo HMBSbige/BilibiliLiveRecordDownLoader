@@ -16,6 +16,7 @@ public sealed class FFmpegCommand : IDisposable
 	public string FFmpegPath { get; init; } = DefaultFFmpegPath;
 
 	private readonly Subject<string> _messageUpdated = new();
+
 	public IObservable<string> MessageUpdated => _messageUpdated.AsObservable();
 
 	private static Process CreateProcess(string path, string args)
@@ -38,11 +39,13 @@ public sealed class FFmpegCommand : IDisposable
 	private async Task ReadOutputAsync(TextReader reader, CancellationToken cancellationToken = default)
 	{
 		string? lastMessage = null;
+
 		while (true)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
 			string? processOutput = await reader.ReadLineAsync(cancellationToken);
+
 			if (processOutput is null)
 			{
 				break;
@@ -51,6 +54,7 @@ public sealed class FFmpegCommand : IDisposable
 			lastMessage = processOutput;
 			_messageUpdated.OnNext(lastMessage);
 		}
+
 		_messageUpdated.OnNext($@"[已完成]{lastMessage}");
 	}
 
@@ -66,10 +70,12 @@ public sealed class FFmpegCommand : IDisposable
 			await process.WaitForExitAsync(cancellationToken);
 
 			const string versionString = @"ffmpeg version";
+
 			if (!output.StartsWith(versionString))
 			{
 				return null;
 			}
+
 			string[] ss = output.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 			return ss.Length < 3 ? @"Unknown" : ss[2];
 		}
@@ -105,10 +111,12 @@ public sealed class FFmpegCommand : IDisposable
 			{
 				throw new FileLoadException(@"进程已在运行或未释放");
 			}
+
 			if (!await VerifyAsync(cancellationToken))
 			{
 				throw new FileNotFoundException(@"未找到 FFmpeg", FFmpegPath);
 			}
+
 			_process = CreateProcess(FFmpegPath, args);
 			_process.StartInfo.RedirectStandardOutput = true;
 			_process.StartInfo.RedirectStandardError = true;

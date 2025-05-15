@@ -1,26 +1,21 @@
 namespace BilibiliLiveRecordDownLoader.Shared.HttpPolicy;
 
-public class RetryHandler : DelegatingHandler
+public class RetryHandler(HttpMessageHandler innerHandler, uint maxRetries) : DelegatingHandler(innerHandler)
 {
-	private readonly uint _maxRetries;
-
-	public RetryHandler(HttpMessageHandler innerHandler, uint maxRetries) : base(innerHandler)
-	{
-		_maxRetries = maxRetries;
-	}
-
 	protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 	{
 		HttpResponseMessage response;
-		var i = 0;
+		int i = 0;
+
 		do
 		{
 			response = await base.SendAsync(request, cancellationToken);
+
 			if (response.IsSuccessStatusCode)
 			{
 				return response;
 			}
-		} while (++i < _maxRetries);
+		} while (++i < maxRetries);
 
 		return response;
 	}

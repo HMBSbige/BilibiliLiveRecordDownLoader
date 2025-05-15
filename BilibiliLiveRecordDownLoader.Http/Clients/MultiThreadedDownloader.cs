@@ -13,9 +13,9 @@ using System.Reactive.Threading.Tasks;
 
 namespace BilibiliLiveRecordDownLoader.Http.Clients;
 
-public class MultiThreadedDownloader : ProgressBase, IDownloader, IHttpClient
+public class MultiThreadedDownloader(ILogger<MultiThreadedDownloader> logger, HttpClient client) : ProgressBase, IDownloader, IHttpClient
 {
-	private readonly ILogger _logger;
+	private readonly ILogger _logger = logger;
 
 	public Uri? Target { get; set; }
 
@@ -31,13 +31,7 @@ public class MultiThreadedDownloader : ProgressBase, IDownloader, IHttpClient
 	/// </summary>
 	public string TempDir { get; set; } = Path.GetTempPath();
 
-	public HttpClient Client { get; set; }
-
-	public MultiThreadedDownloader(ILogger<MultiThreadedDownloader> logger, HttpClient client)
-	{
-		_logger = logger;
-		Client = client;
-	}
+	public HttpClient Client { get; set; } = client;
 
 	/// <summary>
 	/// 获取 Target 的文件大小
@@ -48,9 +42,10 @@ public class MultiThreadedDownloader : ProgressBase, IDownloader, IHttpClient
 	{
 		token.ThrowIfCancellationRequested();
 
-		var result = await Client.GetAsync(Target, HttpCompletionOption.ResponseHeadersRead, token);
+		HttpResponseMessage result = await Client.GetAsync(Target, HttpCompletionOption.ResponseHeadersRead, token);
 
-		var length = result.Content.Headers.ContentLength;
+		long? length = result.Content.Headers.ContentLength;
+
 		if (length is not null)
 		{
 			return length.Value;
@@ -65,17 +60,18 @@ public class MultiThreadedDownloader : ProgressBase, IDownloader, IHttpClient
 	public async ValueTask DownloadAsync(CancellationToken cancellationToken)
 	{
 		StatusSubject.OnNext(@"正在获取下载文件大小...");
-		FileSize = await GetContentLengthAsync(cancellationToken); //总大小
+		FileSize = await GetContentLengthAsync(cancellationToken);//总大小
 
 		TempDir = EnsureDirectory(TempDir);
-		var list = GetFileRangeList();
+		List<FileRange> list = GetFileRangeList();
 
-		var opQueue = new OperationQueue(1);
+		OperationQueue opQueue = new(1);
 		Current = 0;
 		Last = 0;
+
 		try
 		{
-			using var speedMonitor = CreateSpeedMonitor();
+			using IDisposable speedMonitor = CreateSpeedMonitor();
 
 			StatusSubject.OnNext(@"正在下载...");
 			await list.Select(info =>
@@ -105,12 +101,13 @@ public class MultiThreadedDownloader : ProgressBase, IDownloader, IHttpClient
 			opQueue.Dispose();
 
 			Task.Run(async () =>
-			{
-				foreach (var range in list)
 				{
-					await DeleteFileWithRetryAsync(range.FileName);
-				}
-			}, CancellationToken.None).Forget();
+					foreach (FileRange range in list)
+					{
+						await DeleteFileWithRetryAsync(range.FileName);
+					}
+				},
+				CancellationToken.None).Forget();
 		}
 	}
 
@@ -122,10 +119,12 @@ public class MultiThreadedDownloader : ProgressBase, IDownloader, IHttpClient
 			{
 				return Directory.GetCurrentDirectory();
 			}
+
 			if (!Directory.Exists(path))
 			{
 				Directory.CreateDirectory(path);
 			}
+
 			return path;
 		}
 		catch
@@ -141,21 +140,21 @@ public class MultiThreadedDownloader : ProgressBase, IDownloader, IHttpClient
 
 	private List<FileRange> GetFileRangeList()
 	{
-		var list = new List<FileRange>();
+		List<FileRange> list = new();
 
-		var parts = Threads; //线程数
-		var partSize = FileSize / parts; //每块大小
+		ushort parts = Threads;//线程数
+		long partSize = FileSize / parts;//每块大小
 
 		_logger.LogDebug($@"总大小：{FileSize} ({Target})");
 		_logger.LogDebug($@"每块大小：{partSize} ({Target})");
 
-		for (var i = 1; i < parts; ++i)
+		for (int i = 1; i < parts; ++i)
 		{
-			var range = new RangeHeaderValue((i - 1) * partSize, i * partSize - 1);
+			RangeHeaderValue range = new((i - 1) * partSize, i * partSize - 1);
 			list.Add(new FileRange(range, GetTempFileName()));
 		}
 
-		var last = new RangeHeaderValue((parts - 1) * partSize, FileSize);
+		RangeHeaderValue last = new((parts - 1) * partSize, FileSize);
 		list.Add(new FileRange(last, GetTempFileName()));
 
 		return list;
@@ -165,13 +164,13 @@ public class MultiThreadedDownloader : ProgressBase, IDownloader, IHttpClient
 	{
 		token.ThrowIfCancellationRequested();
 
-		var request = new HttpRequestMessage { RequestUri = Target };
+		HttpRequestMessage request = new() { RequestUri = Target };
 		request.Headers.ConnectionClose = false;
 		request.Headers.Range = info.Range;
 
-		var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+		HttpResponseMessage response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
 
-		var stream = await response.Content.ReadAsStreamAsync(token);
+		Stream stream = await response.Content.ReadAsStreamAsync(token);
 
 		return (stream, info.FileName);
 	}
@@ -180,7 +179,7 @@ public class MultiThreadedDownloader : ProgressBase, IDownloader, IHttpClient
 	{
 		token.ThrowIfCancellationRequested();
 
-		await using var fs = File.Create(tempFileName);
+		await using FileStream fs = File.Create(tempFileName);
 		await CopyStreamWithProgressAsync(stream, fs, true, token);
 		return Unit.Default;
 	}
@@ -189,19 +188,21 @@ public class MultiThreadedDownloader : ProgressBase, IDownloader, IHttpClient
 	{
 		token.ThrowIfCancellationRequested();
 
-		var dir = Path.GetDirectoryName(OutFileName);
+		string? dir = Path.GetDirectoryName(OutFileName);
 		dir = EnsureDirectory(dir);
-		var path = Path.Combine(dir, Path.GetFileName(OutFileName) ?? Path.GetRandomFileName());
+		string path = Path.Combine(dir, Path.GetFileName(OutFileName) ?? Path.GetRandomFileName());
 
-		await using var outFileStream = File.Create(path);
+		await using FileStream outFileStream = File.Create(path);
+
 		try
 		{
-			foreach (var file in files)
+			foreach (FileRange file in files)
 			{
-				await using (var inputFileStream = File.OpenRead(file.FileName))
+				await using (FileStream inputFileStream = File.OpenRead(file.FileName))
 				{
 					await CopyStreamWithProgressAsync(inputFileStream, outFileStream, false, token);
 				}
+
 				await DeleteFileWithRetryAsync(file.FileName);
 			}
 		}
@@ -218,7 +219,9 @@ public class MultiThreadedDownloader : ProgressBase, IDownloader, IHttpClient
 		{
 			return;
 		}
-		var i = 0;
+
+		int i = 0;
+
 		while (true)
 		{
 			try
@@ -235,16 +238,19 @@ public class MultiThreadedDownloader : ProgressBase, IDownloader, IHttpClient
 			{
 				_logger.LogError(ex, $@"删除 {filename} 出错");
 			}
+
 			break;
 		}
 	}
 
 	private async ValueTask CopyStreamWithProgressAsync(Stream from, Stream to, bool reportSpeed, CancellationToken token, int bufferSize = 81920)
 	{
-		using var memory = MemoryPool<byte>.Shared.Rent(bufferSize);
+		using IMemoryOwner<byte> memory = MemoryPool<byte>.Shared.Rent(bufferSize);
+
 		while (true)
 		{
-			var length = await from.ReadAsync(memory.Memory, token);
+			int length = await from.ReadAsync(memory.Memory, token);
+
 			if (length != 0)
 			{
 				await to.WriteAsync(memory.Memory[..length], token);
@@ -263,6 +269,7 @@ public class MultiThreadedDownloader : ProgressBase, IDownloader, IHttpClient
 		{
 			Interlocked.Add(ref Last, length);
 		}
+
 		Interlocked.Add(ref Current, length);
 	}
 }

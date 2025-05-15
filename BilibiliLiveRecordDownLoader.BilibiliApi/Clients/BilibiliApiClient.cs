@@ -10,14 +10,9 @@ using System.Text;
 
 namespace BilibiliApi.Clients;
 
-public partial class BilibiliApiClient : IHttpClient
+public partial class BilibiliApiClient(HttpClient client) : IHttpClient
 {
-	public HttpClient Client { get; set; }
-
-	public BilibiliApiClient(HttpClient client)
-	{
-		Client = client;
-	}
+	public HttpClient Client { get; set; } = client;
 
 	private async Task<T?> GetJsonAsync<T>(string url, CancellationToken token)
 	{
@@ -54,6 +49,7 @@ public partial class BilibiliApiClient : IHttpClient
 	private static string Md5String(in string str)
 	{
 		byte[] buffer = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(str.Length));
+
 		try
 		{
 			int length = Encoding.UTF8.GetBytes(str, buffer);

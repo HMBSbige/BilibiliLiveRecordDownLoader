@@ -27,9 +27,7 @@ public partial class BilibiliApiClient
 
 	private record StreamUriInfo(string Protocol, string Format, RoomPlayInfoStreamCodec Codec);
 
-	public async Task<(Uri[], string)> GetRoomStreamUriAsync(long roomId, long qn = 10000,
-		string? codecOrder = default, string? formatOrder = default,
-		CancellationToken cancellationToken = default)
+	public async Task<(Uri[], string)> GetRoomStreamUriAsync(long roomId, long qn = 10000, string? codecOrder = default, string? formatOrder = default, CancellationToken cancellationToken = default)
 	{
 		RoomPlayInfo? message = await GetRoomPlayInfoAsync(roomId, qn, cancellationToken);
 
@@ -39,6 +37,7 @@ public partial class BilibiliApiClient
 			{
 				throw new HttpRequestException($@"获取直播地址失败: {message.Message}");
 			}
+
 			throw new HttpRequestException(@"获取直播地址失败");
 		}
 
@@ -159,6 +158,7 @@ public partial class BilibiliApiClient
 	public async Task<RoomInfoMessage.RoomInfoData> GetRoomInfoDataAsync(long roomId, CancellationToken token = default)
 	{
 		RoomInfoMessage? roomInfo = await GetRoomInfoAsync(roomId, token);
+
 		if (roomInfo?.data is null || roomInfo.code != 0)
 		{
 			if (roomInfo?.message is not null)
@@ -168,9 +168,9 @@ public partial class BilibiliApiClient
 
 			throw new HttpRequestException(@"获取房间信息失败");
 		}
+
 		return roomInfo.data;
 	}
 
 	#endregion
-
 }

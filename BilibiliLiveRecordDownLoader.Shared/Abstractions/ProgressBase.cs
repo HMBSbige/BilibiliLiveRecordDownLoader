@@ -14,9 +14,11 @@ public abstract class ProgressBase : IProgress, IAsyncDisposable
 	public double Progress => Interlocked.Read(ref Current) / (double)FileSize;
 
 	protected readonly BehaviorSubject<double> CurrentSpeedSubject = new(0.0);
+
 	public IObservable<double> CurrentSpeed => CurrentSpeedSubject.AsObservable();
 
 	protected readonly BehaviorSubject<string> StatusSubject = new(string.Empty);
+
 	public IObservable<string> Status => StatusSubject.AsObservable();
 
 	public virtual ValueTask DisposeAsync()

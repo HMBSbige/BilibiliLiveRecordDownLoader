@@ -13,6 +13,7 @@ public static class HttpClientUtils
 		}
 
 		HttpClient client = new(handler, false);
+
 		if (!string.IsNullOrWhiteSpace(cookie))
 		{
 			client.DefaultRequestHeaders.Add(@"Cookie", cookie);
@@ -33,7 +34,9 @@ public static class HttpClientUtils
 		{
 			userAgent = UserAgents.Idm;
 		}
-		var client = new HttpClient(new RetryHandler(handler, 10), false);
+
+		HttpClient client = new(new RetryHandler(handler, 10), false);
+
 		if (!string.IsNullOrWhiteSpace(cookie))
 		{
 			client.DefaultRequestHeaders.Add(@"Cookie", cookie);
@@ -53,7 +56,8 @@ public static class HttpClientUtils
 			userAgent = @"Mozilla/5.0";
 		}
 
-		var client = new HttpClient(handler, false);
+		HttpClient client = new(handler, false);
+
 		if (!string.IsNullOrWhiteSpace(cookie))
 		{
 			client.DefaultRequestHeaders.Add(@"Cookie", cookie);
