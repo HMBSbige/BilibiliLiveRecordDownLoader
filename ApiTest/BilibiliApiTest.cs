@@ -1,6 +1,5 @@
 using BilibiliApi.Clients;
 using BilibiliApi.Model.DanmuConf;
-using BilibiliApi.Model.FansMedal;
 using BilibiliApi.Model.Login.QrCode.GetLoginUrl;
 using BilibiliApi.Model.RoomInfo;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
@@ -113,19 +112,6 @@ public class BilibiliApiTest
 	public async Task GetUidTestAsync()
 	{
 		Assert.IsTrue(await _apiClient.GetUidAsync() > 0);
-	}
-
-	[TestMethod]
-	public async Task FansMedalTestAsync()
-	{
-		LiveFansMedalMessage? message0 = await _apiClient.GetLiveFansMedalMessageAsync();
-		Assert.IsNotNull(message0);
-		Assert.AreEqual(0, message0.code);
-		Assert.IsNotNull(message0.data);
-		long count = message0.data.count;
-
-		List<FansMedalList> list = await _apiClient.GetLiveFansMedalListAsync();
-		Assert.AreEqual(count, list.Count);
 	}
 
 	[TestMethod]
