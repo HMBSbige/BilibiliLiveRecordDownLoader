@@ -2,6 +2,7 @@ using BilibiliApi.Model;
 using BilibiliLiveRecordDownLoader.Shared.Abstractions;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.Extensions.Logging;
+using Microsoft.VisualStudio.Utilities;
 using System.Collections.Concurrent;
 using System.IO.Pipelines;
 
@@ -94,7 +95,7 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 		{
 			try
 			{
-				CircleCollection<string> buffer = new(20);
+				CircularBuffer<string> buffer = new(20);
 				bool isAdded = false;
 
 				using PeriodicTimer timer = new(TimeSpan.FromSeconds(1));
@@ -112,11 +113,14 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 
 					foreach (string segment in m3u8.Segments)
 					{
-						if (buffer.AddIfNotContains(segment))
+						if (buffer.Contains(segment))
 						{
-							queue.Add(segment, token);
-							isAdded = true;
+							continue;
 						}
+
+						buffer.Add(segment);
+						queue.Add(segment, token);
+						isAdded = true;
 					}
 
 					if (m3u8.EndOfList)
