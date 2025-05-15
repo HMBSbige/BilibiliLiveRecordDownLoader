@@ -80,7 +80,7 @@ public class HttpLiveStreamRecorder : ProgressBase, ILiveStreamRecorder
 			}
 			finally
 			{
-				getListCts.Cancel();
+				await getListCts.CancelAsync();
 			}
 
 			await task;

@@ -14,7 +14,7 @@ public class FastestResponseStreamUriSelector : IStreamUriSelector
 			throw new InvalidOperationException(@"HttpClient not set!");
 		}
 
-		Uri? result = await uris.Select(uri => Observable.FromAsync(ct => Test(uri, ct))
+		Uri? result = await uris.Select(uri => Observable.FromAsync(ct => TestAsync(uri, ct))
 				.Catch<Uri?, Exception>(_ => Observable.Return<Uri?>(null))
 				.Where(r => r is not null)
 			)
@@ -24,7 +24,7 @@ public class FastestResponseStreamUriSelector : IStreamUriSelector
 
 		return result ?? throw new HttpRequestException(@"没有可用的直播地址");
 
-		async Task<Uri> Test(Uri uri, CancellationToken ct)
+		async Task<Uri> TestAsync(Uri uri, CancellationToken ct)
 		{
 			await using Stream _ = await Client.GetStreamAsync(uri, ct);
 			return uri;
