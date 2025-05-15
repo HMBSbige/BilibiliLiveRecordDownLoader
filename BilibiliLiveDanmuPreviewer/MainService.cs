@@ -1,4 +1,5 @@
 using BilibiliApi.Enums;
+using BilibiliApi.Model;
 using BilibiliApi.Model.Danmu;
 using System.Buffers;
 using System.Runtime.CompilerServices;
@@ -20,24 +21,23 @@ public class MainService : ServiceBase
 		foreach (long roomId in roomList)
 		{
 			BilibiliApiClient apiClient = ServiceProvider.GetRequiredService<BilibiliApiClient>();
-			RoomInfoMessage.RoomInfoData roomInfo = await apiClient.GetRoomInfoDataAsync(roomId, cancellationToken);
+			LiveRoomInfo roomInfo = await apiClient.GetLiveRoomInfoAsync(roomId, cancellationToken);
 
-			Assumes.NotNull(roomInfo.room_info);
-
-			long realId = roomInfo.room_info.room_id;
+			long realId = roomInfo.RoomId;
 			Assumes.False(realId is 0);
 
 			Task task = Task.Run(async () =>
-			{
-				IDanmuClient client = ServiceProvider.GetRequiredService<IDanmuClient>();
+				{
+					IDanmuClient client = ServiceProvider.GetRequiredService<IDanmuClient>();
 
-				cancellationToken.Register(() => client.Dispose());
+					cancellationToken.Register(() => client.Dispose());
 
-				client.RoomId = realId;
-				client.Received.Subscribe(ParseDanmu);
+					client.RoomId = realId;
+					client.Received.Subscribe(ParseDanmu);
 
-				await client.StartAsync();
-			}, cancellationToken);
+					await client.StartAsync();
+				},
+				cancellationToken);
 			list.Add(task);
 		}
 
@@ -101,6 +101,7 @@ public class MainService : ServiceBase
 				}
 
 				HashSet<string>? ignoreCmd = Configuration.GetSection(@"IgnoreCmd").Get<HashSet<string>>();
+
 				if (ignoreCmd is not null && ignoreCmd.Contains(cmd))
 				{
 					return;
@@ -111,14 +112,17 @@ public class MainService : ServiceBase
 					case @"COMMON_NOTICE_DANMAKU":
 					{
 						DefaultInterpolatedStringHandler handler = new();
+
 						foreach (JsonElement segments in root.GetProperty(@"data").GetProperty(@"content_segments").EnumerateArray())
 						{
 							string? text = segments.GetProperty(@"text").GetString();
+
 							if (text is not null)
 							{
 								handler.AppendLiteral(text);
 							}
 						}
+
 						Logger.LogInformation(@"[{cmd}] {notice}", cmd, handler.ToStringAndClear());
 						break;
 					}
@@ -278,6 +282,7 @@ public class MainService : ServiceBase
 						{
 							Logger.LogInformation(@"收到弹幕 [{operation}]: {body}", packet.Operation, json);
 						}
+
 						break;
 					}
 				}

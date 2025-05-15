@@ -1,7 +1,8 @@
 using BilibiliApi.Enums;
+using BilibiliApi.Model;
 using BilibiliApi.Model.PlayUrl;
-using BilibiliApi.Model.RoomInfo;
 using DynamicData;
+using System.Text.Json;
 
 namespace BilibiliApi.Clients;
 
@@ -140,36 +141,83 @@ public partial class BilibiliApiClient
 	/// <summary>
 	/// 获取直播间详细信息
 	/// </summary>
-	/// <param name="roomId">房间号（允许短号）</param>
-	/// <param name="token"></param>
+	/// <param name="roomId">房间号（允许短号</param>
+	/// <param name="cancellationToken"></param>
 	/// <returns></returns>
-	public async Task<RoomInfoMessage?> GetRoomInfoAsync(long roomId, CancellationToken token = default)
+	public async ValueTask<LiveRoomInfo> GetLiveRoomInfoAsync(long roomId, CancellationToken cancellationToken = default)
 	{
-		string url = $@"https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id={roomId}";
-		return await GetJsonAsync<RoomInfoMessage>(url, token);
-	}
-
-	/// <summary>
-	/// 获取直播间详细信息
-	/// </summary>
-	/// <param name="roomId">房间号（允许短号）</param>
-	/// <param name="token"></param>
-	/// <returns></returns>
-	public async Task<RoomInfoMessage.RoomInfoData> GetRoomInfoDataAsync(long roomId, CancellationToken token = default)
-	{
-		RoomInfoMessage? roomInfo = await GetRoomInfoAsync(roomId, token);
-
-		if (roomInfo?.data is null || roomInfo.code != 0)
+		try
 		{
-			if (roomInfo?.message is not null)
+			string url = $@"https://api.live.bilibili.com/room/v1/Room/get_info?id={roomId}";
+
+			JsonDocument? json = await GetJsonAsync<JsonDocument>(url, cancellationToken);
+
+			if (json is null)
 			{
-				throw new HttpRequestException($@"获取房间信息失败: {roomInfo.message}");
+				throw ThrowException();
+			}
+
+			JsonElement root = json.RootElement;
+
+			long code = root.GetProperty(@"code").GetInt64();
+			string? msg = root.GetProperty(@"msg").GetString();
+			string? message = root.GetProperty(@"message").GetString();
+
+			if (code is not 0)
+			{
+				throw ThrowException(msg ?? message);
+			}
+
+			JsonElement data = root.GetProperty(@"data");
+			LiveRoomInfo res = new()
+			{
+				ShortId = data.GetProperty(@"short_id").GetInt64(),
+				RoomId = data.GetProperty(@"room_id").GetInt64(),
+				LiveStatus = (LiveStatus)data.GetProperty(@"live_status").GetInt32(),
+				Title = data.GetProperty(@"title").GetString(),
+				UserId = data.GetProperty(@"uid").GetInt64()
+			};
+
+			url = $@"https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuMedalAnchorInfo?ruid={res.UserId}";
+
+			json = await GetJsonAsync<JsonDocument>(url, cancellationToken);
+
+			if (json is null)
+			{
+				throw ThrowException();
+			}
+
+			root = json.RootElement;
+
+			code = root.GetProperty(@"code").GetInt64();
+			message = root.GetProperty(@"message").GetString();
+
+			if (code is not 0)
+			{
+				throw ThrowException(message);
+			}
+
+			data = root.GetProperty(@"data");
+
+			res.UserName = data.GetProperty(@"runame").GetString();
+			res.LiveStatus = (LiveStatus)data.GetProperty(@"live_stream_status").GetInt32();
+
+			return res;
+		}
+		catch (Exception ex) when (ex is not HttpRequestException)
+		{
+			throw ThrowException();
+		}
+
+		Exception ThrowException(string? msg = null)
+		{
+			if (msg is not null)
+			{
+				throw new HttpRequestException($@"获取房间信息失败: {msg}");
 			}
 
 			throw new HttpRequestException(@"获取房间信息失败");
 		}
-
-		return roomInfo.data;
 	}
 
 	#endregion

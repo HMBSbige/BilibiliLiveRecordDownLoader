@@ -1,7 +1,7 @@
 using BilibiliApi.Clients;
 using BilibiliApi.Enums;
+using BilibiliApi.Model;
 using BilibiliApi.Model.Danmu;
-using BilibiliApi.Model.RoomInfo;
 using BilibiliApi.StreamUriSelectors;
 using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Enums;
@@ -225,7 +225,7 @@ public class RoomStatus : ReactiveObject
 
 	public async Task GetRoomInfoDataAsync(CancellationToken token)
 	{
-		RoomInfoMessage.RoomInfoData data = await _apiClient.GetRoomInfoDataAsync(RoomId, token);
+		LiveRoomInfo data = await _apiClient.GetLiveRoomInfoAsync(RoomId, token);
 		CopyFromRoomInfoData(data);
 	}
 
@@ -300,6 +300,7 @@ public class RoomStatus : ReactiveObject
 					cancellationToken.ThrowIfCancellationRequested();
 
 					RecorderType type = RecorderType is RecorderType.Default ? _config.RecorderType : RecorderType;
+
 					if (type is RecorderType.Default || !Enum.IsDefined(type))
 					{
 						type = Config.DefaultRecorderType;
@@ -319,9 +320,11 @@ public class RoomStatus : ReactiveObject
 
 					Uri[] uri;
 					string format;
+
 					try
 					{
-						(uri, format) = await _apiClient.GetRoomStreamUriAsync(RoomId, (long)Qn,
+						(uri, format) = await _apiClient.GetRoomStreamUriAsync(RoomId,
+							(long)Qn,
 							!string.IsNullOrEmpty(AutoRecordCodecOrder) ? AutoRecordCodecOrder : _config.AutoRecordCodecOrder,
 							!string.IsNullOrEmpty(AutoRecordFormatOrder) ? AutoRecordFormatOrder : _config.AutoRecordFormatOrder,
 							cancellationToken);
@@ -347,6 +350,7 @@ public class RoomStatus : ReactiveObject
 					recorder.RoomId = RoomId;
 
 					Task waitReconnect = Task.Delay(TimeSpan.FromSeconds(StreamReconnectLatency), cancellationToken);
+
 					try
 					{
 						IStreamUriSelector selector = DI.GetRequiredService<IStreamUriSelector>();
@@ -382,6 +386,7 @@ public class RoomStatus : ReactiveObject
 								break;
 							}
 						}
+
 						await waitReconnect;
 						continue;
 					}
@@ -420,6 +425,7 @@ public class RoomStatus : ReactiveObject
 						{
 							Speed = b.ToHumanBytesString() + @"/s";
 							DateTime now = DateTime.Now;
+
 							if (b > 0.0)
 							{
 								lastDataReceivedTime = now;
@@ -430,6 +436,7 @@ public class RoomStatus : ReactiveObject
 								{
 									_logger.LogWarning(@"录播不稳定，即将尝试重连");
 								}
+
 								// ReSharper disable once AccessToDisposedClosure
 								recordStreamCts.Cancel();
 							}
@@ -461,6 +468,7 @@ public class RoomStatus : ReactiveObject
 					_logger.LogError(ex, @"下载直播流时发生错误");
 				}
 			}
+
 			_logger.LogInformation(@"不再录制");
 		}
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -483,6 +491,7 @@ public class RoomStatus : ReactiveObject
 		try
 		{
 			FileInfo fileInfo = new(file);
+
 			if (!fileInfo.Exists)
 			{
 				return;
@@ -519,6 +528,7 @@ public class RoomStatus : ReactiveObject
 
 			FFmpegTaskViewModel task = new(args);
 			await _taskList.AddTaskAsync(task, Path.GetPathRoot(mp4) ?? string.Empty);
+
 			if (IsDeleteAfterConvert ?? _config.IsDeleteAfterConvert)
 			{
 				FileUtils.DeleteWithoutException(file);
@@ -533,6 +543,7 @@ public class RoomStatus : ReactiveObject
 	private async Task StartRecordAsync()
 	{
 		CancellationToken token;
+
 		lock (this)
 		{
 			if (RecordStatus is not RecordStatus.未录制)
@@ -545,6 +556,7 @@ public class RoomStatus : ReactiveObject
 			_recordCts = new CancellationTokenSource();
 			token = _recordCts.Token;
 		}
+
 		await StartRecordAsync(token);
 	}
 
@@ -587,18 +599,21 @@ public class RoomStatus : ReactiveObject
 			}
 
 			IDanmu? danMu = DanmuFactory.ParseJson(packet.Body);
+
 			if (danMu is null)
 			{
 				return;
 			}
 
 			LiveStatus streamingStatus = danMu.IsStreaming();
+
 			if (streamingStatus != LiveStatus.未知)
 			{
 				LiveStatus = streamingStatus;
 			}
 
 			string? title = danMu.TitleChanged();
+
 			if (title is not null)
 			{
 				Title = title;
@@ -625,6 +640,7 @@ public class RoomStatus : ReactiveObject
 				{
 					MessageBus.Current.SendMessage(this);
 				}
+
 				if (IsEnable)
 				{
 					await StartRecordAsync();
@@ -663,20 +679,13 @@ public class RoomStatus : ReactiveObject
 
 	#region Clone
 
-	private void CopyFromRoomInfoData(RoomInfoMessage.RoomInfoData roomData)
+	private void CopyFromRoomInfoData(LiveRoomInfo info)
 	{
-		if (roomData.room_info is not null)
-		{
-			RoomId = roomData.room_info.room_id;
-			ShortId = roomData.room_info.short_id;
-			LiveStatus = (LiveStatus)roomData.room_info.live_status;
-			Title = roomData.room_info.title;
-		}
-
-		if (roomData.anchor_info?.base_info is not null)
-		{
-			UserName = roomData.anchor_info.base_info.uname;
-		}
+		RoomId = info.RoomId;
+		ShortId = info.ShortId;
+		LiveStatus = info.LiveStatus;
+		Title = info.Title;
+		UserName = info.UserName;
 	}
 
 	public RoomStatus Clone()
@@ -710,6 +719,7 @@ public class RoomStatus : ReactiveObject
 		if (!DanMuReconnectLatency.Equals(room.DanMuReconnectLatency))
 		{
 			DanMuReconnectLatency = room.DanMuReconnectLatency;
+
 			if (_danmuClient is not null)
 			{
 				_danmuClient.RetryInterval = TimeSpan.FromSeconds(DanMuReconnectLatency);

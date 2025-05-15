@@ -1,7 +1,8 @@
 using BilibiliApi.Clients;
+using BilibiliApi.Enums;
+using BilibiliApi.Model;
 using BilibiliApi.Model.DanmuConf;
 using BilibiliApi.Model.Login.QrCode.GetLoginUrl;
-using BilibiliApi.Model.RoomInfo;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Net;
@@ -51,21 +52,14 @@ public class BilibiliApiTest
 	[TestMethod]
 	public async Task GetRoomInfoTestAsync()
 	{
-		RoomInfoMessage? json = await _apiClient.GetRoomInfoAsync(732);
-		Assert.IsNotNull(json);
-		Assert.AreEqual(0, json.code);
-		Assert.AreEqual(@"0", json.message);
-		Assert.IsNotNull(json.data);
+		LiveRoomInfo info = await _apiClient.GetLiveRoomInfoAsync(732);
 
-		Assert.IsNotNull(json.data.room_info);
-		Assert.AreEqual(6154037, json.data.room_info.room_id);
-		Assert.AreEqual(732, json.data.room_info.short_id);
-		Assert.IsTrue(json.data.room_info.live_status is 0 or 1 or 2);
-		Assert.IsTrue(!string.IsNullOrWhiteSpace(json.data.room_info.title));
-
-		Assert.IsNotNull(json.data.anchor_info);
-		Assert.IsNotNull(json.data.anchor_info.base_info);
-		Assert.AreEqual(@"Asaki大人", json.data.anchor_info.base_info.uname);
+		Assert.AreEqual(732, info.ShortId);
+		Assert.AreEqual(6154037, info.RoomId);
+		Assert.IsTrue(info.LiveStatus is LiveStatus.闲置 or LiveStatus.直播 or LiveStatus.轮播);
+		Assert.IsNotNull(info.Title);
+		Assert.AreEqual(194484313, info.UserId);
+		Assert.AreEqual(@"Asaki大人", info.UserName);
 	}
 
 	[TestMethod]
