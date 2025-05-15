@@ -5,14 +5,14 @@ using BilibiliApi.Model.Login.QrCode.GetLoginUrl;
 using BilibiliApi.Model.RoomInfo;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using static ApiTest.TestConstants;
+using System.Net;
 
 namespace ApiTest;
 
 [TestClass]
 public class BilibiliApiTest
 {
-	private readonly BilibiliApiClient _apiClient = new(HttpClientUtils.BuildClientForBilibili(string.Empty, Cookie, new SocketsHttpHandler()));
+	private readonly BilibiliApiClient _apiClient = new(HttpClientUtils.BuildClientForBilibili(string.Empty, TestConstants.Cookie, new SocketsHttpHandler { AutomaticDecompression = DecompressionMethods.Brotli }));
 
 	[TestMethod]
 	public async Task GetDanmuConfTestAsync()
@@ -88,7 +88,7 @@ public class BilibiliApiTest
 	[TestMethod]
 	public async Task GetLoginInfoTestAsync()
 	{
-		var cookie = await _apiClient.GetLoginInfoAsync(@""); // 设置 Key
+		string cookie = await _apiClient.GetLoginInfoAsync(@"");// 设置 Key
 		Assert.IsTrue(cookie.Contains(@"sid="));
 		Assert.IsTrue(cookie.Contains(@"DedeUserID="));
 		Assert.IsTrue(cookie.Contains(@"DedeUserID__ckMd5="));
@@ -99,14 +99,14 @@ public class BilibiliApiTest
 	[TestMethod]
 	public async Task GetLoginInfoFailTestAsync()
 	{
-		var ex = await Assert.ThrowsExceptionAsync<HttpRequestException>(async () => await _apiClient.GetLoginInfoAsync(string.Empty));
+		HttpRequestException ex = await Assert.ThrowsExceptionAsync<HttpRequestException>(async () => await _apiClient.GetLoginInfoAsync(string.Empty));
 		Assert.AreEqual(ex.Message, @"不存在该密钥");
 	}
 
 	[TestMethod]
 	public async Task CheckLoginStatusTestAsync()
 	{
-		Assert.AreNotEqual(await _apiClient.CheckLoginStatusAsync(), string.IsNullOrEmpty(Cookie));
+		Assert.AreNotEqual(await _apiClient.CheckLoginStatusAsync(), string.IsNullOrEmpty(TestConstants.Cookie));
 	}
 
 	[TestMethod]
@@ -131,6 +131,6 @@ public class BilibiliApiTest
 	[TestMethod]
 	public async Task DanmuSendTestAsync()
 	{
-		await _apiClient.SendDanmuAsync(40462, Csrf);
+		await _apiClient.SendDanmuAsync(40462, TestConstants.Csrf);
 	}
 }

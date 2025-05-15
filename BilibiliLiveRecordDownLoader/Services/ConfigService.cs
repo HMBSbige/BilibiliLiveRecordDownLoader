@@ -39,7 +39,7 @@ public sealed class ConfigService : ReactiveObject, IConfigService
 	{
 		WriteIndented = true,
 		Encoder = JavaScriptEncoder.Default,
-		IgnoreReadOnlyProperties = true,
+		IgnoreReadOnlyProperties = true
 	};
 
 	private static readonly string[] RoomProperties = typeof(RoomStatus).GetPropertiesExcludeJsonIgnore().Select(p => p.Name).ToArray();
@@ -75,6 +75,7 @@ public sealed class ConfigService : ReactiveObject, IConfigService
 
 				SocketsHttpHandler handler = new()
 				{
+					AutomaticDecompression = DecompressionMethods.Brotli,
 					UseCookies = string.IsNullOrWhiteSpace(cookie),
 					UseProxy = useProxy
 				};
@@ -93,7 +94,7 @@ public sealed class ConfigService : ReactiveObject, IConfigService
 	{
 		try
 		{
-			await using var _ = await _lock.WriteLockAsync(token);
+			await using AsyncReaderWriterLock.Releaser _ = await _lock.WriteLockAsync(token);
 
 			string tempFile = Path.ChangeExtension(Path.GetFileNameWithoutExtension(Path.GetTempFileName()), Path.GetExtension(FilePath));
 
@@ -122,7 +123,7 @@ public sealed class ConfigService : ReactiveObject, IConfigService
 				return;
 			}
 
-			await using var _ = await _lock.ReadLockAsync(token);
+			await using AsyncReaderWriterLock.Releaser _ = await _lock.ReadLockAsync(token);
 
 			if (await LoadAsync(FilePath, token))
 			{
@@ -145,6 +146,7 @@ public sealed class ConfigService : ReactiveObject, IConfigService
 			await using FileStream fs = new(filename, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, true);
 
 			Config? config = await JsonSerializer.DeserializeAsync<Config>(fs, cancellationToken: token);
+
 			if (config is not null)
 			{
 				Config.Clone(config);
