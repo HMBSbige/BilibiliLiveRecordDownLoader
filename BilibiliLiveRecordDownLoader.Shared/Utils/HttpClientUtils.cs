@@ -19,7 +19,7 @@ public static class HttpClientUtils
 			client.DefaultRequestHeaders.Add(@"Cookie", cookie);
 		}
 
-		client.DefaultRequestVersion = HttpVersion.Version20;
+		client.DefaultRequestVersion = HttpVersion.Version30;
 		client.Timeout = TimeSpan.FromSeconds(10);
 		client.DefaultRequestHeaders.Accept.ParseAdd(@"application/json, text/javascript, */*; q=0.01");
 		client.DefaultRequestHeaders.Referrer = new Uri(@"https://live.bilibili.com/");
@@ -42,7 +42,7 @@ public static class HttpClientUtils
 			client.DefaultRequestHeaders.Add(@"Cookie", cookie);
 		}
 
-		client.DefaultRequestVersion = HttpVersion.Version20;
+		client.DefaultRequestVersion = HttpVersion.Version30;
 		client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
 		client.DefaultRequestHeaders.ConnectionClose = false;
 
@@ -63,7 +63,7 @@ public static class HttpClientUtils
 			client.DefaultRequestHeaders.Add(@"Cookie", cookie);
 		}
 
-		client.DefaultRequestVersion = HttpVersion.Version20;
+		client.DefaultRequestVersion = HttpVersion.Version30;
 		client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
 
 		return client;
