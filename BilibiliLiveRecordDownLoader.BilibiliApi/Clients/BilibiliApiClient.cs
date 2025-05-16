@@ -1,12 +1,7 @@
 using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Shared.Interfaces;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
-using CryptoBase.Abstractions.Digests;
-using CryptoBase.DataFormatExtensions;
-using CryptoBase.Digests;
-using System.Buffers;
 using System.Net.Http.Json;
-using System.Text;
 
 namespace BilibiliApi.Clients;
 
@@ -39,30 +34,10 @@ public partial class BilibiliApiClient(HttpClient client) : IHttpClient
 			pair = pair.OrderBy(p => p.Key).ToDictionary(p => p.Key, o => o.Value);
 			using FormUrlEncodedContent temp = new(pair);
 			string str = await temp.ReadAsStringAsync();
-			string md5 = Md5String(str + AppConstants.AppSecret);
+			string md5 = (str + AppConstants.AppSecret).ToMd5HexString();
 			pair.Add(@"sign", md5);
 		}
 
 		return new FormUrlEncodedContent(pair);
-	}
-
-	private static string Md5String(in string str)
-	{
-		byte[] buffer = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(str.Length));
-
-		try
-		{
-			int length = Encoding.UTF8.GetBytes(str, buffer);
-
-			Span<byte> hash = stackalloc byte[HashConstants.Md5Length];
-			using IHash md5 = DigestUtils.Create(DigestType.Md5);
-			md5.UpdateFinal(buffer.AsSpan(0, length), hash);
-
-			return hash.ToHex();
-		}
-		finally
-		{
-			ArrayPool<byte>.Shared.Return(buffer);
-		}
 	}
 }
