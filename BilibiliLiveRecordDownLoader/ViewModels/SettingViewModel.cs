@@ -125,7 +125,7 @@ public class SettingViewModel : ReactiveObject, IRoutableViewModel
 				Config.IsCheckPreRelease,
 				version
 			);
-			if (await updateChecker.CheckAsync(HttpClientUtils.BuildClient(Config.Cookie, Config.UserAgent, Config.HttpHandler), token))
+			if (await updateChecker.CheckAsync(HttpClientUtils.BuildClient(Config.Cookie, Config.UserAgent ?? Config.DefaultUserAgent, Config.HttpHandler), token))
 			{
 				if (updateChecker.LatestVersionUrl is null)
 				{

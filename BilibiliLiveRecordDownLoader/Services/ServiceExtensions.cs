@@ -104,7 +104,7 @@ public static class ServiceExtensions
 		services.TryAddSingleton(provider =>
 		{
 			Config config = provider.GetRequiredService<Config>();
-			HttpClient client = HttpClientUtils.BuildClientForBilibili(config.UserAgent, config.Cookie, config.HttpHandler);
+			HttpClient client = HttpClientUtils.BuildClientForBilibili(config.UserAgent ?? Config.DefaultUserAgent, config.Cookie, config.HttpHandler);
 			return new BilibiliApiClient(client);
 		});
 
@@ -116,19 +116,19 @@ public static class ServiceExtensions
 		services.TryAddTransient(provider =>
 		{
 			Config config = provider.GetRequiredService<Config>();
-			HttpClient client = HttpClientUtils.BuildClientForBilibili(config.UserAgent, config.Cookie, config.HttpHandler);
+			HttpClient client = HttpClientUtils.BuildClientForBilibili(config.UserAgent ?? Config.DefaultUserAgent, config.Cookie, config.HttpHandler);
 			return new HttpFlvLiveStreamRecorder(client, provider.GetRequiredService<ILogger<HttpFlvLiveStreamRecorder>>());
 		});
 		services.TryAddTransient(provider =>
 		{
 			Config config = provider.GetRequiredService<Config>();
-			HttpClient client = HttpClientUtils.BuildClientForBilibili(config.UserAgent, config.Cookie, config.HttpHandler);
+			HttpClient client = HttpClientUtils.BuildClientForBilibili(config.UserAgent ?? Config.DefaultUserAgent, config.Cookie, config.HttpHandler);
 			return new HttpLiveStreamRecorder(client, provider.GetRequiredService<ILogger<HttpLiveStreamRecorder>>());
 		});
 		services.TryAddTransient(provider =>
 		{
 			Config config = provider.GetRequiredService<Config>();
-			HttpClient client = HttpClientUtils.BuildClientForBilibili(config.UserAgent, config.Cookie, config.HttpHandler);
+			HttpClient client = HttpClientUtils.BuildClientForBilibili(config.UserAgent ?? Config.DefaultUserAgent, config.Cookie, config.HttpHandler);
 			return new FFmpegLiveStreamRecorder(client, provider.GetRequiredService<ILogger<FFmpegLiveStreamRecorder>>());
 		});
 

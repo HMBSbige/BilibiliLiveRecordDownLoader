@@ -20,48 +20,42 @@ using System.Text.Json;
 
 namespace BilibiliApi.Clients;
 
-public abstract class DanmuClientBase : IDanmuClient
+public abstract class DanmuClientBase(ILogger<DanmuClientBase> logger, BilibiliApiClient apiClient, IDistributedCache cacheService)
+	: IDanmuClient
 {
-	private readonly ILogger<DanmuClientBase> _logger;
-	protected readonly BilibiliApiClient ApiClient;
-	private readonly IDistributedCache _cacheService;
+	protected readonly BilibiliApiClient ApiClient = apiClient;
 
 	public long RoomId { get; set; }
 
 	public TimeSpan RetryInterval { get; set; } = TimeSpan.FromSeconds(2);
+
 	private static readonly TimeSpan HeartBeatInterval = TimeSpan.FromSeconds(30);
 
 	private string DanmuServerCacheKey => @"🤣DanmuClient.Servers." + RoomId;
-	private static readonly DistributedCacheEntryOptions DanmuServerCacheOptions = new()
-	{
-		AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1)
-	};
+
+	private static readonly DistributedCacheEntryOptions DanmuServerCacheOptions = new() { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1) };
 
 	private const short ReceiveProtocolVersion = 3;
 	private const short SendProtocolVersion = 1;
 	private const int SendHeaderLength = 16;
 
 	private readonly Subject<DanmuPacket> _danMuSubj = new();
+
 	public IObservable<DanmuPacket> Received => _danMuSubj.AsObservable();
 
 	protected abstract string Server { get; }
+
 	protected string? Host;
 	protected ushort Port;
 	private string? _token;
 	private long _uid;
 
 	private const string DefaultHost = @"broadcastlv.chat.bilibili.com";
+
 	protected abstract ushort DefaultPort { get; }
 
 	private CancellationTokenSource? _cts;
 	private readonly CompositeDisposable _disposableServices = new();
-
-	protected DanmuClientBase(ILogger<DanmuClientBase> logger, BilibiliApiClient apiClient, IDistributedCache cacheService)
-	{
-		_logger = logger;
-		ApiClient = apiClient;
-		_cacheService = cacheService;
-	}
 
 	protected abstract ushort GetPort(HostServerList server);
 
@@ -77,7 +71,7 @@ public abstract class DanmuClientBase : IDanmuClient
 
 		_cts = new CancellationTokenSource();
 
-		using IDisposable? _ = _logger.BeginScope($@"开始连接弹幕服务器 {{{LoggerProperties.RoomIdPropertyName}}}", RoomId);
+		using IDisposable? _ = logger.BeginScope($@"开始连接弹幕服务器 {{{LoggerProperties.RoomIdPropertyName}}}", RoomId);
 		await ConnectWithRetryAsync(_cts.Token);
 	}
 
@@ -93,22 +87,23 @@ public abstract class DanmuClientBase : IDanmuClient
 				await GetUidAsync();
 
 
-				_logger.LogInformation(@"正在连接弹幕服务器 {server}", Server);
+				logger.LogInformation(@"正在连接弹幕服务器 {server}", Server);
 
 				IDuplexPipe? pipe = await ConnectAsync(cancellationToken);
+
 				if (pipe is not null)
 				{
-					_logger.LogInformation(@"连接弹幕服务器成功");
+					logger.LogInformation(@"连接弹幕服务器成功");
 
 					IDisposable receiveAuthTask = Received.Take(1).Subscribe(packet =>
 					{
 						if (IsAuthSuccess())
 						{
-							_logger.LogInformation(@"进房成功");
+							logger.LogInformation(@"进房成功");
 						}
 						else
 						{
-							_logger.LogWarning(@"进房失败");
+							logger.LogWarning(@"进房失败");
 							Close();
 						}
 
@@ -122,7 +117,7 @@ public abstract class DanmuClientBase : IDanmuClient
 								}
 
 								string json = Encoding.UTF8.GetString(packet.Body);
-								_logger.LogDebug(@"进房回应 {jsonString}", json);
+								logger.LogDebug(@"进房回应 {jsonString}", json);
 
 								if (json is """{"code":0}""")
 								{
@@ -149,11 +144,11 @@ public abstract class DanmuClientBase : IDanmuClient
 		}
 		catch (Exception) when (cancellationToken.IsCancellationRequested)
 		{
-			_logger.LogInformation(@"不再连接弹幕服务器");
+			logger.LogInformation(@"不再连接弹幕服务器");
 		}
 		catch (Exception ex)
 		{
-			_logger.LogError(ex, @"连接弹幕服务器发生未知错误");
+			logger.LogError(ex, @"连接弹幕服务器发生未知错误");
 		}
 		finally
 		{
@@ -168,7 +163,7 @@ public abstract class DanmuClientBase : IDanmuClient
 			}
 			catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 			{
-				_logger.LogWarning(ex, @"获取 uid 失败");
+				logger.LogWarning(ex, @"获取 uid 失败");
 			}
 		}
 
@@ -177,11 +172,11 @@ public abstract class DanmuClientBase : IDanmuClient
 			try
 			{
 				await ReadPipeAsync(reader, cancellationToken);
-				_logger.LogWarning(@"弹幕服务器不再发送弹幕，尝试重连...");
+				logger.LogWarning(@"弹幕服务器不再发送弹幕，尝试重连...");
 			}
 			catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 			{
-				_logger.LogWarning(ex, @"弹幕服务器连接被断开，尝试重连...");
+				logger.LogWarning(ex, @"弹幕服务器连接被断开，尝试重连...");
 			}
 		}
 	}
@@ -198,7 +193,8 @@ public abstract class DanmuClientBase : IDanmuClient
 			DanmuConfData? danmuInfoData;
 			HostServerList? server;
 
-			byte[]? cacheBytes = await _cacheService.GetAsync(DanmuServerCacheKey, cancellationToken);
+			byte[]? cacheBytes = await cacheService.GetAsync(DanmuServerCacheKey, cancellationToken);
+
 			if (cacheBytes is not null)
 			{
 				danmuInfoData = JsonSerializer.Deserialize<DanmuConfData>(cacheBytes);
@@ -211,9 +207,10 @@ public abstract class DanmuClientBase : IDanmuClient
 				Host = default;
 
 				DanmuConfMessage? conf = await ApiClient.GetDanmuConfAsync(RoomId, cancellationToken);
+
 				if (conf?.code is not 0 && !string.IsNullOrEmpty(conf?.message))
 				{
-					_logger.LogError(@"获取弹幕服务器失败：{message}", conf.message);
+					logger.LogError(@"获取弹幕服务器失败：{message}", conf.message);
 					return;
 				}
 
@@ -221,11 +218,11 @@ public abstract class DanmuClientBase : IDanmuClient
 
 				if (string.IsNullOrEmpty(danmuInfoData?.token) || danmuInfoData.host_list is null || danmuInfoData.host_list.Length is 0)
 				{
-					_logger.LogError(@"获取弹幕服务器失败：返回信息中未包含服务器地址");
+					logger.LogError(@"获取弹幕服务器失败：返回信息中未包含服务器地址");
 					return;
 				}
 
-				await _cacheService.SetAsync(DanmuServerCacheKey, JsonSerializer.SerializeToUtf8Bytes(danmuInfoData), DanmuServerCacheOptions, cancellationToken);
+				await cacheService.SetAsync(DanmuServerCacheKey, JsonSerializer.SerializeToUtf8Bytes(danmuInfoData), DanmuServerCacheOptions, cancellationToken);
 				server = danmuInfoData.host_list.First();
 			}
 
@@ -235,7 +232,7 @@ public abstract class DanmuClientBase : IDanmuClient
 		}
 		catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 		{
-			_logger.LogWarning(ex, @"获取弹幕服务器失败");
+			logger.LogWarning(ex, @"获取弹幕服务器失败");
 		}
 		finally
 		{
@@ -243,7 +240,7 @@ public abstract class DanmuClientBase : IDanmuClient
 			{
 				if (string.IsNullOrEmpty(_token) || string.IsNullOrEmpty(Host))
 				{
-					_logger.LogWarning(@"使用默认弹幕服务器");
+					logger.LogWarning(@"使用默认弹幕服务器");
 					Host = DefaultHost;
 					Port = DefaultPort;
 					_token = default;
@@ -272,7 +269,7 @@ public abstract class DanmuClientBase : IDanmuClient
 		}
 		catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 		{
-			_logger.LogError(ex, @"连接弹幕服务器错误");
+			logger.LogError(ex, @"连接弹幕服务器错误");
 			return null;
 		}
 
@@ -287,7 +284,7 @@ public abstract class DanmuClientBase : IDanmuClient
 			};
 			string json = JsonSerializer.Serialize(authBody, AuthDanmuJsonSerializerContext.Default.AuthDanmu);
 
-			_logger.LogDebug(@"AuthJson: {jsonString}", json);
+			logger.LogDebug(@"AuthJson: {jsonString}", json);
 			await SendDataAsync(writer, Operation.Auth, json, cancellationToken);
 		}
 
@@ -295,14 +292,15 @@ public abstract class DanmuClientBase : IDanmuClient
 		{
 			try
 			{
-				_logger.LogDebug(@"发送心跳包");
+				logger.LogDebug(@"发送心跳包");
 				await SendDataAsync(writer, Operation.Heartbeat, string.Empty, cancellationToken);
 			}
 			catch (Exception ex)
 			{
-				_logger.LogWarning(ex, @"心跳包发送失败");
+				logger.LogWarning(ex, @"心跳包发送失败");
 				Close();
 			}
+
 			return default;
 		}
 	}
@@ -336,6 +334,7 @@ public abstract class DanmuClientBase : IDanmuClient
 
 				ReadResult result = await reader.ReadAsync(cancellationToken);
 				ReadOnlySequence<byte> buffer = result.Buffer;
+
 				try
 				{
 					while (buffer.Length >= 16)
@@ -380,7 +379,7 @@ public abstract class DanmuClientBase : IDanmuClient
 			}
 			case 2:
 			{
-				Stream stream = packet.Body.Slice(2).AsStream(); // Drop header
+				Stream stream = packet.Body.Slice(2).AsStream();// Drop header
 				await using DeflateStream deflate = new(stream, CompressionMode.Decompress, false);
 				PipeReader reader = PipeReader.Create(deflate);
 				await ReadPipeAsync(reader, cancellationToken);
@@ -397,7 +396,7 @@ public abstract class DanmuClientBase : IDanmuClient
 			}
 			default:
 			{
-				_logger.LogWarning(@"弹幕协议不支持。Version: {protocolVersion}", packet.ProtocolVersion);
+				logger.LogWarning(@"弹幕协议不支持。Version: {protocolVersion}", packet.ProtocolVersion);
 				break;
 			}
 		}
@@ -434,6 +433,7 @@ public abstract class DanmuClientBase : IDanmuClient
 		{
 			return;
 		}
+
 		IsDisposed = true;
 
 		_danMuSubj.OnCompleted();

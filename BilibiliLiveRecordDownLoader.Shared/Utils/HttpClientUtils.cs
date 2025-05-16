@@ -5,13 +5,8 @@ namespace BilibiliLiveRecordDownLoader.Shared.Utils;
 
 public static class HttpClientUtils
 {
-	public static HttpClient BuildClientForBilibili(string userAgent, string? cookie, HttpMessageHandler handler)
+	public static HttpClient BuildClientForBilibili(string? userAgent, string? cookie, HttpMessageHandler handler)
 	{
-		if (string.IsNullOrEmpty(userAgent))
-		{
-			userAgent = @"Mozilla/5.0";
-		}
-
 		HttpClient client = new(handler, false);
 
 		if (!string.IsNullOrWhiteSpace(cookie))
@@ -23,7 +18,11 @@ public static class HttpClientUtils
 		client.Timeout = TimeSpan.FromSeconds(10);
 		client.DefaultRequestHeaders.Accept.ParseAdd(@"application/json, text/javascript, */*; q=0.01");
 		client.DefaultRequestHeaders.Referrer = new Uri(@"https://live.bilibili.com/");
-		client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
+
+		if (!string.IsNullOrWhiteSpace(userAgent))
+		{
+			client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
+		}
 
 		return client;
 	}

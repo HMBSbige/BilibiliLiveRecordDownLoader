@@ -16,10 +16,13 @@ public class Config : ReactiveObject
 	#region 默认值
 
 	public static string DefaultMainDir => Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+
 	public const bool DefaultIsCheckUpdateOnStart = true;
 	public const double DefaultMainWindowsWidth = 1280.0;
 	public const double DefaultMainWindowsHeight = 720.0;
+
 	public static string DefaultUserAgent => $@"Mozilla/5.0 {nameof(BilibiliLiveRecordDownLoader)}/{Utils.Utils.GetAppVersion()}";
+
 	public const string DefaultCookie = @"";
 	public const bool DefaultIsAutoConvertMp4 = false;
 	public const bool DefaultIsUseProxy = false;
@@ -53,17 +56,17 @@ public class Config : ReactiveObject
 	[Reactive]
 	public double MainWindowsHeight { get; set; } = DefaultMainWindowsHeight;
 
-	[DefaultValue(@"")]
-	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	[Reactive]
-	public string UserAgent { get; set; } = string.Empty;
+	public string? UserAgent { get; set; }
 
 	[DefaultValue(DefaultCookie)]
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
 	[Reactive]
 	public string Cookie { get; set; } = DefaultCookie;
 
-	private List<RoomStatus> _rooms = new();
+	private List<RoomStatus> _rooms = [];
+
 	public List<RoomStatus> Rooms
 	{
 		get => _rooms;

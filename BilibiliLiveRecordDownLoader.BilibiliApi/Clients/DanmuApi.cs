@@ -13,7 +13,7 @@ public partial class BilibiliApiClient
 	/// <param name="token"></param>
 	public async Task<DanmuConfMessage?> GetDanmuConfAsync(long roomId, CancellationToken token = default)
 	{
-		var url = $@"https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id={roomId}";
+		string url = $@"https://api.live.bilibili.com/xlive/web-room/v1/index/getDanmuInfo?id={roomId}";
 		return await GetJsonAsync<DanmuConfMessage>(url, token);
 	}
 
@@ -37,17 +37,18 @@ public partial class BilibiliApiClient
 		CancellationToken token = default)
 	{
 		const string url = @"https://api.live.bilibili.com/msg/send";
-		var pair = new Dictionary<string, string>
+		Dictionary<string, string> pair = new()
 		{
-			{@"roomid", $@"{roomId}"},
-			{@"csrf", csrf},
-			{@"msg", msg},
-			{@"rnd", rnd},
-			{@"color", color},
-			{@"fontsize", fontSize},
+			{ @"roomid", $@"{roomId}" },
+			{ @"csrf", csrf },
+			{ @"msg", msg },
+			{ @"rnd", rnd },
+			{ @"color", color },
+			{ @"fontsize", fontSize }
 		};
-		var response = await PostAsync(url, pair, false, token);
-		var message = await response.Content.ReadFromJsonAsync<DanmuSendResponse>(cancellationToken: token);
+		HttpResponseMessage response = await PostAsync(url, pair, false, token);
+		DanmuSendResponse? message = await response.Content.ReadFromJsonAsync<DanmuSendResponse>(token);
+
 		if (message is null)
 		{
 			throw new HttpRequestException(@"发送弹幕失败");

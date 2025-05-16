@@ -71,7 +71,7 @@ public sealed class ConfigService : ReactiveObject, IConfigService
 			.DistinctUntilChanged()
 			.Subscribe(x =>
 			{
-				(string cookie, string ua, bool useProxy) = x;
+				(string cookie, string? ua, bool useProxy) = x;
 
 				SocketsHttpHandler handler = new()
 				{
@@ -81,7 +81,7 @@ public sealed class ConfigService : ReactiveObject, IConfigService
 				};
 				Config.HttpHandler = handler;
 
-				apiClient.Client = HttpClientUtils.BuildClientForBilibili(ua, cookie, handler);
+				apiClient.Client = HttpClientUtils.BuildClientForBilibili(ua ?? Config.DefaultUserAgent, cookie, handler);
 				WebRequest.DefaultWebProxy = useProxy ? WebRequest.GetSystemWebProxy() : null;
 			});
 
