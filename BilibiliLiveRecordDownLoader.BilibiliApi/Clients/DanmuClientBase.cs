@@ -10,6 +10,7 @@ using Pipelines.Extensions;
 using System.Buffers;
 using System.IO.Compression;
 using System.IO.Pipelines;
+using System.Net;
 using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
@@ -31,7 +32,7 @@ public abstract class DanmuClientBase(ILogger<DanmuClientBase> logger, BilibiliA
 
 	private static readonly TimeSpan HeartBeatInterval = TimeSpan.FromSeconds(30);
 
-	private string DanmuServerCacheKey => @"🤣DanmuClient.Servers." + RoomId;
+	private string DanmuServerCacheKey => @"🤣DanmuClient.Servers." + RoomId + _uid;
 
 	private static readonly DistributedCacheEntryOptions DanmuServerCacheOptions = new() { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1) };
 
@@ -84,8 +85,6 @@ public abstract class DanmuClientBase(ILogger<DanmuClientBase> logger, BilibiliA
 				cancellationToken.ThrowIfCancellationRequested();
 
 				await GetServerAsync(cancellationToken);
-				await GetUidAsync();
-
 
 				logger.LogInformation(@"正在连接弹幕服务器 {server}", Server);
 
@@ -106,6 +105,8 @@ public abstract class DanmuClientBase(ILogger<DanmuClientBase> logger, BilibiliA
 							logger.LogWarning(@"进房失败");
 							Close();
 						}
+
+						return;
 
 						bool IsAuthSuccess()
 						{
@@ -155,17 +156,7 @@ public abstract class DanmuClientBase(ILogger<DanmuClientBase> logger, BilibiliA
 			Close();
 		}
 
-		async ValueTask GetUidAsync()
-		{
-			try
-			{
-				_uid = await ApiClient.GetUidAsync(cancellationToken);
-			}
-			catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
-			{
-				logger.LogWarning(ex, @"获取 uid 失败");
-			}
-		}
+		return;
 
 		async ValueTask ProcessDanMuAsync(PipeReader reader)
 		{
@@ -186,6 +177,15 @@ public abstract class DanmuClientBase(ILogger<DanmuClientBase> logger, BilibiliA
 	/// </summary>
 	private async ValueTask GetServerAsync(CancellationToken cancellationToken)
 	{
+		try
+		{
+			_uid = await ApiClient.GetUidAsync(cancellationToken);
+		}
+		catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+		{
+			logger.LogWarning(ex, @"获取 uid 失败");
+		}
+
 		_token = default;
 
 		try
@@ -207,6 +207,23 @@ public abstract class DanmuClientBase(ILogger<DanmuClientBase> logger, BilibiliA
 				Host = default;
 
 				DanmuConfMessage? conf = await ApiClient.GetDanmuConfAsync(RoomId, cancellationToken);
+
+				if (conf?.code is -352)
+				{
+					logger.LogWarning(@"获取弹幕服务器失败：{message}", @"被风控限制，尝试使用匿名请求");
+					BilibiliApiClient anonymous = new(HttpClientUtils.BuildClientForBilibili(
+						default,
+						default,
+						new SocketsHttpHandler
+						{
+							AutomaticDecompression = DecompressionMethods.Brotli,
+							UseCookies = false,
+							UseProxy = WebRequest.DefaultWebProxy is not null
+						})
+					);
+					conf = await anonymous.GetDanmuConfAsync(RoomId, cancellationToken);
+					_uid = default;
+				}
 
 				if (conf?.code is not 0 && !string.IsNullOrEmpty(conf?.message))
 				{
