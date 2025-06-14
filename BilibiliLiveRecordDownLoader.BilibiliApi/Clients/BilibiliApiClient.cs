@@ -1,7 +1,9 @@
 using BilibiliApi.Utils;
 using BilibiliLiveRecordDownLoader.Shared.Interfaces;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
+using System.Collections.Specialized;
 using System.Net.Http.Json;
+using System.Web;
 
 namespace BilibiliApi.Clients;
 
@@ -9,9 +11,30 @@ public partial class BilibiliApiClient(HttpClient client) : IHttpClient
 {
 	public HttpClient Client { get; set; } = client;
 
-	private async Task<T?> GetJsonAsync<T>(string url, CancellationToken token)
+	// IDistributedCache
+	private static (string imgKey, string subKey)? _wbiKey;
+
+	private async ValueTask<Uri> WbiSignAsync(string url, CancellationToken cancellationToken = default)
 	{
-		return await Client.GetFromJsonAsync<T>(url, token);
+		_wbiKey ??= await Client.GetWbiKeyAsync(cancellationToken);
+		(string imgKey, string subKey) = _wbiKey.Value;
+
+		UriBuilder builder = new(url);
+		NameValueCollection x = HttpUtility.ParseQueryString(builder.Query);
+		Dictionary<string, string> d = x.Cast<string>().ToDictionary(k => k, k => x[k]!);
+
+		await WbiUtils.SignAsync(d, (imgKey, subKey), DateTimeOffset.Now, cancellationToken);
+
+		using FormUrlEncodedContent temp = new(d);
+		builder.Query = await temp.ReadAsStringAsync(cancellationToken);
+
+		return builder.Uri;
+	}
+
+	private async Task<T?> GetJsonAsync<T>(string url, CancellationToken cancellationToken = default)
+	{
+		Uri uri = await WbiSignAsync(url, cancellationToken);
+		return await Client.GetFromJsonAsync<T>(uri, cancellationToken);
 	}
 
 	private async Task<HttpResponseMessage> PostAsync(string url, HttpContent content, CancellationToken token)
