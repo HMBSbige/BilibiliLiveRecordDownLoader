@@ -23,7 +23,7 @@ public partial class BilibiliApiClient
 		return await GetJsonAsync<RoomPlayInfo>(url, token);
 	}
 
-	public const string DefaultCodecOrder = @"avc;hevc";
+	public const string DefaultCodecOrder = @"avc;hevc;av1";
 	public const string DefaultFormatOrder = @"fmp4;ts;flv";
 
 	private record StreamUriInfo(string Protocol, string Format, RoomPlayInfoStreamCodec Codec);
