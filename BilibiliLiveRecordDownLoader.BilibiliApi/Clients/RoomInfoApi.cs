@@ -3,6 +3,7 @@ using BilibiliApi.Model;
 using BilibiliApi.Model.PlayUrl;
 using DynamicData;
 using System.Text.Json;
+using System.Linq;
 
 namespace BilibiliApi.Clients;
 
@@ -121,7 +122,7 @@ public partial class BilibiliApiClient
 
 				if (r.Length is not 0)
 				{
-					return r.Reverse().ToArray();
+					return r.AsEnumerable().Reverse().ToArray();
 				}
 
 				order = defaultValue;
