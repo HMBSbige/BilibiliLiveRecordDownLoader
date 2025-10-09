@@ -92,7 +92,7 @@ public class BilibiliApiTest
 	[TestMethod]
 	public async Task GetLoginInfoFailTestAsync()
 	{
-		HttpRequestException ex = await Assert.ThrowsExceptionAsync<HttpRequestException>(async () => await _apiClient.GetLoginInfoAsync(string.Empty));
+		HttpRequestException ex = await Assert.ThrowsExactlyAsync<HttpRequestException>(async () => await _apiClient.GetLoginInfoAsync(string.Empty));
 		Assert.AreEqual(ex.Message, @"不存在该密钥");
 	}
 

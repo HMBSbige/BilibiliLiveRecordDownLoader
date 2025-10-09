@@ -1,0 +1,24 @@
+﻿<Solution>
+  <Folder Name="/conf/">
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path="build.ps1" />
+    <File Path="Directory.Build.props" />
+    <File Path="LICENSE" />
+    <File Path="NuGet.Config" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="BilibiliLiveDanmuPreviewer\BilibiliLiveDanmuPreviewer.csproj" />
+    <Project Path="BilibiliLiveRecordDownLoader.BilibiliApi\BilibiliLiveRecordDownLoader.BilibiliApi.csproj" />
+    <Project Path="BilibiliLiveRecordDownLoader.FFmpeg\BilibiliLiveRecordDownLoader.FFmpeg.csproj" />
+    <Project Path="BilibiliLiveRecordDownLoader.FlvProcessor\BilibiliLiveRecordDownLoader.FlvProcessor.csproj" />
+    <Project Path="BilibiliLiveRecordDownLoader.Http\BilibiliLiveRecordDownLoader.Http.csproj" />
+    <Project Path="BilibiliLiveRecordDownLoader.Shared\BilibiliLiveRecordDownLoader.Shared.csproj" />
+    <Project Path="BilibiliLiveRecordDownLoader\BilibiliLiveRecordDownLoader.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="ApiTest\ApiTest.csproj" />
+    <Project Path="UnitTest\UnitTest.csproj" />
+  </Folder>
+</Solution>

@@ -1,7 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <Import Project="..\common.props" />
-
   <PropertyGroup>
     <RootNamespace>BilibiliApi</RootNamespace>
     <NoWarn>CS1591</NoWarn>
