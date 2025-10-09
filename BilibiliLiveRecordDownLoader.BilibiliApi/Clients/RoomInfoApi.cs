@@ -121,7 +121,8 @@ public partial class BilibiliApiClient
 
 				if (r.Length is not 0)
 				{
-					return r.Reverse().ToArray();
+					r.AsSpan().Reverse();
+					return r;
 				}
 
 				order = defaultValue;
