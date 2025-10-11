@@ -6,6 +6,7 @@ using ModernWpf.Controls;
 using ReactiveMarbles.ObservableEvents;
 using ReactiveUI;
 using System.Reactive.Disposables;
+using System.Reactive.Disposables.Fluent;
 using System.Reactive.Linq;
 using System.Windows;
 using System.Windows.Forms;
