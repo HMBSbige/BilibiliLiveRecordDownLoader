@@ -17,19 +17,14 @@ public class FileUtils
 		{
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
-				unsafe
+				if (PInvoke.GetDiskFreeSpaceEx(path, out ulong availableFreeSpace, out ulong totalSize, out ulong totalFreeSpace))
 				{
-					ulong availableFreeSpace;
-					ulong totalSize;
-					ulong totalFreeSpace;
-					if (PInvoke.GetDiskFreeSpaceEx(path, &availableFreeSpace, &totalSize, &totalFreeSpace))
-					{
-						return (availableFreeSpace, totalSize, totalFreeSpace);
-					}
+					return (availableFreeSpace, totalSize, totalFreeSpace);
 				}
 			}
 
-			var d = new DriveInfo(path);
+			DriveInfo d = new(path);
+
 			if (d.IsReady)
 			{
 				return ((ulong)d.AvailableFreeSpace, (ulong)d.TotalSize, (ulong)d.TotalFreeSpace);
@@ -51,6 +46,7 @@ public class FileUtils
 			{
 				return;
 			}
+
 			File.Delete(path);
 		}
 		catch (Exception ex)
@@ -90,6 +86,7 @@ public class FileUtils
 		{
 			// ignored
 		}
+
 		return false;
 	}
 }
