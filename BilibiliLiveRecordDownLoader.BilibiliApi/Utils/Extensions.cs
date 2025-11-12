@@ -1,4 +1,4 @@
-﻿using CryptoBase.Abstractions.Digests;
+using CryptoBase.Abstractions.Digests;
 using CryptoBase.DataFormatExtensions;
 using CryptoBase.Digests;
 using System.Buffers;

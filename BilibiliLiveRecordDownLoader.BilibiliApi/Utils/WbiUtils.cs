@@ -1,4 +1,4 @@
-﻿using System.Collections.Frozen;
+using System.Collections.Frozen;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text.Json;

@@ -2,8 +2,8 @@ name: CI
 on: [push, pull_request, workflow_dispatch]
 env:
   ProjectName: BilibiliLiveRecordDownLoader
-  NET_TFM: net9.0-windows10.0.26100.0
-  Configuration: Release
+  NET_TFM: net10.0-windows10.0.26100.0
+  NET_VERSION: 10.0.x
 
 jobs:
   build:
@@ -22,7 +22,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 9.0.x
+          dotnet-version: ${{ env.NET_VERSION }}
 
       - name: Build ${{ matrix.Rid }}
         shell: pwsh
@@ -33,7 +33,7 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: ${{ env.ProjectName }}-${{ matrix.Rid }}
-          path: ${{ env.ProjectName }}\bin\${{ env.Configuration }}\${{ env.NET_TFM }}\${{ matrix.Rid }}\publish\
+          path: ${{ env.ProjectName }}\bin\Release\${{ env.NET_TFM }}\${{ matrix.Rid }}\publish\
 
   nuget:
     name: Nuget
@@ -54,7 +54,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 9.0.x
+          dotnet-version: ${{ env.NET_VERSION }}
 
       - name: Build
         shell: pwsh
@@ -80,7 +80,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 9.0.x
+          dotnet-version: ${{ env.NET_VERSION }}
 
       - name: Build
         shell: pwsh
@@ -91,7 +91,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path C:\builtfiles -Force > $null
           $zip_path = "C:\builtfiles\$env:ProjectName-generic-${{ github.ref_name }}.7z"
-          7z a -mx9 "$zip_path" ".\$env:ProjectName\bin\$env:Configuration\$env:NET_TFM\generic\publish\"
+          7z a -mx9 "$zip_path" ".\$env:ProjectName\bin\Release\$env:NET_TFM\generic\publish\"
           7z rn "$zip_path" publish $env:ProjectName
           echo "GENERIC_SHA256=$((Get-FileHash $zip_path -Algorithm SHA256).Hash)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
@@ -100,7 +100,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path C:\builtfiles -Force > $null
           $zip_path = "C:\builtfiles\$env:ProjectName-win-x64-${{ github.ref_name }}.7z"
-          7z a -mx9 "$zip_path" ".\$env:ProjectName\bin\$env:Configuration\$env:NET_TFM\win-x64\publish\"
+          7z a -mx9 "$zip_path" ".\$env:ProjectName\bin\Release\$env:NET_TFM\win-x64\publish\"
           7z rn "$zip_path" publish $env:ProjectName
           echo "WINX64_SHA256=$((Get-FileHash $zip_path -Algorithm SHA256).Hash)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
@@ -109,7 +109,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path C:\builtfiles -Force > $null
           $zip_path = "C:\builtfiles\$env:ProjectName-win-arm64-${{ github.ref_name }}.7z"
-          7z a -mx9 "$zip_path" ".\$env:ProjectName\bin\$env:Configuration\$env:NET_TFM\win-arm64\publish\"
+          7z a -mx9 "$zip_path" ".\$env:ProjectName\bin\Release\$env:NET_TFM\win-arm64\publish\"
           7z rn "$zip_path" publish $env:ProjectName
           echo "WINARM64_SHA256=$((Get-FileHash $zip_path -Algorithm SHA256).Hash)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
@@ -118,7 +118,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path C:\builtfiles -Force > $null
           $zip_path = "C:\builtfiles\$env:ProjectName-win-x86-${{ github.ref_name }}.7z"
-          7z a -mx9 "$zip_path" ".\$env:ProjectName\bin\$env:Configuration\$env:NET_TFM\win-x86\publish\"
+          7z a -mx9 "$zip_path" ".\$env:ProjectName\bin\Release\$env:NET_TFM\win-x86\publish\"
           7z rn "$zip_path" publish $env:ProjectName
           echo "WINX86_SHA256=$((Get-FileHash $zip_path -Algorithm SHA256).Hash)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 

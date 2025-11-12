@@ -30,12 +30,12 @@ public class FFmpegTaskViewModel : TaskViewModel
 			Progress = 0.0;
 			Status = @"启动中...";
 			using (Observable.Interval(TimeSpan.FromSeconds(1)).Subscribe(_ =>
-			       {
-				       if (Progress < 0.99)
-				       {
-					       Progress += 0.01;
-				       }
-			       }))
+				   {
+					   if (Progress < 0.99)
+					   {
+						   Progress += 0.01;
+					   }
+				   }))
 			{
 				using var ffmpeg = DI.GetRequiredService<FFmpegCommand>();
 				using var messageMonitor = ffmpeg.MessageUpdated.Subscribe(str => Status = str);
