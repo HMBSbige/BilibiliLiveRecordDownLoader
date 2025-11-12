@@ -4,7 +4,6 @@ using BilibiliLiveRecordDownLoader.FlvProcessor.Models;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagHeaders;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Models.FlvTagPackets;
 using BilibiliLiveRecordDownLoader.FlvProcessor.Utils;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Buffers;
 
 namespace UnitTest;
@@ -30,11 +29,11 @@ public class FlvTest
 		header.HeaderSize = 114514;
 
 		header.Read(should);
-		Assert.AreEqual(header.Signature, @"FLV");
-		Assert.AreEqual(header.Version, 0x01);
-		Assert.AreEqual(header.Flags, HeaderFlags.VideoAndAudio);
-		Assert.AreEqual(header.HeaderSize, 9u);
-		Assert.AreEqual(header.Reserved, 0u);
+		Assert.AreEqual(@"FLV", header.Signature);
+		Assert.AreEqual(0x01, header.Version);
+		Assert.AreEqual(HeaderFlags.VideoAndAudio, header.Flags);
+		Assert.AreEqual(9u, header.HeaderSize);
+		Assert.AreEqual(0u, header.Reserved);
 	}
 
 	[TestMethod]
@@ -56,8 +55,8 @@ public class FlvTest
 		info.PayloadSize = 114514;
 		info.PacketType = PacketType.AMF_Metadata;
 		info.Read(should);
-		Assert.AreEqual(info.PayloadSize, (uint)((1 << 24) - 1));
-		Assert.AreEqual(info.PacketType, PacketType.VideoPayload);
+		Assert.AreEqual((uint)((1 << 24) - 1), info.PayloadSize);
+		Assert.AreEqual(PacketType.VideoPayload, info.PacketType);
 	}
 
 	[TestMethod]
@@ -88,7 +87,7 @@ public class FlvTest
 
 		info.Data = 114514;
 		info.Read(should);
-		Assert.AreEqual(info.Data, 0x9FC7_0042);
+		Assert.AreEqual(0x9FC7_0042, info.Data);
 	}
 
 	[TestMethod]
@@ -117,9 +116,9 @@ public class FlvTest
 		info.PayloadInfo = new();
 		info.Timestamp = new();
 		info.Read(should);
-		Assert.AreEqual(info.PayloadInfo.PayloadSize, (uint)((1 << 24) - 1));
-		Assert.AreEqual(info.PayloadInfo.PacketType, PacketType.VideoPayload);
-		Assert.AreEqual(info.Timestamp.Data, 0x9FC7_0042);
+		Assert.AreEqual((uint)((1 << 24) - 1), info.PayloadInfo.PayloadSize);
+		Assert.AreEqual(PacketType.VideoPayload, info.PayloadInfo.PacketType);
+		Assert.AreEqual(0x9FC7_0042, info.Timestamp.Data);
 	}
 
 	[TestMethod]
@@ -167,7 +166,7 @@ public class FlvTest
 		};
 		metaData.Data[@"duration"] = 4.0;
 
-		Assert.AreEqual(metaData.Size, 183);
+		Assert.AreEqual(183, metaData.Size);
 
 		using (var memory = MemoryPool<byte>.Shared.Rent(metaData.Size))
 		{
@@ -177,15 +176,15 @@ public class FlvTest
 		metaData.Data.Clear();
 		metaData.Read(should);
 
-		Assert.AreEqual(metaData.Size, 183);
-		Assert.AreEqual(metaData.Data.Count, 7);
-		Assert.AreEqual(metaData.Data[@"duration"], 4.0);
-		Assert.AreEqual(metaData.Data[@"width"], 180.0);
-		Assert.AreEqual(metaData.Data[@"height"], 180.0);
-		Assert.AreEqual(metaData.Data[@"videodatarate"], 26.0);
-		Assert.AreEqual(metaData.Data[@"audiodatarate"], 16.0);
-		Assert.AreEqual(metaData.Data[@"framerate"], 25.0);
-		Assert.AreEqual(metaData.Data[@"creationdate"], "Sun Jul 03 20:09:17 2005\n");
+		Assert.AreEqual(183, metaData.Size);
+		Assert.HasCount(7, metaData.Data);
+		Assert.AreEqual(4.0, metaData.Data[@"duration"]);
+		Assert.AreEqual(180.0, metaData.Data[@"width"]);
+		Assert.AreEqual(180.0, metaData.Data[@"height"]);
+		Assert.AreEqual(26.0, metaData.Data[@"videodatarate"]);
+		Assert.AreEqual(16.0, metaData.Data[@"audiodatarate"]);
+		Assert.AreEqual(25.0, metaData.Data[@"framerate"]);
+		Assert.AreEqual("Sun Jul 03 20:09:17 2005\n", metaData.Data[@"creationdate"]);
 	}
 
 	[TestMethod]

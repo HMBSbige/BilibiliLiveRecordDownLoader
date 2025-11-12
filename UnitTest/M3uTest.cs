@@ -1,5 +1,4 @@
 using BilibiliApi.Model;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Text;
 
 namespace UnitTest;
@@ -28,7 +27,7 @@ public class M3uTest
 		M3U m3u8 = new(stream);
 		Assert.IsNull(m3u8.InitialUri);
 		Assert.AreEqual(3, m3u8.Version);
-		Assert.AreEqual(2, m3u8.Segments.Count);
+		Assert.HasCount(2, m3u8.Segments);
 		Assert.AreEqual(@"0.ts", m3u8.Segments[0]);
 		Assert.AreEqual(@"1.ts", m3u8.Segments[1]);
 	}
@@ -52,7 +51,7 @@ public class M3uTest
 		M3U m3u8 = new(stream);
 		Assert.IsNull(m3u8.InitialUri);
 		Assert.AreEqual(3, m3u8.Version);
-		Assert.AreEqual(3, m3u8.Segments.Count);
+		Assert.HasCount(3, m3u8.Segments);
 		Assert.AreEqual(@"/live-bvc/live_2051617240_30614556/1677132022560.ts?trid=100366f733ecb33e11edbec4850f533e18ab", m3u8.Segments[0]);
 		Assert.AreEqual(@"/live-bvc/live_2051617240_30614556/1677132025521.ts?trid=100366f733ecb33e11edbec4850f533e18ab", m3u8.Segments[1]);
 		Assert.AreEqual(@"/live-bvc/live_2051617240_30614556/1677132028588.ts?trid=100366f733ecb33e11edbec4850f533e18ab", m3u8.Segments[2]);
@@ -73,7 +72,7 @@ public class M3uTest
 		using MemoryStream stream = new(Encoding.UTF8.GetBytes(content));
 		M3U m3u8 = new(stream);
 		Assert.AreEqual(3, m3u8.Version);
-		Assert.AreEqual(1, m3u8.Segments.Count);
+		Assert.HasCount(1, m3u8.Segments);
 		Assert.AreEqual(@"/live-bvc/live_50329118_9516950/1677145949976.ts?trid=1003c95a6a56b35f11ed81956d7a65f9b559", m3u8.Segments[0]);
 	}
 
@@ -108,7 +107,7 @@ public class M3uTest
 		M3U m3u8 = new(stream);
 		Assert.AreEqual(@"h1676709149.m4s", m3u8.InitialUri);
 		Assert.AreEqual(7, m3u8.Version);
-		Assert.AreEqual(8, m3u8.Segments.Count);
+		Assert.HasCount(8, m3u8.Segments);
 		Assert.AreEqual(@"36179519.m4s", m3u8.Segments[0]);
 		Assert.AreEqual(@"36179520.m4s", m3u8.Segments[1]);
 		Assert.AreEqual(@"36179521.m4s", m3u8.Segments[2]);

@@ -1,7 +1,6 @@
 using BilibiliApi.Enums;
 using BilibiliApi.Model;
 using BilibiliApi.Model.PlayUrl;
-using DynamicData;
 using System.Text.Json;
 
 namespace BilibiliApi.Clients;
@@ -151,12 +150,7 @@ public partial class BilibiliApiClient
 		{
 			string url = $@"https://api.live.bilibili.com/room/v1/Room/get_info?id={roomId}";
 
-			JsonDocument? json = await GetJsonAsync<JsonDocument>(url, cancellationToken);
-
-			if (json is null)
-			{
-				throw ThrowException();
-			}
+			JsonDocument? json = await GetJsonAsync<JsonDocument>(url, cancellationToken) ?? throw ThrowException();
 
 			JsonElement root = json.RootElement;
 

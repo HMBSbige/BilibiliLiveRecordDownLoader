@@ -99,7 +99,7 @@ public abstract class IgnoreValueConverter<T> : JsonConverter<T>
 				property.SetValue(res, value);
 			}
 		}
-		JSonError:
+	JSonError:
 		throw new JsonException();
 	}
 

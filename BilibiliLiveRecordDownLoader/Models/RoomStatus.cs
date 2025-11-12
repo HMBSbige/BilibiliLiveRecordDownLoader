@@ -720,10 +720,7 @@ public class RoomStatus : ReactiveObject
 		{
 			DanMuReconnectLatency = room.DanMuReconnectLatency;
 
-			if (_danmuClient is not null)
-			{
-				_danmuClient.RetryInterval = TimeSpan.FromSeconds(DanMuReconnectLatency);
-			}
+			_danmuClient?.RetryInterval = TimeSpan.FromSeconds(DanMuReconnectLatency);
 		}
 
 		if (!HttpCheckLatency.Equals(room.HttpCheckLatency))
