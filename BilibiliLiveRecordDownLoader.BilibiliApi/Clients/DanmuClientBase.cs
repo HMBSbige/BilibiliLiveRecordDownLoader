@@ -6,7 +6,6 @@ using BilibiliLiveRecordDownLoader.Shared.Utils;
 using Microsoft;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
-using Pipelines.Extensions;
 using System.Buffers;
 using System.IO.Compression;
 using System.IO.Pipelines;
@@ -396,8 +395,7 @@ public abstract class DanmuClientBase(ILogger<DanmuClientBase> logger, BilibiliA
 			}
 			case 2:
 			{
-				Stream stream = packet.Body.Slice(2).AsStream();// Drop header
-				await using DeflateStream deflate = new(stream, CompressionMode.Decompress, false);
+				await using ZLibStream deflate = new(PipeReader.Create(packet.Body).AsStream(), CompressionMode.Decompress, false);
 				PipeReader reader = PipeReader.Create(deflate);
 				await ReadPipeAsync(reader, cancellationToken);
 
@@ -405,7 +403,7 @@ public abstract class DanmuClientBase(ILogger<DanmuClientBase> logger, BilibiliA
 			}
 			case 3:
 			{
-				await using BrotliStream brotli = new(packet.Body.AsStream(), CompressionMode.Decompress, false);
+				await using BrotliStream brotli = new(PipeReader.Create(packet.Body).AsStream(), CompressionMode.Decompress, false);
 				PipeReader reader = PipeReader.Create(brotli);
 				await ReadPipeAsync(reader, cancellationToken);
 
