@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="CryptoBase" Version="3.1.1" />
+    <PackageReference Include="CryptoBase" Version="3.1.2" />
     <PackageReference Include="DynamicData" Version="9.4.1" />
     <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
