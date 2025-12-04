@@ -3,9 +3,8 @@
   <PropertyGroup>
     <RootNamespace>BilibiliApi</RootNamespace>
     <NoWarn>CS1591</NoWarn>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>1.12.2</Version>
+    <IsPackable>true</IsPackable>
+    <Version>1.13.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

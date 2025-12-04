@@ -47,7 +47,7 @@ public partial class BilibiliApiClient
 			{ @"fontsize", fontSize }
 		};
 		HttpResponseMessage response = await PostAsync(url, pair, false, token);
-		DanmuSendResponse? message = await response.Content.ReadFromJsonAsync<DanmuSendResponse>(token) ?? throw new HttpRequestException(@"发送弹幕失败");
+		DanmuSendResponse message = await response.Content.ReadFromJsonAsync<DanmuSendResponse>(token) ?? throw new HttpRequestException(@"发送弹幕失败");
 
 		if (message.code != 0)
 		{

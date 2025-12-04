@@ -35,16 +35,29 @@ public class BilibiliApiTest
 	[TestMethod]
 	public async Task GetRoomUriTestAsync()
 	{
-		(Uri[] hlsUris, string format) = await _apiClient.GetRoomStreamUriAsync(6);
-
-		Assert.AreNotEqual(0, hlsUris.Length);
-		Assert.AreEqual(@"fmp4", format);
-
-		foreach (Uri hlsUri in hlsUris)
+		foreach ((Uri[] uris, string format) in await _apiClient.GetRoomStreamUriAsync(6))
 		{
-			Assert.AreEqual(Uri.UriSchemeHttps, hlsUri.Scheme);
-			Assert.AreEqual(@".m3u8", Path.GetExtension(hlsUri.AbsolutePath));
-			Console.WriteLine(hlsUri);
+			Assert.AreNotEqual(0, uris.Length);
+
+			foreach (Uri uri in uris)
+			{
+				Assert.AreEqual(Uri.UriSchemeHttps, uri.Scheme);
+
+				if (format is @"fmp4" or @"ts")
+				{
+					Assert.AreEqual(@".m3u8", Path.GetExtension(uri.AbsolutePath));
+				}
+				else if (format is @"flv")
+				{
+					Assert.AreEqual(@".flv", Path.GetExtension(uri.AbsolutePath));
+				}
+				else
+				{
+					Assert.Fail("未知的格式");
+				}
+
+				Console.WriteLine(uri);
+			}
 		}
 	}
 

@@ -27,7 +27,7 @@ public partial class BilibiliApiClient
 
 	private record StreamUriInfo(string Protocol, string Format, RoomPlayInfoStreamCodec Codec);
 
-	public async Task<(Uri[], string)> GetRoomStreamUriAsync(long roomId, long qn = 10000, string? codecOrder = default, string? formatOrder = default, CancellationToken cancellationToken = default)
+	public async Task<IEnumerable<(Uri[], string)>> GetRoomStreamUriAsync(long roomId, long qn = 10000, string? codecOrder = default, string? formatOrder = default, CancellationToken cancellationToken = default)
 	{
 		RoomPlayInfo? message = await GetRoomPlayInfoAsync(roomId, qn, cancellationToken);
 
@@ -89,22 +89,11 @@ public partial class BilibiliApiClient
 		string[] codecOrderByDescending = GetOrderByDescending(codecOrder, DefaultCodecOrder);
 		string[] formatOrderByDescending = GetOrderByDescending(formatOrder, DefaultFormatOrder);
 
-		StreamUriInfo info = list.OrderByDescending(x => codecOrderByDescending.IndexOf(x.Codec.CodecName, StringComparer.OrdinalIgnoreCase))
-			.ThenByDescending(x => formatOrderByDescending.IndexOf(x.Format, StringComparer.OrdinalIgnoreCase))
-			.First();
-
-		RoomPlayInfoStreamUrlInfo[] uriInfo = info.Codec.UrlInfo!.Where(GetValidUrlInfo).ToArray();
-
-		Uri[] result = new Uri[uriInfo.LongLength];
-
-		string baseUrl = info.Codec.BaseUrl!;
-
-		for (long i = 0; i < result.LongLength; ++i)
-		{
-			result[i] = new Uri(uriInfo[i].Host + baseUrl + uriInfo[i].Extra);
-		}
-
-		return (result, info.Format);
+		return GetResult
+		(
+			list.OrderByDescending(x => codecOrderByDescending.IndexOf(x.Codec.CodecName, StringComparer.OrdinalIgnoreCase))
+				.ThenByDescending(x => formatOrderByDescending.IndexOf(x.Format, StringComparer.OrdinalIgnoreCase))
+		);
 
 		static string[] GetOrderByDescending(string? order, string defaultValue)
 		{
@@ -131,6 +120,25 @@ public partial class BilibiliApiClient
 		static bool GetValidUrlInfo(RoomPlayInfoStreamUrlInfo x)
 		{
 			return !string.IsNullOrEmpty(x.Host) && x.Host.StartsWith(@"https://");
+		}
+
+		static IEnumerable<(Uri[], string)> GetResult(IEnumerable<StreamUriInfo> uriInfos)
+		{
+			foreach (StreamUriInfo info in uriInfos)
+			{
+				RoomPlayInfoStreamUrlInfo[] uriInfo = info.Codec.UrlInfo!.Where(GetValidUrlInfo).ToArray();
+
+				Uri[] result = new Uri[uriInfo.LongLength];
+
+				string baseUrl = info.Codec.BaseUrl!;
+
+				for (long i = 0; i < result.LongLength; ++i)
+				{
+					result[i] = new Uri(uriInfo[i].Host + baseUrl + uriInfo[i].Extra);
+				}
+
+				yield return (result, info.Format);
+			}
 		}
 	}
 

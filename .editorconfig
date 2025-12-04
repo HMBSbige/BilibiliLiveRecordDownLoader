@@ -27,6 +27,7 @@ resharper_for_simple_types = use_explicit_type
 resharper_fsharp_insert_final_newline = false
 resharper_html_insert_final_newline = false
 resharper_instance_members_qualify_declared_in =
+resharper_keep_existing_attribute_arrangement = true
 resharper_keep_existing_initializer_arrangement = false
 resharper_max_initializer_elements_on_line = 1
 resharper_place_accessorholder_attribute_on_same_line = false

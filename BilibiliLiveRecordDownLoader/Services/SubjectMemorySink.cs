@@ -1,7 +1,6 @@
 using BilibiliLiveRecordDownLoader.Models;
 using BilibiliLiveRecordDownLoader.Shared.Utils;
 using DynamicData;
-using Microsoft;
 using ReactiveUI;
 using Serilog.Core;
 using Serilog.Events;
@@ -26,7 +25,7 @@ public class SubjectMemorySink : ILogEventSink
 
 	public void Emit(LogEvent logEvent)
 	{
-		Requires.NotNull(logEvent, nameof(logEvent));
+		ArgumentNullException.ThrowIfNull(logEvent);
 
 		LogModel log = new()
 		{
