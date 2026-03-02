@@ -253,8 +253,8 @@ public class RoomStatus : ReactiveObject
 	private void StartMonitor()
 	{
 		_scope = _logger.BeginScope($@"开始监控房间 {{{LoggerProperties.RoomIdPropertyName}}}", RoomId);
-		_statusMonitor = this.WhenAnyValue(x => x.LiveStatus).ObserveOn(RxApp.TaskpoolScheduler).Subscribe(_ => StatusUpdatedAsync().Forget());
-		_enableMonitor = this.WhenAnyValue(x => x.IsEnable).ObserveOn(RxApp.TaskpoolScheduler).Subscribe(_ => EnableUpdatedAsync().Forget());
+		_statusMonitor = this.WhenAnyValue(x => x.LiveStatus).ObserveOn(RxSchedulers.TaskpoolScheduler).Subscribe(_ => StatusUpdatedAsync().Forget());
+		_enableMonitor = this.WhenAnyValue(x => x.IsEnable).ObserveOn(RxSchedulers.TaskpoolScheduler).Subscribe(_ => EnableUpdatedAsync().Forget());
 		this.RaisePropertyChanged(nameof(LiveStatus));
 		_titleMonitor = this.WhenAnyValue(x => x.Title).Subscribe
 		(title =>

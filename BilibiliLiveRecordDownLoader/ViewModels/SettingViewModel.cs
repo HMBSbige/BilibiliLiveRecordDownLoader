@@ -159,7 +159,7 @@ public class SettingViewModel : ReactiveObject, IRoutableViewModel
 
 	public IDisposable CreateDiskMonitor()
 	{
-		return Observable.Interval(TimeSpan.FromSeconds(1), RxApp.MainThreadScheduler).Subscribe(GetDiskUsage);
+		return Observable.Interval(TimeSpan.FromSeconds(1), RxSchedulers.MainThreadScheduler).Subscribe(GetDiskUsage);
 	}
 
 	private void GetDiskUsage(long _)
