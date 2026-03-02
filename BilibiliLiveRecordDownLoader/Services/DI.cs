@@ -29,7 +29,7 @@ public static class DI
 		}
 #endif
 
-		T? service = Locator.Current.GetService<T>();
+		T? service = AppLocator.Current.GetService<T>();
 
 		Verify.Operation(service is not null, $@"No service for type {typeof(T)} has been registered.");
 
