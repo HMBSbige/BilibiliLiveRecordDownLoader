@@ -49,7 +49,7 @@ public class StreamRecordViewModel : ReactiveObject, IRoutableViewModel
 		_config = config;
 
 		_roomList.Connect()
-			.ObserveOn(RxApp.MainThreadScheduler)
+			.ObserveOn(RxSchedulers.MainThreadScheduler)
 			.Bind(out RoomList)
 			.DisposeMany()
 			.Subscribe(RoomListChanged);

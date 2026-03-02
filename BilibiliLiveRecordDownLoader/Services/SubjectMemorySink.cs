@@ -17,7 +17,7 @@ public class SubjectMemorySink : ILogEventSink
 	public SubjectMemorySink()
 	{
 		_list.Connect()
-			.ObserveOn(RxApp.MainThreadScheduler)
+			.ObserveOn(RxSchedulers.MainThreadScheduler)
 			.Bind(out Logs)
 			.Subscribe();
 		_list.LimitSizeTo(100).Subscribe();
