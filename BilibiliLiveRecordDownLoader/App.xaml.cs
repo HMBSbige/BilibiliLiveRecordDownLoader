@@ -60,7 +60,7 @@ public partial class App
 			return;
 		}
 
-		_singleInstance.Received.ObserveOn(RxApp.TaskpoolScheduler).Subscribe(ArgumentsReceived).DisposeWith(_disposable);
+		_singleInstance.Received.ObserveOn(RxSchedulers.TaskpoolScheduler).Subscribe(ArgumentsReceived).DisposeWith(_disposable);
 		_singleInstance.StartListenServer();
 
 		DI.Register();
@@ -113,7 +113,7 @@ public partial class App
 
 			if (args.Contains(Constants.ParameterShow))
 			{
-				RxApp.MainThreadScheduler.Schedule(() => DI.GetRequiredService<MainWindow>().ShowWindow());
+				RxSchedulers.MainThreadScheduler.Schedule(() => DI.GetRequiredService<MainWindow>().ShowWindow());
 				endFunc(Constants.ParameterShow);
 				return;
 			}

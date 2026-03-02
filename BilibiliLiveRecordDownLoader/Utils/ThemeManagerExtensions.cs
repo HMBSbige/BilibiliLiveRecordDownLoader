@@ -30,6 +30,6 @@ public static class ThemeManagerExtensions
 
 	private static void SetTheme(this ThemeManager manager, ApplicationTheme? theme)
 	{
-		RxApp.MainThreadScheduler.Schedule(() => manager.ApplicationTheme = theme);
+		RxSchedulers.MainThreadScheduler.Schedule(() => manager.ApplicationTheme = theme);
 	}
 }

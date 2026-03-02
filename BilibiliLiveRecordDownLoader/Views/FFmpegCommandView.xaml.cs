@@ -40,7 +40,7 @@ public partial class FFmpegCommandView
 
 			ViewModel.CheckFFmpegStatusCommand
 				.Execute()
-				.ObserveOn(RxApp.MainThreadScheduler)
+				.ObserveOn(RxSchedulers.MainThreadScheduler)
 				.Subscribe(b =>
 				{
 					HyperlinkButton.Visibility = b ? Visibility.Collapsed : Visibility.Visible;

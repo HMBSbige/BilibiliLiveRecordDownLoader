@@ -42,7 +42,7 @@ public class TaskListViewModel : ReactiveObject, IRoutableViewModel
 		_taskQueue = taskQueue;
 
 		_taskSourceList.Connect()
-			.ObserveOn(RxApp.MainThreadScheduler)
+			.ObserveOn(RxSchedulers.MainThreadScheduler)
 			.Bind(out TaskList)
 			.DisposeMany()
 			.Subscribe();
