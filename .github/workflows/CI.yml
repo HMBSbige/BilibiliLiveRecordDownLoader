@@ -34,6 +34,8 @@ jobs:
     name: Nuget
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
     strategy:
       matrix:
         PackageName:
@@ -52,11 +54,17 @@ jobs:
         working-directory: ${{ matrix.PackageName }}
         run: dotnet pack
 
-      - name: Push nuget packages
+      - name: NuGet Login
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push to NuGet
         working-directory: ${{ matrix.PackageName }}/bin/Release
         run: |
+          dotnet nuget push *.nupkg -s https://api.nuget.org/v3/index.json -k ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --skip-duplicate
           dotnet nuget push *.nupkg -s https://nuget.pkg.github.com/HMBSbige -k ${{ secrets.GITHUB_TOKEN }} --skip-duplicate
-          dotnet nuget push *.nupkg -s https://api.nuget.org/v3/index.json -k ${{ secrets.NuGetAPIKey }} --skip-duplicate
 
   release:
     name: Release
