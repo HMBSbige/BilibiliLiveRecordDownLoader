@@ -35,6 +35,7 @@ jobs:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     runs-on: ubuntu-latest
     permissions:
+      id-token: write
       packages: write
     strategy:
       matrix:
