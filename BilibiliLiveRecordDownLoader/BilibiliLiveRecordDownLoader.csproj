@@ -24,7 +24,7 @@
     <PackageReference Include="ModernWpfUI" Version="0.9.6" />
     <PackageReference Include="Punchclock" Version="6.0.1" />
     <PackageReference Include="QRCoder" Version="1.8.0" />
-    <PackageReference Include="QRCoder.Xaml" Version="1.7.0" />
+    <PackageReference Include="QRCoder.Xaml" Version="1.8.0" />
     <PackageReference Include="ReactiveMarbles.ObservableEvents.SourceGenerator" Version="1.3.1" PrivateAssets="all" />
     <PackageReference Include="ReactiveUI.Fody" Version="19.5.41" />
     <PackageReference Include="ReactiveUI.WPF" Version="23.2.1" />
