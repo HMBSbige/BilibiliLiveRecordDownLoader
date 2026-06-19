@@ -14,7 +14,7 @@ jobs:
       matrix:
         Rid: [generic, win-x64, win-x86, win-arm64]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ env.NET_VERSION }}
@@ -46,7 +46,7 @@ jobs:
           ]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ env.NET_VERSION }}
@@ -73,7 +73,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ env.NET_VERSION }}
