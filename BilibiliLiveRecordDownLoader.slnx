@@ -11,4 +11,10 @@
     <File Path="NuGet.Config" />
     <File Path="README.md" />
   </Folder>
+  <Folder Name="/src/Libraries/">
+    <Project Path="src/MediaToolkit/MediaToolkit.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MediaToolkit.Tests/MediaToolkit.Tests.csproj" />
+  </Folder>
 </Solution>
