@@ -1,0 +1,143 @@
+using MediaToolkit.FFmpeg;
+
+namespace MediaToolkit.Tests.FFmpeg;
+
+public class FFmpegLocateTest
+{
+	private static readonly string ExecutableName = FFmpegRunner.ExecutableName;
+
+	private static string JoinPath(params string[] directories)
+	{
+		return string.Join(Path.PathSeparator, directories);
+	}
+
+	[Test]
+	public async Task PreferredExistingFileReturnsFullPathAsync()
+	{
+		using TestDirectory directory = new();
+		string custom = directory.CreateFile(Path.Combine(@"tools", @"my-ffmpeg.bin"));
+		string relative = Path.GetRelativePath(Environment.CurrentDirectory, custom);
+
+		string? located = FFmpegRunner.Locate(relative, directory.Combine(@"app"), null, []);
+
+		await Assert.That(located).IsEqualTo(custom);
+	}
+
+	[Test]
+	public async Task PreferredMissingFilePathReturnsNullEvenIfPathHasFFmpegAsync()
+	{
+		using TestDirectory directory = new();
+		directory.CreateFile(Path.Combine(@"bin", ExecutableName));
+
+		string? located = FFmpegRunner.Locate(directory.Combine(@"missing", ExecutableName), directory.Root, directory.Combine(@"bin"), []);
+
+		await Assert.That(located).IsNull();
+	}
+
+	[Test]
+	public async Task PreferredCommandNameIgnoresApplicationDirectoryAsync()
+	{
+		using TestDirectory directory = new();
+		string commandFile = OperatingSystem.IsWindows() ? @"ffmpeg7.exe" : @"ffmpeg7";
+		directory.CreateFile(Path.Combine(@"app", commandFile));
+		string expected = directory.CreateFile(Path.Combine(@"second", commandFile));
+
+		string? located = FFmpegRunner.Locate(@"ffmpeg7", directory.Combine(@"app"), JoinPath(directory.Combine(@"first"), directory.Combine(@"second")), []);
+
+		await Assert.That(located).IsEqualTo(expected);
+	}
+
+	[Test]
+	public async Task PreferredCommandNameFallsBackToPlatformDirectoriesAsync()
+	{
+		using TestDirectory directory = new();
+		string expected = directory.CreateFile(Path.Combine(@"platform", OperatingSystem.IsWindows() ? @"ffmpeg7.exe" : @"ffmpeg7"));
+
+		string? located = FFmpegRunner.Locate(@"ffmpeg7", directory.Root, directory.Combine(@"empty"), [directory.Combine(@"platform")]);
+
+		await Assert.That(located).IsEqualTo(expected);
+	}
+
+	[Test]
+	public async Task PreferredCommandNameInPathWinsOverPlatformDirectoriesAsync()
+	{
+		using TestDirectory directory = new();
+		string commandFile = OperatingSystem.IsWindows() ? @"ffmpeg7.exe" : @"ffmpeg7";
+		string expected = directory.CreateFile(Path.Combine(@"bin", commandFile));
+		directory.CreateFile(Path.Combine(@"platform", commandFile));
+
+		string? located = FFmpegRunner.Locate(@"ffmpeg7", directory.Root, directory.Combine(@"bin"), [directory.Combine(@"platform")]);
+
+		await Assert.That(located).IsEqualTo(expected);
+	}
+
+	[Test]
+	public async Task PreferredCommandNameMissingEverywhereReturnsNullAsync()
+	{
+		using TestDirectory directory = new();
+
+		string? located = FFmpegRunner.Locate(@"ffmpeg7", directory.Root, directory.Combine(@"empty"), [directory.Combine(@"platform")]);
+
+		await Assert.That(located).IsNull();
+	}
+
+	[Test]
+	public async Task ApplicationDirectoryWinsOverPathAsync()
+	{
+		using TestDirectory directory = new();
+		string expected = directory.CreateFile(Path.Combine(@"app", ExecutableName));
+		directory.CreateFile(Path.Combine(@"bin", ExecutableName));
+
+		string? located = FFmpegRunner.Locate(null, directory.Combine(@"app"), directory.Combine(@"bin"), []);
+
+		await Assert.That(located).IsEqualTo(expected);
+	}
+
+	[Test]
+	public async Task PathWinsOverPlatformDirectoriesAsync()
+	{
+		using TestDirectory directory = new();
+		// PATH 里的空项、空白和引号都要容忍
+		string expected = directory.CreateFile(Path.Combine(@"bin", ExecutableName));
+		directory.CreateFile(Path.Combine(@"platform", ExecutableName));
+		string pathVariable = JoinPath(@"", @"  ", directory.Combine(@"nothing"), $"\"{directory.Combine(@"bin")}\"");
+
+		string? located = FFmpegRunner.Locate(@" ", directory.Combine(@"app"), pathVariable, [directory.Combine(@"platform")]);
+
+		await Assert.That(located).IsEqualTo(expected);
+	}
+
+	[Test]
+	public async Task PlatformDirectoriesAreTheLastResortAsync()
+	{
+		using TestDirectory directory = new();
+		string expected = directory.CreateFile(Path.Combine(@"platform2", ExecutableName));
+
+		string? located = FFmpegRunner.Locate(null, directory.Combine(@"app"), null, [directory.Combine(@"platform1"), directory.Combine(@"platform2")]);
+
+		await Assert.That(located).IsEqualTo(expected);
+	}
+
+	[Test]
+	public async Task DirectoryNamedLikeExecutableIsIgnoredAsync()
+	{
+		using TestDirectory directory = new();
+		Directory.CreateDirectory(directory.Combine(@"app", ExecutableName));
+
+		string? located = FFmpegRunner.Locate(null, directory.Combine(@"app"), null, []);
+
+		await Assert.That(located).IsNull();
+	}
+
+	[Test]
+	public async Task PlatformDirectoriesMatchOperatingSystemAsync()
+	{
+		IReadOnlyList<string> directories = FFmpegRunner.PlatformDirectories;
+
+		string[] expected = OperatingSystem.IsMacOS() ? [@"/opt/homebrew/bin", @"/usr/local/bin"]
+			: OperatingSystem.IsLinux() ? [@"/usr/bin", @"/usr/local/bin"]
+			: [];
+		await Assert.That(directories).IsEquivalentTo(expected, StringComparer.Ordinal, CollectionOrdering.Matching);
+		await Assert.That(FFmpegRunner.ExecutableName).IsEqualTo(OperatingSystem.IsWindows() ? @"ffmpeg.exe" : @"ffmpeg");
+	}
+}
