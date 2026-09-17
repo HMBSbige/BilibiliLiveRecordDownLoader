@@ -1,0 +1,113 @@
+{
+  "code": 0,
+  "message": "OK",
+  "ttl": 1,
+  "data": {
+    "room_id": 6154037,
+    "short_id": 732,
+    "uid": 194484313,
+    "live_status": 1,
+    "playurl_info": {
+      "conf_json": "{\"cdn_rate\":10000,\"report_interval_sec\":150}",
+      "playurl": {
+        "cid": 6154037,
+        "stream": [
+          {
+            "protocol_name": "http_stream",
+            "format": [
+              {
+                "format_name": "flv",
+                "codec": [
+                  {
+                    "codec_name": "avc",
+                    "current_qn": 10000,
+                    "accept_qn": [10000, 400, 250],
+                    "base_url": "/live-bvc/1/live_2500.flv?",
+                    "url_info": [
+                      { "host": "https://a.bilivideo.com", "extra": "expires=1&sign=a", "stream_ttl": 0 },
+                      { "host": "http://insecure.bilivideo.com", "extra": "expires=1&sign=b", "stream_ttl": 0 },
+                      { "host": "https://c.bilivideo.com", "extra": "expires=1&sign=c", "stream_ttl": 0 }
+                    ]
+                  },
+                  {
+                    "codec_name": "hevc",
+                    "current_qn": 10000,
+                    "base_url": "/live-bvc/2/live_minihevc.flv?",
+                    "url_info": [{ "host": "https://a.bilivideo.com", "extra": "sign=d", "stream_ttl": 0 }]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "protocol_name": "http_hls",
+            "format": [
+              {
+                "format_name": "ts",
+                "codec": [
+                  {
+                    "codec_name": "avc",
+                    "current_qn": 10000,
+                    "base_url": "/live-bvc/3/live_2500.m3u8?",
+                    "url_info": [{ "host": "https://ts.bilivideo.com", "extra": "sign=e", "stream_ttl": 0 }]
+                  },
+                  {
+                    "codec_name": "hevc",
+                    "current_qn": 10000,
+                    "base_url": "/live-bvc/4/live_minihevc.m3u8?",
+                    "url_info": [{ "host": "https://ts.bilivideo.com", "extra": "sign=f", "stream_ttl": 0 }]
+                  }
+                ]
+              },
+              {
+                "format_name": "fmp4",
+                "codec": [
+                  {
+                    "codec_name": "avc",
+                    "current_qn": 10000,
+                    "base_url": "/live-bvc/5/live_2500/index.m3u8?",
+                    "url_info": [{ "host": "https://fmp4.bilivideo.com", "extra": "sign=g", "stream_ttl": 0 }]
+                  },
+                  {
+                    "codec_name": "hevc",
+                    "current_qn": 10000,
+                    "base_url": "/live-bvc/6/live_minihevc/index.m3u8?",
+                    "url_info": [{ "host": "https://fmp4.bilivideo.com", "extra": "sign=h", "stream_ttl": 0 }]
+                  },
+                  {
+                    "codec_name": "av1",
+                    "current_qn": 400,
+                    "base_url": "/live-bvc/7/live_av1/index.m3u8?",
+                    "url_info": [{ "host": "http://insecure.bilivideo.com", "extra": "sign=i", "stream_ttl": 0 }]
+                  },
+                  {
+                    "codec_name": "vp9",
+                    "current_qn": 400,
+                    "base_url": "/live-bvc/8/live_vp9/index.m3u8?",
+                    "url_info": [{ "host": "https://fmp4.bilivideo.com", "extra": "sign=j", "stream_ttl": 0 }]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "protocol_name": "http_dash",
+            "format": [
+              {
+                "format_name": "fmp4",
+                "codec": [
+                  {
+                    "codec_name": "avc",
+                    "current_qn": 10000,
+                    "base_url": "/live-bvc/9/live.mpd?",
+                    "url_info": [{ "host": "https://dash.bilivideo.com", "extra": "sign=k", "stream_ttl": 0 }]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

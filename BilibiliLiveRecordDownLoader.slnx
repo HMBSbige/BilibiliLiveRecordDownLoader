@@ -12,9 +12,11 @@
     <File Path="README.md" />
   </Folder>
   <Folder Name="/src/Libraries/">
+    <Project Path="src/BilibiliLive/BilibiliLive.csproj" />
     <Project Path="src/MediaToolkit/MediaToolkit.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/BilibiliLive.Tests/BilibiliLive.Tests.csproj" />
     <Project Path="tests/MediaToolkit.Tests/MediaToolkit.Tests.csproj" />
   </Folder>
 </Solution>
