@@ -1,3 +1,4 @@
+using BilibiliLive.Danmu;
 using System.Text.Json.Serialization;
 
 namespace BilibiliLive.Api;
@@ -9,4 +10,5 @@ namespace BilibiliLive.Api;
 [JsonSerializable(typeof(NavData))]
 [JsonSerializable(typeof(QrCodeGenerateData))]
 [JsonSerializable(typeof(QrCodePollData))]
+[JsonSerializable(typeof(DanmuAuthBody))]
 internal sealed partial class BilibiliJsonContext : JsonSerializerContext;
