@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\BilibiliLive\BilibiliLive.csproj" />
+    <ProjectReference Include="..\BilibiliLiveRecordDownLoader.Domain.Shared\BilibiliLiveRecordDownLoader.Domain.Shared.csproj" />
+  </ItemGroup>
+</Project>

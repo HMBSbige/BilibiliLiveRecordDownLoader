@@ -1,0 +1,32 @@
+namespace BilibiliLiveRecordDownLoader.Application.Contracts.Rooms;
+
+public sealed record RoomSettingsDto
+{
+	public required long RoomId { get; init; }
+
+	public bool IsRecordingEnabled { get; init; } = RoomDefaults.IsRecordingEnabled;
+
+	public bool IsNotificationEnabled { get; init; }
+
+	public StreamQuality Quality { get; init; } = RoomDefaults.Quality;
+
+	public RecorderType? RecorderType { get; init; }
+
+	public IReadOnlyList<StreamCodec>? CodecPriority { get; init; }
+
+	public IReadOnlyList<StreamFormat>? FormatPriority { get; init; }
+
+	public bool? ConvertToMp4 { get; init; }
+
+	public bool? DeleteAfterConvert { get; init; }
+
+	public TimeSpan StatusCheckInterval { get; init; } = RoomDefaults.StatusCheckInterval;
+
+	public TimeSpan DanmuReconnectDelay { get; init; } = RoomDefaults.DanmuReconnectDelay;
+
+	public TimeSpan StreamReconnectDelay { get; init; } = RoomDefaults.StreamReconnectDelay;
+
+	public TimeSpan StreamConnectTimeout { get; init; } = RoomDefaults.StreamConnectTimeout;
+
+	public TimeSpan StreamIdleTimeout { get; init; } = RoomDefaults.StreamIdleTimeout;
+}
