@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="HMBSbige.UpdateChecker" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="NuGet.Versioning" />
+    <PackageReference Include="ThisAssembly.AssemblyInfo" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\BilibiliLive\BilibiliLive.csproj" />
+    <ProjectReference Include="..\MediaToolkit\MediaToolkit.csproj" />
+    <ProjectReference Include="..\BilibiliLiveRecordDownLoader.Application.Contracts\BilibiliLiveRecordDownLoader.Application.Contracts.csproj" />
+    <ProjectReference Include="..\BilibiliLiveRecordDownLoader.Domain\BilibiliLiveRecordDownLoader.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="BilibiliLiveRecordDownLoader.Application.Tests" />
+  </ItemGroup>
+</Project>

@@ -13,6 +13,7 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/BilibiliLiveRecordDownLoader.Application.Contracts/BilibiliLiveRecordDownLoader.Application.Contracts.csproj" />
+    <Project Path="src/BilibiliLiveRecordDownLoader.Application/BilibiliLiveRecordDownLoader.Application.csproj" />
     <Project Path="src/BilibiliLiveRecordDownLoader.Configuration/BilibiliLiveRecordDownLoader.Configuration.csproj" />
     <Project Path="src/BilibiliLiveRecordDownLoader.Domain.Shared/BilibiliLiveRecordDownLoader.Domain.Shared.csproj" />
     <Project Path="src/BilibiliLiveRecordDownLoader.Domain/BilibiliLiveRecordDownLoader.Domain.csproj" />
