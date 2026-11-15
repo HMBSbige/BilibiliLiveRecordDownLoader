@@ -24,6 +24,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/BilibiliLive.Tests/BilibiliLive.Tests.csproj" />
+    <Project Path="tests/BilibiliLiveRecordDownLoader.Application.Tests/BilibiliLiveRecordDownLoader.Application.Tests.csproj" />
     <Project Path="tests/MediaToolkit.Tests/MediaToolkit.Tests.csproj" />
   </Folder>
 </Solution>

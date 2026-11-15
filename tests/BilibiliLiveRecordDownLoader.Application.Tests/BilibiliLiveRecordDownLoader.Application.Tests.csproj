@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BilibiliLiveRecordDownLoader.Application\BilibiliLiveRecordDownLoader.Application.csproj" />
+    <ProjectReference Include="..\..\src\BilibiliLiveRecordDownLoader.Configuration\BilibiliLiveRecordDownLoader.Configuration.csproj" />
+  </ItemGroup>
+
+</Project>

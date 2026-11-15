@@ -1,0 +1,15 @@
+global using BilibiliLive.Enums;
+global using BilibiliLiveRecordDownLoader.Application.Contracts.Rooms;
+global using BilibiliLiveRecordDownLoader.Application.Contracts.Tasks;
+global using BilibiliLiveRecordDownLoader.Application.Rooms;
+global using BilibiliLiveRecordDownLoader.Application.Tasks;
+global using BilibiliLiveRecordDownLoader.Configuration;
+global using BilibiliLiveRecordDownLoader.Domain.Configuration;
+global using BilibiliLiveRecordDownLoader.Domain.Recording;
+global using BilibiliLiveRecordDownLoader.Domain.Shared;
+global using BilibiliLiveRecordDownLoader.Domain.Shared.Configuration;
+global using BilibiliLiveRecordDownLoader.Domain.Shared.Recording;
+global using MediaToolkit.FFmpeg;
+global using Microsoft.Extensions.Logging.Abstractions;
+global using Microsoft.Extensions.Options;
+global using System.Text.Json.Nodes;
