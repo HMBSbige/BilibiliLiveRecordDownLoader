@@ -1,0 +1,125 @@
+namespace BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
+
+public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDto>
+{
+	private readonly RoomSettingsDto _original;
+
+	public RoomEditorViewModel(RoomSettingsDto? existing, AppConfig globalConfig)
+	{
+		IsNew = existing is null;
+		_original = existing ?? new RoomSettingsDto { RoomId = 0 };
+
+		RoomIdText = IsNew ? string.Empty : _original.RoomId.ToString(CultureInfo.InvariantCulture);
+		IsRecordingEnabled = _original.IsRecordingEnabled;
+		IsNotificationEnabled = _original.IsNotificationEnabled;
+		Quality = new ChoiceOption(_original.Quality);
+		RecorderType = _original.RecorderType is { } recorderType ? new ChoiceOption(recorderType) : ChoiceOption.Inherit;
+		ConvertToMp4 = new ChoiceOption(_original.ConvertToMp4);
+		DeleteAfterConvert = new ChoiceOption(_original.DeleteAfterConvert);
+		OverrideCodecPriority = _original.CodecPriority is not null;
+		OverrideFormatPriority = _original.FormatPriority is not null;
+		CodecPriority = PriorityListViewModel.Create(_original.CodecPriority ?? globalConfig.CodecPriority).DisposeWith(Disposables);
+		FormatPriority = PriorityListViewModel.Create(_original.FormatPriority ?? globalConfig.FormatPriority).DisposeWith(Disposables);
+		StatusCheckIntervalSeconds = (decimal)_original.StatusCheckInterval.TotalSeconds;
+		DanmuReconnectDelaySeconds = (decimal)_original.DanmuReconnectDelay.TotalSeconds;
+		StreamReconnectDelaySeconds = (decimal)_original.StreamReconnectDelay.TotalSeconds;
+		StreamConnectTimeoutSeconds = (decimal)_original.StreamConnectTimeout.TotalSeconds;
+		StreamIdleTimeoutSeconds = (decimal)_original.StreamIdleTimeout.TotalSeconds;
+
+		CanSave = this.WhenChanged(static viewModel => viewModel.RoomIdText).Map(static text => TryParseRoomId(text, out _));
+		SaveCommand.DisposeWith(Disposables);
+	}
+
+	public bool IsNew { get; }
+
+	public override string Title => IsNew ? AppLanguage.Current.AddRoom : AppLanguage.Current.EditRoom;
+
+	public IReadOnlyList<ChoiceOption> QualityOptions { get; } = ChoiceOption.Of(StreamQuality.Dolby, StreamQuality.UltraHd4K, StreamQuality.Original, StreamQuality.BluRay, StreamQuality.SuperHigh, StreamQuality.High, StreamQuality.Smooth);
+
+	public IReadOnlyList<ChoiceOption> RecorderTypeOptions { get; } = ChoiceOption.InheritOr<RecorderType>();
+
+	public IReadOnlyList<ChoiceOption> ToggleOptions => ChoiceOption.Toggles;
+
+	public PriorityListViewModel CodecPriority { get; }
+
+	public PriorityListViewModel FormatPriority { get; }
+
+	public IObservable<bool> CanSave { get; }
+
+	[Reactive]
+	public partial string RoomIdText { get; set; }
+
+	[Reactive]
+	public partial bool IsRecordingEnabled { get; set; }
+
+	[Reactive]
+	public partial bool IsNotificationEnabled { get; set; }
+
+	[Reactive]
+	public partial ChoiceOption Quality { get; set; }
+
+	[Reactive]
+	public partial ChoiceOption RecorderType { get; set; }
+
+	[Reactive]
+	public partial ChoiceOption ConvertToMp4 { get; set; }
+
+	[Reactive]
+	public partial ChoiceOption DeleteAfterConvert { get; set; }
+
+	[Reactive]
+	public partial bool OverrideCodecPriority { get; set; }
+
+	[Reactive]
+	public partial bool OverrideFormatPriority { get; set; }
+
+	[Reactive]
+	public partial decimal StatusCheckIntervalSeconds { get; set; }
+
+	[Reactive]
+	public partial decimal DanmuReconnectDelaySeconds { get; set; }
+
+	[Reactive]
+	public partial decimal StreamReconnectDelaySeconds { get; set; }
+
+	[Reactive]
+	public partial decimal StreamConnectTimeoutSeconds { get; set; }
+
+	[Reactive]
+	public partial decimal StreamIdleTimeoutSeconds { get; set; }
+
+	[ReactiveCommand(CanExecute = nameof(CanSave))]
+	private void Save()
+	{
+		if (!TryParseRoomId(RoomIdText, out long roomId))
+		{
+			return;
+		}
+
+		Close
+		(
+			_original with
+			{
+				RoomId = roomId,
+				IsRecordingEnabled = IsRecordingEnabled,
+				IsNotificationEnabled = IsNotificationEnabled,
+				Quality = Quality.As<StreamQuality>() ?? StreamQuality.Original,
+				RecorderType = RecorderType.As<RecorderType>(),
+				CodecPriority = OverrideCodecPriority ? CodecPriority.ToList<StreamCodec>() : null,
+				FormatPriority = OverrideFormatPriority ? FormatPriority.ToList<StreamFormat>() : null,
+				ConvertToMp4 = ConvertToMp4.As<bool>(),
+				DeleteAfterConvert = DeleteAfterConvert.As<bool>(),
+				StatusCheckInterval = TimeSpan.FromSeconds((double)StatusCheckIntervalSeconds),
+				DanmuReconnectDelay = TimeSpan.FromSeconds((double)DanmuReconnectDelaySeconds),
+				StreamReconnectDelay = TimeSpan.FromSeconds((double)StreamReconnectDelaySeconds),
+				StreamConnectTimeout = TimeSpan.FromSeconds((double)StreamConnectTimeoutSeconds),
+				StreamIdleTimeout = TimeSpan.FromSeconds((double)StreamIdleTimeoutSeconds)
+			}
+		);
+	}
+
+	private static bool TryParseRoomId(string? text, out long roomId)
+	{
+		return long.TryParse(text?.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out roomId) && roomId > 0;
+	}
+}

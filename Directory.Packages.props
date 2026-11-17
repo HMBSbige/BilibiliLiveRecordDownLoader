@@ -3,6 +3,9 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
+    <PackageVersion Include="ReactiveUI" Version="27.0.1" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageVersion Include="Microsoft.Extensions.Http" Version="11.0.0" />
   </ItemGroup>
   <ItemGroup>

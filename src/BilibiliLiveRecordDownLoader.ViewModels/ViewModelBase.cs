@@ -1,0 +1,100 @@
+namespace BilibiliLiveRecordDownLoader.ViewModels;
+
+public abstract class ViewModelBase : ReactiveObject, IDisposable
+{
+	private readonly CancellationTokenSource _lifetime = new();
+
+	protected MultipleDisposable Disposables { get; } = new();
+
+	protected void PersistToConfig<T>(IObservable<T> source, Action<AppConfig, T> updateAction)
+	{
+		IAppConfigManager configManager = AppLocator.Current.GetRequiredService<IAppConfigManager>();
+
+		source
+			.Skip(1)
+			.Unique()
+			.Map
+			(value => HandleErrors
+				(
+					Signal.FromAsync
+					(async cancellationToken =>
+						{
+							await configManager.UpdateAsync(config => updateAction(config, value), cancellationToken);
+							return RxVoid.Default;
+						}
+					)
+				)
+			)
+			.SwitchTo()
+			.Subscribe()
+			.DisposeWith(Disposables);
+	}
+
+	// 视图模型释放时取消，异常交给全局处理
+	protected void Forget(Func<CancellationToken, Task> taskFactory)
+	{
+		_ = RunAsync(taskFactory, _lifetime.Token);
+
+		static async Task RunAsync(Func<CancellationToken, Task> taskFactory, CancellationToken cancellationToken)
+		{
+			try
+			{
+				await taskFactory(cancellationToken);
+			}
+			catch (OperationCanceledException)
+			{
+			}
+			catch (Exception exception)
+			{
+				RxState.DefaultExceptionHandler.OnNext(exception);
+			}
+		}
+	}
+
+	// 应用服务以版本号暴露状态变化，界面按固定间隔比较版本号后再刷新
+	protected void PollChanges(Func<long> getVersion, Action apply, TimeSpan interval)
+	{
+		apply();
+
+		Signal.Every(interval, RxSchedulers.TaskpoolScheduler)
+			.Map(_ => getVersion())
+			.Unique()
+			.ObserveOn(RxSchedulers.MainThreadScheduler)
+			.Subscribe(_ => apply())
+			.DisposeWith(Disposables);
+	}
+
+	protected void Poll<T>(Func<T> getState, Action<T> apply, TimeSpan interval)
+	{
+		apply(getState());
+
+		Signal.Every(interval, RxSchedulers.TaskpoolScheduler)
+			.Map(_ => getState())
+			.ObserveOn(RxSchedulers.MainThreadScheduler)
+			.Subscribe(apply)
+			.DisposeWith(Disposables);
+	}
+
+	private static IObservable<T> HandleErrors<T>(IObservable<T> source)
+	{
+		return source.Recover
+		(
+			static exception =>
+			{
+				if (exception is not OperationCanceledException)
+				{
+					RxState.DefaultExceptionHandler.OnNext(exception);
+				}
+
+				return Signal.None<T>();
+			}
+		);
+	}
+
+	public virtual void Dispose()
+	{
+		_lifetime.Cancel();
+		Disposables.Dispose();
+		GC.SuppressFinalize(this);
+	}
+}

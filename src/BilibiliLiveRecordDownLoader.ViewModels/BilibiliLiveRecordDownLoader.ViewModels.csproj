@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="ReactiveUI" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BilibiliLiveRecordDownLoader.Application.Contracts\BilibiliLiveRecordDownLoader.Application.Contracts.csproj" />
+    <ProjectReference Include="..\BilibiliLiveRecordDownLoader.Domain\BilibiliLiveRecordDownLoader.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
