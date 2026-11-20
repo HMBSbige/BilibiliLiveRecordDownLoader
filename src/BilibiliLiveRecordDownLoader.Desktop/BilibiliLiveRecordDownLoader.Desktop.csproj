@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>BilibiliLiveRecordDownLoader</AssemblyName>
+    <ApplicationIcon>..\BilibiliLiveRecordDownLoader.Views\Assets\Asaki.ico</ApplicationIcon>
+    <PublishAot>true</PublishAot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Desktop" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="HarfBuzzSharp" />
+    <PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(_IsPublishing)' == 'true'">
+    <PackageReference Include="ChsBuffer.Angle.Static" />
+    <PackageReference Include="ChsBuffer.Avalonia.Native.Static" />
+    <PackageReference Include="ChsBuffer.SkiaSharp.Static" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BilibiliLiveRecordDownLoader.Views\BilibiliLiveRecordDownLoader.Views.csproj" />
+  </ItemGroup>
+
+  <Target Name="ExcludeFilesFromPublish" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Extension)' == '.pdb'" />
+    </ItemGroup>
+  </Target>
+
+</Project>

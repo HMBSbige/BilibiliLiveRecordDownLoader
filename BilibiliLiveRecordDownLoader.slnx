@@ -20,6 +20,9 @@
     <Project Path="src/BilibiliLiveRecordDownLoader.ViewModels/BilibiliLiveRecordDownLoader.ViewModels.csproj" />
     <Project Path="src/BilibiliLiveRecordDownLoader.Views/BilibiliLiveRecordDownLoader.Views.csproj" />
   </Folder>
+  <Folder Name="/src/EntryPoints/">
+    <Project Path="src/BilibiliLiveRecordDownLoader.Desktop/BilibiliLiveRecordDownLoader.Desktop.csproj" />
+  </Folder>
   <Folder Name="/src/Libraries/">
     <Project Path="src/BilibiliLive/BilibiliLive.csproj" />
     <Project Path="src/MediaToolkit/MediaToolkit.csproj" />

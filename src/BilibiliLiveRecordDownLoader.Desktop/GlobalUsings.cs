@@ -1,0 +1,14 @@
+global using Avalonia;
+global using Avalonia.Threading;
+global using Avalonia.Vulkan;
+global using BilibiliLiveRecordDownLoader.Application.Contracts.Lifecycle;
+global using BilibiliLiveRecordDownLoader.Application.Contracts.Platform;
+global using BilibiliLiveRecordDownLoader.Domain.Shared;
+global using BilibiliLiveRecordDownLoader.ViewModels;
+global using BilibiliLiveRecordDownLoader.Views;
+global using BilibiliLiveRecordDownLoader.Views.Infrastructure;
+global using Splat;
+global using System.IO.Pipes;
+global using System.Runtime.InteropServices;
+global using System.Security.Cryptography;
+global using System.Text;
