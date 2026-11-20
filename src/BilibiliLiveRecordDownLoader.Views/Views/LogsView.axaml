@@ -1,0 +1,48 @@
+<UserControl
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ic="using:FluentIcons.Avalonia"
+    xmlns:logs="using:BilibiliLiveRecordDownLoader.ViewModels.Logs"
+    xmlns:logging="using:BilibiliLiveRecordDownLoader.Application.Contracts.Logging"
+    xmlns:c="using:BilibiliLiveRecordDownLoader.Views.Converters"
+    xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
+    x:Class="BilibiliLiveRecordDownLoader.Views.Views.LogsView"
+    x:DataType="logs:LogViewModel">
+    <DockPanel Margin="16">
+        <StackPanel DockPanel.Dock="Top" Classes="toolbar" Margin="0,0,0,12">
+            <Button Command="{Binding OpenLogFolderCommand}">
+                <StackPanel Classes="iconText">
+                    <ic:FluentIcon Icon="FolderOpen" />
+                    <TextBlock Text="{Binding OpenLogFolder, Source={x:Static l:AppLanguage.Current}}" />
+                </StackPanel>
+            </Button>
+        </StackPanel>
+
+        <Border Classes="table">
+            <DockPanel>
+                <Border DockPanel.Dock="Top" Classes="tableHeader">
+                    <Grid ColumnDefinitions="80,72,110,*">
+                        <TextBlock Grid.Column="0" Text="{Binding LogTime, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock Grid.Column="1" Text="{Binding LogLevel, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock Grid.Column="2" Text="{Binding LogRoom, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock Grid.Column="3" Text="{Binding LogMessage, Source={x:Static l:AppLanguage.Current}}" />
+                    </Grid>
+                </Border>
+
+                <ListBox x:Name="LogList" Classes="table" ItemsSource="{Binding Entries}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="logging:LogEntry">
+                            <Grid ColumnDefinitions="80,72,110,*">
+                                <TextBlock Grid.Column="0" VerticalAlignment="Top" Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}" />
+                                <TextBlock Grid.Column="1" VerticalAlignment="Top" Text="{Binding Level}"
+                                           Foreground="{Binding Level, Converter={x:Static c:StatusBrushConverter.Instance}}" />
+                                <TextBlock Grid.Column="2" VerticalAlignment="Top" Text="{Binding RoomId}" />
+                                <SelectableTextBlock Grid.Column="3" Text="{Binding Message}" TextWrapping="Wrap" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Border>
+    </DockPanel>
+</UserControl>

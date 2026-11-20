@@ -1,0 +1,40 @@
+<UserControl
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ic="using:FluentIcons.Avalonia"
+    xmlns:dialogs="using:BilibiliLiveRecordDownLoader.ViewModels.Dialogs"
+    xmlns:views="using:BilibiliLiveRecordDownLoader.Views.Views"
+    x:Class="BilibiliLiveRecordDownLoader.Views.Views.DialogHostView"
+    x:DataType="dialogs:DialogHostViewModel"
+    IsVisible="{Binding Current, Converter={x:Static ObjectConverters.IsNotNull}}">
+    <Panel>
+        <Border Background="{DynamicResource SemiColorOverlayBackground}" PointerPressed="OnOverlayPressed" />
+        <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                MinWidth="380" MaxWidth="720" Margin="32"
+                Padding="24" CornerRadius="12"
+                Background="{DynamicResource SemiColorBackground2}"
+                BoxShadow="0 8 32 0 #40000000">
+            <DockPanel>
+                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+                    <Button DockPanel.Dock="Right" Theme="{DynamicResource BorderlessButton}" Click="OnCloseClick">
+                        <ic:FluentIcon Icon="Dismiss" FontSize="16" />
+                    </Button>
+                    <TextBlock Classes="H5" Theme="{StaticResource TitleTextBlock}" Text="{Binding Current.Title, FallbackValue={x:Null}}" VerticalAlignment="Center" />
+                </DockPanel>
+                <ContentControl Content="{Binding Current}">
+                    <ContentControl.DataTemplates>
+                        <DataTemplate DataType="dialogs:ConfirmDialogViewModel">
+                            <views:ConfirmDialogView />
+                        </DataTemplate>
+                        <DataTemplate DataType="dialogs:RoomEditorViewModel">
+                            <views:RoomEditorView />
+                        </DataTemplate>
+                        <DataTemplate DataType="dialogs:QrCodeLoginViewModel">
+                            <views:QrCodeLoginView />
+                        </DataTemplate>
+                    </ContentControl.DataTemplates>
+                </ContentControl>
+            </DockPanel>
+        </Border>
+    </Panel>
+</UserControl>

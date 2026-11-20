@@ -1,0 +1,83 @@
+<UserControl
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ic="using:FluentIcons.Avalonia"
+    xmlns:vm="using:BilibiliLiveRecordDownLoader.ViewModels"
+    xmlns:views="using:BilibiliLiveRecordDownLoader.Views.Views"
+    xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
+    x:Class="BilibiliLiveRecordDownLoader.Views.Views.MainView"
+    x:DataType="vm:MainWindowViewModel"
+    IsEnabled="{Binding IsInitialized}">
+    <UserControl.Styles>
+        <Style Selector="ListBox.nav ListBoxItem">
+            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="Margin" Value="0,2" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+        <Style Selector="ListBox.nav ic|FluentIcon">
+            <Setter Property="FontSize" Value="20" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid ColumnDefinitions="180,*">
+        <Border Grid.Column="0" Padding="8" Background="{DynamicResource SemiColorFill0}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Classes="iconText" Margin="8,8,8,16">
+                    <Image Source="/Assets/Asaki.ico" Width="28" Height="28" />
+                    <TextBlock Text="{Binding AppName, Source={x:Static l:AppLanguage.Current}}"
+                               FontWeight="SemiBold" TextWrapping="Wrap" />
+                </StackPanel>
+                <ListBox x:Name="Navigation" Classes="nav" SelectedIndex="0" Background="Transparent">
+                    <ListBoxItem>
+                        <StackPanel Classes="iconText">
+                            <ic:FluentIcon Icon="Video" />
+                            <TextBlock Text="{Binding Rooms, Source={x:Static l:AppLanguage.Current}}" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem>
+                        <StackPanel Classes="iconText">
+                            <ic:FluentIcon Icon="TaskList" />
+                            <TextBlock Text="{Binding Tasks, Source={x:Static l:AppLanguage.Current}}" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem>
+                        <StackPanel Classes="iconText">
+                            <ic:FluentIcon Icon="Wrench" />
+                            <TextBlock Text="{Binding Tools, Source={x:Static l:AppLanguage.Current}}" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem>
+                        <StackPanel Classes="iconText">
+                            <ic:FluentIcon Icon="DocumentText" />
+                            <TextBlock Text="{Binding Logs, Source={x:Static l:AppLanguage.Current}}" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem>
+                        <StackPanel Classes="iconText">
+                            <ic:FluentIcon Icon="Person" />
+                            <TextBlock Text="{Binding Account, Source={x:Static l:AppLanguage.Current}}" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem>
+                        <StackPanel Classes="iconText">
+                            <ic:FluentIcon Icon="Settings" />
+                            <TextBlock Text="{Binding Settings, Source={x:Static l:AppLanguage.Current}}" />
+                        </StackPanel>
+                    </ListBoxItem>
+                </ListBox>
+            </DockPanel>
+        </Border>
+
+        <Carousel Grid.Column="1" SelectedIndex="{Binding #Navigation.SelectedIndex}">
+            <Carousel.PageTransition>
+                <CrossFade Duration="0:0:0.2" />
+            </Carousel.PageTransition>
+            <views:RoomsView DataContext="{Binding Rooms}" />
+            <views:TasksView DataContext="{Binding Tasks}" />
+            <views:ToolsView DataContext="{Binding Tools}" />
+            <views:LogsView DataContext="{Binding Logs}" />
+            <views:AccountView DataContext="{Binding Account}" />
+            <views:SettingsView DataContext="{Binding Settings}" />
+        </Carousel>
+    </Grid>
+</UserControl>

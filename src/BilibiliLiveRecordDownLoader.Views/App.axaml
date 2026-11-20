@@ -1,0 +1,48 @@
+<Application
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:semi="https://irihi.tech/semi"
+    xmlns:vm="using:BilibiliLiveRecordDownLoader.ViewModels"
+    xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
+    xmlns:c="using:BilibiliLiveRecordDownLoader.Views.Converters"
+    x:Class="BilibiliLiveRecordDownLoader.Views.App"
+    x:DataType="vm:MainWindowViewModel"
+    Name="Bilibili Live Recorder"
+    RequestedThemeVariant="Default">
+    <Application.Styles>
+        <semi:SemiTheme />
+        <StyleInclude Source="avares://BilibiliLiveRecordDownLoader.Views/Styles/AppStyles.axaml" />
+    </Application.Styles>
+
+    <Application.Resources>
+        <!-- 第二个绑定只用于在切换语言时触发刷新 -->
+        <DataTemplate x:Key="LocalizedLabel" x:DataType="x:Object">
+            <TextBlock VerticalAlignment="Center">
+                <TextBlock.Text>
+                    <MultiBinding Converter="{x:Static c:LocalizedLabelConverter.Instance}">
+                        <Binding />
+                        <Binding Path="Inherit" Source="{x:Static l:AppLanguage.Current}" />
+                    </MultiBinding>
+                </TextBlock.Text>
+            </TextBlock>
+        </DataTemplate>
+    </Application.Resources>
+
+    <TrayIcon.Icons>
+        <TrayIcons>
+            <TrayIcon Icon="/Assets/Asaki.ico"
+                      ToolTipText="{Binding AppName, Source={x:Static l:AppLanguage.Current}}"
+                      Command="{Binding ShowWindowCommand}">
+                <TrayIcon.Menu>
+                    <NativeMenu>
+                        <NativeMenuItem Header="{Binding ShowWindow, Source={x:Static l:AppLanguage.Current}}"
+                                        Command="{Binding ShowWindowCommand}" />
+                        <NativeMenuItemSeparator />
+                        <NativeMenuItem Header="{Binding Exit, Source={x:Static l:AppLanguage.Current}}"
+                                        Command="{Binding ExitCommand}" />
+                    </NativeMenu>
+                </TrayIcon.Menu>
+            </TrayIcon>
+        </TrayIcons>
+    </TrayIcon.Icons>
+</Application>

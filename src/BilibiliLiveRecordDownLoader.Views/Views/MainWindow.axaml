@@ -1,0 +1,19 @@
+<Window
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:BilibiliLiveRecordDownLoader.ViewModels"
+    xmlns:views="using:BilibiliLiveRecordDownLoader.Views.Views"
+    xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
+    x:Class="BilibiliLiveRecordDownLoader.Views.Views.MainWindow"
+    x:DataType="vm:MainWindowViewModel"
+    Icon="/Assets/Asaki.ico"
+    Title="{Binding AppName, Source={x:Static l:AppLanguage.Current}}"
+    Width="{Binding WindowWidth, Mode=OneWay}"
+    Height="{Binding WindowHeight, Mode=OneWay}"
+    MinWidth="900" MinHeight="560"
+    WindowStartupLocation="CenterScreen">
+    <Panel>
+        <views:MainView />
+        <views:DialogHostView DataContext="{Binding Dialogs}" />
+    </Panel>
+</Window>

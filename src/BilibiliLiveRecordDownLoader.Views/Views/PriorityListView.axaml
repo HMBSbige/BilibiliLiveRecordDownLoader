@@ -1,0 +1,33 @@
+<UserControl
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ic="using:FluentIcons.Avalonia"
+    xmlns:common="using:BilibiliLiveRecordDownLoader.ViewModels.Common"
+    xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
+    x:Class="BilibiliLiveRecordDownLoader.Views.Views.PriorityListView"
+    x:DataType="common:PriorityListViewModel">
+    <Border BorderBrush="{DynamicResource SemiColorBorder}" BorderThickness="1" CornerRadius="6" Padding="4">
+        <ItemsControl x:Name="Items" ItemsSource="{Binding Items}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="common:PriorityItemViewModel">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="4" Margin="4,0">
+                        <ic:FluentIcon Grid.Column="0" Icon="ReOrderDotsVertical" FontSize="16" Opacity="0.5" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding Label}" VerticalAlignment="Center" />
+                        <Button Grid.Column="2" Theme="{DynamicResource BorderlessButton}"
+                                Command="{Binding #Items.((common:PriorityListViewModel)DataContext).MoveUpCommand}"
+                                CommandParameter="{Binding}"
+                                ToolTip.Tip="{Binding MoveUp, Source={x:Static l:AppLanguage.Current}}">
+                            <ic:FluentIcon Icon="ArrowUp" FontSize="14" />
+                        </Button>
+                        <Button Grid.Column="3" Theme="{DynamicResource BorderlessButton}"
+                                Command="{Binding #Items.((common:PriorityListViewModel)DataContext).MoveDownCommand}"
+                                CommandParameter="{Binding}"
+                                ToolTip.Tip="{Binding MoveDown, Source={x:Static l:AppLanguage.Current}}">
+                            <ic:FluentIcon Icon="ArrowDown" FontSize="14" />
+                        </Button>
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </Border>
+</UserControl>

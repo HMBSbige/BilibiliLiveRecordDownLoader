@@ -1,0 +1,30 @@
+<Window
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ic="using:FluentIcons.Avalonia"
+    x:Class="BilibiliLiveRecordDownLoader.Views.Views.ToastWindow"
+    Width="360"
+    SizeToContent="Height"
+    CanResize="False"
+    ShowInTaskbar="False"
+    ShowActivated="False"
+    Topmost="True"
+    WindowStartupLocation="Manual"
+    WindowDecorations="None"
+    TransparencyLevelHint="Transparent"
+    Background="Transparent"
+    Opacity="0"
+    Cursor="Hand">
+    <Border Margin="8" CornerRadius="10" Background="{DynamicResource SemiColorBackground2}"
+            BoxShadow="0 4 16 0 #40000000" ClipToBounds="True">
+        <Border x:Name="Accent" BorderThickness="4,0,0,0" Padding="16,12">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <ic:FluentIcon x:Name="TypeIcon" Grid.Column="0" FontSize="22" VerticalAlignment="Top" IconVariant="Filled" />
+                <StackPanel Grid.Column="1" Spacing="4">
+                    <TextBlock x:Name="TitleText" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="MessageText" TextWrapping="Wrap" MaxLines="4" TextTrimming="CharacterEllipsis" Opacity="0.85" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Border>
+</Window>

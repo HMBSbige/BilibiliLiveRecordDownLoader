@@ -18,6 +18,7 @@
     <Project Path="src/BilibiliLiveRecordDownLoader.Domain.Shared/BilibiliLiveRecordDownLoader.Domain.Shared.csproj" />
     <Project Path="src/BilibiliLiveRecordDownLoader.Domain/BilibiliLiveRecordDownLoader.Domain.csproj" />
     <Project Path="src/BilibiliLiveRecordDownLoader.ViewModels/BilibiliLiveRecordDownLoader.ViewModels.csproj" />
+    <Project Path="src/BilibiliLiveRecordDownLoader.Views/BilibiliLiveRecordDownLoader.Views.csproj" />
   </Folder>
   <Folder Name="/src/Libraries/">
     <Project Path="src/BilibiliLive/BilibiliLive.csproj" />

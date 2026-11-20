@@ -3,7 +3,20 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
+    <PackageVersion Include="FluentIcons.Avalonia" Version="2.1.345" />
+    <PackageVersion Include="Semi.Avalonia" Version="12.1.0.2" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageVersion Include="ReactiveUI" Version="27.0.1" />
+    <PackageVersion Include="ReactiveUI.Avalonia.Microsoft.Extensions.DependencyInjection" Version="12.1.7" />
+    <PackageVersion Include="Splat.Serilog" Version="22.0.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageVersion Include="Serilog" Version="4.4.0" />
+    <PackageVersion Include="Serilog.Extensions.Logging" Version="11.0.0" />
+    <PackageVersion Include="Serilog.Sinks.Async" Version="2.1.0" />
+    <PackageVersion Include="Serilog.Sinks.Debug" Version="3.0.0" />
+    <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
   </ItemGroup>
   <ItemGroup>
     <PackageVersion Include="Microsoft.Extensions.Http" Version="11.0.0" />
@@ -14,6 +27,7 @@
     <PackageVersion Include="HMBSbige.UpdateChecker" Version="11.0.0" />
     <PackageVersion Include="MinVer" Version="7.0.0" />
     <PackageVersion Include="NuGet.Versioning" Version="8.0.0" />
+    <PackageVersion Include="QRCoder" Version="1.9.0" />
     <PackageVersion Include="ThisAssembly.AssemblyInfo" Version="2.1.6" />
   </ItemGroup>
   <ItemGroup>

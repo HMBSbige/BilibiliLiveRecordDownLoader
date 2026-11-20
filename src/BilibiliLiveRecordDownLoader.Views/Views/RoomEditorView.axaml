@@ -1,0 +1,96 @@
+<UserControl
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:dialogs="using:BilibiliLiveRecordDownLoader.ViewModels.Dialogs"
+    xmlns:views="using:BilibiliLiveRecordDownLoader.Views.Views"
+    xmlns:cfg="using:BilibiliLiveRecordDownLoader.Domain.Shared.Configuration"
+    xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
+    x:Class="BilibiliLiveRecordDownLoader.Views.Views.RoomEditorView"
+    x:DataType="dialogs:RoomEditorViewModel"
+    Width="560">
+    <UserControl.Styles>
+        <Style Selector="NumericUpDown">
+            <Setter Property="Increment" Value="1" />
+            <Setter Property="FormatString" Value="0.#" />
+            <Setter Property="Maximum" Value="86400" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="ComboBox">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="ItemTemplate" Value="{StaticResource LocalizedLabel}" />
+        </Style>
+    </UserControl.Styles>
+
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Bottom" Classes="toolbar" HorizontalAlignment="Right" Margin="0,24,0,0">
+            <Button Command="{Binding DismissDialogCommand}" Content="{Binding Cancel, Source={x:Static l:AppLanguage.Current}}" />
+            <Button Theme="{DynamicResource SolidButton}" Classes="Primary" IsDefault="True"
+                    Command="{Binding SaveCommand}" Content="{Binding Save, Source={x:Static l:AppLanguage.Current}}" />
+        </StackPanel>
+
+        <ScrollViewer MaxHeight="560">
+            <StackPanel Classes="form" Margin="0,0,12,0">
+                <StackPanel Classes="field">
+                    <TextBlock Text="{Binding RoomId, Source={x:Static l:AppLanguage.Current}}" />
+                    <TextBox x:Name="RoomIdBox" Text="{Binding RoomIdText}" IsEnabled="{Binding IsNew}" />
+                </StackPanel>
+                <StackPanel Classes="toolbar" Spacing="24">
+                    <CheckBox IsChecked="{Binding IsRecordingEnabled}" Content="{Binding RecordingEnabled, Source={x:Static l:AppLanguage.Current}}" />
+                    <CheckBox IsChecked="{Binding IsNotificationEnabled}" Content="{Binding NotificationEnabled, Source={x:Static l:AppLanguage.Current}}" />
+                </StackPanel>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <StackPanel Grid.Column="0" Classes="field">
+                        <TextBlock Text="{Binding Quality, Source={x:Static l:AppLanguage.Current}}" />
+                        <ComboBox ItemsSource="{Binding QualityOptions}" SelectedItem="{Binding Quality}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Classes="field">
+                        <TextBlock Text="{Binding RecorderType, Source={x:Static l:AppLanguage.Current}}" />
+                        <ComboBox ItemsSource="{Binding RecorderTypeOptions}" SelectedItem="{Binding RecorderType}" />
+                    </StackPanel>
+                </Grid>
+                <StackPanel Classes="field">
+                    <TextBlock Text="{Binding ConvertToMp4, Source={x:Static l:AppLanguage.Current}}" />
+                    <ComboBox ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding ConvertToMp4}" />
+                </StackPanel>
+                <StackPanel Classes="field">
+                    <TextBlock Text="{Binding DeleteAfterConvert, Source={x:Static l:AppLanguage.Current}}" />
+                    <ComboBox ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding DeleteAfterConvert}" />
+                </StackPanel>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <StackPanel Grid.Column="0" Classes="field">
+                        <CheckBox IsChecked="{Binding OverrideCodecPriority}" Content="{Binding CustomCodecPriority, Source={x:Static l:AppLanguage.Current}}" />
+                        <views:PriorityListView DataContext="{Binding CodecPriority}" IsEnabled="{Binding $parent[UserControl].((dialogs:RoomEditorViewModel)DataContext).OverrideCodecPriority}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Classes="field">
+                        <CheckBox IsChecked="{Binding OverrideFormatPriority}" Content="{Binding CustomFormatPriority, Source={x:Static l:AppLanguage.Current}}" />
+                        <views:PriorityListView DataContext="{Binding FormatPriority}" IsEnabled="{Binding $parent[UserControl].((dialogs:RoomEditorViewModel)DataContext).OverrideFormatPriority}" />
+                    </StackPanel>
+                </Grid>
+                <Expander Header="{Binding Advanced, Source={x:Static l:AppLanguage.Current}}" HorizontalAlignment="Stretch">
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="12">
+                        <StackPanel Grid.Row="0" Grid.Column="0" Classes="field">
+                            <TextBlock Text="{Binding StatusCheckInterval, Source={x:Static l:AppLanguage.Current}}" />
+                            <NumericUpDown Value="{Binding StatusCheckIntervalSeconds}" Minimum="{x:Static cfg:RoomDefaults.MinStatusCheckIntervalSeconds}" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="0" Grid.Column="1" Classes="field">
+                            <TextBlock Text="{Binding DanmuReconnectDelay, Source={x:Static l:AppLanguage.Current}}" />
+                            <NumericUpDown Value="{Binding DanmuReconnectDelaySeconds}" Minimum="{x:Static cfg:RoomDefaults.MinDanmuReconnectDelaySeconds}" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="0" Classes="field">
+                            <TextBlock Text="{Binding StreamReconnectDelay, Source={x:Static l:AppLanguage.Current}}" />
+                            <NumericUpDown Value="{Binding StreamReconnectDelaySeconds}" Minimum="{x:Static cfg:RoomDefaults.MinStreamReconnectDelaySeconds}" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="1" Classes="field">
+                            <TextBlock Text="{Binding StreamConnectTimeout, Source={x:Static l:AppLanguage.Current}}" />
+                            <NumericUpDown Value="{Binding StreamConnectTimeoutSeconds}" Minimum="{x:Static cfg:RoomDefaults.MinStreamConnectTimeoutSeconds}" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="2" Grid.Column="0" Classes="field">
+                            <TextBlock Text="{Binding StreamIdleTimeout, Source={x:Static l:AppLanguage.Current}}" />
+                            <NumericUpDown Value="{Binding StreamIdleTimeoutSeconds}" Minimum="{x:Static cfg:RoomDefaults.MinStreamIdleTimeoutSeconds}" />
+                        </StackPanel>
+                    </Grid>
+                </Expander>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

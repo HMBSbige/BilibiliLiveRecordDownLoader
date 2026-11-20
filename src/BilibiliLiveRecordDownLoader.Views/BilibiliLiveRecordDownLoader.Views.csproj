@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FluentIcons.Avalonia" />
+    <PackageReference Include="QRCoder" />
+    <PackageReference Include="ReactiveUI.Avalonia.Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Semi.Avalonia" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Extensions.Logging" />
+    <PackageReference Include="Serilog.Sinks.Async" />
+    <PackageReference Include="Serilog.Sinks.Debug" />
+    <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Splat.Serilog" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BilibiliLiveRecordDownLoader.Application\BilibiliLiveRecordDownLoader.Application.csproj" />
+    <ProjectReference Include="..\BilibiliLiveRecordDownLoader.Configuration\BilibiliLiveRecordDownLoader.Configuration.csproj" />
+    <ProjectReference Include="..\BilibiliLiveRecordDownLoader.ViewModels\BilibiliLiveRecordDownLoader.ViewModels.csproj" />
+  </ItemGroup>
+</Project>

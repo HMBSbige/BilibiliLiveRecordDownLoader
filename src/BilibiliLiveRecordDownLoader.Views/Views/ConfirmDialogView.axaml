@@ -1,0 +1,18 @@
+<UserControl
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:dialogs="using:BilibiliLiveRecordDownLoader.ViewModels.Dialogs"
+    xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
+    x:Class="BilibiliLiveRecordDownLoader.Views.Views.ConfirmDialogView"
+    x:DataType="dialogs:ConfirmDialogViewModel">
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Bottom" Classes="toolbar" HorizontalAlignment="Right" Margin="0,24,0,0">
+            <Button Command="{Binding DismissDialogCommand}" Content="{Binding Cancel, Source={x:Static l:AppLanguage.Current}}" />
+            <Button Theme="{DynamicResource SolidButton}" Classes="Primary" IsDefault="True"
+                    Command="{Binding ConfirmCommand}" Content="{Binding Ok, Source={x:Static l:AppLanguage.Current}}" />
+        </StackPanel>
+        <ScrollViewer MaxHeight="360">
+            <SelectableTextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>
