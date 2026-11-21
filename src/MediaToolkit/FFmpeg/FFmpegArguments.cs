@@ -29,14 +29,15 @@ public static class FFmpegArguments
 		return [@"-hide_banner", @"-y", .. FrameRate(videoFrameRate), @"-i", video, @"-i", audio, @"-map", @"0:v:0", @"-map", @"1:a:0", @"-c", @"copy", output];
 	}
 
-	public static IReadOnlyList<string> Record(Uri source, string? userAgent, Uri? referrer, TimeSpan ioTimeout, string output)
+	// 以 MPEG-TS 写到标准输出，由调用方写盘
+	public static IReadOnlyList<string> Record(Uri source, string? userAgent, Uri? referrer, TimeSpan ioTimeout)
 	{
 		if (!source.IsAbsoluteUri)
 		{
 			throw new ArgumentException(@"Source must be an absolute URI.", nameof(source));
 		}
 
-		List<string> arguments = [@"-hide_banner", @"-y"];
+		List<string> arguments = [@"-hide_banner"];
 
 		if (!string.IsNullOrEmpty(userAgent))
 		{
@@ -55,7 +56,7 @@ public static class FFmpegArguments
 		}
 
 		// 签名过的直播地址必须原样传递，AbsoluteUri 会重新规范化转义
-		arguments.AddRange([@"-i", source.OriginalString, @"-c", @"copy", output]);
+		arguments.AddRange([@"-i", source.OriginalString, @"-c", @"copy", @"-f", @"mpegts", @"pipe:1"]);
 
 		return arguments;
 	}

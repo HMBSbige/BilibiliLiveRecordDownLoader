@@ -149,20 +149,25 @@ public partial class FFmpegIntegrationTest
 		string flv = directory.Combine(@"sample.flv");
 		await GenerateFlvAsync(runner, flv, cancellationToken);
 		await using StaticHttpServer server = new(await File.ReadAllBytesAsync(flv, cancellationToken));
-		string output = directory.Combine(@"record.flv");
+		string output = directory.Combine(@"record.ts");
 
-		IReadOnlyList<string> arguments = FFmpegArguments.Record(server.GetUri(@"/live.flv?sign=a%2Fb"), @"MediaToolkit-Test/1.0", new Uri(@"https://live.bilibili.com/"), TimeSpan.FromSeconds(10), output);
-		await runner.RunAsync(arguments, null, cancellationToken);
+		IReadOnlyList<string> arguments = FFmpegArguments.Record(server.GetUri(@"/live.flv?sign=a%2Fb"), @"MediaToolkit-Test/1.0", new Uri(@"https://live.bilibili.com/"), TimeSpan.FromSeconds(10));
+
+		await using (FileStream file = File.Create(output))
+		{
+			await runner.RunAsync(arguments, stdout => stdout.CopyToAsync(file, cancellationToken), null, cancellationToken);
+		}
 
 		string request = server.RequestHeads.First();
 		await Assert.That(request).StartsWith(@"GET /live.flv?sign=a%2Fb HTTP/1.1");
 		await Assert.That(request).Contains("User-Agent: MediaToolkit-Test/1.0\r\n");
 		await Assert.That(request).Contains("Referer: https://live.bilibili.com/\r\n");
 
-		(FFmpegProgress source, int sourceFrames) = await DecodeAsync(runner, flv, cancellationToken);
+		(_, int sourceFrames) = await DecodeAsync(runner, flv, cancellationToken);
 		(FFmpegProgress recorded, int recordedFrames) = await DecodeAsync(runner, output, cancellationToken);
 		await Assert.That(recordedFrames).IsEqualTo(sourceFrames);
-		await Assert.That(recorded.Duration ?? TimeSpan.Zero).IsBetween((source.Duration ?? TimeSpan.Zero) - TimeSpan.FromMilliseconds(100), (source.Duration ?? TimeSpan.Zero) + TimeSpan.FromMilliseconds(100));
+		// 录制输出的是 MPEG-TS，容器时长的算法和 FLV 源不同，只能和采样时长比较
+		await Assert.That(recorded.Duration ?? TimeSpan.Zero).IsBetween(SampleDuration - Tolerance, SampleDuration + Tolerance);
 	}
 
 	[Test]

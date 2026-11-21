@@ -1,5 +1,6 @@
 using MediaToolkit.FFmpeg;
 using System.Collections.Concurrent;
+using System.Text;
 
 namespace MediaToolkit.Tests.FFmpeg;
 
@@ -76,6 +77,96 @@ public class FFmpegRunnerTest
 		await Assert.That(stopwatch.Elapsed).IsLessThan(TimeSpan.FromSeconds(30));
 		await Assert.That(processId).IsNotEqualTo(0);
 		await Assert.That(FakeProcess.IsRunning(processId)).IsFalse();
+	}
+
+	[Test]
+	[Timeout(TestTimeout)]
+	public async Task StandardOutputIsHandedToTheReaderAsync(CancellationToken cancellationToken)
+	{
+		FFmpegRunner runner = new(FakeProcess.Executable);
+		IReadOnlyList<string> arguments = FakeProcess.Arguments(@"[Console]::Out.Write('ts-data')", @"printf ts-data");
+		string output = string.Empty;
+
+		await runner.RunAsync(arguments, async stdout => output = await new StreamReader(stdout).ReadToEndAsync(cancellationToken), null, cancellationToken);
+
+		await Assert.That(output).IsEqualTo(@"ts-data");
+	}
+
+	[Test]
+	[Timeout(TestTimeout)]
+	public async Task CancellationLetsTheReaderReceiveOutputWrittenAfterQuitAsync(CancellationToken cancellationToken)
+	{
+		FFmpegRunner runner = new(FakeProcess.Executable) { GracefulExitTimeout = TimeSpan.FromSeconds(30) };
+		IReadOnlyList<string> arguments = FakeProcess.Arguments(
+			"""
+			[Console]::Out.Write('ready')
+			[Console]::Out.Flush()
+			$c = [Console]::In.Read()
+			[Console]::Out.Write('|stdin=' + [char]$c)
+			exit 0
+			""",
+			"""
+			printf ready
+			c=$(head -c 1)
+			printf "|stdin=$c"
+			exit 0
+			""");
+		using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+		StringBuilder output = new();
+
+		await Assert.That(async () => await runner.RunAsync(arguments, ReadAsync, null, cts.Token)).Throws<OperationCanceledException>();
+
+		await Assert.That(output.ToString()).IsEqualTo(@"ready|stdin=q");
+
+		async Task ReadAsync(Stream stdout)
+		{
+			byte[] buffer = new byte[64];
+
+			while (await stdout.ReadAsync(buffer, cancellationToken) is var read and > 0)
+			{
+				output.Append(Encoding.ASCII.GetString(buffer, 0, read));
+
+				if (output.ToString() is @"ready")
+				{
+					await cts.CancelAsync();
+				}
+			}
+		}
+	}
+
+	[Test]
+	[Timeout(TestTimeout)]
+	public async Task ReaderFailureStopsTheProcessAndSurfacesAsync(CancellationToken cancellationToken)
+	{
+		FFmpegRunner runner = new(FakeProcess.Executable) { GracefulExitTimeout = TimeSpan.FromMilliseconds(500) };
+		IReadOnlyList<string> arguments = FakeProcess.Arguments(
+			"""
+			[Console]::Error.WriteLine("pid=$PID")
+			while ($true) { [Console]::Out.Write('x' * 4096) }
+			""",
+			"""
+			echo "pid=$$" >&2
+			exec yes
+			""");
+		TaskCompletionSource<int> started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		SyncProgress<FFmpegProgress> progress = new(p =>
+		{
+			if (p.Message.StartsWith(@"pid=", StringComparison.Ordinal))
+			{
+				started.TrySetResult(int.Parse(p.Message.AsSpan(4)));
+			}
+		});
+
+		IOException? exception = await Assert.That(async () => await runner.RunAsync(arguments, FailAsync, progress, cancellationToken)).Throws<IOException>();
+
+		await Assert.That(exception?.Message).IsEqualTo(@"disk full");
+		await Assert.That(FakeProcess.IsRunning(await started.Task)).IsFalse();
+
+		async Task FailAsync(Stream stdout)
+		{
+			await started.Task.WaitAsync(cancellationToken);
+			throw new IOException(@"disk full");
+		}
 	}
 
 	[Test]

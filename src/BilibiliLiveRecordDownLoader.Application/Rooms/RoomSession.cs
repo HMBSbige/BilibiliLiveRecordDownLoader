@@ -348,7 +348,17 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 					// 流结束时尽快确认是否已下播，下播造成的断流不算线路故障
 					await TryRefreshAsync(cancellationToken);
 
-					if (ShouldKeepRecording(cancellationToken) && attempt.IsQuickFailure)
+					if (ShouldKeepRecording(cancellationToken) && attempt.End is RecordingEnd.WriteFailed { Exception: var writeFailure })
+					{
+						// 不标记线路失败也不换线；正常录制过一段时间后和断流一样回到首选流
+						if (!attempt.IsQuickFailure)
+						{
+							liveSession.Reset();
+						}
+
+						await WaitAfterFailureAsync(writeFailure, profile.StreamReconnectDelay, cancellationToken);
+					}
+					else if (ShouldKeepRecording(cancellationToken) && attempt.IsQuickFailure)
 					{
 						// 立即换下一条线路，全部试过之后才会等待重连间隔
 						liveSession.MarkFailed(attempt.Candidate, attempt.Endpoint);
@@ -376,9 +386,19 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 				}
 				catch (Exception exception)
 				{
-					LogRecordingFailed(_logger, exception, profile.StreamReconnectDelay);
-					SetLastError(exception.Message);
-					await Task.Delay(profile.StreamReconnectDelay, services.TimeProvider, cancellationToken);
+					// 拉不到流也可能是已经下播，确认之后不再当作失败重试；停止录制时不必再查
+					if (!cancellationToken.IsCancellationRequested)
+					{
+						await TryRefreshAsync(cancellationToken);
+
+						if (!ShouldKeepRecording(cancellationToken))
+						{
+							LogRecordingEnded(_logger, exception.Message);
+							continue;
+						}
+					}
+
+					await WaitAfterFailureAsync(exception, profile.StreamReconnectDelay, cancellationToken);
 				}
 				finally
 				{
@@ -414,6 +434,13 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 			// 循环退出的同时可能又收到了开播消息
 			TryStartRecording();
 		}
+	}
+
+	private async Task WaitAfterFailureAsync(Exception exception, TimeSpan delay, CancellationToken cancellationToken)
+	{
+		LogRecordingFailed(_logger, exception, delay);
+		SetLastError(exception.Message);
+		await Task.Delay(delay, services.TimeProvider, cancellationToken);
 	}
 
 	private async Task TryRefreshAsync(CancellationToken cancellationToken)

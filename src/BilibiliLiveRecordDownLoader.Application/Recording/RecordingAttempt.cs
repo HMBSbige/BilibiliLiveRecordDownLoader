@@ -17,11 +17,14 @@ internal closed record RecordingEnd
 
 	public sealed record Faulted(Exception Exception) : RecordingEnd;
 
+	public sealed record WriteFailed(RecordingWriteException Exception) : RecordingEnd;
+
 	public string Description => this switch
 	{
 		Completed { Reason: StreamEndReason.Discontinuity } => "the stream started a new timeline",
 		Completed => "the stream ended",
 		Idle idle => $"no data received for {idle.Timeout}",
-		Faulted faulted => faulted.Exception.Message
+		Faulted faulted => faulted.Exception.Message,
+		WriteFailed writeFailed => writeFailed.Exception.Message
 	};
 }

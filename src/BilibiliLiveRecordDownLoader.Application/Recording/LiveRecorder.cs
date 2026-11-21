@@ -5,6 +5,10 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 	private static readonly Uri Referrer = new(AppConsts.LiveRoomUrlPrefix);
 	private static readonly TimeSpan SampleInterval = TimeSpan.FromSeconds(1);
 
+	internal Func<string, Stream> CreateFile { get; init; } = CreateRecordingFile;
+
+	internal TimeSpan DrainTimeout { get; init; } = RecordingWriteBuffer.DrainTimeout;
+
 	public async Task<RecordingAttempt> RecordAsync(long roomId, RecordingProfile profile, LiveRecordingSession liveSession, IRecordingObserver observer, CancellationToken cancellationToken)
 	{
 		FFmpegRunner? ffmpeg = null;
@@ -22,40 +26,46 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		}
 
 		HttpClient httpClient = httpClientFactory.CreateClient(HttpClientNames.BilibiliStream);
-		(LiveStreamSession? session, LiveStreamCandidate candidate) = await OpenAsync(roomId, httpClient, profile, liveSession, cancellationToken);
+		(LiveStreamSession session, LiveStreamCandidate candidate) = await OpenAsync(roomId, httpClient, profile, liveSession, cancellationToken);
 		Uri endpoint = session.Source;
 
 		try
 		{
+			if (ffmpeg is not null)
+			{
+				// 只用内置连接验证线路，录制交给 FFmpeg 重新拉流
+				string userAgent = BilibiliRequestHandler.ResolveUserAgent((await configManager.GetAsync(cancellationToken)).UserAgent);
+				await session.DisposeAsync();
+				session = new FFmpegStreamSession(ffmpeg, FFmpegArguments.Record(endpoint, userAgent, Referrer, profile.StreamConnectTimeout), endpoint);
+			}
+
 			Directory.CreateDirectory(RecordingFileLayout.GetRoomDirectory(profile.RecordDirectory, roomId));
 			string path = ReservePath(liveSession, profile.RecordDirectory, roomId, candidate.Format, recorderType);
 			LogStreamSelected(logger, candidate.Format, candidate.Codec, candidate.Qn, endpoint.Host, path);
 
-			TransferResult result;
-
-			if (ffmpeg is null)
-			{
-				result = await RecordBuiltInAsync(session, candidate, path, profile, observer, cancellationToken);
-			}
-			else
-			{
-				// 只用内置连接验证线路，录制交给 FFmpeg 重新拉流
-				await session.DisposeAsync();
-				session = null;
-
-				observer.OnRecordingStarted(path, candidate);
-				result = await RecordWithFFmpegAsync(ffmpeg, endpoint, path, profile, observer, cancellationToken);
-			}
-
+			TransferResult result = await RecordToFileAsync(session, candidate, path, profile, observer, cancellationToken);
 			return new RecordingAttempt(candidate, endpoint, result.ActiveDuration, result.End);
 		}
 		finally
 		{
-			if (session is not null)
-			{
-				await session.DisposeAsync();
-			}
+			await session.DisposeAsync();
 		}
+	}
+
+	internal static Stream CreateRecordingFile(string path)
+	{
+		return new FileStream
+		(
+			path,
+			new FileStreamOptions
+			{
+				Mode = FileMode.CreateNew,
+				Access = FileAccess.Write,
+				Share = FileShare.Read,
+				Options = FileOptions.Asynchronous,
+				BufferSize = 1 << 20
+			}
+		);
 	}
 
 	// 同一秒内重连会得到相同的时间戳，不同格式的文件转封装后又会落到同一个 .mp4
@@ -103,50 +113,16 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		}
 	}
 
-	private async Task<TransferResult> RecordBuiltInAsync(LiveStreamSession session, LiveStreamCandidate candidate, string path, RecordingProfile profile, IRecordingObserver observer, CancellationToken cancellationToken)
+	private async Task<TransferResult> RecordToFileAsync(LiveStreamSession session, LiveStreamCandidate candidate, string path, RecordingProfile profile, IRecordingObserver observer, CancellationToken cancellationToken)
 	{
-		await using FileStream file = new
-		(
-			path,
-			new FileStreamOptions
-			{
-				Mode = FileMode.CreateNew,
-				Access = FileAccess.Write,
-				Share = FileShare.Read,
-				Options = FileOptions.Asynchronous,
-				BufferSize = 1 << 20
-			}
-		);
+		// 文件由写缓冲关闭
+		Stream file = CreateFile(path);
 
 		// 文件建好之后才开始计时，创建失败时不留下看门狗
 		observer.OnRecordingStarted(path, candidate);
 		TransferMeter meter = new();
 
-		return await TransferAsync(ct => session.CopyToAsync(file, meter, ct), meter.TakePending, profile.StreamIdleTimeout, observer, cancellationToken);
-	}
-
-	private async Task<TransferResult> RecordWithFFmpegAsync(FFmpegRunner ffmpeg, Uri source, string path, RecordingProfile profile, IRecordingObserver observer, CancellationToken cancellationToken)
-	{
-		AppConfig config = await configManager.GetAsync(cancellationToken);
-		string userAgent = BilibiliRequestHandler.ResolveUserAgent(config.UserAgent);
-		long recordedBytes = 0;
-
-		return await TransferAsync(RunAsync, TakeFileGrowth, profile.StreamIdleTimeout, observer, cancellationToken);
-
-		async Task<StreamEndReason> RunAsync(CancellationToken ct)
-		{
-			await ffmpeg.RunAsync(FFmpegArguments.Record(source, userAgent, Referrer, profile.StreamConnectTimeout, path), null, ct);
-			return StreamEndReason.EndOfStream;
-		}
-
-		long TakeFileGrowth()
-		{
-			FileInfo file = new(path);
-			long size = file.Exists ? file.Length : 0;
-			long growth = Math.Max(size - recordedBytes, 0);
-			recordedBytes = size;
-			return growth;
-		}
+		return await TransferAsync(ct => RecordingWriteBuffer.CopyAsync(session, file, meter, DrainTimeout, ct), meter.TakePending, profile.StreamIdleTimeout, observer, cancellationToken);
 	}
 
 	private async Task<TransferResult> TransferAsync(Func<CancellationToken, Task<StreamEndReason>> transfer, Func<long> takeTransferredBytes, TimeSpan idleTimeout, IRecordingObserver observer, CancellationToken cancellationToken)
@@ -162,7 +138,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		}
 		catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
 		{
-			end = new RecordingEnd.Faulted(exception);
+			end = exception is RecordingWriteException writeFailure ? new RecordingEnd.WriteFailed(writeFailure) : new RecordingEnd.Faulted(exception);
 		}
 		finally
 		{
@@ -170,8 +146,8 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 			statistics = await watchdog;
 		}
 
-		// 外部没有取消时，传输被取消只可能来自空闲超时
-		return new TransferResult(statistics.IsIdle ? new RecordingEnd.Idle(idleTimeout) : end, statistics.ActiveDuration);
+		// 外部没有取消时，传输被取消只可能来自空闲超时；磁盘卡住时网络读取也会停下，这时写盘失败才是原因
+		return new TransferResult(statistics.IsIdle && end is not RecordingEnd.WriteFailed ? new RecordingEnd.Idle(idleTimeout) : end, statistics.ActiveDuration);
 	}
 
 	private async Task<TransferStatistics> WatchAsync(Func<long> takeTransferredBytes, TimeSpan idleTimeout, IRecordingObserver observer, CancellationTokenSource transfer)

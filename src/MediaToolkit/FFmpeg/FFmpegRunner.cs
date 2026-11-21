@@ -80,33 +80,53 @@ public sealed class FFmpegRunner(string executablePath)
 		}
 	}
 
-	public async Task RunAsync(IReadOnlyList<string> arguments, IProgress<FFmpegProgress>? progress = null, CancellationToken cancellationToken = default)
+	public Task RunAsync(IReadOnlyList<string> arguments, IProgress<FFmpegProgress>? progress = null, CancellationToken cancellationToken = default)
+	{
+		return RunCoreAsync(arguments, null, progress, cancellationToken);
+	}
+
+	// readOutput 要把标准输出读到结束；取消时照样让 FFmpeg 收尾，期间的输出继续交给它
+	// readOutput 出错时停下 FFmpeg，调用方没有取消就抛出它的错误
+	public Task RunAsync(IReadOnlyList<string> arguments, Func<Stream, Task> readOutput, IProgress<FFmpegProgress>? progress = null, CancellationToken cancellationToken = default)
+	{
+		ArgumentNullException.ThrowIfNull(readOutput);
+
+		return RunCoreAsync(arguments, readOutput, progress, cancellationToken);
+	}
+
+	private async Task RunCoreAsync(IReadOnlyList<string> arguments, Func<Stream, Task>? readOutput, IProgress<FFmpegProgress>? progress, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(arguments);
 		cancellationToken.ThrowIfCancellationRequested();
 
+		using CancellationTokenSource stopping = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		using Process process = ChildProcessTracker.Start(new ProcessStartInfo(ExecutablePath, arguments)
 		{
 			CreateNoWindow = true,
 			RedirectStandardInput = true,
+			RedirectStandardOutput = readOutput is not null,
 			RedirectStandardError = true,
 			StandardErrorEncoding = Encoding.UTF8
 		});
 
 		// 读取不能依赖调用方的同步上下文，UI 线程一忙 stderr 管道就会写满，把 FFmpeg 卡住
 		Task<string?> readError = Task.Run(() => ReadStandardErrorAsync(process.StandardError, progress));
+		Task readingOutput = readOutput is null ? Task.CompletedTask : Task.Run(() => ReadStandardOutputAsync(process.StandardOutput.BaseStream, readOutput, stopping));
 
 		try
 		{
-			await process.WaitForExitAsync(cancellationToken);
+			await process.WaitForExitAsync(stopping.Token);
 		}
 		catch (OperationCanceledException)
 		{
 			await StopAsync(process);
-			await ((Task)readError).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+			await Task.WhenAll(readError, readingOutput).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+			cancellationToken.ThrowIfCancellationRequested();
+			await readingOutput;
 			throw;
 		}
 
+		await readingOutput;
 		string? lastLine = await readError;
 
 		if (process.ExitCode is not 0)
@@ -149,6 +169,21 @@ public sealed class FFmpegRunner(string executablePath)
 		}
 
 		return lastLine;
+	}
+
+	// 没人读时 FFmpeg 会卡在写满的管道上，读取方出错后要停下它并丢掉剩下的输出
+	private static async Task ReadStandardOutputAsync(Stream output, Func<Stream, Task> readOutput, CancellationTokenSource stopping)
+	{
+		try
+		{
+			await readOutput(output);
+		}
+		catch
+		{
+			await stopping.CancelAsync();
+			await output.CopyToAsync(Stream.Null);
+			throw;
+		}
 	}
 
 	private async Task StopAsync(Process process)

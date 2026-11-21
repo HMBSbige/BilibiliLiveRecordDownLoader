@@ -64,16 +64,16 @@ public class FFmpegArgumentsTest
 	{
 		Uri source = new(@"https://cn-gotcha.bilivideo.com/live/x.flv?expires=1&sign=a%2Fb~c");
 
-		IReadOnlyList<string> arguments = FFmpegArguments.Record(source, @"Mozilla/5.0 (Test)", new Uri(@"https://live.bilibili.com/"), TimeSpan.FromSeconds(10.5), @"out.ts");
+		IReadOnlyList<string> arguments = FFmpegArguments.Record(source, @"Mozilla/5.0 (Test)", new Uri(@"https://live.bilibili.com/"), TimeSpan.FromSeconds(10.5));
 
 		string[] expected =
 		[
-			@"-hide_banner", @"-y",
+			@"-hide_banner",
 			@"-user_agent", @"Mozilla/5.0 (Test)",
 			@"-headers", "Referer: https://live.bilibili.com/\r\n",
 			@"-rw_timeout", @"10500000",
 			@"-i", @"https://cn-gotcha.bilivideo.com/live/x.flv?expires=1&sign=a%2Fb~c",
-			@"-c", @"copy", @"out.ts"
+			@"-c", @"copy", @"-f", @"mpegts", @"pipe:1"
 		];
 		await Assert.That(arguments).IsEquivalentTo(expected, StringComparer.Ordinal, CollectionOrdering.Matching);
 	}
@@ -81,16 +81,16 @@ public class FFmpegArgumentsTest
 	[Test]
 	public async Task RecordOmitsUnsetOptionsAsync()
 	{
-		IReadOnlyList<string> arguments = FFmpegArguments.Record(new Uri(@"https://example.com/live.m3u8"), null, null, Timeout.InfiniteTimeSpan, @"out.ts");
+		IReadOnlyList<string> arguments = FFmpegArguments.Record(new Uri(@"https://example.com/live.m3u8"), null, null, Timeout.InfiniteTimeSpan);
 
-		string[] expected = [@"-hide_banner", @"-y", @"-i", @"https://example.com/live.m3u8", @"-c", @"copy", @"out.ts"];
+		string[] expected = [@"-hide_banner", @"-i", @"https://example.com/live.m3u8", @"-c", @"copy", @"-f", @"mpegts", @"pipe:1"];
 		await Assert.That(arguments).IsEquivalentTo(expected, StringComparer.Ordinal, CollectionOrdering.Matching);
 	}
 
 	[Test]
 	public async Task RecordRejectsRelativeSourceAsync()
 	{
-		await Assert.That(() => FFmpegArguments.Record(new Uri(@"live.flv", UriKind.Relative), null, null, Timeout.InfiniteTimeSpan, @"out.ts")).Throws<ArgumentException>();
+		await Assert.That(() => FFmpegArguments.Record(new Uri(@"live.flv", UriKind.Relative), null, null, Timeout.InfiniteTimeSpan)).Throws<ArgumentException>();
 	}
 
 	[Test]
@@ -102,7 +102,7 @@ public class FFmpegArgumentsTest
 			FFmpegArguments.Remux(@"a", @"b"),
 			FFmpegArguments.Cut(@"a", @"b", TimeSpan.Zero, TimeSpan.FromSeconds(1)),
 			FFmpegArguments.Merge(@"a", @"b", @"c"),
-			FFmpegArguments.Record(source, null, null, Timeout.InfiniteTimeSpan, @"b")
+			FFmpegArguments.Record(source, null, null, Timeout.InfiniteTimeSpan)
 		];
 
 		// -nostdin 会让取消时写入的 q 失效

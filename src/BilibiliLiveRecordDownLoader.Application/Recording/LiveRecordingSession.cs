@@ -12,7 +12,7 @@ internal sealed class LiveRecordingSession
 
 	public bool HasUntriedEndpoint => Candidates is not { } candidates || GetUntriedCandidates(candidates).Count > 0;
 
-	// 文件可能还没建出来（FFmpeg 连上后才建），也可能已被后处理删除，只看磁盘会把同一个主干分给两次录制
+	// 后处理会在后台删除或转封装上一次的文件，只看磁盘会把同一个主干分给两次录制
 	public bool TryReserveStem(string stem)
 	{
 		lock (_lock)

@@ -1,0 +1,289 @@
+using BilibiliLive.Streams;
+using BilibiliLiveRecordDownLoader.Application.Recording;
+
+namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
+
+public sealed class RecordingWriteBufferTest
+{
+	private const int ChunkSize = 64 * 1024;
+
+	private static readonly TimeSpan DrainTimeout = TimeSpan.FromSeconds(5);
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task NetworkKeepsReceivingWhileTheDiskStallsThenEverythingIsWrittenAsync(CancellationToken cancellationToken)
+	{
+		ChunkSession session = new(10, false);
+		GatedStream output = new();
+		Progress progress = new();
+
+		Task<StreamEndReason> copy = RecordingWriteBuffer.CopyAsync(session, output, progress, DrainTimeout, cancellationToken);
+		await progress.WaitForAsync(session.Length, cancellationToken);
+		(long writtenWhileStalled, bool finishedWhileStalled) = (output.Written.Length, copy.IsCompleted);
+		output.Open();
+		StreamEndReason reason = await copy;
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(writtenWhileStalled).IsEqualTo(0);
+			await Assert.That(finishedWhileStalled).IsFalse();
+			await Assert.That(reason).IsEqualTo(StreamEndReason.EndOfStream);
+			await Assert.That(output.Written.SequenceEqual(session.Data)).IsTrue();
+		}
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task StoppingDrainsWhatWasAlreadyReceivedAsync(CancellationToken cancellationToken)
+	{
+		ChunkSession session = new(3, true);
+		GatedStream output = new();
+		Progress progress = new();
+		using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+		Task<StreamEndReason> copy = RecordingWriteBuffer.CopyAsync(session, output, progress, DrainTimeout, stop.Token);
+		await progress.WaitForAsync(session.Length, cancellationToken);
+		await stop.CancelAsync();
+		output.Open();
+
+		await Assert.ThrowsAsync<OperationCanceledException>(() => copy);
+		await Assert.That(output.Written.SequenceEqual(session.Data)).IsTrue();
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task StoppingWhileTheBufferIsFullIsAWriteFailureEvenIfTheDiskRecoversAsync(CancellationToken cancellationToken)
+	{
+		ChunkSession session = new(int.MaxValue, false);
+		GatedStream output = new();
+		using CancellationTokenSource idle = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+		Task<StreamEndReason> copy = RecordingWriteBuffer.CopyAsync(session, output, new Progress(), DrainTimeout, idle.Token);
+		await session.Stalled.WaitAsync(cancellationToken);
+		await idle.CancelAsync();
+		output.Open();
+
+		await Assert.ThrowsExactlyAsync<RecordingWriteException>(() => copy);
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task WriteFailureStopsReceivingAndSurfacesAsync(CancellationToken cancellationToken)
+	{
+		ChunkSession session = new(int.MaxValue, false);
+		GatedStream output = new(new IOException("disk full"), new IOException("still full"));
+		output.Open();
+
+		RecordingWriteException? exception = await Assert.ThrowsExactlyAsync<RecordingWriteException>(() => RecordingWriteBuffer.CopyAsync(session, output, new Progress(), DrainTimeout, cancellationToken));
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(exception?.InnerException?.Message).IsEqualTo("disk full");
+			await Assert.That(session.WasCancelled).IsTrue();
+		}
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task FailureToFlushTheFileOnCloseIsAWriteFailureAsync(CancellationToken cancellationToken)
+	{
+		ChunkSession session = new(3, false);
+		GatedStream output = new(closeFailure: new IOException("disk full"));
+		output.Open();
+
+		RecordingWriteException? exception = await Assert.ThrowsExactlyAsync<RecordingWriteException>(() => RecordingWriteBuffer.CopyAsync(session, output, new Progress(), DrainTimeout, cancellationToken));
+
+		await Assert.That(exception?.InnerException?.Message).IsEqualTo("disk full");
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task NetworkFailureIsNotReportedAsAWriteFailureAsync(CancellationToken cancellationToken)
+	{
+		ChunkSession session = new(3, false, new IOException("connection reset"));
+		GatedStream output = new();
+		output.Open();
+
+		IOException? exception = await Assert.ThrowsExactlyAsync<IOException>(() => RecordingWriteBuffer.CopyAsync(session, output, new Progress(), DrainTimeout, cancellationToken));
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(exception?.Message).IsEqualTo("connection reset");
+			await Assert.That(output.Written.SequenceEqual(session.Data)).IsTrue();
+		}
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task DiskThatNeverRecoversCannotHangTheStopAsync(CancellationToken cancellationToken)
+	{
+		ChunkSession session = new(1, true);
+		GatedStream output = new();
+		Progress progress = new();
+		using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+		Task<StreamEndReason> copy = RecordingWriteBuffer.CopyAsync(session, output, progress, TimeSpan.FromMilliseconds(100), stop.Token);
+		await progress.WaitForAsync(session.Length, cancellationToken);
+		await stop.CancelAsync();
+
+		await Assert.ThrowsExactlyAsync<RecordingWriteException>(() => copy);
+		output.Open();
+	}
+
+	private sealed class ChunkSession(int chunks, bool waitForCancellation, Exception? failure = null) : LiveStreamSession
+	{
+		private readonly TaskCompletionSource _stalled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		public override Uri Source { get; } = new("https://cdn.test/live.flv");
+
+		// 某次写入没有立即完成，缓冲已经写满
+		public Task Stalled => _stalled.Task;
+
+		public byte[] Data { get; } = [.. Enumerable.Range(0, Math.Min(chunks, 16) * ChunkSize).Select(static i => (byte)(i * 31))];
+
+		public long Length => Data.Length;
+
+		public bool WasCancelled { get; private set; }
+
+		public override async Task<StreamEndReason> CopyToAsync(Stream destination, IProgress<long>? progress = null, CancellationToken cancellationToken = default)
+		{
+			try
+			{
+				for (int chunk = 0; chunk < chunks; ++chunk)
+				{
+					// 代替网络读取，真实的会话在读网络时响应取消
+					await Task.Yield();
+					cancellationToken.ThrowIfCancellationRequested();
+
+					ValueTask write = destination.WriteAsync(Data.AsMemory(chunk % 16 * ChunkSize, ChunkSize), cancellationToken);
+
+					if (!write.IsCompleted)
+					{
+						_stalled.TrySetResult();
+					}
+
+					await write;
+					progress?.Report(ChunkSize);
+				}
+
+				if (failure is not null)
+				{
+					throw failure;
+				}
+
+				if (waitForCancellation)
+				{
+					await Task.Delay(Timeout.Infinite, cancellationToken);
+				}
+
+				return StreamEndReason.EndOfStream;
+			}
+			catch (OperationCanceledException)
+			{
+				WasCancelled = true;
+				throw;
+			}
+		}
+
+		public override ValueTask DisposeAsync()
+		{
+			return ValueTask.CompletedTask;
+		}
+	}
+
+	// 关闭时不理会取消，模拟一个不再响应的网络共享
+	private sealed class GatedStream(Exception? failure = null, Exception? closeFailure = null) : Stream
+	{
+		private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		private readonly MemoryStream _written = new();
+
+		public byte[] Written
+		{
+			get
+			{
+				lock (_written)
+				{
+					return _written.ToArray();
+				}
+			}
+		}
+
+		public override bool CanRead => false;
+
+		public override bool CanSeek => false;
+
+		public override bool CanWrite => true;
+
+		public override long Length => throw new NotSupportedException();
+
+		public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+		public void Open()
+		{
+			_gate.TrySetResult();
+		}
+
+		public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+		{
+			await _gate.Task;
+
+			if (failure is not null)
+			{
+				throw failure;
+			}
+
+			lock (_written)
+			{
+				_written.Write(buffer.Span);
+			}
+		}
+
+		public override void Write(byte[] buffer, int offset, int count)
+		{
+			throw new NotSupportedException();
+		}
+
+		public override void Flush()
+		{
+		}
+
+		public override int Read(byte[] buffer, int offset, int count)
+		{
+			throw new NotSupportedException();
+		}
+
+		public override long Seek(long offset, SeekOrigin origin)
+		{
+			throw new NotSupportedException();
+		}
+
+		public override void SetLength(long value)
+		{
+			throw new NotSupportedException();
+		}
+
+		// 和文件流一样，关闭时才写出自己缓冲的数据
+		public override ValueTask DisposeAsync()
+		{
+			return closeFailure is null ? base.DisposeAsync() : ValueTask.FromException(closeFailure);
+		}
+	}
+
+	private sealed class Progress : IProgress<long>
+	{
+		private long _total;
+
+		public void Report(long value)
+		{
+			Interlocked.Add(ref _total, value);
+		}
+
+		public async Task WaitForAsync(long total, CancellationToken cancellationToken)
+		{
+			while (Interlocked.Read(ref _total) < total)
+			{
+				await Task.Delay(10, cancellationToken);
+			}
+		}
+	}
+}
