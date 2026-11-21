@@ -28,7 +28,7 @@ public class HlsPlaylistTest
 		{
 			await Assert.That(playlist.Version).IsEqualTo(7);
 			await Assert.That(playlist.TargetDuration).IsEqualTo(TimeSpan.FromSeconds(1));
-			await Sequences.AssertEqualAsync(playlist.Segments, [new HlsSegment("328033198.m4s", "h1795240925.m4s"), new HlsSegment("328033199.m4s", "h1795240925.m4s")]);
+			await Sequences.AssertEqualAsync(playlist.Segments, [new HlsSegment("328033198.m4s", "h1795240925.m4s", 0), new HlsSegment("328033199.m4s", "h1795240925.m4s", 0)]);
 			await Assert.That(playlist.EndList).IsFalse();
 		}
 	}
@@ -44,7 +44,7 @@ public class HlsPlaylistTest
 		{
 			await Assert.That(playlist.Version).IsEqualTo(3);
 			await Assert.That(playlist.TargetDuration).IsEqualTo(TimeSpan.FromSeconds(3));
-			await Sequences.AssertEqualAsync(playlist.Segments, [new HlsSegment("live-1.ts", null), new HlsSegment("https://cdn.test/live-2.ts?x=1", null)]);
+			await Sequences.AssertEqualAsync(playlist.Segments, [new HlsSegment("live-1.ts", null, 0), new HlsSegment("https://cdn.test/live-2.ts?x=1", null, 0)]);
 			await Assert.That(playlist.EndList).IsTrue();
 		}
 	}
@@ -67,7 +67,15 @@ public class HlsPlaylistTest
 	{
 		HlsPlaylist playlist = HlsPlaylist.Parse("#EXTM3U\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n2.m4s\n");
 
-		await Sequences.AssertEqualAsync(playlist.Segments, [new HlsSegment("1.m4s", "h1.m4s"), new HlsSegment("2.m4s", "h2.m4s")]);
+		await Sequences.AssertEqualAsync(playlist.Segments, [new HlsSegment("1.m4s", "h1.m4s", 0), new HlsSegment("2.m4s", "h2.m4s", 0)]);
+	}
+
+	[Test]
+	public async Task DiscontinuitiesCountFromTheSequenceTagAsync()
+	{
+		HlsPlaylist playlist = HlsPlaylist.Parse("#EXTM3U\n#EXT-X-DISCONTINUITY-SEQUENCE:7\n1.ts\n#EXT-X-DISCONTINUITY\n2.ts\n3.ts\n#EXT-X-DISCONTINUITY\n4.ts\n");
+
+		await Sequences.AssertEqualAsync(playlist.Segments.Select(s => s.DiscontinuitySequence), [7L, 8L, 8L, 9L]);
 	}
 
 	[Test]
@@ -78,6 +86,29 @@ public class HlsPlaylistTest
 		HlsPlaylist playlist = HlsPlaylist.Parse($"#EXTM3U\n{mapLine}\nseg.m4s\n");
 
 		await Assert.That(playlist.Segments[0].MapUri).IsEqualTo(expected);
+	}
+
+	[Test]
+	public async Task FindsTheVariantOfABilibiliMasterPlaylistAsync()
+	{
+		const string content = """
+			#EXTM3U
+			#EXT-X-VERSION:7
+			#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=2560000
+			https://edge.test/d1--cn-gotcha204b.bilivideo.com/live-bvc/1/live_2500/index.m3u8?expires=1&sign=x
+			""";
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(HlsPlaylist.GetVariant(content)).IsEqualTo("https://edge.test/d1--cn-gotcha204b.bilivideo.com/live-bvc/1/live_2500/index.m3u8?expires=1&sign=x");
+			await Assert.That(() => HlsPlaylist.Parse(content)).Throws<FormatException>();
+		}
+	}
+
+	[Test]
+	public async Task MediaPlaylistHasNoVariantAsync()
+	{
+		await Assert.That(HlsPlaylist.GetVariant("#EXTM3U\n#EXT-X-MAP:URI=\"h1.m4s\"\n#EXTINF:1.00,\n1.m4s\n")).IsNull();
 	}
 
 	[Test]

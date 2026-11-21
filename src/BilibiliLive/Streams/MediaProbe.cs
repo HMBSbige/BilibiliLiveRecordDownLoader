@@ -1,0 +1,91 @@
+using System.Buffers.Binary;
+
+namespace BilibiliLive.Streams;
+
+/// <summary>Cheap structural checks that tell real media from error pages a CDN may serve with a 200 status.</summary>
+internal static class MediaProbe
+{
+	internal const int TransportPacketSize = 188;
+	internal const int TransportPacketsToCheck = 3;
+
+	private const int BoxHeaderSize = 8;
+	private const int LargeBoxHeaderSize = 16;
+
+	public static ReadOnlySpan<byte> FlvSignature => "FLV"u8;
+
+	public static bool IsFlv(ReadOnlySpan<byte> data)
+	{
+		return data.StartsWith(FlvSignature);
+	}
+
+	// A lone 0x47 is common in any payload, so several packets in a row have to line up
+	public static bool IsTransportStream(ReadOnlySpan<byte> data)
+	{
+		for (int offset = 0; offset < TransportPacketSize && offset + TransportPacketSize * TransportPacketsToCheck <= data.Length; ++offset)
+		{
+			if (IsSynchronized(data.Slice(offset)))
+			{
+				return true;
+			}
+		}
+
+		return false;
+
+		static bool IsSynchronized(ReadOnlySpan<byte> data)
+		{
+			for (int packet = 0; packet < TransportPacketsToCheck; ++packet)
+			{
+				if (data[packet * TransportPacketSize] is not 0x47)
+				{
+					return false;
+				}
+			}
+
+			return true;
+		}
+	}
+
+	/// <summary>Walks the top-level ISO-BMFF boxes, which must cover the data exactly and include moov for an init segment or moof for a fragment.</summary>
+	public static bool IsIsoBmff(ReadOnlySpan<byte> data, bool initialization)
+	{
+		ReadOnlySpan<byte> requiredBox = initialization ? "moov"u8 : "moof"u8;
+		bool hasRequiredBox = false;
+
+		while (!data.IsEmpty)
+		{
+			if (data.Length < BoxHeaderSize)
+			{
+				return false;
+			}
+
+			ulong size = BinaryPrimitives.ReadUInt32BigEndian(data);
+			ReadOnlySpan<byte> type = data.Slice(4, 4);
+			int headerSize = BoxHeaderSize;
+
+			if (size is 1)
+			{
+				if (data.Length < LargeBoxHeaderSize)
+				{
+					return false;
+				}
+
+				size = BinaryPrimitives.ReadUInt64BigEndian(data.Slice(BoxHeaderSize));
+				headerSize = LargeBoxHeaderSize;
+			}
+			else if (size is 0)
+			{
+				size = (ulong)data.Length;
+			}
+
+			if (size < (ulong)headerSize || size > (ulong)data.Length || type.ContainsAnyExceptInRange((byte)0x20, (byte)0x7E))
+			{
+				return false;
+			}
+
+			hasRequiredBox |= type.SequenceEqual(requiredBox);
+			data = data.Slice((int)size);
+		}
+
+		return hasRequiredBox;
+	}
+}

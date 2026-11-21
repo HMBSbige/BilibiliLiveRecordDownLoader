@@ -12,7 +12,7 @@ public sealed class RecordingFileLayoutTest
 	[Arguments(RecorderType.FFmpeg, StreamFormat.Fmp4, "20260102_030405.ts")]
 	public async Task RecordingPathUsesRoomDirectoryAndFormatExtensionAsync(RecorderType recorderType, StreamFormat format, string expectedFileName)
 	{
-		string path = RecordingFileLayout.CreateRecordingPath("records", 123, StartTime, format, recorderType);
+		string path = RecordingFileLayout.GetRecordingPath(RecordingFileLayout.GetRecordingStem("records", 123, StartTime), format, recorderType);
 
 		await Assert.That(path).IsEqualTo(Path.Combine("records", "123", expectedFileName));
 	}
@@ -20,7 +20,7 @@ public sealed class RecordingFileLayoutTest
 	[Test]
 	public async Task SequenceKeepsTheFmp4SuffixLastAsync()
 	{
-		string path = RecordingFileLayout.CreateRecordingPath("records", 123, StartTime, StreamFormat.Fmp4, RecorderType.BuiltIn, 2);
+		string path = RecordingFileLayout.GetRecordingPath(RecordingFileLayout.GetRecordingStem("records", 123, StartTime, 2), StreamFormat.Fmp4, RecorderType.BuiltIn);
 
 		await Assert.That(path).IsEqualTo(Path.Combine("records", "123", "20260102_030405_2_fmp4.mp4"));
 		await Assert.That(RecordingFileLayout.GetMp4ConversionPath(path)).IsEqualTo(Path.Combine("records", "123", "20260102_030405_2.mp4"));
@@ -40,5 +40,47 @@ public sealed class RecordingFileLayoutTest
 	public async Task PlainMp4NeedsNoConversionAsync()
 	{
 		await Assert.That(RecordingFileLayout.GetMp4ConversionPath("a.mp4")).IsNull();
+	}
+
+	[Test]
+	public async Task AnyFileTheStemCanProduceMakesItUnavailableAsync()
+	{
+		const string stem = "20260102_030405";
+		string[] produced =
+		[
+			.. Enum.GetValues<RecorderType>()
+				.SelectMany(_ => Enum.GetValues<StreamFormat>(), (recorderType, format) => RecordingFileLayout.GetRecordingPath(stem, format, recorderType))
+				.SelectMany(path => new[] { path, RecordingFileLayout.GetMp4ConversionPath(path) })
+				.OfType<string>()
+				.Distinct()
+		];
+
+		foreach (string path in produced)
+		{
+			await Assert.That(RecordingFileLayout.IsStemAvailable(stem, existing => existing == path)).IsFalse().Because(path);
+		}
+	}
+
+	[Test]
+	public async Task FlvOnDiskBlocksFmp4WithTheSameRemuxTargetAsync()
+	{
+		const string stem = "20260102_030405";
+		string flv = RecordingFileLayout.GetRecordingPath(stem, StreamFormat.Flv, RecorderType.BuiltIn);
+		string fmp4 = RecordingFileLayout.GetRecordingPath(stem, StreamFormat.Fmp4, RecorderType.BuiltIn);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(RecordingFileLayout.GetMp4ConversionPath(fmp4)).IsEqualTo(RecordingFileLayout.GetMp4ConversionPath(flv));
+			await Assert.That(RecordingFileLayout.IsStemAvailable(stem, existing => existing == flv)).IsFalse();
+		}
+	}
+
+	[Test]
+	[Arguments("20260102_030405_1.flv")]
+	[Arguments("20260102_030405.xml")]
+	[Arguments("20260102_030405")]
+	public async Task UnrelatedFilesKeepTheStemAvailableAsync(string existingFile)
+	{
+		await Assert.That(RecordingFileLayout.IsStemAvailable("20260102_030405", existing => existing == existingFile)).IsTrue();
 	}
 }

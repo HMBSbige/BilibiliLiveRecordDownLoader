@@ -8,7 +8,10 @@ public sealed record HlsPlaylist(int Version, TimeSpan? TargetDuration, IReadOnl
 	private const string VersionTag = "#EXT-X-VERSION:";
 	private const string TargetDurationTag = "#EXT-X-TARGETDURATION:";
 	private const string MapTag = "#EXT-X-MAP:";
+	private const string DiscontinuitySequenceTag = "#EXT-X-DISCONTINUITY-SEQUENCE:";
+	private const string DiscontinuityTag = "#EXT-X-DISCONTINUITY";
 	private const string EndListTag = "#EXT-X-ENDLIST";
+	private const string StreamInfTag = "#EXT-X-STREAM-INF:";
 
 	public static HlsPlaylist Parse(string content)
 	{
@@ -18,6 +21,7 @@ public sealed record HlsPlaylist(int Version, TimeSpan? TargetDuration, IReadOnl
 		int version = 1;
 		TimeSpan? targetDuration = null;
 		string? mapUri = null;
+		long discontinuitySequence = 0;
 		bool endList = false;
 		List<HlsSegment> segments = [];
 
@@ -41,7 +45,11 @@ public sealed record HlsPlaylist(int Version, TimeSpan? TargetDuration, IReadOnl
 			}
 			else if (line[0] is not '#')
 			{
-				segments.Add(new HlsSegment(line.ToString(), mapUri));
+				segments.Add(new HlsSegment(line.ToString(), mapUri, discontinuitySequence));
+			}
+			else if (line.StartsWith(StreamInfTag, StringComparison.Ordinal))
+			{
+				throw new FormatException("A master playlist lists variants instead of segments.");
 			}
 			else if (line.StartsWith(VersionTag, StringComparison.Ordinal))
 			{
@@ -57,6 +65,16 @@ public sealed record HlsPlaylist(int Version, TimeSpan? TargetDuration, IReadOnl
 			{
 				mapUri = GetQuotedAttribute(line.Slice(MapTag.Length), "URI") ?? throw new FormatException($"{MapTag} has no URI.");
 			}
+			else if (line.StartsWith(DiscontinuitySequenceTag, StringComparison.Ordinal))
+			{
+				discontinuitySequence = long.TryParse(line.Slice(DiscontinuitySequenceTag.Length), NumberStyles.None, CultureInfo.InvariantCulture, out long value)
+					? value
+					: throw new FormatException($"Invalid {DiscontinuitySequenceTag} tag.");
+			}
+			else if (line.SequenceEqual(DiscontinuityTag))
+			{
+				++discontinuitySequence;
+			}
 			else if (line.SequenceEqual(EndListTag))
 			{
 				endList = true;
@@ -69,6 +87,33 @@ public sealed record HlsPlaylist(int Version, TimeSpan? TargetDuration, IReadOnl
 		}
 
 		return new HlsPlaylist(version, targetDuration, segments, endList);
+	}
+
+	// Some CDN nodes answer with a master playlist that points at the media playlist of the same stream on an edge node
+	public static string? GetVariant(string content)
+	{
+		ArgumentNullException.ThrowIfNull(content);
+
+		bool isVariant = false;
+
+		foreach (ReadOnlySpan<char> rawLine in content.AsSpan().EnumerateLines())
+		{
+			ReadOnlySpan<char> line = rawLine.Trim();
+
+			if (line.IsEmpty)
+			{
+				continue;
+			}
+
+			if (line[0] is not '#')
+			{
+				return isVariant ? line.ToString() : null;
+			}
+
+			isVariant |= line.StartsWith(StreamInfTag, StringComparison.Ordinal);
+		}
+
+		return null;
 	}
 
 	private static string? GetQuotedAttribute(ReadOnlySpan<char> attributes, ReadOnlySpan<char> name)

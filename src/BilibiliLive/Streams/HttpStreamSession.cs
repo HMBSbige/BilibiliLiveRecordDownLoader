@@ -2,16 +2,21 @@ using System.Buffers;
 
 namespace BilibiliLive.Streams;
 
+// Bilibili only serves FLV over http_stream
 internal sealed class HttpStreamSession : LiveStreamSession
 {
 	private const int BufferSize = 64 * 1024;
 
 	private readonly HttpResponseMessage _response;
+	private readonly Stream _body;
+	private readonly byte[] _header;
 
-	private HttpStreamSession(Uri source, HttpResponseMessage response)
+	private HttpStreamSession(Uri source, HttpResponseMessage response, Stream body, byte[] header)
 	{
 		Source = source;
 		_response = response;
+		_body = body;
+		_header = header;
 	}
 
 	public override Uri Source { get; }
@@ -24,7 +29,18 @@ internal sealed class HttpStreamSession : LiveStreamSession
 		try
 		{
 			response.EnsureSuccessStatusCode();
-			return new HttpStreamSession(uri, response);
+			Stream body = await response.Content.ReadAsStreamAsync(cancellationToken);
+
+			// A 200 alone proves little: a failing node may still answer with an error page or close at once
+			byte[] header = new byte[MediaProbe.FlvSignature.Length];
+			int read = await body.ReadAtLeastAsync(header, header.Length, false, cancellationToken);
+
+			if (!MediaProbe.IsFlv(header.AsSpan(0, read)))
+			{
+				throw new InvalidDataException(read is 0 ? "The stream ended before sending any data." : "The stream does not start with an FLV header.");
+			}
+
+			return new HttpStreamSession(uri, response, body, header);
 		}
 		catch
 		{
@@ -33,22 +49,24 @@ internal sealed class HttpStreamSession : LiveStreamSession
 		}
 	}
 
-	public override async Task CopyToAsync(Stream destination, IProgress<long>? progress = null, CancellationToken cancellationToken = default)
+	public override async Task<StreamEndReason> CopyToAsync(Stream destination, IProgress<long>? progress = null, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(destination);
 
-		await using Stream source = await _response.Content.ReadAsStreamAsync(cancellationToken);
+		await destination.WriteAsync(_header, cancellationToken);
+		progress?.Report(_header.Length);
+
 		byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
 
 		try
 		{
 			while (true)
 			{
-				int read = await source.ReadAsync(buffer, cancellationToken);
+				int read = await _body.ReadAsync(buffer, cancellationToken);
 
 				if (read is 0)
 				{
-					return;
+					return StreamEndReason.EndOfStream;
 				}
 
 				await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
@@ -61,9 +79,9 @@ internal sealed class HttpStreamSession : LiveStreamSession
 		}
 	}
 
-	public override ValueTask DisposeAsync()
+	public override async ValueTask DisposeAsync()
 	{
+		await _body.DisposeAsync();
 		_response.Dispose();
-		return ValueTask.CompletedTask;
 	}
 }

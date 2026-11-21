@@ -327,6 +327,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	{
 		await Task.Yield();
 		using IDisposable? scope = _logger.BeginRoomScope(RoomId);
+		LiveRecordingSession liveSession = new();
 
 		try
 		{
@@ -337,11 +338,31 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 
 				try
 				{
-					await services.Recorder.RecordAsync(RoomId, profile, this, cancellationToken);
-					LogRecordingEnded(_logger);
+					RecordingAttempt attempt = await services.Recorder.RecordAsync(RoomId, profile, liveSession, this, cancellationToken);
 
-					// 流结束时尽快确认是否已下播，避免对已下播的房间反复请求
+					// 流结束时尽快确认是否已下播，下播造成的断流不算线路故障
 					await TryRefreshAsync(cancellationToken);
+
+					if (ShouldKeepRecording(cancellationToken) && attempt.IsQuickFailure)
+					{
+						// 立即换下一条线路，全部试过之后才会等待重连间隔
+						liveSession.MarkFailed(attempt.Candidate, attempt.Endpoint);
+						LogAttemptFailed(attempt);
+
+						if (!liveSession.HasUntriedEndpoint)
+						{
+							// 所有线路都试过一遍，等待之后重新请求候选流从头再试
+							liveSession.Reset();
+							LogAllEndpointsFailed(_logger, profile.StreamReconnectDelay);
+							await Task.Delay(profile.StreamReconnectDelay, services.TimeProvider, cancellationToken);
+						}
+					}
+					else
+					{
+						// 正常录制过一段时间，之前失败的线路可能已经恢复，从首选流重新请求签名地址
+						liveSession.Reset();
+						LogRecordingEnded(_logger, attempt.End.Description);
+					}
 				}
 				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 				{
@@ -435,8 +456,31 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	[LoggerMessage(Level = LogLevel.Information, Message = "Live status: {Status}")]
 	private static partial void LogLiveStatusChanged(ILogger logger, LiveStatus status);
 
-	[LoggerMessage(Level = LogLevel.Information, Message = "Recording ended")]
-	private static partial void LogRecordingEnded(ILogger logger);
+	private void LogAttemptFailed(RecordingAttempt attempt)
+	{
+		(StreamFormat format, StreamCodec codec, string host) = (attempt.Candidate.Format, attempt.Candidate.Codec, attempt.Endpoint.Host);
+
+		if (attempt.End is RecordingEnd.Faulted { Exception: var exception })
+		{
+			LogAttemptFaulted(_logger, exception, format, codec, host, attempt.ActiveDuration);
+		}
+		else
+		{
+			LogAttemptEnded(_logger, format, codec, host, attempt.ActiveDuration, attempt.End.Description);
+		}
+	}
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Every stream failed, retrying in {Delay}")]
+	private static partial void LogAllEndpointsFailed(ILogger logger, TimeSpan delay);
+
+	[LoggerMessage(Level = LogLevel.Information, Message = "Recording ended: {Reason}")]
+	private static partial void LogRecordingEnded(ILogger logger, string reason);
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "{Format}/{Codec} stream from {Host} failed after {Duration} of data, switching to the next stream")]
+	private static partial void LogAttemptFaulted(ILogger logger, Exception exception, StreamFormat format, StreamCodec codec, string host, TimeSpan duration);
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "{Format}/{Codec} stream from {Host} ended after {Duration} of data ({Reason}), switching to the next stream")]
+	private static partial void LogAttemptEnded(ILogger logger, StreamFormat format, StreamCodec codec, string host, TimeSpan duration, string reason);
 
 	[LoggerMessage(Level = LogLevel.Information, Message = "Recording stopped")]
 	private static partial void LogRecordingStopped(ILogger logger);
