@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
@@ -8,8 +9,15 @@ internal readonly record struct DanmuPacket(ushort ProtocolVersion, DanmuOperati
 {
 	public const int HeaderLength = 16;
 
+	// The server sends packets of a few KB wrapped in one compression level, anything far beyond is hostile or corrupt
+	internal const int MaxPacketLength = 4 * 1024 * 1024;
+	internal const int MaxDecompressedLength = 16 * 1024 * 1024;
+	internal const int MaxCompressionRatio = 256;
+	internal const int MaxCompressionDepth = 3;
+
 	private const ushort ZlibVersion = 2;
 	private const ushort BrotliVersion = 3;
+	private const int DecompressChunkSize = 16 * 1024;
 
 	public static byte[] Encode(DanmuOperation operation, ushort protocolVersion, ReadOnlySpan<byte> body)
 	{
@@ -30,11 +38,12 @@ internal readonly record struct DanmuPacket(ushort ProtocolVersion, DanmuOperati
 	public static List<DanmuPacket> Decode(ReadOnlyMemory<byte> data)
 	{
 		List<DanmuPacket> packets = [];
-		DecodeInto(data, packets);
+		int budget = MaxDecompressedLength;
+		DecodeInto(data, packets, 0, ref budget);
 		return packets;
 	}
 
-	private static void DecodeInto(ReadOnlyMemory<byte> data, List<DanmuPacket> packets)
+	private static void DecodeInto(ReadOnlyMemory<byte> data, List<DanmuPacket> packets, int depth, ref int budget)
 	{
 		while (!data.IsEmpty)
 		{
@@ -55,19 +64,28 @@ internal readonly record struct DanmuPacket(ushort ProtocolVersion, DanmuOperati
 				throw new InvalidDataException($"Invalid danmu packet: length {packetLength}, header {headerLength}, available {span.Length}.");
 			}
 
+			if (packetLength > MaxPacketLength)
+			{
+				throw new InvalidDataException($"Danmu packet length {packetLength} exceeds {MaxPacketLength} bytes.");
+			}
+
 			ReadOnlyMemory<byte> body = data.Slice(headerLength, packetLength - headerLength);
 			data = data.Slice(packetLength);
 
 			switch (version)
 			{
+				case ZlibVersion or BrotliVersion when depth >= MaxCompressionDepth:
+				{
+					throw new InvalidDataException($"Danmu packets are compressed deeper than {MaxCompressionDepth} levels.");
+				}
 				case ZlibVersion:
 				{
-					DecodeInto(Decompress(body, static s => new ZLibStream(s, CompressionMode.Decompress)), packets);
+					DecodeInto(Decompress(body, static s => new ZLibStream(s, CompressionMode.Decompress), ref budget), packets, depth + 1, ref budget);
 					break;
 				}
 				case BrotliVersion:
 				{
-					DecodeInto(Decompress(body, static s => new BrotliStream(s, CompressionMode.Decompress)), packets);
+					DecodeInto(Decompress(body, static s => new BrotliStream(s, CompressionMode.Decompress), ref budget), packets, depth + 1, ref budget);
 					break;
 				}
 				default:
@@ -79,14 +97,32 @@ internal readonly record struct DanmuPacket(ushort ProtocolVersion, DanmuOperati
 		}
 	}
 
-	private static byte[] Decompress(ReadOnlyMemory<byte> body, Func<Stream, Stream> createDecompressor)
+	// The budget is shared by every packet of a message, so many small bombs cannot add up either
+	private static ReadOnlyMemory<byte> Decompress(ReadOnlyMemory<byte> body, Func<Stream, Stream> createDecompressor, ref int budget)
 	{
 		using MemoryStream input = MemoryMarshal.TryGetArray(body, out ArraySegment<byte> segment) && segment.Array is { } array
 			? new MemoryStream(array, segment.Offset, segment.Count, false)
 			: new MemoryStream(body.ToArray(), false);
 		using Stream decompressor = createDecompressor(input);
-		using MemoryStream output = new();
-		decompressor.CopyTo(output);
-		return output.ToArray();
+		long ratioLimit = (long)body.Length * MaxCompressionRatio;
+		ArrayBufferWriter<byte> output = new();
+
+		while (decompressor.Read(output.GetSpan(DecompressChunkSize)) is > 0 and int read)
+		{
+			output.Advance(read);
+
+			if (output.WrittenCount > budget)
+			{
+				throw new InvalidDataException($"Decompressed danmu packets exceed {MaxDecompressedLength} bytes.");
+			}
+
+			if (output.WrittenCount > ratioLimit)
+			{
+				throw new InvalidDataException($"Danmu packet exceeds the compression ratio limit of {MaxCompressionRatio}.");
+			}
+		}
+
+		budget -= output.WrittenCount;
+		return output.WrittenMemory;
 	}
 }

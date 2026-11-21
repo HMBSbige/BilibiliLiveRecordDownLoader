@@ -1,6 +1,7 @@
 using BilibiliLive.Api;
 using BilibiliLive.Http;
 using System.Buffers;
+using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -12,6 +13,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 {
 	internal const string DefaultHost = "broadcastlv.chat.bilibili.com";
 	internal const ushort DefaultPort = 443;
+	internal const int MaxMessageLength = 8 * 1024 * 1024;
 
 	private const ushort SendProtocolVersion = 1;
 	private const ushort ReceiveProtocolVersion = 3;
@@ -24,7 +26,11 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 	internal static readonly TimeSpan ReceiveTimeout = HeartbeatInterval * 2.5;
 	private static readonly TimeSpan CloseTimeout = TimeSpan.FromSeconds(5);
 
+	// Rooms reconnect within seconds, refetching on every attempt would trip risk control
+	internal static readonly TimeSpan ServerCacheDuration = TimeSpan.FromMinutes(1);
+
 	private readonly ILogger _logger = logger ?? NullLogger<DanmuClient>.Instance;
+	private readonly ConcurrentDictionary<long, DanmuServer> _servers = new();
 
 	public async IAsyncEnumerable<DanmuMessage> ReceiveAsync(long roomId, [EnumeratorCancellation] CancellationToken cancellationToken = default)
 	{
@@ -110,7 +116,29 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 
 	private async Task<DanmuEndpoint> ResolveEndpointAsync(long roomId, CancellationToken cancellationToken)
 	{
-		long userId = 0;
+		if (!_servers.TryGetValue(roomId, out DanmuServer? server) || apiClient.TimeProvider.GetElapsedTime(server.FetchedAt) >= ServerCacheDuration)
+		{
+			server = await FetchServerAsync(roomId, cancellationToken);
+
+			if (server is null)
+			{
+				_servers.TryRemove(roomId, out _);
+
+				// The token is issued for the requesting uid, so without a token the connection has to be anonymous
+				return new DanmuEndpoint(DefaultHost, DefaultPort, null, 0);
+			}
+
+			_servers[roomId] = server;
+		}
+
+		// Picking a random host lets the caller's reconnects move away from a broken one
+		DanmuHost host = server.Info.Hosts[Random.Shared.Next(server.Info.Hosts.Count)];
+		return new DanmuEndpoint(host.Host, host.WssPort, server.Info.Token, server.UserId);
+	}
+
+	private async Task<DanmuServer?> FetchServerAsync(long roomId, CancellationToken cancellationToken)
+	{
+		long userId;
 
 		try
 		{
@@ -118,33 +146,49 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		}
 		catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 		{
+			// A token requested with the login cookie would not match uid 0
 			LogUserIdFailed(ex);
+			return await FetchAnonymousServerAsync(roomId, cancellationToken);
 		}
 
 		try
 		{
-			DanmuServerInfo info = await apiClient.GetDanmuServerInfoAsync(roomId, cancellationToken);
-
-			if (info is { Token.Length: > 0, Hosts.Count: > 0 })
-			{
-				// Picking a random host lets the caller's reconnects move away from a broken one
-				DanmuHost host = info.Hosts[Random.Shared.Next(info.Hosts.Count)];
-				return new DanmuEndpoint(host.Host, host.WssPort, info.Token, userId);
-			}
-
-			LogNoServer(roomId);
+			return ToServer(roomId, await apiClient.GetDanmuServerInfoAsync(roomId, cancellationToken), userId);
 		}
 		catch (BilibiliApiException ex) when (ex.Code is RiskControlCode)
 		{
 			LogRiskControl(roomId);
+			return await FetchAnonymousServerAsync(roomId, cancellationToken);
 		}
 		catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 		{
 			LogServerInfoFailed(ex, roomId);
+			return null;
+		}
+	}
+
+	private async Task<DanmuServer?> FetchAnonymousServerAsync(long roomId, CancellationToken cancellationToken)
+	{
+		try
+		{
+			return ToServer(roomId, await apiClient.GetAnonymousDanmuServerInfoAsync(roomId, cancellationToken), 0);
+		}
+		catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+		{
+			LogServerInfoFailed(ex, roomId);
+			return null;
+		}
+	}
+
+	private DanmuServer? ToServer(long roomId, DanmuServerInfo info, long userId)
+	{
+		if (info is { Token.Length: > 0, Hosts.Count: > 0 })
+		{
+			return new DanmuServer(info, userId, apiClient.TimeProvider.GetTimestamp());
 		}
 
-		// The token is issued for the requesting uid, so without a token the connection has to be anonymous
-		return new DanmuEndpoint(DefaultHost, DefaultPort, null, 0);
+		LogNoServer(roomId);
+		return null;
 	}
 
 	private void EnsureAuthenticated(long roomId, ReadOnlyMemory<byte> body)
@@ -153,6 +197,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 
 		if (code is not 0)
 		{
+			_servers.TryRemove(roomId, out _);
 			throw new BilibiliApiException($"Danmu authentication failed: {Encoding.UTF8.GetString(body.Span)}", code ?? 0);
 		}
 
@@ -227,6 +272,11 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 
 				buffer.Advance(result.Count);
 
+				if (buffer.WrittenCount > MaxMessageLength)
+				{
+					throw new InvalidDataException($"Danmu message exceeds {MaxMessageLength} bytes.");
+				}
+
 				if (result.EndOfMessage)
 				{
 					return true;
@@ -275,7 +325,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Danmu server info of room {RoomId} has no token or host, using the default server")]
 	private partial void LogNoServer(long roomId);
 
-	[LoggerMessage(Level = LogLevel.Warning, Message = "Danmu server info of room {RoomId} was blocked by risk control, using the default server")]
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Danmu server info of room {RoomId} was blocked by risk control, retrying anonymously")]
 	private partial void LogRiskControl(long roomId);
 
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to get danmu server info of room {RoomId}, using the default server")]
@@ -288,6 +338,8 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 	private partial void LogHeartbeatFailed(Exception exception);
 
 	private readonly record struct DanmuEndpoint(string Host, ushort Port, string? Token, long UserId);
+
+	private sealed record DanmuServer(DanmuServerInfo Info, long UserId, long FetchedAt);
 
 	private sealed class ReceiveActivity(TimeProvider timeProvider)
 	{

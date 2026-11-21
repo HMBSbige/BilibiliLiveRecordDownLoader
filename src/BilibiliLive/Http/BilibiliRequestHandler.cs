@@ -8,11 +8,14 @@ public sealed class BilibiliRequestHandler(BilibiliIdentity identity) : Delegati
 
 	internal const string DefaultAccept = "application/json, text/plain, */*";
 
+	internal static readonly HttpRequestOptionsKey<bool> AnonymousOption = new("BilibiliLive.Anonymous");
+
 	private static readonly Uri Referrer = new("https://live.bilibili.com/");
 
 	protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 	{
-		(string? userAgent, string cookie) = await identity.ResolveAsync(cancellationToken);
+		bool anonymous = request.Options.TryGetValue(AnonymousOption, out bool value) && value;
+		(string? userAgent, string cookie) = await identity.ResolveAsync(anonymous, cancellationToken);
 		HttpRequestHeaders headers = request.Headers;
 
 		headers.Referrer = Referrer;

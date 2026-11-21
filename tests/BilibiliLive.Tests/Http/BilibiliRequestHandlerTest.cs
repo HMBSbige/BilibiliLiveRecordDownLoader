@@ -136,6 +136,20 @@ public partial class BilibiliRequestHandlerTest
 	}
 
 	[Test]
+	[Arguments("SESSDATA=secret; bili_jct=csrf", null)]
+	[Arguments("SESSDATA=secret; buvid3=MINE", "MINE")]
+	public async Task AnonymousRequestSendsOnlyBuvid3Async(string cookie, string? userBuvid3, CancellationToken cancellationToken)
+	{
+		using TestClient test = new(() => new BilibiliRequestOptions(Cookie: cookie));
+		using HttpRequestMessage request = new(HttpMethod.Get, Url);
+		request.Options.Set(BilibiliRequestHandler.AnonymousOption, true);
+
+		await test.Client.SendAsync(request, cancellationToken);
+
+		await Assert.That(test.SingleRequestHeaders["Cookie"]).IsEqualTo($"buvid3={userBuvid3 ?? test.Identity.GeneratedBuvid3}");
+	}
+
+	[Test]
 	public async Task RequestAcceptIsNotOverriddenAsync(CancellationToken cancellationToken)
 	{
 		using TestClient test = new(() => new BilibiliRequestOptions());

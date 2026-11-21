@@ -2,10 +2,12 @@ using BilibiliLive.Danmu;
 using BilibiliLive.Http;
 using BilibiliLive.Tests.Fakes;
 using Microsoft.Extensions.Time.Testing;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 
 namespace BilibiliLive.Tests.Danmu;
 
@@ -18,7 +20,10 @@ public class DanmuClientTest
 
 	private sealed class Harness : IDisposable
 	{
-		public Harness(Func<HttpResponseMessage> danmuInfo, Func<HttpResponseMessage> nav, string cookie = DefaultCookie, TimeProvider? timeProvider = null)
+		private readonly Channel<WebSocket> _pending = Channel.CreateUnbounded<WebSocket>();
+		private readonly ConcurrentQueue<WebSocket> _accepted = new();
+
+		public Harness(Func<HttpRequestMessage, HttpResponseMessage> danmuInfo, Func<HttpResponseMessage> nav, string cookie = DefaultCookie, TimeProvider? timeProvider = null)
 		{
 			Identity = new BilibiliIdentity(_ => ValueTask.FromResult(new BilibiliRequestOptions(Cookie: cookie)));
 			Api = new ApiClient(async (request, ct) =>
@@ -26,16 +31,17 @@ public class DanmuClientTest
 				if (request.Headers.Contains("Sec-WebSocket-Key"))
 				{
 					UpgradeUri = request.RequestUri;
-					UpgradeCookie = request.Headers.TryGetValues("Cookie", out IEnumerable<string>? cookies) ? string.Join("; ", cookies) : null;
+					UpgradeCookie = GetCookie(request);
 					(HttpResponseMessage response, WebSocket server) = await LoopbackWebSocket.AcceptAsync(request, ct);
-					Server.SetResult(server);
+					_accepted.Enqueue(server);
+					_pending.Writer.TryWrite(server);
 					return response;
 				}
 
 				return request.RequestUri?.AbsolutePath switch
 				{
 					ApiPaths.Nav => nav(),
-					ApiPaths.DanmuInfo => danmuInfo(),
+					ApiPaths.DanmuInfo => danmuInfo(request),
 					_ => Responses.NotFound()
 				};
 			}, timeProvider, Identity);
@@ -48,26 +54,44 @@ public class DanmuClientTest
 
 		public DanmuClient Client { get; }
 
-		public TaskCompletionSource<WebSocket> Server { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
 		public Uri? UpgradeUri { get; private set; }
 
 		public string? UpgradeCookie { get; private set; }
+
+		public ValueTask<WebSocket> AcceptAsync(CancellationToken cancellationToken)
+		{
+			return _pending.Reader.ReadAsync(cancellationToken);
+		}
+
+		public int RequestCount(string path)
+		{
+			return Api.Handler.RequestsTo(path).Count();
+		}
 
 		public void Dispose()
 		{
 			Api.Dispose();
 
-			if (Server.Task.IsCompletedSuccessfully)
+			foreach (WebSocket server in _accepted)
 			{
-				Server.Task.Result.Dispose();
+				server.Dispose();
 			}
 		}
 	}
 
+	private static HttpResponseMessage RiskControl()
+	{
+		return Responses.Json("""{"code":-352,"message":"-352","ttl":1}""");
+	}
+
+	private static string? GetCookie(HttpRequestMessage request)
+	{
+		return request.Headers.TryGetValues("Cookie", out IEnumerable<string>? cookies) ? string.Join("; ", cookies) : null;
+	}
+
 	private static Harness CreateDefault(string cookie = DefaultCookie, TimeProvider? timeProvider = null)
 	{
-		return new Harness(() => Responses.Fixture("danmu_info.json"), () => Responses.Fixture("nav_logged_in.json"), cookie, timeProvider);
+		return new Harness(_ => Responses.Fixture("danmu_info.json"), () => Responses.Fixture("nav_logged_in.json"), cookie, timeProvider);
 	}
 
 	private static async Task<List<DanmuPacket>> ReceivePacketsAsync(WebSocket server, CancellationToken cancellationToken)
@@ -99,10 +123,23 @@ public class DanmuClientTest
 
 	private static async Task<WebSocket> AuthenticateAsync(Harness harness, string reply, CancellationToken cancellationToken)
 	{
-		WebSocket server = await harness.Server.Task.WaitAsync(cancellationToken);
+		WebSocket server = await harness.AcceptAsync(cancellationToken);
 		await ReceivePacketsAsync(server, cancellationToken);
 		await SendAsync(server, DanmuPacket.Encode(DanmuOperation.AuthReply, 1, Encoding.UTF8.GetBytes(reply)), cancellationToken);
 		return server;
+	}
+
+	private static async Task<JsonElement> ReceiveAuthAndCloseAsync(Harness harness, CancellationToken cancellationToken)
+	{
+		Task<List<DanmuMessage>> receiving = CollectAsync(harness.Client.ReceiveAsync(RoomId, cancellationToken));
+
+		WebSocket server = await harness.AcceptAsync(cancellationToken);
+		DanmuPacket auth = (await ReceivePacketsAsync(server, cancellationToken)).Single();
+		await server.CloseAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
+		await receiving;
+
+		using JsonDocument document = JsonDocument.Parse(auth.Body);
+		return document.RootElement.Clone();
 	}
 
 	private static async Task<List<DanmuMessage>> CollectAsync(IAsyncEnumerable<DanmuMessage> source)
@@ -124,7 +161,7 @@ public class DanmuClientTest
 		using Harness harness = CreateDefault();
 		Task<List<DanmuMessage>> receiving = CollectAsync(harness.Client.ReceiveAsync(RoomId, cancellationToken));
 
-		WebSocket server = await harness.Server.Task.WaitAsync(cancellationToken);
+		WebSocket server = await harness.AcceptAsync(cancellationToken);
 		DanmuPacket auth = (await ReceivePacketsAsync(server, cancellationToken)).Single();
 		using JsonDocument authBody = JsonDocument.Parse(auth.Body);
 		JsonElement authJson = authBody.RootElement;
@@ -173,9 +210,51 @@ public class DanmuClientTest
 
 	[Test]
 	[Timeout(10_000)]
-	public async Task RiskControlFallsBackToAnonymousDefaultServerAsync(CancellationToken cancellationToken)
+	public async Task RiskControlRetriesAnonymouslyAsync(CancellationToken cancellationToken)
 	{
-		using Harness harness = new(() => Responses.Json("""{"code":-352,"message":"-352","ttl":1}"""), () => Responses.Fixture("nav_logged_in.json"));
+		using Harness harness = new(request => CookieHeader.GetValue(GetCookie(request), "SESSDATA") is null ? Responses.Fixture("danmu_info.json") : RiskControl(), () => Responses.Fixture("nav_logged_in.json"));
+
+		JsonElement auth = await ReceiveAuthAndCloseAsync(harness, cancellationToken);
+		string?[] cookies = [.. harness.Api.Handler.RequestsTo(ApiPaths.DanmuInfo).Select(static r => r.Headers.GetValueOrDefault("Cookie"))];
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(cookies.Length).IsEqualTo(2);
+			await Assert.That(CookieHeader.GetValue(cookies[^1], "SESSDATA")).IsNull();
+			await Assert.That(CookieHeader.GetValue(cookies[^1], "buvid3")).IsEqualTo(harness.Identity.GeneratedBuvid3);
+			await Assert.That(auth.GetProperty("uid").GetInt64()).IsEqualTo(0);
+			await Assert.That(auth.GetProperty("key").GetString()).IsEqualTo("danmu-token");
+			await Assert.That(auth.GetProperty("buvid").GetString()).IsEqualTo(harness.Identity.GeneratedBuvid3);
+		}
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task UserIdFailureRequestsAnAnonymousTokenAsync(CancellationToken cancellationToken)
+	{
+		// The first nav request asks for the uid, the second one fetches the wbi keys
+		int navRequests = 0;
+		using Harness harness = new
+		(
+			request => CookieHeader.GetValue(GetCookie(request), "SESSDATA") is null ? Responses.Fixture("danmu_info.json") : Responses.Json("""{"code":0,"data":{"token":"login-token","host_list":[{"host":"broadcastlv.chat.bilibili.com","wss_port":443}]}}"""),
+			() => ++navRequests is 1 ? Responses.Status(HttpStatusCode.InternalServerError) : Responses.Fixture("nav_logged_in.json")
+		);
+
+		JsonElement auth = await ReceiveAuthAndCloseAsync(harness, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(harness.RequestCount(ApiPaths.DanmuInfo)).IsEqualTo(1);
+			await Assert.That(auth.GetProperty("uid").GetInt64()).IsEqualTo(0);
+			await Assert.That(auth.GetProperty("key").GetString()).IsEqualTo("danmu-token");
+		}
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task RiskControlOnAnonymousRetryFallsBackToAnonymousDefaultServerAsync(CancellationToken cancellationToken)
+	{
+		using Harness harness = new(_ => RiskControl(), () => Responses.Fixture("nav_logged_in.json"));
 		await AssertAnonymousDefaultServerAsync(harness, cancellationToken);
 	}
 
@@ -183,27 +262,70 @@ public class DanmuClientTest
 	[Timeout(10_000)]
 	public async Task ApiFailureFallsBackToAnonymousDefaultServerAsync(CancellationToken cancellationToken)
 	{
-		using Harness harness = new(() => Responses.Fixture("danmu_info.json"), () => Responses.Status(HttpStatusCode.InternalServerError));
+		using Harness harness = new(_ => Responses.Fixture("danmu_info.json"), () => Responses.Status(HttpStatusCode.InternalServerError));
 		await AssertAnonymousDefaultServerAsync(harness, cancellationToken);
 	}
 
 	private static async Task AssertAnonymousDefaultServerAsync(Harness harness, CancellationToken cancellationToken)
 	{
-		Task<List<DanmuMessage>> receiving = CollectAsync(harness.Client.ReceiveAsync(RoomId, cancellationToken));
-
-		WebSocket server = await harness.Server.Task.WaitAsync(cancellationToken);
-		DanmuPacket auth = (await ReceivePacketsAsync(server, cancellationToken)).Single();
-		using JsonDocument authBody = JsonDocument.Parse(auth.Body);
-		await server.CloseAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
-		await receiving;
+		JsonElement auth = await ReceiveAuthAndCloseAsync(harness, cancellationToken);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(harness.UpgradeUri?.Host).IsEqualTo(DanmuClient.DefaultHost);
 			await Assert.That(harness.UpgradeUri?.Port).IsEqualTo(DanmuClient.DefaultPort);
-			await Assert.That(authBody.RootElement.GetProperty("uid").GetInt64()).IsEqualTo(0);
-			await Assert.That(authBody.RootElement.TryGetProperty("key", out _)).IsFalse();
+			await Assert.That(auth.GetProperty("uid").GetInt64()).IsEqualTo(0);
+			await Assert.That(auth.TryGetProperty("key", out _)).IsFalse();
 		}
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task ReconnectWithinCacheDurationReusesServerInfoAsync(CancellationToken cancellationToken)
+	{
+		FakeTimeProvider time = new();
+		using Harness harness = CreateDefault(timeProvider: time);
+
+		await ReceiveAuthAndCloseAsync(harness, cancellationToken);
+		int navRequests = harness.RequestCount(ApiPaths.Nav);
+		time.Advance(DanmuClient.ServerCacheDuration - TimeSpan.FromSeconds(1));
+		JsonElement auth = await ReceiveAuthAndCloseAsync(harness, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(harness.RequestCount(ApiPaths.DanmuInfo)).IsEqualTo(1);
+			await Assert.That(harness.RequestCount(ApiPaths.Nav)).IsEqualTo(navRequests);
+			await Assert.That(auth.GetProperty("uid").GetInt64()).IsEqualTo(12345678);
+			await Assert.That(auth.GetProperty("key").GetString()).IsEqualTo("danmu-token");
+		}
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task ReconnectAfterCacheDurationRefetchesServerInfoAsync(CancellationToken cancellationToken)
+	{
+		FakeTimeProvider time = new();
+		using Harness harness = CreateDefault(timeProvider: time);
+
+		await ReceiveAuthAndCloseAsync(harness, cancellationToken);
+		time.Advance(DanmuClient.ServerCacheDuration);
+		await ReceiveAuthAndCloseAsync(harness, cancellationToken);
+
+		await Assert.That(harness.RequestCount(ApiPaths.DanmuInfo)).IsEqualTo(2);
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task AuthFailureDiscardsCachedServerInfoAsync(CancellationToken cancellationToken)
+	{
+		using Harness harness = CreateDefault();
+		Task<List<DanmuMessage>> rejected = CollectAsync(harness.Client.ReceiveAsync(RoomId, cancellationToken));
+		await AuthenticateAsync(harness, """{"code":-101}""", cancellationToken);
+		await Assert.ThrowsAsync<BilibiliApiException>(() => rejected);
+
+		await ReceiveAuthAndCloseAsync(harness, cancellationToken);
+
+		await Assert.That(harness.RequestCount(ApiPaths.DanmuInfo)).IsEqualTo(2);
 	}
 
 	[Test]
@@ -247,24 +369,42 @@ public class DanmuClientTest
 
 	[Test]
 	[Timeout(10_000)]
+	public async Task OversizedMessageThrowsAsync(CancellationToken cancellationToken)
+	{
+		using Harness harness = CreateDefault();
+		Task<List<DanmuMessage>> receiving = CollectAsync(harness.Client.ReceiveAsync(RoomId, cancellationToken));
+
+		WebSocket server = await AuthenticateAsync(harness, """{"code":0}""", cancellationToken);
+		// Every packet is valid, only the message as a whole is too large
+		byte[] packet = DanmuPacket.Encode(DanmuOperation.HeartbeatReply, 1, new byte[DanmuPacket.MaxPacketLength / 2]);
+		byte[] message = [.. Enumerable.Repeat(packet, DanmuClient.MaxMessageLength / packet.Length + 1).SelectMany(static p => p)];
+		Task sending = SendAndCloseAsync();
+
+		await Assert.ThrowsAsync<InvalidDataException>(() => receiving);
+		// The client drops the connection mid-message, so the server side may fail
+		await sending.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+
+		async Task SendAndCloseAsync()
+		{
+			await SendAsync(server, message, cancellationToken);
+			await server.CloseAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
+		}
+	}
+
+	[Test]
+	[Timeout(10_000)]
 	[Arguments(DefaultCookie, null)]
 	[Arguments("SESSDATA=x; buvid3=MINE", "MINE")]
 	public async Task AuthCarriesTheBuvid3OfTheHandshakeCookieAsync(string cookie, string? userBuvid3, CancellationToken cancellationToken)
 	{
 		using Harness harness = CreateDefault(cookie);
-		Task<List<DanmuMessage>> receiving = CollectAsync(harness.Client.ReceiveAsync(RoomId, cancellationToken));
-
-		WebSocket server = await harness.Server.Task.WaitAsync(cancellationToken);
-		DanmuPacket auth = (await ReceivePacketsAsync(server, cancellationToken)).Single();
-		using JsonDocument authBody = JsonDocument.Parse(auth.Body);
-		await server.CloseAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
-		await receiving;
+		JsonElement auth = await ReceiveAuthAndCloseAsync(harness, cancellationToken);
 
 		string expected = userBuvid3 ?? harness.Identity.GeneratedBuvid3;
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(authBody.RootElement.GetProperty("buvid").GetString()).IsEqualTo(expected);
+			await Assert.That(auth.GetProperty("buvid").GetString()).IsEqualTo(expected);
 			await Assert.That(CookieHeader.GetValue(harness.UpgradeCookie, "buvid3")).IsEqualTo(expected);
 		}
 	}

@@ -62,10 +62,23 @@ public sealed class BilibiliApiClient
 		return candidates;
 	}
 
-	public async Task<DanmuServerInfo> GetDanmuServerInfoAsync(long roomId, CancellationToken cancellationToken = default)
+	public Task<DanmuServerInfo> GetDanmuServerInfoAsync(long roomId, CancellationToken cancellationToken = default)
+	{
+		return GetDanmuServerInfoCoreAsync(roomId, false, cancellationToken);
+	}
+
+	// The token of an anonymous request only authenticates uid 0
+	internal Task<DanmuServerInfo> GetAnonymousDanmuServerInfoAsync(long roomId, CancellationToken cancellationToken)
+	{
+		return GetDanmuServerInfoCoreAsync(roomId, true, cancellationToken);
+	}
+
+	private async Task<DanmuServerInfo> GetDanmuServerInfoCoreAsync(long roomId, bool anonymous, CancellationToken cancellationToken)
 	{
 		Uri uri = await CreateSignedUriAsync($"{LiveApi}xlive/web-room/v1/index/getDanmuInfo", [new("id", roomId.ToString(CultureInfo.InvariantCulture)), new("type", "0"), new("web_location", "444.8")], cancellationToken);
-		DanmuInfoData data = await GetDataAsync(uri, BilibiliJsonContext.Default.DanmuInfoData, cancellationToken);
+		using HttpRequestMessage request = new(HttpMethod.Get, uri);
+		request.Options.Set(BilibiliRequestHandler.AnonymousOption, anonymous);
+		DanmuInfoData data = await GetDataAsync(request, BilibiliJsonContext.Default.DanmuInfoData, cancellationToken);
 
 		List<DanmuHost> hosts = [];
 
@@ -158,7 +171,13 @@ public sealed class BilibiliApiClient
 
 	private async Task<T> GetDataAsync<T>(Uri uri, JsonTypeInfo<T> typeInfo, CancellationToken cancellationToken) where T : class
 	{
-		using HttpResponseMessage response = await HttpClient.GetAsync(uri, cancellationToken);
+		using HttpRequestMessage request = new(HttpMethod.Get, uri);
+		return await GetDataAsync(request, typeInfo, cancellationToken);
+	}
+
+	private async Task<T> GetDataAsync<T>(HttpRequestMessage request, JsonTypeInfo<T> typeInfo, CancellationToken cancellationToken) where T : class
+	{
+		using HttpResponseMessage response = await HttpClient.SendAsync(request, cancellationToken);
 		return (await ApiResponse.ReadAsync(response, typeInfo, cancellationToken)).GetData();
 	}
 
