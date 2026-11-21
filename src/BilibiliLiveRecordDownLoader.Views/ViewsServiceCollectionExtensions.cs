@@ -21,6 +21,7 @@ public static class ViewsServiceCollectionExtensions
 		services.TryAddSingleton<IThemeService, ThemeService>();
 		services.TryAddSingleton<IAutoStartService, AutoStartService>();
 		services.TryAddSingleton<NotificationExceptionHandler>();
+		services.TryAddSingleton<GlobalExceptionHandler>();
 		services.TryAddSingleton(static provider => new MainWindow { DataContext = provider.GetRequiredService<MainWindowViewModel>() });
 
 		return services;
@@ -34,7 +35,7 @@ public static class ViewsServiceCollectionExtensions
 
 		LogStoreSink logStoreSink = new();
 
-		Logger logger = new LoggerConfiguration()
+		Log.Logger = new LoggerConfiguration()
 #if DEBUG
 			.MinimumLevel.Debug()
 #else
@@ -61,8 +62,9 @@ public static class ViewsServiceCollectionExtensions
 			.WriteTo.Sink(logStoreSink)
 			.CreateLogger();
 
-		AppLocator.CurrentMutable.UseSerilogFullLogger(logger);
-		services.AddLogging(logging => logging.AddSerilog(logger, true));
+		AppLocator.CurrentMutable.UseSerilogFullLogger(Log.Logger);
+		// 不传实例时容器释放走 Log.CloseAndFlush，与崩溃、关闭超时时的刷新合起来只释放一次
+		services.AddLogging(static logging => logging.AddSerilog(dispose: true));
 		services.TryAddSingleton(logStoreSink);
 	}
 }

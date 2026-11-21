@@ -28,9 +28,7 @@ internal static class Program
 		finally
 		{
 			singleInstance.StopListening();
-
-			// 主循环结束后 UI 线程不再调度，等待中的续体回不来，清理放到线程池上
-			Task.Run(ShutdownAsync).Wait(ShutdownTimeout);
+			Shutdown();
 
 			foreach (PosixSignalRegistration signal in signals)
 			{
@@ -51,6 +49,30 @@ internal static class Program
 			.With(new X11PlatformOptions { RenderingMode = [X11RenderingMode.Vulkan, X11RenderingMode.Egl, X11RenderingMode.Glx, X11RenderingMode.Software] })
 			// Skia in SkiaSharp 4 validates Vulkan entry points up to 1.4 by the loader version, so Avalonia's default 1.1 instance is not enough.
 			.With(new VulkanOptions { VulkanInstanceCreationOptions = { VulkanVersion = new Version(1, 4, 0) } });
+	}
+
+	private static void Shutdown()
+	{
+		// 超时后容器可能正在后台释放，那时已无法再解析服务，所以先取出来
+		IAppConfigManager? configManager = AppLocator.Current.GetService<IAppConfigManager>();
+		ILoggerProvider[] loggerProviders = [.. AppLocator.Current.GetServices<ILoggerProvider>()];
+		ILogger? logger = AppLocator.Current.GetService<ILoggerFactory>()?.CreateLogger(typeof(Program));
+
+		// 主循环结束后 UI 线程不再调度，等待中的续体回不来，清理放到线程池上
+		if (Task.Run(ShutdownAsync).Wait(ShutdownTimeout))
+		{
+			return;
+		}
+
+		logger?.LogWarning("Shutdown did not finish within {Timeout}, saving config and flushing logs", ShutdownTimeout);
+
+		// 容器没有释放完，配置的同步写盘和异步日志的刷新要在进程退出前补上；两者重复释放都是安全的
+		(configManager as IDisposable)?.Dispose();
+
+		foreach (ILoggerProvider provider in loggerProviders)
+		{
+			provider.Dispose();
+		}
 	}
 
 	// 正常退出时 ExitCommand 已经停止过，这里兜底系统注销、信号等直接结束生命周期的情况

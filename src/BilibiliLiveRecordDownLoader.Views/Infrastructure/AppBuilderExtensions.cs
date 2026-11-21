@@ -10,6 +10,7 @@ public static class AppBuilderExtensions
 			withResolver: static provider =>
 			{
 				ArgumentNullException.ThrowIfNull(provider);
+				provider.GetRequiredService<GlobalExceptionHandler>().Install();
 				provider.GetRequiredService<LogStoreSink>().Attach(provider.GetRequiredService<ILogStore>());
 				provider.GetRequiredService<NotificationExceptionHandler>().Install();
 			},
