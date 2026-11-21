@@ -11,6 +11,7 @@ public static class ApplicationServiceCollectionExtensions
 
 		services.TryAddSingleton<ILogStore, LogStore>();
 		services.TryAddSingleton<IDiskSpaceService, DiskSpaceService>();
+		services.TryAddSingleton<LowDiskSpaceMonitor>();
 		services.TryAddSingleton<IUpdateAppService, UpdateAppService>();
 		services.TryAddSingleton<IAccountAppService, AccountAppService>();
 

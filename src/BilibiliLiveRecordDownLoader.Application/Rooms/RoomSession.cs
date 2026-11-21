@@ -4,7 +4,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 {
 	private readonly Lock _lock = new();
 	private readonly CancellationTokenSource _lifetime = new();
-	private readonly ILogger _logger = services.Logger;
+	private readonly ILogger _logger = services.Logger.WithRoomScope(settings.RoomId);
 	private RoomConfig _settings = settings;
 	private long _shortId;
 	private string? _userName;
@@ -13,6 +13,8 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	private RecordStatus _recordStatus;
 	private double _bytesPerSecond;
 	private string? _recordingPath;
+	private ActiveRecordingDto? _activeRecording;
+	private string? _lastError;
 	private CancellationTokenSource? _monitorCancellation;
 	private Task _monitorTask = Task.CompletedTask;
 	private CancellationTokenSource? _recordingCancellation;
@@ -56,7 +58,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	{
 		lock (_lock)
 		{
-			return new RoomSnapshot(_settings.ToDto(), _shortId, _userName, _title, _liveStatus, _recordStatus, _bytesPerSecond);
+			return new RoomSnapshot(_settings.ToDto(), _shortId, _userName, _title, _liveStatus, _recordStatus, _bytesPerSecond, _activeRecording, _lastError);
 		}
 	}
 
@@ -129,11 +131,12 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		_lifetime.Dispose();
 	}
 
-	void IRecordingObserver.OnRecordingStarted(string path)
+	void IRecordingObserver.OnRecordingStarted(string path, LiveStreamCandidate stream)
 	{
 		lock (_lock)
 		{
 			_recordingPath = path;
+			_activeRecording = new ActiveRecordingDto(stream.Format, stream.Codec, stream.Qn, services.TimeProvider.GetUtcNow());
 			_recordStatus = RecordStatus.Recording;
 		}
 
@@ -327,13 +330,15 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	{
 		await Task.Yield();
 		using IDisposable? scope = _logger.BeginRoomScope(RoomId);
+		using IDisposable diskSpaceWatch = services.DiskSpaceMonitor.Watch();
 		LiveRecordingSession liveSession = new();
+		SetLastError(null);
 
 		try
 		{
 			while (ShouldKeepRecording(cancellationToken))
 			{
-				SetRecordStatus(RecordStatus.Connecting);
+				SetConnecting();
 				RecordingProfile profile = RecordingProfile.Create(await services.ConfigManager.GetAsync(cancellationToken), Settings);
 
 				try
@@ -348,6 +353,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 						// 立即换下一条线路，全部试过之后才会等待重连间隔
 						liveSession.MarkFailed(attempt.Candidate, attempt.Endpoint);
 						LogAttemptFailed(attempt);
+						SetLastError($"{attempt.Candidate.Format}/{attempt.Candidate.Codec} {attempt.Endpoint.Host}: {attempt.End.Description}");
 
 						if (!liveSession.HasUntriedEndpoint)
 						{
@@ -371,6 +377,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 				catch (Exception exception)
 				{
 					LogRecordingFailed(_logger, exception, profile.StreamReconnectDelay);
+					SetLastError(exception.Message);
 					await Task.Delay(profile.StreamReconnectDelay, services.TimeProvider, cancellationToken);
 				}
 				finally
@@ -396,6 +403,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 			{
 				_isRecordingLoopActive = false;
 				_recordStatus = RecordStatus.Idle;
+				_activeRecording = null;
 				_bytesPerSecond = 0;
 				_recordingCancellation?.Dispose();
 				_recordingCancellation = null;
@@ -421,11 +429,23 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 	}
 
-	private void SetRecordStatus(RecordStatus status)
+	// 每次重连都会先回到连接中，这时上一路流已经不再录制
+	private void SetConnecting()
 	{
 		lock (_lock)
 		{
-			_recordStatus = status;
+			_recordStatus = RecordStatus.Connecting;
+			_activeRecording = null;
+		}
+
+		onChanged();
+	}
+
+	private void SetLastError(string? error)
+	{
+		lock (_lock)
+		{
+			_lastError = error;
 		}
 
 		onChanged();

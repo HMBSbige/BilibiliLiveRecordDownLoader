@@ -8,7 +8,9 @@ public sealed record RoomSnapshot
 	string? Title,
 	LiveStatus LiveStatus,
 	RecordStatus RecordStatus,
-	double BytesPerSecond
+	double BytesPerSecond,
+	ActiveRecordingDto? Recording,
+	string? LastError
 )
 {
 	public long RoomId => Settings.RoomId;

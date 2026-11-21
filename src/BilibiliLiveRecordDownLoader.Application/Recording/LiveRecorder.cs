@@ -35,7 +35,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 			if (ffmpeg is null)
 			{
-				result = await RecordBuiltInAsync(session, path, profile, observer, cancellationToken);
+				result = await RecordBuiltInAsync(session, candidate, path, profile, observer, cancellationToken);
 			}
 			else
 			{
@@ -43,7 +43,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 				await session.DisposeAsync();
 				session = null;
 
-				observer.OnRecordingStarted(path);
+				observer.OnRecordingStarted(path, candidate);
 				result = await RecordWithFFmpegAsync(ffmpeg, endpoint, path, profile, observer, cancellationToken);
 			}
 
@@ -76,6 +76,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 	private async Task<(LiveStreamSession Session, LiveStreamCandidate Candidate)> OpenAsync(long roomId, HttpClient httpClient, RecordingProfile profile, LiveRecordingSession liveSession, CancellationToken cancellationToken)
 	{
+		string? lastFailure = null;
 		IReadOnlyList<LiveStreamCandidate> candidates = liveSession.Candidates ??= await apiClient.GetStreamCandidatesAsync(roomId, (long)profile.Quality, profile.CodecPriority, profile.FormatPriority, cancellationToken);
 
 		foreach (LiveStreamCandidate candidate in liveSession.GetUntriedCandidates(candidates))
@@ -92,16 +93,17 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 		// 所有线路都试过一遍，下次等重连间隔后重新请求候选流
 		liveSession.Reset();
-		throw new HttpRequestException("None of the live stream endpoints could be opened.");
+		throw new HttpRequestException(lastFailure is null ? "No live stream endpoint is left to try." : $"None of the live stream endpoints could be opened, the last one failed with {lastFailure}");
 
 		void OnHostFailed(LiveStreamCandidate candidate, Uri uri, Exception exception)
 		{
+			lastFailure = $"{candidate.Format}/{candidate.Codec} {uri.Host}: {exception.Message}";
 			liveSession.MarkFailed(candidate, uri);
 			LogEndpointFailed(logger, exception, candidate.Format, candidate.Codec, uri.Host);
 		}
 	}
 
-	private async Task<TransferResult> RecordBuiltInAsync(LiveStreamSession session, string path, RecordingProfile profile, IRecordingObserver observer, CancellationToken cancellationToken)
+	private async Task<TransferResult> RecordBuiltInAsync(LiveStreamSession session, LiveStreamCandidate candidate, string path, RecordingProfile profile, IRecordingObserver observer, CancellationToken cancellationToken)
 	{
 		await using FileStream file = new
 		(
@@ -117,7 +119,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		);
 
 		// 文件建好之后才开始计时，创建失败时不留下看门狗
-		observer.OnRecordingStarted(path);
+		observer.OnRecordingStarted(path, candidate);
 		TransferMeter meter = new();
 
 		return await TransferAsync(ct => session.CopyToAsync(file, meter, ct), meter.TakePending, profile.StreamIdleTimeout, observer, cancellationToken);
