@@ -39,6 +39,7 @@
     <PackageVersion Include="ThisAssembly.AssemblyInfo" Version="2.1.6" />
   </ItemGroup>
   <ItemGroup>
+    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="11.0.0" />
     <PackageVersion Include="TUnit" Version="1.87.12" />
   </ItemGroup>
 </Project>

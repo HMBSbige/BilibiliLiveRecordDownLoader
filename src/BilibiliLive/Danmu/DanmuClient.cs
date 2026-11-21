@@ -74,7 +74,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 
 		try
 		{
-			while (await ReceiveMessageAsync(socket, buffer, cancellationToken))
+			while (await ReceiveMessageAsync(socket, buffer, activity, cancellationToken))
 			{
 				activity.Touch();
 
@@ -181,9 +181,12 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 			do
 			{
 				// Sends into a dead TCP connection still succeed, only the missing replies reveal it
-				if (activity.Idle > ReceiveTimeout)
+				TimeSpan idle = activity.Idle;
+
+				if (idle > ReceiveTimeout)
 				{
-					LogReceiveTimedOut(activity.Idle);
+					LogReceiveTimedOut(idle);
+					activity.MarkTimedOut();
 					socket.Abort();
 					return;
 				}
@@ -209,23 +212,31 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		await socket.SendAsync(packet, WebSocketMessageType.Binary, true, cancellationToken);
 	}
 
-	private static async ValueTask<bool> ReceiveMessageAsync(ClientWebSocket socket, ArrayBufferWriter<byte> buffer, CancellationToken cancellationToken)
+	private static async ValueTask<bool> ReceiveMessageAsync(ClientWebSocket socket, ArrayBufferWriter<byte> buffer, ReceiveActivity activity, CancellationToken cancellationToken)
 	{
-		while (true)
+		try
 		{
-			ValueWebSocketReceiveResult result = await socket.ReceiveAsync(buffer.GetMemory(ReceiveChunkSize), cancellationToken);
-
-			if (result.MessageType is WebSocketMessageType.Close)
+			while (true)
 			{
-				return false;
-			}
+				ValueWebSocketReceiveResult result = await socket.ReceiveAsync(buffer.GetMemory(ReceiveChunkSize), cancellationToken);
 
-			buffer.Advance(result.Count);
+				if (result.MessageType is WebSocketMessageType.Close)
+				{
+					return false;
+				}
 
-			if (result.EndOfMessage)
-			{
-				return true;
+				buffer.Advance(result.Count);
+
+				if (result.EndOfMessage)
+				{
+					return true;
+				}
 			}
+		}
+		catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+		{
+			// The heartbeat aborted the socket, which fails the pending receive as a cancellation nobody requested
+			throw activity.IsTimedOut ? new TimeoutException($"No danmu packet received within {ReceiveTimeout}.", ex) : new WebSocketException(WebSocketError.ConnectionClosedPrematurely, ex);
 		}
 	}
 
@@ -281,12 +292,20 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 	private sealed class ReceiveActivity(TimeProvider timeProvider)
 	{
 		private long _lastReceived = timeProvider.GetTimestamp();
+		private volatile bool _isTimedOut;
 
 		public TimeSpan Idle => timeProvider.GetElapsedTime(Volatile.Read(ref _lastReceived));
+
+		public bool IsTimedOut => _isTimedOut;
 
 		public void Touch()
 		{
 			Volatile.Write(ref _lastReceived, timeProvider.GetTimestamp());
+		}
+
+		public void MarkTimedOut()
+		{
+			_isTimedOut = true;
 		}
 	}
 }

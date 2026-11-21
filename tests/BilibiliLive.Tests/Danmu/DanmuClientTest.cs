@@ -1,6 +1,7 @@
 using BilibiliLive.Danmu;
 using BilibiliLive.Http;
 using BilibiliLive.Tests.Fakes;
+using Microsoft.Extensions.Time.Testing;
 using System.Net;
 using System.Net.WebSockets;
 using System.Text;
@@ -17,7 +18,7 @@ public class DanmuClientTest
 
 	private sealed class Harness : IDisposable
 	{
-		public Harness(Func<HttpResponseMessage> danmuInfo, Func<HttpResponseMessage> nav, string cookie = DefaultCookie)
+		public Harness(Func<HttpResponseMessage> danmuInfo, Func<HttpResponseMessage> nav, string cookie = DefaultCookie, TimeProvider? timeProvider = null)
 		{
 			Identity = new BilibiliIdentity(_ => ValueTask.FromResult(new BilibiliRequestOptions(Cookie: cookie)));
 			Api = new ApiClient(async (request, ct) =>
@@ -37,7 +38,7 @@ public class DanmuClientTest
 					ApiPaths.DanmuInfo => danmuInfo(),
 					_ => Responses.NotFound()
 				};
-			}, identity: Identity);
+			}, timeProvider, Identity);
 			Client = new DanmuClient(Api.Client, Identity);
 		}
 
@@ -64,9 +65,9 @@ public class DanmuClientTest
 		}
 	}
 
-	private static Harness CreateDefault(string cookie = DefaultCookie)
+	private static Harness CreateDefault(string cookie = DefaultCookie, TimeProvider? timeProvider = null)
 	{
-		return new Harness(() => Responses.Fixture("danmu_info.json"), () => Responses.Fixture("nav_logged_in.json"), cookie);
+		return new Harness(() => Responses.Fixture("danmu_info.json"), () => Responses.Fixture("nav_logged_in.json"), cookie, timeProvider);
 	}
 
 	private static async Task<List<DanmuPacket>> ReceivePacketsAsync(WebSocket server, CancellationToken cancellationToken)
@@ -83,6 +84,12 @@ public class DanmuClientTest
 		while (!result.EndOfMessage);
 
 		return DanmuPacket.Decode(buffer.AsMemory(0, length));
+	}
+
+	private static async Task ReceiveHeartbeatAsync(WebSocket server, CancellationToken cancellationToken)
+	{
+		DanmuPacket packet = (await ReceivePacketsAsync(server, cancellationToken)).Single();
+		await Assert.That(packet.Operation).IsEqualTo(DanmuOperation.Heartbeat);
 	}
 
 	private static async Task SendAsync(WebSocket server, byte[] data, CancellationToken cancellationToken)
@@ -260,5 +267,61 @@ public class DanmuClientTest
 			await Assert.That(authBody.RootElement.GetProperty("buvid").GetString()).IsEqualTo(expected);
 			await Assert.That(CookieHeader.GetValue(harness.UpgradeCookie, "buvid3")).IsEqualTo(expected);
 		}
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task SilentConnectionIsAbortedAfterReceiveTimeoutAsync(CancellationToken cancellationToken)
+	{
+		FakeTimeProvider time = new();
+		using Harness harness = CreateDefault(timeProvider: time);
+		await using IAsyncEnumerator<DanmuMessage> messages = harness.Client.ReceiveAsync(RoomId, cancellationToken).GetAsyncEnumerator(cancellationToken);
+		ValueTask<bool> next = messages.MoveNextAsync();
+
+		// Waiting for the message pins the last receive to the current fake time
+		WebSocket server = await AuthenticateAsync(harness, """{"code":0}""", cancellationToken);
+		await SendAsync(server, Live, cancellationToken);
+		await Assert.That(await next).IsTrue();
+		await ReceiveHeartbeatAsync(server, cancellationToken);
+
+		next = messages.MoveNextAsync();
+
+		for (TimeSpan idle = DanmuClient.HeartbeatInterval; idle <= DanmuClient.ReceiveTimeout; idle += DanmuClient.HeartbeatInterval)
+		{
+			time.Advance(DanmuClient.HeartbeatInterval);
+			await ReceiveHeartbeatAsync(server, cancellationToken);
+		}
+
+		time.Advance(DanmuClient.HeartbeatInterval);
+
+		await Assert.ThrowsAsync<TimeoutException>(async () => await next);
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task IncomingPacketsKeepTheConnectionAliveAsync(CancellationToken cancellationToken)
+	{
+		FakeTimeProvider time = new();
+		using Harness harness = CreateDefault(timeProvider: time);
+		await using IAsyncEnumerator<DanmuMessage> messages = harness.Client.ReceiveAsync(RoomId, cancellationToken).GetAsyncEnumerator(cancellationToken);
+		ValueTask<bool> next = messages.MoveNextAsync();
+
+		WebSocket server = await AuthenticateAsync(harness, """{"code":0}""", cancellationToken);
+		await ReceiveHeartbeatAsync(server, cancellationToken);
+
+		// Twice the timeout passes in total, but no heartbeat interval is silent
+		for (TimeSpan elapsed = TimeSpan.Zero; elapsed <= DanmuClient.ReceiveTimeout * 2; elapsed += DanmuClient.HeartbeatInterval)
+		{
+			await SendAsync(server, Live, cancellationToken);
+			await Assert.That(await next).IsTrue();
+			next = messages.MoveNextAsync();
+
+			time.Advance(DanmuClient.HeartbeatInterval);
+			await ReceiveHeartbeatAsync(server, cancellationToken);
+		}
+
+		await server.CloseAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
+
+		await Assert.That(await next).IsFalse();
 	}
 }
