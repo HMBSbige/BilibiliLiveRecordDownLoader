@@ -1,3 +1,4 @@
+using BilibiliLive.Http;
 using BilibiliLive.Tests.Fakes;
 
 namespace BilibiliLive.Tests;
@@ -14,10 +15,10 @@ internal static class ApiPaths
 
 internal sealed class ApiClient : IDisposable
 {
-	public ApiClient(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> respond, TimeProvider? timeProvider = null)
+	public ApiClient(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> respond, TimeProvider? timeProvider = null, BilibiliIdentity? identity = null)
 	{
 		Handler = new FakeHttpMessageHandler(respond);
-		HttpClient = new HttpClient(Handler);
+		HttpClient = new HttpClient(identity is null ? Handler : new BilibiliRequestHandler(identity) { InnerHandler = Handler });
 		Client = new BilibiliApiClient(HttpClient, timeProvider);
 	}
 

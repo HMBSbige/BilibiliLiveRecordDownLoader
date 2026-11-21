@@ -1,4 +1,5 @@
 using BilibiliLive.Danmu;
+using BilibiliLive.Http;
 using BilibiliLive.Tests.Fakes;
 using System.Net;
 using System.Net.WebSockets;
@@ -10,16 +11,21 @@ namespace BilibiliLive.Tests.Danmu;
 public class DanmuClientTest
 {
 	private const long RoomId = 6154037;
+	private const string DefaultCookie = "SESSDATA=x";
+
+	private static byte[] Live => DanmuPacketTest.Json("""{"cmd":"LIVE"}""");
 
 	private sealed class Harness : IDisposable
 	{
-		public Harness(Func<HttpResponseMessage> danmuInfo, Func<HttpResponseMessage> nav)
+		public Harness(Func<HttpResponseMessage> danmuInfo, Func<HttpResponseMessage> nav, string cookie = DefaultCookie)
 		{
+			Identity = new BilibiliIdentity(_ => ValueTask.FromResult(new BilibiliRequestOptions(Cookie: cookie)));
 			Api = new ApiClient(async (request, ct) =>
 			{
 				if (request.Headers.Contains("Sec-WebSocket-Key"))
 				{
 					UpgradeUri = request.RequestUri;
+					UpgradeCookie = request.Headers.TryGetValues("Cookie", out IEnumerable<string>? cookies) ? string.Join("; ", cookies) : null;
 					(HttpResponseMessage response, WebSocket server) = await LoopbackWebSocket.AcceptAsync(request, ct);
 					Server.SetResult(server);
 					return response;
@@ -31,9 +37,11 @@ public class DanmuClientTest
 					ApiPaths.DanmuInfo => danmuInfo(),
 					_ => Responses.NotFound()
 				};
-			});
-			Client = new DanmuClient(Api.Client);
+			}, identity: Identity);
+			Client = new DanmuClient(Api.Client, Identity);
 		}
+
+		public BilibiliIdentity Identity { get; }
 
 		public ApiClient Api { get; }
 
@@ -42,6 +50,8 @@ public class DanmuClientTest
 		public TaskCompletionSource<WebSocket> Server { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		public Uri? UpgradeUri { get; private set; }
+
+		public string? UpgradeCookie { get; private set; }
 
 		public void Dispose()
 		{
@@ -54,9 +64,9 @@ public class DanmuClientTest
 		}
 	}
 
-	private static Harness CreateDefault()
+	private static Harness CreateDefault(string cookie = DefaultCookie)
 	{
-		return new Harness(() => Responses.Fixture("danmu_info.json"), () => Responses.Fixture("nav_logged_in.json"));
+		return new Harness(() => Responses.Fixture("danmu_info.json"), () => Responses.Fixture("nav_logged_in.json"), cookie);
 	}
 
 	private static async Task<List<DanmuPacket>> ReceivePacketsAsync(WebSocket server, CancellationToken cancellationToken)
@@ -199,7 +209,7 @@ public class DanmuClientTest
 		ValueTask<bool> first = enumerator.MoveNextAsync();
 
 		WebSocket server = await AuthenticateAsync(harness, """{"code":0}""", cancellationToken);
-		await SendAsync(server, DanmuPacketTest.Json("""{"cmd":"LIVE"}"""), cancellationToken);
+		await SendAsync(server, Live, cancellationToken);
 
 		bool hasFirst = await first;
 		DanmuMessage firstMessage = enumerator.Current;
@@ -226,5 +236,29 @@ public class DanmuClientTest
 		server.Abort();
 
 		await Assert.ThrowsAsync<WebSocketException>(() => receiving);
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	[Arguments(DefaultCookie, null)]
+	[Arguments("SESSDATA=x; buvid3=MINE", "MINE")]
+	public async Task AuthCarriesTheBuvid3OfTheHandshakeCookieAsync(string cookie, string? userBuvid3, CancellationToken cancellationToken)
+	{
+		using Harness harness = CreateDefault(cookie);
+		Task<List<DanmuMessage>> receiving = CollectAsync(harness.Client.ReceiveAsync(RoomId, cancellationToken));
+
+		WebSocket server = await harness.Server.Task.WaitAsync(cancellationToken);
+		DanmuPacket auth = (await ReceivePacketsAsync(server, cancellationToken)).Single();
+		using JsonDocument authBody = JsonDocument.Parse(auth.Body);
+		await server.CloseAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
+		await receiving;
+
+		string expected = userBuvid3 ?? harness.Identity.GeneratedBuvid3;
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(authBody.RootElement.GetProperty("buvid").GetString()).IsEqualTo(expected);
+			await Assert.That(CookieHeader.GetValue(harness.UpgradeCookie, "buvid3")).IsEqualTo(expected);
+		}
 	}
 }

@@ -18,6 +18,19 @@ public class CookieHeaderTest
 	}
 
 	[Test]
+	[Arguments(null, null)]
+	[Arguments("", null)]
+	[Arguments("a=1", null)]
+	[Arguments("xbuvid3=1; a=buvid3", null)]
+	[Arguments("a=1; buvid3 = X ; b=2", "X")]
+	[Arguments("buvid3=first; buvid3=second", "first")]
+	[Arguments("buvid3=", "")]
+	public async Task GetValueMatchesWholeNamesOnlyAsync(string? cookie, string? expected)
+	{
+		await Assert.That(CookieHeader.GetValue(cookie, "buvid3")).IsEqualTo(expected);
+	}
+
+	[Test]
 	public async Task FromSetCookieKeepsNameValuePairsAndLastValueWinsAsync()
 	{
 		string[] headers =

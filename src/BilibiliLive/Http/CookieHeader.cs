@@ -9,7 +9,7 @@ internal static class CookieHeader
 			return $"{name}={value}";
 		}
 
-		if (Contains(cookie, name))
+		if (GetValue(cookie, name) is not null)
 		{
 			return cookie.Trim();
 		}
@@ -17,8 +17,13 @@ internal static class CookieHeader
 		return $"{cookie.Trim().TrimEnd(';')}; {name}={value}";
 	}
 
-	public static bool Contains(string cookie, string name)
+	public static string? GetValue(string? cookie, string name)
 	{
+		if (cookie is null)
+		{
+			return null;
+		}
+
 		foreach (Range range in cookie.AsSpan().Split(';'))
 		{
 			ReadOnlySpan<char> pair = cookie.AsSpan(range);
@@ -26,11 +31,11 @@ internal static class CookieHeader
 
 			if (separator > 0 && pair.Slice(0, separator).Trim().SequenceEqual(name))
 			{
-				return true;
+				return pair.Slice(separator + 1).Trim().ToString();
 			}
 		}
 
-		return false;
+		return null;
 	}
 
 	public static string FromSetCookie(IEnumerable<string> setCookieHeaders)

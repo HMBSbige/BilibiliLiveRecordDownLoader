@@ -8,4 +8,5 @@ internal sealed record DanmuAuthBody(
 	[property: JsonPropertyName("protover")] int ProtocolVersion,
 	[property: JsonPropertyName("platform")] string Platform,
 	[property: JsonPropertyName("type")] int Type,
+	[property: JsonPropertyName("buvid")] string Buvid,
 	[property: JsonPropertyName("key"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Key);

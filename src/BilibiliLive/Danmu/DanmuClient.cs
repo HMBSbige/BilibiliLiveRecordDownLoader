@@ -1,4 +1,5 @@
 using BilibiliLive.Api;
+using BilibiliLive.Http;
 using System.Buffers;
 using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
@@ -7,7 +8,7 @@ using System.Text.Json;
 
 namespace BilibiliLive.Danmu;
 
-public sealed partial class DanmuClient(BilibiliApiClient apiClient, ILogger<DanmuClient>? logger = null)
+public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIdentity identity, ILogger<DanmuClient>? logger = null)
 {
 	internal const string DefaultHost = "broadcastlv.chat.bilibili.com";
 	internal const ushort DefaultPort = 443;
@@ -63,7 +64,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, ILogger<Dan
 		// Going through the api HttpClient keeps the proxy, User-Agent and Cookie of the WebSocket handshake identical to the API requests
 		await socket.ConnectAsync(uri, apiClient.HttpClient, cancellationToken);
 
-		DanmuAuthBody auth = new(endpoint.UserId, roomId, ReceiveProtocolVersion, "web", 2, endpoint.Token);
+		DanmuAuthBody auth = new(endpoint.UserId, roomId, ReceiveProtocolVersion, "web", 2, await identity.GetBuvid3Async(cancellationToken), endpoint.Token);
 		await SendAsync(socket, DanmuOperation.Auth, JsonSerializer.SerializeToUtf8Bytes(auth, BilibiliJsonContext.Default.DanmuAuthBody), cancellationToken);
 
 		using CancellationTokenSource heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

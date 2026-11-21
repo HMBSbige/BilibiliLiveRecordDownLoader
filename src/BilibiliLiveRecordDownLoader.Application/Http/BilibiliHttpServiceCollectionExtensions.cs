@@ -5,6 +5,7 @@ internal static class BilibiliHttpServiceCollectionExtensions
 	public static IServiceCollection AddBilibiliHttpClients(this IServiceCollection services)
 	{
 		services.TryAddSingleton<SwitchableWebProxy>();
+		services.TryAddSingleton(CreateIdentity);
 
 		services.AddHttpClient(HttpClientNames.Default, static client => client.Timeout = TimeSpan.FromSeconds(15))
 			.ConfigurePrimaryHttpMessageHandler(CreatePrimaryHandler)
@@ -22,7 +23,7 @@ internal static class BilibiliHttpServiceCollectionExtensions
 			.SetHandlerLifetime(Timeout.InfiniteTimeSpan);
 
 		services.TryAddSingleton(static provider => new BilibiliApiClient(provider.GetRequiredService<IHttpClientFactory>().CreateClient(HttpClientNames.BilibiliApi), provider.GetRequiredService<TimeProvider>()));
-		services.TryAddSingleton(static provider => new DanmuClient(provider.GetRequiredService<BilibiliApiClient>(), provider.GetRequiredService<ILogger<DanmuClient>>()));
+		services.TryAddSingleton(static provider => new DanmuClient(provider.GetRequiredService<BilibiliApiClient>(), provider.GetRequiredService<BilibiliIdentity>(), provider.GetRequiredService<ILogger<DanmuClient>>()));
 
 		return services;
 	}
@@ -39,11 +40,17 @@ internal static class BilibiliHttpServiceCollectionExtensions
 		};
 	}
 
+	// API 和直播流两条管道共用一个身份，B 站看到的是同一个 buvid3
 	private static DelegatingHandler CreateRequestHandler(IServiceProvider provider)
+	{
+		return new BilibiliRequestHandler(provider.GetRequiredService<BilibiliIdentity>());
+	}
+
+	private static BilibiliIdentity CreateIdentity(IServiceProvider provider)
 	{
 		IAppConfigManager configManager = provider.GetRequiredService<IAppConfigManager>();
 
-		return new BilibiliRequestHandler
+		return new BilibiliIdentity
 		(async cancellationToken =>
 			{
 				AppConfig config = await configManager.GetAsync(cancellationToken);

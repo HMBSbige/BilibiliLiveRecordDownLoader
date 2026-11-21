@@ -14,15 +14,19 @@ public partial class BilibiliRequestHandlerTest
 
 	private sealed class TestClient : IDisposable
 	{
-		public TestClient(Func<BilibiliRequestOptions> options)
+		public TestClient(Func<BilibiliRequestOptions> options) : this(new BilibiliIdentity(_ => ValueTask.FromResult(options())))
 		{
-			Handler = new BilibiliRequestHandler(_ => ValueTask.FromResult(options())) { InnerHandler = Inner };
-			Client = new HttpClient(Handler);
+		}
+
+		public TestClient(BilibiliIdentity identity)
+		{
+			Identity = identity;
+			Client = new HttpClient(new BilibiliRequestHandler(identity) { InnerHandler = Inner });
 		}
 
 		public FakeHttpMessageHandler Inner { get; } = new(_ => Responses.Text("ok"));
 
-		public BilibiliRequestHandler Handler { get; }
+		public BilibiliIdentity Identity { get; }
 
 		public HttpClient Client { get; }
 
@@ -48,8 +52,8 @@ public partial class BilibiliRequestHandlerTest
 			await Assert.That(headers["Referer"]).IsEqualTo("https://live.bilibili.com/");
 			await Assert.That(headers["User-Agent"]).IsEqualTo(BilibiliRequestHandler.DefaultUserAgent);
 			await Assert.That(headers["Accept"]).IsEqualTo(BilibiliRequestHandler.DefaultAccept);
-			await Assert.That(headers["Cookie"]).IsEqualTo($"buvid3={test.Handler.Buvid3}");
-			await Assert.That(Buvid3Pattern().IsMatch(test.Handler.Buvid3)).IsTrue();
+			await Assert.That(headers["Cookie"]).IsEqualTo($"buvid3={test.Identity.GeneratedBuvid3}");
+			await Assert.That(Buvid3Pattern().IsMatch(test.Identity.GeneratedBuvid3)).IsTrue();
 		}
 	}
 
@@ -70,9 +74,9 @@ public partial class BilibiliRequestHandlerTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(requests[0].Headers["User-Agent"]).IsEqualTo("agent/1");
-			await Assert.That(requests[0].Headers["Cookie"]).IsEqualTo($"SESSDATA=first; buvid3={test.Handler.Buvid3}");
+			await Assert.That(requests[0].Headers["Cookie"]).IsEqualTo($"SESSDATA=first; buvid3={test.Identity.GeneratedBuvid3}");
 			await Assert.That(requests[1].Headers["User-Agent"]).IsEqualTo("agent/2");
-			await Assert.That(requests[1].Headers["Cookie"]).IsEqualTo($"SESSDATA=second; buvid3={test.Handler.Buvid3}");
+			await Assert.That(requests[1].Headers["Cookie"]).IsEqualTo($"SESSDATA=second; buvid3={test.Identity.GeneratedBuvid3}");
 		}
 	}
 
@@ -109,21 +113,25 @@ public partial class BilibiliRequestHandlerTest
 	}
 
 	[Test]
-	public async Task Buvid3IsStablePerHandlerAndDiffersBetweenHandlersAsync(CancellationToken cancellationToken)
+	public async Task Buvid3IsSharedWithinAnIdentityAndDiffersBetweenIdentitiesAsync(CancellationToken cancellationToken)
 	{
-		using TestClient first = new(() => new BilibiliRequestOptions());
-		using TestClient second = new(() => new BilibiliRequestOptions());
+		BilibiliIdentity identity = new(static _ => ValueTask.FromResult(new BilibiliRequestOptions()));
+		using TestClient first = new(identity);
+		using TestClient sameIdentity = new(identity);
+		using TestClient otherIdentity = new(() => new BilibiliRequestOptions());
 
 		await first.Client.GetAsync(Url, cancellationToken);
 		await first.Client.GetAsync(Url, cancellationToken);
-		await second.Client.GetAsync(Url, cancellationToken);
+		await sameIdentity.Client.GetAsync(Url, cancellationToken);
+		await otherIdentity.Client.GetAsync(Url, cancellationToken);
 
 		string[] firstCookies = [.. first.Inner.Requests.Select(r => r.Headers["Cookie"])];
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(firstCookies[0]).IsEqualTo(firstCookies[1]);
-			await Assert.That(second.SingleRequestHeaders["Cookie"]).IsNotEqualTo(firstCookies[0]);
+			await Assert.That(sameIdentity.SingleRequestHeaders["Cookie"]).IsEqualTo(firstCookies[0]);
+			await Assert.That(otherIdentity.SingleRequestHeaders["Cookie"]).IsNotEqualTo(firstCookies[0]);
 		}
 	}
 
