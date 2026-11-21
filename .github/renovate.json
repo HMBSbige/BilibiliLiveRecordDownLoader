@@ -1,6 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "assignees": ["HMBSbige"],
+  "assignees": [
+    "HMBSbige"
+  ],
   "dependencyDashboard": {
     "enabled": false
   },
@@ -14,13 +16,26 @@
   ],
   "packageRules": [
     {
-      "matchSourceUrls": ["https://github.com/abpframework/abp"],
-      "groupName": "abp"
+      "matchSourceUrls": [
+        "https://github.com/reactiveui/**"
+      ],
+      "groupName": "ReactiveUI",
+      "separateMajorMinor": false
     },
     {
-      "matchSourceUrls": ["https://github.com/reactiveui/**"],
-      "groupName": "ReactiveUI"
+      "matchPackageNames": [
+        "ChsBuffer.Avalonia.Native.Static"
+      ],
+      "groupName": "avalonia monorepo"
+    },
+    {
+      "matchPackageNames": [
+        "ChsBuffer.SkiaSharp.Static"
+      ],
+      "groupName": "skiasharp monorepo"
     }
   ],
-  "labels": ["Automatic"]
+  "labels": [
+    "Automatic"
+  ]
 }
