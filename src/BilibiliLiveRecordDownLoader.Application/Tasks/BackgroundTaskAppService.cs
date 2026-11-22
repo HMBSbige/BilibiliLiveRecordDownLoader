@@ -31,8 +31,8 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 		}
 	}
 
-	// 同一队列中的任务依次执行，避免多个转封装同时读写同一块磁盘
-	public Guid Enqueue(string title, string queueKey, Func<BackgroundTaskContext, CancellationToken, Task> work, string? sourcePath = null, string? targetPath = null)
+	// 同一队列中的任务依次执行，避免多个转封装同时读写同一块磁盘；返回的 Completion 在任务结束时给出最终快照
+	public QueuedTask Enqueue(string title, string queueKey, Func<BackgroundTaskContext, CancellationToken, Task> work, string? sourcePath = null, string? targetPath = null)
 	{
 		TaskEntry entry = new(Guid.CreateVersion7(), title, sourcePath, targetPath);
 		bool isStopping;
@@ -51,12 +51,10 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 
 		Touch();
 
-		if (!isStopping)
-		{
-			entry.Completion = RunAsync(entry, _queues.GetOrAdd(queueKey, static _ => new SemaphoreSlim(1, 1)), work);
-		}
+		Task<BackgroundTaskSnapshot> completion = isStopping ? Task.FromResult(Snapshot(entry)) : RunAsync(entry, _queues.GetOrAdd(queueKey, static _ => new SemaphoreSlim(1, 1)), work);
+		entry.Completion = completion;
 
-		return entry.Id;
+		return new QueuedTask(entry.Id, completion);
 	}
 
 	public void Cancel(Guid id)
@@ -100,7 +98,7 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 	}
 
 	// 在 Enqueue 中同步进入队列，保证同一队列按加入顺序执行
-	private async Task RunAsync(TaskEntry entry, SemaphoreSlim queue, Func<BackgroundTaskContext, CancellationToken, Task> work)
+	private async Task<BackgroundTaskSnapshot> RunAsync(TaskEntry entry, SemaphoreSlim queue, Func<BackgroundTaskContext, CancellationToken, Task> work)
 	{
 		CancellationToken cancellationToken = entry.CancellationToken;
 
@@ -111,7 +109,7 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 		catch (OperationCanceledException)
 		{
 			Update(entry, BackgroundTaskStatus.Canceled);
-			return;
+			return Snapshot(entry);
 		}
 
 		try
@@ -133,6 +131,16 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 		finally
 		{
 			queue.Release();
+		}
+
+		return Snapshot(entry);
+	}
+
+	private BackgroundTaskSnapshot Snapshot(TaskEntry entry)
+	{
+		lock (_lock)
+		{
+			return entry.ToSnapshot();
 		}
 	}
 

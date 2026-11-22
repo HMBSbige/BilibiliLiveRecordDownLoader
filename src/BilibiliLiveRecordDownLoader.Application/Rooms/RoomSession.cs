@@ -57,6 +57,19 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 	}
 
+	private string StreamerName
+	{
+		get
+		{
+			lock (_lock)
+			{
+				return string.IsNullOrEmpty(_userName) ? RoomId.ToString(CultureInfo.InvariantCulture) : _userName;
+			}
+		}
+	}
+
+	private Uri LiveRoomUri => new(AppConsts.LiveRoomUrlPrefix + RoomId.ToString(CultureInfo.InvariantCulture));
+
 	public void Start()
 	{
 		lock (_lock)
@@ -248,7 +261,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 	}
 
-	private void Handle(DanmuMessage message)
+	internal void Handle(DanmuMessage message)
 	{
 		(LiveStatus? status, string? title) = message switch
 		{
@@ -271,6 +284,8 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 
 	private void SetTitle(string title)
 	{
+		bool notify;
+
 		lock (_lock)
 		{
 			if (_title == title)
@@ -278,16 +293,30 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 				return;
 			}
 
+			// 启动或添加房间时第一次拿到的标题不算更改
+			notify = _title is not null && _settings.IsNotificationEnabled;
 			_title = title;
 		}
 
 		LogTitleChanged(_logger, title);
 		onChanged();
+
+		if (notify)
+		{
+			_ = NotifyTitleChangedAsync(title);
+		}
+	}
+
+	private async Task NotifyTitleChangedAsync(string title)
+	{
+		if ((await services.ConfigManager.GetAsync()).NotifyOnTitleChange)
+		{
+			services.Notifications.Show(AppLanguage.Current.TitleChanged.ToString(StreamerName), title, link: LiveRoomUri);
+		}
 	}
 
 	private void SetLiveStatus(LiveStatus status)
 	{
-		string? userName;
 		string? title;
 		bool notify;
 
@@ -299,7 +328,6 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 			}
 
 			_liveStatus = status;
-			userName = _userName;
 			title = _title;
 			notify = _settings.IsNotificationEnabled;
 		}
@@ -314,8 +342,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 
 		if (notify)
 		{
-			string streamer = string.IsNullOrEmpty(userName) ? RoomId.ToString(CultureInfo.InvariantCulture) : userName;
-			services.Notifications.Show(AppLanguage.Current.LiveStarted.ToString(streamer), title ?? string.Empty);
+			services.Notifications.Show(AppLanguage.Current.LiveStarted.ToString(StreamerName), title ?? string.Empty);
 		}
 
 		TryStartRecording();
@@ -350,6 +377,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		using IDisposable? scope = _logger.BeginRoomScope(RoomId);
 		using IDisposable diskSpaceWatch = services.DiskSpaceMonitor.Watch();
 		LiveRecordingSession liveSession = new();
+		RecordingFaultTracker faults = new(services.TimeProvider);
 		SetLastError(null);
 
 		try
@@ -357,7 +385,8 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 			while (ShouldKeepRecording(cancellationToken))
 			{
 				SetConnecting();
-				RecordingProfile profile = RecordingProfile.Create(await services.ConfigManager.GetAsync(cancellationToken), Settings);
+				AppConfig config = await services.ConfigManager.GetAsync(cancellationToken);
+				RecordingProfile profile = RecordingProfile.Create(config, Settings);
 
 				try
 				{
@@ -365,6 +394,11 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 
 					// 流结束时尽快确认是否已下播，下播造成的断流不算线路故障
 					await TryRefreshAsync(cancellationToken);
+
+					if (!attempt.IsQuickFailure)
+					{
+						faults.OnRecorded();
+					}
 
 					if (ShouldKeepRecording(cancellationToken) && attempt.End is RecordingEnd.WriteFailed { Exception: var writeFailure })
 					{
@@ -374,6 +408,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 							liveSession.Reset();
 						}
 
+						ReportWriteFailure(faults, config, writeFailure);
 						await WaitAfterFailureAsync(writeFailure, profile.StreamReconnectDelay, cancellationToken);
 					}
 					else if (ShouldKeepRecording(cancellationToken) && attempt.IsQuickFailure)
@@ -388,6 +423,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 							// 所有线路都试过一遍，等待之后重新请求候选流从头再试
 							liveSession.Reset();
 							LogAllEndpointsFailed(_logger, profile.StreamReconnectDelay);
+							ReportStall(faults, config);
 							await Task.Delay(profile.StreamReconnectDelay, services.TimeProvider, cancellationToken);
 						}
 					}
@@ -414,6 +450,16 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 							LogRecordingEnded(_logger, exception.Message);
 							continue;
 						}
+
+						// 这里的失败都发生在开始录制之前：建不了目录或文件是写盘失败，其余都是拿不到能用的线路
+						if (exception is RecordingWriteException writeFailure)
+						{
+							ReportWriteFailure(faults, config, writeFailure);
+						}
+						else
+						{
+							ReportStall(faults, config);
+						}
 					}
 
 					await WaitAfterFailureAsync(exception, profile.StreamReconnectDelay, cancellationToken);
@@ -422,7 +468,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 				{
 					if (TakeRecordingPath() is { } path)
 					{
-						_ = services.PostProcessor.ProcessAsync(path, profile);
+						_ = services.PostProcessor.ProcessAsync(path, profile, StreamerName);
 					}
 				}
 			}
@@ -451,6 +497,22 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 
 			// 循环退出的同时可能又收到了开播消息
 			TryStartRecording();
+		}
+	}
+
+	private void ReportStall(RecordingFaultTracker faults, AppConfig config)
+	{
+		if (faults.TryReportStall() && config.NotifyOnRecordingError)
+		{
+			services.Notifications.Show(AppLanguage.Current.RecordingStalled.ToString(StreamerName), AppLanguage.Current.RecordingStalledMessage, AppNotificationType.Error);
+		}
+	}
+
+	private void ReportWriteFailure(RecordingFaultTracker faults, AppConfig config, RecordingWriteException exception)
+	{
+		if (faults.TryReportWriteFailure() && config.NotifyOnRecordingError)
+		{
+			services.Notifications.Show(AppLanguage.Current.RecordingWriteFailed.ToString(StreamerName), exception.Message, AppNotificationType.Error);
 		}
 	}
 

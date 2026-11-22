@@ -9,7 +9,7 @@ internal sealed class MediaToolAppService(FFmpegProvider ffmpegProvider, Backgro
 		return runner is null ? null : await runner.GetVersionAsync(cancellationToken);
 	}
 
-	public async Task QueueRemuxAsync(RemuxInput input, CancellationToken cancellationToken = default)
+	public async Task<Task<BackgroundTaskSnapshot>> QueueRemuxAsync(RemuxInput input, CancellationToken cancellationToken = default)
 	{
 		FFmpegRunner runner = await ffmpegProvider.GetRequiredRunnerAsync(cancellationToken);
 		EnsureValidPaths(input.Source, input.Destination);
@@ -18,7 +18,7 @@ internal sealed class MediaToolAppService(FFmpegProvider ffmpegProvider, Backgro
 		bool repair = input.RepairFlv && Path.GetExtension(input.Source).Equals(".flv", StringComparison.OrdinalIgnoreCase);
 		string title = repair ? AppLanguage.Current.TaskRepairRemux.ToString(fileName) : AppLanguage.Current.TaskRemux.ToString(fileName);
 
-		backgroundTasks.Enqueue
+		return backgroundTasks.Enqueue
 		(
 			title,
 			FileOperations.GetQueueKey(input.Destination),
@@ -39,7 +39,7 @@ internal sealed class MediaToolAppService(FFmpegProvider ffmpegProvider, Backgro
 			},
 			input.Source,
 			input.Destination
-		);
+		).Completion;
 	}
 
 	public async Task QueueCutAsync(CutInput input, CancellationToken cancellationToken = default)

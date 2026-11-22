@@ -46,6 +46,34 @@ public sealed class AppConfigManagerTest
 	}
 
 	[Test]
+	[Arguments(true, false, "")]
+	[Arguments(false, true, $"{nameof(AppConfig.NotifyOnRecordingError)}, {nameof(AppConfig.NotifyOnTitleChange)}")]
+	public async Task NotificationSwitchesAreSavedOnlyWhenChangedFromTheirDefaultsAsync(bool notifyOnRecordingError, bool notifyOnTitleChange, string expectedKeys, CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string path = directory.Combine("config.json");
+
+		await using (AppConfigManager manager = Create(path))
+		{
+			await manager.UpdateAsync(config =>
+			{
+				config.NotifyOnRecordingError = notifyOnRecordingError;
+				config.NotifyOnTitleChange = notifyOnTitleChange;
+			}, cancellationToken);
+		}
+
+		JsonObject saved = JsonNode.Parse(await File.ReadAllTextAsync(path, cancellationToken)) as JsonObject ?? [];
+		await using AppConfigManager reloaded = Create(path);
+		AppConfig config = await reloaded.GetAsync(cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(string.Join(", ", saved.Select(static property => property.Key).Where(static key => key.StartsWith("Notify", StringComparison.Ordinal)))).IsEqualTo(expectedKeys);
+			await Assert.That((config.NotifyOnRecordingError, config.NotifyOnTitleChange)).IsEqualTo((notifyOnRecordingError, notifyOnTitleChange));
+		}
+	}
+
+	[Test]
 	public async Task RoomsSavedWithEveryValueAreTrimmedOnTheNextSaveAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();

@@ -18,6 +18,7 @@ public static class ViewModelsServiceCollectionExtensions
 		services.TryAddSingleton<GeneralSettingsViewModel>();
 		services.TryAddSingleton<RecordingSettingsViewModel>();
 		services.TryAddSingleton<NetworkSettingsViewModel>();
+		services.TryAddSingleton<NotificationSettingsViewModel>();
 		services.TryAddSingleton<AppearanceSettingsViewModel>();
 		services.TryAddSingleton<UpdateSettingsViewModel>();
 

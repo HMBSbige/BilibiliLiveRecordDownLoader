@@ -11,25 +11,6 @@ public sealed class RoomRecordingLoopTest
 		await request.EndAsync();
 	}
 
-	private static async Task<RoomSnapshot> RecordForAsync(RecordingLoopHarness loop, StreamRequest request, TimeSpan duration)
-	{
-		RoomSnapshot recording = await ReceiveForAsync(loop, request, duration);
-		await request.EndAsync();
-		return recording;
-	}
-
-	private static async Task<RoomSnapshot> ReceiveForAsync(RecordingLoopHarness loop, StreamRequest request, TimeSpan duration)
-	{
-		await request.AcceptAsync();
-		await request.CopyStarted;
-		RoomSnapshot recording = loop.Snapshot;
-		loop.Time.Advance(duration);
-
-		// 看门狗采样过之后有数据的时长才会算到这一刻；时钟一次跨过多个采样周期时，后面的采样间隔为零，速度不是正数
-		await loop.WaitUntilAsync(static snapshot => snapshot.BytesPerSecond is not 0);
-		return recording;
-	}
-
 	[Test]
 	[Timeout(30_000)]
 	public async Task QuickFailuresTryTheNextHostThenTheNextCandidateWithoutWaitingAsync(CancellationToken cancellationToken)
@@ -40,7 +21,7 @@ public sealed class RoomRecordingLoopTest
 		StreamRequest first = await loop.NextStreamAsync();
 		await EndImmediatelyAsync(first);
 		StreamRequest second = await loop.NextStreamAsync();
-		await RecordForAsync(loop, second, TimeSpan.FromSeconds(10));
+		await loop.RecordForAsync(second, TimeSpan.FromSeconds(10));
 		StreamRequest third = await loop.NextStreamAsync();
 		await third.AcceptAsync(false);
 		await loop.WaitUntilAsync(static snapshot => snapshot.LastError?.Contains("c.test", StringComparison.Ordinal) is true);
@@ -130,7 +111,7 @@ public sealed class RoomRecordingLoopTest
 
 		await EndImmediatelyAsync(await loop.NextStreamAsync());
 		StreamRequest healthy = await loop.NextStreamAsync();
-		RoomSnapshot recording = await RecordForAsync(loop, healthy, RecordingAttempt.QuickFailureThreshold + TimeSpan.FromSeconds(1));
+		RoomSnapshot recording = await loop.RecordForAsync(healthy, RecordingAttempt.QuickFailureThreshold + TimeSpan.FromSeconds(1));
 		StreamRequest next = await loop.NextStreamAsync();
 
 		using (Assert.Multiple())
@@ -146,7 +127,7 @@ public sealed class RoomRecordingLoopTest
 	[Timeout(30_000)]
 	public async Task DiskWriteFailureWaitsAndRetriesTheSameStreamAsync(CancellationToken cancellationToken)
 	{
-		Disk disk = new();
+		FakeDisk disk = new();
 		await using RecordingLoopHarness loop = new(cancellationToken, disk.CreateFile);
 		loop.GoLive();
 
@@ -191,13 +172,13 @@ public sealed class RoomRecordingLoopTest
 	[Timeout(30_000)]
 	public async Task DiskWriteFailureAfterALongRecordingStartsOverFromThePreferredStreamAsync(CancellationToken cancellationToken)
 	{
-		Disk disk = new();
+		FakeDisk disk = new();
 		await using RecordingLoopHarness loop = new(cancellationToken, disk.CreateFile);
 		loop.GoLive();
 
 		await EndImmediatelyAsync(await loop.NextStreamAsync());
 		StreamRequest healthy = await loop.NextStreamAsync();
-		await ReceiveForAsync(loop, healthy, RecordingAttempt.QuickFailureThreshold + TimeSpan.FromSeconds(1));
+		await loop.ReceiveForAsync(healthy, RecordingAttempt.QuickFailureThreshold + TimeSpan.FromSeconds(1));
 		disk.Fill();
 		await healthy.SendAsync();
 		(StreamRequest next, TimeSpan advanced) = await loop.AdvanceUntilNextStreamAsync();
@@ -270,64 +251,6 @@ public sealed class RoomRecordingLoopTest
 		{
 			await Assert.That(loop.Snapshot.LastError).IsNull();
 			await Assert.That(loop.Snapshot.Recording).IsNull();
-		}
-	}
-
-	// 写满之前一切正常
-	private sealed class Disk
-	{
-		private volatile bool _isFull;
-
-		public void Fill()
-		{
-			_isFull = true;
-		}
-
-		public Stream CreateFile(string path)
-		{
-			return new FakeFile(_ => _isFull ? ValueTask.FromException(new IOException("disk full")) : ValueTask.CompletedTask);
-		}
-	}
-
-	private sealed class FakeFile(Func<CancellationToken, ValueTask> write) : Stream
-	{
-		public override bool CanRead => false;
-
-		public override bool CanSeek => false;
-
-		public override bool CanWrite => true;
-
-		public override long Length => throw new NotSupportedException();
-
-		public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-
-		public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
-		{
-			return write(cancellationToken);
-		}
-
-		public override void Write(byte[] buffer, int offset, int count)
-		{
-			throw new NotSupportedException();
-		}
-
-		public override void Flush()
-		{
-		}
-
-		public override int Read(byte[] buffer, int offset, int count)
-		{
-			throw new NotSupportedException();
-		}
-
-		public override long Seek(long offset, SeekOrigin origin)
-		{
-			throw new NotSupportedException();
-		}
-
-		public override void SetLength(long value)
-		{
-			throw new NotSupportedException();
 		}
 	}
 }

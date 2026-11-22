@@ -39,7 +39,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 				session = new FFmpegStreamSession(ffmpeg, FFmpegArguments.Record(endpoint, userAgent, Referrer, profile.StreamConnectTimeout), endpoint);
 			}
 
-			Directory.CreateDirectory(RecordingFileLayout.GetRoomDirectory(profile.RecordDirectory, roomId));
+			_ = CreateOnDisk(() => Directory.CreateDirectory(RecordingFileLayout.GetRoomDirectory(profile.RecordDirectory, roomId)));
 			string path = ReservePath(liveSession, profile.RecordDirectory, roomId, candidate.Format, recorderType);
 			LogStreamSelected(logger, candidate.Format, candidate.Codec, candidate.Qn, endpoint.Host, path);
 
@@ -66,6 +66,19 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 				BufferSize = 1 << 20
 			}
 		);
+	}
+
+	// 网络盘断开或没有权限时目录和文件都建不了，和写入失败一样换线路也没用
+	private static T CreateOnDisk<T>(Func<T> create)
+	{
+		try
+		{
+			return create();
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+		{
+			throw new RecordingWriteException(exception);
+		}
 	}
 
 	// 同一秒内重连会得到相同的时间戳，不同格式的文件转封装后又会落到同一个 .mp4
@@ -116,7 +129,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 	private async Task<TransferResult> RecordToFileAsync(LiveStreamSession session, LiveStreamCandidate candidate, string path, RecordingProfile profile, IRecordingObserver observer, CancellationToken cancellationToken)
 	{
 		// 文件由写缓冲关闭
-		Stream file = CreateFile(path);
+		Stream file = CreateOnDisk(() => CreateFile(path));
 
 		// 文件建好之后才开始计时，创建失败时不留下看门狗
 		observer.OnRecordingStarted(path, candidate);

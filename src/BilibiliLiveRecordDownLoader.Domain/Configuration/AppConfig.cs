@@ -38,6 +38,10 @@ public record AppConfig
 
 	public bool DeleteAfterConvert { get; set; }
 
+	public bool NotifyOnRecordingError { get; set; } = true;
+
+	public bool NotifyOnTitleChange { get; set; }
+
 	public List<RoomConfig> Rooms { get; set; } = [];
 
 	public static AppConfig CreateDefault()

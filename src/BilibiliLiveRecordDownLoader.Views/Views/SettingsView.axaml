@@ -98,6 +98,28 @@
                 </StackPanel>
             </Border>
 
+            <Border Classes="card" DataContext="{Binding Notification}">
+                <StackPanel Classes="form" x:DataType="settings:NotificationSettingsViewModel">
+                    <TextBlock Classes="section" Text="{Binding Notifications, Source={x:Static l:AppLanguage.Current}}" />
+                    <StackPanel Classes="field">
+                        <ToggleSwitch IsChecked="{Binding NotifyOnRecordingError}"
+                                      AutomationProperties.Name="{Binding NotifyOnRecordingError, Source={x:Static l:AppLanguage.Current}}"
+                                      AutomationProperties.HelpText="{Binding NotifyOnRecordingErrorHint, Source={x:Static l:AppLanguage.Current}}"
+                                      OnContent="{Binding NotifyOnRecordingError, Source={x:Static l:AppLanguage.Current}}"
+                                      OffContent="{Binding NotifyOnRecordingError, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding NotifyOnRecordingErrorHint, Source={x:Static l:AppLanguage.Current}}" />
+                    </StackPanel>
+                    <StackPanel Classes="field">
+                        <ToggleSwitch IsChecked="{Binding NotifyOnTitleChange}"
+                                      AutomationProperties.Name="{Binding NotifyOnTitleChange, Source={x:Static l:AppLanguage.Current}}"
+                                      AutomationProperties.HelpText="{Binding NotifyOnTitleChangeHint, Source={x:Static l:AppLanguage.Current}}"
+                                      OnContent="{Binding NotifyOnTitleChange, Source={x:Static l:AppLanguage.Current}}"
+                                      OffContent="{Binding NotifyOnTitleChange, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding NotifyOnTitleChangeHint, Source={x:Static l:AppLanguage.Current}}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <Border Classes="card" DataContext="{Binding Appearance}">
                 <StackPanel Classes="form" x:DataType="settings:AppearanceSettingsViewModel">
                     <TextBlock Classes="section" Text="{Binding Appearance, Source={x:Static l:AppLanguage.Current}}" />

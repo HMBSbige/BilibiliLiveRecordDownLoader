@@ -26,7 +26,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 	public static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(6);
 
-	private const string RoomInfoTemplate = """{"code":0,"data":{"by_room_ids":{"$ROOM":{"room_id":$ROOM,"uid":1,"live_status":$LIVE,"title":"title","short_id":0,"uname":"streamer"}}}}""";
+	private const string RoomInfoTemplate = """{"code":0,"data":{"by_room_ids":{"$ROOM":{"room_id":$ROOM,"uid":1,"live_status":$LIVE,"title":"$TITLE","short_id":0,"uname":"streamer"}}}}""";
 
 	private const string PlayInfoTemplate = """
 		{"code":0,"data":{"room_id":$ROOM,"live_status":$LIVE,"playurl_info":{"playurl":{"stream":[{"protocol_name":"http_stream","format":[{"format_name":"flv","codec":[
@@ -42,20 +42,20 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	private readonly CancellationTokenSource _lifetime;
 	private int _playInfoRequests;
 	private volatile bool _isLive = true;
+	private volatile string _title = "title";
 
-	public RecordingLoopHarness(CancellationToken cancellationToken, Func<string, Stream>? createFile = null, RecorderType recorderType = RecorderType.BuiltIn)
+	public RecordingLoopHarness(CancellationToken cancellationToken, Func<string, Stream>? createFile = null, RecorderType recorderType = RecorderType.BuiltIn, bool isNotificationEnabled = false)
 	{
 		_lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		AppConfig config = AppConfig.CreateDefault();
-		config.RecordDirectory = _directory.Root;
-		config.RecorderType = recorderType;
+		Config.RecordDirectory = _directory.Root;
+		Config.RecorderType = recorderType;
 
 		if (recorderType is RecorderType.FFmpeg)
 		{
-			config.FFmpegPath = CreateFakeFFmpeg();
+			Config.FFmpegPath = CreateFakeFFmpeg();
 		}
 
-		FakeConfigManager configManager = new(config);
+		FakeConfigManager configManager = new(Config);
 
 		BilibiliApiClient apiClient = new(new HttpClient(new Handler(RespondApiAsync)), Time);
 		LiveRecorder recorder = new(apiClient, new StreamClientFactory(new Handler(RespondStreamAsync)), new FFmpegProvider(configManager), configManager, Time, NullLogger<LiveRecorder>.Instance)
@@ -70,7 +70,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 			apiClient,
 			new DanmuClient(apiClient, new BilibiliIdentity(static _ => ValueTask.FromResult(new BilibiliRequestOptions(null, null))), NullLogger<DanmuClient>.Instance),
 			recorder,
-			new RecordingPostProcessor(new UnusedMediaTools(), NullLogger<RecordingPostProcessor>.Instance),
+			new RecordingPostProcessor(new UnusedMediaTools(), configManager, Notifications, NullLogger<RecordingPostProcessor>.Instance),
 			new LowDiskSpaceMonitor(new UnknownDiskSpace(), configManager, Notifications, Time, NullLogger<LowDiskSpaceMonitor>.Instance),
 			Notifications,
 			configManager,
@@ -78,11 +78,21 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 			NullLogger<RoomSession>.Instance
 		);
 
-		Settings = new RoomConfig { RoomId = RoomId, StreamReconnectDelay = ReconnectDelay };
+		Settings = new RoomConfig { RoomId = RoomId, IsNotificationEnabled = isNotificationEnabled, StreamReconnectDelay = ReconnectDelay };
 		Session = new RoomSession(Settings, services, static () => { });
 	}
 
 	public FakeTimeProvider Time { get; } = new();
+
+	// 录制循环每次重连都会重新读取
+	public AppConfig Config { get; } = AppConfig.CreateDefault();
+
+	// 之后的状态查询返回的标题
+	public string Title
+	{
+		get => _title;
+		set => _title = value;
+	}
 
 	public RecordingNotifications Notifications { get; } = new();
 
@@ -96,7 +106,8 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 	public void GoLive()
 	{
-		Session.Apply(new LiveRoomInfo(RoomId, 0, 1, "streamer", "title", LiveStatus.Live));
+		_isLive = true;
+		Session.Apply(new LiveRoomInfo(RoomId, 0, 1, "streamer", _title, LiveStatus.Live));
 	}
 
 	// 之后的状态查询都会返回已下播
@@ -121,9 +132,10 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		}
 	}
 
-	// 按秒推进时钟直到出现下一次拉流，返回推进了多久；不依赖重连等待何时注册定时器
-	public async Task<(StreamRequest Request, TimeSpan Advanced)> AdvanceUntilNextStreamAsync()
+	// 按步推进时钟直到出现下一次拉流，返回推进了多久；不依赖重连等待何时注册定时器
+	public async Task<(StreamRequest Request, TimeSpan Advanced)> AdvanceUntilNextStreamAsync(TimeSpan? interval = null)
 	{
+		TimeSpan advance = interval ?? TimeSpan.FromSeconds(1);
 		TimeSpan advanced = TimeSpan.Zero;
 
 		for (int step = 0; step < 60; ++step)
@@ -133,11 +145,30 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 				return (request, advanced);
 			}
 
-			Time.Advance(TimeSpan.FromSeconds(1));
-			advanced += TimeSpan.FromSeconds(1);
+			Time.Advance(advance);
+			advanced += advance;
 		}
 
 		throw new TimeoutException("No stream was requested.");
+	}
+
+	public async Task<RoomSnapshot> RecordForAsync(StreamRequest request, TimeSpan duration)
+	{
+		RoomSnapshot recording = await ReceiveForAsync(request, duration);
+		await request.EndAsync();
+		return recording;
+	}
+
+	public async Task<RoomSnapshot> ReceiveForAsync(StreamRequest request, TimeSpan duration)
+	{
+		await request.AcceptAsync();
+		await request.CopyStarted;
+		RoomSnapshot recording = Snapshot;
+		Time.Advance(duration);
+
+		// 看门狗采样过之后有数据的时长才会算到这一刻；时钟一次跨过多个采样周期时，后面的采样间隔为零，速度不是正数
+		await WaitUntilAsync(static snapshot => snapshot.BytesPerSecond is not 0);
+		return recording;
 	}
 
 	public async ValueTask DisposeAsync()
@@ -186,7 +217,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 			"/xlive/web-room/v1/index/getRoomBaseInfo" => RoomInfoTemplate,
 			var path => throw new InvalidOperationException($"Unexpected API request {path}.")
 		};
-		string json = template.Replace("$ROOM", RoomId.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal).Replace("$LIVE", _isLive ? "1" : "0", StringComparison.Ordinal);
+		string json = template.Replace("$ROOM", RoomId.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal).Replace("$LIVE", _isLive ? "1" : "0", StringComparison.Ordinal).Replace("$TITLE", _title, StringComparison.Ordinal);
 
 		return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") });
 	}
@@ -229,7 +260,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 			throw new NotSupportedException();
 		}
 
-		public Task QueueRemuxAsync(RemuxInput input, CancellationToken cancellationToken = default)
+		public Task<Task<BackgroundTaskSnapshot>> QueueRemuxAsync(RemuxInput input, CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException();
 		}
