@@ -44,13 +44,13 @@ public sealed class FillerRemovalTest
 
 		using (Assert.Multiple())
 		{
-			// 期望的文件按去掉填充的 NAL 重新拼出，DataSize 和 PreviousTagSize 都重新计算；只剩填充的 tag 不动
+			// 只剩填充的 tag 不动
 			await Assert.That(recording.Files.Single().SequenceEqual(Stream(true))).IsTrue();
 			await Assert.That(Stream(true).Length).IsLessThan(stream.Length);
 		}
 	}
 
-	// 多轨和 ModEx 里可能装着改了长度字段宽度的序列头，之后的帧要等下一个认得出的序列头才去
+	// 多轨和 ModEx 里可能装着改了长度字段宽度的序列头
 	[Test]
 	[Timeout(10_000)]
 	public async Task FlvFramesAfterAnUnrecognizedSequencePacketWaitForTheNextSequenceHeaderAsync(CancellationToken cancellationToken)
@@ -75,10 +75,9 @@ public sealed class FillerRemovalTest
 		await Assert.That(recording.Files.Single().SequenceEqual(Stream(true))).IsTrue();
 	}
 
-	// 收流结束时末尾不完整的 tag 原样写，前面完整的照常去
 	[Test]
 	[Timeout(10_000)]
-	public async Task FlvTagLeftIncompleteAtTheEndIsWrittenUnchangedAsync(CancellationToken cancellationToken)
+	public async Task FlvTagLeftIncompleteAtTheEndIsDroppedAsync(CancellationToken cancellationToken)
 	{
 		byte[][] nals = [FillerSamples.Picture(FillerCodec.Avc, true, "k"), FillerSamples.Filler(FillerCodec.Avc, 60)];
 		byte[] head = [.. FlvSamples.Header, .. FillerSamples.FlvSequence(FlvFillerStyle.Avc, 4)];
@@ -87,7 +86,7 @@ public sealed class FillerRemovalTest
 
 		await recording.RunAsync(new FlvSplitter(), SplitRecording.Fixed(new RecordingSplit.None(), removeFiller: true), session => session.WriteAsync([.. head, .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 0, 4, nals), .. last]), cancellationToken);
 
-		byte[] expected = [.. head, .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 0, 4, [nals[0]]), .. last];
+		byte[] expected = [.. head, .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 0, 4, [nals[0]])];
 		await Assert.That(recording.Files.Single().SequenceEqual(expected)).IsTrue();
 	}
 
@@ -123,7 +122,7 @@ public sealed class FillerRemovalTest
 		await Assert.That(recording.Files.Single().SequenceEqual(stream)).IsTrue();
 	}
 
-	// 两个序列头和用到它们的帧在同一个攒着的单元里：提交时要按写出的顺序换长度字段宽度，不能用已经看到后面序列头的状态
+	// 这些序列头和帧在同一个攒着的单元里，提交时不能用已经看到后面序列头的状态
 	[Test]
 	[Timeout(10_000)]
 	public async Task FlvSequenceHeadersAreFollowedInTheOrderTheyAreWrittenAsync(CancellationToken cancellationToken)
@@ -152,7 +151,7 @@ public sealed class FillerRemovalTest
 		await Assert.That(recording.Files.Single().SequenceEqual(Stream(true))).IsTrue();
 	}
 
-	// 序列头在关闭时就过去了，中途打开之后的帧照样能去
+	// 序列头在关闭时就过去了
 	[Test]
 	[Timeout(10_000)]
 	public async Task TurningFillerRemovalOnTakesEffectFromTheNextWriteAsync(CancellationToken cancellationToken)
@@ -175,7 +174,7 @@ public sealed class FillerRemovalTest
 		await Assert.That(recording.Files.Single().SequenceEqual(expected)).IsTrue();
 	}
 
-	// 去掉的字节让写出的位置落后于收到的位置，放弃解析之后的数据仍然不能按 tag 改时间戳
+	// 去掉的字节让写出的位置落后于收到的位置
 	[Test]
 	[Timeout(10_000)]
 	public async Task FlvDataAfterAnUnrecognizedTagInALaterFileIsWrittenUnchangedAsync(CancellationToken cancellationToken)
@@ -183,8 +182,6 @@ public sealed class FillerRemovalTest
 		byte[][] nals = [FillerSamples.Picture(FillerCodec.Avc, true, "k"), FillerSamples.Filler(FillerCodec.Avc, 100)];
 		byte[] sequence = FillerSamples.FlvSequence(FlvFillerStyle.Avc, 4);
 		byte[] unrecognized = FlvSamples.Tag(0x29, 10, [1, 2, 3]);
-
-		// 看起来像视频 tag 的头，时间戳字节是 AA BB CC DD
 		byte[] lookalike = [FlvSamples.VideoTag, 0, 0, 0, 0xAA, 0xBB, 0xCC, 0xDD, 0, 0, 0, 1, 2, 3, 4];
 		SplitRecording recording = new();
 
@@ -241,11 +238,10 @@ public sealed class FillerRemovalTest
 			await session.InitAsync(init);
 			await session.SegmentAsync([.. styp, .. Fragment(firstVideo, false)]);
 
-			// 一个分片里有两组 moof+mdat，第二组处理时前面已经删掉过数据，要整体前移
+			// 第二组 moof+mdat 处理时前面已经删掉过数据，要整体前移
 			await session.SegmentAsync([.. Fragment(secondVideo, false), .. Fragment(thirdVideo, false)]);
 		}, cancellationToken);
 
-		// 期望的分片按去掉填充的样本重新拼出：视频样本大小、各 trun 的 data_offset 和 mdat 大小都重新计算
 		byte[] expected = [.. init, .. styp, .. Fragment(firstVideo, true), .. Fragment(secondVideo, true), .. Fragment(thirdVideo, true)];
 		await Assert.That(recording.Files.Single().SequenceEqual(expected)).IsTrue();
 	}
@@ -276,7 +272,7 @@ public sealed class FillerRemovalTest
 		await Assert.That(recording.Files.Single().SequenceEqual((byte[])[.. init, .. Fragment(true)])).IsTrue();
 	}
 
-	// init 段在关闭时就过去了，中途打开之后的分片照样能去
+	// init 段在关闭时就过去了
 	[Test]
 	[Timeout(10_000)]
 	public async Task TurningFillerRemovalOnTakesEffectFromTheNextFmp4FragmentAsync(CancellationToken cancellationToken)
@@ -299,25 +295,23 @@ public sealed class FillerRemovalTest
 		await Assert.That(recording.Files.Single().SequenceEqual(expected)).IsTrue();
 	}
 
-	// 收流结束时末尾不完整的分片原样写
 	[Test]
 	[Timeout(10_000)]
-	public async Task Fmp4FragmentLeftIncompleteAtTheEndIsWrittenUnchangedAsync(CancellationToken cancellationToken)
+	public async Task Fmp4FragmentLeftIncompleteAtTheEndIsDroppedAsync(CancellationToken cancellationToken)
 	{
 		byte[][] nals = [FillerSamples.Picture(FillerCodec.Avc, true, "k"), FillerSamples.Filler(FillerCodec.Avc, 60)];
 		byte[] init = FillerSamples.Init(FillerCodec.Avc, 4);
 		byte[] fragment = FillerSamples.Fragment([FillerSamples.Sample(4, nals)], ["aac"u8.ToArray()]);
-		byte[] last = fragment[..^10];
 		SplitRecording recording = new();
 
 		await recording.RunAsync(new Fmp4HlsSplitter(), SplitRecording.Fixed(new RecordingSplit.None(), removeFiller: true), async session =>
 		{
 			await session.InitAsync(init);
 			await session.SegmentAsync(fragment);
-			await session.WriteAsync(last);
+			await session.PartialSegmentAsync(fragment, fragment.Length - 10);
 		}, cancellationToken);
 
-		byte[] expected = [.. init, .. FillerSamples.Fragment([FillerSamples.Sample(4, [nals[0]])], ["aac"u8.ToArray()]), .. last];
+		byte[] expected = [.. init, .. FillerSamples.Fragment([FillerSamples.Sample(4, [nals[0]])], ["aac"u8.ToArray()])];
 		await Assert.That(recording.Files.Single().SequenceEqual(expected)).IsTrue();
 	}
 

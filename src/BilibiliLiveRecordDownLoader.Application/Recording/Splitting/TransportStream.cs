@@ -10,7 +10,6 @@ internal enum TransportVideoCodec
 	Other
 }
 
-// MPEG-TS 包头、PAT/PMT 和视频访问单元的最少解析
 internal static class TransportStream
 {
 	public const int PacketSize = 188;
@@ -41,13 +40,40 @@ internal static class TransportStream
 
 	public static ReadOnlySpan<byte> GetPayload(ReadOnlySpan<byte> packet)
 	{
+		return GetPayloadOffset(packet) is var offset and >= 0 ? packet.Slice(offset) : default;
+	}
+
+	// 没有负载时返回 -1
+	public static int GetPayloadOffset(ReadOnlySpan<byte> packet)
+	{
 		if ((packet[3] & 0x10) is 0)
 		{
-			return default;
+			return -1;
 		}
 
 		int offset = (packet[3] & 0x20) is 0 ? 4 : 5 + packet[4];
-		return offset < PacketSize ? packet.Slice(offset) : default;
+		return offset < PacketSize ? offset : -1;
+	}
+
+	// PCR 是适配域标志之后的 33 位基准值、6 位保留和 9 位扩展
+	public static bool HasPcr(ReadOnlySpan<byte> packet)
+	{
+		return (packet[3] & 0x20) is not 0 && packet[4] >= 7 && (packet[5] & 0x10) is not 0;
+	}
+
+	public static long ReadPcrBase(ReadOnlySpan<byte> packet)
+	{
+		return (long)packet[6] << 25 | (long)packet[7] << 17 | (long)packet[8] << 9 | (long)packet[9] << 1 | (long)packet[10] >> 7;
+	}
+
+	// 保留位和扩展部分不动
+	public static void WritePcrBase(Span<byte> packet, long value)
+	{
+		packet[6] = (byte)(value >> 25);
+		packet[7] = (byte)(value >> 17);
+		packet[8] = (byte)(value >> 9);
+		packet[9] = (byte)(value >> 1);
+		packet[10] = (byte)((int)(value & 1) << 7 | packet[10] & 0x7F);
 	}
 
 	// 只认放得进一个包的 PAT，返回第一个节目的 PMT PID
@@ -110,7 +136,6 @@ internal static class TransportStream
 	// 访问单元里第一个图像 NAL 是不是随机访问点；SPS、PPS、SEI 都在它前面
 	public static bool StartsWithRandomAccessPicture(ReadOnlySpan<byte> data, int videoPid, NalSyntax? syntax)
 	{
-		// 找到第一个 PES 的开头之后才用
 		NalScanner scanner = default;
 		bool started = false;
 
@@ -142,7 +167,7 @@ internal static class TransportStream
 					return true;
 				}
 
-				// PES 头：起始码和流 ID、长度、两个标志字节、头数据长度
+				// PES 头固定 9 字节：起始码和流 ID、长度、两个标志字节、头数据长度
 				if (syntax is not { } nalSyntax || payload.Length < 9 || !payload.StartsWith((ReadOnlySpan<byte>)[0, 0, 1]) || 9 + payload[8] > payload.Length)
 				{
 					return false;
@@ -162,22 +187,57 @@ internal static class TransportStream
 		return false;
 	}
 
-	// payload 以 PES 头开始时读出 33 位的 PTS；没有 PTS 时返回 false
-	public static bool TryReadPts(ReadOnlySpan<byte> payload, out long pts)
+	public static bool TryReadDecodeTime(ReadOnlySpan<byte> payload, out long time)
 	{
-		pts = 0;
+		time = 0;
 
-		// 起始码和流 ID、长度、两个标志字节、头数据长度之后是 5 字节的 PTS
-		if (payload.Length < 14 || !payload.StartsWith((ReadOnlySpan<byte>)[0, 0, 1]) || (payload[7] & 0x80) is 0 || payload[8] < 5)
+		if (!TryGetTimestampFields(payload, out int pts, out int dts))
 		{
 			return false;
 		}
 
-		pts = (long)(payload[9] >> 1 & 0x07) << 30 | (long)payload[10] << 22 | (long)(payload[11] >> 1) << 15 | (long)payload[12] << 7 | (long)(payload[13] >> 1);
+		time = ReadTimestamp(payload.Slice(dts >= 0 ? dts : pts));
 		return true;
 	}
 
-	// 一个 PES 开头的数据，最多取满 destination，用来找 SPS；返回取到的长度
+	// 只有 PTS 时 dts 为 -1；PES 头固定的 9 字节之后依次是 5 字节的 PTS 和 DTS，节目流映射、填充流这些流 ID 没有这几个字段
+	public static bool TryGetTimestampFields(ReadOnlySpan<byte> payload, out int pts, out int dts)
+	{
+		pts = dts = -1;
+
+		if (payload.Length < 9 || !payload.StartsWith((ReadOnlySpan<byte>)[0, 0, 1]) || payload[3] is 0xBC or 0xBE or 0xBF or 0xF0 or 0xF1 or 0xF2 or 0xF8 or 0xFF || (payload[6] & 0xC0) is not 0x80)
+		{
+			return false;
+		}
+
+		switch (payload[7] >> 6)
+		{
+			case 2 when payload[8] >= 5 && payload.Length >= 14:
+				pts = 9;
+				return true;
+			case 3 when payload[8] >= 10 && payload.Length >= 19:
+				(pts, dts) = (9, 14);
+				return true;
+			default:
+				return false;
+		}
+	}
+
+	public static long ReadTimestamp(ReadOnlySpan<byte> field)
+	{
+		return (long)(field[0] >> 1 & 0x07) << 30 | (long)field[1] << 22 | (long)(field[2] >> 1) << 15 | (long)field[3] << 7 | (long)(field[4] >> 1);
+	}
+
+	// 保留前缀的 4 位，标记位都写 1
+	public static void WriteTimestamp(Span<byte> field, long value)
+	{
+		field[0] = (byte)(field[0] & 0xF0 | (int)(value >> 29 & 0x0E) | 1);
+		field[1] = (byte)(value >> 22);
+		field[2] = (byte)(value >> 14 | 1);
+		field[3] = (byte)(value >> 7);
+		field[4] = (byte)(value << 1 | 1);
+	}
+
 	public static int CopyFirstPes(ReadOnlySpan<byte> data, int videoPid, Span<byte> destination)
 	{
 		int length = 0;
@@ -216,7 +276,7 @@ internal static class TransportStream
 		return length;
 	}
 
-	// 去掉 PES 头，只留下基本流；不是 PES 头时原样返回
+	// 不是 PES 头时原样返回
 	public static ReadOnlySpan<byte> SkipPesHeader(ReadOnlySpan<byte> payload)
 	{
 		return payload.Length >= 9 && payload.StartsWith((ReadOnlySpan<byte>)[0, 0, 1]) && 9 + payload[8] <= payload.Length ? payload.Slice(9 + payload[8]) : payload;
@@ -284,7 +344,7 @@ internal static class TransportStream
 		private int _zeros;
 		private bool _isAtNalHeader;
 
-		// 返回第一个图像 NAL 是不是随机访问点，还没看到时返回 null
+		// 还没看到图像 NAL 时返回 null
 		public bool? Scan(ReadOnlySpan<byte> data)
 		{
 			foreach (byte value in data)

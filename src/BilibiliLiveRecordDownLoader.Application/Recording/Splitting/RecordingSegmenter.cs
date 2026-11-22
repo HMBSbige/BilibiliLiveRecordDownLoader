@@ -4,7 +4,7 @@ using System.IO.Pipelines;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-// 网络端：会话写出的数据先按单元（从一个切分点到下一个切分点）攒着，写下一个单元之前决定要不要换文件；换文件的位置记成标记，由写盘端照着换
+// 网络端：数据按单元（相邻两个切分点之间）攒着，写出前决定要不要换文件；换文件的位置记成标记，由写盘端照着换
 internal sealed partial class RecordingSegmenter : Stream
 {
 	internal const int DefaultMaxPendingLength = 64 << 20;
@@ -46,7 +46,7 @@ internal sealed partial class RecordingSegmenter : Stream
 
 	public MediaSplitter Splitter { get; }
 
-	// 一直等不到下一个切分点时（纯音频、认不出的编码）不能无限攒着，攒到这么多就先写出去
+	// 等不到下一个切分点时（纯音频、认不出的编码）攒到这么多就先写出去
 	internal int MaxPendingLength { get; init; } = DefaultMaxPendingLength;
 
 	public override bool CanRead => false;
@@ -79,12 +79,18 @@ internal sealed partial class RecordingSegmenter : Stream
 		throw new NotSupportedException();
 	}
 
-	// 会话结束后把攒着的数据全部写出，包括末尾不完整的元素；不刷新，缓冲写满时也不能卡在这里
+	// 末尾不完整的元素丢掉，分割器放弃解析之后的数据照样全部写出；不刷新，缓冲写满时也不能卡在这里
 	public void Complete()
 	{
+		if (_scanned > 0)
+		{
+			Commit(_scanned, UnitEnd.StreamEnd);
+			_scanned = 0;
+		}
+
 		if (_pending.Length > 0)
 		{
-			Commit(_pending.Length, UnitEnd.StreamEnd);
+			LogIncompleteTail(_logger, _pending.Length);
 		}
 
 		_timeline.EndReceiving();
@@ -135,14 +141,13 @@ internal sealed partial class RecordingSegmenter : Stream
 			_pendingTime = _timeProvider.GetUtcNow();
 			_pendingTimestamp = _timeProvider.GetTimestamp();
 
-			// 只有这个切分点之前改的标题才在这里切，之后改的等下一个切分点
+			// 这个切分点之后改的标题等下一个切分点
 			_pendingTitleChange = _control.TitleChanges;
 
-			// 不分段时不必等单元收完；单元中途打开分段，从下一个切分点开始判断
-			_isUnitHeld = _control.Policy is not { Split: RecordingSplit.None, OnTitleChange: false };
+			// 不分段时只攒分割器定起点要的第一个单元；单元中途打开分段，从下一个切分点开始判断
+			_isUnitHeld = (Splitter.HoldsFirstUnit && !_segmentHasMedia) || _control.Policy is not { Split: RecordingSplit.None, OnTitleChange: false };
 		}
 
-		// 还没到第一个切分点（流头、纯音频）、再也找不到切分点或者不分段时，没有要等的判断，收到就写出
 		if (_scanned > 0 && (!_isPendingUnit || !Splitter.CanSplit || !_isUnitHeld))
 		{
 			Commit(_scanned, UnitEnd.NextSplit);
@@ -174,7 +179,7 @@ internal sealed partial class RecordingSegmenter : Stream
 
 			if (Decide(policy, unit.Length, end) is { } reason)
 			{
-				StartSegment(unit, reason);
+				StartSegment(reason);
 			}
 
 			if (!_segmentHasMedia && policy.Split is RecordingSplit.BySize { MaxBytes: var maxBytes } && _segmentLength + unit.Length > maxBytes)
@@ -190,7 +195,7 @@ internal sealed partial class RecordingSegmenter : Stream
 		_segmentLength += unit.Length;
 		_pending.Discard(length);
 		_committed += length;
-		_timeline.Commit(_committed);
+		_timeline.Commit(_committed, Splitter.Origin);
 	}
 
 	private void TakeMediaMarks()
@@ -199,7 +204,8 @@ internal sealed partial class RecordingSegmenter : Stream
 		Splitter.ClearMediaMarks();
 	}
 
-	// 每个单元按写出时的设置判断。还没有媒体数据或者没开按标题分段时改了标题都不切，这次请求就此作废。攒不下的单元总长未知，只能保守地从它开头换文件；收流结束时最后半个单元切出去只会得到一个太短的文件，只有放不下才切
+	// 还没有媒体数据或者没开按标题分段时，改标题的请求就此作废；攒不下的单元总长未知，只能保守地从它开头换文件
+	// 收流结束时把最后半个单元切出去只会得到一个太短的文件，只有放不下才切
 	private SplitReason? Decide(RecordingSplitPolicy policy, int unitLength, UnitEnd end)
 	{
 		bool isTitleChanged = _pendingTitleChange != _seenTitleChange;
@@ -221,10 +227,10 @@ internal sealed partial class RecordingSegmenter : Stream
 		return reason ?? (isTitleChanged && policy.OnTitleChange && end is not UnitEnd.StreamEnd ? SplitReason.Title : null);
 	}
 
-	private void StartSegment(ReadOnlySpan<byte> unit, SplitReason reason)
+	private void StartSegment(SplitReason reason)
 	{
 		_starts.Enqueue(new SegmentStart(_written, _pendingTime, reason, _timeline.StartSegment()));
-		Splitter.StartSegment(unit);
+		Splitter.StartSegment();
 		Emit(_pendingHeader.Span);
 		_segmentLength = _pendingHeader.Length;
 		_segmentHasMedia = false;
@@ -237,7 +243,6 @@ internal sealed partial class RecordingSegmenter : Stream
 		_written += data.Length;
 	}
 
-	// 单元为什么在这里写出：下一个切分点到了，攒不下了，或者收流结束了
 	private enum UnitEnd
 	{
 		NextSplit,
@@ -247,6 +252,9 @@ internal sealed partial class RecordingSegmenter : Stream
 
 	[LoggerMessage(Level = LogLevel.Warning, Message = "No split point arrived within {Size} bytes, writing them to the current file")]
 	private static partial void LogUnitTooLong(ILogger logger, int size);
+
+	[LoggerMessage(Level = LogLevel.Debug, Message = "Dropped {Size} bytes of an incomplete element at the end of the stream")]
+	private static partial void LogIncompleteTail(ILogger logger, int size);
 
 	[LoggerMessage(Level = LogLevel.Warning, Message = "A keyframe interval of {Size} bytes does not fit within the split size of {MaxSize} bytes and takes a file of its own")]
 	private static partial void LogUnitExceedsSize(ILogger logger, long size, long maxSize);

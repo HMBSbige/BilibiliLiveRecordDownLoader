@@ -98,6 +98,50 @@ public sealed class TransportStreamSplitterTest
 		await Assert.That(recording.Files.Single().SequenceEqual(stream)).IsTrue();
 	}
 
+	// 失去同步之前的关键帧照常改到 0
+	[Test]
+	[Timeout(10_000)]
+	public async Task PacketLookalikeAfterLosingSyncIsWrittenUnchangedAsync(CancellationToken cancellationToken)
+	{
+		byte[] lookalike = TsSamples.TimedPes(TsSamples.VideoPid, 990_000, null, 980_000);
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new TransportStreamSplitter(), OneMinute, async session =>
+		{
+			await session.WriteAsync([.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedVideoFrame(TsSamples.AvcIdr, 900_000, true)]);
+			await session.WriteAsync([0x00]);
+			await session.WriteAsync(lookalike);
+		}, cancellationToken);
+
+		await Assert.That(recording.Files.Single().SequenceEqual((byte[])[.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedVideoFrame(TsSamples.AvcIdr, 0, true), 0x00, .. lookalike])).IsTrue();
+	}
+
+	// 停止录制时 FFmpeg 的输出可能停在一个包中间
+	[Test]
+	[Timeout(10_000)]
+	public async Task PartialPacketAtTheEndIsNotWrittenAsync(CancellationToken cancellationToken)
+	{
+		byte[] stream = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k1"), .. Inter("p1")];
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new TransportStreamSplitter(), OneMinute, session => session.WriteAsync([.. stream, .. Key("k2").AsSpan(0, 100)]), cancellationToken);
+
+		await Assert.That(recording.Files.Single().SequenceEqual(stream)).IsTrue();
+	}
+
+	// 失去包同步之后不再知道包的边界
+	[Test]
+	[Timeout(10_000)]
+	public async Task DataAfterLosingPacketSyncIsWrittenInFullWhenTheStreamEndsAsync(CancellationToken cancellationToken)
+	{
+		byte[] stream = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k1"), 0x00, .. Key("k2").AsSpan(0, 100)];
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new TransportStreamSplitter(), OneMinute, session => session.WriteAsync(stream), cancellationToken);
+
+		await Assert.That(recording.Files.Single().SequenceEqual(stream)).IsTrue();
+	}
+
 	[Test]
 	[Timeout(10_000)]
 	public async Task DataAfterLosingPacketSyncIsNotHeldBackAsync(CancellationToken cancellationToken)

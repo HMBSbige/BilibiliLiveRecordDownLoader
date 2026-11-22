@@ -1,6 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-// HLS 由会话报告分片边界，只在开头就能独立解码的分片前切；分片是否以关键帧开头要逐个检查，GOP 可以跨分片
+// 分片边界由会话报告；GOP 可以跨分片，要逐个检查分片开头能否独立解码
 internal abstract class HlsSplitter : MediaSplitter, IHlsSegmentObserver
 {
 	private readonly Queue<Element> _elements = new();
@@ -9,16 +9,16 @@ internal abstract class HlsSplitter : MediaSplitter, IHlsSegmentObserver
 
 	public abstract void OnMediaSegment(ReadOnlySpan<byte> data);
 
-	// span 是分片从第一帧到最后一帧的媒体时间，会话报告时就算好，分片过去时再报告
-	protected void Add(int length, bool isSplit, ReadOnlyMemory<byte> header, MediaSpan? span)
+	// spans 按 Rebase 推进时间的粒度给，每个 PES 或 moof 一条；整个分片只给一条的话，时间轴认不出分片中间的重新开始
+	protected void Add(int length, bool isSplit, ReadOnlyMemory<byte> header, MediaSpan[] spans)
 	{
-		// 空分片没有要写出的数据；入队之后 Measure 一直返回 0，后面的数据都过不去
+		// 空分片入队之后 Measure 会一直返回 0，后面的数据都过不去
 		if (length is 0)
 		{
 			return;
 		}
 
-		_elements.Enqueue(new Element(length, isSplit, header, span));
+		_elements.Enqueue(new Element(length, isSplit, header, spans));
 	}
 
 	protected override int Measure(ReadOnlySpan<byte> data, out bool isSplit)
@@ -36,7 +36,12 @@ internal abstract class HlsSplitter : MediaSplitter, IHlsSegmentObserver
 
 	protected override void Accept(ReadOnlySpan<byte> element)
 	{
-		if (_elements.TryDequeue(out Element accepted) && accepted.Span is { } span)
+		if (!_elements.TryDequeue(out Element accepted))
+		{
+			return;
+		}
+
+		foreach (MediaSpan span in accepted.Spans)
 		{
 			ReportMediaTime(span);
 		}
@@ -47,30 +52,42 @@ internal abstract class HlsSplitter : MediaSplitter, IHlsSegmentObserver
 		return _elements.Peek().Header;
 	}
 
-	private readonly record struct Element(int Length, bool IsSplit, ReadOnlyMemory<byte> Header, MediaSpan? Span);
+	private readonly record struct Element(int Length, bool IsSplit, ReadOnlyMemory<byte> Header, MediaSpan[] Spans);
 }
 
 internal sealed class Fmp4HlsSplitter : HlsSplitter
 {
 	private readonly Fmp4FillerRemover _filler = new();
+	private readonly Fmp4Rebaser _rebaser = new();
 	private ReadOnlyMemory<byte> _init;
 	private bool _hasTracks;
 	private Fmp4VideoTrack? _video;
+	private Fmp4TrackTimes _times = new([]);
 
 	public override void OnInitSegment(ReadOnlySpan<byte> data)
 	{
 		_init = data.ToArray();
 		_hasTracks = IsoBmff.TryReadMovie(data, out _video);
+		_times = new Fmp4TrackTimes(IsoBmff.TryFindBox(data, "moov"u8, out ReadOnlySpan<byte> moov) ? IsoBmff.ReadTracks(moov) : []);
 		Resolution = _video?.Resolution;
-		Add(data.Length, false, default, null);
+		Add(data.Length, false, default, []);
 	}
 
-	// 每段都从 init 段开始；没有视频轨时任何分片开头都能解码。分段不改 tfdt，文件里的时间就是源时间；用解码时间，不看合成时间偏移，只差几帧
+	// 没有视频轨时任何分片开头都能解码
 	public override void OnMediaSegment(ReadOnlySpan<byte> data)
 	{
 		bool isSplit = _hasTracks && (_video is not { } video || IsoBmff.StartsWithSyncSample(data, video));
-		MediaSpan? span = _video is { Timescale: { } timescale } timed && IsoBmff.ReadFragmentTime(data, timed) is (var start, var end) ? new MediaSpan(Fmp4VideoTrack.ToTime(start, timescale), Fmp4VideoTrack.ToTime(end, timescale)) : null;
-		Add(data.Length, isSplit, _init, span);
+		Add(data.Length, isSplit, _init, _times.ReadFragmentSpans(data));
+	}
+
+	public override void StartSegment()
+	{
+		_rebaser.StartSegment();
+	}
+
+	public override void Rebase(Span<byte> elements)
+	{
+		_rebaser.Rebase(elements);
 	}
 
 	public override int RemoveFiller(Span<byte> elements, bool isEnabled)
@@ -82,11 +99,25 @@ internal sealed class Fmp4HlsSplitter : HlsSplitter
 internal sealed class TsHlsSplitter : HlsSplitter
 {
 	private readonly ProgramTables _tables = new();
+	private readonly TransportStreamRebaser _rebaser = new();
+	private readonly List<MediaSpan> _spans = [];
 	private PtsClock _clock;
+
+	public override TimeSpan? Origin => _rebaser.Origin;
+
+	public override void StartSegment()
+	{
+		_rebaser.StartSegment();
+	}
+
+	public override void Rebase(Span<byte> elements)
+	{
+		_rebaser.Rebase(elements);
+	}
 
 	public override void OnInitSegment(ReadOnlySpan<byte> data)
 	{
-		Add(data.Length, false, default, null);
+		Add(data.Length, false, default, []);
 	}
 
 	// 分片开头自带 PAT 和 PMT 时不再补；补的是这个分片之前最近的一份
@@ -123,16 +154,15 @@ internal sealed class TsHlsSplitter : HlsSplitter
 		bool hasOwnTables = hasLeadingPat && hasLeadingPmt;
 		bool isSplit = isAligned && _tables.IsComplete && (hasOwnTables || !previousTables.IsEmpty) && StartsWithRandomAccess(data);
 		ReadResolution(data);
-		Add(data.Length, isSplit, hasOwnTables ? default : previousTables, ReadSpan(data));
+		Add(data.Length, isSplit, hasOwnTables ? default : previousTables, ReadSpans(data));
 	}
 
-	// 视频 PES 的 PTS 按分片顺序展开回绕，取最早和最晚的；B 帧让 PTS 不按顺序出现
-	private MediaSpan? ReadSpan(ReadOnlySpan<byte> data)
+	// 每个带时间戳的 PES 一条，所有 PID 都按解码时间，和 TransportStreamRebaser 推进的一一对应
+	private MediaSpan[] ReadSpans(ReadOnlySpan<byte> data)
 	{
-		TimeSpan? start = null;
-		TimeSpan end = TimeSpan.MinValue;
+		_spans.Clear();
 
-		for (int offset = 0; _tables.VideoPid >= 0 && offset + TransportStream.PacketSize <= data.Length; offset += TransportStream.PacketSize)
+		for (int offset = 0; offset + TransportStream.PacketSize <= data.Length; offset += TransportStream.PacketSize)
 		{
 			ReadOnlySpan<byte> packet = data.Slice(offset, TransportStream.PacketSize);
 
@@ -141,18 +171,16 @@ internal sealed class TsHlsSplitter : HlsSplitter
 				break;
 			}
 
-			if (TransportStream.GetPid(packet) == _tables.VideoPid && TransportStream.IsPayloadStart(packet) && TransportStream.TryReadPts(TransportStream.GetPayload(packet), out long pts))
+			if (TransportStream.IsPayloadStart(packet) && TransportStream.TryReadDecodeTime(TransportStream.GetPayload(packet), out long decode))
 			{
-				TimeSpan time = _clock.Unwrap(pts);
-				start = start is { } earliest && earliest < time ? earliest : time;
-				end = time > end ? time : end;
+				_spans.Add(MediaSpan.At(_clock.Unwrap(decode)));
 			}
 		}
 
-		return start is { } value ? new MediaSpan(value, end) : null;
+		return [.. _spans];
 	}
 
-	// 分片第一个视频 PES 前面一般带着 SPS；不带的分片沿用之前读到的尺寸
+	// 分片第一个视频 PES 开头一般带着 SPS
 	private void ReadResolution(ReadOnlySpan<byte> data)
 	{
 		if (_tables is not { VideoPid: >= 0 and var videoPid, VideoSyntax: { } syntax })

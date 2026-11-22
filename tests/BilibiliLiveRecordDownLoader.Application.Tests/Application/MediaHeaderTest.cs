@@ -5,10 +5,9 @@ using System.Buffers.Binary;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
-// 从流头读画面尺寸和元素的媒体时间
 public sealed class MediaHeaderTest
 {
-	// x264 和 x265 对 testsrc 编码得到的 SPS，ffprobe 给出的尺寸写在后面；1080 和 768 要靠裁剪，854 宽要裁掉补齐的宏块，都带防竞争字节
+	// x264 和 x265 对 testsrc 编码得到的 SPS，尺寸来自 ffprobe；1080、768 和 854 宽都要靠裁剪，都带防竞争字节
 	internal const string Avc1080 = "67640028acd940780227e5c044000003000400000300f03c60c658";
 	internal const string Avc480 = "674d401feca06c1ef3780880000003008000001e078c18cb";
 	internal const string Avc444720 = "67f4001f919b280a00b76022000003000200000300781e30632c";
@@ -88,34 +87,56 @@ public sealed class MediaHeaderTest
 		await Assert.That(splitter.MediaMarks.ToArray().Select(static mark => (mark.End, mark.Span)).SequenceEqual([((long)header.Length + key.Length, MediaSpan.At(TimeSpan.FromMilliseconds(100_000))), ((long)header.Length + key.Length + audio.Length, MediaSpan.At(TimeSpan.FromMilliseconds(99_990)))])).IsTrue();
 	}
 
+	// mdhd 版本 1 的创建和修改时间是 64 位，timescale 跟着往后挪；没有 mdhd 的音频轨不列出
 	[Test]
 	[Arguments((byte)0)]
 	[Arguments((byte)1)]
-	public async Task Fmp4InitGivesTheTimescaleAndSampleEntrySizeAsync(byte mdhdVersion)
+	public async Task Fmp4InitGivesEachTrackTimescaleAndTheSampleEntrySizeAsync(byte mdhdVersion)
 	{
+		byte[] init = Fmp4Samples.TimedInit(90_000, 1920, 1080, 3000, mdhdVersion);
 		Fmp4HlsSplitter splitter = new();
-		splitter.OnInitSegment(Fmp4Samples.TimedInit(90_000, 1920, 1080, mdhdVersion: mdhdVersion));
+		splitter.OnInitSegment(init);
 
-		await Assert.That(splitter.Resolution).IsEqualTo(new VideoResolution(1920, 1080));
-		await Assert.That(IsoBmff.TryReadMovie(Fmp4Samples.TimedInit(90_000, 1920, 1080, 3000, mdhdVersion), out Fmp4VideoTrack? video) ? video : null).IsEqualTo(new Fmp4VideoTrack(Fmp4Samples.VideoTrack, 3000, Fmp4Samples.NonSyncFlags, 90_000, new VideoResolution(1920, 1080)));
+		using (Assert.Multiple())
+		{
+			await Assert.That(splitter.Resolution).IsEqualTo(new VideoResolution(1920, 1080));
+			await Assert.That(ReadTracks(init).SequenceEqual([new Fmp4Track(Fmp4Samples.VideoTrack, 90_000, 3000)])).IsTrue();
+			await Assert.That(IsoBmff.TryReadMovie(init, out Fmp4VideoTrack? video) ? video : null).IsEqualTo(new Fmp4VideoTrack(Fmp4Samples.VideoTrack, Fmp4Samples.NonSyncFlags, new VideoResolution(1920, 1080)));
+		}
 	}
 
-	// 一个分片覆盖第一个样本的解码时间到最后一个样本结束；样本时长可以逐个给出，也可以用 trex 的默认值
+	// 样本时长可以逐个给出，也可以用 trex 的默认值
 	[Test]
 	[Arguments(3000u, 0u, (byte)1)]
 	[Arguments(0u, 3000u, (byte)0)]
 	public async Task Fmp4FragmentSpansItsSamplesAsync(uint sampleDuration, uint defaultDuration, byte tfdtVersion)
 	{
-		Fmp4VideoTrack track = new(Fmp4Samples.VideoTrack, defaultDuration, 0, 90_000, null);
+		Fmp4TrackTimes times = new([new Fmp4Track(Fmp4Samples.VideoTrack, 90_000, defaultDuration)]);
 
-		await Assert.That(IsoBmff.ReadFragmentTime(Fmp4Samples.TimedFragment(900_000, 30, sampleDuration, tfdtVersion: tfdtVersion), track)).IsEqualTo((900_000UL, 990_000UL));
+		await Assert.That(times.ReadFragmentSpans(Fmp4Samples.TimedFragment(900_000, 30, sampleDuration, tfdtVersion: tfdtVersion)).SequenceEqual([new MediaSpan(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(11))])).IsTrue();
 	}
 
+	// 往回的小差值和差得很远的（源重新开始）都不加周期，交给 SegmentClock 判断
 	[Test]
-	public async Task TsSegmentSpansItsVideoPtsAndGivesTheSpsSizeAsync()
+	public async Task Fmp4Version0DecodeTimeAddsAPeriodOnlyWhenItWrapsAsync()
+	{
+		const ulong period = 1UL << 32;
+		Fmp4Track track = new(Fmp4Samples.VideoTrack, 90_000, 0);
+		Fmp4TrackTimes times = new([track]);
+		ulong[] values = [period - 180_000, 90_000, 45_000, 3_000_000_000, 1_000];
+		ulong[] expected = [period - 180_000, period + 90_000, period + 45_000, period + 3_000_000_000, period + 1_000];
+
+		MediaSpan[] spans = [.. values.SelectMany(value => times.ReadFragmentSpans(Fmp4Samples.TimedFragment(value, 1, 0, tfdtVersion: 0)))];
+
+		await Assert.That(spans.Select(static span => span.Start.Ticks).SequenceEqual(expected.Select(track.ToTicks))).IsTrue();
+	}
+
+	// 按分片里的顺序，第一个 PES 不是最早的
+	[Test]
+	public async Task TsSegmentReportsEveryTimedPesByDecodeTimeAndGivesTheSpsSizeAsync()
 	{
 		TsHlsSplitter splitter = new();
-		byte[] segment = [.. TsSamples.Pat(), .. TsSamples.Pmt(TsSamples.HevcStreamType), .. TsSamples.TimedVideoFrame(TsSamples.HevcIdr, 900_000, true, Convert.FromHexString(Hevc1080), true), .. TsSamples.Audio(), .. TsSamples.TimedVideoFrame(TsSamples.HevcTrail, 990_000, isHevc: true), .. TsSamples.TimedVideoFrame(TsSamples.HevcTrail, 945_000, isHevc: true)];
+		byte[] segment = [.. TsSamples.Pat(), .. TsSamples.Pmt(TsSamples.HevcStreamType), .. TsSamples.TimedVideoFrame(TsSamples.HevcIdr, 907_200, true, Convert.FromHexString(Hevc1080), true, 900_000), .. TsSamples.TimedPes(TsSamples.AudioPid, 896_400), .. TsSamples.TimedVideoFrame(TsSamples.HevcTrail, 990_000, isHevc: true), .. TsSamples.TimedPes(TsSamples.AudioPid, 993_600)];
 
 		splitter.OnMediaSegment(segment);
 		Scan(splitter, segment);
@@ -123,26 +144,26 @@ public sealed class MediaHeaderTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(splitter.Resolution).IsEqualTo(new VideoResolution(1920, 1080));
-			await Assert.That(splitter.MediaMarks.ToArray().Single().Span).IsEqualTo(new MediaSpan(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(11)));
+			await Assert.That(splitter.MediaMarks.ToArray().Select(static mark => mark.Span).SequenceEqual([MediaSpan.At(TimeSpan.FromSeconds(10)), MediaSpan.At(TimeSpan.FromMilliseconds(9960)), MediaSpan.At(TimeSpan.FromSeconds(11)), MediaSpan.At(TimeSpan.FromMilliseconds(11_040))])).IsTrue();
 		}
 	}
 
 	[Test]
-	public async Task FFmpegTransportStreamReportsEachVideoPesAndTheSpsSizeAsync()
+	public async Task FFmpegTransportStreamReportsEveryTimedPesByDecodeTimeAndTheSpsSizeAsync()
 	{
 		TransportStreamSplitter splitter = new();
-		byte[] stream = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedVideoFrame(TsSamples.AvcIdr, 126_000, true, Convert.FromHexString(Avc480)), .. TsSamples.Audio(), .. TsSamples.TimedVideoFrame(TsSamples.AvcSlice, 129_000)];
+		byte[] stream = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedVideoFrame(TsSamples.AvcIdr, 133_200, true, Convert.FromHexString(Avc480), dts: 126_000), .. TsSamples.TimedPes(TsSamples.AudioPid, 124_200), .. TsSamples.TimedVideoFrame(TsSamples.AvcSlice, 129_600)];
 
 		Scan(splitter, stream);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(splitter.Resolution).IsEqualTo(new VideoResolution(854, 480));
-			await Assert.That(splitter.MediaMarks.ToArray().Select(static mark => mark.Span.Start).SequenceEqual([TimeSpan.FromMilliseconds(1400), TimeSpan.FromTicks(129_000L * TimeSpan.TicksPerSecond / 90_000)])).IsTrue();
+			await Assert.That(splitter.MediaMarks.ToArray().Select(static mark => mark.Span).SequenceEqual([MediaSpan.At(TimeSpan.FromMilliseconds(1400)), MediaSpan.At(TimeSpan.FromMilliseconds(1380)), MediaSpan.At(TimeSpan.FromMilliseconds(1440))])).IsTrue();
 		}
 	}
 
-	// 关键帧自带的 SPS 换了尺寸时，这一帧的时间带的是新尺寸；从它开始的新段按这一帧定尺寸
+	// 从这一帧开始的新段按它定尺寸
 	[Test]
 	public async Task FFmpegTransportStreamMarksAKeyFrameWithTheSizeOfItsOwnSpsAsync()
 	{
@@ -154,9 +175,9 @@ public sealed class MediaHeaderTest
 		await Assert.That(splitter.MediaMarks.ToArray().Select(static mark => mark.Resolution).SequenceEqual([new VideoResolution(854, 480), new VideoResolution(854, 480), new VideoResolution(1920, 1080)])).IsTrue();
 	}
 
-	// 损坏的文件里 mdhd 可以是空盒子，读不到 timescale 也照样给出样本项里的尺寸
+	// 损坏的文件里 mdhd 可以是空盒子
 	[Test]
-	public async Task EmptyMdhdLeavesOnlyTheTimescaleUnreadAsync()
+	public async Task EmptyMdhdLeavesTheTrackOutButKeepsTheSampleEntrySizeAsync()
 	{
 		byte[] tkhd = new byte[24];
 		BinaryPrimitives.WriteUInt32BigEndian(tkhd.AsSpan(12), Fmp4Samples.VideoTrack);
@@ -168,12 +189,14 @@ public sealed class MediaHeaderTest
 		byte[] stsd = [0, 0, 0, 0, 0, 0, 0, 1, .. Fmp4Samples.Box("avc1", entry)];
 		byte[] trak = Fmp4Samples.Box("trak", [.. Fmp4Samples.Box("tkhd", tkhd), .. Fmp4Samples.Box("mdia", [.. Fmp4Samples.Box("mdhd", []), .. Fmp4Samples.Box("hdlr", hdlr), .. Fmp4Samples.Box("minf", Fmp4Samples.Box("stbl", Fmp4Samples.Box("stsd", stsd)))])]);
 
-		bool hasMovie = IsoBmff.TryReadMovie(Fmp4Samples.Box("moov", trak), out Fmp4VideoTrack? video);
+		byte[] init = Fmp4Samples.Box("moov", trak);
+		bool hasMovie = IsoBmff.TryReadMovie(init, out Fmp4VideoTrack? video);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(hasMovie).IsTrue();
-			await Assert.That(video).IsEqualTo(new Fmp4VideoTrack(Fmp4Samples.VideoTrack, 0, 0, null, new VideoResolution(1280, 720)));
+			await Assert.That(video).IsEqualTo(new Fmp4VideoTrack(Fmp4Samples.VideoTrack, 0, new VideoResolution(1280, 720)));
+			await Assert.That(ReadTracks(init)).IsEmpty();
 		}
 	}
 
@@ -184,7 +207,7 @@ public sealed class MediaHeaderTest
 		BinaryPrimitives.WriteUInt32BigEndian(tfhd.AsSpan(4), Fmp4Samples.VideoTrack);
 		byte[] fragment = Fmp4Samples.Box("moof", Fmp4Samples.Box("traf", [.. Fmp4Samples.Box("tfhd", tfhd), .. Fmp4Samples.Box("tfdt", [])]));
 
-		await Assert.That(IsoBmff.ReadFragmentTime(fragment, new Fmp4VideoTrack(Fmp4Samples.VideoTrack, 3000, 0, 90_000, null))).IsNull();
+		await Assert.That(new Fmp4TrackTimes([new Fmp4Track(Fmp4Samples.VideoTrack, 90_000, 3000)]).ReadFragmentSpans(fragment)).IsEmpty();
 	}
 
 	[Test]
@@ -198,7 +221,11 @@ public sealed class MediaHeaderTest
 		await Assert.That(times.Select(time => time - start).SequenceEqual([TimeSpan.Zero, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(0.5), TimeSpan.FromSeconds(3)])).IsTrue();
 	}
 
-	// 只让分割器看完所有完整的元素，不写文件
+	private static Fmp4Track[] ReadTracks(byte[] init)
+	{
+		return IsoBmff.TryFindBox(init, "moov"u8, out ReadOnlySpan<byte> moov) ? IsoBmff.ReadTracks(moov) : [];
+	}
+
 	private static void Scan(MediaSplitter splitter, byte[] data)
 	{
 		int position = 0;

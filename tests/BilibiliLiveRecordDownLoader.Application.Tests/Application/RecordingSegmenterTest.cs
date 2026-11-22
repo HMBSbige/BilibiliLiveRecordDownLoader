@@ -109,7 +109,7 @@ public sealed class RecordingSegmenterTest
 		}
 	}
 
-	// 改系统时间或校时只动墙钟：往前跳不会马上切出一个很短的文件，往回跳也不会推迟换文件
+	// 改系统时间或校时只动墙钟
 	[Test]
 	[Timeout(10_000)]
 	[Arguments(-1)]
@@ -203,7 +203,6 @@ public sealed class RecordingSegmenterTest
 			await session.WriteAsync(FakeSplitter.Unit("c", 20));
 		}, cancellationToken);
 
-		// 攒不住的部分接在当前文件后面，下一个切分点照常判断
 		await Assert.That(Describe(recording.Files)).IsEqualTo("awxyz | H0:bc");
 	}
 
@@ -227,7 +226,9 @@ public sealed class RecordingSegmenterTest
 		await stop.CancelAsync();
 
 		await Assert.ThrowsAsync<OperationCanceledException>(() => run);
-		await Assert.That(Encoding.ASCII.GetString(recording.Files.Single())).EndsWith("D\n[");
+
+		// 末尾只收到 3 字节的元素解码不了，不写
+		await Assert.That(Describe(recording.Files)).IsEqualTo("ab");
 	}
 
 	[Test]
@@ -315,6 +316,24 @@ public sealed class RecordingSegmenterTest
 		await Assert.That(Buffered(pipe.Reader)).IsEqualTo(20L);
 	}
 
+	// 分割器要从文件的第一个单元里定时间起点
+	[Test]
+	[Timeout(10_000)]
+	public async Task WithoutSplittingOnlyTheFirstUnitIsHeldBackWhenTheSplitterAsksAsync(CancellationToken cancellationToken)
+	{
+		Pipe pipe = new();
+		await using RecordingSegmenter segmenter = new(pipe.Writer, new FakeSplitter(holdsFirstUnit: true), SplitRecording.Fixed(new RecordingSplit.None()), new ConcurrentQueue<SegmentStart>(), TimeProvider.System, NullLogger.Instance, new RecordingTimeline(string.Empty, TimeProvider.System, RoomDefaults.StreamIdleTimeout));
+
+		await segmenter.WriteAsync(FakeSplitter.Data("x", 10), cancellationToken);
+		await segmenter.WriteAsync(FakeSplitter.Unit("a", 10), cancellationToken);
+		long whileFirstUnitIsOpen = Buffered(pipe.Reader);
+		await segmenter.WriteAsync(FakeSplitter.Unit("b", 10), cancellationToken);
+		await segmenter.WriteAsync(FakeSplitter.Data("y", 10), cancellationToken);
+		long afterFirstUnitEnds = Buffered(pipe.Reader);
+
+		await Assert.That((whileFirstUnitIsOpen, afterFirstUnitEnds)).IsEqualTo((10L, 40L));
+	}
+
 	[Test]
 	[Timeout(10_000)]
 	public async Task TitleChangeSwitchesFilesAtTheFirstSplitPointAfterItAsync(CancellationToken cancellationToken)
@@ -398,7 +417,7 @@ public sealed class RecordingSegmenterTest
 			await session.WriteAsync(FakeSplitter.Unit("f", 10));
 		}, cancellationToken);
 
-		// 打开时当前文件已经超过一分钟，从打开之后的第一个切分点换；关掉之后不再换
+		// 打开时当前文件已经超过一分钟
 		await Assert.That(Describe(recording.Files)).IsEqualTo("ab | H0:cdef");
 	}
 
@@ -427,13 +446,12 @@ public sealed class RecordingSegmenterTest
 		await Assert.That(Describe(recording.Files)).IsEqualTo("abcde | H0:fg");
 	}
 
-	// 去掉每个元素的类型和长度，只留下标记和新段补的头
 	internal static string Describe(IEnumerable<byte[]> files)
 	{
 		return string.Join(" | ", files.Select(FakeSplitter.Describe));
 	}
 
-	// 只把墙钟挪开，单调时钟照常走，和改系统时间一样；FakeTimeProvider.AdjustTime 会连单调时钟一起挪
+	// FakeTimeProvider.AdjustTime 会连单调时钟一起挪，不像改系统时间
 	private sealed class ShiftedWallClock : TimeProvider
 	{
 		public FakeTimeProvider Monotonic { get; } = new();
@@ -469,9 +487,11 @@ public sealed class RecordingSegmenterTest
 /// <summary>
 /// 元素是 [类型][长度][标记][填充]：K 是切分点，S 是序列头，D 是普通数据。新段的头是 "H" 加上已经过去的序列头个数和冒号。填充里的 F 是可以去掉的填充数据。
 /// </summary>
-internal sealed class FakeSplitter : MediaSplitter
+internal sealed class FakeSplitter(bool holdsFirstUnit = false) : MediaSplitter
 {
 	private int _sequences;
+
+	public override bool HoldsFirstUnit => holdsFirstUnit;
 
 	public static byte[] Unit(string marker, int length, int filler = 0)
 	{

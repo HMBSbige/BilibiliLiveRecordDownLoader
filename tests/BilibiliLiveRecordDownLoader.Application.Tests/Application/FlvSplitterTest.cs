@@ -64,7 +64,7 @@ public sealed class FlvSplitterTest
 		await Assert.That(recording.Files.Single().SequenceEqual(stream)).IsTrue();
 	}
 
-	// 不分段时整场录制都在第一个文件里：推流重新开始时同样接着已经写出的时间排，文件里的时间和时间轴放弹幕的位置一致
+	// 文件里的时间要和时间轴放弹幕的位置一致
 	[Test]
 	[Timeout(10_000)]
 	public async Task TimelineThatStartsOverInTheFirstFileContinuesFromTheLastTimestampAsync(CancellationToken cancellationToken)
@@ -80,12 +80,12 @@ public sealed class FlvSplitterTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(string.Join(" ", FlvSamples.Describe(recording.Files.Single()))).IsEqualTo("V0[vseq] V10000[k1] V10500[p1] V10500[k2] V11000[p2]");
+			await Assert.That(string.Join(" ", FlvSamples.Describe(recording.Files.Single()))).IsEqualTo("V0[vseq] V0[k1] V500[p1] V500[k2] V1000[p2]");
 			await Assert.That(recording.Timeline.GetDuration("0")).IsEqualTo(TimeSpan.FromMilliseconds(1000));
 		}
 	}
 
-	// 时间轴不看序列头；中途重发的序列头时间戳是 0 时不能当成推流重新开始，否则后面的帧整体推后，文件里的时间和弹幕的位置对不上
+	// 时间轴不看序列头和脚本 tag，当成推流重新开始的话后面的帧整体推后，和弹幕的位置对不上
 	[Test]
 	[Timeout(10_000)]
 	public async Task SequenceHeaderResentWithTimestampZeroKeepsTheTimelineAsync(CancellationToken cancellationToken)
@@ -95,15 +95,31 @@ public sealed class FlvSplitterTest
 		await recording.RunAsync(new FlvSplitter(), new RecordingSplit.None(), async session =>
 		{
 			await session.WriteAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0, "vseq"), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 10_000, "k1"), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.InterFrame, 10_500, "p1")]);
-			await session.WriteAsync([.. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0, "s2"), .. FlvSamples.AudioSequenceHeader(0, "a2")]);
+			await session.WriteAsync([.. FlvSamples.Metadata(0), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0, "s2"), .. FlvSamples.AudioSequenceHeader(0, "a2")]);
 			await session.WriteAsync(FlvSamples.Video(VideoStyle.Avc, VideoPacket.InterFrame, 11_000, "p2"));
 		}, cancellationToken);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(string.Join(" ", FlvSamples.Describe(recording.Files.Single()))).IsEqualTo("V0[vseq] V10000[k1] V10500[p1] V10500[s2] A10500 V11000[p2]");
+			await Assert.That(string.Join(" ", FlvSamples.Describe(recording.Files.Single()))).IsEqualTo("V0[vseq] V0[k1] V500[p1] S500 V500[s2] A500 V1000[p2]");
 			await Assert.That(recording.Timeline.GetDuration("0")).IsEqualTo(TimeSpan.FromMilliseconds(1000));
 		}
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task HeadersBeforeTheFirstFrameAreWrittenAtZeroAsync(CancellationToken cancellationToken)
+	{
+		byte[] stream =
+		[
+			.. FlvSamples.Header, .. FlvSamples.Metadata(8_418_000), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 8_418_000, "vseq"), .. FlvSamples.AudioSequenceHeader(8_418_000),
+			.. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 8_418_000, "k1"), .. FlvSamples.Audio(8_418_010, "a1")
+		];
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new FlvSplitter(), new RecordingSplit.None(), session => session.WriteAsync(stream), cancellationToken);
+
+		await Assert.That(string.Join(" ", FlvSamples.Describe(recording.Files.Single()))).IsEqualTo("S0 V0[vseq] A0 V0[k1] A10[a1]");
 	}
 
 	[Test]
@@ -139,7 +155,6 @@ public sealed class FlvSplitterTest
 			await session.WriteAsync(FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 61_000, "k2"));
 			await session.WriteAsync(FlvSamples.Video(VideoStyle.Avc, VideoPacket.InterFrame, 61_033, "p2"));
 
-			// 重新推流：序列头和时间戳都从头开始
 			await session.WriteAsync(FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0, "s2"));
 			await session.WriteAsync(FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 0, "k3"));
 			await session.WriteAsync(FlvSamples.Audio(10, "a3"));
@@ -160,7 +175,6 @@ public sealed class FlvSplitterTest
 			await session.WriteAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0, "s1"), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 0, "k1")]);
 			session.Advance(TimeSpan.FromMinutes(1));
 
-			// 分辨率变化：新的序列头紧跟在用到它的关键帧前面
 			await session.WriteAsync(FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 2000, "s2"));
 			await session.WriteAsync(FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 2000, "k2"));
 			await session.WriteAsync(FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 4000, "k3"));
@@ -207,13 +221,56 @@ public sealed class FlvSplitterTest
 		await Assert.That(recording.Files.Single().SequenceEqual(stream)).IsTrue();
 	}
 
+	// 停止录制时会话可能停在一个 tag 中间；分段时攒着的单元也一样
+	[Test]
+	[Timeout(10_000)]
+	[Arguments(false)]
+	[Arguments(true)]
+	public async Task HalfTagAtTheEndIsNotWrittenAsync(bool isSplitting, CancellationToken cancellationToken)
+	{
+		byte[] stream = [.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0, "vseq"), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 0, "k1"), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.InterFrame, 33, "p1")];
+		byte[] last = FlvSamples.Video(VideoStyle.Avc, VideoPacket.InterFrame, 66, "p2");
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new FlvSplitter(), isSplitting ? OneMinute : new RecordingSplit.None(), session => session.WriteAsync([.. stream, .. last.AsSpan(0, last.Length - 10)]), cancellationToken);
+
+		await Assert.That(recording.Files.Single().SequenceEqual(stream)).IsTrue();
+	}
+
+	// 放弃解析之后不再知道 tag 的边界
+	[Test]
+	[Timeout(10_000)]
+	public async Task DataAfterGivingUpIsWrittenInFullWhenTheStreamEndsAsync(CancellationToken cancellationToken)
+	{
+		byte[] last = FlvSamples.Video(VideoStyle.Avc, VideoPacket.InterFrame, 66, "p2");
+		byte[] stream = [.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 0), .. FlvSamples.Tag(0x29, 10, [1, 2, 3]), .. last.AsSpan(0, last.Length - 10)];
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new FlvSplitter(), OneMinute, session => session.WriteAsync(stream), cancellationToken);
+
+		await Assert.That(recording.Files.Single().SequenceEqual(stream)).IsTrue();
+	}
+
+	// 收流结束时只丢没放弃解析的末尾
+	[Test]
+	[Timeout(10_000)]
+	[Arguments(false)]
+	[Arguments(true)]
+	public async Task ShortUnrecognizedDataAtTheEndIsWrittenInFullAsync(bool afterTags, CancellationToken cancellationToken)
+	{
+		byte[] stream = afterTags ? [.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 0), 0x29, 1, 2] : [0, 1, 2];
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new FlvSplitter(), OneMinute, session => session.WriteAsync(stream), cancellationToken);
+
+		await Assert.That(recording.Files.Single().SequenceEqual(stream)).IsTrue();
+	}
+
 	[Test]
 	[Timeout(10_000)]
 	public async Task DataAfterAnUnrecognizedTagInALaterFileIsWrittenUnchangedAsync(CancellationToken cancellationToken)
 	{
 		byte[] unrecognized = FlvSamples.Tag(0x29, 10, [1, 2, 3]);
-
-		// 看起来像视频 tag 的头，时间戳字节是 AA BB CC DD
 		byte[] lookalike = [FlvSamples.VideoTag, 0, 0, 0, 0xAA, 0xBB, 0xCC, 0xDD, 0, 0, 0, 1, 2, 3, 4];
 		SplitRecording recording = new();
 

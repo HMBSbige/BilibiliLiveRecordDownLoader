@@ -2,37 +2,30 @@ using System.Runtime.InteropServices;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording;
 
-// 弹幕在录制文件里的位置：这次尝试的第 Segment 个文件（从 0 开始），Time 从这个文件的第一帧算起，即播放器显示的时间
+// Segment 从 0 开始；Time 从这个文件的第一帧算起，即播放器显示的时间
 internal readonly record struct TimelinePosition(int Segment, string Path, TimeSpan Time);
 
 internal interface IRecordingTimeline
 {
-	// timestamp 是 TimeProvider.GetTimestamp() 取的接收时刻。归属还没确定时等到确定；返回 null 表示这一刻没有对应的录制文件
+	// timestamp 取自 TimeProvider.GetTimestamp()；归属还没确定时等到确定，返回 null 表示这一刻没有对应的录制文件
 	ValueTask<TimelinePosition?> PlaceAsync(long timestamp, CancellationToken cancellationToken);
 
-	// 这个文件开始时流头里的画面尺寸，开始时读不到就用这一段里第一次读到的；读不到或者不是这次尝试的文件时为 null
+	// 开始时流头里读不到就用这一段里第一次读到的；读不到或者不是这次尝试的文件时为 null
 	VideoResolution? GetResolution(string path);
 
-	// 这个文件到目前为止提交的内容的时长，即最后一个带媒体时间的元素在文件里的结束时间；段关闭之后就是文件的时长。整段都读不到媒体时间或者不是这次尝试的文件时为 null
+	// 到目前为止提交的内容的时长，段关闭之后就是文件的时长；整段都读不到媒体时间或者不是这次尝试的文件时为 null
 	TimeSpan? GetDuration(string path);
 }
 
-/// <summary>
-/// 一次录制尝试的媒体时间轴：记下每个元素到达的时刻和它在源时间轴上的媒体时间，单元提交时归到所在的文件并换算成文件里从第一帧算起的时间。
-/// 弹幕的位置是收到它之前最后到达的元素的文件时间，加上从那个元素到达起经过的时间；所以连上时一下收到的几秒 GOP 缓存和 HLS 窗口里的积压会让媒体时间很快追上，不会把弹幕放早。
-/// 网络端（分段器）、写盘端（换文件）和弹幕端各在自己的线程上调用，全部在一把锁里。
-/// </summary>
+// 弹幕的位置是收到它之前最后到达的元素的文件时间，加上从那个元素到达起经过的时间；连上时一下收到的 GOP 缓存和 HLS 积压会让媒体时间很快追上，不会把弹幕放早
+// 网络端（分段器）、写盘端（换文件）和弹幕端各在自己的线程上调用
 internal sealed class RecordingTimeline : IRecordingTimeline
 {
-	/// <summary>
-	/// 从最后到达的元素往后推的上限的下限。正常录制时最长的到达间隔是 TS HLS：分片 3–5 秒，加上半个目标时长的刷新间隔和下载，约 8 秒，碰不到它。
-	/// </summary>
+	// 要大于正常录制时最长的到达间隔：TS HLS 实测分片 3–5 秒，加上半个目标时长的刷新间隔和下载，约 8 秒
 	private static readonly TimeSpan MinExtrapolationLimit = TimeSpan.FromSeconds(10);
 
-	// 弹幕从收到到放置要排队，前面的弹幕可能在等单元提交，最长到卡流后的空闲超时；远超过这个时长的记录不再保留
+	// 弹幕放置前要排队，前面的可能在等单元提交，最长到卡流后的空闲超时；远超过这个时长的记录不再保留
 	internal static readonly TimeSpan Retention = TimeSpan.FromMinutes(2);
-
-	private static readonly TimeSpan TimelineTolerance = TimeSpan.FromMilliseconds(MediaSpan.TimelineRestartToleranceMilliseconds);
 
 	private const int DefaultPruneThreshold = 1024;
 
@@ -44,13 +37,13 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 	private readonly long _retention;
 	private readonly int _pruneThreshold;
 
-	// 从最后一次收到数据算起，取这次尝试的空闲超时：卡住到空闲超时这次尝试就结束了，再往后推只会把弹幕放到文件最后一帧之后，恢复时又倒回来；
-	// 在这之前恢复时画面接着写进同一个文件（HLS 的空闲超时按分片间隔放宽，内置重试成功后续上），弹幕跟着往后推才不会挤在一起、放早
+	// 取空闲超时：卡住到空闲超时这次尝试就结束了，再往后推只会把弹幕放到文件最后一帧之后
+	// 在这之前恢复时画面接着写进同一个文件，弹幕跟着往后推才不会挤在一起、放早
 	private readonly TimeSpan _extrapolationLimit;
 	private readonly List<Record> _records = [];
 	private readonly List<Segment> _segments = [];
 
-	// 第一个文件建好的时刻；读不到媒体时间时第一个文件从这里按单调时钟算
+	// 读不到媒体时间时第一个文件从这里按单调时钟算
 	private readonly long _created;
 	private int _resolvedCount;
 	private long _recordedEnd;
@@ -63,7 +56,6 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 	{
 	}
 
-	// 测试用较短的保留时长和较小的批量，几十条记录就能走到修剪
 	internal RecordingTimeline(string path, TimeProvider timeProvider, TimeSpan idleTimeout, TimeSpan retention, int pruneThreshold)
 	{
 		_timeProvider = timeProvider;
@@ -105,7 +97,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		}
 	}
 
-	// 归属已经确定时返回 true，position 和 PlaceAsync 的结果相同；还要等时返回 false
+	// 还要等时返回 false；否则 position 和 PlaceAsync 的结果相同
 	internal bool TryPlace(long timestamp, out TimelinePosition? position)
 	{
 		lock (_lock)
@@ -126,11 +118,11 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 	{
 		lock (_lock)
 		{
-			return _segments.Find(segment => string.Equals(segment.Path, path, StringComparison.Ordinal)) is { HasMedia: true } segment ? segment.Last : null;
+			return _segments.Find(segment => string.Equals(segment.Path, path, StringComparison.Ordinal)) is { Clock.Offset: not null } segment ? TimeSpan.FromTicks(segment.Clock.Last) : null;
 		}
 	}
 
-	// 网络端：一次写入里过去的带媒体时间的元素，End 按收到的字节算
+	// 网络端：End 按收到的字节算
 	internal void AddMedia(ReadOnlySpan<MediaMark> marks, long arrival)
 	{
 		if (marks.IsEmpty)
@@ -150,7 +142,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		}
 	}
 
-	// 网络端：每次写入之后调用，acceptedEnd 是已经完整过去的元素的末尾；不分段时这些元素已经提交，当场就能确定。没有新元素过去时只记下数据还在到达，往后推的上限从这里算
+	// 网络端每次写入之后调用；没有新元素过去时只记下数据还在到达，往后推的上限从这里算
 	internal void AddArrival(long acceptedEnd, VideoResolution? resolution, long arrival)
 	{
 		lock (_lock)
@@ -159,7 +151,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		}
 	}
 
-	// 网络端：接下来提交的单元写进新的一段，返回它的序号
+	// 网络端：接下来提交的单元写进新的一段
 	internal int StartSegment()
 	{
 		lock (_lock)
@@ -170,17 +162,22 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		}
 	}
 
-	// 网络端：收到的前 committedEnd 个字节已经写进当前这一段
-	internal void Commit(long committedEnd)
+	// 网络端：收到的前 committedEnd 个字节已经写进当前这一段；origin 见 MediaSplitter.Origin
+	internal void Commit(long committedEnd, TimeSpan? origin = null)
 	{
 		lock (_lock)
 		{
+			if (origin is { } value)
+			{
+				_segments[^1].Clock.Begin(value.Ticks);
+			}
+
 			_committedEnd = committedEnd;
 			ResolveCommitted();
 		}
 	}
 
-	// 网络端：会话结束，攒着的数据都已经提交；之后收到的弹幕不属于这次尝试的任何文件
+	// 网络端：攒着的数据都已经提交；之后收到的弹幕不属于这次尝试的任何文件
 	internal void EndReceiving()
 	{
 		long timestamp = _timeProvider.GetTimestamp();
@@ -192,7 +189,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		}
 	}
 
-	// 写盘端：观察者已经知道新文件之后调用，这一段的弹幕从这时起才放得进去；尝试关闭之后不再接受
+	// 写盘端在观察者知道新文件之后调用，这一段的弹幕从这时起才放得进去
 	internal void OpenSegment(int segment, string path)
 	{
 		lock (_lock)
@@ -205,7 +202,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		}
 	}
 
-	// 尝试结束，写盘端不会再建文件；没建出文件的段和没提交的记录都放不进去了
+	// 写盘端不会再建文件；没建出文件的段和没提交的记录都放不进去了
 	internal void Close()
 	{
 		lock (_lock)
@@ -224,7 +221,6 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 			return true;
 		}
 
-		// 第一个元素到达之前收到的弹幕按第一个元素放
 		int index = Math.Max(FindLatest(timestamp), 0);
 
 		if (index >= _records.Count)
@@ -268,7 +264,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		return low - 1;
 	}
 
-	// 只有数据的记录沿用上一条记录所在的段和文件时间，只把数据到达的时刻往后挪；不改已有的记录，晚到的查询仍按当时的情况算上限
+	// 只有数据的记录沿用上一条的段和文件时间，只把到达时刻往后挪；不改已有的记录，晚到的查询仍按当时的情况算上限
 	private void AddArrivalCore(long acceptedEnd, VideoResolution? resolution, long arrival)
 	{
 		if (acceptedEnd <= _recordedEnd && (_records.Count is 0 || _timeProvider.GetElapsedTime(_records[^1].Arrival, arrival) < DataRecordInterval))
@@ -298,7 +294,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		}
 	}
 
-	// 文件时间以这一段第一个带媒体时间的元素为 0；它之前（流头）和整段都读不到媒体时间时，按单调时钟从这一段开始算
+	// 第一个带媒体时间的元素之前（流头）和整段都读不到媒体时间时，按单调时钟从这一段开始算
 	private void Resolve(ref Record record)
 	{
 		Segment segment = _segments[^1];
@@ -313,25 +309,9 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 
 		if (record.Span is { } span)
 		{
-			if (!segment.HasMedia)
-			{
-				segment.HasMedia = true;
-				segment.Offset = span.Start;
-				segment.Last = TimeSpan.Zero;
-			}
-
-			TimeSpan time = span.End - segment.Offset;
-
-			// 重新开始的元素从已经到达的时间接着排，HLS 分片保留自己的时长
-			if (time < segment.Last - TimelineTolerance)
-			{
-				segment.Offset = span.Start - segment.Last;
-				time = span.End - segment.Offset;
-			}
-
 			// 音视频交错和 B 帧让时间小幅来回，只往前走
-			segment.Last = time > segment.Last ? time : segment.Last;
-			segment.BaseTime = segment.Last;
+			segment.Clock.Advance(span.Start.Ticks, span.End.Ticks);
+			segment.BaseTime = TimeSpan.FromTicks(segment.Clock.Last);
 			segment.BaseArrival = record.Arrival;
 		}
 
@@ -340,7 +320,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		record.BaseArrival = segment.BaseArrival;
 	}
 
-	// 攒够一批才删，至少留下最后一条已经确定的记录；早于留下的记录太久的弹幕按最早的一条放
+	// 至少留下最后一条已经确定的记录；早于留下的记录太久的弹幕按最早的一条放
 	private void Prune()
 	{
 		int count = Math.Min(FindLatest(_records[_resolvedCount - 1].Arrival - _retention - 1) + 1, _resolvedCount - 1);
@@ -389,12 +369,8 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		// 这一段第一个元素到达的时刻，第一段是文件建好的时刻
 		public long? Start { get; set; } = start;
 
-		public bool HasMedia { get; set; }
-
-		// 源时间轴上对应文件时间 0 的时间
-		public TimeSpan Offset { get; set; }
-
-		public TimeSpan Last { get; set; }
+		// 按 TimeSpan 的刻度计时；可变结构体，用字段才能原地推进
+		public SegmentClock Clock = new(MediaSpan.TimelineRestartTolerance.Ticks);
 
 		public TimeSpan BaseTime { get; set; }
 

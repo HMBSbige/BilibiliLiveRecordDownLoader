@@ -5,7 +5,6 @@ using System.Globalization;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
-// 录制经过真实的写缓冲、分段器和写盘端，按弹幕的接收时刻查它在哪个文件的第几秒
 public sealed class RecordingTimelineTest
 {
 	private const uint FrameInterval = 100;
@@ -26,7 +25,7 @@ public sealed class RecordingTimelineTest
 			await session.WriteAsync(FlvHead());
 			times.Add(session.Now);
 
-			// CDN 缓存的 GOP：0.5 秒内收到 6 秒画面，源时间戳从 100 秒开始
+			// CDN 缓存的 GOP：0.5 秒内收到 6 秒画面
 			for (int i = 0; i < 5; ++i)
 			{
 				session.Advance(TimeSpan.FromMilliseconds(100));
@@ -37,7 +36,6 @@ public sealed class RecordingTimelineTest
 			session.Advance(TimeSpan.FromMilliseconds(300));
 			times.Add(session.Now);
 
-			// 之后每秒收到一秒画面
 			for (int i = 0; i < 2; ++i)
 			{
 				session.Advance(TimeSpan.FromMilliseconds(700 + 300 * i));
@@ -49,7 +47,7 @@ public sealed class RecordingTimelineTest
 			times.Add(session.Now);
 		}, cancellationToken);
 
-		// 按文件建好时的墙钟算，0.5 秒时的弹幕只在 0.5 秒，比画面早了 5 秒多
+		// 按文件建好时的墙钟算的话，0.5 秒时的弹幕会比画面早 5 秒多
 		await Assert.That(Describe(Place(recording.Timeline, times))).IsEqualTo(Describe(Positions(0, 0, 5900, 6200, 6900, 7900, 8400)));
 	}
 
@@ -131,7 +129,7 @@ public sealed class RecordingTimelineTest
 			session.Advance(TimeSpan.FromSeconds(30));
 			times.Add(session.Now);
 
-			// 一个大的 tag 分 20 次、每秒到一点；最后一次到齐时是 101 秒的画面
+			// 一个大的 tag 分 20 次、每秒到一点
 			for (int i = 0; i < 20; ++i)
 			{
 				session.Advance(TimeSpan.FromSeconds(1));
@@ -147,7 +145,7 @@ public sealed class RecordingTimelineTest
 		await Assert.That(Describe(Place(recording.Timeline, times))).IsEqualTo(Describe(Positions(0, 10_900, 1000, 11_000)));
 	}
 
-	// HLS 的空闲超时按分片间隔放宽，可能长于 10 秒：卡住期间这次尝试还没结束，内置重试成功后画面接着写进同一个文件，弹幕要一直往后推到空闲超时
+	// HLS 的空闲超时按分片间隔放宽，可能长于 10 秒；卡住期间内置重试成功后画面接着写进同一个文件
 	[Test]
 	[Arguments(3, 10_000)]
 	[Arguments(20, 20_000)]
@@ -250,8 +248,6 @@ public sealed class RecordingTimelineTest
 			await Assert.That(recording.Files.Count).IsEqualTo(2);
 			await Assert.That(recording.Starts.Single().Reason).IsEqualTo(reason);
 			await Assert.That(beforeBoundary).IsEqualTo(At(0, 3950));
-
-			// 新文件的时间戳从关键帧的 0 开始，弹幕的时间和它对得上
 			await Assert.That(FlvSamples.Describe(recording.Files[1]).First(static tag => tag.EndsWith("[k]", StringComparison.Ordinal))).IsEqualTo("V0[k]");
 			await Assert.That(Describe(Place(recording.Timeline, [times[39], times[40], times[^1]]))).IsEqualTo(Describe(Expected(At(0, 3950), At(1, 50), At(1, 2550))));
 		}
@@ -297,7 +293,6 @@ public sealed class RecordingTimelineTest
 		{
 			await session.WriteAsync(FlvHead());
 
-			// 推流重新开始，时间戳从 0 再来；之后又向前跳了一小时
 			foreach (uint timestamp in (uint[])[10_000, 10_500, 11_000, 0, 500, 3_600_500])
 			{
 				await session.WriteAsync(FlvFrame(timestamp, timestamp is 10_000 or 0));
@@ -356,7 +351,7 @@ public sealed class RecordingTimelineTest
 		await Assert.That(Describe(Place(recording.Timeline, times))).IsEqualTo(Describe(Positions(0, 3000, 6000)));
 	}
 
-	// HLS 换 era 时会话以 Discontinuity 结束，这次尝试的时间轴随之结束；下一次尝试是新的文件和新的时间轴，从第一帧重新算
+	// HLS 换 era 时会话以 Discontinuity 结束，下一次尝试是新的文件和新的时间轴
 	[Test]
 	[Timeout(10_000)]
 	public async Task NothingIsPlacedOutsideTheAttemptAsync(CancellationToken cancellationToken)
@@ -438,16 +433,16 @@ public sealed class RecordingTimelineTest
 		}
 	}
 
-	// 读媒体时间和分辨率只看数据，写出的文件和原来一样
+	// 时间戳本来就从 0 开始，改写不动字节
 	[Test]
 	[Timeout(10_000)]
 	public async Task ReadingTheTimelineLeavesTheRecordedBytesUnchangedAsync(CancellationToken cancellationToken)
 	{
-		byte[] flv = [.. FlvHead(), .. FlvFrames(100_000, 50, true)];
+		byte[] flv = [.. FlvHead(), .. Enumerable.Range(0, 50).SelectMany(static frame => (byte[])[.. FlvFrame((uint)frame * FrameInterval, frame % FramesPerGop is 0), .. FlvSamples.Audio((uint)frame * FrameInterval + 20)])];
 		byte[] init = Fmp4Samples.TimedInit(90_000, 1920, 1080, 3000);
 		byte[][] fragments = [Fmp4Samples.TimedFragment(0, 30, 3000), Fmp4Samples.TimedFragment(90_000, 30, 0, false), Fmp4Samples.TimedFragment(180_000, 30, 3000)];
-		byte[][] tsSegments = [TsSegment(900_000, 4, MediaHeaderTest.Avc1080), TsSegment(1_260_000, 4, null)];
-		byte[] ts = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedVideoFrame(TsSamples.AvcIdr, 1000, true, Convert.FromHexString(MediaHeaderTest.Avc480)), .. TsSamples.Audio(), .. TsSamples.TimedVideoFrame(TsSamples.AvcSlice, 4000)];
+		byte[][] tsSegments = [TsSegment(0, 4, MediaHeaderTest.Avc1080), TsSegment(360_000, 4, null)];
+		byte[] ts = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedVideoFrame(TsSamples.AvcIdr, 0, true, Convert.FromHexString(MediaHeaderTest.Avc480)), .. TsSamples.Audio(), .. TsSamples.TimedVideoFrame(TsSamples.AvcSlice, 3000)];
 		SplitRecording flvRecording = new();
 		SplitRecording fmp4Recording = new();
 		SplitRecording tsHlsRecording = new();
@@ -486,7 +481,9 @@ public sealed class RecordingTimelineTest
 	public async Task SplittingWithTheTimelineWritesTheSameFilesAsync(CancellationToken cancellationToken)
 	{
 		byte[] head = FlvHead();
-		byte[] firstFile = [.. head, .. FlvVideo(0, 2 * FramesPerGop)];
+
+		// 源时间戳从 10 秒开始，第一个文件同样从第一帧的 0 开始
+		byte[] firstFile = [.. head, .. Enumerable.Range(0, 2 * FramesPerGop).SelectMany(static frame => FlvFrame((uint)frame * FrameInterval, frame % FramesPerGop is 0))];
 		SplitRecording recording = new();
 
 		await recording.RunAsync(new FlvSplitter(), new RecordingSplit.ByDuration(TimeSpan.FromSeconds(3)), async session =>
@@ -507,7 +504,7 @@ public sealed class RecordingTimelineTest
 		}
 	}
 
-	// 保留 1 秒、攒够 4 条才删：每 100 毫秒一帧，第 20 帧开始第二段；早于保留范围的弹幕按最早留下的记录放，修剪前后其余位置不变
+	// 保留 1 秒、攒够 4 条才删；早于保留范围的弹幕按最早留下的记录放
 	[Test]
 	public async Task PrunedRecordsKeepLaterPositionsAndBoundTheRecordCountAsync()
 	{
@@ -549,7 +546,6 @@ public sealed class RecordingTimelineTest
 		}
 	}
 
-	// 每帧占 100 毫秒：写出、过 50 毫秒记下弹幕的接收时刻，再过 50 毫秒
 	private static async Task WriteFramesAsync(SessionWriter session, int first, int last, List<long> times)
 	{
 		for (int frame = first; frame <= last; ++frame)
@@ -566,13 +562,11 @@ public sealed class RecordingTimelineTest
 		return [.. FlvSamples.Header, .. FlvSamples.MetadataWithSize(1920, 1080), .. FlvSamples.AvcSequenceHeader(Convert.FromHexString(MediaHeaderTest.Avc1080)), .. FlvSamples.AudioSequenceHeader()];
 	}
 
-	// 101 秒的一帧，正文 2005 字节
 	private static byte[] LargeVideoTag()
 	{
 		return FlvSamples.Tag(FlvSamples.VideoTag, 101_000, [0x27, 1, 0, 0, 0, .. new byte[2000]]);
 	}
 
-	// 第 first 帧起的 count 帧视频，源时间戳从 10 秒开始，每 20 帧一个关键帧
 	private static byte[] FlvVideo(int first, int count)
 	{
 		return [.. Enumerable.Range(first, count).SelectMany(static frame => FlvFrame(10_000 + (uint)frame * FrameInterval, frame % FramesPerGop is 0))];
@@ -583,7 +577,6 @@ public sealed class RecordingTimelineTest
 		return FlvSamples.Video(VideoStyle.Avc, isKeyFrame ? VideoPacket.KeyFrame : VideoPacket.InterFrame, timestamp, isKeyFrame ? "k" : "p");
 	}
 
-	// 从 start 起每 100 毫秒一帧，音频夹在视频之间、时间戳略早
 	private static byte[] FlvFrames(uint start, int count, bool startsWithKeyFrame)
 	{
 		return
@@ -596,7 +589,6 @@ public sealed class RecordingTimelineTest
 		];
 	}
 
-	// 自带 PAT 和 PMT 的分片，从 startPts 起每秒一帧
 	private static byte[] TsSegment(long startPts, int frames, string? sps)
 	{
 		return

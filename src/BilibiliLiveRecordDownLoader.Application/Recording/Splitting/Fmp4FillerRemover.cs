@@ -2,10 +2,8 @@ using System.Buffers.Binary;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-// 按顺序看提交的顶层盒子：moov 给出视频轨和 NAL 长度字段的宽度，moof 和紧跟的 mdat 删掉视频样本里的填充 NAL，再改 trun 的样本大小、data_offset 和 mdat 的大小。
-// 只处理数据位置能完全算清楚的分片：tfhd 以 moof 为基准且不带 base_data_offset，每个 trun 都带 data_offset，视频 trun 带每个样本的大小，各 trun 的数据都在紧跟的 mdat 里且互不重叠。
-// 加密和带子样本信息的分片去掉数据后附带的信息会对不上，和其他算不清的分片一样整个原样写。
-// sidx 记着它引用的分片的字节数，分片变短之后也会对不上；B 站的分片不带 sidx，遇到了就不再去
+// 只处理数据位置算得清的分片：tfhd 以 moof 为基准且不带 base_data_offset，每个 trun 都带 data_offset，视频 trun 带每个样本的大小，各 trun 的数据都在紧跟的 mdat 里且互不重叠
+// 加密和带子样本信息的分片去掉数据后附带的信息会对不上，整个原样写；sidx 记着分片的字节数，也会对不上，B 站的分片不带 sidx，遇到了就不再去
 internal sealed class Fmp4FillerRemover
 {
 	private const int VisualSampleEntrySize = 78;
@@ -17,21 +15,19 @@ internal sealed class Fmp4FillerRemover
 	private NalSyntax _syntax;
 	private int _nalLengthSize;
 	private bool _hasSegmentIndex;
-	private bool _isStopped;
 
-	// 返回去掉之后的长度。关闭时也要看 moov 和 sidx；不完整的盒子只会在收流结束时出现在末尾，之后不再解析
+	// isEnabled 为 false 时也要看 moov 和 sidx；每次提交都是从分片开头开始的完整分片
 	public int Remove(Span<byte> elements, bool isEnabled)
 	{
 		int read = 0;
 		int write = 0;
 
-		while (!_isStopped && read < elements.Length)
+		while (read < elements.Length)
 		{
 			int end = read;
 
 			if (!IsoBmff.TryReadBox(elements, ref end, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> content))
 			{
-				_isStopped = true;
 				break;
 			}
 
@@ -70,7 +66,7 @@ internal sealed class Fmp4FillerRemover
 		return length;
 	}
 
-	// 解码器配置在视觉样本项的固定字段之后；有多个样本项时分片可能换着用，宽度不一定相同
+	// 有多个样本项时分片可能换着用，长度字段宽度不一定相同
 	private static (NalSyntax Syntax, int LengthSize) ReadSampleEntry(ReadOnlySpan<byte> trak)
 	{
 		if (!IsoBmff.TryReadSampleEntry(trak, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> entry, out uint entryCount) || entryCount is not 1 || entry.Length < VisualSampleEntrySize)
@@ -134,7 +130,7 @@ internal sealed class Fmp4FillerRemover
 		}
 	}
 
-	// moof 从 read 开始；没有可删的或者结构算不清时返回 false，交给调用方原样写
+	// moof 从 read 开始
 	private bool TryRemove(Span<byte> elements, int read, int write, int moofLength, out int consumed, out int written)
 	{
 		consumed = written = 0;
@@ -166,7 +162,7 @@ internal sealed class Fmp4FillerRemover
 			return false;
 		}
 
-		// moof 只改字段的值，长度不变；前面已经删掉的数据让它整体前移
+		// moof 只改字段的值、长度不变，前面删掉的数据让它整体前移
 		Keep(elements, read, write, payloadStart);
 		Span<byte> output = elements.Slice(write);
 
@@ -209,7 +205,7 @@ internal sealed class Fmp4FillerRemover
 		return true;
 	}
 
-	// 记下每个 trun 的数据范围和 data_offset 字段的位置，以及视频样本的范围和大小字段的位置，位置都相对 moof 开头
+	// 记下的位置都相对 moof 开头
 	private bool TryPlan(ReadOnlySpan<byte> fragment, int moofLength, uint videoTrackId)
 	{
 		_runs.Clear();
@@ -346,7 +342,7 @@ internal sealed class Fmp4FillerRemover
 				return false;
 			}
 
-			// 大小为 0 的样本和下一个样本起点相同，没有可删的；放进来的话排序时分不清它和下一个样本的先后
+			// 大小为 0 的样本没有可删的，放进来的话排序时分不清它和下一个样本的先后
 			if (isVideo && size > 0)
 			{
 				_samples.Add(new Sample(trunStart + field + sizeField, (int)sampleOffset, (int)size, (int)size));
@@ -359,7 +355,6 @@ internal sealed class Fmp4FillerRemover
 		return true;
 	}
 
-	// 各 trun 的数据都要落在 mdat 的数据里且互不重叠，再逐个量出视频样本去掉填充之后的长度
 	private bool TryMeasure(Span<byte> fragment, int payloadStart)
 	{
 		_runs.Sort(static (x, y) => x.DataOffset.CompareTo(y.DataOffset));
@@ -402,7 +397,7 @@ internal sealed class Fmp4FillerRemover
 		return true;
 	}
 
-	// 范围不重叠，数据在 offset 之前的样本整个都在它之前
+	// 样本按位置排好且不重叠，起点在 offset 之前的样本整个都在它之前
 	private int RemovedBefore(int offset)
 	{
 		int removed = 0;

@@ -2,7 +2,6 @@ using System.Buffers.Binary;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-// FLV 在视频关键帧 tag 之前切；新段依次补上 FLV 头、PreviousTagSize0、最近的 onMetaData、视频序列头和音频序列头，时间戳从本段第一个关键帧算起
 internal sealed class FlvSplitter : MediaSplitter
 {
 	private const int FileHeaderSize = 9;
@@ -26,12 +25,10 @@ internal sealed class FlvSplitter : MediaSplitter
 	private ReadOnlyMemory<byte> _header;
 	private long _rebased;
 	private long _unparsableAt = long.MaxValue;
-	private long _timestampOffset;
-	private long _lastTimestamp;
+	private SegmentClock _clock = new(MediaSpan.TimelineRestartToleranceMilliseconds);
 	private long _filtered;
 	private long _removed;
 	private bool _hasFilteredFileHeader;
-	private bool _isFilterStopped;
 	private NalSyntax _sequenceSyntax;
 	private int _nalLengthSize;
 	private VideoResolution? _sequenceResolution;
@@ -41,13 +38,12 @@ internal sealed class FlvSplitter : MediaSplitter
 
 	private bool IsUnparsable => _unparsableAt is not long.MaxValue;
 
-	public override void StartSegment(ReadOnlySpan<byte> unit)
+	public override void StartSegment()
 	{
-		_timestampOffset = ReadTimestamp(unit);
-		_lastTimestamp = 0;
+		_clock = new SegmentClock(MediaSpan.TimelineRestartToleranceMilliseconds);
 	}
 
-	// 第一段保留源时间戳的起点，之后各段从 0 开始；每段都把重新开始的时间线接到已写出的时间之后，和时间轴放弹幕的方式一致。放弃解析之后的数据不再按 tag 看，里面碰巧像 tag 的字节不能改
+	// 放弃解析之后的数据不再按 tag 看，里面碰巧像 tag 的字节不能改
 	public override void Rebase(Span<byte> elements)
 	{
 		long start = _rebased;
@@ -56,23 +52,22 @@ internal sealed class FlvSplitter : MediaSplitter
 		// 放弃解析的位置是按收到的字节算的，去掉的填充数据都在它之前
 		int end = (int)Math.Clamp(_unparsableAt - _removed - start, 0, elements.Length);
 
-		// 提交总是从元素边界开始，流开头的文件头是第一次提交的第一个元素；文件头无效时已经放弃解析，end 为 0
+		// 流开头的文件头是第一次提交的第一个元素；文件头无效时已经放弃解析，end 为 0
 		int offset = start is 0 && end >= FileHeaderSize ? (int)BinaryPrimitives.ReadUInt32BigEndian(elements.Slice(5)) + PreviousTagSizeLength : 0;
 
-		while (offset + TagHeaderSize <= end && IsTagType(elements[offset]))
+		while (offset + TagHeaderSize <= end && IsTagType(elements[offset]) && TagHeaderSize + ReadDataSize(elements.Slice(offset)) + PreviousTagSizeLength is var length && offset + length <= end)
 		{
-			Span<byte> tag = elements.Slice(offset);
+			Span<byte> tag = elements.Slice(offset, length);
 			WriteTimestamp(tag, Retime(tag));
-			offset += TagHeaderSize + ReadDataSize(tag) + PreviousTagSizeLength;
+			offset += length;
 		}
 	}
 
-	// 只删视频 tag 里的填充 NAL，再改 DataSize 和后面的 PreviousTagSize。放弃解析之后的数据不动；不完整的元素只会在收流结束时出现在末尾，之后不再解析
 	public override int RemoveFiller(Span<byte> elements, bool isEnabled)
 	{
 		long start = _filtered;
 		_filtered += elements.Length;
-		int end = _isFilterStopped ? 0 : (int)Math.Clamp(_unparsableAt - start, 0, elements.Length);
+		int end = (int)Math.Clamp(_unparsableAt - start, 0, elements.Length);
 		int read = 0;
 		int write = 0;
 
@@ -90,9 +85,9 @@ internal sealed class FlvSplitter : MediaSplitter
 				length = rest.Length < TagHeaderSize || !IsTagType(rest[0]) ? 0 : TagHeaderSize + ReadDataSize(rest) + PreviousTagSizeLength;
 			}
 
+			// 提交的都是完整的元素，量不出来只能是数据和 Measure 看到的不一致
 			if (length is 0 || length > rest.Length)
 			{
-				_isFilterStopped = true;
 				break;
 			}
 
@@ -116,26 +111,34 @@ internal sealed class FlvSplitter : MediaSplitter
 			return data.Length;
 		}
 
+		// 签名和 tag 类型对不上时马上放弃，不等凑够一个头
 		if (!_hasFileHeader)
 		{
+			ReadOnlySpan<byte> signature = "FLV"u8;
+
+			if (!signature.StartsWith(data.Slice(0, Math.Min(data.Length, signature.Length))))
+			{
+				return GiveUp(data);
+			}
+
 			if (data.Length < FileHeaderSize)
 			{
 				return 0;
 			}
 
 			uint dataOffset = BinaryPrimitives.ReadUInt32BigEndian(data.Slice(5));
-			return data.StartsWith("FLV"u8) && dataOffset is >= FileHeaderSize and <= ushort.MaxValue ? (int)dataOffset + PreviousTagSizeLength : GiveUp(data);
-		}
-
-		if (data.Length < TagHeaderSize)
-		{
-			return 0;
+			return dataOffset is >= FileHeaderSize and <= ushort.MaxValue ? (int)dataOffset + PreviousTagSizeLength : GiveUp(data);
 		}
 
 		// 加密的 tag 和认不出的类型之后再也找不到 tag 的边界，只能不再切
 		if (!IsTagType(data[0]))
 		{
 			return GiveUp(data);
+		}
+
+		if (data.Length < TagHeaderSize)
+		{
+			return 0;
 		}
 
 		int length = TagHeaderSize + ReadDataSize(data) + PreviousTagSizeLength;
@@ -152,15 +155,16 @@ internal sealed class FlvSplitter : MediaSplitter
 
 	protected override void Accept(ReadOnlySpan<byte> element)
 	{
+		// 开头就认不出的数据可能不到一个文件头
+		if (IsUnparsable)
+		{
+			return;
+		}
+
 		if (!_hasFileHeader)
 		{
 			_hasFileHeader = true;
 			_fileFlags = element[4];
-			return;
-		}
-
-		if (IsUnparsable)
-		{
 			return;
 		}
 
@@ -181,7 +185,7 @@ internal sealed class FlvSplitter : MediaSplitter
 				_metadataResolution = FlvMetadata.ReadResolution(body);
 				Resolution = _sequenceResolution ?? _metadataResolution;
 				break;
-			// 序列头和脚本 tag 不是画面：FFmpeg 把序列头当作解码器配置而不输出成帧，中途重发的 onMetaData 时间戳又常是 0，都不能当作文件第一帧
+			// 序列头和脚本 tag 不报告：FFmpeg 不把序列头输出成帧，中途重发的 onMetaData 时间戳又常是 0，都不能当作文件第一帧
 			case VideoTag or AudioTag:
 				ReportMediaTime(MediaSpan.At(TimeSpan.FromMilliseconds(ReadTimestamp(element))));
 				break;
@@ -327,42 +331,18 @@ internal sealed class FlvSplitter : MediaSplitter
 		tag[7] = (byte)(timestamp >> 24);
 	}
 
-	// 比本段已写出的时间戳早一点的夹到 0；时间线重新开始时从已写出的时间接着往后排。
-	// 和 Accept 报告媒体时间的口径一样只按音视频帧判断：中途重发的 onMetaData 和序列头时间戳可能是 0，当成时间线重新开始的话后面的帧整体推后，文件里的时间就和时间轴放弹幕的位置对不上了；
-	// 早得多的序列头写在已写出的时间上，文件里的时间戳不倒退
+	// 和 Accept 一样只按音视频帧推进：onMetaData 和序列头的时间戳可能是 0，拿来定起点或判断重新开始会让后面的帧整体推后，和时间轴放弹幕的位置对不上
+	// 音视频交错时紧跟第一帧的 tag 可能比它早一点，算出负数，夹到 0
 	private uint Retime(ReadOnlySpan<byte> tag)
 	{
 		uint timestamp = ReadTimestamp(tag);
-		long output = timestamp - _timestampOffset;
-		bool isRestart = output < _lastTimestamp - MediaSpan.TimelineRestartToleranceMilliseconds;
-
-		switch (tag[0])
-		{
-			case VideoTag or AudioTag when IsSequenceHeader(tag):
-			{
-				output = isRestart ? _lastTimestamp : output;
-				break;
-			}
-			case VideoTag or AudioTag:
-			{
-				if (isRestart)
-				{
-					_timestampOffset = timestamp - _lastTimestamp;
-					output = _lastTimestamp;
-				}
-
-				_lastTimestamp = Math.Max(_lastTimestamp, output);
-				break;
-			}
-		}
-
+		long output = tag[0] is VideoTag or AudioTag && !IsSequenceHeader(tag) ? timestamp - _clock.Advance(timestamp, timestamp) : _clock.Place(timestamp);
 		return (uint)Math.Max(output, 0);
 	}
 
-	// 收流结束时末尾的 tag 可能不完整，只看收到的部分
 	private static bool IsSequenceHeader(ReadOnlySpan<byte> tag)
 	{
-		ReadOnlySpan<byte> body = tag.Slice(TagHeaderSize, Math.Min(ReadDataSize(tag), tag.Length - TagHeaderSize));
+		ReadOnlySpan<byte> body = GetBody(tag);
 
 		return tag[0] switch
 		{
@@ -372,7 +352,7 @@ internal sealed class FlvSplitter : MediaSplitter
 		};
 	}
 
-	// 返回 tag 去掉填充之后的长度。序列头不管开关都要记下，打开之后才知道后面的帧怎么拆
+	// 序列头不管开关都要记下，打开之后才知道后面的帧怎么拆
 	private int FilterVideoTag(Span<byte> elements, int read, int write, int length, bool isEnabled)
 	{
 		int dataSize = length - TagHeaderSize - PreviousTagSizeLength;
@@ -399,8 +379,8 @@ internal sealed class FlvSplitter : MediaSplitter
 		return TagHeaderSize + newDataSize + PreviousTagSizeLength;
 	}
 
-	// 返回编码帧里 NAL 数据在 tag 正文里的偏移，不是 AVC 或 HEVC 的编码帧时返回 0；遇到序列头时记下 NAL 长度字段的宽度。
-	// 传统格式和国内扩展的 HEVC 是帧头、包类型和 3 字节合成时间；Enhanced FLV 的 CodedFrames 带合成时间，CodedFramesX 不带。多轨、ModEx 和命令帧不看。
+	// 返回 NAL 数据在 tag 正文里的偏移，不是 AVC 或 HEVC 的编码帧时返回 0；遇到序列头时记下 NAL 长度字段的宽度
+	// 传统格式和国内扩展的 HEVC 是帧头、包类型和 3 字节合成时间；Enhanced FLV 的 CodedFrames 带合成时间，CodedFramesX 不带
 	// 多轨和 ModEx 里可能装着改了宽度的序列头，认不出的包之后不再按旧的宽度拆，等下一个认得出的序列头
 	private int FindNalUnits(ReadOnlySpan<byte> body, out NalSyntax syntax)
 	{
@@ -474,7 +454,7 @@ internal sealed class FlvSplitter : MediaSplitter
 		return data.Length;
 	}
 
-	// 序列头和元数据一般只发一次，中途变了才换；比较时不看时间戳
+	// 中途重发的内容没变时不必重建头；比较时不看时间戳
 	private void Store(ref byte[]? cached, ReadOnlySpan<byte> tag)
 	{
 		if (cached is not null && cached.Length == tag.Length && cached.AsSpan(0, 4).SequenceEqual(tag.Slice(0, 4)) && cached.AsSpan(8).SequenceEqual(tag.Slice(8)))

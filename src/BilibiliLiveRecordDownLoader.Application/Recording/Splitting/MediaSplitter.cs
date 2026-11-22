@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-// 按容器把会话写出的字节划成完整的元素（FLV tag、TS 包、HLS 分片），找出新段可以从哪个元素开始独立解码，并准备新段开头要补的头
+// 元素指 FLV tag、TS 包或 HLS 分片
 internal abstract class MediaSplitter
 {
 	private readonly List<MediaMark> _mediaMarks = [];
@@ -14,16 +14,18 @@ internal abstract class MediaSplitter
 	// 解析不下去之后再也不会有切分点
 	public virtual bool CanSplit => true;
 
-	// 已经完整过去的元素按收到的字节算的总长，即下一个元素在收到的数据里的起点
+	// 一次写入可能只有单元的开头，而 Rebase 要在文件的第一次提交里看到从关键帧起的整个单元才定得准起点
+	public virtual bool HoldsFirstUnit => false;
+
+	// 按收到的字节计，即下一个元素在收到的数据里的起点
 	public long AcceptedLength { get; private set; }
 
-	// 上次取走之后过去的元素里带媒体时间的那些，按到达顺序
 	public ReadOnlySpan<MediaMark> MediaMarks => CollectionsMarshal.AsSpan(_mediaMarks);
 
-	// 流头（onMetaData、序列头、init 段、SPS）里最近读到的画面尺寸，读不到时为 null
+	// 流头（onMetaData、序列头、init 段、SPS）里最近读到的画面尺寸
 	public VideoResolution? Resolution { get; protected set; }
 
-	// 从 position 起逐个看完整的元素：遇到切分点时停在它前面并返回 true，下次调用从这个元素接着看；看完所有完整的元素时返回 false
+	// 遇到切分点时停在它前面并返回 true，下次调用从这个元素接着看；看完所有完整的元素时返回 false
 	public bool TryFindSplit(ReadOnlySpan<byte> data, ref int position)
 	{
 		while (position < data.Length)
@@ -58,17 +60,20 @@ internal abstract class MediaSplitter
 		return false;
 	}
 
-	// 新段从 unit 开始，unit 以切分点元素开头
-	public virtual void StartSegment(ReadOnlySpan<byte> unit)
+	// 接下来提交的元素写进新的一段，第一个是切分点元素
+	public virtual void StartSegment()
 	{
 	}
 
-	// 写出之前按当前段调整元素，末尾可能是不完整的元素
+	// 当前段文件时间 0 对应的源时间，由 Rebase 定下；为 null 时时间轴从这一段第一个带媒体时间的元素算起
+	public virtual TimeSpan? Origin => null;
+
+	// elements 是完整的元素，放弃解析之后的数据原样跟在后面
 	public virtual void Rebase(Span<byte> elements)
 	{
 	}
 
-	// 写出之前原地去掉元素里的填充数据，返回去掉之后的长度，末尾可能是不完整的元素。关闭时也要调用：单元可能攒了一段才提交，NAL 长度字段的宽度这类状态只能按写出的顺序从提交的数据里跟踪，不能用 Measure 提前看到的
+	// elements 和 Rebase 的一样；isEnabled 为 false 时也要调用：NAL 长度字段宽度这类状态只能按写出的顺序从提交的数据里跟踪，Measure 看到的可能超前
 	public virtual int RemoveFiller(Span<byte> elements, bool isEnabled)
 	{
 		return elements.Length;
@@ -80,14 +85,14 @@ internal abstract class MediaSplitter
 	}
 
 	// 返回 data 开头的元素的总长度，可能长于 data；还判断不了时返回 0
+	// 收流结束时不完整的元素会被丢掉，所以认不出的数据要立即放弃解析、返回 data.Length，不能等
 	protected abstract int Measure(ReadOnlySpan<byte> data, out bool isSplit);
 
-	// 元素完整地过去之后更新缓存的头
 	protected abstract void Accept(ReadOnlySpan<byte> element);
 
 	protected abstract ReadOnlyMemory<byte> CaptureHeader(ReadOnlySpan<byte> element);
 
-	// 在 Accept 里报告正在过去的元素的媒体时间；只报告源时间轴上的原值，换到输出文件的时间轴由时间轴组件按段处理，分割器不必关心元素最后写进哪一段
+	// 在 Accept 里调用，粒度和 Rebase 推进时间的相同，一个元素里可以有好几条；只报告源时间轴上的原值
 	protected void ReportMediaTime(MediaSpan span)
 	{
 		_mediaMarks.Add(new MediaMark(AcceptedLength, span, Resolution));

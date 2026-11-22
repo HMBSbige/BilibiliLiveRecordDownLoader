@@ -7,7 +7,7 @@ using System.Globalization;
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 
 /// <summary>
-/// 让脚本扮演会话，经过真实的写缓冲、分段器和写盘端录到内存文件里。第一段的文件名是 0，之后依次是 1、2……
+/// 第一段的文件名是 0，之后依次是 1、2……
 /// </summary>
 internal sealed class SplitRecording
 {
@@ -35,7 +35,7 @@ internal sealed class SplitRecording
 
 	public TimeSpan DrainTimeout { get; init; } = TimeSpan.FromSeconds(5);
 
-	// 写盘端关闭一段之后、建下一段之前调用，和录制时通知观察者的时机相同
+	// 写盘端关闭一段之后、建下一段之前调用
 	public Action<string>? SegmentCompleted { get; init; }
 
 	public IReadOnlyList<byte[]> Files => [.. _files.Select(static file => file.Data)];
@@ -44,10 +44,9 @@ internal sealed class SplitRecording
 
 	public IReadOnlyList<SegmentStart> Starts => [.. _starts];
 
-	// 每个实例只录一次，时间轴随实例建好，第一个文件从这时算起；RunAsync 结束时关闭
+	// 每个实例只录一次；RunAsync 结束时关闭
 	public RecordingTimeline Timeline { get; }
 
-	// 录制中不改的设置
 	public static SplitControl Fixed(RecordingSplit split, bool onTitleChange = false, bool removeFiller = false)
 	{
 		RecordingSplitPolicy policy = new(split, onTitleChange);
@@ -94,7 +93,6 @@ internal sealed class SplitRecording
 		}
 	}
 
-	// 被卡住的那个文件关闭完成之后返回
 	public Task WaitForClosingAsync(CancellationToken cancellationToken)
 	{
 		return _files.ElementAt(BlockClosingFile?.Index ?? 0).Closed.WaitAsync(cancellationToken);
@@ -183,11 +181,17 @@ internal sealed class SessionWriter(Stream destination, IHlsSegmentObserver? seg
 		await WriteAsync(data);
 	}
 
+	// 只用来测元素没收齐时收流结束的截断，HlsStreamSession 总是整段报告、整段写出
+	public async Task PartialSegmentAsync(byte[] data, int length)
+	{
+		segments?.OnMediaSegment(data);
+		await WriteAsync(data[..length]);
+	}
+
 	public void Advance(TimeSpan duration)
 	{
 		time.Advance(duration);
 	}
 
-	// 现在的单调时间戳，当作这一刻收到的弹幕
 	public long Now => time.GetTimestamp();
 }
