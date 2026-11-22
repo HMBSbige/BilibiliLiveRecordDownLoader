@@ -8,8 +8,11 @@ public abstract class ViewModelBase : ReactiveObject, IDisposable
 
 	protected void PersistToConfig<T>(IObservable<T> source, Action<AppConfig, T> updateAction)
 	{
-		IAppConfigManager configManager = AppLocator.Current.GetRequiredService<IAppConfigManager>();
+		PersistToConfig(AppLocator.Current.GetRequiredService<IAppConfigManager>(), source, updateAction);
+	}
 
+	protected void PersistToConfig<T>(IAppConfigManager configManager, IObservable<T> source, Action<AppConfig, T> updateAction)
+	{
 		source
 			.Skip(1)
 			.Unique()

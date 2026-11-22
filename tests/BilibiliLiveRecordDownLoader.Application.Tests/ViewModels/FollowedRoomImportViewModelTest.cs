@@ -277,6 +277,11 @@ public sealed class FollowedRoomImportViewModelTest
 			throw new NotSupportedException();
 		}
 
+		public Task MoveAsync(IReadOnlyCollection<long> roomIds, long? before, CancellationToken cancellationToken = default)
+		{
+			throw new NotSupportedException();
+		}
+
 		public Task RemoveAsync(IReadOnlyCollection<long> roomIds, CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException();

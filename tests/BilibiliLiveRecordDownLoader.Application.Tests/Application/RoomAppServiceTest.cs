@@ -17,7 +17,12 @@ public sealed class RoomAppServiceTest
 {
 	private const long ExistingRoomId = 22907643;
 
-	private static readonly (long RoomId, long ShortId, string UserName)[] KnownRooms = [(6154037, 732, "Asaki大人"), (5440, 1, "官方"), (ExistingRoomId, 0, "已有")];
+	private const long FirstRoomId = 6154037;
+	private const long SecondRoomId = 5440;
+	private const long ThirdRoomId = 21452505;
+	private const long FourthRoomId = 7777;
+
+	private static readonly (long RoomId, long ShortId, string UserName)[] KnownRooms = [(FirstRoomId, 732, "Asaki大人"), (SecondRoomId, 1, "官方"), (ExistingRoomId, 0, "已有"), (ThirdRoomId, 0, "第三"), (FourthRoomId, 0, "第四")];
 
 	[Test]
 	[Timeout(30_000)]
@@ -143,6 +148,68 @@ public sealed class RoomAppServiceTest
 		await Assert.That(exception?.Message).IsEqualTo(AppLanguage.Current.RequestRateLimited);
 	}
 
+	[Test]
+	[Timeout(30_000)]
+	[MethodDataSource(nameof(MoveCases))]
+	public async Task MoveKeepsTheRelativeOrderAndWritesConfigOnceAsync(long[] roomIds, long? before, long[] expected, CancellationToken cancellationToken)
+	{
+		await using Harness harness = await Harness.CreateWithRoomsAsync(cancellationToken);
+		(int updates, long version) = (harness.Config.UpdateCount, harness.Rooms.Version);
+
+		await harness.Rooms.MoveAsync(roomIds, before, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(harness.Rooms.GetRooms().Select(static room => room.RoomId).ToArray()).IsEquivalentTo(expected, EqualityComparer<long>.Default, CollectionOrdering.Matching);
+			await Assert.That(harness.ConfiguredRoomIds).IsEquivalentTo(expected, EqualityComparer<long>.Default, CollectionOrdering.Matching);
+			await Assert.That(harness.Config.UpdateCount).IsEqualTo(updates + 1);
+			await Assert.That(harness.Rooms.Version).IsGreaterThan(version);
+		}
+	}
+
+	public static IEnumerable<Func<(long[] RoomIds, long? Before, long[] Expected)>> MoveCases()
+	{
+		// 初始顺序：已有、第一、第二、第三、第四
+		yield return () => ([ThirdRoomId, FirstRoomId], ExistingRoomId, [FirstRoomId, ThirdRoomId, ExistingRoomId, SecondRoomId, FourthRoomId]);
+		yield return () => ([ExistingRoomId, SecondRoomId], null, [FirstRoomId, ThirdRoomId, FourthRoomId, ExistingRoomId, SecondRoomId]);
+		yield return () => ([FourthRoomId], SecondRoomId, [ExistingRoomId, FirstRoomId, FourthRoomId, SecondRoomId, ThirdRoomId]);
+		// 目标也在移动的房间里时，以它之后第一个不移动的房间为准
+		yield return () => ([FirstRoomId, ThirdRoomId], FirstRoomId, [ExistingRoomId, FirstRoomId, ThirdRoomId, SecondRoomId, FourthRoomId]);
+		yield return () => ([SecondRoomId, 404404], ExistingRoomId, [SecondRoomId, ExistingRoomId, FirstRoomId, ThirdRoomId, FourthRoomId]);
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	[MethodDataSource(nameof(UnchangedMoveCases))]
+	public async Task MoveThatChangesNothingDoesNotWriteConfigAsync(long[] roomIds, long? before, CancellationToken cancellationToken)
+	{
+		await using Harness harness = await Harness.CreateWithRoomsAsync(cancellationToken);
+		long[] original = harness.ConfiguredRoomIds;
+		int updates = harness.Config.UpdateCount;
+
+		await harness.Rooms.MoveAsync(roomIds, before, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(harness.Rooms.GetRooms().Select(static room => room.RoomId).ToArray()).IsEquivalentTo(original, EqualityComparer<long>.Default, CollectionOrdering.Matching);
+			await Assert.That(harness.ConfiguredRoomIds).IsEquivalentTo(original, EqualityComparer<long>.Default, CollectionOrdering.Matching);
+			await Assert.That(harness.Config.UpdateCount).IsEqualTo(updates);
+		}
+	}
+
+	public static IEnumerable<Func<(long[] RoomIds, long? Before)>> UnchangedMoveCases()
+	{
+		// 已经在目标位置
+		yield return () => ([ThirdRoomId, FourthRoomId], null);
+		yield return () => ([ExistingRoomId, FirstRoomId], SecondRoomId);
+		// 目标和它之后的房间都在移动，等同于移到末尾
+		yield return () => ([ThirdRoomId, FourthRoomId], ThirdRoomId);
+		// 只有未知的房间号，或目标房间不存在
+		yield return () => ([404404], ExistingRoomId);
+		yield return () => ([FirstRoomId], 404404);
+		yield return () => ([], null);
+	}
+
 	private static RoomSettingsDto Room(long roomId)
 	{
 		return new RoomSettingsDto { RoomId = roomId };
@@ -172,6 +239,14 @@ public sealed class RoomAppServiceTest
 
 		// 每次查询房间信息时请求的 room_ids，逗号分隔
 		public string[] RoomInfoQueries => [.. Handler.RoomInfoQueries];
+
+		// 已有、第一、第二、第三、第四
+		public static async Task<Harness> CreateWithRoomsAsync(CancellationToken cancellationToken)
+		{
+			Harness harness = await CreateAsync();
+			await harness.Rooms.AddRangeAsync([Room(FirstRoomId), Room(SecondRoomId), Room(ThirdRoomId), Room(FourthRoomId)], cancellationToken);
+			return harness;
+		}
 
 		public static async Task<Harness> CreateAsync(bool rejectBatch = false)
 		{

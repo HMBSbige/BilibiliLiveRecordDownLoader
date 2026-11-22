@@ -76,6 +76,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 		WindowHeight = config.WindowHeight;
 		Settings.ApplyConfig(config);
 		Account.ApplyConfig(config);
+		Rooms.ApplyConfig(config);
 		IsInitialized = true;
 
 		if (!shell.StartMinimized)

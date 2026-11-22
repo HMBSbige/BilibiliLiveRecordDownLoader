@@ -14,6 +14,8 @@ public record AppConfig
 
 	public double WindowHeight { get; set; } = 720;
 
+	public RoomSortOrder RoomSortOrder { get; set; }
+
 	public string RecordDirectory { get; set; } = string.Empty;
 
 	public string? FFmpegPath { get; set; }

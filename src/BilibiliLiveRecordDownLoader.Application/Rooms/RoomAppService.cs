@@ -228,6 +228,23 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 		Touch();
 	}
 
+	public async Task MoveAsync(IReadOnlyCollection<long> roomIds, long? before, CancellationToken cancellationToken = default)
+	{
+		HashSet<long> moving = [.. roomIds];
+
+		lock (_lock)
+		{
+			if (!RoomOrder.MoveBefore(_sessions, static session => session.RoomId, moving, before))
+			{
+				return;
+			}
+		}
+
+		Touch();
+
+		await configManager.UpdateAsync(config => RoomOrder.MoveBefore(config.Rooms, static room => room.RoomId, moving, before), CancellationToken.None);
+	}
+
 	public async Task RemoveAsync(IReadOnlyCollection<long> roomIds, CancellationToken cancellationToken = default)
 	{
 		RoomSession[] removed;

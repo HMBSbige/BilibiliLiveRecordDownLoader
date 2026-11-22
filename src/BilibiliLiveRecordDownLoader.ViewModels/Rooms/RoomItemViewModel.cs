@@ -21,7 +21,7 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 
 	public RoomSettingsDto Settings { get; private set; }
 
-	// 在应用服务返回的列表中的位置，即添加顺序
+	// 在应用服务返回的列表中的位置，即自定义顺序
 	public int Order { get; internal set; }
 
 	[Reactive]

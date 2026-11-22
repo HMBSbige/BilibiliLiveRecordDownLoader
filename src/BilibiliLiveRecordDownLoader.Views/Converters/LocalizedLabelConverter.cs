@@ -80,7 +80,7 @@ public sealed class LocalizedLabelConverter : IValueConverter, IMultiValueConver
 			{
 				RoomSortOrder.Name => AppLanguage.Current.SortByName,
 				RoomSortOrder.RoomId => AppLanguage.Current.SortByRoomId,
-				RoomSortOrder.Added => AppLanguage.Current.SortByAdded,
+				RoomSortOrder.Custom => AppLanguage.Current.SortByCustom,
 				_ => AppLanguage.Current.SortByStatus
 			},
 			RoomFilter filter => filter switch
