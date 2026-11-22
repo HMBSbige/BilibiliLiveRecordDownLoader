@@ -2,11 +2,11 @@ using System.Globalization;
 
 namespace BilibiliLive.Streams;
 
-public sealed record HlsPlaylist(int Version, TimeSpan? TargetDuration, IReadOnlyList<HlsSegment> Segments, bool EndList)
+internal sealed record HlsPlaylist(TimeSpan? TargetDuration, IReadOnlyList<HlsSegment> Segments, bool EndList)
 {
 	private const string Header = "#EXTM3U";
-	private const string VersionTag = "#EXT-X-VERSION:";
 	private const string TargetDurationTag = "#EXT-X-TARGETDURATION:";
+	private const string MediaSequenceTag = "#EXT-X-MEDIA-SEQUENCE:";
 	private const string MapTag = "#EXT-X-MAP:";
 	private const string DiscontinuitySequenceTag = "#EXT-X-DISCONTINUITY-SEQUENCE:";
 	private const string DiscontinuityTag = "#EXT-X-DISCONTINUITY";
@@ -18,8 +18,8 @@ public sealed record HlsPlaylist(int Version, TimeSpan? TargetDuration, IReadOnl
 		ArgumentNullException.ThrowIfNull(content);
 
 		bool hasHeader = false;
-		int version = 1;
 		TimeSpan? targetDuration = null;
+		long? mediaSequence = null;
 		string? mapUri = null;
 		long discontinuitySequence = 0;
 		bool endList = false;
@@ -45,15 +45,17 @@ public sealed record HlsPlaylist(int Version, TimeSpan? TargetDuration, IReadOnl
 			}
 			else if (line[0] is not '#')
 			{
-				segments.Add(new HlsSegment(line.ToString(), mapUri, discontinuitySequence));
+				segments.Add(new HlsSegment(line.ToString(), mapUri, discontinuitySequence, mediaSequence + segments.Count));
 			}
 			else if (line.StartsWith(StreamInfTag, StringComparison.Ordinal))
 			{
 				throw new FormatException("A master playlist lists variants instead of segments.");
 			}
-			else if (line.StartsWith(VersionTag, StringComparison.Ordinal))
+			else if (line.StartsWith(MediaSequenceTag, StringComparison.Ordinal))
 			{
-				version = int.TryParse(line.Slice(VersionTag.Length), NumberStyles.None, CultureInfo.InvariantCulture, out int value) ? value : throw new FormatException($"Invalid {VersionTag} tag.");
+				mediaSequence = long.TryParse(line.Slice(MediaSequenceTag.Length), NumberStyles.None, CultureInfo.InvariantCulture, out long value)
+					? value
+					: throw new FormatException($"Invalid {MediaSequenceTag} tag.");
 			}
 			else if (line.StartsWith(TargetDurationTag, StringComparison.Ordinal))
 			{
@@ -86,7 +88,7 @@ public sealed record HlsPlaylist(int Version, TimeSpan? TargetDuration, IReadOnl
 			throw new FormatException("The playlist is empty.");
 		}
 
-		return new HlsPlaylist(version, targetDuration, segments, endList);
+		return new HlsPlaylist(targetDuration, segments, endList);
 	}
 
 	// Some CDN nodes answer with a master playlist that points at the media playlist of the same stream on an edge node

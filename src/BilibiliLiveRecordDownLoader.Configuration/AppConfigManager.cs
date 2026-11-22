@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization.Metadata;
+
 namespace BilibiliLiveRecordDownLoader.Configuration;
 
 public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> storageOptions, ILogger<AppConfigManager> logger) : IAppConfigManager, IDisposable, IAsyncDisposable
@@ -7,6 +9,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 	private const UnixFileMode PrivateDirectoryMode = PrivateFileMode | UnixFileMode.UserExecute;
 
 	private static readonly TimeSpan ReadRetryDelay = TimeSpan.FromMilliseconds(200);
+	private static readonly JsonDocumentOptions DocumentOptions = new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
 	private static readonly JsonObject DefaultNode = SerializeToJsonObject(AppConfig.CreateDefault());
 	private static readonly JsonObject DefaultRoomNode = JsonSerializer.SerializeToNode(new RoomConfig(), AppConfigJsonContext.Default.RoomConfig) as JsonObject ?? throw new InvalidOperationException("Serialized room config is not a JSON object.");
 
@@ -39,7 +42,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		}
 	}
 
-	// 修改立即生效；写盘由管理器延迟合并，调用方取消不会丢掉已做的修改
+	// 写盘延迟合并，调用方取消不会丢掉已做的修改；取值范围在这里统一限制
 	public async ValueTask UpdateAsync(Action<AppConfig> update, CancellationToken cancellationToken = default)
 	{
 		await _lock.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -47,7 +50,9 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		try
 		{
 			ObjectDisposedException.ThrowIf(_disposed, this);
-			update(await GetOrLoadCoreAsync(cancellationToken).ConfigureAwait(false));
+			AppConfig config = await GetOrLoadCoreAsync(cancellationToken).ConfigureAwait(false);
+			update(config);
+			config.ApplyDefaults();
 			++_saveVersion;
 
 			if (!_isSaveScheduled)
@@ -165,14 +170,20 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		}
 		catch (JsonException exception)
 		{
-			LogConfigCorrupted(logger, exception, _configPath);
-			PreserveCorruptedFile();
-			config = await TryRestoreAsync(BackupPath, cancellationToken).ConfigureAwait(false);
+			config = await TryReadSkippingInvalidValuesAsync(cancellationToken).ConfigureAwait(false);
+
+			if (config is null)
+			{
+				LogConfigCorrupted(logger, exception, _configPath);
+				PreserveCorruptedFile();
+				config = await TryRestoreAsync(BackupPath, cancellationToken).ConfigureAwait(false);
+			}
+
 			restored = config is not null;
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
-			// 读不到时不能用默认值覆盖用户的配置，本次运行不再写盘
+			// 读不到时不能用默认值覆盖用户的配置
 			LogConfigUnreadable(logger, exception, _configPath);
 			_isReadOnly = true;
 		}
@@ -209,6 +220,104 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 
 		using FileStream stream = File.OpenRead(path);
 		return await JsonSerializer.DeserializeAsync(stream, AppConfigJsonContext.Default.AppConfig, cancellationToken).ConfigureAwait(false);
+	}
+
+	// 新版本可能新增了枚举名，手改也可能写错一个值；只让读不出来的值回到默认值，不让整份配置作废
+	private async ValueTask<AppConfig?> TryReadSkippingInvalidValuesAsync(CancellationToken cancellationToken)
+	{
+		try
+		{
+			JsonNode? node;
+
+			using (FileStream stream = File.OpenRead(_configPath))
+			{
+				node = await JsonNode.ParseAsync(stream, documentOptions: DocumentOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
+			}
+
+			if (node is not JsonObject root)
+			{
+				return null;
+			}
+
+			RemoveInvalidValues(root, AppConfigJsonContext.Default.AppConfig, string.Empty);
+			return root.Deserialize(AppConfigJsonContext.Default.AppConfig);
+		}
+		catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
+		{
+			return null;
+		}
+	}
+
+	private void RemoveInvalidValues(JsonObject node, JsonTypeInfo typeInfo, string prefix)
+	{
+		foreach ((string key, JsonNode? value) in node.ToArray())
+		{
+			// 未知的属性读取时本来就会忽略
+			if (typeInfo.Properties.FirstOrDefault(property => string.Equals(property.Name, key, StringComparison.OrdinalIgnoreCase)) is not { } property)
+			{
+				continue;
+			}
+
+			string name = prefix + property.Name;
+
+			if (property.PropertyType == typeof(List<RoomConfig>) && value is JsonArray rooms)
+			{
+				for (int i = rooms.Count - 1; i >= 0; i--)
+				{
+					if (rooms[i] is JsonObject room)
+					{
+						RemoveInvalidValues(room, AppConfigJsonContext.Default.RoomConfig, $"{name}[{i}].");
+					}
+					else
+					{
+						LogInvalidValue(logger, $"{name}[{i}]", _configPath);
+						rooms.RemoveAt(i);
+					}
+				}
+			}
+
+			// 编码和格式的优先级里一个值读不出时只丢这一个，其余的顺序还是用户排的
+			if (value is JsonArray items && GetEnumListElementType(property.PropertyType) is { } elementType && AppConfigJsonContext.Default.GetTypeInfo(elementType) is { } elementTypeInfo)
+			{
+				for (int i = items.Count - 1; i >= 0; i--)
+				{
+					if (!CanRead(items[i], elementTypeInfo))
+					{
+						LogInvalidValue(logger, $"{name}[{i}]", _configPath);
+						items.RemoveAt(i);
+					}
+				}
+			}
+
+			if (AppConfigJsonContext.Default.GetTypeInfo(property.PropertyType) is not { } propertyTypeInfo)
+			{
+				continue;
+			}
+
+			if (!CanRead(value, propertyTypeInfo))
+			{
+				LogInvalidValue(logger, name, _configPath);
+				node.Remove(key);
+			}
+		}
+	}
+
+	private static Type? GetEnumListElementType(Type type)
+	{
+		return type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>) && type.GetGenericArguments()[0] is { IsEnum: true } elementType ? elementType : null;
+	}
+
+	private static bool CanRead(JsonNode? value, JsonTypeInfo typeInfo)
+	{
+		try
+		{
+			_ = value.Deserialize(typeInfo);
+			return true;
+		}
+		catch (JsonException)
+		{
+			return false;
+		}
 	}
 
 	private async ValueTask<AppConfig?> TryRestoreAsync(string path, CancellationToken cancellationToken)
@@ -257,7 +366,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		JsonObject node = SerializeToJsonObject(_config);
 		RemoveDefaults(node, DefaultNode);
 
-		// 房间没改过的属性不写盘，读回时由 RoomConfig 的初始值补齐，以后调整默认值对老房间同样生效
+		// 不写默认值，以后调整默认值对老房间同样生效
 		if (node[nameof(AppConfig.Rooms)] is JsonArray rooms)
 		{
 			foreach (JsonObject room in rooms.OfType<JsonObject>())
@@ -374,6 +483,9 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 
 	[LoggerMessage(Level = LogLevel.Error, Message = "Config file {Path} cannot be read, changes will not be saved")]
 	private static partial void LogConfigUnreadable(ILogger logger, Exception exception, string path);
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Config value {Name} in {Path} is invalid and was reset to its default")]
+	private static partial void LogInvalidValue(ILogger logger, string name, string path);
 
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Config restored from {Path}")]
 	private static partial void LogRestored(ILogger logger, string path);

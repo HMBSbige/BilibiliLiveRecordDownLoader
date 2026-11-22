@@ -142,7 +142,7 @@ public sealed class RoomQualityDisplayTest
 	[Test]
 	public async Task BannerMentionsMaskedNamesWhileRecordingDanmakuAsync()
 	{
-		RoomSnapshot danmakuOnly = Idle(2) with { Danmaku = new RoomDanmakuSnapshot(true, 0, true) };
+		RoomSnapshot danmakuOnly = Idle(2) with { Danmaku = new RoomDanmakuSnapshot(true) };
 		using RoomListViewModel withRestriction = CreateList(new FakeRoomAppService(Recording(1, new QualityRestriction.NotLoggedIn(10000)), danmakuOnly), AppConfig.CreateDefault());
 		using RoomListViewModel withoutRestriction = CreateList(new FakeRoomAppService(danmakuOnly, Idle(3)), AppConfig.CreateDefault());
 		AppConfig loggedIn = AppConfig.CreateDefault();

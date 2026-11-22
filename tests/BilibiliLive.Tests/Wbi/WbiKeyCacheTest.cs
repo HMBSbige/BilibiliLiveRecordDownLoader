@@ -22,7 +22,7 @@ public class WbiKeyCacheTest
 
 		await api.Client.GetDanmuServerInfoAsync(732, cancellationToken);
 
-		string expected = WbiSigner.Sign([new("id", "732"), new("type", "0"), new("web_location", "444.8")], WbiSigner.GetMixinKey(WbiSignerTest.ImgKey, WbiSignerTest.SubKey), time.GetUtcNow().ToUnixTimeSeconds());
+		string expected = WbiSigner.Sign([new("id", "732"), new("type", "0"), new("web_location", "444.8")], WbiSignerTest.MixinKey(WbiSignerTest.ImgKey, WbiSignerTest.SubKey), time.GetUtcNow().ToUnixTimeSeconds());
 
 		await Assert.That(api.Handler.RequestsTo(ApiPaths.DanmuInfo).Single().Uri.Query).IsEqualTo($"?{expected}");
 	}
@@ -45,6 +45,41 @@ public class WbiKeyCacheTest
 		{
 			await Assert.That(navBeforeExpiry).IsEqualTo(1);
 			await Assert.That(api.Handler.RequestsTo(ApiPaths.Nav).Count()).IsEqualTo(2);
+		}
+	}
+
+	[Test]
+	public async Task ClockSetBackBeforeTheFetchRefreshesTheKeysAsync(CancellationToken cancellationToken)
+	{
+		ManualTimeProvider time = new();
+		using ApiClient api = Create(time);
+
+		await api.Client.GetDanmuServerInfoAsync(732, cancellationToken);
+		time.Advance(-TimeSpan.FromDays(1));
+		await api.Client.GetDanmuServerInfoAsync(732, cancellationToken);
+
+		await Assert.That(api.Handler.RequestsTo(ApiPaths.Nav).Count()).IsEqualTo(2);
+	}
+
+	[Test]
+	public async Task KeysOfTheUserIdRequestSignTheNextRequestAsync(CancellationToken cancellationToken)
+	{
+		ManualTimeProvider time = new();
+		int navCalls = 0;
+		using ApiClient api = Create(time, () => ++navCalls is 1
+			? Responses.Fixture("nav_anonymous.json")
+			: Responses.Json(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "nav_anonymous.json")).Replace(WbiSignerTest.ImgKey, "@swap@").Replace(WbiSignerTest.SubKey, WbiSignerTest.ImgKey).Replace("@swap@", WbiSignerTest.SubKey)));
+
+		await api.Client.GetDanmuServerInfoAsync(732, cancellationToken);
+		await api.Client.GetCurrentUserIdAsync(cancellationToken);
+		await api.Client.GetDanmuServerInfoAsync(732, cancellationToken);
+
+		string expected = WbiSigner.Sign([new("id", "732"), new("type", "0"), new("web_location", "444.8")], WbiSignerTest.MixinKey(WbiSignerTest.SubKey, WbiSignerTest.ImgKey), time.GetUtcNow().ToUnixTimeSeconds());
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(api.Handler.RequestsTo(ApiPaths.DanmuInfo).Last().Uri.Query).IsEqualTo($"?{expected}");
+			await Assert.That(navCalls).IsEqualTo(2);
 		}
 	}
 

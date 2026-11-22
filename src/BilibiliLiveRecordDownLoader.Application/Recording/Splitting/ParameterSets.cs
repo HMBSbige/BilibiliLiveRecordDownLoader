@@ -68,7 +68,7 @@ internal static class ParameterSets
 	}
 
 	// 找第一个 SPS；它可能在 data 末尾被截断，读过头时返回 null，等更多数据
-	public static VideoResolution? ReadAnnexB(ReadOnlySpan<byte> data, bool isHevc)
+	public static VideoResolution? ReadAnnexB(ReadOnlySpan<byte> data, NalSyntax syntax)
 	{
 		int start = FindStartCode(data, 0);
 
@@ -78,15 +78,24 @@ internal static class ParameterSets
 			int next = FindStartCode(data, nalStart);
 			ReadOnlySpan<byte> nal = next < 0 ? data.Slice(nalStart) : data.Slice(nalStart, next - nalStart);
 
-			if (nal.Length > 0 && (isHevc ? nal[0] >> 1 & 0x3F : nal[0] & 0x1F) == (isHevc ? HevcSpsType : AvcSpsType))
+			if (nal.Length > 0 && ReadSps(nal, syntax) is { IsSps: true } sps)
 			{
-				return isHevc ? ReadHevcSps(nal) : ReadAvcSps(nal);
+				return sps.Resolution;
 			}
 
 			start = next;
 		}
 
 		return null;
+	}
+
+	private static (bool IsSps, VideoResolution? Resolution) ReadSps(ReadOnlySpan<byte> nal, NalSyntax syntax)
+	{
+		return syntax switch
+		{
+			NalSyntax.Avc => (nal[0] & 0x1F) is AvcSpsType ? (true, ReadAvcSps(nal)) : (false, null),
+			NalSyntax.Hevc => (nal[0] >> 1 & 0x3F) is HevcSpsType ? (true, ReadHevcSps(nal)) : (false, null)
+		};
 	}
 
 	// nal 带 1 字节 NAL 头

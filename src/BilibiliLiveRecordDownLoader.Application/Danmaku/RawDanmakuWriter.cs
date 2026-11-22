@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace BilibiliLiveRecordDownLoader.Application.Danmaku;
 
 // 每行 {"t":接收时刻 Unix 毫秒,"cmd":命令,"raw":原始消息}；连接建立和断开用 @ 开头的命令，B 站的命令都是大写字母，不会重名
-// 和弹幕文件一样攒一批按时间或条数写出；不是线程安全的，由房间唯一的写入者调用
+// 不是线程安全的
 internal sealed class RawDanmakuWriter : IAsyncDisposable
 {
 	public const string ConnectedCommand = @"@connected";
@@ -12,7 +12,7 @@ internal sealed class RawDanmakuWriter : IAsyncDisposable
 
 	private static readonly JsonWriterOptions WriterOptions = new() { SkipValidation = true };
 
-	private readonly FileStream _stream;
+	private readonly Stream _stream;
 	private readonly DanmakuFlushPolicy _policy;
 	private readonly TimeProvider _timeProvider;
 	private readonly ArrayBufferWriter<byte> _pending = new();
@@ -20,7 +20,7 @@ internal sealed class RawDanmakuWriter : IAsyncDisposable
 	private int _pendingCount;
 	private long _firstPendingTimestamp;
 
-	private RawDanmakuWriter(FileStream stream, DanmakuFlushPolicy policy, TimeProvider timeProvider)
+	private RawDanmakuWriter(Stream stream, DanmakuFlushPolicy policy, TimeProvider timeProvider)
 	{
 		_stream = stream;
 		_policy = policy;
@@ -31,7 +31,13 @@ internal sealed class RawDanmakuWriter : IAsyncDisposable
 	// 同一次录制里重新打开时接着写
 	public static RawDanmakuWriter Open(string path, DanmakuFlushPolicy policy, TimeProvider timeProvider)
 	{
-		return new RawDanmakuWriter(new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read, 0, FileOptions.Asynchronous), policy, timeProvider);
+		return Create(new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read, 0, FileOptions.Asynchronous), policy, timeProvider);
+	}
+
+	// 接管 stream 的所有权
+	public static RawDanmakuWriter Create(Stream stream, DanmakuFlushPolicy policy, TimeProvider timeProvider)
+	{
+		return new RawDanmakuWriter(stream, policy, timeProvider);
 	}
 
 	public TimeSpan? FlushDueIn
@@ -48,21 +54,38 @@ internal sealed class RawDanmakuWriter : IAsyncDisposable
 		}
 	}
 
-	// json 已由协议层校验过，原样写入
+	// json 已由协议层校验过；token 之间的换行会把一条记录拆成几行，有换行时重写成紧凑的形式
 	public ValueTask WriteAsync(DateTimeOffset time, string command, ReadOnlySpan<byte> json, CancellationToken cancellationToken)
 	{
 		BeginLine(time, command);
 		_json.WritePropertyName("raw"u8);
-		_json.WriteRawValue(json, true);
+
+		if (json.IndexOfAny((byte)'\r', (byte)'\n') >= 0)
+		{
+			Utf8JsonReader reader = new(json);
+			using JsonDocument document = JsonDocument.ParseValue(ref reader);
+			document.RootElement.WriteTo(_json);
+		}
+		else
+		{
+			_json.WriteRawValue(json, true);
+		}
+
 		return EndLineAsync(cancellationToken);
 	}
 
-	// 连接建立时 uid 是连接所用的身份，匿名为 0
-	public ValueTask WriteConnectedAsync(DateTimeOffset time, long userId, CancellationToken cancellationToken)
+	// 不记连接所用账号的 uid：文件会和录像一起整理或分享；masked 为 null 时还不知道是否打码
+	public ValueTask WriteConnectedAsync(DateTimeOffset time, bool anonymous, bool? masked, CancellationToken cancellationToken)
 	{
 		BeginLine(time, ConnectedCommand);
 		_json.WriteStartObject("raw"u8);
-		_json.WriteNumber("uid"u8, userId);
+		_json.WriteBoolean("anonymous"u8, anonymous);
+
+		if (masked is { } value)
+		{
+			_json.WriteBoolean("masked"u8, value);
+		}
+
 		_json.WriteEndObject();
 		return EndLineAsync(cancellationToken);
 	}

@@ -2,7 +2,7 @@ using TUnit.Assertions.Enums;
 
 namespace BilibiliLive.Tests;
 
-// The comparer overload of IsEquivalentTo avoids the reflection-based structural comparison that the trim analyzer rejects
+// The comparer overload of IsEquivalentTo compares elements with their own Equals, as records define it, instead of a reflection-based structural comparison
 internal static class Sequences
 {
 	public static async Task AssertEqualAsync<T>(IEnumerable<T> actual, IEnumerable<T> expected)

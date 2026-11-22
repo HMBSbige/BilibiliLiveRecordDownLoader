@@ -26,10 +26,7 @@ internal sealed partial class DiskSpaceService : IDiskSpaceService
 
 			StringComparison comparison = OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
-			// 录制目录可能位于单独挂载的分区，取最长匹配的挂载点
-			DriveInfo? drive = DriveInfo.GetDrives()
-				.Where(drive => drive.IsReady && IsUnder(fullPath, drive.RootDirectory.FullName, comparison))
-				.MaxBy(static drive => drive.RootDirectory.FullName.Length);
+			DriveInfo? drive = FindReadyMount(DriveInfo.GetDrives(), static drive => drive.RootDirectory.FullName, static drive => drive.IsReady, fullPath, comparison);
 
 			return drive is null ? null : new DiskSpaceInfo(drive.TotalSize, drive.AvailableFreeSpace);
 		}
@@ -39,6 +36,13 @@ internal sealed partial class DiskSpaceService : IDiskSpaceService
 		}
 	}
 
+	// 只探测最长匹配的这一个挂载点，不相关的网络挂载没有响应时不会卡住；它没就绪时也不退回到上层挂载点，那样报出的是别的分区的空间
+	internal static T? FindReadyMount<T>(IEnumerable<T> mounts, Func<T, string> root, Func<T, bool> isReady, string path, StringComparison comparison) where T : class
+	{
+		T? mount = mounts.Where(mount => IsUnder(path, root(mount), comparison)).MaxBy(mount => root(mount).Length);
+		return mount is not null && isReady(mount) ? mount : null;
+	}
+
 	// /mnt/data 不能匹配 /mnt/data2
 	internal static bool IsUnder(string path, string root, StringComparison comparison)
 	{
@@ -46,11 +50,11 @@ internal sealed partial class DiskSpaceService : IDiskSpaceService
 			&& (path.Length == root.Length || Path.EndsInDirectorySeparator(root) || path[root.Length] == Path.DirectorySeparatorChar || path[root.Length] == Path.AltDirectorySeparatorChar);
 	}
 
-	// UNC 共享不是盘符，DriveInfo 查不到；按目录查询还能覆盖映射的网络驱动器和挂载到文件夹的卷，也不用逐个探测可能已断开的驱动器
+	// UNC 共享不是盘符，DriveInfo 查不到；按目录查询还能覆盖挂载到文件夹的卷，也不用逐个探测可能已断开的驱动器
 	[SupportedOSPlatform("windows")]
 	private static DiskSpaceInfo? GetWindowsDiskSpace(string fullPath)
 	{
-		// 目录可能还没建出来，向上找到第一个存在的目录
+		// 目录可能还没建出来
 		for (string? directory = fullPath; directory is not null; directory = Path.GetDirectoryName(directory))
 		{
 			if (GetDiskFreeSpaceEx(Path.EndsInDirectorySeparator(directory) ? directory : directory + Path.DirectorySeparatorChar, out ulong available, out ulong total, out _))

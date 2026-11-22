@@ -34,6 +34,23 @@ public sealed class DanmakuChapterBuilderTest
 		await Assert.That(chapters).IsEquivalentTo(expected, EqualityComparer<FFmpegChapter>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
 	}
 
+	// 分段的弹幕文件里时间会倒退零点几秒；倒序处理会把 200 秒改回原标题当成没变
+	[Test]
+	public async Task TitleChangesAreFollowedInTimeOrderAsync()
+	{
+		DanmakuRecord[] records = [new DanmakuRecord.TitleChange(TimeSpan.FromSeconds(200), @"直播标题"), new DanmakuRecord.TitleChange(TimeSpan.FromSeconds(100), @"新标题")];
+
+		IReadOnlyList<FFmpegChapter> chapters = DanmakuChapterBuilder.Build(@"直播标题", records, [], TimeSpan.FromSeconds(300), Names);
+
+		FFmpegChapter[] expected =
+		[
+			new(TimeSpan.Zero, TimeSpan.FromSeconds(100), @"直播标题"),
+			new(TimeSpan.FromSeconds(100), TimeSpan.FromSeconds(200), @"标题：新标题"),
+			new(TimeSpan.FromSeconds(200), TimeSpan.FromSeconds(300), @"标题：直播标题")
+		];
+		await Assert.That(chapters).IsEquivalentTo(expected, EqualityComparer<FFmpegChapter>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+	}
+
 	[Test]
 	public async Task UnchangedTitlesDoNotStartAChapterAsync()
 	{

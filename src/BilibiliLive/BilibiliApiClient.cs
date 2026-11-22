@@ -3,6 +3,7 @@ using BilibiliLive.Http;
 using BilibiliLive.Wbi;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
 namespace BilibiliLive;
@@ -12,8 +13,6 @@ public sealed class BilibiliApiClient
 	private const string LiveApi = "https://api.live.bilibili.com/";
 	private const string NavUrl = "https://api.bilibili.com/x/web-interface/nav";
 	private const string PassportApi = "https://passport.bilibili.com/x/passport-login/web/qrcode/";
-
-	private const long RoomNotFoundCode = 60004;
 
 	private static readonly TimeSpan BeijingOffset = TimeSpan.FromHours(8);
 
@@ -33,13 +32,12 @@ public sealed class BilibiliApiClient
 
 	internal TimeProvider TimeProvider { get; }
 
-	// Following lists of a few hundred streamers take dozens of pages, pausing between them keeps the request rate low
 	internal static TimeSpan FollowingPageInterval { get; } = TimeSpan.FromMilliseconds(300);
 
 	public async Task<LiveRoomInfo> GetRoomInfoAsync(long roomId, CancellationToken cancellationToken = default)
 	{
 		IReadOnlyList<LiveRoomInfo> rooms = await GetRoomInfosAsync([roomId], cancellationToken);
-		return rooms is [var room, ..] ? room : throw new BilibiliApiException($"Room {roomId} does not exist.", RoomNotFoundCode);
+		return rooms is [var room, ..] ? room : throw new BilibiliApiException($"Room {roomId} does not exist.", BilibiliApiException.RoomNotFoundCode);
 	}
 
 	// Rooms that do not exist are left out of the result
@@ -109,6 +107,7 @@ public sealed class BilibiliApiClient
 		}
 	}
 
+	/// <returns>Empty when the room is live but lists no stream that can be recorded.</returns>
 	public async Task<IReadOnlyList<LiveStreamCandidate.Listed>> GetStreamCandidatesAsync(long roomId, long qn, IReadOnlyList<StreamCodec> codecPriority, IReadOnlyList<StreamFormat> formatPriority, CancellationToken cancellationToken = default)
 	{
 		Uri uri = CreateUri($"{LiveApi}xlive/web-room/v2/index/getRoomPlayInfo?room_id={roomId}&no_playurl=0&mask=1&qn={qn}&platform=web&protocol=0,1&format=0,1,2&codec=0,1,2");
@@ -119,17 +118,9 @@ public sealed class BilibiliApiClient
 			throw new BilibiliApiException($"Room {roomId} is not live.");
 		}
 
-		LiveStreamCandidate.Listed[] candidates = StreamCandidates.Select(data, codecPriority, formatPriority);
-
-		if (candidates.Length is 0)
-		{
-			throw new BilibiliApiException($"Room {roomId} has no usable stream.");
-		}
-
-		return candidates;
+		return StreamCandidates.Select(data, codecPriority, formatPriority);
 	}
 
-	/// <summary>Lists the fMP4 variants of every quality and codec from the HLS master playlist of play-gateway.</summary>
 	/// <param name="mid">Meant to be the uid of the requester, but not checked against the login, which is why the request goes without the login cookie.</param>
 	public async Task<IReadOnlyList<LiveStreamCandidate.Variant>> GetMasterPlaylistVariantsAsync(long roomId, long mid, CancellationToken cancellationToken = default)
 	{
@@ -141,12 +132,29 @@ public sealed class BilibiliApiClient
 
 		// A room that is not live gets an empty response
 		string content = await response.Content.ReadAsStringAsync(cancellationToken);
+		ThrowIfErrorEnvelope(content);
 		LiveStreamCandidate.Variant[] variants = MasterPlaylistVariants.Parse(content, uri);
 
 		return variants.Length is 0 ? throw new BilibiliApiException($"The master playlist of room {roomId} lists no usable variant.") : variants;
 	}
 
-	public Task<DanmuServerInfo> GetDanmuServerInfoAsync(long roomId, CancellationToken cancellationToken = default)
+	// Errors come as an API envelope instead of a playlist, and the code tells risk control apart from a bad request
+	private static void ThrowIfErrorEnvelope(string content)
+	{
+		if (!content.AsSpan().TrimStart().StartsWith('{'))
+		{
+			return;
+		}
+
+		using JsonDocument document = JsonDocument.Parse(content);
+
+		if (ApiResponse.ReadEnvelope(document.RootElement) is (not 0 and var code, var message))
+		{
+			throw new BilibiliApiException(message, code);
+		}
+	}
+
+	internal Task<DanmuServerInfo> GetDanmuServerInfoAsync(long roomId, CancellationToken cancellationToken)
 	{
 		return GetDanmuServerInfoCoreAsync(roomId, false, cancellationToken);
 	}
@@ -180,6 +188,12 @@ public sealed class BilibiliApiClient
 	public async Task<long> GetCurrentUserIdAsync(CancellationToken cancellationToken = default)
 	{
 		ApiResponse<NavData> response = await GetNavAsync(cancellationToken);
+
+		// The danmu token is requested right after the uid, so it gets signed with these keys rather than cached ones that may have rotated
+		if (GetMixinKey(response.Data) is { } mixinKey)
+		{
+			_wbiKeys.Store(mixinKey);
+		}
 
 		if (response.Code is BilibiliApiException.NotLoggedInCode)
 		{
@@ -217,10 +231,10 @@ public sealed class BilibiliApiClient
 
 		return data.Code switch
 		{
-			0 => new QrCodeLoginResult(QrCodeLoginState.Succeeded, GetLoginCookie(response)),
-			86038 => new QrCodeLoginResult(QrCodeLoginState.Expired),
-			86090 => new QrCodeLoginResult(QrCodeLoginState.WaitingForConfirm),
-			86101 => new QrCodeLoginResult(QrCodeLoginState.WaitingForScan),
+			0 => new QrCodeLoginResult.Succeeded(GetLoginCookie(response)),
+			86038 => new QrCodeLoginResult.Expired(),
+			86090 => new QrCodeLoginResult.WaitingForConfirm(),
+			86101 => new QrCodeLoginResult.WaitingForScan(),
 			_ => throw new BilibiliApiException(data.Message ?? $"Unknown QR code login state {data.Code}.", data.Code)
 		};
 
@@ -281,16 +295,16 @@ public sealed class BilibiliApiClient
 			throw new BilibiliApiException(response.Message, response.Code);
 		}
 
-		if (response.Data?.WbiImg is not { ImgUrl: { } imgUrl, SubUrl: { } subUrl })
-		{
-			throw new BilibiliApiException("The nav response contains no wbi keys.", response.Code);
-		}
+		return GetMixinKey(response.Data) ?? throw new BilibiliApiException("The nav response contains no wbi keys.", response.Code);
+	}
 
-		return WbiSigner.GetMixinKey(GetKey(imgUrl), GetKey(subUrl));
+	private static string? GetMixinKey(NavData? data)
+	{
+		return data?.WbiImg is { ImgUrl: { } imgUrl, SubUrl: { } subUrl } && GetKey(imgUrl) is { } imgKey && GetKey(subUrl) is { } subKey ? WbiSigner.TryGetMixinKey(imgKey, subKey) : null;
 
-		static string GetKey(string url)
+		static string? GetKey(string url)
 		{
-			return Path.GetFileNameWithoutExtension(new Uri(url).AbsolutePath);
+			return Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) ? Path.GetFileNameWithoutExtension(uri.AbsolutePath) : null;
 		}
 	}
 }

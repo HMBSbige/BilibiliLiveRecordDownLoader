@@ -2,15 +2,39 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.Tools;
 
 public sealed partial class MediaToolsViewModel : ViewModelBase
 {
-	private static readonly string[] RemuxableExtensions = [".flv", ".ts", ".mkv", ".m4s"];
+	// .mp4 只有本程序录的 fMP4 需要转换，由 GetMp4ConversionPath 识别
+	private static readonly string[] RemuxableExtensions = [".flv", ".ts", ".mkv", ".m4s", ".mp4"];
 
-	private readonly HashSet<string> _queuedCutOutputs = new(OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+	private static readonly string[] TimeFormats = [@"h\:mm\:ss\.FFF", @"h\:mm\:ss", @"m\:ss\.FFF", @"m\:ss"];
+
+	// 用户配错 FFmpeg 路径时，指向的程序可能不会自行退出
+	private static readonly TimeSpan FFmpegCheckTimeout = TimeSpan.FromSeconds(10);
+
+	// Windows、macOS 的路径默认不区分大小写
+	private static readonly StringComparer PathComparer = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
+	private readonly IMediaToolAppService _mediaTools;
+	private readonly IBackgroundTaskAppService _tasks;
+	private readonly INotificationService _notifications;
 	private string? _ffmpegVersion;
+	private int _ffmpegCheckGeneration;
 
-	public MediaToolsViewModel()
+	public MediaToolsViewModel(IMediaToolAppService mediaTools, IBackgroundTaskAppService tasks, INotificationService notifications)
 	{
+		_mediaTools = mediaTools;
+		_tasks = tasks;
+		_notifications = notifications;
+
 		CanQueueRemux = this.WhenChanged(static viewModel => viewModel.IsFFmpegAvailable, static viewModel => viewModel.RemuxInput, static viewModel => viewModel.RemuxOutput, CanQueue);
-		CanQueueCut = this.WhenChanged(static viewModel => viewModel.IsFFmpegAvailable, static viewModel => viewModel.CutInput, static viewModel => viewModel.CutOutput, CanQueue);
+		CanQueueCut = this.WhenChanged
+		(
+			static viewModel => viewModel.IsFFmpegAvailable,
+			static viewModel => viewModel.CutInput,
+			static viewModel => viewModel.CutOutput,
+			static viewModel => viewModel.CutStart,
+			static viewModel => viewModel.CutEnd,
+			static (isFFmpegAvailable, input, output, start, end) => CanQueue(isFFmpegAvailable, input, output) && TryParseTimeRange(start, end, out _, out _)
+		);
 
 		CheckFFmpegCommand.DisposeWith(Disposables);
 		DownloadFFmpegCommand.DisposeWith(Disposables);
@@ -23,12 +47,27 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 
 		this.WhenChanged(static viewModel => viewModel.RemuxInput)
 			.Skip(1)
-			.Subscribe(input => RemuxOutput = SuggestRemuxOutput(input))
+			.Subscribe(input => RemuxOutput = SuggestRemuxOutput(input, GetPendingOutputs()))
 			.DisposeWith(Disposables);
 
 		this.WhenChanged(static viewModel => viewModel.CutInput)
 			.Skip(1)
-			.Subscribe(input => CutOutput = SuggestCutOutput(input, _queuedCutOutputs))
+			.Subscribe(input => CutOutput = SuggestCutOutput(input, GetPendingOutputs()))
+			.DisposeWith(Disposables);
+
+		this.WhenChanged(static viewModel => viewModel.RemuxInput, static viewModel => viewModel.RemuxOutput, static (_, _) => RxVoid.Default)
+			.Subscribe(_ => RemuxError = null)
+			.DisposeWith(Disposables);
+
+		this.WhenChanged
+			(
+				static viewModel => viewModel.CutInput,
+				static viewModel => viewModel.CutOutput,
+				static viewModel => viewModel.CutStart,
+				static viewModel => viewModel.CutEnd,
+				static string? (_, _, start, end) => TryParseTimeRange(start, end, out _, out _) ? null : AppLanguage.Current.InvalidTimeRange
+			)
+			.Subscribe(error => CutError = error)
 			.DisposeWith(Disposables);
 
 		OnLanguageChanged(UpdateFFmpegVersionText);
@@ -57,6 +96,9 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 	public partial bool RepairFlv { get; set; }
 
 	[Reactive]
+	public partial string? RemuxError { get; private set; }
+
+	[Reactive]
 	public partial string CutInput { get; set; } = string.Empty;
 
 	[Reactive]
@@ -68,6 +110,9 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 	[Reactive]
 	public partial string CutEnd { get; set; } = "01:00:00.000";
 
+	[Reactive]
+	public partial string? CutError { get; private set; }
+
 	internal void RefreshFFmpegStatus()
 	{
 		Forget(CheckFFmpegAsync);
@@ -76,10 +121,30 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 	[ReactiveCommand]
 	private async Task CheckFFmpegAsync(CancellationToken cancellationToken)
 	{
+		int generation = ++_ffmpegCheckGeneration;
+		string? version = null;
 		IsFFmpegAvailable = null;
-		_ffmpegVersion = await AppLocator.Current.GetRequiredService<IMediaToolAppService>().GetFFmpegVersionAsync(cancellationToken);
-		UpdateFFmpegVersionText();
-		IsFFmpegAvailable = _ffmpegVersion is not null;
+
+		try
+		{
+			using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+			timeout.CancelAfter(FFmpegCheckTimeout);
+			version = await _mediaTools.GetFFmpegVersionAsync(timeout.Token);
+		}
+		catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+		{
+			// 超时按不可用处理
+		}
+		finally
+		{
+			// 切换页面和点“重新检查”都会发起检查，以最后一次为准
+			if (generation == _ffmpegCheckGeneration)
+			{
+				_ffmpegVersion = version;
+				UpdateFFmpegVersionText();
+				IsFFmpegAvailable = version is not null;
+			}
+		}
 	}
 
 	[ReactiveCommand]
@@ -109,7 +174,16 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 	[ReactiveCommand(CanExecute = nameof(CanQueueRemux))]
 	private async Task QueueRemuxAsync(CancellationToken cancellationToken)
 	{
-		await AppLocator.Current.GetRequiredService<IMediaToolAppService>().QueueRemuxAsync(new RemuxInput(RemuxInput.Trim(), RemuxOutput.Trim(), DeleteRemuxSource, RepairFlv), cancellationToken);
+		try
+		{
+			await _mediaTools.QueueRemuxAsync(new RemuxInput(RemuxInput.Trim(), RemuxOutput.Trim(), DeleteRemuxSource, RepairFlv ? new RemuxMode.RepairFlv() : new RemuxMode.Plain()), cancellationToken);
+		}
+		catch (Exception exception) when (IsInputError(exception))
+		{
+			RemuxError = exception.Message;
+			return;
+		}
+
 		NotifyQueued();
 		RemuxInput = string.Empty;
 	}
@@ -135,18 +209,23 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 	[ReactiveCommand(CanExecute = nameof(CanQueueCut))]
 	private async Task QueueCutAsync(CancellationToken cancellationToken)
 	{
-		if (!TryParseTime(CutStart, out TimeSpan start) || !TryParseTime(CutEnd, out TimeSpan end))
+		if (!TryParseTimeRange(CutStart, CutEnd, out TimeSpan start, out TimeSpan end))
 		{
-			throw new FormatException(AppLanguage.Current.InvalidTimeRange);
+			return;
 		}
 
-		string output = CutOutput.Trim();
-		await AppLocator.Current.GetRequiredService<IMediaToolAppService>().QueueCutAsync(new CutInput(CutInput.Trim(), output, start, end), cancellationToken);
-		NotifyQueued();
+		try
+		{
+			await _mediaTools.QueueCutAsync(new CutInput(CutInput.Trim(), CutOutput.Trim(), start, end), cancellationToken);
+		}
+		catch (Exception exception) when (IsInputError(exception))
+		{
+			CutError = exception.Message;
+			return;
+		}
 
-		// 排队的任务还没写出文件，下一个建议要跳过它
-		_queuedCutOutputs.Add(Path.GetFullPath(output));
-		CutOutput = SuggestCutOutput(CutInput, _queuedCutOutputs);
+		NotifyQueued();
+		CutOutput = SuggestCutOutput(CutInput, GetPendingOutputs());
 	}
 
 	private void UpdateFFmpegVersionText()
@@ -154,19 +233,38 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 		FFmpegVersion = _ffmpegVersion is null ? null : AppLanguage.Current.FFmpegVersion.ToString(_ffmpegVersion);
 	}
 
+	private HashSet<string> GetPendingOutputs()
+	{
+		IEnumerable<string> outputs = _tasks.GetTasks().Where(static task => task.Status is BackgroundTaskStatus.Queued or BackgroundTaskStatus.Running).Select(static task => task.TargetPath).OfType<string>();
+		return new HashSet<string>(outputs.Select(Path.GetFullPath), PathComparer);
+	}
+
+	private void NotifyQueued()
+	{
+		_notifications.Show(AppLanguage.Current.Tasks, AppLanguage.Current.TaskAdded, AppNotificationType.Success);
+	}
+
 	private static bool CanQueue(bool? isFFmpegAvailable, string input, string output)
 	{
 		return isFFmpegAvailable is true && !string.IsNullOrWhiteSpace(input) && !string.IsNullOrWhiteSpace(output);
 	}
 
-	private static void NotifyQueued()
+	// 应用服务对输入问题抛出这两类异常
+	private static bool IsInputError(Exception exception)
 	{
-		AppLocator.Current.GetRequiredService<INotificationService>().Show(AppLanguage.Current.Tasks, AppLanguage.Current.TaskAdded, AppNotificationType.Success);
+		return exception is ArgumentException or FileNotFoundException;
 	}
 
+	internal static bool TryParseTimeRange(string startText, string endText, out TimeSpan start, out TimeSpan end)
+	{
+		end = default;
+		return TryParseTime(startText, out start) && TryParseTime(endText, out end) && end > start;
+	}
+
+	// 宽松解析会把纯数字当作天数
 	private static bool TryParseTime(string text, out TimeSpan time)
 	{
-		return TimeSpan.TryParse(text.Trim(), CultureInfo.InvariantCulture, out time);
+		return TimeSpan.TryParseExact(text.Trim(), TimeFormats, CultureInfo.InvariantCulture, out time);
 	}
 
 	private static string? GetDirectory(string path)
@@ -174,31 +272,39 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 		return string.IsNullOrWhiteSpace(path) ? null : Path.GetDirectoryName(path);
 	}
 
-	internal static string SuggestRemuxOutput(string input)
+	internal static string SuggestRemuxOutput(string input, IReadOnlySet<string> reserved)
 	{
-		string extension = Path.GetExtension(input);
+		input = input.Trim();
 
-		return RemuxableExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase) ? Path.ChangeExtension(input, ".mp4") : string.Empty;
-	}
-
-	internal static string SuggestCutOutput(string input, IReadOnlySet<string> reserved)
-	{
-		if (string.IsNullOrWhiteSpace(input))
+		if (!RemuxableExtensions.Contains(Path.GetExtension(input), StringComparer.OrdinalIgnoreCase) || RecordingFileLayout.GetMp4ConversionPath(input) is not { } output)
 		{
 			return string.Empty;
 		}
 
-		string withoutExtension = Path.ChangeExtension(input, null);
-		string extension = Path.GetExtension(input);
+		return Numbered(output).Prepend(output).First(candidate => IsAvailable(candidate, reserved));
+	}
+
+	internal static string SuggestCutOutput(string input, IReadOnlySet<string> reserved)
+	{
+		input = input.Trim();
+
+		return input.Length is 0 ? string.Empty : Numbered(input).First(candidate => IsAvailable(candidate, reserved));
+	}
+
+	// 排队的任务还没写出文件，建议的输出也要跳过它们
+	private static bool IsAvailable(string path, IReadOnlySet<string> reserved)
+	{
+		return !File.Exists(path) && !reserved.Contains(Path.GetFullPath(path));
+	}
+
+	private static IEnumerable<string> Numbered(string path)
+	{
+		string withoutExtension = Path.ChangeExtension(path, null);
+		string extension = Path.GetExtension(path);
 
 		for (int index = 1; ; ++index)
 		{
-			string candidate = string.Create(CultureInfo.InvariantCulture, $"{withoutExtension}_{index}{extension}");
-
-			if (!File.Exists(candidate) && !reserved.Contains(Path.GetFullPath(candidate)))
-			{
-				return candidate;
-			}
+			yield return string.Create(CultureInfo.InvariantCulture, $"{withoutExtension}_{index}{extension}");
 		}
 	}
 }

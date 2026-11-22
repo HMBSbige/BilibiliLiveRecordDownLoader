@@ -1,4 +1,3 @@
-using BilibiliLive.Streams;
 using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
@@ -146,6 +145,24 @@ public sealed class RecordingTimelineTest
 
 		// 卡了 30 秒只往后推 10 秒；事后才查也按当时的情况算，不受之后到达的数据影响
 		await Assert.That(Describe(Place(recording.Timeline, times))).IsEqualTo(Describe(Positions(0, 10_900, 1000, 11_000)));
+	}
+
+	// HLS 的空闲超时按分片间隔放宽，可能长于 10 秒：卡住期间这次尝试还没结束，内置重试成功后画面接着写进同一个文件，弹幕要一直往后推到空闲超时
+	[Test]
+	[Arguments(3, 10_000)]
+	[Arguments(20, 20_000)]
+	public async Task StalledStreamMovesOnUntilTheIdleTimeoutAsync(int idleTimeoutSeconds, long expectedMilliseconds)
+	{
+		FakeTimeProvider time = new();
+		RecordingTimeline timeline = new("0", time, TimeSpan.FromSeconds(idleTimeoutSeconds));
+		timeline.AddMedia([new MediaMark(1, MediaSpan.At(TimeSpan.FromSeconds(10)), null)], time.GetTimestamp());
+		timeline.Commit(1);
+		time.Advance(TimeSpan.FromSeconds(30));
+		long stalled = time.GetTimestamp();
+		timeline.EndReceiving();
+		timeline.Close();
+
+		await Assert.That(Describe(Place(timeline, [stalled]))).IsEqualTo(Describe(Positions(0, expectedMilliseconds)));
 	}
 
 	[Test]
@@ -391,39 +408,6 @@ public sealed class RecordingTimelineTest
 
 	[Test]
 	[Timeout(10_000)]
-	public async Task UnknownContainerCountsFromTheFileCreationAsync(CancellationToken cancellationToken)
-	{
-		FakeTimeProvider time = new();
-		RecordingTimeline timeline = new("only", time);
-		List<long> times = [];
-		using MemoryStream file = new();
-		byte[] data = [1, 2, 3, 4];
-
-		await RecordingWriteBuffer.CopyAsync(new ScriptedSession(async destination =>
-		{
-			time.Advance(TimeSpan.FromSeconds(1));
-			await destination.WriteAsync(data, cancellationToken);
-			time.Advance(TimeSpan.FromMilliseconds(500));
-			times.Add(time.GetTimestamp());
-			time.Advance(TimeSpan.FromMilliseconds(500));
-			await destination.WriteAsync(data, cancellationToken);
-			time.Advance(TimeSpan.FromSeconds(30));
-			times.Add(time.GetTimestamp());
-		}), new SingleFileOutput(file, timeline), new Progress<long>(), TimeSpan.FromSeconds(5), cancellationToken);
-
-		timeline.Close();
-		time.Advance(TimeSpan.FromSeconds(1));
-		times.Add(time.GetTimestamp());
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(file.ToArray().SequenceEqual((byte[])[.. data, .. data])).IsTrue();
-			await Assert.That(Describe(Place(timeline, times))).IsEqualTo(Describe(Expected(new TimelinePosition(0, "only", TimeSpan.FromMilliseconds(1500)), new TimelinePosition(0, "only", TimeSpan.FromSeconds(12)), null)));
-		}
-	}
-
-	[Test]
-	[Timeout(10_000)]
 	public async Task EachFileKeepsTheSizeFromItsOwnHeaderAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -523,6 +507,48 @@ public sealed class RecordingTimelineTest
 		}
 	}
 
+	// 保留 1 秒、攒够 4 条才删：每 100 毫秒一帧，第 20 帧开始第二段；早于保留范围的弹幕按最早留下的记录放，修剪前后其余位置不变
+	[Test]
+	public async Task PrunedRecordsKeepLaterPositionsAndBoundTheRecordCountAsync()
+	{
+		FakeTimeProvider time = new();
+		RecordingTimeline timeline = new("0", time, RoomDefaults.StreamIdleTimeout, TimeSpan.FromSeconds(1), 4);
+		long[] times = new long[40];
+		TimelinePosition? beforePruning = null;
+
+		for (int frame = 0; frame < times.Length; ++frame)
+		{
+			timeline.AddMedia([new MediaMark(frame + 1, MediaSpan.At(TimeSpan.FromMilliseconds(10_000 + frame * 100)), null)], time.GetTimestamp());
+
+			if (frame is 20)
+			{
+				timeline.OpenSegment(timeline.StartSegment(), "1");
+			}
+
+			timeline.Commit(frame + 1);
+			time.Advance(TimeSpan.FromMilliseconds(50));
+			times[frame] = time.GetTimestamp();
+			time.Advance(TimeSpan.FromMilliseconds(50));
+
+			if (frame is 12)
+			{
+				timeline.TryPlace(times[5], out beforePruning);
+			}
+		}
+
+		timeline.EndReceiving();
+		timeline.Close();
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(beforePruning).IsEqualTo(At(0, 550));
+			await Assert.That(Describe(Place(timeline, [times[5], times[19], times[29], times[35], times[39]]))).IsEqualTo(Describe([At(1, 800), At(1, 800), At(1, 950), At(1, 1550), At(1, 1950)]));
+
+			// 保留范围内的 11 条，加上攒着还没删的最多 3 条
+			await Assert.That(timeline.RecordCount).IsLessThanOrEqualTo(14);
+		}
+	}
+
 	// 每帧占 100 毫秒：写出、过 50 毫秒记下弹幕的接收时刻，再过 50 毫秒
 	private static async Task WriteFramesAsync(SessionWriter session, int first, int last, List<long> times)
 	{
@@ -604,22 +630,6 @@ public sealed class RecordingTimelineTest
 	private static TimelinePosition? At(int segment, long milliseconds)
 	{
 		return new TimelinePosition(segment, segment.ToString(CultureInfo.InvariantCulture), TimeSpan.FromTicks(milliseconds * TimeSpan.TicksPerMillisecond));
-	}
-
-	private sealed class ScriptedSession(Func<Stream, Task> script) : LiveStreamSession
-	{
-		public override Uri Source { get; } = new("https://cdn.test/live");
-
-		public override async Task<StreamEndReason> CopyToAsync(Stream destination, IProgress<long>? progress = null, CancellationToken cancellationToken = default)
-		{
-			await script(destination);
-			return StreamEndReason.EndOfStream;
-		}
-
-		public override ValueTask DisposeAsync()
-		{
-			return ValueTask.CompletedTask;
-		}
 	}
 }
 

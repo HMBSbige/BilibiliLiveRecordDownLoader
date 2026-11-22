@@ -22,11 +22,10 @@ public closed record DanmuMessage
 
 	/// <param name="Mode">1–3 scroll, 4 bottom, 5 top, as in the Bilibili danmaku XML.</param>
 	/// <param name="Color">Decimal RGB.</param>
-	/// <param name="Id">The dmid, a hexadecimal string on live rooms, empty when absent.</param>
 	/// <param name="UserHash">CRC32 of the sender's decimal uid in lowercase hexadecimal, sent even when the uid is masked, empty when absent.</param>
 	/// <param name="Text">For an emoticon, its name.</param>
 	/// <param name="IsStorm">Sent by a "rhythm storm", a phrase many viewers repeat with one click.</param>
-	public sealed record Comment(DanmuSender Sender, string Text, int Mode, int FontSize, int Color, DateTimeOffset SentAt, string Id, string UserHash, DanmuCommentKind Kind, bool IsStorm) : DanmuMessage;
+	public sealed record Comment(DanmuSender Sender, string Text, int Mode, int FontSize, int Color, DateTimeOffset SentAt, string UserHash, DanmuCommentKind Kind, bool IsStorm) : DanmuMessage;
 
 	/// <param name="Price">In thousandths of a yuan.</param>
 	/// <param name="Duration">How long the room pins it.</param>

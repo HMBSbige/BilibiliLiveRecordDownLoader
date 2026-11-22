@@ -91,12 +91,25 @@ public record AppConfig
 			RecordDirectory = ConfigurationConsts.DefaultRecordDirectory;
 		}
 
+		// 枚举在配置里也能写成数字；按值分支的地方不认识未定义的值
+		Theme = DefinedOrDefault(Theme);
+		RoomSortOrder = DefinedOrDefault(RoomSortOrder);
+		RecorderType = DefinedOrDefault(RecorderType);
+		StreamHostSelection = DefinedOrDefault(StreamHostSelection);
+		SplitMode = DefinedOrDefault(SplitMode);
+		GiftMode = DefinedOrDefault(GiftMode);
 		CodecPriority = StreamPriority.Normalize(CodecPriority, StreamPriority.DefaultCodecs);
 		FormatPriority = StreamPriority.Normalize(FormatPriority, StreamPriority.DefaultFormats);
 		SplitDuration = RecordingSplitLimits.ClampDuration(SplitDuration);
 		SplitSizeMegabytes = RecordingSplitLimits.ClampSize(SplitSizeMegabytes);
 		DanmakuOffset = DanmakuDefaults.ClampOffset(DanmakuOffset);
-		Rooms = [.. Rooms.Where(static room => room.RoomId > 0).DistinctBy(static room => room.RoomId)];
+		// 手改的配置里 Rooms 或其中的元素可能是 null
+		Rooms = [.. (Rooms ?? []).Where(static room => room is { RoomId: > 0 }).DistinctBy(static room => room.RoomId)];
 		Rooms.ForEach(static room => room.ApplyDefaults());
+	}
+
+	private static T DefinedOrDefault<T>(T value) where T : struct, Enum
+	{
+		return Enum.IsDefined(value) ? value : default;
 	}
 }

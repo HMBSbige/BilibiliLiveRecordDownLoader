@@ -10,9 +10,6 @@ internal interface IRecordingTimeline
 	// timestamp 是 TimeProvider.GetTimestamp() 取的接收时刻。归属还没确定时等到确定；返回 null 表示这一刻没有对应的录制文件
 	ValueTask<TimelinePosition?> PlaceAsync(long timestamp, CancellationToken cancellationToken);
 
-	// 归属已经确定时返回 true，position 和 PlaceAsync 的结果相同；还要等时返回 false
-	bool TryPlace(long timestamp, out TimelinePosition? position);
-
 	// 这个文件开始时流头里的画面尺寸，开始时读不到就用这一段里第一次读到的；读不到或者不是这次尝试的文件时为 null
 	VideoResolution? GetResolution(string path);
 
@@ -28,18 +25,16 @@ internal interface IRecordingTimeline
 internal sealed class RecordingTimeline : IRecordingTimeline
 {
 	/// <summary>
-	/// 从最后到达的元素往后推的上限，从最后一次收到数据算起。正常录制时最长的到达间隔是 TS HLS：分片 3–5 秒，加上半个目标时长的刷新间隔和下载，约 8 秒，碰不到这个上限；
-	/// 卡住更久时默认的空闲超时（10 秒）已经结束这次尝试，再往后推只会把弹幕放到文件最后一帧之后，恢复时又倒回来。
+	/// 从最后到达的元素往后推的上限的下限。正常录制时最长的到达间隔是 TS HLS：分片 3–5 秒，加上半个目标时长的刷新间隔和下载，约 8 秒，碰不到它。
 	/// </summary>
-	public static readonly TimeSpan MaxExtrapolation = TimeSpan.FromSeconds(10);
+	private static readonly TimeSpan MinExtrapolationLimit = TimeSpan.FromSeconds(10);
 
 	// 弹幕从收到到放置要排队，前面的弹幕可能在等单元提交，最长到卡流后的空闲超时；远超过这个时长的记录不再保留
 	internal static readonly TimeSpan Retention = TimeSpan.FromMinutes(2);
 
-	// 和 FlvSplitter 一样：倒退超过这么多说明源的时间线重新开始了，从已经到达的时间接着往后排
-	private static readonly TimeSpan TimelineTolerance = TimeSpan.FromSeconds(1);
+	private static readonly TimeSpan TimelineTolerance = TimeSpan.FromMilliseconds(MediaSpan.TimelineRestartToleranceMilliseconds);
 
-	private const int PruneThreshold = 1024;
+	private const int DefaultPruneThreshold = 1024;
 
 	// 只有数据没有新元素时（大的 tag 还在收、认不出的容器）最多每秒记一次，往后推的上限因此最多早算 1 秒
 	private static readonly TimeSpan DataRecordInterval = TimeSpan.FromSeconds(1);
@@ -47,8 +42,16 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 	private readonly Lock _lock = new();
 	private readonly TimeProvider _timeProvider;
 	private readonly long _retention;
+	private readonly int _pruneThreshold;
+
+	// 从最后一次收到数据算起，取这次尝试的空闲超时：卡住到空闲超时这次尝试就结束了，再往后推只会把弹幕放到文件最后一帧之后，恢复时又倒回来；
+	// 在这之前恢复时画面接着写进同一个文件（HLS 的空闲超时按分片间隔放宽，内置重试成功后续上），弹幕跟着往后推才不会挤在一起、放早
+	private readonly TimeSpan _extrapolationLimit;
 	private readonly List<Record> _records = [];
 	private readonly List<Segment> _segments = [];
+
+	// 第一个文件建好的时刻；读不到媒体时间时第一个文件从这里按单调时钟算
+	private readonly long _created;
 	private int _resolvedCount;
 	private long _recordedEnd;
 	private long _committedEnd;
@@ -56,16 +59,31 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 	private bool _isClosed;
 	private TaskCompletionSource? _changed;
 
-	public RecordingTimeline(string path, TimeProvider timeProvider)
+	public RecordingTimeline(string path, TimeProvider timeProvider, TimeSpan idleTimeout) : this(path, timeProvider, idleTimeout, Retention, DefaultPruneThreshold)
 	{
-		_timeProvider = timeProvider;
-		_retention = (long)(Retention.TotalSeconds * timeProvider.TimestampFrequency);
-		Created = timeProvider.GetTimestamp();
-		_segments.Add(new Segment(0, Created) { Path = path });
 	}
 
-	// 第一个文件建好的时刻；读不到媒体时间时第一个文件从这里按单调时钟算
-	public long Created { get; }
+	// 测试用较短的保留时长和较小的批量，几十条记录就能走到修剪
+	internal RecordingTimeline(string path, TimeProvider timeProvider, TimeSpan idleTimeout, TimeSpan retention, int pruneThreshold)
+	{
+		_timeProvider = timeProvider;
+		_extrapolationLimit = idleTimeout > MinExtrapolationLimit ? idleTimeout : MinExtrapolationLimit;
+		_retention = (long)(retention.TotalSeconds * timeProvider.TimestampFrequency);
+		_pruneThreshold = pruneThreshold;
+		_created = timeProvider.GetTimestamp();
+		_segments.Add(new Segment(0, _created) { Path = path });
+	}
+
+	internal int RecordCount
+	{
+		get
+		{
+			lock (_lock)
+			{
+				return _records.Count;
+			}
+		}
+	}
 
 	public async ValueTask<TimelinePosition?> PlaceAsync(long timestamp, CancellationToken cancellationToken)
 	{
@@ -87,7 +105,8 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		}
 	}
 
-	public bool TryPlace(long timestamp, out TimelinePosition? position)
+	// 归属已经确定时返回 true，position 和 PlaceAsync 的结果相同；还要等时返回 false
+	internal bool TryPlace(long timestamp, out TimelinePosition? position)
 	{
 		lock (_lock)
 		{
@@ -161,24 +180,6 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		}
 	}
 
-	// 认不出容器时整个流原样写进第一个文件，收到即提交；只有一段，记录只用来算往后推的上限
-	internal void AddUnparsed(long received)
-	{
-		long arrival = _timeProvider.GetTimestamp();
-
-		lock (_lock)
-		{
-			_committedEnd = received;
-
-			if (_records.Count is 0 || _timeProvider.GetElapsedTime(_records[^1].Arrival, arrival) >= DataRecordInterval)
-			{
-				_records.Add(new Record(received, arrival, null, null));
-				_recordedEnd = received;
-				ResolveCommitted();
-			}
-		}
-	}
-
 	// 网络端：会话结束，攒着的数据都已经提交；之后收到的弹幕不属于这次尝试的任何文件
 	internal void EndReceiving()
 	{
@@ -218,7 +219,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 	{
 		position = null;
 
-		if (timestamp < Created || timestamp > _receivingEnd)
+		if (timestamp < _created || timestamp > _receivingEnd)
 		{
 			return true;
 		}
@@ -238,7 +239,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 			return _isClosed;
 		}
 
-		TimeSpan limit = _timeProvider.GetElapsedTime(record.BaseArrival, record.Arrival) + MaxExtrapolation;
+		TimeSpan limit = _timeProvider.GetElapsedTime(record.BaseArrival, record.Arrival) + _extrapolationLimit;
 		TimeSpan elapsed = _timeProvider.GetElapsedTime(record.BaseArrival, timestamp);
 		position = new TimelinePosition(record.Segment, path, record.BaseTime + (elapsed < TimeSpan.Zero ? TimeSpan.Zero : elapsed > limit ? limit : elapsed));
 		return true;
@@ -344,7 +345,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 	{
 		int count = Math.Min(FindLatest(_records[_resolvedCount - 1].Arrival - _retention - 1) + 1, _resolvedCount - 1);
 
-		if (count >= PruneThreshold)
+		if (count >= _pruneThreshold)
 		{
 			_records.RemoveRange(0, count);
 			_resolvedCount -= count;

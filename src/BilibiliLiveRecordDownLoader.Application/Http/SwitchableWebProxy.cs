@@ -1,9 +1,7 @@
 namespace BilibiliLiveRecordDownLoader.Application.Http;
 
-internal sealed class SwitchableWebProxy : IWebProxy
+internal sealed class SwitchableWebProxy(IWebProxy systemProxy) : IWebProxy
 {
-	private static readonly IWebProxy SystemProxy = HttpClient.DefaultProxy;
-
 	private volatile bool _enabled;
 
 	public bool Enabled
@@ -14,17 +12,17 @@ internal sealed class SwitchableWebProxy : IWebProxy
 
 	public ICredentials? Credentials
 	{
-		get => SystemProxy.Credentials;
-		set => SystemProxy.Credentials = value;
+		get => systemProxy.Credentials;
+		set => systemProxy.Credentials = value;
 	}
 
 	public Uri? GetProxy(Uri destination)
 	{
-		return _enabled ? SystemProxy.GetProxy(destination) : null;
+		return _enabled ? systemProxy.GetProxy(destination) : null;
 	}
 
 	public bool IsBypassed(Uri host)
 	{
-		return !_enabled || SystemProxy.IsBypassed(host);
+		return !_enabled || systemProxy.IsBypassed(host);
 	}
 }

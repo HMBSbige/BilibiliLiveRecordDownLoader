@@ -1,6 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-// 最近一次见到的 PAT 和 PMT：新段开头没有它们时播放器不知道各个 PID 是什么
+// 新段开头要补 PAT 和 PMT，否则播放器不知道各个 PID 是什么
 internal sealed class ProgramTables
 {
 	private byte[]? _pat;
@@ -13,9 +13,15 @@ internal sealed class ProgramTables
 
 	public TransportVideoCodec VideoCodec { get; private set; }
 
+	public NalSyntax? VideoSyntax => VideoCodec switch
+	{
+		TransportVideoCodec.Avc => NalSyntax.Avc,
+		TransportVideoCodec.Hevc => NalSyntax.Hevc,
+		TransportVideoCodec.None or TransportVideoCodec.Other => null
+	};
+
 	public bool IsComplete => _pat is not null && _pmt is not null;
 
-	// 依次写 PAT 和 PMT
 	public ReadOnlyMemory<byte> Header
 	{
 		get
@@ -66,7 +72,7 @@ internal sealed class ProgramTables
 		return true;
 	}
 
-	// PAT 和 PMT 周期性重发，只有连续计数器在变；内容不变时不必重新分配
+	// PAT 和 PMT 周期性重发时只有连续计数器在变
 	private void Store(ref byte[]? cached, ReadOnlySpan<byte> packet)
 	{
 		if (cached is not null && cached.AsSpan(0, 3).SequenceEqual(packet.Slice(0, 3)) && (cached[3] & 0xF0) == (packet[3] & 0xF0) && cached.AsSpan(4).SequenceEqual(packet.Slice(4)))

@@ -9,6 +9,8 @@ public sealed class RecordingPostProcessorTest
 {
 	private const string Streamer = "streamer";
 
+	private static readonly DanmakuProfile NoDanmaku = DanmakuProfile.Create(AppConfig.CreateDefault(), new RoomConfig { RoomId = 1 });
+
 	[Test]
 	[Arguments(0L)]
 	[Arguments(RecordingPostProcessor.MinimumLength - 1)]
@@ -19,7 +21,7 @@ public sealed class RecordingPostProcessorTest
 		QueuedRemuxes mediaTools = new(BackgroundTaskStatus.Completed);
 		RecordingNotifications notifications = new();
 
-		await Create(mediaTools, notifications).ProcessAsync(path, CreateProfile(directory), Streamer);
+		await Create(mediaTools, notifications).ProcessAsync(path, CreateProfile(directory), Streamer, null, NoDanmaku);
 
 		using (Assert.Multiple())
 		{
@@ -37,7 +39,7 @@ public sealed class RecordingPostProcessorTest
 		QueuedRemuxes mediaTools = new(BackgroundTaskStatus.Completed);
 		RecordingNotifications notifications = new();
 
-		await Create(mediaTools, notifications).ProcessAsync(path, CreateProfile(directory), Streamer);
+		await Create(mediaTools, notifications).ProcessAsync(path, CreateProfile(directory), Streamer, null, NoDanmaku);
 
 		using (Assert.Multiple())
 		{
@@ -54,7 +56,7 @@ public sealed class RecordingPostProcessorTest
 		string path = CreateRecording(directory, RecordingPostProcessor.MinimumLength);
 		RecordingNotifications notifications = new();
 
-		await Create(new QueuedRemuxes(BackgroundTaskStatus.Failed, "Invalid data found"), notifications).ProcessAsync(path, CreateProfile(directory), Streamer);
+		await Create(new QueuedRemuxes(BackgroundTaskStatus.Failed, "Invalid data found"), notifications).ProcessAsync(path, CreateProfile(directory), Streamer, null, NoDanmaku);
 
 		ShownNotification shown = await Assert.That(notifications.Shown).HasSingleItem();
 
@@ -74,7 +76,7 @@ public sealed class RecordingPostProcessorTest
 		string path = CreateRecording(directory, RecordingPostProcessor.MinimumLength);
 		RecordingNotifications notifications = new();
 
-		await Create(new QueuedRemuxes(new FileNotFoundException("FFmpeg is missing")), notifications).ProcessAsync(path, CreateProfile(directory), Streamer);
+		await Create(new QueuedRemuxes(new FileNotFoundException("FFmpeg is missing")), notifications).ProcessAsync(path, CreateProfile(directory), Streamer, null, NoDanmaku);
 
 		ShownNotification shown = await Assert.That(notifications.Shown).HasSingleItem();
 		await Assert.That(shown.Message).Contains("FFmpeg is missing");
@@ -87,7 +89,7 @@ public sealed class RecordingPostProcessorTest
 		string path = CreateRecording(directory, RecordingPostProcessor.MinimumLength);
 		RecordingNotifications notifications = new();
 
-		await Create(new QueuedRemuxes(BackgroundTaskStatus.Canceled), notifications).ProcessAsync(path, CreateProfile(directory), Streamer);
+		await Create(new QueuedRemuxes(BackgroundTaskStatus.Canceled), notifications).ProcessAsync(path, CreateProfile(directory), Streamer, null, NoDanmaku);
 
 		await Assert.That(notifications.Shown).IsEmpty();
 	}
@@ -101,7 +103,7 @@ public sealed class RecordingPostProcessorTest
 		AppConfig config = AppConfig.CreateDefault();
 		config.NotifyOnRecordingError = false;
 
-		await Create(new QueuedRemuxes(BackgroundTaskStatus.Failed, "boom"), notifications, config).ProcessAsync(path, CreateProfile(directory), Streamer);
+		await Create(new QueuedRemuxes(BackgroundTaskStatus.Failed, "boom"), notifications, config).ProcessAsync(path, CreateProfile(directory), Streamer, null, NoDanmaku);
 
 		await Assert.That(notifications.Shown).IsEmpty();
 	}

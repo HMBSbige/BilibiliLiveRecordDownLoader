@@ -17,7 +17,7 @@ internal sealed class SplitRecording
 
 	public SplitRecording()
 	{
-		Timeline = new RecordingTimeline("0", Time);
+		Timeline = new RecordingTimeline("0", Time, RoomDefaults.StreamIdleTimeout);
 	}
 
 	public FakeTimeProvider Time { get; } = new(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));

@@ -11,7 +11,7 @@ internal enum DanmakuMessageKind
 // Duration 从礼物最后一次到达或其他条目出现时算起；ComboKey 相同且在连击间隔内到达的礼物合成一条
 internal readonly record struct DanmakuMessageRequest(TimeSpan Time, DanmakuMessageKind Kind, double Height, TimeSpan Duration, int Count, string? ComboKey);
 
-// Offset 是条目底边到消息栏底边的距离；从 Start 起由 From 匀速移到 To，到 MoveEnd 停下；Count 是这一段显示的礼物数量
+// From 和 To 是条目底边到消息栏底边的距离；从 Start 起由 From 匀速移到 To，到 MoveEnd 停下；Count 是这一段显示的礼物数量
 internal readonly record struct DanmakuMessageSpan(TimeSpan Start, TimeSpan End, double From, double To, TimeSpan MoveEnd, int Count);
 
 // Request 是条目第一次出现时的请求下标
@@ -212,9 +212,12 @@ internal static class DanmakuMessageBar
 
 		public void MoveTo(double target, TimeSpan now)
 		{
+			// 刚显示的这一刻就可能合进了同一时刻到达的连击，第一段要用合并后的数量
 			if (double.IsNaN(_to))
 			{
 				(_from, _to, _moveEnd) = (target, target, now);
+				_spanCount = Count;
+				_countChanged = false;
 				return;
 			}
 

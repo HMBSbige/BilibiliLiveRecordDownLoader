@@ -229,7 +229,7 @@ public sealed class RoomMasterPlaylistTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(Paths(loop)).IsEqualTo($"{AvcOriginalPlaylist} {HevcOriginalPlaylist} {AvcPlaylist} {HevcPlaylist}");
-			await Assert.That(loop.Snapshot.LastError).Contains("the last one failed with Fmp4/Hevc a.test: ");
+			await Assert.That(loop.Snapshot.LastError).Contains("Fmp4/Hevc a.test");
 			await Assert.That(loop.RecorderLogs.Count(static log => log.StartsWith("Failed to open", StringComparison.Ordinal))).IsEqualTo(2);
 		}
 	}

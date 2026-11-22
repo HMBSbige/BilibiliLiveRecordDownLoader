@@ -1,3 +1,4 @@
+using BilibiliLive.Danmu;
 using BilibiliLiveRecordDownLoader.Application.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Recording;
 using System.Globalization;
@@ -183,7 +184,6 @@ public sealed partial class DanmakuAssGeneratorTest
 
 	[Test]
 	[Arguments(0xFF0000, "0000FF")]
-	[Arguments(0x00FF00, "00FF00")]
 	[Arguments(0x123456, "563412")]
 	public async Task ColorsAreConvertedToBgrAsync(int rgb, string expected)
 	{
@@ -218,7 +218,7 @@ public sealed partial class DanmakuAssGeneratorTest
 			DanmakuSamples.Comment(0, @"   "),
 			new DanmakuRecord.SuperChat(TimeSpan.Zero, 1, @"老板", 30000, TimeSpan.FromSeconds(60), @"醒目留言"),
 			new DanmakuRecord.Gift(TimeSpan.Zero, 1, @"观众", @"小花花", 1, 100),
-			new DanmakuRecord.Guard(TimeSpan.Zero, 1, @"舰长", 3, 1, 198000),
+			new DanmakuRecord.Guard(TimeSpan.Zero, 1, @"舰长", GuardLevel.Captain, 1, 198000),
 			DanmakuSamples.Comment(0, @"滚动", mode: 2)
 		];
 

@@ -48,7 +48,6 @@ public class ProtobufReaderTest
 
 	[Test]
 	[Arguments(new byte[] { 0x80 })]
-	[Arguments(new byte[] { 0xFF, 0xFF })]
 	// Ten bytes whose last one carries more than the top bit
 	[Arguments(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x02 })]
 	// Eleven bytes

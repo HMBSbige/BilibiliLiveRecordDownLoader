@@ -199,7 +199,7 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 				_pending.Append(@"0,");
 				AppendField(comment.UidHash);
 				_pending.Append(',');
-				AppendField(comment.DmId);
+				_pending.Append(DanmakuXmlText.Format(comment.DmId));
 				_pending.Append('"');
 				AppendUser(comment.Uid, comment.User);
 
@@ -250,7 +250,7 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 				_pending.Append(@"<guard");
 				AppendAttribute(@"ts", FormatTime(guard.Time));
 				AppendUser(guard.Uid, guard.User);
-				AppendAttribute(@"level", DanmakuXmlText.Format(guard.Level));
+				AppendAttribute(@"level", DanmakuXmlText.Format((int)guard.Level));
 				AppendAttribute(@"count", DanmakuXmlText.Format(guard.Count));
 				AppendAttribute(@"price", DanmakuXmlText.Format(guard.Price));
 

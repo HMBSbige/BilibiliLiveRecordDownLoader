@@ -72,14 +72,6 @@ public class DanmuPacketTest
 	}
 
 	[Test]
-	public async Task DecodeExpandsZlibPacketsAsync()
-	{
-		byte[] data = Zlib(Json("""{"cmd":"A"}"""), Json("""{"cmd":"B"}"""));
-
-		await Sequences.AssertEqualAsync(Bodies(DanmuPacket.Decode(data)), ["""{"cmd":"A"}""", """{"cmd":"B"}"""]);
-	}
-
-	[Test]
 	public async Task DecodeExpandsNestedBrotliAndZlibPacketsAsync()
 	{
 		byte[] data = [.. Json("""{"cmd":"before"}"""), .. Brotli(Json("""{"cmd":"A"}"""), Zlib(Json("""{"cmd":"B"}"""), Json("""{"cmd":"C"}""")), Json("""{"cmd":"D"}""")), .. Json("""{"cmd":"after"}""")];

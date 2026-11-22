@@ -3,13 +3,13 @@ namespace BilibiliLiveRecordDownLoader.Application.Contracts.Danmaku;
 // 价格都是千分之一元
 public closed record DanmakuEntryDto
 {
-	// Color 是十进制 RGB；IsStorm 是节奏风暴代发的
+	// Color 是 RGB；IsStorm 是节奏风暴代发的
 	public sealed record Comment(DanmuSender Sender, string Text, int Color, bool IsStorm) : DanmakuEntryDto;
 
-	// Id 是直播间给的，删除时按它找；旧文件里没有时为 0
+	// 缺少 Id 时为 0
 	public sealed record SuperChat(long Id, DanmuSender Sender, string Text, long Price, TimeSpan Duration) : DanmakuEntryDto;
 
-	// 直播间删掉了这些 SC，Ids 对应 SuperChat.Id；只用来标出被删的 SC，不单独列出
+	// Ids 对应 SuperChat.Id；只用来标出被删的 SC，不单独列出
 	public sealed record SuperChatDeletion(IReadOnlyList<long> Ids) : DanmakuEntryDto
 	{
 		// 按内容比较，和别的条目一样能直接判断相等
@@ -27,7 +27,7 @@ public closed record DanmakuEntryDto
 	// Price 是这一条的总价，银瓜子礼物为 0
 	public sealed record Gift(DanmuSender Sender, string Name, int Count, long Price) : DanmakuEntryDto;
 
-	// Price 是这一条实付的总价；IsRenewal 是续费，不是新开通
+	// Price 是这一条实付的总价
 	public sealed record Guard(DanmuSender Sender, GuardLevel Level, int Months, long Price, bool IsRenewal) : DanmakuEntryDto;
 
 	// 以下只出现在弹幕文件里

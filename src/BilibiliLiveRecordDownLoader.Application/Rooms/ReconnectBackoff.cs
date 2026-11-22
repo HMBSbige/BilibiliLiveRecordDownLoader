@@ -1,7 +1,7 @@
 namespace BilibiliLiveRecordDownLoader.Application.Rooms;
 
-// 连续失败时间隔翻倍，抖动错开同时断线的房间；连接稳定过之后回到初始间隔
-internal sealed class ReconnectBackoff(TimeSpan initialDelay, TimeProvider timeProvider, Random random)
+// 抖动错开同时断线的房间；初始间隔每次都重新读取，改设置不必断开连接
+internal sealed class ReconnectBackoff(Func<TimeSpan> initialDelay, TimeProvider timeProvider, Random random)
 {
 	public const double MinJitter = 0.8;
 
@@ -12,9 +12,7 @@ internal sealed class ReconnectBackoff(TimeSpan initialDelay, TimeProvider timeP
 	// 弹幕服务器每 30 秒回应一次心跳，撑过一个心跳周期说明认证已经通过
 	public static readonly TimeSpan StableDuration = TimeSpan.FromSeconds(30);
 
-	private readonly TimeSpan _initialDelay = initialDelay;
-	private readonly TimeSpan _maxDelay = initialDelay > MaxDelay ? initialDelay : MaxDelay;
-	private TimeSpan _delay = initialDelay;
+	private TimeSpan _delay = initialDelay();
 	private long _connectedAt;
 	private bool _hasReceived;
 
@@ -31,13 +29,20 @@ internal sealed class ReconnectBackoff(TimeSpan initialDelay, TimeProvider timeP
 
 	public TimeSpan NextDelay()
 	{
-		if (_hasReceived || timeProvider.GetElapsedTime(_connectedAt) >= StableDuration)
+		TimeSpan initial = initialDelay();
+		TimeSpan max = initial > MaxDelay ? initial : MaxDelay;
+
+		if (_hasReceived || timeProvider.GetElapsedTime(_connectedAt) >= StableDuration || _delay < initial)
 		{
-			_delay = _initialDelay;
+			_delay = initial;
+		}
+		else if (_delay > max)
+		{
+			_delay = max;
 		}
 
 		TimeSpan delay = _delay;
-		_delay = _delay < _maxDelay / 2 ? _delay * 2 : _maxDelay;
+		_delay = _delay < max / 2 ? _delay * 2 : max;
 
 		return delay * (MinJitter + (MaxJitter - MinJitter) * random.NextDouble());
 	}

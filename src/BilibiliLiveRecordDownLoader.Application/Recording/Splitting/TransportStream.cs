@@ -108,9 +108,10 @@ internal static class TransportStream
 	}
 
 	// 访问单元里第一个图像 NAL 是不是随机访问点；SPS、PPS、SEI 都在它前面
-	public static bool StartsWithRandomAccessPicture(ReadOnlySpan<byte> data, int videoPid, TransportVideoCodec codec)
+	public static bool StartsWithRandomAccessPicture(ReadOnlySpan<byte> data, int videoPid, NalSyntax? syntax)
 	{
-		NalScanner scanner = new(codec);
+		// 找到第一个 PES 的开头之后才用
+		NalScanner scanner = default;
 		bool started = false;
 
 		for (int offset = 0; offset + PacketSize <= data.Length; offset += PacketSize)
@@ -142,11 +143,12 @@ internal static class TransportStream
 				}
 
 				// PES 头：起始码和流 ID、长度、两个标志字节、头数据长度
-				if (codec is not (TransportVideoCodec.Avc or TransportVideoCodec.Hevc) || payload.Length < 9 || !payload.StartsWith((ReadOnlySpan<byte>)[0, 0, 1]) || 9 + payload[8] > payload.Length)
+				if (syntax is not { } nalSyntax || payload.Length < 9 || !payload.StartsWith((ReadOnlySpan<byte>)[0, 0, 1]) || 9 + payload[8] > payload.Length)
 				{
 					return false;
 				}
 
+				scanner = new NalScanner(nalSyntax);
 				started = true;
 				payload = payload.Slice(9 + payload[8]);
 			}
@@ -175,7 +177,7 @@ internal static class TransportStream
 		return true;
 	}
 
-	// 一个 PES 开头的数据，最多取 capacity 字节，用来找 SPS；返回取到的长度
+	// 一个 PES 开头的数据，最多取满 destination，用来找 SPS；返回取到的长度
 	public static int CopyFirstPes(ReadOnlySpan<byte> data, int videoPid, Span<byte> destination)
 	{
 		int length = 0;
@@ -277,7 +279,7 @@ internal static class TransportStream
 	}
 
 	// 起始码可能跨包，逐字节记住已经连续看到几个 0
-	private struct NalScanner(TransportVideoCodec codec)
+	private struct NalScanner(NalSyntax syntax)
 	{
 		private int _zeros;
 		private bool _isAtNalHeader;
@@ -313,15 +315,15 @@ internal static class TransportStream
 		// H.264 的 1–5 和 H.265 的 0–31 是图像 NAL；其中 H.264 的 IDR 和 H.265 的 IRAP（16–23）可以独立解码
 		private readonly bool? Classify(byte header)
 		{
-			return codec switch
+			return syntax switch
 			{
-				TransportVideoCodec.Avc => (header & 0x1F) switch
+				NalSyntax.Avc => (header & 0x1F) switch
 				{
 					5 => true,
 					>= 1 and <= 4 => false,
 					_ => null
 				},
-				_ => (header >> 1 & 0x3F) switch
+				NalSyntax.Hevc => (header >> 1 & 0x3F) switch
 				{
 					>= 16 and <= 23 => true,
 					< 32 => false,

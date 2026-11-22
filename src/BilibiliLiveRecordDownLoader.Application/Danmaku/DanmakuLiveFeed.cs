@@ -6,14 +6,13 @@ internal sealed class DanmakuLiveFeed(TimeProvider timeProvider)
 	private const int RateWindowSeconds = 60;
 
 	private readonly Lock _lock = new();
-	private readonly LiveDanmakuEntryDto?[] _entries = new LiveDanmakuEntryDto?[DanmakuConsts.MaxFeedEntries];
+	private readonly Queue<LiveDanmakuEntryDto> _entries = new(DanmakuConsts.MaxFeedEntries);
 	private readonly int[] _rate = new int[RateWindowSeconds];
-	private int _head;
-	private int _count;
 	private long _sequence;
 	private long _version;
 	private long _rateSecond;
 	private DanmakuConnectionState _state = DanmakuConnectionState.Connecting;
+	private long _connection;
 	private long? _userId;
 	private bool _isMasked;
 	private DateTimeOffset? _disconnectedAt;
@@ -28,7 +27,7 @@ internal sealed class DanmakuLiveFeed(TimeProvider timeProvider)
 			lock (_lock)
 			{
 				AdvanceRate(CurrentSecond(timeProvider.GetTimestamp()));
-				return new DanmakuFeedStatus(_state, _userId, _isMasked, _rate.Sum(), _disconnectedAt, _isRecording);
+				return new DanmakuFeedStatus(_state, _connection, _userId, _isMasked, _rate.Sum(), _disconnectedAt);
 			}
 		}
 	}
@@ -39,7 +38,7 @@ internal sealed class DanmakuLiveFeed(TimeProvider timeProvider)
 		{
 			lock (_lock)
 			{
-				return new RoomDanmakuSnapshot(_isRecording, _userId, _isMasked);
+				return new RoomDanmakuSnapshot(_isRecording);
 			}
 		}
 	}
@@ -48,21 +47,14 @@ internal sealed class DanmakuLiveFeed(TimeProvider timeProvider)
 	{
 		lock (_lock)
 		{
-			if (_count is 0)
+			if (_entries.Count is 0)
 			{
 				return [];
 			}
 
-			long first = _sequence - _count + 1;
-			int skip = (int)Math.Clamp(afterSequence - first + 1, 0, _count);
-			LiveDanmakuEntryDto[] result = new LiveDanmakuEntryDto[_count - skip];
-
-			for (int i = 0; i < result.Length; ++i)
-			{
-				result[i] = _entries[(_head + skip + i) % _entries.Length]!;
-			}
-
-			return result;
+			long first = _sequence - _entries.Count + 1;
+			int skip = (int)Math.Clamp(afterSequence - first + 1, 0, _entries.Count);
+			return [.. _entries.Skip(skip)];
 		}
 	}
 
@@ -77,15 +69,12 @@ internal sealed class DanmakuLiveFeed(TimeProvider timeProvider)
 		{
 			LiveDanmakuEntryDto item = new(++_sequence, message.ReceivedAt.UtcTime, entry);
 
-			if (_count < _entries.Length)
+			if (_entries.Count == DanmakuConsts.MaxFeedEntries)
 			{
-				_entries[(_head + _count++) % _entries.Length] = item;
+				_entries.Dequeue();
 			}
-			else
-			{
-				_entries[_head] = item;
-				_head = (_head + 1) % _entries.Length;
-			}
+
+			_entries.Enqueue(item);
 
 			long second = CurrentSecond(message.ReceivedAt.Timestamp);
 			AdvanceRate(second);
@@ -99,10 +88,8 @@ internal sealed class DanmakuLiveFeed(TimeProvider timeProvider)
 	{
 		lock (_lock)
 		{
-			Array.Clear(_entries);
+			_entries.Clear();
 			Array.Clear(_rate);
-			_head = 0;
-			_count = 0;
 			Touch();
 		}
 	}
@@ -121,6 +108,7 @@ internal sealed class DanmakuLiveFeed(TimeProvider timeProvider)
 		lock (_lock)
 		{
 			_state = DanmakuConnectionState.Connected;
+			++_connection;
 			_userId = userId;
 			_isMasked = false;
 			_disconnectedAt = null;

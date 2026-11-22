@@ -1,5 +1,7 @@
 using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
+using System.Diagnostics;
+using System.Net;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -10,6 +12,13 @@ public sealed class RoomRecordingNotificationTest
 		Recorded,
 		WentOffline,
 		RecordingDisabled
+	}
+
+	public enum StreamerSilence
+	{
+		NoStreamListed,
+		EveryStreamNotFound,
+		ConnectedWithoutData
 	}
 
 	[Test]
@@ -60,10 +69,97 @@ public sealed class RoomRecordingNotificationTest
 				loop.Session.UpdateSettings(loop.Settings);
 				break;
 			default:
-				throw new ArgumentOutOfRangeException(nameof(reset));
+				throw new UnreachableException();
 		}
 
 		(_, TimeSpan quiet, TimeSpan notified) = await FailUntilNotifiedAsync(loop, await loop.NextStreamAsync(), 2);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(quiet).IsLessThan(RecordingFaultTracker.StallThreshold);
+			await Assert.That(notified).IsGreaterThanOrEqualTo(RecordingFaultTracker.StallThreshold);
+		}
+	}
+
+	// 主播重开推流软件、换网络时，直播间还会显示直播中一段时间，不是要人处理的故障
+	[Test]
+	[Timeout(30_000)]
+	[Arguments(StreamerSilence.NoStreamListed)]
+	[Arguments(StreamerSilence.EveryStreamNotFound)]
+	[Arguments(StreamerSilence.ConnectedWithoutData)]
+	public async Task StreamerNotPushingIsNotNotifiedAsync(StreamerSilence silence, CancellationToken cancellationToken)
+	{
+		await using RecordingLoopHarness loop = new(cancellationToken);
+
+		if (silence is StreamerSilence.NoStreamListed)
+		{
+			loop.Streams = "[]";
+		}
+
+		loop.GoLive();
+		DateTimeOffset start = loop.Time.GetUtcNow();
+
+		switch (silence)
+		{
+			case StreamerSilence.NoStreamListed:
+				while (loop.Time.GetUtcNow() - start < TimeSpan.FromMinutes(2))
+				{
+					await AdvanceUntilCandidatesRequestedAsync(loop);
+				}
+
+				// 下一次请求开始时上一次的失败已经处理完
+				await AdvanceUntilCandidatesRequestedAsync(loop);
+				break;
+			case StreamerSilence.EveryStreamNotFound:
+				await FailForAsync(loop, await loop.NextStreamAsync(), TimeSpan.FromMinutes(2), HttpStatusCode.NotFound);
+				break;
+			case StreamerSilence.ConnectedWithoutData:
+				StreamRequest next = await loop.NextStreamAsync();
+
+				while (loop.Time.GetUtcNow() - start < TimeSpan.FromMinutes(2))
+				{
+					await next.AcceptAsync();
+					(next, _) = await loop.AdvanceUntilNextStreamAsync();
+				}
+
+				break;
+			default:
+				throw new UnreachableException();
+		}
+
+		await Assert.That(loop.Notifications.Shown).IsEmpty();
+	}
+
+	// 每次都算快速失败，但文件一直在增长，不是线路都坏了
+	[Test]
+	[Timeout(30_000)]
+	public async Task StreamsThatKeepSendingDataInShortStretchesAreNotNotifiedAsync(CancellationToken cancellationToken)
+	{
+		await using RecordingLoopHarness loop = new(cancellationToken);
+		loop.GoLive();
+		StreamRequest next = await loop.NextStreamAsync();
+		DateTimeOffset start = loop.Time.GetUtcNow();
+
+		while (loop.Time.GetUtcNow() - start < TimeSpan.FromMinutes(3))
+		{
+			for (int line = 0; line < 3; ++line)
+			{
+				await loop.RecordForAsync(next, TimeSpan.FromSeconds(20));
+				next = line < 2 ? await loop.NextStreamAsync() : (await loop.AdvanceUntilNextStreamAsync(RecordingLoopHarness.ReconnectDelay)).Request;
+			}
+		}
+
+		await Assert.That(loop.Notifications.Shown).IsEmpty();
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	public async Task StreamsSendingOnlyTheHeaderAreNotifiedAsync(CancellationToken cancellationToken)
+	{
+		await using RecordingLoopHarness loop = new(cancellationToken);
+		loop.GoLive();
+
+		(_, TimeSpan quiet, TimeSpan notified) = await FailUntilNotifiedAsync(loop, await loop.NextStreamAsync(), 1, SendOnlyTheHeaderAsync);
 
 		using (Assert.Multiple())
 		{
@@ -163,32 +259,74 @@ public sealed class RoomRecordingNotificationTest
 		await Assert.That(loop.Notifications.Shown).IsEmpty();
 	}
 
-	// 一轮里所有线路都打不开
-	private static async Task FailEveryStreamAsync(RecordingLoopHarness loop, StreamRequest first)
+	private static async Task FailEveryStreamAsync(RecordingLoopHarness loop, StreamRequest first, HttpStatusCode status)
 	{
-		first.Reject();
+		first.Reject(status);
 
 		for (int i = 0; i < 2; ++i)
 		{
-			(await loop.NextStreamAsync()).Reject();
+			(await loop.NextStreamAsync()).Reject(status);
 		}
 	}
 
-	private static async Task<StreamRequest> FailForAsync(RecordingLoopHarness loop, StreamRequest next, TimeSpan duration)
+	// 全是 404 会被当成主播没在推流，不提醒
+	private static Task FailEveryStreamAsync(RecordingLoopHarness loop, StreamRequest first)
+	{
+		return FailEveryStreamAsync(loop, first, HttpStatusCode.Forbidden);
+	}
+
+	private static async Task SendOnlyTheHeaderAsync(RecordingLoopHarness loop, StreamRequest first)
+	{
+		StreamRequest next = first;
+
+		for (int line = 0; ; ++line)
+		{
+			await next.AcceptAsync();
+			await next.EndAsync();
+
+			if (line is 2)
+			{
+				return;
+			}
+
+			next = await loop.NextStreamAsync();
+		}
+	}
+
+	private static async Task<StreamRequest> FailForAsync(RecordingLoopHarness loop, StreamRequest next, TimeSpan duration, HttpStatusCode status = HttpStatusCode.Forbidden)
 	{
 		DateTimeOffset start = loop.Time.GetUtcNow();
 
 		while (loop.Time.GetUtcNow() - start < duration)
 		{
-			await FailEveryStreamAsync(loop, next);
+			await FailEveryStreamAsync(loop, next, status);
 			(next, _) = await loop.AdvanceUntilNextStreamAsync(RecordingLoopHarness.ReconnectDelay);
 		}
 
 		return next;
 	}
 
+	// 拿不到候选流时没有拉流请求可等
+	private static async Task AdvanceUntilCandidatesRequestedAsync(RecordingLoopHarness loop)
+	{
+		int requested = loop.PlayInfoRequests;
+
+		for (int step = 0; step < 60 && loop.PlayInfoRequests == requested; ++step)
+		{
+			await Task.Delay(20);
+			loop.Time.Advance(TimeSpan.FromSeconds(1));
+		}
+
+		await loop.WaitUntilAsync(_ => loop.PlayInfoRequests > requested);
+	}
+
+	private static Task<(StreamRequest Next, TimeSpan Quiet, TimeSpan Notified)> FailUntilNotifiedAsync(RecordingLoopHarness loop, StreamRequest next, int count)
+	{
+		return FailUntilNotifiedAsync(loop, next, count, FailEveryStreamAsync);
+	}
+
 	// 下一次拉流开始时上一轮的失败已经处理完；返回最后一轮没有提醒和出现提醒的那一轮距开始的时长
-	private static async Task<(StreamRequest Next, TimeSpan Quiet, TimeSpan Notified)> FailUntilNotifiedAsync(RecordingLoopHarness loop, StreamRequest next, int count)
+	private static async Task<(StreamRequest Next, TimeSpan Quiet, TimeSpan Notified)> FailUntilNotifiedAsync(RecordingLoopHarness loop, StreamRequest next, int count, Func<RecordingLoopHarness, StreamRequest, Task> failRound)
 	{
 		DateTimeOffset start = loop.Time.GetUtcNow();
 		TimeSpan quiet = TimeSpan.Zero;
@@ -196,7 +334,7 @@ public sealed class RoomRecordingNotificationTest
 		while (true)
 		{
 			TimeSpan failedAt = loop.Time.GetUtcNow() - start;
-			await FailEveryStreamAsync(loop, next);
+			await failRound(loop, next);
 			(next, _) = await loop.AdvanceUntilNextStreamAsync(RecordingLoopHarness.ReconnectDelay);
 
 			if (loop.Notifications.Shown.Count >= count)

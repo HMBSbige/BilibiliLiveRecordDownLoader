@@ -4,18 +4,17 @@ namespace BilibiliLiveRecordDownLoader.Application.Danmaku;
 
 internal readonly record struct DanmakuAssResult(int Shown, int Dropped, int MessagesShown, int MessagesDropped);
 
-// 消息栏里的文字格式由调用方按界面语言给出；传入的昵称和礼物名已经转义。Guard 的参数是昵称、等级（1 总督、2 提督、3 舰长）、月数和是否续费，Gift 的参数是昵称、礼物名和数量
-internal sealed record DanmakuAssLabels(Func<string, int, int, bool, string> Guard, Func<string, string, int, string> Gift);
+// 传入的昵称和礼物名已经转义；Guard 的参数是昵称、等级、月数和是否续费，Gift 的参数是昵称、礼物名和数量
+internal sealed record DanmakuAssLabels(Func<string, GuardLevel, int, bool, string> Guard, Func<string, string, int, string> Gift);
 
-// 固定参数：短边 1080 时字号 38、滚动 12 秒、固定 5 秒、不透明度 180、无描边、阴影 1
 internal static class DanmakuAssGenerator
 {
 	private const int DefaultWidth = 1920;
 	private const int DefaultHeight = 1080;
-	// 按短边缩放，竖屏时字不会跟着高度放大到挤占画面
+	// 按短边缩放，竖屏时字不会跟着高度放大
 	private const double ReferenceSize = 1080;
 	private const double ReferenceFontSize = 38;
-	// B 站弹幕的标准字号，其他字号按它的比例放大缩小
+	// B 站弹幕的标准字号
 	private const double StandardDanmakuSize = 25;
 	private const string FontName = @"Microsoft YaHei";
 	// ASS 的透明度，0 不透明；255 - 180
@@ -25,16 +24,15 @@ internal static class DanmakuAssGenerator
 	private static readonly TimeSpan FixedDuration = TimeSpan.FromSeconds(5);
 	private static readonly UTF8Encoding Utf8WithBom = new(true);
 
-	// 很多播放器只在有 BOM 时把 ASS 当 UTF-8，覆盖已有文件以便调整偏移后重新生成；messageLabels 为 null 时不画消息栏
+	// 很多播放器只在有 BOM 时把 ASS 当 UTF-8；messageLabels 为 null 时不画消息栏
 	public static async Task<DanmakuAssResult> WriteFileAsync(string path, IEnumerable<DanmakuRecord> records, VideoResolution? videoSize, DanmakuAssLabels? messageLabels, CancellationToken cancellationToken)
 	{
-		StringWriter writer = new(CultureInfo.InvariantCulture);
+		await using StreamWriter writer = new(path, false, Utf8WithBom);
 		DanmakuAssResult result = Write(writer, records, videoSize, messageLabels);
-		await File.WriteAllTextAsync(path, writer.ToString(), Utf8WithBom, cancellationToken);
+		await writer.FlushAsync(cancellationToken);
 		return result;
 	}
 
-	// 弹幕在同一轨道上互不重叠，所有轨道都放不下时丢弃；SC、上舰和付费礼物画在左下角的消息栏里
 	public static DanmakuAssResult Write(TextWriter writer, IEnumerable<DanmakuRecord> records, VideoResolution? videoSize, DanmakuAssLabels? messageLabels)
 	{
 		(int width, int height) = videoSize is { Width: > 0, Height: > 0 } size ? (size.Width, size.Height) : (DefaultWidth, DefaultHeight);
@@ -121,8 +119,7 @@ internal static class DanmakuAssGenerator
 		return new DanmakuAssResult(shown, dropped, messages?.Shown ?? 0, messages?.Dropped ?? 0);
 	}
 
-	// 底部弹幕从下往上排，最先用到的几条轨道正好挨着消息栏；居中的弹幕要足够宽才伸进消息栏的横向范围。
-	// 滚动和顶部弹幕从上往下排，和消息栏重叠的轨道总在最下面，只有上面的都不空闲时才会用到，那时退回重叠的排法也一样，所以不用判断
+	// 只有底部弹幕要避让：滚动和顶部弹幕从上往下排，和消息栏重叠的轨道只在上面的都不空闲时才用到，那时退回重叠的排法也一样
 	private static Func<int, int, bool>? BottomAvoidance(DanmakuAssMessages.Occupancy? occupied, TimeSpan start, int screenWidth, int screenHeight, double textWidth, int laneHeight)
 	{
 		if (occupied is null || screenWidth / 2.0 - textWidth / 2 >= occupied.Right || occupied.TopDuring(start, start + FixedDuration) is not { } top)
@@ -155,7 +152,6 @@ internal static class DanmakuAssGenerator
 			""").ReplaceLineEndings("\n"));
 	}
 
-	// 从上往下找第一段连续空闲的轨道；新弹幕出现时上一条的尾部必须已经进入屏幕，并且在上一条离开屏幕之前追不上它
 	private static string? PlaceScroll(ScrollLane?[] lanes, int span, TimeSpan start, double textWidth, int screenWidth, int laneHeight)
 	{
 		double speed = (screenWidth + textWidth) / ScrollDuration.TotalSeconds;
@@ -182,7 +178,7 @@ internal static class DanmakuAssGenerator
 		return position(found);
 	}
 
-	// 第一段连续空闲、并且不和消息栏重叠的轨道；不重叠的都不空闲时退回第一段空闲的，宁可重叠也不多丢弹幕
+	// 不重叠的都不空闲时退回第一段空闲的，宁可和消息栏重叠也不多丢弹幕
 	private static int? FindLane(int laneCount, int span, Func<int, bool> isFree, Func<int, int, bool>? avoid)
 	{
 		int? fallback = null;
@@ -212,7 +208,7 @@ internal static class DanmakuAssGenerator
 		return fallback;
 	}
 
-	// 没有字体度量，按全角一个字号、半角 0.6 个字号估算；宁可估宽一点留出空隙，也不要重叠
+	// 没有字体度量，宁可估宽一点也不要重叠
 	internal static double EstimateWidth(string text, int fontSize)
 	{
 		double width = 0;
@@ -237,7 +233,7 @@ internal static class DanmakuAssGenerator
 			or >= 0x1F000;
 	}
 
-	// ASS 里 { } 开始和结束样式代码，反斜杠和后面的 N、n、h 组成换行和硬空格，换成全角字符原样显示；弹幕只占一行，换行换成空格
+	// ASS 里 { } 是样式代码，\N、\n、\h 是换行和硬空格，换成全角字符才能原样显示
 	internal static string EscapeText(string text)
 	{
 		StringBuilder builder = new(text.Length);
@@ -292,7 +288,6 @@ internal static class DanmakuAssGenerator
 		{
 			double elapsed = (start - Start).TotalSeconds;
 
-			// 上一条的尾部还没有完全进入屏幕
 			if (elapsed * Speed < Width)
 			{
 				return false;

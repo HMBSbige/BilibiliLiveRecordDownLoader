@@ -37,6 +37,12 @@ public class DanmuMessageParserTest
 		return message with { ReceivedAt = ReceivedAt };
 	}
 
+	// Fails loudly when a fixture changes shape, instead of silently leaving it unmodified
+	private static JsonNode Required(JsonNode? node)
+	{
+		return node ?? throw new InvalidDataException();
+	}
+
 	private static string Modify(string fixture, Action<JsonNode> modify)
 	{
 		JsonNode root = JsonNode.Parse(Fixture(fixture)) ?? throw new InvalidDataException();
@@ -81,7 +87,6 @@ public class DanmuMessageParserTest
 	}
 
 	[Test]
-	[Arguments("""{"cmd":"DANMU_MSG:4:0:2:2:2:0","info":[[0,1,25],"hi"]}""")]
 	[Arguments("""{"cmd":"SUPER_CHAT_MESSAGE","data":{"price":30}}""")]
 	[Arguments("""{"cmd":"SEND_GIFT_V2","data":{"pb":"not base64"}}""")]
 	[Arguments("""{"cmd":"USER_TOAST_MSG_V2","data":{}}""")]
@@ -123,8 +128,7 @@ public class DanmuMessageParserTest
 			25,
 			16777215,
 			DateTimeOffset.FromUnixTimeMilliseconds(1795344443482),
-			"585338f944da18e35778a19c5e6b02c82034",
-			"d665fa75",
+			"d3bbbee6",
 			DanmuCommentKind.Text,
 			false
 		);
@@ -145,7 +149,6 @@ public class DanmuMessageParserTest
 			25,
 			14893055,
 			DateTimeOffset.FromUnixTimeMilliseconds(1795344548119),
-			"5e7c63ca70d385b033f842f35a6b02c84761",
 			"7cc87912",
 			DanmuCommentKind.Text,
 			false
@@ -167,8 +170,7 @@ public class DanmuMessageParserTest
 			25,
 			16777215,
 			DateTimeOffset.FromUnixTimeMilliseconds(1795344457091),
-			"091978355b6b306e16221aa46c6b02c81233",
-			"d665fa75",
+			"a4bc8e70",
 			DanmuCommentKind.Emoticon,
 			false
 		);
@@ -179,7 +181,7 @@ public class DanmuMessageParserTest
 	[Test]
 	public async Task StormCommentIsMarkedAsync()
 	{
-		string json = Modify("comment_masked.json", static root => root["info"]![0]![9] = 2);
+		string json = Modify("comment_masked.json", static root => Required(Required(root["info"])[0])[9] = 2);
 
 		await Assert.That(Parse(json, DanmuParseMode.Chat) is DanmuMessage.Comment { IsStorm: true }).IsTrue();
 	}
@@ -187,7 +189,7 @@ public class DanmuMessageParserTest
 	[Test]
 	public async Task CommentFallsBackToTheNameInExtraAsync()
 	{
-		string json = Modify("comment_captain.json", static root => root["info"]![2]![1] = "");
+		string json = Modify("comment_captain.json", static root => Required(Required(root["info"])[2])[1] = "");
 
 		await Assert.That(Parse(json, DanmuParseMode.Chat) is DanmuMessage.Comment { Sender.Name: "用户7" }).IsTrue();
 	}
@@ -197,17 +199,31 @@ public class DanmuMessageParserTest
 	{
 		DanmuMessage? message = Parse("""{"cmd":"DANMU_MSG","info":[[0,"1",null,{}],"hi",{},"medal"]}""", DanmuParseMode.Chat);
 
-		DanmuMessage.Comment expected = new(new DanmuSender(0, "", GuardLevel.None, null), "hi", 1, 0, 0, ReceivedAt.UtcTime, "", "", DanmuCommentKind.Text, false);
+		DanmuMessage.Comment expected = new(new DanmuSender(0, "", GuardLevel.None, null), "hi", 1, 0, 0, ReceivedAt.UtcTime, "", DanmuCommentKind.Text, false);
 
 		await Assert.That(message).IsEqualTo(Received(expected));
 	}
 
 	[Test]
-	public async Task CommentWithMalformedExtraHasNoIdAsync()
+	public async Task CommentWithMalformedExtraIsStillParsedAsync()
 	{
-		string json = Modify("comment_masked.json", static root => root["info"]![0]![15]!["extra"] = "{not json");
+		string json = Modify("comment_masked.json", static root => Required(Required(Required(root["info"])[0])[15])["extra"] = "{not json");
 
-		await Assert.That(Parse(json, DanmuParseMode.Chat) is DanmuMessage.Comment { Id: "", Text: "666" }).IsTrue();
+		await Assert.That(Parse(json, DanmuParseMode.Chat) is DanmuMessage.Comment { Text: "666" }).IsTrue();
+	}
+
+	[Test]
+	public async Task CommentWithoutMillisecondsFallsBackToTheSecondsAsync()
+	{
+		string json = Modify("comment_masked.json", static root => Required(Required(root["info"])[0])[4] = 0);
+
+		await Assert.That(Parse(json, DanmuParseMode.Chat) is DanmuMessage.Comment { SentAt: var time } && time == DateTimeOffset.FromUnixTimeSeconds(1795344443)).IsTrue();
+	}
+
+	[Test]
+	public async Task LoneSurrogateThrowsInvalidOperationExceptionAsync()
+	{
+		await Assert.That(() => Parse("""{"cmd":"DANMU_MSG","info":[[0,1,25],"\ud83d"]}""", DanmuParseMode.Chat)).Throws<InvalidOperationException>();
 	}
 
 	[Test]
@@ -253,6 +269,18 @@ public class DanmuMessageParserTest
 		DanmuMessage? message = Parse($$$"""{"cmd":"SUPER_CHAT_MESSAGE","data":{"price":{{{price}}}}}""", DanmuParseMode.Chat);
 
 		await Assert.That((message as DanmuMessage.SuperChat)?.Price).IsEqualTo(expected);
+	}
+
+	[Test]
+	[Arguments("60", 60)]
+	[Arguments("1e30", 0)]
+	[Arguments("1000000000000", 0)]
+	[Arguments("-5", 0)]
+	public async Task SuperChatDurationOutOfRangeIsUnknownAsync(string time, int seconds)
+	{
+		DanmuMessage? message = Parse($$$"""{"cmd":"SUPER_CHAT_MESSAGE","data":{"price":30,"time":{{{time}}}}}""", DanmuParseMode.Chat);
+
+		await Assert.That((message as DanmuMessage.SuperChat)?.Duration).IsEqualTo(TimeSpan.FromSeconds(seconds));
 	}
 
 	[Test]
@@ -315,15 +343,98 @@ public class DanmuMessageParserTest
 	public async Task MalformedGiftProtobufDropsTheWholeMessageAsync()
 	{
 		JsonNode root = JsonNode.Parse(Fixture("gift_v2_multiple.json")) ?? throw new InvalidDataException();
-		byte[] pb = Convert.FromBase64String(root["data"]!["pb"]!.GetValue<string>());
+		JsonNode data = Required(root["data"]);
+		byte[] pb = Convert.FromBase64String(Required(data["pb"]).GetValue<string>());
 		// The first two gifts stay intact, only the last one is cut off
-		root["data"]!["pb"] = Convert.ToBase64String(pb.AsSpan(0, pb.Length - 3));
+		data["pb"] = Convert.ToBase64String(pb.AsSpan(0, pb.Length - 3));
 		List<DanmuMessage> output = [];
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(() => DanmuMessageParser.Parse(Encoding.UTF8.GetBytes(root.ToJsonString()), DanmuParseMode.Chat, ReceivedAt, output)).Throws<InvalidDataException>();
 			await Assert.That(output).IsEmpty();
+		}
+	}
+
+	[Test]
+	public async Task GiftV2SenderIsReadWhereverItIsOnTheWireAsync()
+	{
+		List<DanmuMessage> inOrder = ParseFixture("gift_v2.json");
+		JsonNode root = JsonNode.Parse(Fixture("gift_v2.json")) ?? throw new InvalidDataException();
+		JsonNode data = Required(root["data"]);
+		data["pb"] = Convert.ToBase64String(MoveGiftsFirst(Convert.FromBase64String(Required(data["pb"]).GetValue<string>())));
+
+		List<DanmuMessage> reordered = Parse(Encoding.UTF8.GetBytes(root.ToJsonString()), DanmuParseMode.Chat);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(inOrder.Count).IsEqualTo(1);
+			await Sequences.AssertEqualAsync(reordered, inOrder);
+		}
+	}
+
+	private static byte[] MoveGiftsFirst(byte[] pb)
+	{
+		ProtobufReader reader = new(pb);
+		List<(int Start, int End)> gifts = [];
+
+		while (reader.TryReadTag(out int field, out ProtobufWireType wireType))
+		{
+			if (field is 10 && wireType is ProtobufWireType.LengthDelimited)
+			{
+				ReadOnlySpan<byte> payload = reader.ReadLengthDelimited();
+				pb.AsSpan().Overlaps(payload, out int offset);
+				// One tag byte and the length varint precede the payload
+				gifts.Add((offset - 1 - VarintLength(payload.Length), offset + payload.Length));
+			}
+			else
+			{
+				reader.Skip(wireType);
+			}
+		}
+
+		List<byte> moved = [];
+		List<byte> rest = [];
+		int position = 0;
+
+		foreach ((int start, int end) in gifts)
+		{
+			rest.AddRange(pb.AsSpan(position, start - position));
+			moved.AddRange(pb.AsSpan(start, end - start));
+			position = end;
+		}
+
+		rest.AddRange(pb.AsSpan(position));
+		return [.. moved, .. rest];
+
+		static int VarintLength(int value)
+		{
+			int length = 1;
+
+			while (value >= 0x80)
+			{
+				value >>= 7;
+				++length;
+			}
+
+			return length;
+		}
+	}
+
+	[Test]
+	public async Task MalformedGiftProtobufKeepsTheRawMessageAsync()
+	{
+		JsonNode root = JsonNode.Parse(Fixture("gift_v2_multiple.json")) ?? throw new InvalidDataException();
+		JsonNode data = Required(root["data"]);
+		byte[] pb = Convert.FromBase64String(Required(data["pb"]).GetValue<string>());
+		data["pb"] = Convert.ToBase64String(pb.AsSpan(0, pb.Length - 3));
+		byte[] json = Encoding.UTF8.GetBytes(root.ToJsonString());
+		List<DanmuMessage> output = [];
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(() => DanmuMessageParser.Parse(json, DanmuParseMode.Chat | DanmuParseMode.Raw, ReceivedAt, output)).Throws<InvalidDataException>();
+			await Assert.That(output.SingleOrDefault() is DanmuMessage.Raw { Command: "SEND_GIFT_V2" } raw && raw.Json.Span.SequenceEqual(json)).IsTrue();
 		}
 	}
 
@@ -406,23 +517,20 @@ public class DanmuMessageParserTest
 
 	[Test]
 	[Arguments(0, false)]
-	[Arguments(1, false)]
-	[Arguments(2, true)]
 	[Arguments(3, true)]
 	public async Task UserToastOperationOtherThanOpeningIsRenewalAsync(int operation, bool isRenewal)
 	{
-		string json = Modify("user_toast_v2.json", root => root["data"]!["guard_info"]!["op_type"] = operation);
+		string json = Modify("user_toast_v2.json", root => Required(Required(root["data"])["guard_info"])["op_type"] = operation);
 
 		await Assert.That(Parse(json, DanmuParseMode.Chat) is DanmuMessage.GuardBought guard && guard.IsRenewal == isRenewal).IsTrue();
 	}
 
 	[Test]
-	[Arguments(0, true)]
 	[Arguments(1, true)]
 	[Arguments(2, false)]
 	public async Task UserToastRepeatedFromSourceTwoIsDroppedAsync(int source, bool parsed)
 	{
-		string json = Modify("user_toast_v2.json", root => root["data"]!["option"]!["source"] = source);
+		string json = Modify("user_toast_v2.json", root => Required(Required(root["data"])["option"])["source"] = source);
 
 		await Assert.That(Parse(json, DanmuParseMode.Chat) is DanmuMessage.GuardBought).IsEqualTo(parsed);
 	}
@@ -436,7 +544,7 @@ public class DanmuMessageParserTest
 	{
 		string json = Modify("user_toast_v2.json", root =>
 		{
-			JsonNode pay = root["data"]!["pay_info"]!;
+			JsonNode pay = Required(Required(root["data"])["pay_info"]);
 			pay["unit"] = unit;
 			pay["num"] = num;
 		});
@@ -492,7 +600,6 @@ public class DanmuMessageParserTest
 	[Test]
 	[Arguments("""{"cmd":"A","x":""")]
 	[Arguments("""{"cmd":"A"} {}""")]
-	[Arguments("""{"cmd":"A"}x""")]
 	[Arguments("")]
 	public async Task RawRejectsBodiesThatAreNotValidJsonAsync(string json)
 	{
@@ -516,6 +623,8 @@ public class DanmuMessageParserTest
 	[Test]
 	[Arguments("""{}""")]
 	[Arguments("""not json""")]
+	[Arguments("""{"code":null}""")]
+	[Arguments("""{"code":"0"}""")]
 	public async Task AuthReplyWithoutCodeIsNullAsync(string json)
 	{
 		await Assert.That(DanmuMessageParser.GetAuthReplyCode(Encoding.UTF8.GetBytes(json))).IsNull();

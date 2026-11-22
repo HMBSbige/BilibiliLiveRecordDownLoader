@@ -1,16 +1,21 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace BilibiliLiveRecordDownLoader.ViewModels.Danmaku;
 
-// 录好的弹幕文件；列表按文件内时间排序
+// 列表按文件内时间排序
 public sealed partial class DanmakuFileViewModel : ViewModelBase
 {
 	private readonly IDanmakuAppService _danmaku;
-	private DanmakuFileDto _file;
 	private DanmakuEntryViewModel[] _all = [];
+
+	// 不留整份文件，原始条目在行建好后就不再需要
+	private DanmakuFileSourceDto _source;
+	private bool _isComplete;
+	private IReadOnlyList<DanmakuHighlightDto> _highlights;
 
 	public DanmakuFileViewModel(DanmakuFileDto file, IDanmakuAppService danmaku)
 	{
 		_danmaku = danmaku;
-		_file = file;
 		Path = file.Path;
 		FileName = System.IO.Path.GetFileName(file.Path);
 		Filter = new DanmakuFilterViewModel().DisposeWith(Disposables);
@@ -38,11 +43,9 @@ public sealed partial class DanmakuFileViewModel : ViewModelBase
 
 	public IObservable<bool> CanExport { get; }
 
-	// 主播、标题和弹幕条数
 	[Reactive]
 	public partial string Summary { get; private set; } = string.Empty;
 
-	// 文件不完整或者不是本程序写的时说明一下；没什么要说的时为 null
 	[Reactive]
 	public partial string? Notice { get; private set; }
 
@@ -58,11 +61,9 @@ public sealed partial class DanmakuFileViewModel : ViewModelBase
 	[Reactive]
 	public partial bool HasHighlights { get; private set; }
 
-	// 有同名视频才能导出高能片段
 	[Reactive]
 	public partial bool HasVideo { get; private set; }
 
-	// 只有本程序写的文件能改偏移
 	[Reactive]
 	public partial bool CanAdjustOffset { get; private set; }
 
@@ -81,14 +82,12 @@ public sealed partial class DanmakuFileViewModel : ViewModelBase
 	[Reactive]
 	public partial bool IsBusy { get; private set; }
 
-	// 最近一次操作的结果；为 null 时不显示
 	[Reactive]
 	public partial string? Message { get; private set; }
 
 	[Reactive]
 	public partial AppNotificationType MessageType { get; private set; }
 
-	// 选中不早于这个时间的第一条，被过滤掉时取下一条可见的，都在它之前时取最后一条
 	[ReactiveCommand]
 	private void JumpTo(TimeSpan time)
 	{
@@ -117,7 +116,6 @@ public sealed partial class DanmakuFileViewModel : ViewModelBase
 		SelectedEntry = Entries[Math.Min(low, Entries.Count - 1)];
 	}
 
-	// 改写后重新读取，列表里的时间跟着新的偏移变
 	[ReactiveCommand(CanExecute = nameof(CanRegenerate))]
 	private async Task RegenerateAsync(CancellationToken cancellationToken)
 	{
@@ -133,12 +131,12 @@ public sealed partial class DanmakuFileViewModel : ViewModelBase
 			{
 				DanmakuOffsetResult.Updated { Subtitle: null } => (AppLanguage.Current.DanmakuOffsetSaved, AppNotificationType.Success),
 				DanmakuOffsetResult.Updated => (AppLanguage.Current.DanmakuSubtitleRegenerated, AppNotificationType.Success),
-				DanmakuOffsetResult.SubtitleInUse inUse => (AppLanguage.Current.DanmakuSubtitleInUse.ToString(System.IO.Path.GetFileName(inUse.Subtitle)), AppNotificationType.Warning)
+				DanmakuOffsetResult.SubtitleNotWritten notWritten => (AppLanguage.Current.DanmakuSubtitleNotWritten.ToString(System.IO.Path.GetFileName(notWritten.Subtitle), notWritten.Error), AppNotificationType.Warning)
 			};
 		}
 		catch (Exception exception) when (IsExpectedFailure(exception))
 		{
-			ShowError(exception);
+			ShowError(DescribeFailure(exception, Path));
 		}
 		finally
 		{
@@ -156,39 +154,44 @@ public sealed partial class DanmakuFileViewModel : ViewModelBase
 			string output = await _danmaku.QueueHighlightExportAsync(Path, highlight.Highlight, cancellationToken);
 			(Message, MessageType) = (AppLanguage.Current.HighlightExportQueued.ToString(System.IO.Path.GetFileName(output)), AppNotificationType.Success);
 		}
+		// 找不到的是同名视频，应用服务给的原因已经说清楚了
 		catch (Exception exception) when (IsExpectedFailure(exception))
 		{
-			ShowError(exception);
+			ShowError(exception.Message);
 		}
 	}
 
-	// 应用服务对这些情况都给出了能直接显示的原因，其余的交给全局处理
+	// 应用服务对这些异常给出了能直接显示的原因
 	internal static bool IsExpectedFailure(Exception exception)
 	{
 		return exception is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or ArgumentException;
 	}
 
-	private void ShowError(Exception exception)
+	// 系统给的找不到文件的原因没有本地化
+	internal static string DescribeFailure(Exception exception, string path)
 	{
-		string message = exception is FileNotFoundException { FileName: { } fileName } && fileName == Path ? AppLanguage.Current.FileNotFound.ToString(Path) : exception.Message;
+		return exception is FileNotFoundException ? AppLanguage.Current.FileNotFound.ToString(path) : exception.Message;
+	}
+
+	private void ShowError(string message)
+	{
 		(Message, MessageType) = (message, AppNotificationType.Error);
 	}
 
+	[MemberNotNull(nameof(_source), nameof(_highlights))]
 	private void Load(DanmakuFileDto file)
 	{
-		_file = file;
-		// 删除不单独列出，只标出被删的 SC；先收齐所有删除再标，不要求文件里删除排在 SC 之后
+		(_source, _isComplete, _highlights) = (file.Source, file.IsComplete, file.Highlights);
+		// 先收齐所有删除再标，文件里删除不一定排在 SC 之后
 		HashSet<long> deleted = [.. file.Entries.Select(static entry => entry.Entry).OfType<DanmakuEntryDto.SuperChatDeletion>().SelectMany(static deletion => deletion.Ids)];
 		_all = [.. file.Entries.Select(static (entry, index) => (Entry: entry, Index: index)).Where(static item => item.Entry.Entry is not DanmakuEntryDto.SuperChatDeletion).Select(static item => DanmakuEntryViewModel.FromFile(item.Index, item.Entry))];
 		DanmakuEntryViewModel.MarkDeleted(_all, deleted);
 		Density = file.Density;
 		Duration = TimeSpan.FromTicks(Math.Max(file.Entries is [.., var last] ? last.Time.Ticks : 0, file.Density.BinWidth.Ticks * file.Density.Counts.Count));
-		Highlights = [.. file.Highlights.Select(static highlight => new DanmakuHighlightViewModel(highlight))];
-		HasHighlights = Highlights.Count > 0;
 		HasVideo = file.VideoPath is not null;
 		(CanAdjustOffset, OffsetSeconds) = file.Source switch
 		{
-			DanmakuFileSourceDto.Native native => (true, (decimal)native.Header.Offset.TotalSeconds),
+			DanmakuFileSourceDto.Native native => (true, (decimal)native.Offset.TotalSeconds),
 			DanmakuFileSourceDto.Standard => (false, 0m)
 		};
 		UpdateTexts();
@@ -207,16 +210,19 @@ public sealed partial class DanmakuFileViewModel : ViewModelBase
 	{
 		string count = AppLanguage.Current.DanmakuFileSummary.ToString(_all.Count(static entry => entry.Kind is DanmakuEntryKind.Comment).ToString(CultureInfo.CurrentCulture));
 
-		Summary = _file.Source switch
+		Summary = _source switch
 		{
-			DanmakuFileSourceDto.Native { Header: var header } => string.Join(" · ", ((string[])[header.Streamer, header.Title, count]).Where(static part => !string.IsNullOrWhiteSpace(part))),
+			DanmakuFileSourceDto.Native native => string.Join(" · ", ((string[])[native.Streamer, native.Title, count]).Where(static part => !string.IsNullOrWhiteSpace(part))),
 			DanmakuFileSourceDto.Standard => count
 		};
-		Notice = (_file.IsComplete, _file.Source) switch
+		Notice = (_isComplete, _source) switch
 		{
 			(false, _) => AppLanguage.Current.DanmakuFileIncomplete,
-			(_, DanmakuFileSourceDto.Standard) => AppLanguage.Current.DanmakuFileReadOnly,
-			_ => null
+			(true, DanmakuFileSourceDto.Standard) => AppLanguage.Current.DanmakuFileReadOnly,
+			(true, DanmakuFileSourceDto.Native) => null
 		};
+		// 高能列表不虚拟化，行不会重新读取文字，要跟着语言重建
+		Highlights = [.. _highlights.Select(static highlight => new DanmakuHighlightViewModel(highlight))];
+		HasHighlights = Highlights.Count > 0;
 	}
 }

@@ -1,14 +1,12 @@
 using BilibiliLive;
-using BilibiliLive.Danmu;
-using BilibiliLive.Http;
 using BilibiliLive.Models;
 using BilibiliLiveRecordDownLoader.Application.Contracts.Media;
 using BilibiliLiveRecordDownLoader.Application.Contracts.Storage;
+using BilibiliLiveRecordDownLoader.Application.Http;
 using BilibiliLiveRecordDownLoader.Application.Media;
 using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Storage;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Time.Testing;
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.IO.Pipelines;
@@ -19,8 +17,7 @@ using System.Threading.Channels;
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 
 /// <summary>
-/// 用真实的 RoomSession 和 LiveRecorder 跑录制循环，B 站接口和直播流都由假的 HttpMessageHandler 应答，时间由 FakeTimeProvider 控制。
-/// 候选流依次是 FLV/AVC（a.test、b.test）和 FLV/AV1（c.test）。用 FFmpeg 录制时，假的 FFmpeg 不理会参数，向标准输出写一行后退出。
+/// 不传 streams 时，候选流依次是 FLV/AVC（a.test、b.test）和 FLV/AV1（c.test）
 /// </summary>
 internal sealed class RecordingLoopHarness : IAsyncDisposable
 {
@@ -44,6 +41,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	private readonly TestDirectory _directory = new();
 	private readonly Channel<StreamRequest> _streams = Channel.CreateUnbounded<StreamRequest>();
 	private readonly CancellationTokenSource _lifetime;
+	private readonly RecordingPostProcessor _postProcessor;
 	private volatile string _streamsTemplate;
 	private readonly Func<HttpRequestMessage, HttpResponseMessage>? _respondStream;
 	private int _playInfoRequests;
@@ -51,10 +49,12 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	private volatile string _title = "title";
 	private volatile string? _playInfoQuery;
 
-	/// <param name="streams">替换接口返回的 stream 数组，其中的 $SIGN 换成第几次请求候选流。</param>
-	/// <param name="respondStream">给出时直接应答全部拉流请求，不再交给 NextStreamAsync；HLS 的播放列表和分片都要立即应答。</param>
-	public RecordingLoopHarness(CancellationToken cancellationToken, Func<string, Stream>? createFile = null, RecorderType recorderType = RecorderType.BuiltIn, bool isNotificationEnabled = false, IMediaToolAppService? mediaTools = null, string streams = DefaultStreams, Func<HttpRequestMessage, HttpResponseMessage>? respondStream = null)
+	/// <param name="streams">其中的 $SIGN 换成第几次请求候选流</param>
+	/// <param name="respondStream">给出时直接应答全部拉流请求，NextStreamAsync 收不到</param>
+	/// <param name="systemProxy">只影响交给 FFmpeg 的参数，假的拉流不经代理</param>
+	public RecordingLoopHarness(CancellationToken cancellationToken, Func<string, Stream>? createFile = null, RecorderType recorderType = RecorderType.BuiltIn, bool isNotificationEnabled = false, IMediaToolAppService? mediaTools = null, string streams = DefaultStreams, Func<HttpRequestMessage, HttpResponseMessage>? respondStream = null, IWebProxy? systemProxy = null)
 	{
+		Proxy = new SwitchableWebProxy(systemProxy ?? new WebProxy());
 		_lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		_streamsTemplate = streams;
 		_respondStream = respondStream;
@@ -69,7 +69,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		FakeConfigManager configManager = new(Config);
 
 		BilibiliApiClient apiClient = new(new HttpClient(new Handler(RespondApiAsync)), Time);
-		LiveRecorder recorder = new(apiClient, new StreamClientFactory(new Handler(RespondStreamAsync)), new FFmpegProvider(configManager), configManager, Time, new CapturingLogger<LiveRecorder>(RecorderLogs))
+		LiveRecorder recorder = new(apiClient, new StreamClientFactory(new Handler(RespondStreamAsync)), Proxy, new FFmpegProvider(configManager), configManager, Time, new CapturingLogger<LiveRecorder>(Logs, RecorderLogs))
 		{
 			CreateFile = createFile ?? LiveRecorder.CreateRecordingFile,
 			CreateFFmpegSession = (ffmpeg, arguments, source) =>
@@ -82,21 +82,19 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		};
 
 		Danmu = new FakeDanmuSource(Time);
+		_postProcessor = new RecordingPostProcessor(mediaTools ?? new UnusedMediaTools(), configManager, Notifications, new CapturingLogger<RecordingPostProcessor>(Logs));
 		RoomSessionServices services = new
 		(
 			apiClient,
-			new DanmuClient(apiClient, new BilibiliIdentity(static _ => ValueTask.FromResult(new BilibiliRequestOptions(null, null))), NullLogger<DanmuClient>.Instance),
+			Danmu.ReceiveAsync,
 			recorder,
-			new RecordingPostProcessor(mediaTools ?? new UnusedMediaTools(), configManager, Notifications, NullLogger<RecordingPostProcessor>.Instance),
-			new LowDiskSpaceMonitor(new UnknownDiskSpace(), configManager, Notifications, Time, NullLogger<LowDiskSpaceMonitor>.Instance),
+			_postProcessor,
+			new LowDiskSpaceMonitor(new UnknownDiskSpace(), configManager, Notifications, Time, new CapturingLogger<LowDiskSpaceMonitor>(Logs)),
 			Notifications,
 			configManager,
 			Time,
-			NullLogger<RoomSession>.Instance
-		)
-		{
-			ReceiveDanmu = Danmu.ReceiveAsync
-		};
+			new CapturingLogger<RoomSession>(Logs)
+		);
 
 		Settings = new RoomConfig { RoomId = RoomId, IsNotificationEnabled = isNotificationEnabled, StreamReconnectDelay = ReconnectDelay };
 		Session = new RoomSession(Settings, services, static () => { });
@@ -104,17 +102,19 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 	public FakeTimeProvider Time { get; } = new();
 
+	// 对应“使用系统代理”，默认关闭
+	public SwitchableWebProxy Proxy { get; }
+
 	// 录制循环每次重连都会重新读取
 	public AppConfig Config { get; } = AppConfig.CreateDefault();
 
-	// 之后请求候选流时返回的 stream 数组，替换规则和构造函数的 streams 参数相同
+	// 替换规则和构造函数的 streams 参数相同
 	public string Streams
 	{
 		get => _streamsTemplate;
 		set => _streamsTemplate = value;
 	}
 
-	// 之后的状态查询返回的标题
 	public string Title
 	{
 		get => _title;
@@ -123,7 +123,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 	public RecordingNotifications Notifications { get; } = new();
 
-	// 只在 Session.Start() 之后连接，录制循环的用例不必理会
+	// 只在 Session.Start() 之后连接
 	public FakeDanmuSource Danmu { get; }
 
 	public string RoomDirectory => RecordingFileLayout.GetRoomDirectory(Config.RecordDirectory, RoomId);
@@ -136,22 +136,19 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 	public int PlayInfoRequests => Volatile.Read(ref _playInfoRequests);
 
-	// 最近一次请求候选流时的查询字符串
 	public string? PlayInfoQuery => _playInfoQuery;
 
-	// 主播放列表接口的应答，没给时按 404 应答
+	// 没给时按 404 应答
 	public Func<HttpRequestMessage, HttpResponseMessage>? MasterPlaylist { get; set; }
 
-	// 按顺序记下的主播放列表请求的查询字符串
 	public ConcurrentQueue<string> MasterPlaylistQueries { get; } = new();
 
-	// 录制器写出的日志，已按消息模板格式化
 	public ConcurrentQueue<string> RecorderLogs { get; } = new();
 
-	// 每次启动 FFmpeg 时传的参数
+	public ConcurrentQueue<HarnessLog> Logs { get; } = new();
+
 	public ConcurrentQueue<IReadOnlyList<string>> FFmpegRuns { get; } = new();
 
-	// 按顺序记下的拉流请求地址
 	public ConcurrentQueue<Uri> StreamRequests { get; } = new();
 
 	// 主播的 uid 是 1
@@ -161,10 +158,23 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		Session.Apply(new LiveRoomInfo(RoomId, 0, 1, "streamer", _title, LiveStatus.Live));
 	}
 
-	// 之后的状态查询都会返回已下播
+	// 只影响之后的状态查询，不通知房间
 	public void GoOffline()
 	{
 		_isLive = false;
+	}
+
+	// 只影响之后的接口，不通知房间
+	public void StartStreaming()
+	{
+		_isLive = true;
+	}
+
+	// standardError 里不能有 cmd 的特殊字符
+	public void FailFFmpeg(string standardError)
+	{
+		string path = Config.FFmpegPath ?? throw new InvalidOperationException("The harness is not recording with FFmpeg.");
+		File.WriteAllText(path, OperatingSystem.IsWindows() ? $"@echo {standardError} 1>&2\r\n@exit /b 1\r\n" : $"#!/bin/sh\necho \"{standardError}\" >&2\nexit 1\n");
 	}
 
 	public async Task<StreamRequest> NextStreamAsync()
@@ -172,18 +182,32 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		return await _streams.Reader.ReadAsync(_lifetime.Token).AsTask().WaitAsync(WaitTimeout);
 	}
 
-	public async Task WaitUntilAsync(Func<RoomSnapshot, bool> condition)
+	public static RecordingLoopHarness CreateSplitting(CancellationToken cancellationToken, IMediaToolAppService mediaTools, Func<string, Stream>? createFile = null)
 	{
-		using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-		timeout.CancelAfter(WaitTimeout);
+		RecordingLoopHarness loop = new(cancellationToken, createFile, mediaTools: mediaTools);
+		loop.Time.SetUtcNow(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+		loop.Time.SetLocalTimeZone(TimeZoneInfo.Utc);
+		loop.Config.SplitMode = RecordingSplitMode.Duration;
+		loop.Config.SplitDuration = TimeSpan.FromMinutes(1);
+		loop.Config.ConvertToMp4 = true;
+		loop.Config.IncludeTitleInFileName = false;
 
-		while (!condition(Snapshot))
-		{
-			await Task.Delay(10, timeout.Token);
-		}
+		// 一次推进一分多钟，不能被当成空闲
+		loop.Settings.StreamIdleTimeout = TimeSpan.FromHours(1);
+		return loop;
 	}
 
-	// 按步推进时钟直到出现下一次拉流，返回推进了多久；不依赖重连等待何时注册定时器
+	public Task WaitUntilAsync(Func<RoomSnapshot, bool> condition)
+	{
+		return WaitUntilAsync(() => condition(Snapshot), "the room snapshot matches");
+	}
+
+	public Task WaitUntilAsync(Func<bool> condition, string because)
+	{
+		return TestWait.UntilAsync(condition, because, _lifetime.Token, WaitTimeout);
+	}
+
+	// 按步推进，不依赖重连等待何时注册定时器
 	public async Task<(StreamRequest Request, TimeSpan Advanced)> AdvanceUntilNextStreamAsync(TimeSpan? interval = null)
 	{
 		TimeSpan advance = interval ?? TimeSpan.FromSeconds(1);
@@ -217,14 +241,22 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		RoomSnapshot recording = Snapshot;
 		Time.Advance(duration);
 
-		// 看门狗采样过之后有数据的时长才会算到这一刻；时钟一次跨过多个采样周期时，后面的采样间隔为零，速度不是正数
+		// 时钟一次跨过多个采样周期时，后几次采样的间隔为零，速度会是 NaN，所以不等正数
 		await WaitUntilAsync(static snapshot => snapshot.BytesPerSecond is not 0);
 		return recording;
 	}
 
-	public async ValueTask DisposeAsync()
+	// 和程序退出一样，先停房间再等后处理
+	public async Task StopAsync()
 	{
 		await Session.DisposeAsync();
+		await _postProcessor.WhenIdleAsync();
+	}
+
+	public async ValueTask DisposeAsync()
+	{
+		// 后处理还开着或正在删除录制目录里的文件时删除目录会失败
+		await StopAsync();
 		await _lifetime.CancelAsync();
 		_lifetime.Dispose();
 		_directory.Dispose();
@@ -309,7 +341,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		}
 	}
 
-	private sealed class CapturingLogger<T>(ConcurrentQueue<string> messages) : ILogger<T>
+	private sealed class CapturingLogger<T>(ConcurrentQueue<HarnessLog> logs, ConcurrentQueue<string>? messages = null) : ILogger<T>
 	{
 		public IDisposable? BeginScope<TState>(TState state) where TState : notnull
 		{
@@ -323,7 +355,9 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 		public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
 		{
-			messages.Enqueue(formatter(state, exception));
+			string message = formatter(state, exception);
+			logs.Enqueue(new HarnessLog(typeof(T).Name, logLevel, message, exception));
+			messages?.Enqueue(message);
 		}
 	}
 
@@ -362,7 +396,9 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	}
 }
 
-// 挂起的拉流请求，由测试决定这个节点如何应答
+// 日志输出会连同异常消息一起写出，检查敏感信息时两者都要看
+internal sealed record HarnessLog(string Category, LogLevel Level, string Message, Exception? Exception);
+
 internal sealed class StreamRequest(string host)
 {
 	private readonly TaskCompletionSource<HttpResponseMessage> _response = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -377,7 +413,7 @@ internal sealed class StreamRequest(string host)
 	// 读过 FLV 头之后才完成，这时空闲看门狗已经在运行
 	public Task CopyStarted => _copyStarted.Task;
 
-	// 和 AcceptAsync 一样应答，但发送给出的数据；等会话把它交给录制器之后才返回
+	// 等会话把数据交给录制器之后才返回
 	public async Task AcceptAsync(byte[] body)
 	{
 		await _body.Writer.WriteAsync(body);
@@ -395,9 +431,10 @@ internal sealed class StreamRequest(string host)
 		await WaitForReadsAsync(reads + 1);
 	}
 
-	public void Reject()
+	// 404 是 CDN 上没有这路流，主播没在推流时就是这样
+	public void Reject(HttpStatusCode status = HttpStatusCode.NotFound)
 	{
-		_response.SetResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+		_response.SetResult(new HttpResponseMessage(status));
 	}
 
 	public async Task AcceptAsync(bool sendFlv = true)
@@ -419,7 +456,6 @@ internal sealed class StreamRequest(string host)
 		await _body.Writer.WriteAsync(new byte[1024]);
 	}
 
-	// 一直发送，直到录制端关闭连接
 	public async Task StreamUntilClosedAsync()
 	{
 		byte[] chunk = new byte[64 << 10];
@@ -437,14 +473,9 @@ internal sealed class StreamRequest(string host)
 		await _body.Writer.CompleteAsync();
 	}
 
-	private async Task WaitForReadsAsync(int count)
+	private Task WaitForReadsAsync(int count)
 	{
-		using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(5));
-
-		while (Volatile.Read(ref _reads) < count)
-		{
-			await Task.Delay(1, timeout.Token);
-		}
+		return TestWait.UntilAsync(() => Volatile.Read(ref _reads) >= count, $"the session reads the stream {count} times", CancellationToken.None);
 	}
 
 	private void OnRead()

@@ -1,6 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.Application.Lifecycle;
 
-internal sealed partial class AppLifecycleService(IAppConfigManager configManager, SwitchableWebProxy proxy, RoomAppService roomAppService, BackgroundTaskAppService backgroundTaskAppService, IUpdateAppService updateAppService, ILogger<AppLifecycleService> logger) : IAppLifecycleService
+internal sealed partial class AppLifecycleService(IAppConfigManager configManager, SwitchableWebProxy proxy, RoomAppService roomAppService, BackgroundTaskAppService backgroundTaskAppService, RecordingPostProcessor postProcessor, IUpdateAppService updateAppService, ILogger<AppLifecycleService> logger) : IAppLifecycleService
 {
 	public async Task StartAsync(CancellationToken cancellationToken = default)
 	{
@@ -16,6 +16,9 @@ internal sealed partial class AppLifecycleService(IAppConfigManager configManage
 		// 先让任务队列进入停止状态，录制收尾时排入的转封装就不会再启动
 		Task tasks = backgroundTaskAppService.StopAsync();
 		await Task.WhenAll(roomAppService.StopAsync(), tasks);
+
+		// 房间都停了之后最后几段的后处理才都已登记
+		await postProcessor.WhenIdleAsync();
 	}
 
 	public void SetUseSystemProxy(bool enabled)

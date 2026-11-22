@@ -5,8 +5,48 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 	// 刚开始录就失败的尝试只留下容器头和零星几个分片，转封装也得不到可看的内容
 	internal const long MinimumLength = 64 << 10;
 
-	// danmaku 是这一段已经写完关闭的弹幕文件，这一段没录弹幕时为 null
-	public async Task ProcessAsync(string path, RecordingProfile profile, string streamer, DanmakuSegment? danmaku = null, DanmakuProfile? danmakuProfile = null)
+	private readonly Lock _lock = new();
+	private readonly HashSet<Task> _pending = [];
+
+	internal Func<string, IReadOnlyList<FFmpegChapter>, CancellationToken, Task> WriteChaptersFile { get; init; } = FFmpegMetadata.WriteChaptersFileAsync;
+
+	// 后处理没有人等待，退出时要等它们写完字幕、删掉章节文件
+	internal void Track(Task task)
+	{
+		if (task.IsCompleted)
+		{
+			return;
+		}
+
+		lock (_lock)
+		{
+			_pending.Add(task);
+		}
+
+		_ = task.ContinueWith(completed =>
+		{
+			lock (_lock)
+			{
+				_pending.Remove(completed);
+			}
+		}, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+	}
+
+	// 后处理失败不能打断退出
+	internal async Task WhenIdleAsync()
+	{
+		Task[] pending;
+
+		lock (_lock)
+		{
+			pending = [.. _pending];
+		}
+
+		await Task.WhenAll(pending).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+	}
+
+	// danmaku 已经写完关闭，这一段没录弹幕时为 null
+	public async Task ProcessAsync(string path, RecordingProfile profile, string streamer, DanmakuSegment? danmaku, DanmakuProfile danmakuProfile)
 	{
 		if (await ProcessCoreAsync(path, profile, danmaku, danmakuProfile) is not { } failure)
 		{
@@ -19,30 +59,11 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 		}
 	}
 
-	// 和弹幕面板共用一套文案，前面加上昵称
-	internal static DanmakuAssLabels SubtitleLabels => new
-	(
-		static (user, level, months, isRenewal) =>
-		{
-			string name = level switch { 1 => AppLanguage.Current.GuardLevelGovernor, 2 => AppLanguage.Current.GuardLevelAdmiral, _ => AppLanguage.Current.GuardLevelCaptain };
-			string text = (months > 1, isRenewal) switch
-			{
-				(true, true) => AppLanguage.Current.DanmakuGuardRenewalMonthsText.ToString(name, months),
-				(true, false) => AppLanguage.Current.DanmakuGuardMonthsText.ToString(name, months),
-				(false, true) => AppLanguage.Current.DanmakuGuardRenewalText.ToString(name),
-				(false, false) => AppLanguage.Current.DanmakuGuardText.ToString(name)
-			};
-			return $"{user} {text}";
-		},
-		static (user, gift, count) => $"{user} {AppLanguage.Current.DanmakuGiftText.ToString(gift, count)}"
-	);
-
-	internal static DanmakuChapterNames ChapterNames => new(static title => AppLanguage.Current.ChapterTitleChange.ToString(title), static phrase => phrase.Length is 0 ? AppLanguage.Current.ChapterHighlightWithoutPhrase : AppLanguage.Current.ChapterHighlight.ToString(phrase));
-
 	// 返回失败原因；转封装任务自身的失败已由任务队列记录
-	private async Task<string?> ProcessCoreAsync(string path, RecordingProfile profile, DanmakuSegment? danmaku, DanmakuProfile? danmakuProfile)
+	private async Task<string?> ProcessCoreAsync(string path, RecordingProfile profile, DanmakuSegment? danmaku, DanmakuProfile danmakuProfile)
 	{
-		string? chapters = null;
+		// 写之前就记下路径，写到一半失败也要删
+		string? chaptersFile = null;
 
 		try
 		{
@@ -59,7 +80,6 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 			{
 				FileOperations.TryDelete(path, logger);
 
-				// 弹幕文件和字幕跟着视频，视频没了它们也对不上任何画面
 				foreach (string companion in (ReadOnlySpan<string>)[stem + RecordingFileLayout.DanmakuExtension, stem + RecordingFileLayout.SubtitleExtension])
 				{
 					if (File.Exists(companion))
@@ -72,12 +92,23 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 			}
 
 			string? destination = profile.ConvertToMp4 ? RecordingFileLayout.GetMp4ConversionPath(path) : null;
-			bool writeChapters = destination is not null && danmakuProfile is { WriteChapters: true };
-			DanmakuFile? records = danmaku is not null && (danmakuProfile is { GenerateSubtitle: true } || writeChapters) ? await ReadDanmakuAsync(danmaku.Path) : null;
+			string? chaptersDestination = danmakuProfile.WriteChapters ? destination : null;
+			string? chapters = null;
 
-			if (records is not null && danmakuProfile is { GenerateSubtitle: true })
+			if (danmaku is { } segment && (danmakuProfile.GenerateSubtitle || chaptersDestination is not null) && await ReadDanmakuAsync(segment.Path) is { } records)
 			{
-				await WriteSubtitleAsync(stem + RecordingFileLayout.SubtitleExtension, records, danmaku?.Resolution, danmakuProfile.ShowPaidMessagesInSubtitle);
+				if (danmakuProfile.GenerateSubtitle)
+				{
+					await WriteSubtitleAsync(stem + RecordingFileLayout.SubtitleExtension, records, segment.Resolution, danmakuProfile.ShowPaidMessagesInSubtitle);
+				}
+
+				if (chaptersDestination is not null)
+				{
+					// 进程被强行结束时，录播目录里不会留下这个文件
+					chaptersFile = Path.Combine(Path.GetTempPath(), $@"{Guid.CreateVersion7():N}.ffmetadata");
+					string liveTitle = records.Source is DanmakuFileSource.Native { Header.Title: { Length: > 0 } title } ? title : Path.GetFileNameWithoutExtension(stem);
+					chapters = await TryWriteChaptersAsync(chaptersFile, liveTitle, records, segment.Duration) ? chaptersFile : null;
+				}
 			}
 
 			if (destination is null)
@@ -85,12 +116,7 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 				return null;
 			}
 
-			if (writeChapters && records is { Source: var source })
-			{
-				chapters = await WriteChaptersAsync(destination, source is DanmakuFileSource.Native { Header.Title: { Length: > 0 } title } ? title : Path.GetFileNameWithoutExtension(stem), records, danmaku?.Duration);
-			}
-
-			Task<BackgroundTaskSnapshot> remux = await mediaTools.QueueRemuxAsync(new RemuxInput(path, destination, profile.DeleteAfterConvert, false) { Chapters = chapters });
+			Task<BackgroundTaskSnapshot> remux = await mediaTools.QueueRemuxAsync(new RemuxInput(path, destination, profile.DeleteAfterConvert, chapters is null ? new RemuxMode.Plain() : new RemuxMode.WithChapters(chapters)));
 
 			if (await remux is { Status: BackgroundTaskStatus.Failed } failed)
 			{
@@ -106,14 +132,13 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 		}
 		finally
 		{
-			if (chapters is not null)
+			if (chaptersFile is not null)
 			{
-				FileOperations.TryDelete(chapters, logger);
+				FileOperations.TryDelete(chaptersFile, logger);
 			}
 		}
 	}
 
-	// 弹幕文件读不了时照常转封装，只是没有字幕和章节
 	private async Task<DanmakuFile?> ReadDanmakuAsync(string path)
 	{
 		try
@@ -131,7 +156,7 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 	{
 		try
 		{
-			await DanmakuAssGenerator.WriteFileAsync(path, danmaku.Records, resolution, showPaidMessages ? SubtitleLabels : null, CancellationToken.None);
+			await DanmakuAssGenerator.WriteFileAsync(path, danmaku.Records, resolution, showPaidMessages ? DanmakuTexts.SubtitleLabels : null, CancellationToken.None);
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
@@ -139,14 +164,22 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 		}
 	}
 
-	// 时长来自时间轴，不按最后一条弹幕推，免得最后一章结束在视频结束之前；章节文件写在输出旁边，转封装之后删除
-	private static async Task<string> WriteChaptersAsync(string destination, string liveTitle, DanmakuFile danmaku, TimeSpan? duration)
+	// duration 来自时间轴，不按最后一条弹幕推，免得最后一章结束在视频结束之前
+	private async Task<bool> TryWriteChaptersAsync(string path, string liveTitle, DanmakuFile danmaku, TimeSpan? duration)
 	{
 		IReadOnlyList<DanmakuHighlight> highlights = DanmakuHighlightDetector.Detect(danmaku.Records, duration);
-		IReadOnlyList<FFmpegChapter> chapters = DanmakuChapterBuilder.Build(liveTitle, danmaku.Records, highlights, duration, ChapterNames);
-		string path = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(destination)) ?? Path.GetTempPath(), $@".{Guid.CreateVersion7():N}.ffmetadata");
-		await FFmpegMetadata.WriteChaptersFileAsync(path, chapters, CancellationToken.None);
-		return path;
+		IReadOnlyList<FFmpegChapter> chapters = DanmakuChapterBuilder.Build(liveTitle, danmaku.Records, highlights, duration, DanmakuTexts.ChapterNames);
+
+		try
+		{
+			await WriteChaptersFile(path, chapters, CancellationToken.None);
+			return true;
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+		{
+			LogChaptersFailed(logger, exception, path);
+			return false;
+		}
 	}
 
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to post-process {Path}")]
@@ -157,4 +190,7 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to write {Path}")]
 	private static partial void LogSubtitleFailed(ILogger logger, Exception exception, string path);
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to write {Path}, converting without chapters")]
+	private static partial void LogChaptersFailed(ILogger logger, Exception exception, string path);
 }

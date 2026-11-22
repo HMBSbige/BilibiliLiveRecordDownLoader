@@ -1,3 +1,5 @@
+using TUnit.Assertions.Enums;
+
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Configuration;
 
 public sealed class AppConfigManagerTest
@@ -73,33 +75,8 @@ public sealed class AppConfigManagerTest
 		}
 	}
 
+	// 配置文件里已废弃的 TryOriginalWhenRestricted 键不影响这个开关
 	[Test]
-	public async Task FillerRemovalIsOffInAnOlderConfigAndSavedOnceTurnedOnAsync(CancellationToken cancellationToken)
-	{
-		using TestDirectory directory = new();
-		string path = directory.Combine("config.json");
-		await File.WriteAllTextAsync(path, """{ "Theme": "Dark" }""", cancellationToken);
-		bool loaded;
-
-		await using (AppConfigManager manager = Create(path))
-		{
-			loaded = (await manager.GetAsync(cancellationToken)).RemoveFillerData;
-			await manager.UpdateAsync(static config => config.RemoveFillerData = true, cancellationToken);
-		}
-
-		JsonObject saved = JsonNode.Parse(await File.ReadAllTextAsync(path, cancellationToken)) as JsonObject ?? [];
-		await using AppConfigManager reloaded = Create(path);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(loaded).IsFalse();
-			await Assert.That(saved[nameof(AppConfig.RemoveFillerData)]?.GetValue<bool>()).IsTrue();
-			await Assert.That((await reloaded.GetAsync(cancellationToken)).RemoveFillerData).IsTrue();
-		}
-	}
-
-	[Test]
-	// 已不再使用的 TryOriginalWhenRestricted 键读到时忽略，不影响这个开关的默认值
 	public async Task MasterPlaylistIsOnInAnOlderConfigAndSavedOnceTurnedOffAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
@@ -121,31 +98,6 @@ public sealed class AppConfigManagerTest
 			await Assert.That(loaded).IsTrue();
 			await Assert.That(saved[nameof(AppConfig.UseMasterPlaylistWhenRestricted)]?.GetValue<bool>()).IsFalse();
 			await Assert.That((await reloaded.GetAsync(cancellationToken)).UseMasterPlaylistWhenRestricted).IsFalse();
-		}
-	}
-
-	[Test]
-	public async Task TrueOriginalRequestIsOffInAnOlderConfigAndSavedOnceTurnedOnAsync(CancellationToken cancellationToken)
-	{
-		using TestDirectory directory = new();
-		string path = directory.Combine("config.json");
-		await File.WriteAllTextAsync(path, """{ "Theme": "Dark" }""", cancellationToken);
-		bool loaded;
-
-		await using (AppConfigManager manager = Create(path))
-		{
-			loaded = (await manager.GetAsync(cancellationToken)).RequestTrueOriginal;
-			await manager.UpdateAsync(static config => config.RequestTrueOriginal = true, cancellationToken);
-		}
-
-		JsonObject saved = JsonNode.Parse(await File.ReadAllTextAsync(path, cancellationToken)) as JsonObject ?? [];
-		await using AppConfigManager reloaded = Create(path);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(loaded).IsFalse();
-			await Assert.That(saved[nameof(AppConfig.RequestTrueOriginal)]?.GetValue<bool>()).IsTrue();
-			await Assert.That((await reloaded.GetAsync(cancellationToken)).RequestTrueOriginal).IsTrue();
 		}
 	}
 
@@ -245,16 +197,89 @@ public sealed class AppConfigManagerTest
 			await caller.CancelAsync();
 		}
 
-		using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		timeout.CancelAfter(TimeSpan.FromSeconds(10));
-
-		while (!File.Exists(path))
-		{
-			await Task.Delay(10, timeout.Token);
-		}
+		await TestWait.UntilAsync(() => File.Exists(path), "the update is saved although its caller gave up", cancellationToken, TimeSpan.FromSeconds(10));
 
 		await using AppConfigManager reloaded = Create(path);
 		await Assert.That((await reloaded.GetAsync(cancellationToken)).Language).IsEqualTo("zh-Hans");
+	}
+
+	[Test]
+	[Arguments("""{ "Theme": "Dark", "Rooms": null }""", "")]
+	[Arguments("""{ "Theme": "Dark", "Rooms": [null, { "RoomId": 1 }] }""", "1")]
+	public async Task NullRoomsAreSkippedAsync(string json, string expectedRooms, CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string path = directory.Combine("config.json");
+		await File.WriteAllTextAsync(path, json, cancellationToken);
+
+		await using AppConfigManager manager = Create(path);
+		AppConfig config = await manager.GetAsync(cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(config.Theme).IsEqualTo(AppTheme.Dark);
+			await Assert.That(string.Join(",", config.Rooms.Select(static room => room.RoomId))).IsEqualTo(expectedRooms);
+		}
+	}
+
+	[Test]
+	public async Task UnreadableValuesFallBackToTheirDefaultsWithoutDiscardingTheRestAsync(CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string path = directory.Combine("config.json");
+		await File.WriteAllTextAsync(path, """
+			{
+				// 手改的配置
+				"theme": "Future",
+				"Cookie": "a=1",
+				"CodecPriority": ["Hevc", "Future", "Avc"],
+				"FormatPriority": ["Future"],
+				"SplitDuration": 42,
+				"Rooms": [{ "RoomId": 1, "Quality": "Future", "IsNotificationEnabled": true, "FormatPriority": ["Ts", "Future", null] }, 5, { "RoomId": 2 }],
+			}
+			""", cancellationToken);
+
+		await using (AppConfigManager manager = Create(path))
+		{
+			AppConfig config = await manager.GetAsync(cancellationToken);
+
+			using (Assert.Multiple())
+			{
+				await Assert.That(config.Theme).IsEqualTo(AppConfig.CreateDefault().Theme);
+				await Assert.That(config.Cookie).IsEqualTo("a=1");
+				await Assert.That(config.CodecPriority).IsEquivalentTo([StreamCodec.Hevc, StreamCodec.Avc], CollectionOrdering.Matching);
+				await Assert.That(config.FormatPriority).IsEquivalentTo(StreamPriority.DefaultFormats, CollectionOrdering.Matching);
+				await Assert.That(config.Rooms[0].FormatPriority).IsEquivalentTo([StreamFormat.Ts], CollectionOrdering.Matching);
+				await Assert.That(config.SplitDuration).IsEqualTo(RecordingSplitDefaults.Duration);
+				await Assert.That(config.Rooms.Select(static room => room.RoomId).SequenceEqual([1L, 2L])).IsTrue();
+				await Assert.That((config.Rooms[0].Quality, config.Rooms[0].IsNotificationEnabled)).IsEqualTo((RoomDefaults.Quality, true));
+				await Assert.That(Directory.GetFiles(directory.Root, "config.json.corrupt-*")).IsEmpty();
+			}
+		}
+
+		// 清理后的内容立即写回
+		JsonObject saved = JsonNode.Parse(await File.ReadAllTextAsync(path, cancellationToken)) as JsonObject ?? [];
+		await Assert.That(saved.ContainsKey("theme") || saved.ContainsKey(nameof(AppConfig.Theme))).IsFalse();
+	}
+
+	[Test]
+	public async Task UpdatesAreClampedToTheirBoundsAsync(CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		await using AppConfigManager manager = Create(directory.Combine("config.json"));
+
+		await manager.UpdateAsync(static config =>
+		{
+			config.DanmakuOffset = TimeSpan.FromMinutes(10);
+			config.SplitDuration = TimeSpan.Zero;
+		}, cancellationToken);
+		AppConfig config = await manager.GetAsync(cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(config.DanmakuOffset).IsEqualTo(DanmakuDefaults.MaxOffset);
+			await Assert.That(config.SplitDuration).IsEqualTo(RecordingSplitDefaults.MinDuration);
+		}
 	}
 
 	[Test]
@@ -297,7 +322,7 @@ public sealed class AppConfigManagerTest
 			await Assert.That(restored.Rooms.Select(static room => room.RoomId).SequenceEqual([732L])).IsTrue();
 		}
 
-		// 恢复的内容立即写回 config.json，下次启动不依赖备份
+		// 恢复的内容立即写回 config.json
 		await using AppConfigManager reloaded = Create(path);
 		await Assert.That((await reloaded.GetAsync(cancellationToken)).Rooms.Count).IsEqualTo(1);
 		await Assert.That(Directory.GetFiles(directory.Root, "config.json.corrupt-*").Length).IsEqualTo(1);
@@ -358,7 +383,7 @@ public sealed class AppConfigManagerTest
 
 	private static bool AreEquivalent(AppConfig x, AppConfig y)
 	{
-		// 记录相等对列表只比较引用，列表单独按元素比较
+		// 记录相等对列表只比较引用
 		return x with { CodecPriority = y.CodecPriority, FormatPriority = y.FormatPriority, Rooms = y.Rooms } == y
 			&& x.CodecPriority.SequenceEqual(y.CodecPriority)
 			&& x.FormatPriority.SequenceEqual(y.FormatPriority)

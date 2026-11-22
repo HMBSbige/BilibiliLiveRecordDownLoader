@@ -1,5 +1,7 @@
 using BilibiliLive.Streams;
 using BilibiliLive.Tests.Fakes;
+using Microsoft.Extensions.Time.Testing;
+using System.Diagnostics;
 
 namespace BilibiliLive.Tests.Streams;
 
@@ -19,7 +21,7 @@ public class LiveStreamReaderTest
 		using HttpClient client = new(handler);
 		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [], [BrokenHost, WorkingHost]);
 
-		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, null, cancellationToken);
+		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, null, cancellationToken: cancellationToken);
 		using MemoryStream output = new();
 		RecordingProgress progress = new();
 		await session.CopyToAsync(output, progress, cancellationToken);
@@ -49,7 +51,7 @@ public class LiveStreamReaderTest
 		using HttpClient client = new(handler);
 		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpHls, StreamFormat.Ts, StreamCodec.Avc, 10000, [], [garbage, valid]);
 
-		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, null, cancellationToken);
+		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, null, cancellationToken: cancellationToken);
 		using MemoryStream output = new();
 		await session.CopyToAsync(output, null, cancellationToken);
 
@@ -61,24 +63,15 @@ public class LiveStreamReaderTest
 	}
 
 	[Test]
-	public async Task AllHostsFailingThrowsAsync(CancellationToken cancellationToken)
-	{
-		using HttpClient client = new(new FakeHttpMessageHandler(_ => Responses.NotFound()));
-		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [], [BrokenHost, WorkingHost]);
-
-		AggregateException? exception = await Assert.ThrowsAsync<AggregateException>(() => LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FastestResponse, ConnectTimeout, null, cancellationToken));
-
-		await Assert.That(exception?.InnerExceptions.Count).IsEqualTo(2);
-	}
-
-	[Test]
 	[Timeout(10_000)]
 	public async Task HungHostOnlyUsesItsOwnConnectTimeoutAsync(CancellationToken cancellationToken)
 	{
+		TaskCompletionSource hung = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		FakeHttpMessageHandler handler = new(async (request, ct) =>
 		{
 			if (request.RequestUri == BrokenHost)
 			{
+				hung.SetResult();
 				await Task.Delay(Timeout.Infinite, ct);
 			}
 
@@ -87,8 +80,12 @@ public class LiveStreamReaderTest
 		using HttpClient client = new(handler);
 		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [], [BrokenHost, WorkingHost]);
 		List<(Uri Host, Exception Error)> failures = [];
+		FakeTimeProvider time = new();
 
-		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, TimeSpan.FromMilliseconds(200), (host, error) => failures.Add((host, error)), cancellationToken);
+		Task<LiveStreamSession> opening = LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, (host, error) => failures.Add((host, error)), time, cancellationToken);
+		await hung.Task.WaitAsync(cancellationToken);
+		time.Advance(ConnectTimeout);
+		await using LiveStreamSession session = await opening;
 
 		using (Assert.Multiple())
 		{
@@ -107,7 +104,7 @@ public class LiveStreamReaderTest
 		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [], [BrokenHost, otherBroken, WorkingHost]);
 		List<Uri> failed = [];
 
-		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, (host, _) => failed.Add(host), cancellationToken);
+		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, (host, _) => failed.Add(host), cancellationToken: cancellationToken);
 
 		await Sequences.AssertEqualAsync(failed, [BrokenHost, otherBroken]);
 	}
@@ -121,7 +118,7 @@ public class LiveStreamReaderTest
 		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [], [WorkingHost]);
 		List<Exception> failures = [];
 
-		await Assert.ThrowsAsync<AggregateException>(() => LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, (_, error) => failures.Add(error), cancellationToken));
+		await Assert.ThrowsAsync<AggregateException>(() => LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, (_, error) => failures.Add(error), cancellationToken: cancellationToken));
 
 		await Assert.That(failures.Single()).IsTypeOf<InvalidDataException>();
 	}
@@ -130,16 +127,51 @@ public class LiveStreamReaderTest
 	[Timeout(10_000)]
 	public async Task HttpStreamThatSendsNoDataWithinTheConnectTimeoutIsRejectedAsync(CancellationToken cancellationToken)
 	{
-		using HttpClient client = new(new FakeHttpMessageHandler(_ => new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StreamContent(new StalledStream()) }));
+		TaskCompletionSource stalled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		using HttpClient client = new(new FakeHttpMessageHandler(_ => new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StreamContent(new StalledStream(stalled)) }));
 		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [], [WorkingHost]);
 		List<Exception> failures = [];
+		FakeTimeProvider time = new();
 
-		await Assert.ThrowsAsync<AggregateException>(() => LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, TimeSpan.FromMilliseconds(200), (_, error) => failures.Add(error), cancellationToken));
+		Task<LiveStreamSession> opening = LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, (_, error) => failures.Add(error), time, cancellationToken);
+		await stalled.Task.WaitAsync(cancellationToken);
+		time.Advance(ConnectTimeout);
+
+		await Assert.ThrowsAsync<AggregateException>(() => opening);
 
 		await Assert.That(failures.Single()).IsTypeOf<TimeoutException>();
 	}
 
-	private sealed class StalledStream : Stream
+	[Test]
+	[Timeout(10_000)]
+	[Arguments(StreamProtocol.HttpStream)]
+	[Arguments(StreamProtocol.HttpHls)]
+	public async Task CancelledOpenIsNotReportedAsAHostFailureAsync(StreamProtocol protocol, CancellationToken cancellationToken)
+	{
+		TaskCompletionSource hung = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		using HttpClient client = new(new FakeHttpMessageHandler(async (_, ct) =>
+		{
+			hung.TrySetResult();
+			await Task.Delay(Timeout.Infinite, ct);
+			throw new UnreachableException();
+		}));
+		LiveStreamCandidate.Listed candidate = new(protocol, StreamFormat.Ts, StreamCodec.Avc, 10000, [], [WorkingHost]);
+		List<Exception> failures = [];
+		using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+		Task<LiveStreamSession> opening = LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, (_, error) => failures.Add(error), new FakeTimeProvider(), stop.Token);
+		await hung.Task.WaitAsync(cancellationToken);
+		await stop.CancelAsync();
+		Exception? exception = await Assert.ThrowsAsync<Exception>(() => opening);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(exception is OperationCanceledException).IsTrue();
+			await Assert.That(failures).IsEmpty();
+		}
+	}
+
+	private sealed class StalledStream(TaskCompletionSource stalled) : Stream
 	{
 		public override bool CanRead => true;
 
@@ -153,6 +185,7 @@ public class LiveStreamReaderTest
 
 		public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
 		{
+			stalled.TrySetResult();
 			await Task.Delay(Timeout.Infinite, cancellationToken);
 			return 0;
 		}

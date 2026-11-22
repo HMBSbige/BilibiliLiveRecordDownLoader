@@ -17,7 +17,7 @@ internal sealed class RecordingMediaTools : IMediaToolAppService
 
 	public Task<Task<BackgroundTaskSnapshot>> QueueRemuxAsync(RemuxInput input, CancellationToken cancellationToken = default)
 	{
-		if (input.Chapters is { } chapters)
+		if (input.Mode is RemuxMode.WithChapters { Path: var chapters })
 		{
 			Chapters[input.Destination] = File.ReadAllText(chapters);
 		}

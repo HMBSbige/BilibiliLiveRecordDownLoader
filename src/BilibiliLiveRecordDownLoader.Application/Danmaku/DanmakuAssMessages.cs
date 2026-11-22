@@ -1,8 +1,8 @@
+using System.Diagnostics;
 using System.Text;
 
 namespace BilibiliLiveRecordDownLoader.Application.Danmaku;
 
-// 左下角的消息栏：SC 卡片，上舰和付费礼物胶囊；先排版出每条的高度，交给 DanmakuMessageBar 模拟进出和推挤，再按模拟结果写出 Dialogue
 internal static class DanmakuAssMessages
 {
 	private const int MaxBodyLines = 5;
@@ -10,7 +10,7 @@ internal static class DanmakuAssMessages
 	private const int TextLayer = 2;
 	private const string Ellipsis = @"…";
 	private const int NameColor = 0x333333;
-	// 底色不透明：其他轨道都占满时普通弹幕仍会落到消息栏的高度，半透明会让两层文字叠在一起读不清；礼物用深色底，不和 SC 抢眼
+	// 底色不透明：其他轨道都占满时普通弹幕会落到消息栏的高度，半透明会让两层文字叠在一起
 	private const string CardAlpha = @"00";
 	private const int GiftBackground = 0x202020;
 	// 贝塞尔曲线近似四分之一圆时，控制点离端点的距离与半径之比
@@ -21,7 +21,7 @@ internal static class DanmakuAssMessages
 	private static readonly TimeSpan SuperChatMaximum = TimeSpan.FromSeconds(20);
 	private static readonly TimeSpan SuperChatPerCharacter = TimeSpan.FromSeconds(0.15);
 
-	// 尺寸是短边 1080 时的像素，按短边缩放；宽度另外不超过画面宽度的 40%，竖屏时不会占满整行
+	// 尺寸是短边 1080 时的像素，按短边缩放
 	internal sealed record Geometry(int Width, int Height, double Scale)
 	{
 		public double Left => Width * 0.02;
@@ -55,20 +55,20 @@ internal static class DanmakuAssMessages
 	{
 		public sealed record SuperChat(double Height, string Name, string Price, IReadOnlyList<string> Lines, SuperChatTier Tier) : Card(Height);
 
-		// 礼物的文字随连击数量变化，上舰的文字不变
+		// Text 的参数是连击数量
 		public sealed record Capsule(double Height, int Color, Func<int, string> Text) : Card(Height);
 	}
 
-	// Lines 按开始时间排好；Shown 和 Dropped 是消息栏显示和丢弃的条数，合进连击的礼物也算显示
+	// Lines 按开始时间排好；合进连击的礼物也算在 Shown 里
 	internal sealed record Rendering(IReadOnlyList<string> Lines, int Shown, int Dropped, Occupancy Occupancy);
 
-	// sorted 按时间排好；先于普通弹幕算出来，普通弹幕排位置时要知道消息栏占着哪里
+	// sorted 要按时间排好；要先于普通弹幕算，普通弹幕排位置时要知道消息栏占着哪里
 	public static Rendering Prepare(IReadOnlyList<DanmakuRecord> sorted, Geometry bar, DanmakuAssLabels labels)
 	{
 		List<Card> cards = [];
 		List<DanmakuMessageRequest> requests = [];
 		double textWidth = bar.BarWidth - 2 * bar.CapsulePadding;
-		// 回放时已经知道哪些 SC 后来被直播间删掉了，整条不画，不必等到删除时刻再撤下
+		// 回放时已经知道哪些 SC 后来被删掉了，整条不画
 		HashSet<long> deleted = [.. sorted.OfType<DanmakuRecord.SuperChatDeletion>().SelectMany(static deletion => deletion.Ids)];
 
 		foreach (DanmakuRecord record in sorted)
@@ -84,8 +84,8 @@ internal static class DanmakuAssMessages
 					requests.Add(new DanmakuMessageRequest(time, DanmakuMessageKind.SuperChat, card.Height, SuperChatDuration(superChat), 1, null));
 					break;
 				}
-				// 等级不在 1 到 3 之间的是读到了坏数据，不知道该用什么颜色和名称
-				case DanmakuRecord.Guard { Level: >= 1 and <= 3 } guard:
+				// 等级可能是没定义的值或坏数据
+				case DanmakuRecord.Guard { Level: GuardLevel.Governor or GuardLevel.Admiral or GuardLevel.Captain } guard:
 				{
 					string user = DanmakuAssGenerator.EscapeText(guard.User);
 					string text = FitName(name => labels.Guard(name, guard.Level, guard.Count, guard.IsRenewal), user, bar.FontSize, textWidth);
@@ -125,16 +125,14 @@ internal static class DanmakuAssMessages
 		return new Rendering([.. lines.OrderBy(static line => line.Start).Select(static line => line.Line)], layout.Shown, layout.Dropped, new Occupancy(bar, extents));
 	}
 
-	// 消息栏在一段时间里占到的区域：横向是整栏宽，纵向从栏底往上到这段时间里最高的条目顶端
 	internal sealed class Occupancy
 	{
-		// 各时刻起消息栏的高度，直到下一个时刻；按时刻排好
+		// 按时刻排好，_heights[i] 是从 _times[i] 到下一个时刻的高度
 		private readonly TimeSpan[] _times;
 		private readonly double[] _heights;
 
 		public Occupancy(Geometry bar, IReadOnlyList<(TimeSpan Start, TimeSpan End, double Extent)> extents)
 		{
-			Left = bar.Left;
 			Right = bar.Left + bar.BarWidth;
 			Bottom = bar.Bottom;
 
@@ -171,8 +169,6 @@ internal static class DanmakuAssMessages
 			_heights = [.. heights];
 		}
 
-		public double Left { get; }
-
 		public double Right { get; }
 
 		public double Bottom { get; }
@@ -180,7 +176,7 @@ internal static class DanmakuAssMessages
 		// [from, to) 期间消息栏顶端的纵坐标；这段时间里消息栏是空的时为 null
 		public double? TopDuring(TimeSpan from, TimeSpan to)
 		{
-			// 从包含 from 的那一格开始，之后开始于 to 之前的格都和这段时间相交
+			// 从包含 from 的那一格开始
 			int index = Array.BinarySearch(_times, from);
 			index = index >= 0 ? index : Math.Max(0, ~index - 1);
 			double height = 0;
@@ -204,7 +200,7 @@ internal static class DanmakuAssMessages
 		return new Card.SuperChat(height, name, price, body, SuperChatTier.For(superChat.Price));
 	}
 
-	// 正文越长显示越久，但不超过 SC 在直播间里置顶的时长
+	// 不超过 SC 在直播间里置顶的时长
 	private static TimeSpan SuperChatDuration(DanmakuRecord.SuperChat superChat)
 	{
 		TimeSpan duration = SuperChatMinimum + SuperChatPerCharacter * DanmakuAssGenerator.EscapeText(superChat.Text).EnumerateRunes().Count();
@@ -212,14 +208,15 @@ internal static class DanmakuAssMessages
 		return superChat.Duration > TimeSpan.Zero && superChat.Duration < duration ? Quantize(superChat.Duration) : duration;
 	}
 
-	// 舰长、提督、总督的底色是自定的，和 SC 的档位色区分开
-	private static int GuardColor(int level)
+	// 自定的颜色，和 SC 的档位色区分开
+	private static int GuardColor(GuardLevel level)
 	{
 		return level switch
 		{
-			1 => 0xE0A030,
-			2 => 0x8C4DE6,
-			_ => 0x3E7BFA
+			GuardLevel.Governor => 0xE0A030,
+			GuardLevel.Admiral => 0x8C4DE6,
+			GuardLevel.Captain => 0x3E7BFA,
+			GuardLevel.None => throw new UnreachableException()
 		};
 	}
 
@@ -252,7 +249,7 @@ internal static class DanmakuAssMessages
 					// 每行单独定位：\N 的行距取决于字体和渲染器，和按行高算出的卡片高度对不上
 					for (int i = 0; i < superChat.Lines.Count; ++i)
 					{
-						Add(TextLayer, $@"\an4{frame.At(bar.Padding, header + bar.BodyPadding + bar.LineHeight * (i + 0.5))}{fade}", superChat.Lines[i]);
+						Add(TextLayer, $@"\an4{frame.At(bar.Padding, header + bar.BodyPadding + bar.LineHeight * (i + 0.5))}{fade}\1c&H{DanmakuAssGenerator.ToAssColor(superChat.Tier.TextColor)}&", superChat.Lines[i]);
 					}
 				}
 
@@ -268,6 +265,10 @@ internal static class DanmakuAssMessages
 				Add(TextLayer, $@"\an4{frame.At(bar.CapsulePadding, height / 2.0)}{fade}", text);
 				break;
 			}
+			default:
+			{
+				throw new UnreachableException();
+			}
 		}
 
 		void Add(int layer, string tags, string text)
@@ -276,7 +277,7 @@ internal static class DanmakuAssMessages
 		}
 	}
 
-	// 一段开始或结束在淡入淡出途中时，\fad 会从完全透明或完全不透明重新开始，这时改用 \fade 从当时的透明度接着变
+	// 开始或结束在淡入淡出途中时 \fad 会从头开始变，改用 \fade 从当时的透明度接着变
 	private static string Fade(DanmakuMessagePlacement placement, DanmakuMessageSpan span)
 	{
 		TimeSpan fadeInEnd = placement.ShownAt + DanmakuMessageBar.Transition;
@@ -318,7 +319,7 @@ internal static class DanmakuAssMessages
 		return 0;
 	}
 
-	// 圆角矩形，上边两个角和下边两个角的半径分别给出；左上角是原点，配合 \an7 定位
+	// 左上角是原点，配合 \an7 定位
 	internal static string RoundedRectangle(int width, int height, int topRadius, int bottomRadius)
 	{
 		StringBuilder builder = new();
@@ -358,13 +359,13 @@ internal static class DanmakuAssMessages
 		}
 	}
 
-	// 按估算宽度折行，拉丁文字尽量在空格处断开；超过 maxLines 行时最后一行以省略号结尾
+	// 超过 maxLines 行时最后一行以省略号结尾
 	internal static IReadOnlyList<string> Wrap(string text, double fontSize, double maxWidth, int maxLines)
 	{
 		List<string> lines = [];
 		StringBuilder line = new();
 		double width = 0;
-		int space = -1;
+		int breakAt = -1;
 
 		foreach (Rune rune in text.EnumerateRunes())
 		{
@@ -380,30 +381,30 @@ internal static class DanmakuAssMessages
 
 				string rest = string.Empty;
 
-				if (rune.Value is not ' ' && !DanmakuAssGenerator.IsWide(rune.Value) && space > 0)
+				if (rune.Value is not ' ' && !DanmakuAssGenerator.IsWide(rune.Value) && breakAt > 0 && breakAt < line.Length)
 				{
-					rest = line.ToString(space + 1, line.Length - space - 1);
-					line.Length = space;
+					rest = line.ToString(breakAt, line.Length - breakAt);
+					line.Length = breakAt;
 				}
 
 				lines.Add(line.ToString().TrimEnd());
 				line.Clear().Append(rest);
 				width = Measure(rest, fontSize);
-				space = -1;
+				breakAt = -1;
 			}
 
-			if (rune.Value is ' ')
+			if (rune.Value is ' ' && line.Length is 0)
 			{
-				if (line.Length is 0)
-				{
-					continue;
-				}
-
-				space = line.Length;
+				continue;
 			}
 
 			line.Append(rune.ToString());
 			width += runeWidth;
+
+			if (rune.Value is ' ' || DanmakuAssGenerator.IsWide(rune.Value))
+			{
+				breakAt = line.Length;
+			}
 		}
 
 		if (line.Length > 0)
@@ -414,8 +415,8 @@ internal static class DanmakuAssMessages
 		return lines;
 	}
 
-	// libass 等渲染器把字号当成字体的行高，微软雅黑的全角字宽约是字号的 0.76，取 0.8 留一点余量；
-	// 不沿用滚动弹幕按一个字号估的做法，那样卡片里的文字只占到七成多宽度。拉丁字母按大致的字形宽度分几档
+	// 常见的 ASS 渲染器把字号当成行高，微软雅黑的全角字宽约是字号的 0.76，取 0.8 留一点余量
+	// 不沿用滚动弹幕按一个字号估的做法，那样卡片里的文字只占到七成多宽度
 	internal static double Measure(Rune rune, double fontSize)
 	{
 		double em = fontSize * 0.8;
@@ -469,7 +470,6 @@ internal static class DanmakuAssMessages
 		return string.Concat(runes.Select(static rune => rune.ToString())).TrimEnd() + Ellipsis;
 	}
 
-	// 昵称放不下时只截断昵称，其他部分保持完整；昵称截没了还放不下时再截整行
 	private static string FitName(Func<string, string> compose, string name, double fontSize, double maxWidth)
 	{
 		string full = compose(name);
@@ -483,7 +483,7 @@ internal static class DanmakuAssMessages
 		return Truncate(compose(fitted), fontSize, maxWidth);
 	}
 
-	// 价格是千分之一元，整数元不带小数，否则最多两位
+	// price 的单位是千分之一元
 	internal static string FormatYuan(long price)
 	{
 		return @"¥" + decimal.Round(price / 1000m, 2, MidpointRounding.AwayFromZero).ToString(@"0.##", CultureInfo.InvariantCulture);
@@ -506,7 +506,7 @@ internal static class DanmakuAssMessages
 		return (int)Math.Round(value, MidpointRounding.AwayFromZero);
 	}
 
-	// 位置先取整，条目里各部分再按取整后的偏移摆放，SC 上下两半之间不会因为各自取整出现缝隙
+	// 位置先取整再加各部分的偏移，SC 上下两半才不会因为各自取整出现缝隙
 	private readonly record struct Frame(int X, int FromTop, int ToTop, int MoveMilliseconds)
 	{
 		public string At(double dx, double dy)

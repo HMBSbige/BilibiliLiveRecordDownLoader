@@ -15,6 +15,6 @@ public sealed class SplitterSelectionTest
 	{
 		LiveStreamCandidate.Listed candidate = new(protocol, format, StreamCodec.Avc, 10000, [], [new Uri("https://cdn.test/live")]);
 
-		await Assert.That(LiveRecorder.CreateSplitter(candidate, recorderType)?.GetType().Name).IsEqualTo(expected);
+		await Assert.That(LiveRecorder.CreateSplitter(candidate, recorderType).GetType().Name).IsEqualTo(expected);
 	}
 }

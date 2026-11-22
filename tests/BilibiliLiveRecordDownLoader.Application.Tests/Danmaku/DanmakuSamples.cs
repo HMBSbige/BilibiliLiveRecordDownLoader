@@ -1,3 +1,4 @@
+using BilibiliLive.Danmu;
 using BilibiliLiveRecordDownLoader.Application.Danmaku;
 using System.Text;
 using System.Xml;
@@ -25,7 +26,7 @@ internal static class DanmakuSamples
 
 	public static DanmakuRecord.Comment Comment(double seconds, string text = @"文本", long uid = 123, int mode = 1)
 	{
-		return new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(Math.Round(seconds * 1000)), mode, 25, 0xFFFFFF, SentAt, uid, @"观众", text, @"5e7c63ca70d385b033f842f35a6b02c84761");
+		return new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(Math.Round(seconds * 1000)), mode, 25, 0xFFFFFF, SentAt, uid, @"观众", text, 0);
 	}
 
 	public static DanmakuRecord[] AllKinds()
@@ -33,16 +34,16 @@ internal static class DanmakuSamples
 		return
 		[
 			new DanmakuRecord.Connection(TimeSpan.Zero, true, true),
-			new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(12345), 1, 25, 16777215, SentAt, 123, @"昵称", @"文本", @"5e7c63ca70d385b033f842f35a6b02c84761"),
-			new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(13000), 5, 36, 0xFF0000, SentAt, 0, @"淡***", @"节奏风暴", @"0") { UidHash = @"a16fe0dd", IsStorm = true },
+			new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(12345), 1, 25, 16777215, SentAt, 123, @"昵称", @"文本", 40685126698926083),
+			new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(13000), 5, 36, 0xFF0000, SentAt, 0, @"淡***", @"节奏风暴", 0) { UidHash = @"a16fe0dd", IsStorm = true },
 			new DanmakuRecord.SuperChat(TimeSpan.FromSeconds(20), 456, @"老板", 30000, TimeSpan.FromSeconds(60), @"醒目留言") { Id = 20541912 },
 			new DanmakuRecord.Gift(TimeSpan.FromMilliseconds(21500), 789, @"观众", @"小花花", 10, 1000),
-			new DanmakuRecord.Guard(TimeSpan.FromSeconds(30), 1011, @"舰长", 3, 1, 198000),
+			new DanmakuRecord.Guard(TimeSpan.FromSeconds(30), 1011, @"舰长", GuardLevel.Captain, 1, 198000),
 			new DanmakuRecord.TitleChange(TimeSpan.FromSeconds(40), @"新标题"),
 			new DanmakuRecord.Gap(TimeSpan.FromSeconds(100), TimeSpan.FromMilliseconds(105200)),
 			new DanmakuRecord.Connection(TimeSpan.FromMilliseconds(105200), false, false),
 			new DanmakuRecord.SuperChatDeletion(TimeSpan.FromSeconds(110), [20541912, 20541913]),
-			new DanmakuRecord.Guard(TimeSpan.FromSeconds(120), 1012, @"老舰长", 2, 3, 4_194_000) { IsRenewal = true }
+			new DanmakuRecord.Guard(TimeSpan.FromSeconds(120), 1012, @"老舰长", GuardLevel.Admiral, 3, 4_194_000) { IsRenewal = true }
 		];
 	}
 

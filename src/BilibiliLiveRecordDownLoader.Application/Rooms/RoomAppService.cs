@@ -8,6 +8,9 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 
 	private readonly Lock _lock = new();
 	private readonly List<RoomSession> _sessions = [];
+
+	// 已经移除、还在释放的房间，弹幕写入者可能还要写一会儿
+	private readonly List<RoomSession> _closing = [];
 	private long _version;
 
 	public long Version => Interlocked.Read(ref _version);
@@ -70,7 +73,16 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 		}
 
 		// 用户可能输入短号，以接口返回的真实房间号为准
-		LiveRoomInfo info = await apiClient.GetRoomInfoAsync(settings.RoomId, cancellationToken);
+		LiveRoomInfo info;
+
+		try
+		{
+			info = await RequestTimeout.ReportAsync(apiClient.GetRoomInfoAsync(settings.RoomId, cancellationToken));
+		}
+		catch (Exception exception) when (exception is BilibiliApiException { Code: BilibiliApiException.RoomNotFoundCode } || BilibiliErrors.IsBlocked(exception))
+		{
+			throw new InvalidOperationException(BilibiliErrors.Describe(exception, settings.RoomId), exception);
+		}
 		RoomConfig room = (settings with { RoomId = info.RoomId }).ToConfig();
 		RoomSession session;
 
@@ -186,7 +198,7 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 	{
 		try
 		{
-			return await rooms.MoveNextAsync();
+			return await RequestTimeout.ReportAsync(rooms.MoveNextAsync().AsTask());
 		}
 		catch (BilibiliApiException exception) when (exception.Code is BilibiliApiException.NotLoggedInCode)
 		{
@@ -252,6 +264,7 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 		{
 			removed = [.. _sessions.Where(session => roomIds.Contains(session.RoomId))];
 			_sessions.RemoveAll(session => roomIds.Contains(session.RoomId));
+			_closing.AddRange(removed);
 		}
 
 		Touch();
@@ -262,7 +275,17 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 		}
 		finally
 		{
-			await Task.WhenAll(removed.Select(static session => session.DisposeAsync().AsTask()));
+			try
+			{
+				await Task.WhenAll(removed.Select(static session => session.DisposeAsync().AsTask()));
+			}
+			finally
+			{
+				lock (_lock)
+				{
+					_closing.RemoveAll(removed.Contains);
+				}
+			}
 		}
 	}
 
@@ -290,7 +313,7 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 	{
 		lock (_lock)
 		{
-			return _sessions.Any(session => session.Danmaku.IsWriting(path));
+			return _sessions.Concat(_closing).Any(session => session.Danmaku.IsWriting(path));
 		}
 	}
 
@@ -347,7 +370,7 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 				}
 				catch (BilibiliApiException exception) when (!BilibiliErrors.IsBlocked(exception))
 				{
-					errors[roomId] = exception.Message;
+					errors[roomId] = BilibiliErrors.Describe(exception, roomId);
 				}
 			}
 		}

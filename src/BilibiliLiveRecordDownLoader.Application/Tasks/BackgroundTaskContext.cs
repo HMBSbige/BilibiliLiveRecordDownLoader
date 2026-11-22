@@ -1,10 +1,10 @@
 namespace BilibiliLiveRecordDownLoader.Application.Tasks;
 
-internal sealed class BackgroundTaskContext(Action<double?, double?, string?> report, TimeProvider timeProvider)
+internal sealed class BackgroundTaskContext(Action<double?, double?> report, TimeProvider timeProvider)
 {
-	public void Report(double? progress, string? message = null)
+	public void Report(double? progress)
 	{
-		Report(progress, null, message);
+		Report(progress, null);
 	}
 
 	public IProgress<double> CreateProgress(double start = 0, double weight = 1)
@@ -17,9 +17,9 @@ internal sealed class BackgroundTaskContext(Action<double?, double?, string?> re
 		return new FFmpegProgressReporter(this, timeProvider, expectedDuration, start, weight);
 	}
 
-	private void Report(double? progress, double? speed, string? message)
+	private void Report(double? progress, double? speed)
 	{
-		report(progress is { } value ? Math.Clamp(value, 0, 1) : null, speed, message);
+		report(progress is { } value ? Math.Clamp(value, 0, 1) : null, speed);
 	}
 
 	private sealed class ScaledProgress(BackgroundTaskContext context, double start, double weight) : IProgress<double>
@@ -30,7 +30,7 @@ internal sealed class BackgroundTaskContext(Action<double?, double?, string?> re
 		}
 	}
 
-	// 速度与 FFmpeg 的算法一致：已处理的媒体时长除以开始后经过的时间
+	// 速度与 FFmpeg 的算法一致
 	private sealed class FFmpegProgressReporter(BackgroundTaskContext context, TimeProvider timeProvider, TimeSpan? expectedDuration, double start, double weight) : IProgress<FFmpegProgress>
 	{
 		private readonly long _startedAt = timeProvider.GetTimestamp();
@@ -52,7 +52,7 @@ internal sealed class BackgroundTaskContext(Action<double?, double?, string?> re
 				_ => null
 			};
 
-			context.Report(progress, speed, value.Message);
+			context.Report(progress, speed);
 		}
 	}
 }

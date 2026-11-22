@@ -7,7 +7,6 @@ using System.Xml;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
-// 用真实的房间、录制器和写入者跑完整的弹幕录制；弹幕连接由 FakeDanmuSource 代替，时钟由测试推进
 public sealed class RoomDanmakuRecordingTest
 {
 	private const int KeyFrameSize = 40 << 10;
@@ -25,20 +24,27 @@ public sealed class RoomDanmakuRecordingTest
 		await stream.AcceptAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. Frame(VideoPacket.KeyFrame, 0)]);
 		await SendSecondsAsync(loop, stream, 1, 3);
 		await danmu.SendAsync(Comment("第一段"));
-
-		// 录制中途的文件任何时候都是完整的 XML
-		string first = Path.Combine(loop.RoomDirectory, "20260101_000000.xml");
-		await Assert.That(IsWellFormed(first)).IsTrue();
-
 		loop.Time.Advance(TimeSpan.FromMilliseconds(500));
 		await danmu.SendAsync(Comment("半秒之后"));
-		await SendSecondsAsync(loop, stream, 4, 61);
+
+		// 弹幕稀少时空闲的写入者也按时落盘，录制中途的文件是完整的 XML
+		// 写盘端和写入者都在别的线程上，可能落后于推进的时钟；时钟停下之后计时器不再到期，所以按帧推进直到落盘
+		string first = Path.Combine(loop.RoomDirectory, "20260101_000000.xml");
+		int second = 4;
+
+		for (; second < 60 && !ContainsText(first, "半秒之后"); ++second)
+		{
+			await SendSecondsAsync(loop, stream, second, second);
+		}
+
+		await loop.WaitUntilAsync(() => ContainsText(first, "半秒之后"), "the first file is flushed before the segment ends");
+		await SendSecondsAsync(loop, stream, second, 61);
 
 		// 第 60 秒开始的一段要等下一个关键帧才提交，这条到那时才确定放进第二段
 		await danmu.SendAsync(Comment("第二段"));
 		await SendSecondsAsync(loop, stream, 62, 64);
 		await stream.EndAsync();
-		await WaitForRemuxAsync(mediaTools, 2);
+		await WaitForRemuxAsync(loop, mediaTools, 2);
 
 		DanmakuFile firstFile = await DanmakuXmlReader.ReadFileAsync(first, cancellationToken);
 		DanmakuFile secondFile = await DanmakuXmlReader.ReadFileAsync(Path.Combine(loop.RoomDirectory, "20260101_000100.xml"), cancellationToken);
@@ -55,7 +61,36 @@ public sealed class RoomDanmakuRecordingTest
 			await Assert.That(chapters).Contains("title=title");
 			// 时长来自时间轴：第一段最后一帧在 59 秒
 			await Assert.That(chapters).Contains("END=59000");
-			await Assert.That(mediaTools.Remuxes.All(static remux => remux.Chapters is { } path && !File.Exists(path))).IsTrue();
+			await Assert.That(mediaTools.Remuxes.All(static remux => remux.Mode is RemuxMode.WithChapters { Path: var path } && !File.Exists(path))).IsTrue();
+		}
+	}
+
+	// 文件开头的连接状态是画面开头的状态，不加偏移
+	[Test]
+	[Timeout(30_000)]
+	public async Task DanmakuFollowingTheVideoIsShiftedByTheOffsetAsync(CancellationToken cancellationToken)
+	{
+		RecordingMediaTools mediaTools = new();
+		await using RecordingLoopHarness loop = Create(cancellationToken, mediaTools);
+		loop.Config.DanmakuOffset = TimeSpan.FromSeconds(2);
+		FakeDanmuConnection danmu = await ConnectAsync(loop);
+
+		StreamRequest stream = await loop.NextStreamAsync();
+		await stream.AcceptAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. Frame(VideoPacket.KeyFrame, 0)]);
+		await SendSecondsAsync(loop, stream, 1, 3);
+		await danmu.SendAsync(Comment("第一段"));
+
+		// 加上偏移在第 5 秒，画面要录到那里，否则就在最后一帧之后了
+		await SendSecondsAsync(loop, stream, 4, 6);
+		await stream.EndAsync();
+		await WaitForRemuxAsync(loop, mediaTools, 1);
+
+		DanmakuFile file = await DanmakuXmlReader.ReadFileAsync(Path.Combine(loop.RoomDirectory, "20260101_000000.xml"), cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(file.Source is DanmakuFileSource.Native { Header.Offset.TotalSeconds: 2 }).IsTrue();
+			await Assert.That(Describe(file)).IsEqualTo("connection@0.000(anonymous) 第一段@5.000");
 		}
 	}
 
@@ -83,7 +118,7 @@ public sealed class RoomDanmakuRecordingTest
 		loop.Time.Advance(TimeSpan.FromMilliseconds(750));
 		await next.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 6000));
 		await next.EndAsync();
-		await WaitForRemuxAsync(mediaTools, 2);
+		await WaitForRemuxAsync(loop, mediaTools, 2);
 
 		string[] files = [.. Directory.GetFiles(loop.RoomDirectory, "*.xml").Order(StringComparer.Ordinal)];
 		DanmakuFile firstFile = await DanmakuXmlReader.ReadFileAsync(files[0], cancellationToken);
@@ -112,7 +147,7 @@ public sealed class RoomDanmakuRecordingTest
 		_ = await loop.NextStreamAsync();
 		string stem = Path.Combine(loop.RoomDirectory, "20260101_000000");
 
-		await WaitUntilAsync(() => !File.Exists(stem + ".flv") && !File.Exists(stem + ".xml"));
+		await loop.WaitUntilAsync(() => !File.Exists(stem + ".flv") && !File.Exists(stem + ".xml"), "the small video and its danmaku are deleted");
 
 		await Assert.That(mediaTools.Remuxes).IsEmpty();
 	}
@@ -190,12 +225,12 @@ public sealed class RoomDanmakuRecordingTest
 		loop.Config.SaveRawDanmaku = true;
 		loop.Config.SplitOnTitleChange = true;
 
-		// 先开始记录再连上，连接建立的那一行在最前面
-		loop.Session.Start();
+		// 开播之后才开始记录，文件开头补记之前的连接
+		loop.GoOffline();
+		FakeDanmuConnection danmu = await ConnectAsync(loop, masked: true);
+		loop.GoLive();
 		await loop.WaitUntilAsync(static snapshot => snapshot.Danmaku.IsRecording);
-		await WaitUntilAsync(() => loop.Danmu.Options?.IncludeRaw is true);
-		FakeDanmuConnection danmu = await loop.Danmu.NextConnectionAsync();
-		await danmu.SendAsync(new DanmuMessage.Connected(0));
+		await loop.WaitUntilAsync(() => loop.Danmu.Options?.IncludeRaw is true, "raw messages are parsed");
 		await danmu.SendAsync(new DanmuMessage.Raw("DANMU_MSG", """{"cmd":"DANMU_MSG","info":[1]}"""u8.ToArray()));
 		loop.Time.Advance(TimeSpan.FromSeconds(1));
 		await danmu.SendAsync(new DanmuMessage.Raw("ROOM_CHANGE", """{"cmd":"ROOM_CHANGE","data":{"title":"new title"}}"""u8.ToArray()));
@@ -206,11 +241,11 @@ public sealed class RoomDanmakuRecordingTest
 		await reconnected.SendAsync(new DanmuMessage.Connected(0));
 		await reconnected.SendAsync(new DanmuMessage.LiveStopped(false));
 		await loop.WaitUntilAsync(static snapshot => !snapshot.Danmaku.IsRecording);
-		await WaitUntilAsync(() => loop.Danmu.Options?.IncludeRaw is false);
+		await loop.WaitUntilAsync(() => loop.Danmu.Options?.IncludeRaw is false, "raw messages are no longer parsed");
 
 		// 写入者先停止解析原始消息再关闭文件，停止解析时文件可能还开着
 		string raw = Path.Combine(loop.RoomDirectory, "20260101_000000.danmaku.jsonl");
-		await WaitUntilAsync(() => IsClosed(raw));
+		await loop.WaitUntilAsync(() => IsClosed(raw), "the raw file is closed");
 		string[] lines = await File.ReadAllLinesAsync(raw, cancellationToken);
 		string start = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero).ToUnixTimeMilliseconds().ToString(System.Globalization.CultureInfo.InvariantCulture);
 		string second = new DateTimeOffset(2026, 1, 1, 0, 0, 1, TimeSpan.Zero).ToUnixTimeMilliseconds().ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -220,12 +255,12 @@ public sealed class RoomDanmakuRecordingTest
 			await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.jsonl").Length).IsEqualTo(1);
 			await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.xml").Length).IsEqualTo(2);
 			await Assert.That(lines.Length).IsEqualTo(6);
-			await Assert.That(lines[0]).IsEqualTo("{\"t\":" + start + ",\"cmd\":\"@connected\",\"raw\":{\"uid\":0}}");
+			await Assert.That(lines[0]).IsEqualTo("{\"t\":" + start + ",\"cmd\":\"@connected\",\"raw\":{\"anonymous\":true,\"masked\":true}}");
 			await Assert.That(lines[1]).IsEqualTo("{\"t\":" + start + ",\"cmd\":\"DANMU_MSG\",\"raw\":{\"cmd\":\"DANMU_MSG\",\"info\":[1]}}");
 			await Assert.That(lines[2]).IsEqualTo("{\"t\":" + second + ",\"cmd\":\"ROOM_CHANGE\",\"raw\":{\"cmd\":\"ROOM_CHANGE\",\"data\":{\"title\":\"new title\"}}}");
 			await Assert.That(lines[3]).IsEqualTo("{\"t\":" + second + ",\"cmd\":\"SEND_GIFT\",\"raw\":{\"cmd\":\"SEND_GIFT\"}}");
 			await Assert.That(lines[4]).IsEqualTo("{\"t\":" + second + ",\"cmd\":\"@disconnected\",\"raw\":null}");
-			await Assert.That(lines[5]).EndsWith(",\"cmd\":\"@connected\",\"raw\":{\"uid\":0}}");
+			await Assert.That(lines[5]).EndsWith(",\"cmd\":\"@connected\",\"raw\":{\"anonymous\":true}}");
 		}
 	}
 
@@ -237,7 +272,7 @@ public sealed class RoomDanmakuRecordingTest
 		loop.Settings.IsDanmakuEnabled = false;
 		FakeDanmuConnection danmu = await ConnectAsync(loop);
 		_ = await loop.NextStreamAsync();
-		DanmuReceiveOptions options = loop.Danmu.Options!;
+		DanmuReceiveOptions options = await Assert.That(loop.Danmu.Options).IsNotNull();
 		bool idle = options.IncludeChat;
 
 		IDisposable subscription = loop.Session.Danmaku.Subscribe();
@@ -248,12 +283,10 @@ public sealed class RoomDanmakuRecordingTest
 		bool unsubscribed = options.IncludeChat;
 		int cleared = loop.Session.Danmaku.Feed.GetEntries(0).Count;
 
-		// 录制循环在跑，打开录弹幕之后就解析；不保存原始消息时不产出原始消息
 		loop.Session.UpdateSettings(loop.Settings with { IsDanmakuEnabled = true });
 		bool recording = options.IncludeChat;
 		bool raw = options.IncludeRaw;
 
-		// 关掉录制之后改为仅录弹幕，仍然解析
 		loop.Session.UpdateSettings(loop.Settings with { IsDanmakuEnabled = true, IsRecordingEnabled = false });
 		await loop.WaitUntilAsync(static snapshot => snapshot.Danmaku.IsRecording);
 		bool textOnly = options.IncludeChat;
@@ -287,7 +320,6 @@ public sealed class RoomDanmakuRecordingTest
 		await danmu.SendAsync(Comment("录着呢"));
 		await danmu.SendAsync(new DanmuMessage.SuperChat(1, new DanmuSender(42, "老板", GuardLevel.Captain, null), "醒目留言", 30000, TimeSpan.FromSeconds(60), DateTimeOffset.UnixEpoch));
 
-		// 录弹幕时订阅之前的条目也在
 		using IDisposable subscription = loop.Session.Danmaku.Subscribe();
 		IReadOnlyList<LiveDanmakuEntryDto> entries = loop.Session.Danmaku.Feed.GetEntries(0);
 		DanmakuFeedStatus status = loop.Session.Danmaku.Feed.Status;
@@ -297,26 +329,18 @@ public sealed class RoomDanmakuRecordingTest
 		{
 			await Assert.That(string.Join(", ", entries.Select(static entry => entry.Sequence))).IsEqualTo("1, 2");
 			await Assert.That(entries[1].Entry).IsEqualTo(new DanmakuEntryDto.SuperChat(1, new DanmuSender(42, "老板", GuardLevel.Captain, null), "醒目留言", 30000, TimeSpan.FromSeconds(60)));
-			await Assert.That(status).IsEqualTo(new DanmakuFeedStatus(DanmakuConnectionState.Connected, 0, true, 2, null, true));
-			await Assert.That(snapshot).IsEqualTo(new RoomDanmakuSnapshot(true, 0, true));
+			await Assert.That(status).IsEqualTo(new DanmakuFeedStatus(DanmakuConnectionState.Connected, 1, 0, true, 2, null));
+			await Assert.That(snapshot).IsEqualTo(new RoomDanmakuSnapshot(true));
 		}
 	}
 
 	private static RecordingLoopHarness Create(CancellationToken cancellationToken, RecordingMediaTools mediaTools)
 	{
-		RecordingLoopHarness loop = new(cancellationToken, mediaTools: mediaTools);
-		loop.Time.SetUtcNow(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
-		loop.Time.SetLocalTimeZone(TimeZoneInfo.Utc);
-		loop.Config.SplitMode = RecordingSplitMode.Duration;
-		loop.Config.SplitDuration = TimeSpan.FromMinutes(1);
-		loop.Config.ConvertToMp4 = true;
-		loop.Config.IncludeTitleInFileName = false;
+		RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools);
 		loop.Settings.IsDanmakuEnabled = true;
-		loop.Settings.StreamIdleTimeout = TimeSpan.FromHours(1);
 		return loop;
 	}
 
-	// 开始监控，状态查询得知已开播；弹幕连接先连上
 	private static async Task<FakeDanmuConnection> ConnectAsync(RecordingLoopHarness loop, bool masked = false)
 	{
 		loop.Session.Start();
@@ -331,14 +355,14 @@ public sealed class RoomDanmakuRecordingTest
 		return danmu;
 	}
 
-	// 断开后的重连等待带随机抖动，按秒推进直到重新连接，返回推进的总时长，即断开的时长
+	// 重连等待带随机抖动，按秒推进直到重新连接；推进的总时长即断开的时长
 	private static async Task<(FakeDanmuConnection Connection, TimeSpan Advanced)> AdvanceUntilReconnectedAsync(RecordingLoopHarness loop)
 	{
 		Task<FakeDanmuConnection> next = loop.Danmu.NextConnectionAsync();
 		TimeSpan advanced = TimeSpan.Zero;
 
 		// 断开的时刻取房间察觉断开时的时钟，先等它察觉再推进，不然断开会记晚
-		await WaitUntilAsync(() => loop.Session.Danmaku.Feed.Status.DisconnectedAt is not null);
+		await loop.WaitUntilAsync(() => loop.Session.Danmaku.Feed.Status.DisconnectedAt is not null, "the room notices the disconnection");
 
 		for (int step = 0; step < 20 && !next.IsCompleted; ++step)
 		{
@@ -356,10 +380,9 @@ public sealed class RoomDanmakuRecordingTest
 
 	private static DanmuMessage.Comment Comment(string text)
 	{
-		return new DanmuMessage.Comment(new DanmuSender(0, "观***", GuardLevel.None, null), text, 1, 25, 0xFFFFFF, DateTimeOffset.UnixEpoch, "5e7c63ca70d385b033f842f35a6b02c84761", "a16fe0dd", DanmuCommentKind.Text, false);
+		return new DanmuMessage.Comment(new DanmuSender(0, "观***", GuardLevel.None, null), text, 1, 25, 0xFFFFFF, DateTimeOffset.UnixEpoch, "a16fe0dd", DanmuCommentKind.Text, false);
 	}
 
-	// 每秒一帧，偶数秒是关键帧，按帧推进时钟
 	private static async Task SendSecondsAsync(RecordingLoopHarness loop, StreamRequest stream, int from, int to)
 	{
 		for (int second = from; second <= to; ++second)
@@ -369,12 +392,10 @@ public sealed class RoomDanmakuRecordingTest
 		}
 	}
 
-	// 关键帧补到足够大，一段超过后处理删除的下限
+	// 一段要超过后处理删除的下限
 	private static byte[] Frame(VideoPacket packet, uint timestamp)
 	{
-		byte[] frame = FlvSamples.Video(VideoStyle.Avc, packet, timestamp);
-		int padding = packet is VideoPacket.KeyFrame ? KeyFrameSize : 0;
-		return FlvSamples.Tag(FlvSamples.VideoTag, timestamp, [.. frame.AsSpan(11, frame.Length - 15), .. new byte[padding]]);
+		return FlvSamples.PaddedVideo(packet, timestamp, packet is VideoPacket.KeyFrame ? KeyFrameSize : 0);
 	}
 
 	private static string Describe(DanmakuFile file)
@@ -394,12 +415,12 @@ public sealed class RoomDanmakuRecordingTest
 		}
 	}
 
-	// 写入者开着文件时不允许别人以只读共享打开
+	// 写入者还开着文件时，Windows 报共享冲突，Unix 拿不到排他锁；用 FileShare.Read 打开在 Unix 上探测不出来
 	private static bool IsClosed(string path)
 	{
 		try
 		{
-			using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+			using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.None);
 			return true;
 		}
 		catch (IOException)
@@ -408,37 +429,29 @@ public sealed class RoomDanmakuRecordingTest
 		}
 	}
 
-	private static bool IsWellFormed(string path)
+	// 文件不完整时 XmlException 让测试失败
+	private static bool ContainsText(string path, string text)
 	{
-		try
-		{
-			using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-			using XmlReader reader = XmlReader.Create(stream);
-
-			while (reader.Read())
-			{
-			}
-
-			return true;
-		}
-		catch (XmlException)
+		if (!File.Exists(path))
 		{
 			return false;
 		}
-	}
 
-	private static async Task WaitForRemuxAsync(RecordingMediaTools mediaTools, int count)
-	{
-		await WaitUntilAsync(() => mediaTools.Remuxes.Count >= count);
-	}
+		// 写入者以 FileShare.Read 打开，读的一方要允许写共享
+		using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+		using XmlReader reader = XmlReader.Create(stream);
+		bool found = false;
 
-	private static async Task WaitUntilAsync(Func<bool> condition)
-	{
-		using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(5));
-
-		while (!condition())
+		while (reader.Read())
 		{
-			await Task.Delay(10, timeout.Token);
+			found |= reader is { NodeType: XmlNodeType.Text, Value: var value } && value == text;
 		}
+
+		return found;
+	}
+
+	private static async Task WaitForRemuxAsync(RecordingLoopHarness loop, RecordingMediaTools mediaTools, int count)
+	{
+		await loop.WaitUntilAsync(() => mediaTools.Remuxes.Count >= count, $"{count} remuxes are queued");
 	}
 }

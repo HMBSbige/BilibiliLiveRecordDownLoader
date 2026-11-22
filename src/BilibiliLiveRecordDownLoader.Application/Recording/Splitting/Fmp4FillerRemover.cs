@@ -9,17 +9,6 @@ namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 internal sealed class Fmp4FillerRemover
 {
 	private const int VisualSampleEntrySize = 78;
-	private const uint BaseDataOffsetPresent = 0x00_0001;
-	private const uint SampleDescriptionIndexPresent = 0x00_0002;
-	private const uint DefaultSampleDurationPresent = 0x00_0008;
-	private const uint DefaultSampleSizePresent = 0x00_0010;
-	private const uint DefaultBaseIsMoof = 0x02_0000;
-	private const uint DataOffsetPresent = 0x00_0001;
-	private const uint FirstSampleFlagsPresent = 0x00_0004;
-	private const uint SampleDurationPresent = 0x00_0100;
-	private const uint SampleSizePresent = 0x00_0200;
-	private const uint SampleFlagsPresent = 0x00_0400;
-	private const uint SampleCompositionTimeOffsetPresent = 0x00_0800;
 
 	private readonly Dictionary<uint, uint> _defaultSampleSizes = [];
 	private readonly List<Run> _runs = [];
@@ -134,12 +123,11 @@ internal sealed class Fmp4FillerRemover
 			{
 				int trexOffset = 0;
 
-				// version/flags、track_ID、default_sample_description_index、default_sample_duration、default_sample_size
 				while (IsoBmff.TryReadBox(content, ref trexOffset, out ReadOnlySpan<byte> trexType, out ReadOnlySpan<byte> trex))
 				{
-					if (trexType.SequenceEqual("trex"u8) && trex.Length >= 20)
+					if (trexType.SequenceEqual("trex"u8) && IsoBmff.ReadTrackExtends(trex) is { } defaults)
 					{
-						_defaultSampleSizes[BinaryPrimitives.ReadUInt32BigEndian(trex.Slice(4))] = BinaryPrimitives.ReadUInt32BigEndian(trex.Slice(16));
+						_defaultSampleSizes[defaults.TrackId] = defaults.DefaultSampleSize;
 					}
 				}
 			}
@@ -272,15 +260,15 @@ internal sealed class Fmp4FillerRemover
 
 				uint flags = IsoBmff.ReadFlags(content);
 
-				if ((flags & DefaultBaseIsMoof) is 0 || (flags & BaseDataOffsetPresent) is not 0)
+				if ((flags & TrackFragmentFlags.DefaultBaseIsMoof) is 0 || (flags & TrackFragmentFlags.BaseDataOffsetPresent) is not 0)
 				{
 					return false;
 				}
 
 				trackId = BinaryPrimitives.ReadUInt32BigEndian(content.Slice(4));
-				int field = 8 + ((flags & SampleDescriptionIndexPresent) is 0 ? 0 : 4) + ((flags & DefaultSampleDurationPresent) is 0 ? 0 : 4);
+				int field = 8 + ((flags & TrackFragmentFlags.SampleDescriptionIndexPresent) is 0 ? 0 : 4) + ((flags & TrackFragmentFlags.DefaultSampleDurationPresent) is 0 ? 0 : 4);
 
-				if ((flags & DefaultSampleSizePresent) is not 0)
+				if ((flags & TrackFragmentFlags.DefaultSampleSizePresent) is not 0)
 				{
 					if (content.Length < field + 4)
 					{
@@ -314,9 +302,9 @@ internal sealed class Fmp4FillerRemover
 		}
 
 		uint flags = IsoBmff.ReadFlags(trun);
-		bool hasSampleSizes = (flags & SampleSizePresent) is not 0;
+		bool hasSampleSizes = (flags & TrackRunFlags.SampleSizePresent) is not 0;
 
-		if ((flags & DataOffsetPresent) is 0 || (isVideo && !hasSampleSizes) || (!hasSampleSizes && defaultSampleSize is null))
+		if ((flags & TrackRunFlags.DataOffsetPresent) is 0 || (isVideo && !hasSampleSizes) || (!hasSampleSizes && defaultSampleSize is null))
 		{
 			return false;
 		}
@@ -338,9 +326,9 @@ internal sealed class Fmp4FillerRemover
 			return true;
 		}
 
-		int field = 12 + ((flags & FirstSampleFlagsPresent) is 0 ? 0 : 4);
-		int sizeField = (flags & SampleDurationPresent) is 0 ? 0 : 4;
-		int sampleFieldsSize = sizeField + 4 + ((flags & SampleFlagsPresent) is 0 ? 0 : 4) + ((flags & SampleCompositionTimeOffsetPresent) is 0 ? 0 : 4);
+		int field = 12 + ((flags & TrackRunFlags.FirstSampleFlagsPresent) is 0 ? 0 : 4);
+		int sizeField = (flags & TrackRunFlags.SampleDurationPresent) is 0 ? 0 : 4;
+		int sampleFieldsSize = sizeField + 4 + ((flags & TrackRunFlags.SampleFlagsPresent) is 0 ? 0 : 4) + ((flags & TrackRunFlags.SampleCompositionTimeOffsetPresent) is 0 ? 0 : 4);
 
 		if (field + sampleCount * sampleFieldsSize > trun.Length)
 		{

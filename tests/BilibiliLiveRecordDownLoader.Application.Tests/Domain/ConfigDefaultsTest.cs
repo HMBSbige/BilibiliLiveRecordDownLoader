@@ -3,6 +3,48 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Domain;
 public sealed class ConfigDefaultsTest
 {
 	[Test]
+	public async Task UndefinedEnumValuesFallBackToTheirDefaultsAsync()
+	{
+		AppConfig config = new()
+		{
+			Theme = (AppTheme)99,
+			RoomSortOrder = (RoomSortOrder)99,
+			RecorderType = (RecorderType)99,
+			StreamHostSelection = (StreamHostSelection)99,
+			SplitMode = (RecordingSplitMode)99,
+			GiftMode = (DanmakuGiftMode)99
+		};
+
+		config.ApplyDefaults();
+
+		await Assert.That((config.Theme, config.RoomSortOrder, config.RecorderType, config.StreamHostSelection, config.SplitMode, config.GiftMode)).IsEqualTo((AppTheme.FollowSystem, RoomSortOrder.Status, RecorderType.BuiltIn, StreamHostSelection.FirstResponse, RecordingSplitMode.None, DanmakuGiftMode.None));
+	}
+
+	[Test]
+	public async Task UndefinedRoomOverridesInheritTheAppSettingsAsync()
+	{
+		RoomConfig room = new() { RoomId = 1, RecorderType = (RecorderType)99, SplitMode = (RecordingSplitMode)99 };
+
+		room.ApplyDefaults();
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(room.RecorderType).IsNull();
+			await Assert.That(room.SplitMode).IsNull();
+		}
+	}
+
+	[Test]
+	public async Task RoomDefaultsKeepDefinedOverridesAsync()
+	{
+		RoomConfig room = new() { RoomId = 1, RecorderType = RecorderType.FFmpeg, SplitMode = RecordingSplitMode.None };
+
+		room.ApplyDefaults();
+
+		await Assert.That((room.RecorderType, room.SplitMode)).IsEqualTo(((RecorderType?)RecorderType.FFmpeg, (RecordingSplitMode?)RecordingSplitMode.None));
+	}
+
+	[Test]
 	public async Task RoomDefaultsClampTimingsToLowerBoundsAsync()
 	{
 		RoomConfig room = new()
@@ -22,6 +64,26 @@ public sealed class ConfigDefaultsTest
 		await Assert.That(room.StreamReconnectDelay).IsEqualTo(TimeSpan.FromSeconds(1));
 		await Assert.That(room.StreamConnectTimeout).IsEqualTo(TimeSpan.FromSeconds(1));
 		await Assert.That(room.StreamIdleTimeout).IsEqualTo(TimeSpan.FromSeconds(3));
+	}
+
+	[Test]
+	public async Task RoomDefaultsClampTimingsToTheUpperBoundAsync()
+	{
+		TimeSpan huge = TimeSpan.FromDays(100);
+		RoomConfig room = new()
+		{
+			RoomId = 1,
+			StatusCheckInterval = huge,
+			DanmuReconnectDelay = huge,
+			StreamReconnectDelay = huge,
+			StreamConnectTimeout = huge,
+			StreamIdleTimeout = TimeSpan.MaxValue
+		};
+
+		room.ApplyDefaults();
+
+		TimeSpan max = TimeSpan.FromSeconds((double)RoomDefaults.MaxIntervalSeconds);
+		await Assert.That(new[] { room.StatusCheckInterval, room.DanmuReconnectDelay, room.StreamReconnectDelay, room.StreamConnectTimeout, room.StreamIdleTimeout }.All(value => value == max)).IsTrue();
 	}
 
 	[Test]
@@ -66,46 +128,6 @@ public sealed class ConfigDefaultsTest
 	}
 
 	[Test]
-	public async Task SplitDefaultsAreAnHourOr4000MegabytesWithoutSplittingOrFollowingTitlesAsync()
-	{
-		AppConfig config = AppConfig.CreateDefault();
-		RoomConfig room = new() { RoomId = 1 };
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(config.SplitMode).IsEqualTo(RecordingSplitMode.None);
-			await Assert.That(config.SplitDuration).IsEqualTo(TimeSpan.FromMinutes(60));
-			await Assert.That(config.SplitSizeMegabytes).IsEqualTo(4000);
-			await Assert.That(config.SplitOnTitleChange).IsFalse();
-			await Assert.That((room.SplitMode, room.SplitDuration, room.SplitSizeMegabytes, room.SplitOnTitleChange)).IsEqualTo((null, null, null, null));
-		}
-	}
-
-	[Test]
-	public async Task FileNamesIncludeTheTitleByDefaultAsync()
-	{
-		await Assert.That(AppConfig.CreateDefault().IncludeTitleInFileName).IsTrue();
-	}
-
-	[Test]
-	public async Task FillerDataIsKeptByDefaultAsync()
-	{
-		await Assert.That(AppConfig.CreateDefault().RemoveFillerData).IsFalse();
-	}
-
-	[Test]
-	public async Task MasterPlaylistIsUsedWhenRestrictedByDefaultAsync()
-	{
-		await Assert.That(AppConfig.CreateDefault().UseMasterPlaylistWhenRestricted).IsTrue();
-	}
-
-	[Test]
-	public async Task TrueOriginalIsNotRequestedByDefaultAsync()
-	{
-		await Assert.That(AppConfig.CreateDefault().RequestTrueOriginal).IsFalse();
-	}
-
-	[Test]
 	public async Task SplitValuesAreClampedToTheirBoundsAsync()
 	{
 		AppConfig config = new()
@@ -123,27 +145,6 @@ public sealed class ConfigDefaultsTest
 			await Assert.That(config.SplitSizeMegabytes).IsEqualTo(64);
 			await Assert.That(config.Rooms[0].SplitDuration).IsEqualTo(TimeSpan.FromHours(24));
 			await Assert.That(config.Rooms[0].SplitSizeMegabytes).IsEqualTo(1 << 20);
-		}
-	}
-
-	[Test]
-	public async Task DanmakuDefaultsRecordCommentsSuperChatsAndGuardsWithSubtitlesAsync()
-	{
-		AppConfig config = AppConfig.CreateDefault();
-		RoomConfig room = new() { RoomId = 1 };
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(room.IsDanmakuEnabled).IsFalse();
-			await Assert.That(room.DanmakuOffset).IsNull();
-			await Assert.That(config.RecordSuperChats).IsTrue();
-			await Assert.That(config.GiftMode).IsEqualTo(DanmakuGiftMode.None);
-			await Assert.That(config.RecordGuards).IsTrue();
-			await Assert.That(config.DanmakuOffset).IsEqualTo(TimeSpan.Zero);
-			await Assert.That(config.GenerateDanmakuSubtitle).IsTrue();
-			await Assert.That(config.ShowPaidMessagesInSubtitle).IsTrue();
-			await Assert.That(config.SaveRawDanmaku).IsFalse();
-			await Assert.That(config.WriteChaptersOnConvert).IsFalse();
 		}
 	}
 

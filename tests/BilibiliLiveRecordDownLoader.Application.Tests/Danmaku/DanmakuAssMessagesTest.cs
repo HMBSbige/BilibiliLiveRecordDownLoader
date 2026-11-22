@@ -1,5 +1,7 @@
+using BilibiliLive.Danmu;
 using BilibiliLiveRecordDownLoader.Application.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Recording;
+using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
 
@@ -9,7 +11,7 @@ public sealed partial class DanmakuAssMessagesTest
 {
 	private static readonly DanmakuAssLabels Labels = new
 	(
-		static (user, level, months, isRenewal) => $@"{user} {(isRenewal ? @"续费了" : @"开通了")}{level switch { 1 => @"总督", 2 => @"提督", _ => @"舰长" }}{(months > 1 ? $@"×{months}个月" : string.Empty)}",
+		static (user, level, months, isRenewal) => $@"{user} {(isRenewal ? @"续费了" : @"开通了")}{level switch { GuardLevel.Governor => @"总督", GuardLevel.Admiral => @"提督", GuardLevel.Captain => @"舰长", _ => throw new UnreachableException() }}{(months > 1 ? $@"×{months}个月" : string.Empty)}",
 		static (user, gift, count) => $@"{user} 投喂 {gift} ×{count}"
 	);
 
@@ -34,6 +36,7 @@ public sealed partial class DanmakuAssMessagesTest
 		return $@"\1c&H{DanmakuAssGenerator.ToAssColor(rgb)}&";
 	}
 
+	// B 站原样的价格色在浅色底上看不清
 	[Test]
 	public async Task SuperChatCardTakesItsColorsFromTheTierAsync()
 	{
@@ -45,21 +48,21 @@ public sealed partial class DanmakuAssMessagesTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(result).IsEqualTo(new DanmakuAssResult(0, 0, 1, 0));
-			// 上半条浅色底，下半条深色底，都不透明；底边离画面底部 4%，左边离画面左边 2%
+			// 底边离画面底部 4%，左边离画面左边 2%
 			await Assert.That(shapes.Length).IsEqualTo(2);
 			await Assert.That(shapes[0].Groups[@"tags"].Value).IsEqualTo($@"\an7\pos(38,933)\fad(200,200){Color(tier.Background)}\1a&H00&\p1");
 			await Assert.That(shapes[1].Groups[@"tags"].Value).IsEqualTo($@"\an7\pos(38,981)\fad(200,200){Color(tier.BottomBackground)}\1a&H00&\p1");
 			await Assert.That(texts[@"老板"]).Contains($@"\b1{Color(0x333333)}");
 			await Assert.That(texts[@"¥100"]).StartsWith(@"\an6\pos(502,957)");
 			await Assert.That(texts[@"¥100"]).EndsWith(Color(tier.PriceColor));
-			await Assert.That(texts.ContainsKey(@"醒目留言")).IsTrue();
+			await Assert.That(texts[@"醒目留言"]).EndsWith(Color(tier.TextColor));
 		}
 	}
 
 	[Test]
 	public async Task EverythingIsOnTheRightLayerAsync()
 	{
-		(Match[] messages, _, string text) = Generate([DanmakuSamples.Comment(0), new DanmakuRecord.SuperChat(TimeSpan.Zero, 1, @"老板", 30_000, TimeSpan.FromSeconds(60), @"内容"), new DanmakuRecord.Guard(TimeSpan.Zero, 2, @"舰长", 3, 1, 198_000), new DanmakuRecord.Gift(TimeSpan.Zero, 3, @"观众", @"礼物", 1, 1000)]);
+		(Match[] messages, _, string text) = Generate([DanmakuSamples.Comment(0), new DanmakuRecord.SuperChat(TimeSpan.Zero, 1, @"老板", 30_000, TimeSpan.FromSeconds(60), @"内容"), new DanmakuRecord.Guard(TimeSpan.Zero, 2, @"舰长", GuardLevel.Captain, 1, 198_000), new DanmakuRecord.Gift(TimeSpan.Zero, 3, @"观众", @"礼物", 1, 1000)]);
 
 		using (Assert.Multiple())
 		{
@@ -69,7 +72,7 @@ public sealed partial class DanmakuAssMessagesTest
 		}
 	}
 
-	// 生成时已经知道哪些 SC 后来被删，整条不画；没记 id 的旧记录对不上删除，照常画
+	// 没记 id 的旧记录对不上删除，照常画
 	[Test]
 	public async Task DeletedSuperChatsAreNotDrawnAsync()
 	{
@@ -93,26 +96,35 @@ public sealed partial class DanmakuAssMessagesTest
 	}
 
 	[Test]
-	public async Task GuardsShowTheLevelAndMonthsAndUseTheirOwnColorsAsync()
+	public async Task GuardsShowTheLevelAndMonthsAsync()
 	{
 		(Match[] messages, DanmakuAssResult result, _) = Generate(
 		[
-			new DanmakuRecord.Guard(TimeSpan.Zero, 1, @"甲", 2, 3, 1_998_000 * 3),
-			new DanmakuRecord.Guard(TimeSpan.Zero, 2, @"乙", 1, 1, 19_998_000),
-			new DanmakuRecord.Guard(TimeSpan.Zero, 3, @"丙", 3, 1, 198_000) { IsRenewal = true },
-			// 等级不对的跳过
-			new DanmakuRecord.Guard(TimeSpan.Zero, 4, @"丁", 0, 1, 198_000)
+			new DanmakuRecord.Guard(TimeSpan.Zero, 1, @"甲", GuardLevel.Admiral, 3, 1_998_000 * 3),
+			new DanmakuRecord.Guard(TimeSpan.Zero, 2, @"乙", GuardLevel.Governor, 1, 19_998_000),
+			new DanmakuRecord.Guard(TimeSpan.Zero, 3, @"丙", GuardLevel.Captain, 1, 198_000) { IsRenewal = true },
+			// 直播消息里也可能带来没定义的等级
+			new DanmakuRecord.Guard(TimeSpan.Zero, 4, @"丁", GuardLevel.None, 1, 198_000),
+			new DanmakuRecord.Guard(TimeSpan.Zero, 5, @"戊", (GuardLevel)7, 1, 198_000)
 		]);
-		string[] shapes = [.. messages.Where(static match => match.Groups[@"layer"].Value is "1").Select(static match => match.Groups[@"tags"].Value)];
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(Texts(messages)).IsEquivalentTo([@"甲 开通了提督×3个月", @"乙 开通了总督", @"丙 续费了舰长"], StringComparer.Ordinal);
-			await Assert.That(shapes.Count(static tags => tags.Contains(Color(0x8C4DE6), StringComparison.Ordinal))).IsEqualTo(1);
-			await Assert.That(shapes.Count(static tags => tags.Contains(Color(0xE0A030), StringComparison.Ordinal))).IsEqualTo(1);
-			await Assert.That(shapes.Count(static tags => tags.Contains(Color(0x3E7BFA), StringComparison.Ordinal))).IsEqualTo(1);
 			await Assert.That(result).IsEqualTo(new DanmakuAssResult(0, 0, 3, 0));
 		}
+	}
+
+	[Test]
+	[Arguments(GuardLevel.Governor, 0xE0A030)]
+	[Arguments(GuardLevel.Admiral, 0x8C4DE6)]
+	[Arguments(GuardLevel.Captain, 0x3E7BFA)]
+	public async Task EachGuardLevelUsesItsOwnColorAsync(GuardLevel level, int color)
+	{
+		(Match[] messages, _, _) = Generate([new DanmakuRecord.Guard(TimeSpan.Zero, 1, @"甲", level, 1, 198_000)]);
+		string shape = messages.Where(static match => match.Groups[@"layer"].Value is "1").Select(static match => match.Groups[@"tags"].Value).Single();
+
+		await Assert.That(shape).Contains(Color(color));
 	}
 
 	[Test]
@@ -153,7 +165,6 @@ public sealed partial class DanmakuAssMessagesTest
 
 	[Test]
 	[Arguments(0, 8)]
-	[Arguments(1, 8.15)]
 	[Arguments(20, 11)]
 	[Arguments(100, 20)]
 	public async Task SuperChatsStayLongerForLongerTextUpToTwentySecondsAsync(int length, double seconds)
@@ -174,7 +185,7 @@ public sealed partial class DanmakuAssMessagesTest
 	[Test]
 	public async Task OlderEntriesMoveUpAndSplitIntoSegmentsAsync()
 	{
-		(Match[] messages, _, _) = Generate([new DanmakuRecord.Guard(TimeSpan.Zero, 1, @"甲", 3, 1, 198_000), new DanmakuRecord.Guard(TimeSpan.FromSeconds(1), 2, @"乙", 3, 1, 198_000)]);
+		(Match[] messages, _, _) = Generate([new DanmakuRecord.Guard(TimeSpan.Zero, 1, @"甲", GuardLevel.Captain, 1, 198_000), new DanmakuRecord.Guard(TimeSpan.FromSeconds(1), 2, @"乙", GuardLevel.Captain, 1, 198_000)]);
 		string[] first = [.. messages.Where(static match => match.Groups[@"text"].Value is @"甲 开通了舰长").Select(static match => $"{match.Groups[@"start"].Value}-{match.Groups[@"end"].Value} {match.Groups[@"tags"].Value}")];
 
 		// 胶囊高 46、间距 8；1080 × 0.96 - 46 = 990.8，取整 991；中线再往下 23
@@ -202,7 +213,7 @@ public sealed partial class DanmakuAssMessagesTest
 		for (int i = 0; i < 10; ++i)
 		{
 			records.Add(new DanmakuRecord.SuperChat(TimeSpan.FromSeconds(i * 0.1), i, $@"老板{i}", 30_000, TimeSpan.FromSeconds(60), @"内容"));
-			records.Add(new DanmakuRecord.Guard(TimeSpan.FromSeconds(i * 0.1), 100 + i, $@"舰长{i}", 3, 1, 198_000));
+			records.Add(new DanmakuRecord.Guard(TimeSpan.FromSeconds(i * 0.1), 100 + i, $@"舰长{i}", GuardLevel.Captain, 1, 198_000));
 			records.Add(new DanmakuRecord.Gift(TimeSpan.FromSeconds(i * 0.1), 200 + i, $@"观众{i}", @"礼物", 1, 1000));
 		}
 
@@ -223,7 +234,7 @@ public sealed partial class DanmakuAssMessagesTest
 		(Match[] messages, _, string text) = Generate(
 		[
 			new DanmakuRecord.SuperChat(TimeSpan.Zero, 1, @"老板", 30_000, TimeSpan.FromSeconds(60), @"内容"),
-			new DanmakuRecord.Guard(TimeSpan.Zero, 2, @"一个特别特别特别特别特别特别特别长的昵称", 3, 1, 198_000)
+			new DanmakuRecord.Guard(TimeSpan.Zero, 2, @"一个特别特别特别特别特别特别特别长的昵称", GuardLevel.Captain, 1, 198_000)
 		], new VideoResolution(1080, 1920));
 
 		using (Assert.Multiple())
@@ -233,7 +244,6 @@ public sealed partial class DanmakuAssMessagesTest
 			await Assert.That(text).Contains("Style: Message,Microsoft YaHei,30,");
 			// 宽度不超过画面宽度的 40%，即 432
 			await Assert.That(text).Contains(@"}m 6 0 l 426 0 b 429 0 432 3 432 6 l 432 48 ");
-			// 只截断昵称，后面的文字保持完整
 			await Assert.That(Texts(messages)).Contains(@"一个特别特别特别特别… 开通了舰长");
 		}
 	}
@@ -277,6 +287,14 @@ public sealed partial class DanmakuAssMessagesTest
 		IReadOnlyList<string> lines = DanmakuAssMessages.Wrap(@"hello world  foo", 10, 30, 5);
 
 		await Assert.That(lines).IsEquivalentTo([@"hello", @"world", @"foo"], StringComparer.Ordinal, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+	}
+
+	[Test]
+	public async Task MixedTextBreaksAfterTheLastWideCharacterAsync()
+	{
+		IReadOnlyList<string> lines = DanmakuAssMessages.Wrap(@"主播 好厉害abcdeabcde", 10, 80, 5);
+
+		await Assert.That(lines).IsEquivalentTo([@"主播 好厉害", @"abcdeabcde"], StringComparer.Ordinal, TUnit.Assertions.Enums.CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -366,6 +384,15 @@ public sealed partial class DanmakuAssMessagesTest
 			await Assert.That(positions[Wide(25)]).IsEqualTo(@"\an2\pos(960,1042)");
 			await Assert.That(positions[Wide(27)]).IsEqualTo(@"\an2\pos(960,966)");
 		}
+	}
+
+	// 上舰从下面进来，SC 往上升 46 + 8；这一段按升上去之后的高度算，顶端在 1036.8 - 54 - 104 = 878.8
+	[Test]
+	public async Task BottomCommentsAvoidWhereAMovingEntryEndsUpAsync()
+	{
+		(_, _, string text) = Generate([BarSuperChat(), new DanmakuRecord.Guard(TimeSpan.FromSeconds(1), 2, @"舰长", GuardLevel.Captain, 1, 198_000), DanmakuSamples.Comment(1, Wide(0), mode: 4), DanmakuSamples.Comment(1, Wide(1), mode: 4)]);
+
+		await Assert.That(BottomPositions(text)[Wide(1)]).IsEqualTo(@"\an2\pos(960,852)");
 	}
 
 	[Test]

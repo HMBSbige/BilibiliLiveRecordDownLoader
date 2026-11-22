@@ -8,10 +8,14 @@ internal static class DanmuMessageParser
 {
 	private static readonly long MaxUnixSeconds = DateTimeOffset.MaxValue.ToUnixTimeSeconds();
 
-	/// <summary>Appends the messages a command packet carries to <paramref name="output"/>; when it throws, only the raw message may have been appended.</summary>
+	// Far beyond the longest tier, and keeps an absurd value within the range of TimeSpan
+	private const long MaxSuperChatSeconds = 24 * 60 * 60;
+
+	/// <summary>When it throws, only the raw message may have been appended to <paramref name="output"/>.</summary>
 	/// <exception cref="JsonException">The body is not valid JSON.</exception>
 	/// <exception cref="InvalidDataException">The protobuf of a gift is malformed.</exception>
 	/// <exception cref="FormatException">The base64 of a gift is malformed.</exception>
+	/// <exception cref="InvalidOperationException">A string holds invalid UTF-8 or a lone surrogate escape.</exception>
 	public static void Parse(ReadOnlyMemory<byte> json, DanmuParseMode mode, DanmuReceiveTime receivedAt, List<DanmuMessage> output)
 	{
 		string? command;
@@ -40,7 +44,6 @@ internal static class DanmuMessageParser
 		}
 		catch
 		{
-			// A gift message split into several gifts is dropped as a whole
 			output.RemoveRange(count, output.Count - count);
 			throw;
 		}
@@ -105,13 +108,13 @@ internal static class DanmuMessageParser
 		}
 	}
 
-	/// <returns>The <c>code</c> of an AuthReply body, or <see langword="null"/> when the body has none.</returns>
+	/// <returns><see langword="null"/> when the body carries no numeric <c>code</c>.</returns>
 	public static long? GetAuthReplyCode(ReadOnlyMemory<byte> json)
 	{
 		try
 		{
 			using JsonDocument document = JsonDocument.Parse(json);
-			return document.RootElement is { ValueKind: JsonValueKind.Object } root && root.TryGetProperty("code", out JsonElement code) && code.TryGetInt64(out long value) ? value : null;
+			return document.RootElement is { ValueKind: JsonValueKind.Object } root && root.TryGetProperty("code", out JsonElement code) && code is { ValueKind: JsonValueKind.Number } && code.TryGetInt64(out long value) ? value : null;
 		}
 		catch (JsonException)
 		{
@@ -151,43 +154,14 @@ internal static class DanmuMessageParser
 	/// <summary>Reads the whole body, so it throws on JSON that <see cref="GetCommand"/> would accept because the error lies after the cmd.</summary>
 	internal static string? ValidateAndGetCommand(ReadOnlySpan<byte> json)
 	{
+		// The reader itself rejects empty input, malformed JSON and trailing content
 		Utf8JsonReader reader = new(json);
-		string? command = null;
 
-		if (!reader.Read())
+		while (reader.Read())
 		{
-			throw new JsonException("Empty danmu message.");
 		}
 
-		if (reader.TokenType is not JsonTokenType.StartObject)
-		{
-			reader.Skip();
-		}
-		else
-		{
-			while (reader.Read() && reader.TokenType is JsonTokenType.PropertyName)
-			{
-				bool isCommand = command is null && reader.ValueTextEquals("cmd"u8);
-				reader.Read();
-
-				if (isCommand && reader.TokenType is JsonTokenType.String)
-				{
-					command = TrimCommand(reader.GetString());
-				}
-				else
-				{
-					reader.Skip();
-				}
-			}
-		}
-
-		// Trailing content after the root value
-		if (reader.Read())
-		{
-			throw new JsonException("Unexpected content after the danmu message.");
-		}
-
-		return command;
+		return GetCommand(json);
 	}
 
 	private static string TrimCommand(string? command)
@@ -250,31 +224,11 @@ internal static class DanmuMessageParser
 			GetInt32(At(meta, 2)),
 			GetInt32(At(meta, 3)),
 			sentTime,
-			GetCommentId(GetString(Get(extra, "extra"))),
 			GetString(At(meta, 7)) ?? string.Empty,
 			(DanmuCommentKind)GetInt32(At(meta, 12)),
 			GetInt64(At(meta, 9)) is not 0
 		)
 		{ ReceivedAt = receivedAt };
-	}
-
-	// The dmid only appears inside the extra string, itself a JSON document
-	private static string GetCommentId(string? extra)
-	{
-		if (string.IsNullOrEmpty(extra))
-		{
-			return string.Empty;
-		}
-
-		try
-		{
-			using JsonDocument document = JsonDocument.Parse(extra);
-			return GetString(Get(document.RootElement, "id_str")) ?? string.Empty;
-		}
-		catch (JsonException)
-		{
-			return string.Empty;
-		}
 	}
 
 	// [level, name, streamer name, room id, color, special, ?, border color, start color, end color, guard level, is lit, streamer uid]
@@ -312,8 +266,9 @@ internal static class DanmuMessageParser
 		JsonElement userInfo = Get(data, "user_info");
 		DanmuSender sender = new(GetInt64(Get(data, "uid")), GetString(userInfo, "uname") ?? string.Empty, (GuardLevel)GetInt32(Get(userInfo, "guard_level")), ParseMedalObject(Get(data, "medal_info")));
 		long price = (long)decimal.Round(Math.Clamp(GetDecimal(Get(data, "price")), 0, long.MaxValue / 1000) * 1000);
+		TimeSpan duration = GetInt64(Get(data, "time")) is > 0 and <= MaxSuperChatSeconds and var seconds ? TimeSpan.FromSeconds(seconds) : TimeSpan.Zero;
 
-		return new DanmuMessage.SuperChat(GetInt64(Get(data, "id")), sender, GetString(data, "message") ?? string.Empty, price, TimeSpan.FromSeconds(GetInt64(Get(data, "time"))), FromUnixSeconds(GetInt64(Get(data, "start_time")), receivedAt))
+		return new DanmuMessage.SuperChat(GetInt64(Get(data, "id")), sender, GetString(data, "message") ?? string.Empty, price, duration, FromUnixSeconds(GetInt64(Get(data, "start_time")), receivedAt))
 		{
 			ReceivedAt = receivedAt
 		};
@@ -384,13 +339,12 @@ internal static class DanmuMessageParser
 		GuardLevel level = (GuardLevel)GetInt32(Get(guard, "guard_level"));
 		DanmuSender sender = new(GetInt64(Get(user, "uid")), GetString(Get(user, "base"), "name") ?? string.Empty, level, null);
 
-		// The web page reads neither the price nor the unit, and every captured purchase was a single month; the price is taken per unit like the per-month price of GUARD_BUY.
-		// Months are only counted when the unit says so, with another unit the number of months is unknown and the purchase counts as one
+		// Every captured purchase was a single month and the web page reads neither price nor unit, so the price is taken per unit like the per-month price of GUARD_BUY
 		int units = Math.Max(1, GetInt32(Get(pay, "num")));
 		int months = GetString(pay, "unit") is null or "" or "月" ? units : 1;
 		long unitPrice = Math.Max(0, GetInt64(Get(pay, "price")));
 		long price = unitPrice <= long.MaxValue / units ? unitPrice * units : long.MaxValue;
-		// 1 opens a guard and 2 renews one, as the toast text of captured messages says; the web page only tells 1 apart from other values, so higher ones count as renewals too, while 0 is what a missing field reads as
+		// Captured toasts use 1 to open and 2 to renew; the web page treats anything but 1 as a renewal, but 0 is a missing field
 		bool isRenewal = GetInt64(Get(guard, "op_type")) >= 2;
 
 		return new DanmuMessage.GuardBought(sender, level, months, price, isRenewal, FromUnixSeconds(GetInt64(Get(guard, "start_time")), receivedAt))

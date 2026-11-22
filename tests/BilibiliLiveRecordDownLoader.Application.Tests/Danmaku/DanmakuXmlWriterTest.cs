@@ -43,7 +43,6 @@ public sealed partial class DanmakuXmlWriterTest
 			{
 				await writer.WriteAsync(record, CancellationToken.None);
 
-				// 每次写入后文件都必须能被严格的解析器完整读完，读到的记录数等于已刷新的条数
 				Dictionary<string, int> elements = DanmakuSamples.ParseStrictly(stream.ToArray());
 				int recordElements = elements.Where(static pair => pair.Key is @"d" or @"sc" or @"sc_delete" or @"gift" or @"guard" or @"title" or @"gap" or @"connection").Sum(static pair => pair.Value);
 				await Assert.That((long)recordElements).IsEqualTo(writer.WrittenCount);
@@ -55,11 +54,42 @@ public sealed partial class DanmakuXmlWriterTest
 	}
 
 	[Test]
-	public async Task DisposingFlushesPendingRecordsAsync()
+	public async Task FailedFlushIsRewrittenFromTheSamePositionAsync()
 	{
-		byte[] content = await DanmakuSamples.WriteAsync([DanmakuSamples.Comment(1), DanmakuSamples.Comment(2)]);
+		MemoryStream inner = new();
+		FailingStream stream = new(inner);
+		DanmakuFlushPolicy policy = new(TimeSpan.FromHours(1), 1);
+		DanmakuRecord.Comment first = DanmakuSamples.Comment(1, @"第一条");
+		DanmakuRecord.Comment second = DanmakuSamples.Comment(2, @"第二条");
+		IOException? failure = null;
 
-		await Assert.That(DanmakuSamples.ParseStrictly(content).GetValueOrDefault(@"d")).IsEqualTo(2);
+		await using (DanmakuXmlWriter writer = await DanmakuXmlWriter.CreateAsync(stream, DanmakuSamples.Header, policy, TimeProvider.System, CancellationToken.None))
+		{
+			stream.FailNextWrite = true;
+
+			try
+			{
+				await writer.WriteAsync(first, CancellationToken.None);
+			}
+			catch (IOException exception)
+			{
+				failure = exception;
+			}
+
+			await Assert.That(writer.PendingCount).IsEqualTo(1);
+			await writer.WriteAsync(second, CancellationToken.None);
+		}
+
+		byte[] content = inner.ToArray();
+		DanmakuFile file = await DanmakuSamples.ReadAsync(content);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(failure).IsNotNull();
+			await Assert.That(DanmakuSamples.ParseStrictly(content).GetValueOrDefault(@"d")).IsEqualTo(2);
+			await Assert.That(file.IsComplete).IsTrue();
+			await Assert.That(file.Records).IsEquivalentTo([first, second], EqualityComparer<DanmakuRecord>.Default, CollectionOrdering.Matching);
+		}
 	}
 
 	[Test]
@@ -127,9 +157,9 @@ public sealed partial class DanmakuXmlWriterTest
 	{
 		byte[] content = await DanmakuSamples.WriteAsync(
 		[
-			new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(12345), 1, 25, 16777215, DanmakuSamples.SentAt, 123, @"昵称", @"文本", @"5e7c63ca70d385b033f842f35a6b02c84761"),
-			new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(500), 5, 36, 0xFF0000, DanmakuSamples.SentAt.AddMilliseconds(999), 0, @"淡***", @"匿名", string.Empty),
-			new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(600), 1, 25, 16777215, DanmakuSamples.SentAt, 0, @"淡***", @"打码", @"0") { UidHash = @"a16fe0dd" }
+			new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(12345), 1, 25, 16777215, DanmakuSamples.SentAt, 123, @"昵称", @"文本", 40685126698926083),
+			new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(500), 5, 36, 0xFF0000, DanmakuSamples.SentAt.AddMilliseconds(999), 0, @"淡***", @"匿名", 0),
+			new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(600), 1, 25, 16777215, DanmakuSamples.SentAt, 0, @"淡***", @"打码", 0) { UidHash = @"a16fe0dd" }
 		]);
 		string[] lines = DanmakuSamples.Lines(content).Where(static line => line.StartsWith(@"  <d ", StringComparison.Ordinal)).ToArray();
 		string[] first = CommentFieldsRegex().Match(lines[0]).Groups[@"p"].Value.Split(',');
@@ -137,7 +167,7 @@ public sealed partial class DanmakuXmlWriterTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(lines[0]).IsEqualTo("  <d p=\"12.345,1,25,16777215,1795343190,0,884863d2,5e7c63ca70d385b033f842f35a6b02c84761\" uid=\"123\" user=\"昵称\">文本</d>");
+			await Assert.That(lines[0]).IsEqualTo("  <d p=\"12.345,1,25,16777215,1795343190,0,884863d2,40685126698926083\" uid=\"123\" user=\"昵称\">文本</d>");
 			await Assert.That(first[0]).IsEqualTo(@"12.345");
 			await Assert.That(first[1]).IsEqualTo(@"1");
 			await Assert.That(first[2]).IsEqualTo(@"25");
@@ -145,7 +175,7 @@ public sealed partial class DanmakuXmlWriterTest
 			await Assert.That(first[4]).IsEqualTo(@"1795343190");
 			await Assert.That(first[5]).IsEqualTo(@"0");
 			await Assert.That(first[6]).IsEqualTo(@"884863d2");
-			await Assert.That(first[7]).IsEqualTo(@"5e7c63ca70d385b033f842f35a6b02c84761");
+			await Assert.That(first[7]).IsEqualTo(@"40685126698926083");
 			await Assert.That(first.Length).IsEqualTo(8);
 			// 毫秒部分截掉，uid 为 0 时哈希写 0，没有 dmid 写 0
 			await Assert.That(second).IsEquivalentTo([@"0.500", @"5", @"36", @"16711680", @"1795343190", @"0", @"0", @"0"], StringComparer.Ordinal, CollectionOrdering.Matching);
@@ -213,6 +243,24 @@ public sealed partial class DanmakuXmlWriterTest
 	}
 
 	[Test]
+	public async Task QuotesInAttributeValuesAreEscapedAsync()
+	{
+		DanmakuRecord[] records =
+		[
+			new DanmakuRecord.Comment(TimeSpan.FromSeconds(1), 1, 25, 0xFFFFFF, DanmakuSamples.SentAt, 123, "\"引号\"昵称", @"文本", 0),
+			new DanmakuRecord.Gift(TimeSpan.FromSeconds(2), 789, @"观众", "\"礼物\"", 1, 1000)
+		];
+		byte[] content = await DanmakuSamples.WriteAsync(records);
+		DanmakuFile file = await DanmakuSamples.ReadAsync(content);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(DanmakuSamples.ParseStrictly(content).GetValueOrDefault(@"gift")).IsEqualTo(1);
+			await Assert.That(file.Records).IsEquivalentTo(records, EqualityComparer<DanmakuRecord>.Default, CollectionOrdering.Matching);
+		}
+	}
+
+	[Test]
 	public async Task NumbersDoNotDependOnTheCurrentCultureAsync()
 	{
 		CultureInfo original = CultureInfo.CurrentCulture;
@@ -262,5 +310,55 @@ public sealed partial class DanmakuXmlWriterTest
 
 		await Assert.That(async () => await DanmakuXmlWriter.CreateFileAsync(path, DanmakuSamples.Header, DanmakuFlushPolicy.Default, TimeProvider.System, CancellationToken.None)).Throws<IOException>();
 		await Assert.That(await File.ReadAllTextAsync(path)).IsEqualTo(@"keep");
+	}
+
+	private sealed class FailingStream(MemoryStream inner) : Stream
+	{
+		public bool FailNextWrite { get; set; }
+
+		public override bool CanRead => false;
+
+		public override bool CanSeek => true;
+
+		public override bool CanWrite => true;
+
+		public override long Length => inner.Length;
+
+		public override long Position
+		{
+			get => inner.Position;
+			set => inner.Position = value;
+		}
+
+		public override void Flush()
+		{
+		}
+
+		public override int Read(byte[] buffer, int offset, int count)
+		{
+			throw new NotSupportedException();
+		}
+
+		public override long Seek(long offset, SeekOrigin origin)
+		{
+			return inner.Seek(offset, origin);
+		}
+
+		public override void SetLength(long value)
+		{
+			inner.SetLength(value);
+		}
+
+		public override void Write(byte[] buffer, int offset, int count)
+		{
+			if (FailNextWrite)
+			{
+				FailNextWrite = false;
+				inner.Write(buffer, offset, count / 2);
+				throw new IOException(@"Disk full");
+			}
+
+			inner.Write(buffer, offset, count);
+		}
 	}
 }

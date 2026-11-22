@@ -8,7 +8,6 @@ public static class RoomDefaults
 
 	public const StreamQuality Quality = StreamQuality.Original;
 
-	// 下限以秒表示，界面的数值输入框直接引用
 	public const decimal MinStatusCheckIntervalSeconds = 10;
 
 	public const decimal MinDanmuReconnectDelaySeconds = 1;
@@ -18,6 +17,9 @@ public static class RoomDefaults
 	public const decimal MinStreamConnectTimeoutSeconds = 1;
 
 	public const decimal MinStreamIdleTimeoutSeconds = 3;
+
+	// 只为挡住输错的大数，太大时定时器和等待会抛异常
+	public const decimal MaxIntervalSeconds = 24 * 60 * 60;
 
 	public static TimeSpan StatusCheckInterval { get; } = TimeSpan.FromMinutes(5);
 

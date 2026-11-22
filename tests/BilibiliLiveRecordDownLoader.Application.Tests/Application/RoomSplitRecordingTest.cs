@@ -18,7 +18,7 @@ public sealed class RoomSplitRecordingTest
 	public async Task TitleChangeWhileRecordingStartsANewFileAtTheNextKeyFrameAsync(bool global, bool? room, int expectedFiles, CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();
-		await using RecordingLoopHarness loop = Create(cancellationToken, mediaTools);
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools);
 		loop.Config.SplitMode = RecordingSplitMode.None;
 
 		loop.GoLive();
@@ -44,7 +44,7 @@ public sealed class RoomSplitRecordingTest
 	public async Task TitleChangeBeforeRecordingStartsDoesNotSplitAsync(CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();
-		await using RecordingLoopHarness loop = Create(cancellationToken, mediaTools);
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools);
 		loop.Config.SplitMode = RecordingSplitMode.None;
 		loop.Config.SplitOnTitleChange = true;
 
@@ -64,7 +64,7 @@ public sealed class RoomSplitRecordingTest
 	public async Task FileStartedAfterATitleChangeIsNamedWithTheNewTitleAsync(CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();
-		await using RecordingLoopHarness loop = Create(cancellationToken, mediaTools);
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools);
 		loop.Config.SplitMode = RecordingSplitMode.None;
 		loop.Config.SplitOnTitleChange = true;
 		loop.Config.IncludeTitleInFileName = true;
@@ -86,7 +86,7 @@ public sealed class RoomSplitRecordingTest
 	public async Task TitleInFileNameFollowsTheSettingWhenEachFileStartsAsync(CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();
-		await using RecordingLoopHarness loop = Create(cancellationToken, mediaTools);
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools);
 		loop.Config.IncludeTitleInFileName = true;
 
 		loop.GoLive();
@@ -109,7 +109,7 @@ public sealed class RoomSplitRecordingTest
 		RecordingMediaTools mediaTools = new();
 		TaskCompletionSource nextFileWritten = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		int files = 0;
-		await using RecordingLoopHarness loop = Create(cancellationToken, mediaTools, path => Interlocked.Increment(ref files) is 1 ? LiveRecorder.CreateRecordingFile(path) : new FirstWriteFile(path, nextFileWritten));
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools, path => Interlocked.Increment(ref files) is 1 ? LiveRecorder.CreateRecordingFile(path) : new FirstWriteFile(path, nextFileWritten));
 
 		loop.GoLive();
 		StreamRequest stream = await loop.NextStreamAsync();
@@ -121,14 +121,14 @@ public sealed class RoomSplitRecordingTest
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 61_000));
 		await stream.SendAndWaitAsync(Frame(VideoPacket.InterFrame, 61_033));
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 63_000));
-		RemuxInput finished = await WaitForRemuxAsync(mediaTools, 1);
+		RemuxInput finished = await WaitForRemuxAsync(loop, mediaTools, 1);
 
 		// 写盘端换完文件才往新文件里写，这时新的一段已经开始
 		await nextFileWritten.Task.WaitAsync(cancellationToken);
 		ActiveRecordingDto? second = loop.Snapshot.Recording;
 
 		await stream.EndAsync();
-		RemuxInput last = await WaitForRemuxAsync(mediaTools, 2);
+		RemuxInput last = await WaitForRemuxAsync(loop, mediaTools, 2);
 		string[] recorded = Directory.GetFiles(RecordingFileLayout.GetRoomDirectory(loop.Config.RecordDirectory, RecordingLoopHarness.RoomId), "*.flv");
 
 		using (Assert.Multiple())
@@ -149,7 +149,7 @@ public sealed class RoomSplitRecordingTest
 		RecordingMediaTools mediaTools = new();
 		TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		StuckClosingFile? first = null;
-		await using RecordingLoopHarness loop = Create(cancellationToken, mediaTools, path => first is null ? first = new StuckClosingFile(path, release.Task) : LiveRecorder.CreateRecordingFile(path));
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools, path => first is null ? first = new StuckClosingFile(path, release.Task) : LiveRecorder.CreateRecordingFile(path));
 
 		loop.GoLive();
 		StreamRequest stream = await loop.NextStreamAsync();
@@ -162,10 +162,11 @@ public sealed class RoomSplitRecordingTest
 		// 换文件时关旧文件卡住，下播后排空超时，录制循环把旧文件交给后处理
 		loop.GoOffline();
 		await stream.EndAsync();
-		RemuxInput finished = await WaitForRemuxAsync(mediaTools, 1);
+		RemuxInput finished = await WaitForRemuxAsync(loop, mediaTools, 1);
 		DateTimeOffset? startedAt = loop.Snapshot.Recording?.StartedAt;
 		release.SetResult();
-		await first!.Closed.WaitAsync(cancellationToken);
+		StuckClosingFile stuck = await Assert.That(first).IsNotNull();
+		await stuck.Closed.WaitAsync(cancellationToken);
 		await Task.Delay(200, cancellationToken);
 		string[] recorded = Directory.GetFiles(RecordingFileLayout.GetRoomDirectory(loop.Config.RecordDirectory, RecordingLoopHarness.RoomId), "*.flv");
 
@@ -182,7 +183,7 @@ public sealed class RoomSplitRecordingTest
 	public async Task SplittingTurnedOnWhileRecordingSplitsTheCurrentRecordingAsync(CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();
-		await using RecordingLoopHarness loop = Create(cancellationToken, mediaTools);
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools);
 		loop.Config.SplitMode = RecordingSplitMode.None;
 
 		loop.GoLive();
@@ -204,7 +205,7 @@ public sealed class RoomSplitRecordingTest
 	public async Task ConversionFollowsTheSettingWhenEachFileIsFinishedAsync(CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();
-		await using RecordingLoopHarness loop = Create(cancellationToken, mediaTools);
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools);
 		loop.Config.ConvertToMp4 = false;
 
 		loop.GoLive();
@@ -219,7 +220,7 @@ public sealed class RoomSplitRecordingTest
 		await WaitForFilesAsync(loop, 2);
 		loop.Config.ConvertToMp4 = true;
 		await stream.EndAsync();
-		RemuxInput converted = await WaitForRemuxAsync(mediaTools, 1);
+		RemuxInput converted = await WaitForRemuxAsync(loop, mediaTools, 1);
 		await Task.Delay(200, cancellationToken);
 
 		using (Assert.Multiple())
@@ -237,53 +238,23 @@ public sealed class RoomSplitRecordingTest
 		return string.Join(", ", Directory.GetFiles(directory, "*.flv").Select(Path.GetFileName).Order(StringComparer.Ordinal));
 	}
 
-	private static RecordingLoopHarness Create(CancellationToken cancellationToken, RecordingMediaTools mediaTools, Func<string, Stream>? createFile = null)
-	{
-		RecordingLoopHarness loop = new(cancellationToken, createFile, mediaTools: mediaTools);
-		loop.Time.SetUtcNow(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
-		loop.Time.SetLocalTimeZone(TimeZoneInfo.Utc);
-		loop.Config.SplitMode = RecordingSplitMode.Duration;
-		loop.Config.SplitDuration = TimeSpan.FromMinutes(1);
-		loop.Config.ConvertToMp4 = true;
-
-		// 只看分段的用例文件名只有时间
-		loop.Config.IncludeTitleInFileName = false;
-
-		// 一次推进一分多钟，不能被当成空闲
-		loop.Settings.StreamIdleTimeout = TimeSpan.FromHours(1);
-		return loop;
-	}
-
 	private static byte[] Frame(VideoPacket packet, uint timestamp)
 	{
-		byte[] frame = FlvSamples.Video(VideoStyle.Avc, packet, timestamp);
-		return FlvSamples.Tag(FlvSamples.VideoTag, timestamp, [.. frame.AsSpan(11, frame.Length - 15), .. new byte[FrameSize]]);
+		return FlvSamples.PaddedVideo(packet, timestamp, FrameSize);
 	}
 
 	private static async Task WaitForFilesAsync(RecordingLoopHarness loop, int count)
 	{
-		using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(5));
 		string directory = RecordingFileLayout.GetRoomDirectory(loop.Config.RecordDirectory, RecordingLoopHarness.RoomId);
-
-		while (Directory.GetFiles(directory, "*.flv").Length < count)
-		{
-			await Task.Delay(10, timeout.Token);
-		}
+		await loop.WaitUntilAsync(() => Directory.GetFiles(directory, "*.flv").Length >= count, $"{count} recordings exist");
 	}
 
-	private static async Task<RemuxInput> WaitForRemuxAsync(RecordingMediaTools mediaTools, int count)
+	private static async Task<RemuxInput> WaitForRemuxAsync(RecordingLoopHarness loop, RecordingMediaTools mediaTools, int count)
 	{
-		using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(5));
-
-		while (mediaTools.Remuxes.Count < count)
-		{
-			await Task.Delay(10, timeout.Token);
-		}
-
+		await loop.WaitUntilAsync(() => mediaTools.Remuxes.Count >= count, $"{count} remuxes are queued");
 		return mediaTools.Remuxes.ElementAt(count - 1);
 	}
 
-	// 第一次写入时通知
 	private sealed class FirstWriteFile(string path, TaskCompletionSource written) : FileStream(path, new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.Read, Options = FileOptions.Asynchronous })
 	{
 		public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
@@ -293,7 +264,7 @@ public sealed class RoomSplitRecordingTest
 		}
 	}
 
-	// 不缓冲，写进来的数据立即落盘；关闭时一直等到 release 完成
+	// 不缓冲，关闭卡住时数据也已经落盘
 	private sealed class StuckClosingFile(string path, Task release) : FileStream(path, new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.Read, Options = FileOptions.Asynchronous, BufferSize = 0 })
 	{
 		private readonly TaskCompletionSource _closed = new(TaskCreationOptions.RunContinuationsAsynchronously);

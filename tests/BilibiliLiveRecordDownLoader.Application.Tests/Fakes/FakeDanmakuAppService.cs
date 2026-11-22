@@ -54,7 +54,7 @@ internal sealed class FakeDanmakuFeed(long roomId) : IDanmakuFeed
 
 	public long Version { get; private set; }
 
-	public DanmakuFeedStatus Status { get; set; } = new(DanmakuConnectionState.Connected, 0, true, 0, null, false);
+	public DanmakuFeedStatus Status { get; set; } = new(DanmakuConnectionState.Connected, 1, 0, true, 0, null);
 
 	public bool IsDisposed { get; private set; }
 

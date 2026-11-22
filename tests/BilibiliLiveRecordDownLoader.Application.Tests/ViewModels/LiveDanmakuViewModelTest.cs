@@ -128,10 +128,10 @@ public sealed class LiveDanmakuViewModelTest
 
 	public static IEnumerable<Func<(DanmakuFeedStatus Status, string? Identity, bool CanLogin)>> IdentityCases()
 	{
-		yield return () => (new DanmakuFeedStatus(DanmakuConnectionState.Connecting, null, false, 0, null, false), null, false);
-		yield return () => (new DanmakuFeedStatus(DanmakuConnectionState.Connected, 0, true, 0, null, false), AppLanguage.Current.DanmakuAnonymousMasked, true);
-		yield return () => (new DanmakuFeedStatus(DanmakuConnectionState.Connected, 0, false, 0, null, false), AppLanguage.Current.DanmakuAnonymous, false);
-		yield return () => (new DanmakuFeedStatus(DanmakuConnectionState.Connected, 42, false, 0, null, true), AppLanguage.Current.DanmakuLoggedIn, false);
+		yield return () => (new DanmakuFeedStatus(DanmakuConnectionState.Connecting, 0, null, false, 0, null), null, false);
+		yield return () => (new DanmakuFeedStatus(DanmakuConnectionState.Connected, 1, 0, true, 0, null), AppLanguage.Current.DanmakuAnonymousMasked, true);
+		yield return () => (new DanmakuFeedStatus(DanmakuConnectionState.Connected, 1, 0, false, 0, null), AppLanguage.Current.DanmakuAnonymous, false);
+		yield return () => (new DanmakuFeedStatus(DanmakuConnectionState.Connected, 1, 42, false, 0, null), AppLanguage.Current.DanmakuLoggedIn, false);
 	}
 
 	[Test]
@@ -156,7 +156,7 @@ public sealed class LiveDanmakuViewModelTest
 		using LiveDanmakuViewModel viewModel = new(feed, false);
 		DateTimeOffset disconnectedAt = new(2026, 11, 22, 20, 0, 0, TimeSpan.FromHours(8));
 
-		feed.Status = new DanmakuFeedStatus(DanmakuConnectionState.Disconnected, 0, true, 12.4, disconnectedAt, false);
+		feed.Status = new DanmakuFeedStatus(DanmakuConnectionState.Disconnected, 1, 0, true, 12.4, disconnectedAt);
 		viewModel.Refresh();
 
 		using (Assert.Multiple())

@@ -1,8 +1,7 @@
 namespace BilibiliLiveRecordDownLoader.Application.Danmaku;
 
-internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaToolAppService mediaTools, IAppConfigManager configManager, ILogger<DanmakuAppService> logger) : IDanmakuAppService
+internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaToolAppService mediaTools, IBackgroundTaskAppService tasks, IAppConfigManager configManager, ILogger<DanmakuAppService> logger) : IDanmakuAppService
 {
-	// 密度曲线最多这么多格，更长的文件按比例放宽每格的时长
 	internal const int MaxDensityBins = 2000;
 
 	internal static readonly TimeSpan MinDensityBinWidth = TimeSpan.FromSeconds(5);
@@ -17,18 +16,75 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 		return new Feed(roomId, session.Danmaku.Feed, session.Danmaku.Subscribe());
 	}
 
-	public async Task<DanmakuFileDto> OpenFileAsync(string path, CancellationToken cancellationToken = default)
+	// 解析和 ASS 排版是 CPU 工作，不能让 await 回到调用方的 UI 线程上执行
+	public Task<DanmakuFileDto> OpenFileAsync(string path, CancellationToken cancellationToken = default)
+	{
+		return Task.Run(() => OpenFileCoreAsync(path, cancellationToken), cancellationToken);
+	}
+
+	public Task<DanmakuOffsetResult> ChangeOffsetAsync(string path, TimeSpan offset, CancellationToken cancellationToken = default)
+	{
+		return Task.Run(() => ChangeOffsetCoreAsync(path, offset, cancellationToken), cancellationToken);
+	}
+
+	public async Task<string> QueueHighlightExportAsync(string danmakuPath, DanmakuHighlightDto highlight, CancellationToken cancellationToken = default)
+	{
+		if (FindVideo(danmakuPath) is not { } video)
+		{
+			throw new FileNotFoundException(AppLanguage.Current.DanmakuVideoNotFound.ToString(Path.GetFileName(danmakuPath)), danmakuPath);
+		}
+
+		TimeSpan start = highlight.Start - DanmakuConsts.HighlightExportMargin;
+		start = start > TimeSpan.Zero ? start : TimeSpan.Zero;
+		TimeSpan end = highlight.End + DanmakuConsts.HighlightExportMargin;
+		// 排着队的剪辑还没写出文件，也要避开它的输出，否则后一个失败会删掉前一个的成果
+		IReadOnlyList<BackgroundTaskSnapshot> pending = [.. tasks.GetTasks().Where(static task => task.Status is BackgroundTaskStatus.Queued or BackgroundTaskStatus.Running)];
+		string destination = GetHighlightPath(RecordingFileLayout.GetStem(danmakuPath), video, start, path => File.Exists(path) || pending.Any(task => task.TargetPath is { } target && FileOperations.IsSamePath(target, path)));
+		await mediaTools.QueueCutAsync(new CutInput(video, destination, start, end), cancellationToken);
+		return destination;
+	}
+
+	// 录制文件的主干不含 .highlight- 后缀，按主干找视频、判断主干是否占用都不会把片段当成录像
+	// 主干从弹幕文件取：标题以 _fmp4 结尾时，转封装后的 .mp4 看起来和 fMP4 录制文件一样，从视频路径推不出主干
+	internal static string GetHighlightPath(string stem, string video, TimeSpan start, Func<string, bool> isTaken)
+	{
+		string extension = Path.GetExtension(video).ToLowerInvariant() switch
+		{
+			@".flv" => @".flv",
+			@".ts" => @".ts",
+			_ => @".mp4"
+		};
+		string name = string.Create(CultureInfo.InvariantCulture, $@"{stem}.highlight-{(int)start.TotalHours:00}{start.Minutes:00}{start.Seconds:00}");
+
+		for (int sequence = 1; ; ++sequence)
+		{
+			string path = sequence is 1 ? name + extension : string.Create(CultureInfo.InvariantCulture, $@"{name}-{sequence}{extension}");
+
+			if (!isTaken(path))
+			{
+				return path;
+			}
+		}
+	}
+
+	internal static string? FindVideo(string danmakuPath)
+	{
+		return RecordingFileLayout.GetVideoPaths(RecordingFileLayout.GetStem(danmakuPath)).FirstOrDefault(File.Exists);
+	}
+
+	private static async Task<DanmakuFileDto> OpenFileCoreAsync(string path, CancellationToken cancellationToken)
 	{
 		DanmakuFile file = await DanmakuXmlReader.ReadFileAsync(path, cancellationToken);
 
-		if (file is { Records.Count: 0, IsComplete: false })
+		// 自己的文件录制刚开始、还没有记录时也是弹幕文件
+		if (file is { Records.Count: 0, IsComplete: false, Source: DanmakuFileSource.Standard })
 		{
 			throw new InvalidDataException(AppLanguage.Current.InvalidDanmakuFile.ToString(path));
 		}
 
 		DanmakuFileSourceDto source = file.Source switch
 		{
-			DanmakuFileSource.Native native => new DanmakuFileSourceDto.Native(DanmakuConverter.ToDto(native.Header)),
+			DanmakuFileSource.Native { Header: var header } => new DanmakuFileSourceDto.Native(header.Streamer, header.Title, header.Offset),
 			DanmakuFileSource.Standard => new DanmakuFileSourceDto.Standard()
 		};
 
@@ -47,7 +103,7 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 		);
 	}
 
-	public async Task<DanmakuOffsetResult> ChangeOffsetAsync(string path, TimeSpan offset, CancellationToken cancellationToken = default)
+	private async Task<DanmakuOffsetResult> ChangeOffsetCoreAsync(string path, TimeSpan offset, CancellationToken cancellationToken)
 	{
 		// Linux 上替换正在写的文件不会失败，写入者会接着写进已经删除的旧文件
 		if (rooms.IsRecordingDanmakuFile(path))
@@ -55,85 +111,37 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 			throw new IOException(AppLanguage.Current.DanmakuFileInUse.ToString(path));
 		}
 
-		DanmakuFileHeader header;
-
 		try
 		{
-			header = await DanmakuOffsetRewriter.RewriteAsync(path, DanmakuDefaults.ClampOffset(offset), cancellationToken);
+			await DanmakuOffsetRewriter.RewriteAsync(path, DanmakuDefaults.ClampOffset(offset), cancellationToken);
 		}
 		catch (InvalidDataException exception)
 		{
 			throw new InvalidDataException(AppLanguage.Current.DanmakuFileNotRewritable, exception);
 		}
 
-		DanmakuFileHeaderDto dto = DanmakuConverter.ToDto(header);
-
-		if (FindVideo(path) is not { } video)
+		if (FindVideo(path) is null)
 		{
-			return new DanmakuOffsetResult.Updated(dto, null);
+			return new DanmakuOffsetResult.Updated(null);
 		}
 
+		// 弹幕文件已经替换，中途取消会留下偏移和弹幕文件对不上的字幕
 		string subtitle = RecordingFileLayout.GetStem(path) + RecordingFileLayout.SubtitleExtension;
-		DanmakuFile file = await DanmakuXmlReader.ReadFileAsync(path, cancellationToken);
-		VideoResolution? resolution = await ReadResolutionAsync(video, cancellationToken);
-		DanmakuAssLabels? labels = (await configManager.GetAsync(cancellationToken)).ShowPaidMessagesInSubtitle ? RecordingPostProcessor.SubtitleLabels : null;
+		DanmakuFile file = await DanmakuXmlReader.ReadFileAsync(path, CancellationToken.None);
+		VideoResolution? resolution = await ReadResolutionAsync(path, CancellationToken.None);
+		DanmakuAssLabels? labels = (await configManager.GetAsync(CancellationToken.None)).ShowPaidMessagesInSubtitle ? DanmakuTexts.SubtitleLabels : null;
 
 		try
 		{
-			await DanmakuAssGenerator.WriteFileAsync(subtitle, file.Records, resolution, labels, cancellationToken);
+			await DanmakuAssGenerator.WriteFileAsync(subtitle, file.Records, resolution, labels, CancellationToken.None);
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
-			// 播放器打开着字幕时写不进去；弹幕文件已经改好，关掉播放器后再改一次就能补上
-			LogSubtitleInUse(logger, exception, subtitle);
-			return new DanmakuOffsetResult.SubtitleInUse(dto, subtitle, exception.Message);
+			LogSubtitleNotWritten(logger, exception, subtitle);
+			return new DanmakuOffsetResult.SubtitleNotWritten(subtitle, exception.Message);
 		}
 
-		return new DanmakuOffsetResult.Updated(dto, subtitle);
-	}
-
-	public async Task<string> QueueHighlightExportAsync(string danmakuPath, DanmakuHighlightDto highlight, CancellationToken cancellationToken = default)
-	{
-		if (FindVideo(danmakuPath) is not { } video)
-		{
-			throw new FileNotFoundException(AppLanguage.Current.DanmakuVideoNotFound.ToString(Path.GetFileName(danmakuPath)), danmakuPath);
-		}
-
-		TimeSpan start = highlight.Start - DanmakuConsts.HighlightExportMargin;
-		start = start > TimeSpan.Zero ? start : TimeSpan.Zero;
-		TimeSpan end = highlight.End + DanmakuConsts.HighlightExportMargin;
-		string destination = GetHighlightPath(video, start, File.Exists);
-		await mediaTools.QueueCutAsync(new CutInput(video, destination, start, end), cancellationToken);
-		return destination;
-	}
-
-	// 弹幕的时间已经含偏移，和画面对齐，直接用作视频时间。片段名是视频主干加上 .highlight-时分秒，
-	// 录制文件的主干不含这样的后缀，按主干找视频、判断主干是否占用都不会把它当成录像
-	internal static string GetHighlightPath(string video, TimeSpan start, Func<string, bool> fileExists)
-	{
-		string stem = RecordingFileLayout.GetStem(video);
-		string extension = Path.GetExtension(video).ToLowerInvariant() switch
-		{
-			@".flv" => @".flv",
-			@".ts" => @".ts",
-			_ => @".mp4"
-		};
-		string name = string.Create(CultureInfo.InvariantCulture, $@"{stem}.highlight-{(int)start.TotalHours:00}{start.Minutes:00}{start.Seconds:00}");
-
-		for (int sequence = 1; ; ++sequence)
-		{
-			string path = sequence is 1 ? name + extension : string.Create(CultureInfo.InvariantCulture, $@"{name}-{sequence}{extension}");
-
-			if (!fileExists(path))
-			{
-				return path;
-			}
-		}
-	}
-
-	internal static string? FindVideo(string danmakuPath)
-	{
-		return RecordingFileLayout.GetVideoPaths(RecordingFileLayout.GetStem(danmakuPath)).FirstOrDefault(File.Exists);
+		return new DanmakuOffsetResult.Updated(subtitle);
 	}
 
 	internal static DanmakuDensityDto ComputeDensity(IReadOnlyList<DanmakuRecord> records)
@@ -145,36 +153,43 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 			return new DanmakuDensityDto(MinDensityBinWidth, []);
 		}
 
-		TimeSpan last = comments.Max(static comment => comment.Time);
+		long last = comments.Max(static comment => comment.Time.Ticks);
 
 		// 按整秒放宽，曲线的刻度好读
-		TimeSpan width = TimeSpan.FromSeconds(Math.Max(MinDensityBinWidth.TotalSeconds, Math.Floor(last.TotalSeconds / MaxDensityBins) + 1));
+		TimeSpan width = TimeSpan.FromSeconds(Math.Max(MinDensityBinWidth.TotalSeconds, Math.Floor((double)last / TimeSpan.TicksPerSecond / MaxDensityBins) + 1));
 
-		int[] counts = new int[(int)(last.Ticks / width.Ticks) + 1];
+		int[] counts = new int[(int)(last / width.Ticks) + 1];
 
 		foreach (DanmakuRecord.Comment comment in comments)
 		{
-			++counts[(int)(Math.Max(comment.Time.Ticks, 0) / width.Ticks)];
+			++counts[(int)(comment.Time.Ticks / width.Ticks)];
 		}
 
 		return new DanmakuDensityDto(width, counts);
 	}
 
-	// 读不到时按 1920×1080 生成，字幕照样能用，只是字号可能和画面不成比例
-	private async Task<VideoResolution?> ReadResolutionAsync(string video, CancellationToken cancellationToken)
+	// 转封装进行中的 .mp4 还没写 moov，读不到尺寸，这时源录像还在，接着试下一个
+	private async Task<VideoResolution?> ReadResolutionAsync(string danmakuPath, CancellationToken cancellationToken)
 	{
-		try
+		foreach (string video in RecordingFileLayout.GetVideoPaths(RecordingFileLayout.GetStem(danmakuPath)).Where(File.Exists))
 		{
-			return await VideoResolutionProbe.ReadAsync(video, cancellationToken);
+			try
+			{
+				if (await VideoResolutionProbe.ReadAsync(video, cancellationToken) is { } resolution)
+				{
+					return resolution;
+				}
+			}
+			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+			{
+				LogResolutionUnreadable(logger, exception, video);
+			}
 		}
-		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-		{
-			LogResolutionUnreadable(logger, exception, video);
-			return null;
-		}
+
+		return null;
 	}
 
-	// 退订之后不再取消第二次；房间移除之后订阅仍然可用，只是不再有新消息
+	// 房间移除之后订阅仍然可用，只是不再有新消息
 	private sealed class Feed(long roomId, DanmakuLiveFeed feed, IDisposable subscription) : IDanmakuFeed
 	{
 		public long RoomId { get; } = roomId;
@@ -194,9 +209,9 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 		}
 	}
 
-	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to write {Path}, it may be open in a player")]
-	private static partial void LogSubtitleInUse(ILogger logger, Exception exception, string path);
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to write {Path}")]
+	private static partial void LogSubtitleNotWritten(ILogger logger, Exception exception, string path);
 
-	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to read the video size of {Path}, using 1920×1080")]
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to read the video size of {Path}")]
 	private static partial void LogResolutionUnreadable(ILogger logger, Exception exception, string path);
 }

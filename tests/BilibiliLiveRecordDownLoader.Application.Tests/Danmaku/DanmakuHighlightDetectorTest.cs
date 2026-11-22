@@ -42,6 +42,27 @@ public sealed class DanmakuHighlightDetectorTest
 		await Assert.That(highlights).IsEquivalentTo([new DanmakuHighlight(TimeSpan.FromSeconds(1800), TimeSpan.FromSeconds(1800), TimeSpan.FromSeconds(1805), 44, @"草")], EqualityComparer<DanmakuHighlight>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
 	}
 
+	// 冷清的直播间基线是 1，比例那一关只要 2.5；热度够不上绝对下限时不算高能
+	[Test]
+	[Arguments(8, false)]
+	[Arguments(12, true)]
+	public async Task QuietRoomsNeedTheMinimumScoreAsync(int users, bool expected)
+	{
+		List<DanmakuRecord> records = Background(TimeSpan.Zero, Hour, 1);
+		records.AddRange(Burst(1800, users, Distinct));
+
+		IReadOnlyList<DanmakuHighlight> highlights = DanmakuHighlightDetector.Detect(records, Hour);
+
+		if (expected)
+		{
+			await Assert.That(highlights.Single().Score).IsEqualTo(users + 1);
+		}
+		else
+		{
+			await Assert.That(highlights).IsEmpty();
+		}
+	}
+
 	[Test]
 	public async Task AdjacentHotBinsBecomeOneEventAsync()
 	{

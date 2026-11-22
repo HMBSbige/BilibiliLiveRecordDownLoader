@@ -32,6 +32,19 @@ public sealed class DanmakuMessageBarTest
 		return layout.Placements.Single(placement => placement.Request == request);
 	}
 
+	// 同一帧里的消息共用接收时刻，第一段就要用合并后的数量
+	[Test]
+	public async Task ComboMergedAtTheMomentItIsShownStartsWithTheMergedCountAsync()
+	{
+		DanmakuMessageLayout layout = DanmakuMessageBar.Layout([Gift(0), Gift(0, count: 2)], MaxHeight, Gap);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(Of(layout, 0).Spans).IsEquivalentTo([new DanmakuMessageSpan(S(0), DanmakuMessageBar.ComboWindow, 0, 0, S(0), 3)], EqualityComparer<DanmakuMessageSpan>.Default);
+			await Assert.That((layout.Shown, layout.Dropped)).IsEqualTo((2, 0));
+		}
+	}
+
 	[Test]
 	public async Task NewEntriesGoAtTheBottomAndPushOlderOnesUpAsync()
 	{
@@ -135,6 +148,19 @@ public sealed class DanmakuMessageBarTest
 			await Assert.That(Of(layout, 2).ShownAt).IsEqualTo(S(14));
 			await Assert.That(Of(layout, 2).RemovedAt).IsEqualTo(S(22));
 			await Assert.That((layout.Shown, layout.Dropped)).IsEqualTo((3, 1));
+		}
+	}
+
+	[Test]
+	public async Task AGiftThatWouldFitIsStillDroppedWhileAnEntryIsWaitingAsync()
+	{
+		DanmakuMessageLayout layout = DanmakuMessageBar.Layout([SuperChat(0, 60, 10), Guard(1, 50), Gift(2, height: 20)], MaxHeight, Gap);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(Of(layout, 1).ShownAt).IsEqualTo(S(10));
+			await Assert.That(layout.Placements.Select(static placement => placement.Request)).IsEquivalentTo([0, 1], EqualityComparer<int>.Default);
+			await Assert.That((layout.Shown, layout.Dropped)).IsEqualTo((2, 1));
 		}
 	}
 

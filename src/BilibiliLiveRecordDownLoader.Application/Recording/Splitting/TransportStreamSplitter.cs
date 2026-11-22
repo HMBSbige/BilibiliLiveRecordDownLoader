@@ -47,26 +47,40 @@ internal sealed class TransportStreamSplitter : MediaSplitter
 
 		ReadOnlySpan<byte> payload = TransportStream.GetPayload(element);
 
-		if (TransportStream.IsPayloadStart(element))
+		if (!TransportStream.IsPayloadStart(element))
 		{
-			if (TransportStream.TryReadPts(payload, out long pts))
-			{
-				ReportMediaTime(MediaSpan.At(_clock.Unwrap(pts)));
-			}
-
-			// SPS 跟在关键帧前面；还没读到尺寸时每个 PES 都看，读到之后只看关键帧，尺寸中途变了也能跟上
-			_parameterSetLength = _tables.VideoCodec is TransportVideoCodec.Avc or TransportVideoCodec.Hevc && (Resolution is null || TransportStream.IsRandomAccess(element)) ? 0 : -1;
-			payload = TransportStream.SkipPesHeader(payload);
+			CollectParameterSets(payload);
+			return;
 		}
 
-		if (_parameterSetLength < 0)
+		bool hasPts = TransportStream.TryReadPts(payload, out long pts);
+
+		// SPS 跟在关键帧前面；还没读到尺寸时每个 PES 都看，读到之后只看关键帧，尺寸中途变了也能跟上
+		_parameterSetLength = _tables.VideoSyntax is not null && (Resolution is null || TransportStream.IsRandomAccess(element)) ? 0 : -1;
+		CollectParameterSets(TransportStream.SkipPesHeader(payload));
+
+		// 时间带着当时的尺寸，先读完同一个包里的 SPS，从这个关键帧开始的新段才是新尺寸
+		if (hasPts)
+		{
+			ReportMediaTime(MediaSpan.At(_clock.Unwrap(pts)));
+		}
+	}
+
+	protected override ReadOnlyMemory<byte> CaptureHeader(ReadOnlySpan<byte> element)
+	{
+		return _tables.Header;
+	}
+
+	private void CollectParameterSets(ReadOnlySpan<byte> payload)
+	{
+		if (_parameterSetLength < 0 || _tables.VideoSyntax is not { } syntax)
 		{
 			return;
 		}
 
 		_parameterSetLength += TransportStream.Append(payload, _parameterSets.AsSpan(_parameterSetLength));
 
-		if (ParameterSets.ReadAnnexB(_parameterSets.AsSpan(0, _parameterSetLength), _tables.VideoCodec is TransportVideoCodec.Hevc) is { } resolution)
+		if (ParameterSets.ReadAnnexB(_parameterSets.AsSpan(0, _parameterSetLength), syntax) is { } resolution)
 		{
 			Resolution = resolution;
 			_parameterSetLength = -1;
@@ -75,10 +89,5 @@ internal sealed class TransportStreamSplitter : MediaSplitter
 		{
 			_parameterSetLength = -1;
 		}
-	}
-
-	protected override ReadOnlyMemory<byte> CaptureHeader(ReadOnlySpan<byte> element)
-	{
-		return _tables.Header;
 	}
 }

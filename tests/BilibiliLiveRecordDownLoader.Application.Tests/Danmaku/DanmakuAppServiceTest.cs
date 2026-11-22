@@ -10,9 +10,16 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
 public sealed class DanmakuAppServiceTest
 {
-	private static ServiceProvider CreateServices(CutRecorder? cuts = null, AppConfig? config = null)
+	private static ServiceProvider CreateServices(CutRecorder? cuts = null, AppConfig? config = null, IBackgroundTaskAppService? tasks = null)
 	{
-		return new ServiceCollection()
+		ServiceCollection services = new();
+
+		if (tasks is not null)
+		{
+			services.AddSingleton(tasks);
+		}
+
+		return services
 			.AddLogging()
 			.AddSingleton<TimeProvider>(new FakeTimeProvider())
 			.AddSingleton<IAppConfigManager>(new FakeConfigManager(config))
@@ -43,15 +50,38 @@ public sealed class DanmakuAppServiceTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(file.Source is DanmakuFileSourceDto.Native { Header: { Title: "测试标题", RoomId: 21452505 } }).IsTrue();
+			await Assert.That(file.Source).IsEqualTo(new DanmakuFileSourceDto.Native("测试主播", "测试标题", TimeSpan.Zero));
 			await Assert.That(file.IsComplete).IsTrue();
 			await Assert.That(file.Entries.Count).IsEqualTo(640);
 			await Assert.That(file.Entries[0]).IsEqualTo(new DanmakuFileEntryDto(TimeSpan.Zero, new DanmakuEntryDto.Comment(new BilibiliLive.Danmu.DanmuSender(1, "观众", BilibiliLive.Danmu.GuardLevel.None, null), "日常0", 0xFFFFFF, false)));
 			await Assert.That(file.Density.BinWidth).IsEqualTo(TimeSpan.FromSeconds(5));
 			await Assert.That(file.Density.Counts.Sum()).IsEqualTo(640);
 			await Assert.That(file.Density.Counts[180]).IsEqualTo(42);
-			await Assert.That(file.Highlights.Single()).IsEqualTo(new DanmakuHighlightDto(TimeSpan.FromSeconds(900), TimeSpan.FromSeconds(900), TimeSpan.FromSeconds(905), 42, "好耶"));
+			await Assert.That(file.Highlights.Single()).IsEqualTo(new DanmakuHighlightDto(TimeSpan.FromSeconds(900), TimeSpan.FromSeconds(900), TimeSpan.FromSeconds(905), "好耶"));
 			await Assert.That(file.VideoPath).IsEqualTo(directory.Combine("20260102_030405.flv"));
+			// 文件里 900 秒附近的弹幕写在最后
+			await Assert.That(file.Entries.Zip(file.Entries.Skip(1)).All(static pair => pair.First.Time <= pair.Second.Time)).IsTrue();
+		}
+	}
+
+	// 录制刚开始、还没有记录的文件只有文件头
+	[Test]
+	public async Task OwnFileWithOnlyTheHeaderOpensAsync(CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		await using ServiceProvider services = CreateServices();
+		byte[] content = await DanmakuSamples.WriteAsync([]);
+		int headerEnd = content.AsSpan().IndexOf("/>\n"u8) + 3;
+		string path = directory.Combine("20260102_030405.xml");
+		await File.WriteAllBytesAsync(path, content.AsSpan(0, headerEnd).ToArray(), cancellationToken);
+
+		DanmakuFileDto file = await services.GetRequiredService<IDanmakuAppService>().OpenFileAsync(path, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(file.Source is DanmakuFileSourceDto.Native).IsTrue();
+			await Assert.That(file.IsComplete).IsFalse();
+			await Assert.That(file.Entries).IsEmpty();
 		}
 	}
 
@@ -105,14 +135,16 @@ public sealed class DanmakuAppServiceTest
 		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)]);
 		await File.WriteAllBytesAsync(directory.Combine("20260102_030405.flv"), [.. FlvSamples.Header, .. FlvSamples.MetadataWithSize(1280, 720)], cancellationToken);
 
-		DanmakuOffsetResult result = await services.GetRequiredService<IDanmakuAppService>().ChangeOffsetAsync(path, TimeSpan.FromSeconds(2), cancellationToken);
-		DanmakuFile file = await DanmakuXmlReader.ReadFileAsync(path, cancellationToken);
+		IDanmakuAppService danmaku = services.GetRequiredService<IDanmakuAppService>();
+		DanmakuOffsetResult result = await danmaku.ChangeOffsetAsync(path, TimeSpan.FromSeconds(2), cancellationToken);
+		DanmakuFileDto file = await danmaku.OpenFileAsync(path, cancellationToken);
 		string subtitle = await File.ReadAllTextAsync(directory.Combine("20260102_030405.ass"), cancellationToken);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(result is DanmakuOffsetResult.Updated { Header.Offset.TotalSeconds: 2 } updated && updated.Subtitle == directory.Combine("20260102_030405.ass")).IsTrue();
-			await Assert.That(file.Records.Single().Time).IsEqualTo(TimeSpan.FromSeconds(12));
+			await Assert.That(result).IsEqualTo(new DanmakuOffsetResult.Updated(directory.Combine("20260102_030405.ass")));
+			await Assert.That(file.Source is DanmakuFileSourceDto.Native { Offset.TotalSeconds: 2 }).IsTrue();
+			await Assert.That(file.Entries.Single().Time).IsEqualTo(TimeSpan.FromSeconds(12));
 			await Assert.That(subtitle).Contains("PlayResX: 1280");
 		}
 	}
@@ -126,19 +158,43 @@ public sealed class DanmakuAppServiceTest
 		await File.WriteAllBytesAsync(directory.Combine("20260102_030405_fmp4.mp4"), Fmp4Samples.TimedInit(1000, 1920, 1080), cancellationToken);
 		string subtitle = directory.Combine("20260102_030405.ass");
 		await File.WriteAllTextAsync(subtitle, "old", cancellationToken);
+		IDanmakuAppService danmaku = services.GetRequiredService<IDanmakuAppService>();
 		DanmakuOffsetResult result;
 
 		// 播放器独占打开时写不进去
 		await using (new FileStream(subtitle, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
 		{
-			result = await services.GetRequiredService<IDanmakuAppService>().ChangeOffsetAsync(path, TimeSpan.FromSeconds(-1), cancellationToken);
+			result = await danmaku.ChangeOffsetAsync(path, TimeSpan.FromSeconds(-1), cancellationToken);
 		}
+
+		DanmakuFileDto file = await danmaku.OpenFileAsync(path, cancellationToken);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(result is DanmakuOffsetResult.SubtitleInUse { Header.Offset.TotalSeconds: -1 } inUse && inUse.Subtitle == subtitle).IsTrue();
-			await Assert.That((await DanmakuXmlReader.ReadFileAsync(path, cancellationToken)).Records.Single().Time).IsEqualTo(TimeSpan.FromSeconds(9));
+			await Assert.That(result is DanmakuOffsetResult.SubtitleNotWritten { Error.Length: > 0 } notWritten && notWritten.Subtitle == subtitle).IsTrue();
+			await Assert.That(file.Source is DanmakuFileSourceDto.Native { Offset.TotalSeconds: -1 }).IsTrue();
+			await Assert.That(file.Entries.Single().Time).IsEqualTo(TimeSpan.FromSeconds(9));
 			await Assert.That(await File.ReadAllTextAsync(subtitle, cancellationToken)).IsEqualTo("old");
+		}
+	}
+
+	// 转封装进行中的 .mp4 还没写 moov，读不到尺寸，改用同主干的源录像
+	[Test]
+	public async Task SubtitleSizeFallsBackToTheNextVideoWhenTheMp4IsIncompleteAsync(CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		await using ServiceProvider services = CreateServices();
+		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)]);
+		await File.WriteAllBytesAsync(directory.Combine("20260102_030405.mp4"), [0, 0, 0, 16, .. "ftypisom"u8, 0, 0, 0, 0, 0, 0, 0, 0, .. "mdat"u8], cancellationToken);
+		await File.WriteAllBytesAsync(directory.Combine("20260102_030405.flv"), [.. FlvSamples.Header, .. FlvSamples.MetadataWithSize(720, 1280)], cancellationToken);
+
+		await services.GetRequiredService<IDanmakuAppService>().ChangeOffsetAsync(path, TimeSpan.FromSeconds(1), cancellationToken);
+		string subtitle = await File.ReadAllTextAsync(directory.Combine("20260102_030405.ass"), cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(subtitle).Contains("PlayResX: 720");
+			await Assert.That(subtitle).Contains("PlayResY: 1280");
 		}
 	}
 
@@ -149,12 +205,14 @@ public sealed class DanmakuAppServiceTest
 		await using ServiceProvider services = CreateServices();
 		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(100)]);
 
-		DanmakuOffsetResult result = await services.GetRequiredService<IDanmakuAppService>().ChangeOffsetAsync(path, TimeSpan.FromMinutes(10), cancellationToken);
+		IDanmakuAppService danmaku = services.GetRequiredService<IDanmakuAppService>();
+		DanmakuOffsetResult result = await danmaku.ChangeOffsetAsync(path, TimeSpan.FromMinutes(10), cancellationToken);
+		DanmakuFileDto file = await danmaku.OpenFileAsync(path, cancellationToken);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(result).IsEqualTo(new DanmakuOffsetResult.Updated(result.Header, null));
-			await Assert.That(result.Header.Offset).IsEqualTo(TimeSpan.FromSeconds(60));
+			await Assert.That(result).IsEqualTo(new DanmakuOffsetResult.Updated(null));
+			await Assert.That(file.Source).IsEqualTo(new DanmakuFileSourceDto.Native("测试主播", "测试标题", TimeSpan.FromSeconds(60)));
 			await Assert.That(File.Exists(directory.Combine("20260102_030405.ass"))).IsFalse();
 		}
 	}
@@ -181,13 +239,43 @@ public sealed class DanmakuAppServiceTest
 		await File.WriteAllBytesAsync(video, [1], cancellationToken);
 		await File.WriteAllBytesAsync(directory.Combine("20260102_030405.flv"), [1], cancellationToken);
 
-		string destination = await services.GetRequiredService<IDanmakuAppService>().QueueHighlightExportAsync(path, new DanmakuHighlightDto(TimeSpan.FromSeconds(3725), TimeSpan.FromSeconds(3730), TimeSpan.FromSeconds(3740), 50, "好耶"), cancellationToken);
+		string destination = await services.GetRequiredService<IDanmakuAppService>().QueueHighlightExportAsync(path, new DanmakuHighlightDto(TimeSpan.FromSeconds(3725), TimeSpan.FromSeconds(3730), TimeSpan.FromSeconds(3740), "好耶"), cancellationToken);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(destination).IsEqualTo(directory.Combine("20260102_030405.highlight-010150.mp4"));
 			await Assert.That(cuts.Cuts.Single()).IsEqualTo(new CutInput(video, destination, TimeSpan.FromSeconds(3710), TimeSpan.FromSeconds(3755)));
 		}
+	}
+
+	// 排着队的剪辑还没写出文件，同一段再导出一次也不能用它的输出
+	[Test]
+	public async Task HighlightAvoidsTheOutputOfQueuedCutsAsync(CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string queued = directory.Combine("20260102_030405.highlight-010150.mp4");
+		FakeBackgroundTasks tasks = new([new BackgroundTaskSnapshot(Guid.NewGuid(), "cut", null, queued, BackgroundTaskStatus.Queued, null, null, null), new BackgroundTaskSnapshot(Guid.NewGuid(), "cut", null, directory.Combine("20260102_030405.highlight-010150-2.mp4"), BackgroundTaskStatus.Failed, null, null, null)]);
+		await using ServiceProvider services = CreateServices(tasks: tasks);
+		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)]);
+		await File.WriteAllBytesAsync(directory.Combine("20260102_030405.mp4"), [1], cancellationToken);
+
+		string destination = await services.GetRequiredService<IDanmakuAppService>().QueueHighlightExportAsync(path, new DanmakuHighlightDto(TimeSpan.FromSeconds(3725), TimeSpan.FromSeconds(3730), TimeSpan.FromSeconds(3740), "好耶"), cancellationToken);
+
+		await Assert.That(destination).IsEqualTo(directory.Combine("20260102_030405.highlight-010150-2.mp4"));
+	}
+
+	[Test]
+	public async Task HighlightOfATitleEndingInFmp4KeepsTheWholeStemAsync(CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		CutRecorder cuts = new();
+		await using ServiceProvider services = CreateServices(cuts);
+		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)], "20260102_030405_a_fmp4.xml");
+		await File.WriteAllBytesAsync(directory.Combine("20260102_030405_a_fmp4.mp4"), [1], cancellationToken);
+
+		string destination = await services.GetRequiredService<IDanmakuAppService>().QueueHighlightExportAsync(path, new DanmakuHighlightDto(TimeSpan.FromSeconds(3725), TimeSpan.FromSeconds(3730), TimeSpan.FromSeconds(3740), "好耶"), cancellationToken);
+
+		await Assert.That(destination).IsEqualTo(directory.Combine("20260102_030405_a_fmp4.highlight-010150.mp4"));
 	}
 
 	[Test]
@@ -197,21 +285,22 @@ public sealed class DanmakuAppServiceTest
 		await using ServiceProvider services = CreateServices();
 		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)]);
 
-		await Assert.ThrowsAsync<FileNotFoundException>(() => services.GetRequiredService<IDanmakuAppService>().QueueHighlightExportAsync(path, new DanmakuHighlightDto(TimeSpan.Zero, TimeSpan.Zero, TimeSpan.FromSeconds(5), 10, string.Empty), cancellationToken));
+		await Assert.ThrowsAsync<FileNotFoundException>(() => services.GetRequiredService<IDanmakuAppService>().QueueHighlightExportAsync(path, new DanmakuHighlightDto(TimeSpan.Zero, TimeSpan.Zero, TimeSpan.FromSeconds(5), string.Empty), cancellationToken));
 	}
 
 	[Test]
-	[Arguments("a_fmp4.mp4", "a.highlight-000005.mp4")]
-	[Arguments("a.flv", "a.highlight-000005.flv")]
-	[Arguments("a.ts", "a.highlight-000005.ts")]
-	public async Task HighlightClipsKeepTheContainerAndDoNotLookLikeRecordingsAsync(string video, string expected)
+	[Arguments("a", "a_fmp4.mp4", "a.highlight-000005.mp4")]
+	[Arguments("a", "a.flv", "a.highlight-000005.flv")]
+	[Arguments("a", "a.ts", "a.highlight-000005.ts")]
+	[Arguments("a_fmp4", "a_fmp4.mp4", "a_fmp4.highlight-000005.mp4")]
+	public async Task HighlightClipsKeepTheContainerAndDoNotLookLikeRecordingsAsync(string stem, string video, string expected)
 	{
-		string path = DanmakuAppService.GetHighlightPath(video, TimeSpan.FromSeconds(5), static _ => false);
+		string path = DanmakuAppService.GetHighlightPath(stem, video, TimeSpan.FromSeconds(5), static _ => false);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(path).IsEqualTo(expected);
-			await Assert.That(RecordingFileLayout.GetVideoPaths("a")).DoesNotContain(path);
+			await Assert.That(RecordingFileLayout.GetVideoPaths(stem)).DoesNotContain(path);
 		}
 	}
 
@@ -220,7 +309,7 @@ public sealed class DanmakuAppServiceTest
 	{
 		HashSet<string> existing = ["a.highlight-000005.mp4", "a.highlight-000005-2.mp4"];
 
-		await Assert.That(DanmakuAppService.GetHighlightPath("a.mp4", TimeSpan.FromSeconds(5), existing.Contains)).IsEqualTo("a.highlight-000005-3.mp4");
+		await Assert.That(DanmakuAppService.GetHighlightPath("a", "a.mp4", TimeSpan.FromSeconds(5), existing.Contains)).IsEqualTo("a.highlight-000005-3.mp4");
 	}
 
 	[Test]
@@ -252,6 +341,33 @@ public sealed class DanmakuAppServiceTest
 		{
 			Cuts.Enqueue(input);
 			return Task.CompletedTask;
+		}
+	}
+
+	private sealed class FakeBackgroundTasks(IReadOnlyList<BackgroundTaskSnapshot> tasks) : IBackgroundTaskAppService
+	{
+		public long Version => 0;
+
+		public bool HasActiveTasks => tasks.Count > 0;
+
+		public IReadOnlyList<BackgroundTaskSnapshot> GetTasks()
+		{
+			return tasks;
+		}
+
+		public void Cancel(Guid id)
+		{
+			throw new NotSupportedException();
+		}
+
+		public void CancelAll()
+		{
+			throw new NotSupportedException();
+		}
+
+		public void RemoveFinished()
+		{
+			throw new NotSupportedException();
 		}
 	}
 }

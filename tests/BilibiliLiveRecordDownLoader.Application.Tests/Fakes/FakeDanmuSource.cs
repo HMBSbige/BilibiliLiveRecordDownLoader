@@ -43,12 +43,7 @@ internal sealed class FakeDanmuConnection(TimeProvider time)
 	{
 		int sent = Interlocked.Increment(ref _sent);
 		await _messages.Writer.WriteAsync(message with { ReceivedAt = new DanmuReceiveTime(time.GetTimestamp(), time.GetUtcNow()) });
-		using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(5));
-
-		while (Volatile.Read(ref _handled) < sent)
-		{
-			await Task.Delay(1, timeout.Token);
-		}
+		await TestWait.UntilAsync(() => Volatile.Read(ref _handled) >= sent, "the room has handled the message", CancellationToken.None);
 	}
 
 	public void Close()

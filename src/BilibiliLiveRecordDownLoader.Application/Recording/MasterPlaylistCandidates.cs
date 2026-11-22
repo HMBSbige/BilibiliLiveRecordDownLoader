@@ -9,9 +9,7 @@ internal static class MasterPlaylistCandidates
 		bool trueOriginal = profile.RequestQuality is StreamQualityConsts.TrueOriginal;
 
 		// 按首选的流判断，它不受限时录的就是它
-		long? restrictedTarget = profile.UseMasterPlaylistWhenRestricted && listed is [var preferred, ..] && QualityRestrictions.Evaluate(preferred, listed, profile, hasCookie) is not null
-			? QualityRestrictions.Target(listed, profile.Quality)
-			: null;
+		long? restrictedTarget = profile.UseMasterPlaylistWhenRestricted && listed is [var preferred, ..] && QualityRestrictions.Evaluate(preferred, listed, profile, hasCookie) is { Highest: var highest } ? highest : null;
 
 		return (restrictedTarget, trueOriginal) switch
 		{
@@ -29,7 +27,6 @@ internal static class MasterPlaylistCandidates
 		return profile.RequestQuality is StreamQualityConsts.TrueOriginal ? streamerUid : 0;
 	}
 
-	// 先按档位的先后，同一档内按编码优先级
 	public static IReadOnlyList<LiveStreamCandidate.Variant> Select(IEnumerable<LiveStreamCandidate.Variant> variants, long[] qualities, IReadOnlyList<StreamCodec> codecPriority)
 	{
 		return [.. variants.Where(variant => qualities.Contains(variant.Qn)).OrderBy(variant => Array.IndexOf(qualities, variant.Qn)).ThenBy(variant => QualityRestrictions.Rank(codecPriority, variant.Codec))];

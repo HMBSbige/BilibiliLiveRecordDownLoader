@@ -26,17 +26,25 @@ internal static class ApiResponse
 		using JsonDocument document = await JsonDocument.ParseAsync(stream, default, cancellationToken);
 		JsonElement root = document.RootElement;
 
-		if (root.ValueKind is not JsonValueKind.Object || !root.TryGetProperty("code", out JsonElement codeElement) || !codeElement.TryGetInt64(out long code))
+		if (ReadEnvelope(root) is not (var code, var message))
 		{
 			throw new BilibiliApiException("The response is not a Bilibili API envelope.");
 		}
-
-		string message = GetMessage(root) ?? $"Bilibili API returned code {code}.";
 
 		// Error responses carry data of arbitrary shape (null, [], {}), but nav still returns the wbi keys alongside -101
 		T? data = root.TryGetProperty("data", out JsonElement dataElement) && dataElement.ValueKind is JsonValueKind.Object ? dataElement.Deserialize(typeInfo) : null;
 
 		return new ApiResponse<T>(code, message, data);
+	}
+
+	public static (long Code, string Message)? ReadEnvelope(JsonElement root)
+	{
+		if (root.ValueKind is not JsonValueKind.Object || !root.TryGetProperty("code", out JsonElement codeElement) || codeElement.ValueKind is not JsonValueKind.Number || !codeElement.TryGetInt64(out long code))
+		{
+			return null;
+		}
+
+		return (code, GetMessage(root) ?? $"Bilibili API returned code {code}.");
 	}
 
 	private static string? GetMessage(JsonElement root)

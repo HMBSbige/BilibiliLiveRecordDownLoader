@@ -105,7 +105,25 @@ public sealed class HlsSplitterTest
 		await Assert.That(recording.Files.Select(static file => file.Length).SequenceEqual([segments[0].Length + segments[1].Length, segments[2].Length + segments[3].Length])).IsTrue();
 	}
 
-	// 每个分片之间过去一分钟，能切的地方都会切；收流结束时最后一个单元并入最后一段
+	[Test]
+	[Timeout(10_000)]
+	public async Task EmptySegmentDoesNotHoldBackTheFollowingOnesAsync(CancellationToken cancellationToken)
+	{
+		byte[] init = Fmp4Samples.Init();
+		byte[][] segments = [Fmp4Samples.Fragment(true, marker: "1"), [], Fmp4Samples.Fragment(true, marker: "2"), Fmp4Samples.Fragment(true, marker: "3")];
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new Fmp4HlsSplitter(), EverySegment, session => SendAsync(session, init, segments), cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(recording.Files.Count).IsEqualTo(2);
+			await Assert.That(recording.Files[0].SequenceEqual((byte[])[.. init, .. segments[0]])).IsTrue();
+			await Assert.That(recording.Files[1].SequenceEqual((byte[])[.. init, .. segments[2], .. segments[3]])).IsTrue();
+		}
+	}
+
+	// 收流结束时最后一个单元并入最后一段
 	private static async Task SendAsync(SessionWriter session, byte[]? init, byte[][] segments)
 	{
 		if (init is not null)

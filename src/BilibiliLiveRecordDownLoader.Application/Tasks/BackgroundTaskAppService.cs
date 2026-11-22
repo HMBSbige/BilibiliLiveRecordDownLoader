@@ -4,6 +4,9 @@ namespace BilibiliLiveRecordDownLoader.Application.Tasks;
 
 internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider, ILogger<BackgroundTaskAppService> logger) : IBackgroundTaskAppService
 {
+	// 长期无人值守时每个分段都会留下一条转封装任务，界面每次同步都要遍历全部条目
+	internal const int MaxFinishedEntries = 200;
+
 	private readonly Lock _lock = new();
 	private readonly List<TaskEntry> _entries = [];
 	private readonly ConcurrentDictionary<string, SemaphoreSlim> _queues = new(StringComparer.OrdinalIgnoreCase);
@@ -31,28 +34,37 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 		}
 	}
 
-	// 同一队列中的任务依次执行，避免多个转封装同时读写同一块磁盘；返回的 Completion 在任务结束时给出最终快照
+	// 同一队列中的任务依次执行，避免多个转封装同时读写同一块磁盘
 	public QueuedTask Enqueue(string title, string queueKey, Func<BackgroundTaskContext, CancellationToken, Task> work, string? sourcePath = null, string? targetPath = null)
 	{
 		TaskEntry entry = new(Guid.CreateVersion7(), title, sourcePath, targetPath);
+		SemaphoreSlim queue = _queues.GetOrAdd(queueKey, static _ => new SemaphoreSlim(1, 1));
+		// Completion 要在加入列表的同时可见，否则 StopAsync 不会等这个任务
+		Task<Task<BackgroundTaskSnapshot>> start = new(() => RunAsync(entry, queue, work));
+		Task<BackgroundTaskSnapshot> completion = start.Unwrap();
 		bool isStopping;
 
 		lock (_lock)
 		{
-			_entries.Add(entry);
 			isStopping = _isStopping;
 
-			// 退出过程中录制收尾产生的任务不再执行，源文件保持原样
 			if (isStopping)
 			{
 				entry.Status = BackgroundTaskStatus.Canceled;
+				completion = Task.FromResult(entry.ToSnapshot());
 			}
+
+			entry.Completion = completion;
+			_entries.Add(entry);
+			TrimFinished();
 		}
 
 		Touch();
 
-		Task<BackgroundTaskSnapshot> completion = isStopping ? Task.FromResult(Snapshot(entry)) : RunAsync(entry, _queues.GetOrAdd(queueKey, static _ => new SemaphoreSlim(1, 1)), work);
-		entry.Completion = completion;
+		if (!isStopping)
+		{
+			start.RunSynchronously(TaskScheduler.Default);
+		}
 
 		return new QueuedTask(entry.Id, completion);
 	}
@@ -77,7 +89,7 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 	{
 		lock (_lock)
 		{
-			_entries.RemoveAll(static entry => !entry.IsActive);
+			RemoveOldestFinished(static _ => true, int.MaxValue);
 		}
 
 		Touch();
@@ -97,14 +109,14 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 		await Task.WhenAll(pending);
 	}
 
-	// 在 Enqueue 中同步进入队列，保证同一队列按加入顺序执行
+	// 要在 Enqueue 中同步进入队列才能按加入顺序执行，所以不先让出线程，而是不回到调用方的同步上下文：退出时 UI 线程在等这些任务
 	private async Task<BackgroundTaskSnapshot> RunAsync(TaskEntry entry, SemaphoreSlim queue, Func<BackgroundTaskContext, CancellationToken, Task> work)
 	{
 		CancellationToken cancellationToken = entry.CancellationToken;
 
 		try
 		{
-			await queue.WaitAsync(cancellationToken);
+			await queue.WaitAsync(cancellationToken).ConfigureAwait(false);
 		}
 		catch (OperationCanceledException)
 		{
@@ -115,8 +127,8 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 		try
 		{
 			Update(entry, BackgroundTaskStatus.Running);
-			BackgroundTaskContext context = new((progress, speed, message) => Update(entry, BackgroundTaskStatus.Running, progress, speed, message), timeProvider);
-			await Task.Run(() => work(context, cancellationToken), cancellationToken);
+			BackgroundTaskContext context = new((progress, speed) => Update(entry, BackgroundTaskStatus.Running, progress, speed), timeProvider);
+			await Task.Run(() => work(context, cancellationToken), cancellationToken).ConfigureAwait(false);
 			Update(entry, BackgroundTaskStatus.Completed, 1);
 		}
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -126,7 +138,7 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 		catch (Exception exception)
 		{
 			LogTaskFailed(logger, exception, entry.Title);
-			Update(entry, BackgroundTaskStatus.Failed, message: exception.Message);
+			Fail(entry, exception.Message);
 		}
 		finally
 		{
@@ -144,18 +156,69 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 		}
 	}
 
-	// 速度只在运行中有意义，每次都用最新的值覆盖
-	private void Update(TaskEntry entry, BackgroundTaskStatus status, double? progress = null, double? speed = null, string? message = null)
+	// 速度只在运行中有意义，不保留旧值
+	private void Update(TaskEntry entry, BackgroundTaskStatus status, double? progress = null, double? speed = null)
 	{
 		lock (_lock)
 		{
 			entry.Status = status;
 			entry.Progress = progress ?? entry.Progress;
 			entry.Speed = speed;
-			entry.Message = message ?? entry.Message;
 		}
 
 		Touch();
+	}
+
+	private void Fail(TaskEntry entry, string message)
+	{
+		lock (_lock)
+		{
+			entry.Status = BackgroundTaskStatus.Failed;
+			entry.Speed = null;
+			entry.Message = message;
+		}
+
+		Touch();
+	}
+
+	// 失败的条目尽量留给用户查看
+	// 只在加入新条目时裁剪：取消回调可能在 CancelAll 和 StopAsync 遍历列表时同步跑到 Update
+	private void TrimFinished()
+	{
+		int excess = _entries.Count(static entry => !entry.IsActive) - MaxFinishedEntries;
+
+		if (excess > 0)
+		{
+			excess -= RemoveOldestFinished(static entry => entry.Status is not BackgroundTaskStatus.Failed, excess);
+		}
+
+		if (excess > 0)
+		{
+			RemoveOldestFinished(static entry => entry.Status is BackgroundTaskStatus.Failed, excess);
+		}
+	}
+
+	private int RemoveOldestFinished(Func<TaskEntry, bool> predicate, int count)
+	{
+		int removed = 0;
+
+		for (int i = 0; i < _entries.Count && removed < count;)
+		{
+			TaskEntry entry = _entries[i];
+
+			if (!entry.IsActive && predicate(entry))
+			{
+				entry.Dispose();
+				_entries.RemoveAt(i);
+				removed++;
+			}
+			else
+			{
+				i++;
+			}
+		}
+
+		return removed;
 	}
 
 	private void Touch()
@@ -166,7 +229,7 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 	[LoggerMessage(Level = LogLevel.Error, Message = "Task {Title} failed")]
 	private static partial void LogTaskFailed(ILogger logger, Exception exception, string title);
 
-	private sealed class TaskEntry(Guid id, string title, string? sourcePath, string? targetPath)
+	private sealed class TaskEntry(Guid id, string title, string? sourcePath, string? targetPath) : IDisposable
 	{
 		private readonly CancellationTokenSource _cancellation = new();
 
@@ -198,6 +261,11 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 			{
 				_cancellation.Cancel();
 			}
+		}
+
+		public void Dispose()
+		{
+			_cancellation.Dispose();
 		}
 
 		public BackgroundTaskSnapshot ToSnapshot()

@@ -8,7 +8,7 @@ public sealed class DanmakuLiveFeedTest
 {
 	private static DanmuMessage Comment(FakeTimeProvider time, int index)
 	{
-		return new DanmuMessage.Comment(new DanmuSender(index, "观众", GuardLevel.None, null), "文本", 1, 25, 0xFFFFFF, DateTimeOffset.UnixEpoch, "0", "0", DanmuCommentKind.Text, false) { ReceivedAt = new DanmuReceiveTime(time.GetTimestamp(), time.GetUtcNow()) };
+		return new DanmuMessage.Comment(new DanmuSender(index, "观众", GuardLevel.None, null), "文本", 1, 25, 0xFFFFFF, DateTimeOffset.UnixEpoch, "0", DanmuCommentKind.Text, false) { ReceivedAt = new DanmuReceiveTime(time.GetTimestamp(), time.GetUtcNow()) };
 	}
 
 	[Test]
@@ -95,10 +95,10 @@ public sealed class DanmakuLiveFeedTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(initial).IsEqualTo(new DanmakuFeedStatus(DanmakuConnectionState.Connecting, null, false, 0, null, false));
-			await Assert.That(masked).IsEqualTo(new DanmakuFeedStatus(DanmakuConnectionState.Connected, 0, true, 0, null, false));
-			await Assert.That(reconnecting).IsEqualTo(new DanmakuFeedStatus(DanmakuConnectionState.Connecting, 0, true, 0, lost, false));
-			await Assert.That(feed.Status).IsEqualTo(new DanmakuFeedStatus(DanmakuConnectionState.Connected, 42, false, 0, null, false));
+			await Assert.That(initial).IsEqualTo(new DanmakuFeedStatus(DanmakuConnectionState.Connecting, 0, null, false, 0, null));
+			await Assert.That(masked).IsEqualTo(new DanmakuFeedStatus(DanmakuConnectionState.Connected, 1, 0, true, 0, null));
+			await Assert.That(reconnecting).IsEqualTo(new DanmakuFeedStatus(DanmakuConnectionState.Connecting, 1, 0, true, 0, lost));
+			await Assert.That(feed.Status).IsEqualTo(new DanmakuFeedStatus(DanmakuConnectionState.Connected, 2, 42, false, 0, null));
 			await Assert.That(feed.Version).IsGreaterThan(version);
 		}
 	}

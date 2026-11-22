@@ -1,3 +1,4 @@
+using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Collections.Concurrent;
@@ -61,6 +62,48 @@ public sealed class FlvSplitterTest
 		await recording.RunAsync(new FlvSplitter(), new RecordingSplit.None(), session => session.WriteInChunksAsync(stream, 7), cancellationToken);
 
 		await Assert.That(recording.Files.Single().SequenceEqual(stream)).IsTrue();
+	}
+
+	// 不分段时整场录制都在第一个文件里：推流重新开始时同样接着已经写出的时间排，文件里的时间和时间轴放弹幕的位置一致
+	[Test]
+	[Timeout(10_000)]
+	public async Task TimelineThatStartsOverInTheFirstFileContinuesFromTheLastTimestampAsync(CancellationToken cancellationToken)
+	{
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new FlvSplitter(), new RecordingSplit.None(), async session =>
+		{
+			await session.WriteAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0, "vseq"), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 10_000, "k1"), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.InterFrame, 10_500, "p1")]);
+			await session.WriteAsync(FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 0, "k2"));
+			await session.WriteAsync(FlvSamples.Video(VideoStyle.Avc, VideoPacket.InterFrame, 500, "p2"));
+		}, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(string.Join(" ", FlvSamples.Describe(recording.Files.Single()))).IsEqualTo("V0[vseq] V10000[k1] V10500[p1] V10500[k2] V11000[p2]");
+			await Assert.That(recording.Timeline.GetDuration("0")).IsEqualTo(TimeSpan.FromMilliseconds(1000));
+		}
+	}
+
+	// 时间轴不看序列头；中途重发的序列头时间戳是 0 时不能当成推流重新开始，否则后面的帧整体推后，文件里的时间和弹幕的位置对不上
+	[Test]
+	[Timeout(10_000)]
+	public async Task SequenceHeaderResentWithTimestampZeroKeepsTheTimelineAsync(CancellationToken cancellationToken)
+	{
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new FlvSplitter(), new RecordingSplit.None(), async session =>
+		{
+			await session.WriteAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0, "vseq"), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 10_000, "k1"), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.InterFrame, 10_500, "p1")]);
+			await session.WriteAsync([.. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0, "s2"), .. FlvSamples.AudioSequenceHeader(0, "a2")]);
+			await session.WriteAsync(FlvSamples.Video(VideoStyle.Avc, VideoPacket.InterFrame, 11_000, "p2"));
+		}, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(string.Join(" ", FlvSamples.Describe(recording.Files.Single()))).IsEqualTo("V0[vseq] V10000[k1] V10500[p1] V10500[s2] A10500 V11000[p2]");
+			await Assert.That(recording.Timeline.GetDuration("0")).IsEqualTo(TimeSpan.FromMilliseconds(1000));
+		}
 	}
 
 	[Test]
@@ -194,7 +237,7 @@ public sealed class FlvSplitterTest
 	{
 		byte[] stream = [.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 0), .. FlvSamples.Tag(0x29, 10, [1, 2, 3])];
 		Pipe pipe = new();
-		await using RecordingSegmenter segmenter = new(pipe.Writer, new FlvSplitter(), SplitRecording.Fixed(OneMinute), new ConcurrentQueue<SegmentStart>(), TimeProvider.System, NullLogger.Instance);
+		await using RecordingSegmenter segmenter = new(pipe.Writer, new FlvSplitter(), SplitRecording.Fixed(OneMinute), new ConcurrentQueue<SegmentStart>(), TimeProvider.System, NullLogger.Instance, new RecordingTimeline(string.Empty, TimeProvider.System, RoomDefaults.StreamIdleTimeout));
 
 		await segmenter.WriteAsync(stream, cancellationToken);
 

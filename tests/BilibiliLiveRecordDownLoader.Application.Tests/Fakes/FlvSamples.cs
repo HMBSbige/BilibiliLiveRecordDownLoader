@@ -10,6 +10,9 @@ internal static class FlvSamples
 	public const byte VideoTag = 9;
 	public const byte ScriptTag = 18;
 
+	private const int TagHeaderSize = 11;
+	private const int PreviousTagSizeLength = 4;
+
 	// 带音视频标志，DataOffset 为 9，后面跟 PreviousTagSize0
 	public static byte[] Header => [.. "FLV"u8, 1, 0x05, 0, 0, 0, 9, 0, 0, 0, 0];
 
@@ -72,6 +75,17 @@ internal static class FlvSamples
 
 	public static byte[] Video(VideoStyle style, VideoPacket packet, uint timestamp, string marker = "")
 	{
+		return Tag(VideoTag, timestamp, VideoBody(style, packet, marker));
+	}
+
+	// 补零让文件超过后处理删除的下限
+	public static byte[] PaddedVideo(VideoPacket packet, uint timestamp, int padding)
+	{
+		return Tag(VideoTag, timestamp, [.. VideoBody(VideoStyle.Avc, packet, string.Empty), .. new byte[padding]]);
+	}
+
+	private static byte[] VideoBody(VideoStyle style, VideoPacket packet, string marker)
+	{
 		bool isKey = packet is VideoPacket.KeyFrame or VideoPacket.SequenceHeader;
 		byte frameType = (byte)(isKey ? 1 : 2);
 		byte[] prefix = style switch
@@ -83,7 +97,7 @@ internal static class FlvSamples
 			_ => [(byte)(0x80 | frameType << 4 | (packet is VideoPacket.SequenceHeader ? 0 : 3)), .. "av01"u8]
 		};
 
-		return Tag(VideoTag, timestamp, [.. prefix, .. Encoding.ASCII.GetBytes($"[{marker}]")]);
+		return [.. prefix, .. Encoding.ASCII.GetBytes($"[{marker}]")];
 	}
 
 	public static byte[] AudioSequenceHeader(uint timestamp = 0, string marker = "aac")
@@ -98,7 +112,7 @@ internal static class FlvSamples
 
 	public static byte[] Tag(byte type, uint timestamp, byte[] body)
 	{
-		byte[] tag = new byte[11 + body.Length + 4];
+		byte[] tag = new byte[TagHeaderSize + body.Length + PreviousTagSizeLength];
 		tag[0] = type;
 		tag[1] = (byte)(body.Length >> 16);
 		tag[2] = (byte)(body.Length >> 8);
@@ -107,12 +121,12 @@ internal static class FlvSamples
 		tag[5] = (byte)(timestamp >> 8);
 		tag[6] = (byte)timestamp;
 		tag[7] = (byte)(timestamp >> 24);
-		body.CopyTo(tag.AsSpan(11));
-		BinaryPrimitives.WriteUInt32BigEndian(tag.AsSpan(11 + body.Length), (uint)(11 + body.Length));
+		body.CopyTo(tag.AsSpan(TagHeaderSize));
+		BinaryPrimitives.WriteUInt32BigEndian(tag.AsSpan(TagHeaderSize + body.Length), (uint)(TagHeaderSize + body.Length));
 		return tag;
 	}
 
-	// 去掉文件头，按顺序列出每个 tag 的类型、时间戳和标记，例如 "V0[k1]"
+	// 每个 tag 的类型、时间戳和标记，例如 "V0[k1]"
 	public static IReadOnlyList<string> Describe(byte[] file)
 	{
 		List<string> tags = [];

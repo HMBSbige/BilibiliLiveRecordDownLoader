@@ -23,11 +23,11 @@ public sealed class DanmakuConverterTest
 	[Test]
 	public async Task CommentKeepsTheUidHashAndStormFlagAsync()
 	{
-		DanmuMessage.Comment comment = new(Sender with { UserId = 0, Name = "观***" }, "文本", 5, 36, 0xFF0000, DateTimeOffset.FromUnixTimeSeconds(1795343190), "5e7c", "a16fe0dd", DanmuCommentKind.Text, true);
+		DanmuMessage.Comment comment = new(Sender with { UserId = 0, Name = "观***" }, "文本", 5, 36, 0xFF0000, DateTimeOffset.FromUnixTimeSeconds(1795343190), "a16fe0dd", DanmuCommentKind.Text, true);
 
 		DanmakuRecord? record = DanmakuConverter.ToRecord(comment, Time, Profile(superChats: false, guards: false));
 
-		await Assert.That(record).IsEqualTo(new DanmakuRecord.Comment(Time, 5, 36, 0xFF0000, comment.SentAt, 0, "观***", "文本", "5e7c") { UidHash = "a16fe0dd", IsStorm = true });
+		await Assert.That(record).IsEqualTo(new DanmakuRecord.Comment(Time, 5, 36, 0xFF0000, comment.SentAt, 0, "观***", "文本", 0) { UidHash = "a16fe0dd", IsStorm = true });
 	}
 
 	[Test]
@@ -57,7 +57,7 @@ public sealed class DanmakuConverterTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(DanmakuConverter.ToRecord(guard, Time, Profile())).IsEqualTo(new DanmakuRecord.Guard(Time, 42, "观众", 3, 3, 414000) { IsRenewal = true });
+			await Assert.That(DanmakuConverter.ToRecord(guard, Time, Profile())).IsEqualTo(new DanmakuRecord.Guard(Time, 42, "观众", GuardLevel.Captain, 3, 414000) { IsRenewal = true });
 			await Assert.That(DanmakuConverter.ToRecord(guard, Time, Profile(guards: false))).IsNull();
 		}
 	}

@@ -12,6 +12,12 @@ internal abstract class HlsSplitter : MediaSplitter, IHlsSegmentObserver
 	// span 是分片从第一帧到最后一帧的媒体时间，会话报告时就算好，分片过去时再报告
 	protected void Add(int length, bool isSplit, ReadOnlyMemory<byte> header, MediaSpan? span)
 	{
+		// 空分片没有要写出的数据；入队之后 Measure 一直返回 0，后面的数据都过不去
+		if (length is 0)
+		{
+			return;
+		}
+
 		_elements.Enqueue(new Element(length, isSplit, header, span));
 	}
 
@@ -49,24 +55,21 @@ internal sealed class Fmp4HlsSplitter : HlsSplitter
 	private readonly Fmp4FillerRemover _filler = new();
 	private ReadOnlyMemory<byte> _init;
 	private bool _hasTracks;
-	private uint? _videoTrackId;
-	private uint _defaultSampleFlags;
-	private Fmp4VideoTrack? _timing;
+	private Fmp4VideoTrack? _video;
 
 	public override void OnInitSegment(ReadOnlySpan<byte> data)
 	{
 		_init = data.ToArray();
-		_hasTracks = IsoBmff.TryReadVideoTrack(data, out _videoTrackId, out _defaultSampleFlags);
-		_timing = IsoBmff.ReadVideoTrackTiming(data);
-		Resolution = _timing?.Resolution;
+		_hasTracks = IsoBmff.TryReadMovie(data, out _video);
+		Resolution = _video?.Resolution;
 		Add(data.Length, false, default, null);
 	}
 
 	// 每段都从 init 段开始；没有视频轨时任何分片开头都能解码。分段不改 tfdt，文件里的时间就是源时间；用解码时间，不看合成时间偏移，只差几帧
 	public override void OnMediaSegment(ReadOnlySpan<byte> data)
 	{
-		bool isSplit = _hasTracks && (_videoTrackId is not { } trackId || IsoBmff.StartsWithSyncSample(data, trackId, _defaultSampleFlags));
-		MediaSpan? span = _timing is { } timing && IsoBmff.ReadFragmentTime(data, timing) is (var start, var end) ? new MediaSpan(timing.ToTime(start), timing.ToTime(end)) : null;
+		bool isSplit = _hasTracks && (_video is not { } video || IsoBmff.StartsWithSyncSample(data, video));
+		MediaSpan? span = _video is { Timescale: { } timescale } timed && IsoBmff.ReadFragmentTime(data, timed) is (var start, var end) ? new MediaSpan(Fmp4VideoTrack.ToTime(start, timescale), Fmp4VideoTrack.ToTime(end, timescale)) : null;
 		Add(data.Length, isSplit, _init, span);
 	}
 
@@ -152,18 +155,18 @@ internal sealed class TsHlsSplitter : HlsSplitter
 	// 分片第一个视频 PES 前面一般带着 SPS；不带的分片沿用之前读到的尺寸
 	private void ReadResolution(ReadOnlySpan<byte> data)
 	{
-		if (_tables is not { VideoPid: >= 0, VideoCodec: TransportVideoCodec.Avc or TransportVideoCodec.Hevc })
+		if (_tables is not { VideoPid: >= 0 and var videoPid, VideoSyntax: { } syntax })
 		{
 			return;
 		}
 
 		Span<byte> pes = stackalloc byte[TransportStream.ParameterSetCapacity];
-		int length = TransportStream.CopyFirstPes(data, _tables.VideoPid, pes);
-		Resolution = ParameterSets.ReadAnnexB(TransportStream.SkipPesHeader(pes.Slice(0, length)), _tables.VideoCodec is TransportVideoCodec.Hevc) ?? Resolution;
+		int length = TransportStream.CopyFirstPes(data, videoPid, pes);
+		Resolution = ParameterSets.ReadAnnexB(TransportStream.SkipPesHeader(pes.Slice(0, length)), syntax) ?? Resolution;
 	}
 
 	private bool StartsWithRandomAccess(ReadOnlySpan<byte> data)
 	{
-		return _tables.VideoPid is var videoPid and >= 0 ? TransportStream.StartsWithRandomAccessPicture(data, videoPid, _tables.VideoCodec) : _tables.VideoCodec is TransportVideoCodec.None;
+		return _tables.VideoPid is var videoPid and >= 0 ? TransportStream.StartsWithRandomAccessPicture(data, videoPid, _tables.VideoSyntax) : _tables.VideoCodec is TransportVideoCodec.None;
 	}
 }

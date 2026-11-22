@@ -24,7 +24,7 @@ internal sealed partial class UpdateAppService(IHttpClientFactory httpClientFact
 			}
 		);
 
-		bool hasUpdate = await checker.CheckAsync(httpClient, cancellationToken);
+		bool hasUpdate = await RequestTimeout.ReportAsync(checker.CheckAsync(httpClient, cancellationToken).AsTask());
 
 		return new UpdateCheckResult(hasUpdate, checker.LatestVersion);
 	}

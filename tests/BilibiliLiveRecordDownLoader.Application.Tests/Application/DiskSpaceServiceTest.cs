@@ -16,6 +16,27 @@ public sealed class DiskSpaceServiceTest
 	}
 
 	[Test]
+	[Arguments(true, "/mnt/data")]
+	[Arguments(false, null)]
+	public async Task OnlyTheLongestMatchingMountIsProbedAsync(bool dataReady, string? expected)
+	{
+		(string Root, bool IsReady)[] mounts = [("/", true), ("/mnt/net", false), ("/mnt/data", dataReady)];
+		List<string> probed = [];
+
+		string? mount = DiskSpaceService.FindReadyMount(mounts.Select(static mount => mount.Root), static root => root, root =>
+		{
+			probed.Add(root);
+			return mounts.Single(mount => mount.Root == root).IsReady;
+		}, "/mnt/data/videos", StringComparison.Ordinal);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(mount).IsEqualTo(expected);
+			await Assert.That(probed.SequenceEqual(["/mnt/data"])).IsTrue();
+		}
+	}
+
+	[Test]
 	public async Task RecordDirectoryThatDoesNotExistYetReportsTheVolumeOfItsParentAsync()
 	{
 		using TestDirectory directory = new();

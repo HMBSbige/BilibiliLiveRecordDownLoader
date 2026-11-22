@@ -16,7 +16,7 @@ public sealed class ReconnectBackoffTest
 	[Test]
 	public async Task ConsecutiveFailuresDoubleTheDelayUpToTheCapAsync()
 	{
-		ReconnectBackoff backoff = new(InitialDelay, new FakeTimeProvider(), new FixedRandom(0.5));
+		ReconnectBackoff backoff = new(static () => InitialDelay, new FakeTimeProvider(), new FixedRandom(0.5));
 
 		TimeSpan[] delays = [.. Fail(backoff, 8)];
 
@@ -28,7 +28,7 @@ public sealed class ReconnectBackoffTest
 	[Arguments(1.0, 2.4)]
 	public async Task JitterStaysWithinTwentyPercentAsync(double sample, double seconds)
 	{
-		ReconnectBackoff backoff = new(InitialDelay, new FakeTimeProvider(), new FixedRandom(sample));
+		ReconnectBackoff backoff = new(static () => InitialDelay, new FakeTimeProvider(), new FixedRandom(sample));
 		backoff.OnConnecting();
 
 		await Assert.That(backoff.NextDelay().TotalSeconds).IsEqualTo(seconds).Within(1e-9);
@@ -40,7 +40,7 @@ public sealed class ReconnectBackoffTest
 	public async Task OnlyAConnectionThatLastedTheStableDurationResetsTheDelayAsync(int connectedSeconds, int expectedSeconds)
 	{
 		FakeTimeProvider time = new();
-		ReconnectBackoff backoff = new(InitialDelay, time, new FixedRandom(0.5));
+		ReconnectBackoff backoff = new(static () => InitialDelay, time, new FixedRandom(0.5));
 		_ = Fail(backoff, 2).ToArray();
 
 		backoff.OnConnecting();
@@ -52,7 +52,7 @@ public sealed class ReconnectBackoffTest
 	[Test]
 	public async Task ReceivingAMessageResetsTheDelayAsync()
 	{
-		ReconnectBackoff backoff = new(InitialDelay, new FakeTimeProvider(), new FixedRandom(0.5));
+		ReconnectBackoff backoff = new(static () => InitialDelay, new FakeTimeProvider(), new FixedRandom(0.5));
 		_ = Fail(backoff, 3).ToArray();
 
 		backoff.OnConnecting();
@@ -71,9 +71,34 @@ public sealed class ReconnectBackoffTest
 	public async Task InitialDelayAboveTheCapIsNotShortenedAsync()
 	{
 		TimeSpan initial = ReconnectBackoff.MaxDelay * 3;
-		ReconnectBackoff backoff = new(initial, new FakeTimeProvider(), new FixedRandom(0.5));
+		ReconnectBackoff backoff = new(() => initial, new FakeTimeProvider(), new FixedRandom(0.5));
 
 		await Assert.That(Fail(backoff, 3).All(delay => delay == initial)).IsTrue();
+	}
+
+	[Test]
+	public async Task ChangedInitialDelayAppliesToTheNextDelayAsync()
+	{
+		TimeSpan initial = InitialDelay;
+		ReconnectBackoff backoff = new(() => initial, new FakeTimeProvider(), new FixedRandom(0.5));
+		_ = Fail(backoff, 6).ToArray();
+
+		// 已经退避到 2 分钟的上限
+		initial = TimeSpan.FromMinutes(5);
+		TimeSpan raised = Fail(backoff, 1).Single();
+		initial = InitialDelay;
+		TimeSpan capped = Fail(backoff, 1).Single();
+		initial = TimeSpan.FromSeconds(1);
+		backoff.OnConnecting();
+		backoff.OnReceived();
+		TimeSpan[] lowered = [backoff.NextDelay(), .. Fail(backoff, 2)];
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(raised).IsEqualTo(TimeSpan.FromMinutes(5));
+			await Assert.That(capped).IsEqualTo(ReconnectBackoff.MaxDelay);
+			await Assert.That(lowered.Select(static delay => delay.TotalSeconds).SequenceEqual([1, 2, 4])).IsTrue();
+		}
 	}
 
 	private sealed class FixedRandom(double sample) : Random

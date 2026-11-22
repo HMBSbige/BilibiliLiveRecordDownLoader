@@ -2,7 +2,7 @@ namespace BilibiliLive.Wbi;
 
 internal sealed class WbiKeyCache(Func<CancellationToken, Task<string>> fetchMixinKey, TimeProvider timeProvider)
 {
-	// The keys rotate about once a day, so an hourly refresh keeps signatures valid without hitting nav per request
+	// The keys rotate about once a day
 	internal static readonly TimeSpan RefreshInterval = TimeSpan.FromHours(1);
 
 	private readonly SemaphoreSlim _gate = new(1, 1);
@@ -26,7 +26,7 @@ internal sealed class WbiKeyCache(Func<CancellationToken, Task<string>> fetchMix
 			}
 
 			string mixinKey = await fetchMixinKey(cancellationToken);
-			Volatile.Write(ref _entry, new Entry(mixinKey, timeProvider.GetUtcNow()));
+			Store(mixinKey);
 			return mixinKey;
 		}
 		finally
@@ -35,9 +35,22 @@ internal sealed class WbiKeyCache(Func<CancellationToken, Task<string>> fetchMix
 		}
 	}
 
+	public void Store(string mixinKey)
+	{
+		Volatile.Write(ref _entry, new Entry(mixinKey, timeProvider.GetUtcNow()));
+	}
+
+	// Wall time rather than a monotonic clock, which stops while Linux and macOS sleep although the keys keep rotating by the calendar
 	private string? TryGetFresh()
 	{
-		return Volatile.Read(ref _entry) is { } entry && timeProvider.GetUtcNow() - entry.FetchedAt < RefreshInterval ? entry.MixinKey : null;
+		if (Volatile.Read(ref _entry) is not { } entry)
+		{
+			return null;
+		}
+
+		// A clock set back past the fetch would otherwise keep the key fresh for as long as it was set back
+		TimeSpan age = timeProvider.GetUtcNow() - entry.FetchedAt;
+		return age >= TimeSpan.Zero && age < RefreshInterval ? entry.MixinKey : null;
 	}
 
 	private sealed record Entry(string MixinKey, DateTimeOffset FetchedAt);

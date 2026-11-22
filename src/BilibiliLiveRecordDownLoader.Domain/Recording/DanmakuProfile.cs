@@ -22,7 +22,7 @@ public sealed record DanmakuProfile
 			app.RecordSuperChats,
 			app.GiftMode,
 			app.RecordGuards,
-			DanmakuDefaults.ClampOffset(room.DanmakuOffset ?? app.DanmakuOffset),
+			room.DanmakuOffset ?? app.DanmakuOffset,
 			app.GenerateDanmakuSubtitle,
 			app.ShowPaidMessagesInSubtitle,
 			app.SaveRawDanmaku,

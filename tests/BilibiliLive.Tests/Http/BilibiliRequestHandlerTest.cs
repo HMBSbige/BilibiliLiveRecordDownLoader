@@ -168,6 +168,22 @@ public partial class BilibiliRequestHandlerTest
 	}
 
 	[Test]
+	public async Task AnonymousHeaderSendsOnlyBuvid3AndIsNotForwardedAsync(CancellationToken cancellationToken)
+	{
+		using TestClient test = new(() => new BilibiliRequestOptions(Cookie: "SESSDATA=secret"));
+		using HttpRequestMessage request = new(HttpMethod.Get, Url);
+		request.Headers.TryAddWithoutValidation(BilibiliRequestHandler.AnonymousHeader, "1");
+
+		await test.Client.SendAsync(request, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(test.SingleRequestHeaders["Cookie"]).IsEqualTo($"buvid3={test.Identity.GeneratedBuvid3}");
+			await Assert.That(test.SingleRequestHeaders.ContainsKey(BilibiliRequestHandler.AnonymousHeader)).IsFalse();
+		}
+	}
+
+	[Test]
 	public async Task RequestAcceptIsNotOverriddenAsync(CancellationToken cancellationToken)
 	{
 		using TestClient test = new(() => new BilibiliRequestOptions());

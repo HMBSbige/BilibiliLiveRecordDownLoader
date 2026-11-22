@@ -30,13 +30,19 @@ internal static class QualityRestrictions
 
 		if (candidates.Where(candidate => candidate.Codec != recorded.Codec && candidate.Qn > recorded.Qn).MaxBy(static candidate => candidate.Qn) is { } better)
 		{
-			// 候选流按编码优先级排，排在前面的编码已经先试过
-			return Rank(profile.CodecPriority, better.Codec) < Rank(profile.CodecPriority, recorded.Codec)
+			// 候选流按尝试的先后排列：编码优先级在前，不在优先级里的编码保持接口给的顺序；排在录到的这一路之前，说明已经试过、没打开
+			return PositionOf(candidates, better) < PositionOf(candidates, recorded)
 				? new QualityRestriction.OtherCodecUnavailable(highest, better.Codec, better.Qn)
 				: new QualityRestriction.OtherCodec(highest, better.Codec, better.Qn);
 		}
 
 		return hasCookie ? new QualityRestriction.LoginMayHaveExpired(highest) : new QualityRestriction.NotLoggedIn(highest);
+	}
+
+	// 录到的是去掉失败线路后的副本，整条记录比不上，按流本身找位置
+	private static int PositionOf(LiveStreamCandidate.Listed[] candidates, LiveStreamCandidate stream)
+	{
+		return Array.FindIndex(candidates, candidate => (candidate.Protocol, candidate.Format, candidate.Codec) == (stream.Protocol, stream.Format, stream.Codec));
 	}
 
 	// 只看本地有没有配，不联网确认是否有效

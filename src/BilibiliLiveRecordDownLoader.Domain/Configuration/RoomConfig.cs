@@ -44,23 +44,30 @@ public record RoomConfig
 
 	public void ApplyDefaults()
 	{
-		StatusCheckInterval = Max(StatusCheckInterval, RoomDefaults.MinStatusCheckIntervalSeconds);
-		DanmuReconnectDelay = Max(DanmuReconnectDelay, RoomDefaults.MinDanmuReconnectDelaySeconds);
-		StreamReconnectDelay = Max(StreamReconnectDelay, RoomDefaults.MinStreamReconnectDelaySeconds);
-		StreamConnectTimeout = Max(StreamConnectTimeout, RoomDefaults.MinStreamConnectTimeoutSeconds);
-		StreamIdleTimeout = Max(StreamIdleTimeout, RoomDefaults.MinStreamIdleTimeoutSeconds);
+		StatusCheckInterval = Clamp(StatusCheckInterval, RoomDefaults.MinStatusCheckIntervalSeconds);
+		DanmuReconnectDelay = Clamp(DanmuReconnectDelay, RoomDefaults.MinDanmuReconnectDelaySeconds);
+		StreamReconnectDelay = Clamp(StreamReconnectDelay, RoomDefaults.MinStreamReconnectDelaySeconds);
+		StreamConnectTimeout = Clamp(StreamConnectTimeout, RoomDefaults.MinStreamConnectTimeoutSeconds);
+		StreamIdleTimeout = Clamp(StreamIdleTimeout, RoomDefaults.MinStreamIdleTimeoutSeconds);
 		CodecPriority = NormalizeOverride(CodecPriority);
 		FormatPriority = NormalizeOverride(FormatPriority);
 		SplitDuration = SplitDuration is { } duration ? RecordingSplitLimits.ClampDuration(duration) : null;
 		SplitSizeMegabytes = SplitSizeMegabytes is { } size ? RecordingSplitLimits.ClampSize(size) : null;
 		DanmakuOffset = DanmakuOffset is { } offset ? DanmakuDefaults.ClampOffset(offset) : null;
+		// 枚举在配置里也能写成数字；覆盖值无效时和没覆盖一样继承全局设置
+		RecorderType = DefinedOrInherit(RecorderType);
+		SplitMode = DefinedOrInherit(SplitMode);
 
 		return;
 
-		static TimeSpan Max(TimeSpan value, decimal minimumSeconds)
+		static TimeSpan Clamp(TimeSpan value, decimal minimumSeconds)
 		{
-			TimeSpan minimum = TimeSpan.FromSeconds((double)minimumSeconds);
-			return value < minimum ? minimum : value;
+			return TimeSpan.FromTicks(Math.Clamp(value.Ticks, TimeSpan.FromSeconds((double)minimumSeconds).Ticks, TimeSpan.FromSeconds((double)RoomDefaults.MaxIntervalSeconds).Ticks));
+		}
+
+		static T? DefinedOrInherit<T>(T? value) where T : struct, Enum
+		{
+			return value is { } defined && Enum.IsDefined(defined) ? defined : null;
 		}
 
 		static List<T>? NormalizeOverride<T>(List<T>? priority) where T : struct, Enum

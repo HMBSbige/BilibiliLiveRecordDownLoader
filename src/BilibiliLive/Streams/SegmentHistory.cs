@@ -7,7 +7,11 @@ internal sealed class SegmentHistory(int capacity)
 
 	public int Count => _set.Count;
 
-	/// <returns><see langword="false"/> when the item is already remembered.</returns>
+	public bool Contains(string item)
+	{
+		return _set.Contains(item);
+	}
+
 	public bool Add(string item)
 	{
 		if (!_set.Add(item))

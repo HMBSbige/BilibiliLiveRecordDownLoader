@@ -1,6 +1,5 @@
 namespace BilibiliLiveRecordDownLoader.Application.Storage;
 
-// 有房间在录制时定期检查录制目录所在磁盘，空间不足只提醒一次，恢复后才会再次提醒
 internal sealed partial class LowDiskSpaceMonitor(IDiskSpaceService diskSpace, IAppConfigManager configManager, INotificationService notifications, TimeProvider timeProvider, ILogger<LowDiskSpaceMonitor> logger)
 {
 	internal const long Threshold = 1L << 30;
@@ -46,9 +45,8 @@ internal sealed partial class LowDiskSpaceMonitor(IDiskSpaceService diskSpace, I
 
 	private async Task MonitorAsync(Task previous, CancellationTokenSource cancellation)
 	{
-		// 上一轮停止后才开始新一轮，提醒状态只由一个循环读写
-		await previous;
-		await Task.Yield();
+		// 上一轮停止后才开始新一轮，提醒状态只由一个循环读写；previous 已完成时也要让出，否则第一次检查会在 Watch 持锁时同步执行
+		await previous.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
 		using PeriodicTimer timer = new(CheckInterval, timeProvider);
 
 		try
@@ -61,7 +59,6 @@ internal sealed partial class LowDiskSpaceMonitor(IDiskSpaceService diskSpace, I
 		}
 		catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
 		{
-			// 已没有房间在录制
 		}
 		finally
 		{
@@ -75,7 +72,7 @@ internal sealed partial class LowDiskSpaceMonitor(IDiskSpaceService diskSpace, I
 		{
 			string directory = (await configManager.GetAsync(cancellationToken)).RecordDirectory;
 
-			// 网络位置可能暂时不可达，查不到剩余空间时跳过这一次
+			// 网络位置可能暂时不可达
 			if (diskSpace.GetDiskSpace(directory) is not { AvailableBytes: var available })
 			{
 				return;

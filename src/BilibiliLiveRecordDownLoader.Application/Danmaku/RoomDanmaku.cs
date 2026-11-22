@@ -1,14 +1,15 @@
+using System.Diagnostics;
 using System.Threading.Channels;
 
 namespace BilibiliLiveRecordDownLoader.Application.Danmaku;
 
 /// <summary>
-/// 一个房间的弹幕分发：弹幕循环收到的消息当场交给界面，录弹幕时排进队列交给唯一的写入者；录制流程的分段、重连等事件也排进同一个队列，保证先后顺序。
-/// 解析开关在录弹幕或有界面订阅时打开，否则保持只读 cmd 的快速路径。
+/// 录制流程的分段、重连等事件和弹幕排进同一个队列，保证先后顺序
+/// 不录弹幕也没有界面订阅时关掉解析，保持只读 cmd 的快速路径
 /// </summary>
 internal sealed partial class RoomDanmaku : IAsyncDisposable
 {
-	// 等归属确定时写入者会停下几秒，热门房间峰值约每秒 40 条消息，开了原始消息时翻倍；留出几分钟的余量，磁盘卡住太久才丢
+	// 热门房间峰值约每秒 40 条消息，开了原始消息时翻倍；留出几分钟的余量
 	internal const int QueueCapacity = 20000;
 
 	private readonly TimeProvider _timeProvider;
@@ -44,6 +45,17 @@ internal sealed partial class RoomDanmaku : IAsyncDisposable
 	public long DroppedMessages => Interlocked.Read(ref _droppedMessages);
 
 	public RoomDanmakuSnapshot Snapshot => Feed.Snapshot;
+
+	private bool IsRecording
+	{
+		get
+		{
+			lock (_lock)
+			{
+				return _isRecording;
+			}
+		}
+	}
 
 	public bool IsWriting(string path)
 	{
@@ -81,19 +93,47 @@ internal sealed partial class RoomDanmaku : IAsyncDisposable
 			}
 			case DanmuMessage.Comment or DanmuMessage.SuperChat or DanmuMessage.SuperChatDeleted or DanmuMessage.Gift or DanmuMessage.GuardBought:
 			{
-				Feed.Add(message);
-				EnqueueMessage(message);
+				bool isRecording;
+
+				// 关掉解析后同一帧里已经解析出的消息还会交过来，和 UpdateOptions 里的清空串行
+				lock (_lock)
+				{
+					isRecording = _isRecording;
+
+					if (isRecording || _subscribers > 0)
+					{
+						Feed.Add(message);
+					}
+				}
+
+				if (isRecording)
+				{
+					EnqueueMessage(message);
+				}
+
 				break;
 			}
 			case DanmuMessage.Raw:
 			{
-				EnqueueMessage(message);
+				if (IsRecording)
+				{
+					EnqueueMessage(message);
+				}
+
 				break;
+			}
+			// 直播状态和房间信息由房间循环处理
+			case DanmuMessage.LiveStarted or DanmuMessage.LiveStopped or DanmuMessage.RoomChanged:
+			{
+				break;
+			}
+			default:
+			{
+				throw new UnreachableException();
 			}
 		}
 	}
 
-	// 没连上就失败的也算断开，界面在等待重连时显示断线；只有连上过的才在文件里记断开
 	public void OnDisconnected()
 	{
 		bool wasConnected;
@@ -115,7 +155,6 @@ internal sealed partial class RoomDanmaku : IAsyncDisposable
 		_onChanged();
 	}
 
-	// 房间是否在录弹幕：开了录弹幕，并且录制循环在运行或者在仅录弹幕
 	public void SetRecording(bool isRecording)
 	{
 		lock (_lock)
@@ -189,7 +228,6 @@ internal sealed partial class RoomDanmaku : IAsyncDisposable
 		Enqueue(new DanmakuWork.SessionEnded());
 	}
 
-	// 先写完已经排队的内容再关闭文件
 	public async ValueTask DisposeAsync()
 	{
 		_queue.Writer.TryComplete();
@@ -231,23 +269,10 @@ internal sealed partial class RoomDanmaku : IAsyncDisposable
 
 	private void EnqueueMessage(DanmuMessage message)
 	{
-		bool isRecording;
-
-		lock (_lock)
-		{
-			isRecording = _isRecording;
-		}
-
-		if (!isRecording)
-		{
-			return;
-		}
-
 		if (Interlocked.Increment(ref _queuedMessages) > QueueCapacity)
 		{
 			Interlocked.Decrement(ref _queuedMessages);
 
-			// 第一次和之后每满一批记一次，不刷屏
 			if (Interlocked.Increment(ref _droppedMessages) % 1000 is 1)
 			{
 				LogQueueFull(_logger, DroppedMessages);

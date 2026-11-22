@@ -25,7 +25,8 @@ public class DanmuClientTest
 
 		public Harness(Func<HttpRequestMessage, HttpResponseMessage> danmuInfo, Func<HttpResponseMessage> nav, string cookie = DefaultCookie, TimeProvider? timeProvider = null)
 		{
-			Identity = new BilibiliIdentity(_ => ValueTask.FromResult(new BilibiliRequestOptions(Cookie: cookie)));
+			Cookie = cookie;
+			Identity = new BilibiliIdentity(_ => ValueTask.FromResult(new BilibiliRequestOptions(Cookie: Cookie)));
 			Api = new ApiClient(async (request, ct) =>
 			{
 				if (request.Headers.Contains("Sec-WebSocket-Key"))
@@ -47,6 +48,8 @@ public class DanmuClientTest
 			}, timeProvider, Identity);
 			Client = new DanmuClient(Api.Client, Identity);
 		}
+
+		public string Cookie { get; set; }
 
 		public BilibiliIdentity Identity { get; }
 
@@ -242,6 +245,7 @@ public class DanmuClientTest
 			await Assert.That(auth.GetProperty("uid").GetInt64()).IsEqualTo(0);
 			await Assert.That(auth.GetProperty("key").GetString()).IsEqualTo("danmu-token");
 			await Assert.That(auth.GetProperty("buvid").GetString()).IsEqualTo(harness.Identity.GeneratedBuvid3);
+			await AssertAnonymousHandshakeAsync(harness, auth);
 		}
 	}
 
@@ -264,6 +268,7 @@ public class DanmuClientTest
 			await Assert.That(harness.RequestCount(ApiPaths.DanmuInfo)).IsEqualTo(1);
 			await Assert.That(auth.GetProperty("uid").GetInt64()).IsEqualTo(0);
 			await Assert.That(auth.GetProperty("key").GetString()).IsEqualTo("danmu-token");
+			await AssertAnonymousHandshakeAsync(harness, auth);
 		}
 	}
 
@@ -293,7 +298,15 @@ public class DanmuClientTest
 			await Assert.That(harness.UpgradeUri?.Port).IsEqualTo(DanmuClient.DefaultPort);
 			await Assert.That(auth.GetProperty("uid").GetInt64()).IsEqualTo(0);
 			await Assert.That(auth.TryGetProperty("key", out _)).IsFalse();
+			await AssertAnonymousHandshakeAsync(harness, auth);
 		}
+	}
+
+	// A uid 0 auth packet after a handshake with the login cookie would present two identities on one connection
+	private static async Task AssertAnonymousHandshakeAsync(Harness harness, JsonElement auth)
+	{
+		await Assert.That(CookieHeader.GetValue(harness.UpgradeCookie, "SESSDATA")).IsNull();
+		await Assert.That(CookieHeader.GetValue(harness.UpgradeCookie, "buvid3")).IsEqualTo(auth.GetProperty("buvid").GetString());
 	}
 
 	[Test]
@@ -329,6 +342,70 @@ public class DanmuClientTest
 		await ReceiveAuthAndCloseAsync(harness, cancellationToken);
 
 		await Assert.That(harness.RequestCount(ApiPaths.DanmuInfo)).IsEqualTo(2);
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task ChangedLoginRefetchesServerInfoWithinCacheDurationAsync(CancellationToken cancellationToken)
+	{
+		FakeTimeProvider time = new();
+		using Harness harness = CreateDefault("buvid3=ANON", time);
+
+		await ReceiveAuthAndCloseAsync(harness, cancellationToken);
+		harness.Cookie = "SESSDATA=x; buvid3=ANON";
+		await ReceiveAuthAndCloseAsync(harness, cancellationToken);
+		await ReceiveAuthAndCloseAsync(harness, cancellationToken);
+
+		await Assert.That(harness.RequestCount(ApiPaths.DanmuInfo)).IsEqualTo(2);
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task ChangedLoginClosesTheConnectionAtTheNextHeartbeatAsync(CancellationToken cancellationToken)
+	{
+		FakeTimeProvider time = new();
+		using Harness harness = CreateDefault(timeProvider: time);
+		Task<List<DanmuMessage>> receiving = CollectAsync(harness.Client.ReceiveAsync(RoomId, cancellationToken));
+
+		WebSocket server = await AuthenticateAsync(harness, """{"code":0}""", cancellationToken);
+		await ReceiveHeartbeatAsync(server, cancellationToken);
+		harness.Cookie = "SESSDATA=other";
+		time.Advance(DanmuClient.HeartbeatInterval);
+
+		ValueWebSocketReceiveResult close = await server.ReceiveAsync(new byte[16].AsMemory(), cancellationToken);
+		await server.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
+		List<DanmuMessage> messages = await receiving;
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(close.MessageType).IsEqualTo(WebSocketMessageType.Close);
+			await Assert.That(server.CloseStatus).IsEqualTo(WebSocketCloseStatus.NormalClosure);
+			await Sequences.AssertEqualAsync(messages.Select(WithoutReceiveTime), [new DanmuMessage.Connected(12345678)]);
+		}
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task ChangedLoginEndsNormallyWhenTheServerDropsTheConnectionInsteadOfClosingAsync(CancellationToken cancellationToken)
+	{
+		FakeTimeProvider time = new();
+		using Harness harness = CreateDefault(timeProvider: time);
+		Task<List<DanmuMessage>> receiving = CollectAsync(harness.Client.ReceiveAsync(RoomId, cancellationToken));
+
+		WebSocket server = await AuthenticateAsync(harness, """{"code":0}""", cancellationToken);
+		await ReceiveHeartbeatAsync(server, cancellationToken);
+		harness.Cookie = "SESSDATA=other";
+		time.Advance(DanmuClient.HeartbeatInterval);
+
+		ValueWebSocketReceiveResult close = await server.ReceiveAsync(new byte[16].AsMemory(), cancellationToken);
+		server.Abort();
+		List<DanmuMessage> messages = await receiving;
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(close.MessageType).IsEqualTo(WebSocketMessageType.Close);
+			await Sequences.AssertEqualAsync(messages.Select(WithoutReceiveTime), [new DanmuMessage.Connected(12345678)]);
+		}
 	}
 
 	[Test]
@@ -422,6 +499,7 @@ public class DanmuClientTest
 		{
 			await Assert.That(auth.GetProperty("buvid").GetString()).IsEqualTo(expected);
 			await Assert.That(CookieHeader.GetValue(harness.UpgradeCookie, "buvid3")).IsEqualTo(expected);
+			await Assert.That(CookieHeader.GetValue(harness.UpgradeCookie, "SESSDATA")).IsEqualTo("x");
 		}
 	}
 
@@ -560,12 +638,19 @@ public class DanmuClientTest
 			// A gift field whose length runs past the end
 			DanmuPacketTest.Json("""{"cmd":"SEND_GIFT_V2","data":{"pb":"UgU="}}"""),
 			DanmuPacketTest.Json("""{"cmd":"DANMU_MSG","info":[[0,1"""),
+			DanmuPacketTest.Json("""{"cmd":"DANMU_MSG","info":[[0,1,25],"\ud83d"]}"""),
+			DanmuPacketTest.Json("""{"cmd":"SUPER_CHAT_MESSAGE","data":{"price":30,"time":1e30}}"""),
 			Live
 		), cancellationToken);
 		await server.CloseAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
 
 		List<DanmuMessage> messages = await receiving;
 
-		await Sequences.AssertEqualAsync(messages.Select(WithoutReceiveTime), [new DanmuMessage.Connected(12345678), new DanmuMessage.LiveStarted()]);
+		using (Assert.Multiple())
+		{
+			await Assert.That(messages.Count).IsEqualTo(3);
+			await Assert.That(messages.ElementAtOrDefault(1) is DanmuMessage.SuperChat { Duration.Ticks: 0 }).IsTrue();
+			await Assert.That(messages.ElementAtOrDefault(2) is DanmuMessage.LiveStarted).IsTrue();
+		}
 	}
 }

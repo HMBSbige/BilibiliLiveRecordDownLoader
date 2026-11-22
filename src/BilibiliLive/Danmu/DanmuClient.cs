@@ -4,6 +4,7 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
@@ -17,7 +18,6 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 
 	private const ushort SendProtocolVersion = 1;
 	private const ushort ReceiveProtocolVersion = 3;
-	private const long RiskControlCode = -352;
 	private const int ReceiveChunkSize = 16 * 1024;
 
 	internal static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(30);
@@ -40,7 +40,6 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		return ReceiveAsync(roomId, DefaultOptions, cancellationToken);
 	}
 
-	/// <param name="options">Read for every WebSocket frame, so changing it takes effect without reconnecting.</param>
 	public async IAsyncEnumerable<DanmuMessage> ReceiveAsync(long roomId, DanmuReceiveOptions options, [EnumeratorCancellation] CancellationToken cancellationToken = default)
 	{
 		await using IAsyncEnumerator<DanmuMessage> enumerator = ReceiveCoreAsync(roomId, options, cancellationToken).GetAsyncEnumerator(cancellationToken);
@@ -76,7 +75,14 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		LogConnecting(roomId, uri);
 
 		using ClientWebSocket socket = new();
-		// Going through the api HttpClient keeps the proxy, User-Agent and Cookie of the WebSocket handshake identical to the API requests
+
+		// A uid 0 token comes with the anonymous cookie, the handshake has to present the same identity as the auth packet
+		if (endpoint.UserId is 0)
+		{
+			socket.Options.SetRequestHeader(BilibiliRequestHandler.AnonymousHeader, "1");
+		}
+
+		// Going through the api HttpClient keeps the proxy, User-Agent and buvid3 of the WebSocket handshake identical to the API requests
 		await socket.ConnectAsync(uri, apiClient.HttpClient, cancellationToken);
 
 		DanmuAuthBody auth = new(endpoint.UserId, roomId, ReceiveProtocolVersion, "web", 2, await identity.GetBuvid3Async(cancellationToken), endpoint.Token);
@@ -84,7 +90,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 
 		using CancellationTokenSource heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		ReceiveActivity activity = new(apiClient.TimeProvider);
-		Task heartbeat = HeartbeatAsync(socket, activity, heartbeatCts.Token);
+		Task heartbeat = HeartbeatAsync(socket, activity, endpoint.IdentityHash, heartbeatCts.Token);
 		ArrayBufferWriter<byte> buffer = new(ReceiveChunkSize);
 		List<DanmuMessage> messages = [];
 
@@ -126,7 +132,10 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 				buffer.ResetWrittenCount();
 			}
 
-			LogServerClosed(roomId, socket.CloseStatus, socket.CloseStatusDescription);
+			if (!activity.IsIdentityChanged)
+			{
+				LogServerClosed(roomId, socket.CloseStatus, socket.CloseStatusDescription);
+			}
 		}
 		finally
 		{
@@ -138,16 +147,19 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 
 	private async Task<DanmuEndpoint> ResolveEndpointAsync(long roomId, CancellationToken cancellationToken)
 	{
-		if (!_servers.TryGetValue(roomId, out DanmuServer? server) || apiClient.TimeProvider.GetElapsedTime(server.FetchedAt) >= ServerCacheDuration)
+		// Taken before the requests, so a login during them only causes one more reconnect instead of a stale token passing for the new identity
+		string identityHash = await GetIdentityHashAsync(cancellationToken);
+
+		// A token only authenticates the uid it was issued for
+		if (!_servers.TryGetValue(roomId, out DanmuServer? server) || apiClient.TimeProvider.GetElapsedTime(server.FetchedAt) >= ServerCacheDuration || server.IdentityHash != identityHash)
 		{
-			server = await FetchServerAsync(roomId, cancellationToken);
+			server = await FetchServerAsync(roomId, identityHash, cancellationToken);
 
 			if (server is null)
 			{
 				_servers.TryRemove(roomId, out _);
 
-				// The token is issued for the requesting uid, so without a token the connection has to be anonymous
-				return new DanmuEndpoint(DefaultHost, DefaultPort, null, 0);
+				return new DanmuEndpoint(DefaultHost, DefaultPort, null, 0, identityHash);
 			}
 
 			_servers[roomId] = server;
@@ -155,10 +167,17 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 
 		// Picking a random host lets the caller's reconnects move away from a broken one
 		DanmuHost host = server.Info.Hosts[Random.Shared.Next(server.Info.Hosts.Count)];
-		return new DanmuEndpoint(host.Host, host.WssPort, server.Info.Token, server.UserId);
+		return new DanmuEndpoint(host.Host, host.WssPort, server.Info.Token, server.UserId, identityHash);
 	}
 
-	private async Task<DanmuServer?> FetchServerAsync(long roomId, CancellationToken cancellationToken)
+	// Only a hash is kept, so the cookie cannot leak through anything that logs the cached server
+	private async ValueTask<string> GetIdentityHashAsync(CancellationToken cancellationToken)
+	{
+		(_, string cookie) = await identity.ResolveAsync(false, cancellationToken);
+		return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(cookie)));
+	}
+
+	private async Task<DanmuServer?> FetchServerAsync(long roomId, string identityHash, CancellationToken cancellationToken)
 	{
 		long userId;
 
@@ -170,17 +189,18 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		{
 			// A token requested with the login cookie would not match uid 0
 			LogUserIdFailed(ex);
-			return await FetchAnonymousServerAsync(roomId, cancellationToken);
+			return await FetchAnonymousServerAsync(roomId, identityHash, cancellationToken);
 		}
 
 		try
 		{
-			return ToServer(roomId, await apiClient.GetDanmuServerInfoAsync(roomId, cancellationToken), userId);
+			return ToServer(roomId, await apiClient.GetDanmuServerInfoAsync(roomId, cancellationToken), userId, identityHash);
 		}
-		catch (BilibiliApiException ex) when (ex.Code is RiskControlCode)
+		// Only risk control of the account is worth an anonymous retry; -412 and HTTP 412 block the IP, which an anonymous request shares
+		catch (BilibiliApiException ex) when (ex.Code is BilibiliApiException.RiskControlCode)
 		{
 			LogRiskControl(roomId);
-			return await FetchAnonymousServerAsync(roomId, cancellationToken);
+			return await FetchAnonymousServerAsync(roomId, identityHash, cancellationToken);
 		}
 		catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 		{
@@ -189,11 +209,11 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		}
 	}
 
-	private async Task<DanmuServer?> FetchAnonymousServerAsync(long roomId, CancellationToken cancellationToken)
+	private async Task<DanmuServer?> FetchAnonymousServerAsync(long roomId, string identityHash, CancellationToken cancellationToken)
 	{
 		try
 		{
-			return ToServer(roomId, await apiClient.GetAnonymousDanmuServerInfoAsync(roomId, cancellationToken), 0);
+			return ToServer(roomId, await apiClient.GetAnonymousDanmuServerInfoAsync(roomId, cancellationToken), 0, identityHash);
 		}
 		catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 		{
@@ -202,11 +222,11 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		}
 	}
 
-	private DanmuServer? ToServer(long roomId, DanmuServerInfo info, long userId)
+	private DanmuServer? ToServer(long roomId, DanmuServerInfo info, long userId, string identityHash)
 	{
 		if (info is { Token.Length: > 0, Hosts.Count: > 0 })
 		{
-			return new DanmuServer(info, userId, apiClient.TimeProvider.GetTimestamp());
+			return new DanmuServer(info, userId, apiClient.TimeProvider.GetTimestamp(), identityHash);
 		}
 
 		LogNoServer(roomId);
@@ -232,13 +252,13 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		{
 			DanmuMessageParser.Parse(body, mode, receivedAt, output);
 		}
-		catch (Exception ex) when (ex is JsonException or InvalidDataException or FormatException)
+		catch (Exception ex) when (ex is JsonException or InvalidDataException or FormatException or InvalidOperationException)
 		{
 			LogMalformedMessage(ex);
 		}
 	}
 
-	private async Task HeartbeatAsync(ClientWebSocket socket, ReceiveActivity activity, CancellationToken cancellationToken)
+	private async Task HeartbeatAsync(ClientWebSocket socket, ReceiveActivity activity, string identityHash, CancellationToken cancellationToken)
 	{
 		try
 		{
@@ -257,6 +277,14 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 					return;
 				}
 
+				// The identity of a connection is fixed by its auth packet, so logging in or out only takes effect on a new connection
+				if (await GetIdentityHashAsync(cancellationToken) != identityHash)
+				{
+					LogIdentityChanged();
+					await CloseForNewIdentityAsync(socket, activity, cancellationToken);
+					return;
+				}
+
 				await SendAsync(socket, DanmuOperation.Heartbeat, ReadOnlyMemory<byte>.Empty, cancellationToken);
 			}
 			while (await timer.WaitForNextTickAsync(cancellationToken));
@@ -268,6 +296,20 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		{
 			// Aborting fails the pending receive, so the failure reaches the consumer instead of a silent stall
 			LogHeartbeatFailed(ex);
+			socket.Abort();
+		}
+	}
+
+	// Aborting would fail the pending receive, which the caller takes for a broken connection; a close handshake ends it like the server closing
+	private async Task CloseForNewIdentityAsync(ClientWebSocket socket, ReceiveActivity activity, CancellationToken cancellationToken)
+	{
+		activity.MarkIdentityChanged();
+		await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
+		await Task.Delay(CloseTimeout, apiClient.TimeProvider, cancellationToken);
+
+		// A server that never answers the close would leave the receive waiting until the receive timeout
+		if (socket.State is not WebSocketState.Closed)
+		{
 			socket.Abort();
 		}
 	}
@@ -303,6 +345,11 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 					return true;
 				}
 			}
+		}
+		// The connection is discarded after an identity change, so a server dropping it instead of answering the close is no failure either
+		catch (Exception ex) when (ex is OperationCanceledException or WebSocketException && !cancellationToken.IsCancellationRequested && activity.IsIdentityChanged)
+		{
+			return false;
 		}
 		catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
 		{
@@ -358,18 +405,24 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to send danmu heartbeat")]
 	private partial void LogHeartbeatFailed(Exception exception);
 
-	private readonly record struct DanmuEndpoint(string Host, ushort Port, string? Token, long UserId);
+	[LoggerMessage(Level = LogLevel.Information, Message = "Login state changed, reconnecting to the danmu server")]
+	private partial void LogIdentityChanged();
 
-	private sealed record DanmuServer(DanmuServerInfo Info, long UserId, long FetchedAt);
+	private readonly record struct DanmuEndpoint(string Host, ushort Port, string? Token, long UserId, string IdentityHash);
+
+	private sealed record DanmuServer(DanmuServerInfo Info, long UserId, long FetchedAt, string IdentityHash);
 
 	private sealed class ReceiveActivity(TimeProvider timeProvider)
 	{
 		private long _lastReceived = timeProvider.GetTimestamp();
 		private volatile bool _isTimedOut;
+		private volatile bool _isIdentityChanged;
 
 		public TimeSpan Idle => timeProvider.GetElapsedTime(Volatile.Read(ref _lastReceived));
 
 		public bool IsTimedOut => _isTimedOut;
+
+		public bool IsIdentityChanged => _isIdentityChanged;
 
 		public void Touch()
 		{
@@ -379,6 +432,11 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		public void MarkTimedOut()
 		{
 			_isTimedOut = true;
+		}
+
+		public void MarkIdentityChanged()
+		{
+			_isIdentityChanged = true;
 		}
 	}
 }

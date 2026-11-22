@@ -8,6 +8,9 @@ public sealed class BilibiliRequestHandler(BilibiliIdentity identity) : Delegati
 
 	internal const string DefaultAccept = "application/json, text/plain, */*";
 
+	// ClientWebSocket builds the handshake request itself and cannot set options, so it asks for anonymity with a header that never leaves this handler
+	internal const string AnonymousHeader = "X-BilibiliLive-Anonymous";
+
 	internal static readonly HttpRequestOptionsKey<bool> AnonymousOption = new("BilibiliLive.Anonymous");
 
 	private static readonly Uri Referrer = new("https://live.bilibili.com/");
@@ -17,9 +20,10 @@ public sealed class BilibiliRequestHandler(BilibiliIdentity identity) : Delegati
 
 	protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 	{
-		bool anonymous = request.Options.TryGetValue(AnonymousOption, out bool value) && value;
-		(string? userAgent, string cookie) = await identity.ResolveAsync(anonymous, cancellationToken);
 		HttpRequestHeaders headers = request.Headers;
+		bool markedAnonymous = headers.Remove(AnonymousHeader);
+		bool anonymous = markedAnonymous || (request.Options.TryGetValue(AnonymousOption, out bool value) && value);
+		(string? userAgent, string cookie) = await identity.ResolveAsync(anonymous, cancellationToken);
 
 		headers.Referrer = Referrer;
 

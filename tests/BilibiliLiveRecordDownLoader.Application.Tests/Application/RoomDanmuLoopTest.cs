@@ -1,4 +1,6 @@
+using BilibiliLive.Danmu;
 using BilibiliLiveRecordDownLoader.Application.Contracts.Platform;
+using BilibiliLiveRecordDownLoader.Application.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Http;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,6 +13,8 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 public sealed class RoomDanmuLoopTest
 {
 	private const long RoomId = 22907643;
+
+	private static readonly DanmuSender Viewer = new(42, "观众昵称", GuardLevel.None, null);
 
 	[Test]
 	[Timeout(30_000)]
@@ -36,7 +40,7 @@ public sealed class RoomDanmuLoopTest
 
 		while (delays.Count < 4)
 		{
-			// 定时器可能还没注册，没等到下一次失败就再推进一次；断言只看记录下来的间隔
+			// 定时器可能还没注册，没等到下一次失败就再推进一次
 			time.Advance(delays[^1]);
 
 			using CancellationTokenSource wait = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -59,6 +63,112 @@ public sealed class RoomDanmuLoopTest
 				await Assert.That(delays[i]).IsBetween(expected * ReconnectBackoff.MinJitter, expected * ReconnectBackoff.MaxJitter);
 			}
 		}
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	public async Task ChangingTheMonitorIntervalsKeepsTheDanmuConnectionAsync(CancellationToken cancellationToken)
+	{
+		await using RecordingLoopHarness loop = new(cancellationToken);
+		FakeDanmuConnection danmu = await ConnectAsync(loop);
+
+		loop.Session.UpdateSettings(loop.Settings with { StatusCheckInterval = loop.Settings.StatusCheckInterval * 2, DanmuReconnectDelay = loop.Settings.DanmuReconnectDelay * 2 });
+
+		// 连接被断开时这条消息不会再被处理，发送会超时
+		await danmu.SendAsync(Comment(Viewer, "改设置之后"));
+
+		await Assert.That(loop.Session.Danmaku.Feed.Status.DisconnectedAt).IsNull();
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	public async Task LiveStartedFromDanmuDoesNotRecordThePreviousLiveIdAsync(CancellationToken cancellationToken)
+	{
+		await using RecordingLoopHarness loop = new(cancellationToken);
+		loop.Settings.IsDanmakuEnabled = true;
+
+		// 未开播时查到的 live_id 是上一场的
+		loop.GoOffline();
+		FakeDanmuConnection danmu = await ConnectAsync(loop);
+		await loop.WaitUntilAsync(static snapshot => snapshot.LiveStatus is LiveStatus.Idle);
+
+		loop.StartStreaming();
+		await danmu.SendAsync(new DanmuMessage.LiveStarted());
+		await StartRecordingAsync(loop);
+		await loop.StopAsync();
+
+		string path = await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.xml")).HasSingleItem();
+		DanmakuFile file = await DanmakuXmlReader.ReadFileAsync(path, cancellationToken);
+
+		await Assert.That(file.Source is DanmakuFileSource.Native { Header: { LiveId.Length: 0, LiveStartTime: null } }).IsTrue();
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	public async Task StoppingWaitsForThePostProcessingOfTheLastSegmentAsync(CancellationToken cancellationToken)
+	{
+		await using RecordingLoopHarness loop = new(cancellationToken);
+		loop.Settings.IsDanmakuEnabled = true;
+		FakeDanmuConnection danmu = await ConnectAsync(loop);
+		await StartRecordingAsync(loop);
+		await danmu.SendAsync(Comment(Viewer, "最后一段"));
+
+		// 和退出时一样，停下房间之后不推进时钟也不另外等待
+		await loop.StopAsync();
+
+		await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.ass")).HasSingleItem();
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	public async Task DanmakuContentAndViewersStayOutOfTheLogsAsync(CancellationToken cancellationToken)
+	{
+		await using RecordingLoopHarness loop = new(cancellationToken);
+		loop.Settings.IsDanmakuEnabled = true;
+		FakeDanmuConnection danmu = await ConnectAsync(loop);
+		await StartRecordingAsync(loop);
+
+		await danmu.SendAsync(Comment(Viewer, "弹幕内容"));
+		await danmu.SendAsync(new DanmuMessage.SuperChat(1, Viewer, "醒目留言内容", 30000, TimeSpan.FromSeconds(60), DateTimeOffset.UnixEpoch));
+		await danmu.SendAsync(new DanmuMessage.Gift(Viewer, 1, "礼物名称", 1, 1000, 1000, DanmuCoinType.Gold, DateTimeOffset.UnixEpoch));
+		await danmu.SendAsync(new DanmuMessage.GuardBought(Viewer, GuardLevel.Captain, 1, 198000, false, DateTimeOffset.UnixEpoch));
+		await loop.StopAsync();
+
+		string[] logs = [.. loop.Logs.Select(static log => $"{log.Message} {log.Exception}")];
+		string[] secrets = [Viewer.Name, "弹幕内容", "醒目留言内容", "礼物名称", "sign="];
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(logs).IsNotEmpty();
+			await Assert.That(logs.Where(log => secrets.Any(secret => log.Contains(secret, StringComparison.Ordinal)))).IsEmpty();
+		}
+	}
+
+	private static async Task<FakeDanmuConnection> ConnectAsync(RecordingLoopHarness loop)
+	{
+		loop.Session.Start();
+		FakeDanmuConnection danmu = await loop.Danmu.NextConnectionAsync();
+		await danmu.SendAsync(new DanmuMessage.Connected(0));
+		return danmu;
+	}
+
+	// 录下的视频要超过后处理删除的下限
+	private static async Task StartRecordingAsync(RecordingLoopHarness loop)
+	{
+		StreamRequest stream = await loop.NextStreamAsync();
+		await stream.AcceptAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. KeyFrame(0)]);
+		loop.Time.Advance(TimeSpan.FromSeconds(1));
+		await stream.SendAndWaitAsync(KeyFrame(1000));
+	}
+
+	private static byte[] KeyFrame(uint timestamp)
+	{
+		return FlvSamples.PaddedVideo(VideoPacket.KeyFrame, timestamp, 40 << 10);
+	}
+
+	private static DanmuMessage.Comment Comment(DanmuSender sender, string text)
+	{
+		return new DanmuMessage.Comment(sender, text, 1, 25, 0xFFFFFF, DateTimeOffset.UnixEpoch, "a16fe0dd", DanmuCommentKind.Text, false);
 	}
 
 	private sealed class UnavailableHandler : HttpMessageHandler

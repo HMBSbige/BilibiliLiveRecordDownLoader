@@ -1,3 +1,4 @@
+using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Collections.Concurrent;
@@ -103,7 +104,7 @@ public sealed class TransportStreamSplitterTest
 	{
 		byte[] stream = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k1"), 0x00, .. Inter("p1")];
 		Pipe pipe = new();
-		await using RecordingSegmenter segmenter = new(pipe.Writer, new TransportStreamSplitter(), SplitRecording.Fixed(OneMinute), new ConcurrentQueue<SegmentStart>(), TimeProvider.System, NullLogger.Instance);
+		await using RecordingSegmenter segmenter = new(pipe.Writer, new TransportStreamSplitter(), SplitRecording.Fixed(OneMinute), new ConcurrentQueue<SegmentStart>(), TimeProvider.System, NullLogger.Instance, new RecordingTimeline(string.Empty, TimeProvider.System, RoomDefaults.StreamIdleTimeout));
 
 		await segmenter.WriteAsync(stream, cancellationToken);
 

@@ -21,6 +21,7 @@ internal sealed partial class RecordingSegmenter : Stream
 	private bool _isUnitHeld;
 	private ReadOnlyMemory<byte> _pendingHeader;
 	private DateTimeOffset _pendingTime;
+	private long _pendingTimestamp;
 	private int _pendingTitleChange;
 	private int _seenTitleChange;
 	private long _written;
@@ -28,20 +29,19 @@ internal sealed partial class RecordingSegmenter : Stream
 	private long _arrival;
 	private long _segmentLength;
 	private bool _segmentHasMedia;
-	private DateTimeOffset _segmentStart;
+	private long _segmentStart;
 
-	// 没有给出时间轴时照常记一份，只是没有人查
-	public RecordingSegmenter(PipeWriter output, MediaSplitter splitter, SplitControl control, ConcurrentQueue<SegmentStart> starts, TimeProvider timeProvider, ILogger logger, RecordingTimeline? timeline = null)
+	public RecordingSegmenter(PipeWriter output, MediaSplitter splitter, SplitControl control, ConcurrentQueue<SegmentStart> starts, TimeProvider timeProvider, ILogger logger, RecordingTimeline timeline)
 	{
 		_output = output;
 		Splitter = splitter;
-		_timeline = timeline ?? new RecordingTimeline(string.Empty, timeProvider);
+		_timeline = timeline;
 		_control = control;
 		_seenTitleChange = _pendingTitleChange = control.TitleChanges;
 		_starts = starts;
 		_timeProvider = timeProvider;
 		_logger = logger;
-		_segmentStart = timeProvider.GetUtcNow();
+		_segmentStart = timeProvider.GetTimestamp();
 	}
 
 	public MediaSplitter Splitter { get; }
@@ -131,7 +131,9 @@ internal sealed partial class RecordingSegmenter : Stream
 			_scanned = 0;
 			_isPendingUnit = true;
 			_pendingHeader = Splitter.Header;
+			// 墙钟给文件命名，按时长分段用单调时钟，改系统时间不影响
 			_pendingTime = _timeProvider.GetUtcNow();
+			_pendingTimestamp = _timeProvider.GetTimestamp();
 
 			// 只有这个切分点之前改的标题才在这里切，之后改的等下一个切分点
 			_pendingTitleChange = _control.TitleChanges;
@@ -208,14 +210,15 @@ internal sealed partial class RecordingSegmenter : Stream
 			return null;
 		}
 
-		return policy.Split switch
+		SplitReason? reason = policy.Split switch
 		{
 			RecordingSplit.BySize when end is UnitEnd.Overflow => SplitReason.Size,
 			RecordingSplit.BySize size when _segmentLength + unitLength > size.MaxBytes => SplitReason.Size,
-			RecordingSplit.ByDuration duration when end is not UnitEnd.StreamEnd && _pendingTime - _segmentStart >= duration.Duration => SplitReason.Duration,
-			_ when isTitleChanged && policy.OnTitleChange && end is not UnitEnd.StreamEnd => SplitReason.Title,
-			_ => null
+			RecordingSplit.ByDuration duration when end is not UnitEnd.StreamEnd && _timeProvider.GetElapsedTime(_segmentStart, _pendingTimestamp) >= duration.Duration => SplitReason.Duration,
+			RecordingSplit.None or RecordingSplit.BySize or RecordingSplit.ByDuration => null
 		};
+
+		return reason ?? (isTitleChanged && policy.OnTitleChange && end is not UnitEnd.StreamEnd ? SplitReason.Title : null);
 	}
 
 	private void StartSegment(ReadOnlySpan<byte> unit, SplitReason reason)
@@ -225,7 +228,7 @@ internal sealed partial class RecordingSegmenter : Stream
 		Emit(_pendingHeader.Span);
 		_segmentLength = _pendingHeader.Length;
 		_segmentHasMedia = false;
-		_segmentStart = _pendingTime;
+		_segmentStart = _pendingTimestamp;
 	}
 
 	private void Emit(ReadOnlySpan<byte> data)

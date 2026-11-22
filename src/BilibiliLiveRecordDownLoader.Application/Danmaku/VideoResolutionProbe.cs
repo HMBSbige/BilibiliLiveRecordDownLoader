@@ -81,7 +81,7 @@ internal static class VideoResolutionProbe
 				byte[] movie = new byte[size];
 				stream.Position = offset;
 				await stream.ReadExactlyAsync(movie, cancellationToken);
-				return IsoBmff.ReadVideoTrackTiming(movie)?.Resolution;
+				return IsoBmff.TryReadMovie(movie, out Fmp4VideoTrack? video) ? video?.Resolution : null;
 			}
 
 			offset += size;

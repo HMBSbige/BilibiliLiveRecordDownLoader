@@ -1,5 +1,7 @@
 using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
+using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
+using Microsoft.Extensions.Logging;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -209,7 +211,7 @@ public sealed class RoomRecordingLoopTest
 		{
 			await Assert.That(advanced).IsGreaterThanOrEqualTo(loop.Settings.StreamIdleTimeout + RecordingLoopHarness.ReconnectDelay);
 			await Assert.That(next.Host).IsEqualTo("a.test");
-			await Assert.That(loop.Snapshot.LastError).Contains("did not finish");
+			await Assert.That(loop.Snapshot.LastError).IsEqualTo(AppLanguage.Current.RecordingWriteDrainTimedOut.ToString("1"));
 		}
 	}
 
@@ -252,5 +254,110 @@ public sealed class RoomRecordingLoopTest
 			await Assert.That(loop.Snapshot.LastError).IsNull();
 			await Assert.That(loop.Snapshot.Recording).IsNull();
 		}
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	public async Task WaitingToReconnectShowsConnectingWithTheFailureAsync(CancellationToken cancellationToken)
+	{
+		await using RecordingLoopHarness loop = new(cancellationToken);
+		loop.GoLive();
+
+		for (int i = 0; i < 3; ++i)
+		{
+			await EndImmediatelyAsync(await loop.NextStreamAsync());
+		}
+
+		// 所有线路都失败之后在等重连间隔，时钟不推进就一直停在这里
+		await loop.WaitUntilAsync(static snapshot => snapshot.LastError?.Contains("c.test", StringComparison.Ordinal) is true);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(loop.Snapshot.RecordStatus).IsEqualTo(RecordStatus.Connecting);
+			await Assert.That(loop.Snapshot.Recording).IsNull();
+		}
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	public async Task RecordingNormallyClearsTheEarlierFailureAsync(CancellationToken cancellationToken)
+	{
+		await using RecordingLoopHarness loop = new(cancellationToken);
+		loop.GoLive();
+
+		await EndImmediatelyAsync(await loop.NextStreamAsync());
+		await loop.WaitUntilAsync(static snapshot => snapshot.LastError?.Contains("a.test", StringComparison.Ordinal) is true);
+		StreamRequest healthy = await loop.NextStreamAsync();
+		await loop.ReceiveForAsync(healthy, RecordingAttempt.QuickFailureThreshold + TimeSpan.FromSeconds(1));
+		loop.GoOffline();
+		await healthy.EndAsync();
+		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Idle);
+
+		await Assert.That(loop.Snapshot.LastError).IsNull();
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	public async Task StoppingWhileTheDiskIsStuckIsNotAFailureAsync(CancellationToken cancellationToken)
+	{
+		await using RecordingLoopHarness loop = new(cancellationToken, static _ => new FakeFile(static ct => new ValueTask(Task.Delay(Timeout.Infinite, ct))));
+		loop.GoLive();
+
+		StreamRequest stuck = await loop.NextStreamAsync();
+		await stuck.AcceptAsync();
+		await stuck.CopyStarted;
+		Task streaming = stuck.StreamUntilClosedAsync();
+
+		// 收到的数据在排空时限内写不完，收尾抛出写盘失败
+		loop.Session.UpdateSettings(loop.Settings with { IsRecordingEnabled = false });
+		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Idle);
+		await streaming;
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(loop.Snapshot.LastError).IsNull();
+			await Assert.That(loop.Logs.Where(static log => log.Level >= LogLevel.Error)).IsEmpty();
+			await Assert.That(loop.Logs.Any(static log => log.Exception is RecordingWriteException)).IsTrue();
+		}
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	public async Task OnlyRecordingDanmakuCountsAsRecordingAsync(CancellationToken cancellationToken)
+	{
+		await using RecordingLoopHarness loop = new(cancellationToken);
+		loop.Session.UpdateSettings(loop.Settings with { IsDanmakuEnabled = true, IsRecordingEnabled = false });
+
+		loop.GoLive();
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(loop.Snapshot.RecordStatus).IsEqualTo(RecordStatus.Idle);
+			await Assert.That(loop.Session.IsRecording).IsTrue();
+		}
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	public async Task LoopsStartedFromTheUIThreadDoNotRunOnItAsync(CancellationToken cancellationToken)
+	{
+		await using RecordingLoopHarness loop = new(cancellationToken);
+		StoppedSynchronizationContext ui = new();
+
+		ui.Run(() =>
+		{
+			loop.Session.Start();
+			loop.GoLive();
+		});
+		StreamRequest request = await loop.NextStreamAsync();
+		await request.AcceptAsync();
+		await request.CopyStarted;
+		ui.Run(() => loop.Session.UpdateSettings(loop.Settings with { IsRecordingEnabled = false }));
+		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Idle);
+
+		// 循环的续体投回已经停止的 UI 线程时，释放会一直等下去
+		await loop.Session.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+
+		await Assert.That(ui.Posted).IsEqualTo(0);
 	}
 }

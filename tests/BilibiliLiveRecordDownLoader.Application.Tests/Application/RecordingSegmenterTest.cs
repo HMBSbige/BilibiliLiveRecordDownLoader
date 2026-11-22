@@ -1,3 +1,4 @@
+using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Collections.Concurrent;
@@ -106,6 +107,29 @@ public sealed class RecordingSegmenterTest
 			await Assert.That(recording.Starts.Select(static start => start.Reason).Distinct().Single()).IsEqualTo(SplitReason.Duration);
 			await Assert.That(recording.Starts.Select(segment => segment.StartTime - start).SequenceEqual([TimeSpan.FromSeconds(61), TimeSpan.FromSeconds(122)])).IsTrue();
 		}
+	}
+
+	// 改系统时间或校时只动墙钟：往前跳不会马上切出一个很短的文件，往回跳也不会推迟换文件
+	[Test]
+	[Timeout(10_000)]
+	[Arguments(-1)]
+	[Arguments(1)]
+	public async Task DurationIsMeasuredWithTheMonotonicClockAsync(int clockJumpHours, CancellationToken cancellationToken)
+	{
+		ShiftedWallClock time = new();
+		ConcurrentQueue<SegmentStart> starts = new();
+		Pipe pipe = new();
+		await using RecordingSegmenter segmenter = new(pipe.Writer, new FakeSplitter(), SplitRecording.Fixed(OneMinute), starts, time, NullLogger.Instance, new RecordingTimeline(string.Empty, time, RoomDefaults.StreamIdleTimeout));
+
+		await segmenter.WriteAsync(FakeSplitter.Unit("a", 10), cancellationToken);
+		time.Monotonic.Advance(TimeSpan.FromSeconds(30));
+		time.Shift = TimeSpan.FromHours(clockJumpHours);
+		await segmenter.WriteAsync(FakeSplitter.Unit("b", 10), cancellationToken);
+		time.Monotonic.Advance(TimeSpan.FromSeconds(31));
+		await segmenter.WriteAsync(FakeSplitter.Unit("c", 10), cancellationToken);
+		await segmenter.WriteAsync(FakeSplitter.Unit("d", 10), cancellationToken);
+
+		await Assert.That(starts.Select(static start => start.Offset).SequenceEqual([20L])).IsTrue();
 	}
 
 	[Test]
@@ -266,7 +290,7 @@ public sealed class RecordingSegmenterTest
 	public async Task OnlyUnitsThatMayStartANewFileAreHeldBackAsync(CancellationToken cancellationToken)
 	{
 		Pipe pipe = new();
-		await using RecordingSegmenter segmenter = new(pipe.Writer, new FakeSplitter(), SplitRecording.Fixed(OneMinute), new ConcurrentQueue<SegmentStart>(), TimeProvider.System, NullLogger.Instance);
+		await using RecordingSegmenter segmenter = new(pipe.Writer, new FakeSplitter(), SplitRecording.Fixed(OneMinute), new ConcurrentQueue<SegmentStart>(), TimeProvider.System, NullLogger.Instance, new RecordingTimeline(string.Empty, TimeProvider.System, RoomDefaults.StreamIdleTimeout));
 
 		await segmenter.WriteAsync(FakeSplitter.Data("x", 10), cancellationToken);
 		long beforeFirstSplitPoint = Buffered(pipe.Reader);
@@ -283,7 +307,7 @@ public sealed class RecordingSegmenterTest
 	public async Task WithoutSplittingNothingIsHeldBackAsync(CancellationToken cancellationToken)
 	{
 		Pipe pipe = new();
-		await using RecordingSegmenter segmenter = new(pipe.Writer, new FakeSplitter(), SplitRecording.Fixed(new RecordingSplit.None()), new ConcurrentQueue<SegmentStart>(), TimeProvider.System, NullLogger.Instance);
+		await using RecordingSegmenter segmenter = new(pipe.Writer, new FakeSplitter(), SplitRecording.Fixed(new RecordingSplit.None()), new ConcurrentQueue<SegmentStart>(), TimeProvider.System, NullLogger.Instance, new RecordingTimeline(string.Empty, TimeProvider.System, RoomDefaults.StreamIdleTimeout));
 
 		await segmenter.WriteAsync(FakeSplitter.Unit("a", 10), cancellationToken);
 		await segmenter.WriteAsync(FakeSplitter.Data("x", 10), cancellationToken);
@@ -407,6 +431,26 @@ public sealed class RecordingSegmenterTest
 	internal static string Describe(IEnumerable<byte[]> files)
 	{
 		return string.Join(" | ", files.Select(FakeSplitter.Describe));
+	}
+
+	// 只把墙钟挪开，单调时钟照常走，和改系统时间一样；FakeTimeProvider.AdjustTime 会连单调时钟一起挪
+	private sealed class ShiftedWallClock : TimeProvider
+	{
+		public FakeTimeProvider Monotonic { get; } = new();
+
+		public TimeSpan Shift { get; set; }
+
+		public override long TimestampFrequency => Monotonic.TimestampFrequency;
+
+		public override DateTimeOffset GetUtcNow()
+		{
+			return Monotonic.GetUtcNow() + Shift;
+		}
+
+		public override long GetTimestamp()
+		{
+			return Monotonic.GetTimestamp();
+		}
 	}
 
 	private static long Buffered(PipeReader reader)

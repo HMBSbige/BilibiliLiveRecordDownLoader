@@ -11,7 +11,7 @@ public static class RecordingFileLayout
 
 	public const string SubtitleExtension = ".ass";
 
-	// 一场直播一个，以这一场第一个文件的主干命名
+	// 一次录制或仅录弹幕从开始到停止共用一个，不随分段换，以第一个文件的主干命名
 	public const string RawDanmakuExtension = ".danmaku.jsonl";
 
 	// 内置录制的 fMP4 本身就是 MP4，用后缀区分转封装前后的文件
@@ -24,10 +24,10 @@ public static class RecordingFileLayout
 
 	// 同一主干的录制文件转封装后都会落到同一个 .mp4，主干上已有任意一种文件就不能再用
 	// 标题可能以 _fmp4 结尾，主干加上 _fmp4 的录制文件转封装后会落到本主干的 fMP4 文件上
-	// 弹幕文件和字幕跟着视频的主干走，已有弹幕文件的主干再分给视频会把两次录制的弹幕混在一起
+	// 已有弹幕文件的主干再分给视频会把两次录制的弹幕混在一起
 	private static readonly string[] StemSuffixes = [.. RecordingSuffixes, Mp4Extension, .. RecordingSuffixes.Select(static suffix => Fmp4Suffix + suffix), DanmakuExtension, SubtitleExtension, RawDanmakuExtension];
 
-	// 找同主干的视频时按这个顺序，转封装之后的 .mp4 优先
+	// 顺序就是找同主干视频时的优先顺序
 	private static readonly string[] VideoSuffixes = [Mp4Extension, Fmp4Suffix + Mp4Extension, ".flv", ".ts"];
 
 	// 录制目录可能在网络盘上，Linux 下也按 Windows 的规则替换
@@ -76,7 +76,7 @@ public static class RecordingFileLayout
 		return !StemSuffixes.Any(suffix => fileExists(stem + suffix));
 	}
 
-	// 录制文件和转封装之后的文件都去掉扩展名和 _fmp4 后缀，弹幕文件去掉 .xml，原始消息去掉 .danmaku.jsonl
+	// 只用于录制文件、弹幕文件和原始消息文件：转封装之后的 .mp4 主干以 _fmp4 结尾时会被误认成 fMP4 录制文件
 	public static string GetStem(string path)
 	{
 		foreach (string suffix in (ReadOnlySpan<string>)[Fmp4Suffix + Mp4Extension, RawDanmakuExtension])
@@ -90,7 +90,6 @@ public static class RecordingFileLayout
 		return Path.ChangeExtension(path, null);
 	}
 
-	// 同主干可能有的视频文件，按优先顺序
 	public static IEnumerable<string> GetVideoPaths(string stem)
 	{
 		return VideoSuffixes.Select(suffix => stem + suffix);

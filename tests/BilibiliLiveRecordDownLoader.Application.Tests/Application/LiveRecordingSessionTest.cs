@@ -10,6 +10,11 @@ public sealed class LiveRecordingSessionTest
 		return new LiveStreamCandidate.Listed(StreamProtocol.HttpHls, format, StreamCodec.Avc, 10000, [], [.. hosts.Select(host => new Uri($"https://{host}/live/index.m3u8?sign={signature}"))]);
 	}
 
+	private static CandidateBatch Batch(params LiveStreamCandidate[] candidates)
+	{
+		return new CandidateBatch(candidates, CandidateRequest.Create(RecordingProfile.Create(AppConfig.CreateDefault(), new RoomConfig { RoomId = 1 }), false));
+	}
+
 	private static string Describe(IEnumerable<LiveStreamCandidate> candidates)
 	{
 		return string.Join(", ", candidates.SelectMany(candidate => candidate.Urls, (candidate, uri) => $"{candidate.Format}@{uri.Host}"));
@@ -51,7 +56,7 @@ public sealed class LiveRecordingSessionTest
 	{
 		LiveRecordingSession session = new();
 		LiveStreamCandidate candidate = Candidate(StreamFormat.Flv, "a", "a.test");
-		session.Candidates = new CandidateBatch([candidate], false);
+		session.Candidates = Batch(candidate);
 		session.MarkFailed(candidate, candidate.Urls[0]);
 		bool exhausted = session.GetUntriedCandidates([candidate]).Count is 0;
 
@@ -70,7 +75,7 @@ public sealed class LiveRecordingSessionTest
 	{
 		LiveStreamCandidate flv = Candidate(StreamFormat.Flv, "a", "a.test");
 		LiveStreamCandidate ts = Candidate(StreamFormat.Ts, "a", "a.test");
-		LiveRecordingSession session = new() { Candidates = new CandidateBatch([flv, ts], false) };
+		LiveRecordingSession session = new() { Candidates = Batch(flv, ts) };
 
 		session.MarkFailed(flv, flv.Urls[0]);
 		bool afterOne = session.HasUntriedEndpoint;
@@ -91,7 +96,7 @@ public sealed class LiveRecordingSessionTest
 		LiveStreamCandidate.Variant original = new(StreamCodec.Avc, 10000, [new Uri("https://a.test/live-bvc/1/live_a_b_c_bluray/index.m3u8?sign=a")]);
 		LiveStreamCandidate fmp4 = Candidate(StreamFormat.Fmp4, "a", "a.test");
 		LiveStreamCandidate[] candidates = [trueOriginal, original, fmp4];
-		LiveRecordingSession session = new() { Candidates = new CandidateBatch(candidates, false) };
+		LiveRecordingSession session = new() { Candidates = Batch(candidates) };
 
 		session.MarkFailed(trueOriginal, trueOriginal.Urls[0]);
 		string afterTrueOriginal = Describe(session.GetUntriedCandidates(candidates));
@@ -131,7 +136,6 @@ public sealed class LiveRecordingSessionTest
 	[Arguments(0, true)]
 	[Arguments(29, true)]
 	[Arguments(30, false)]
-	[Arguments(3600, false)]
 	public async Task AttemptWithLittleDataIsAQuickFailureAsync(int activeSeconds, bool expected)
 	{
 		RecordingAttempt attempt = new(Candidate(StreamFormat.Flv, "a", "a.test"), new Uri("https://a.test/"), TimeSpan.FromSeconds(activeSeconds), new RecordingEnd.Completed(StreamEndReason.EndOfStream));

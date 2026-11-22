@@ -4,7 +4,7 @@ internal static class BilibiliHttpServiceCollectionExtensions
 {
 	public static IServiceCollection AddBilibiliHttpClients(this IServiceCollection services)
 	{
-		services.TryAddSingleton<SwitchableWebProxy>();
+		services.TryAddSingleton(static _ => new SwitchableWebProxy(HttpClient.DefaultProxy));
 		services.TryAddSingleton(CreateIdentity);
 
 		services.AddHttpClient(HttpClientNames.Default, static client => client.Timeout = TimeSpan.FromSeconds(15))

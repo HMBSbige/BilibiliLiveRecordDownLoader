@@ -1,6 +1,7 @@
 using BilibiliLive.Http;
 using BilibiliLive.Tests.Fakes;
 using System.Net;
+using System.Text.Json.Nodes;
 using System.Web;
 
 namespace BilibiliLive.Tests;
@@ -215,22 +216,28 @@ public class BilibiliApiClientTest
 		await Sequences.AssertEqualAsync(candidates.Select(c => (c.Format, c.Codec)), expected);
 	}
 
+	// A rebroadcast still comes with stream urls, so only the live status keeps it from being recorded
 	[Test]
-	public async Task StreamCandidatesThrowWhenNotLiveAsync(CancellationToken cancellationToken)
+	[Arguments(0)]
+	[Arguments(2)]
+	public async Task StreamCandidatesThrowWhenNotLiveAsync(int liveStatus, CancellationToken cancellationToken)
 	{
-		using ApiClient api = Single(ApiPaths.RoomPlayInfo, () => Responses.Json("""{"code":0,"message":"OK","data":{"room_id":5440,"short_id":1,"live_status":2,"playurl_info":null}}"""));
+		JsonNode root = JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "room_play_info.json"))) ?? throw new InvalidDataException();
+		JsonNode data = root["data"] ?? throw new InvalidDataException();
+		data["live_status"] = liveStatus;
+		using ApiClient api = Single(ApiPaths.RoomPlayInfo, () => Responses.Json(root.ToJsonString()));
 
-		await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetStreamCandidatesAsync(1, 10000, [], [], cancellationToken));
+		BilibiliApiException? exception = await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetStreamCandidatesAsync(1, 10000, [], [], cancellationToken));
+
+		await Assert.That(exception?.Message).Contains("is not live");
 	}
 
 	[Test]
-	public async Task StreamCandidatesThrowOnApiErrorAsync(CancellationToken cancellationToken)
+	public async Task StreamCandidatesAreEmptyWhenLiveWithoutAStreamAsync(CancellationToken cancellationToken)
 	{
-		using ApiClient api = Single(ApiPaths.RoomPlayInfo, () => Responses.Json("""{"code":60004,"message":"房间不存在","ttl":1,"data":null}"""));
+		using ApiClient api = Single(ApiPaths.RoomPlayInfo, () => Responses.Json("""{"code":0,"message":"OK","data":{"room_id":5440,"short_id":1,"live_status":1,"playurl_info":null}}"""));
 
-		BilibiliApiException? exception = await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetStreamCandidatesAsync(999999999, 10000, [], [], cancellationToken));
-
-		await Assert.That(exception?.Code).IsEqualTo(60004);
+		await Assert.That(await api.Client.GetStreamCandidatesAsync(1, 10000, [], [], cancellationToken)).IsEmpty();
 	}
 
 	[Test]
@@ -247,7 +254,6 @@ public class BilibiliApiClientTest
 		{
 			await Assert.That(variants.Count).IsEqualTo(7);
 			await Assert.That(request.Uri.AbsoluteUri).IsEqualTo("https://api.live.bilibili.com/xlive/play-gateway/master/url?cid=6650029&mid=105022844&pt=web&p2p_type=-1&net=0&free_type=0&build=0&feature=2&qn=10000&drm_type=0&codec=0,1");
-			// mid is not the requester, so the login must not go with it; buvid3 stays the same as on other requests
 			await Assert.That(CookieHeader.GetValue(cookie, "SESSDATA")).IsNull();
 			await Assert.That(CookieHeader.GetValue(cookie, "buvid3")).IsEqualTo("known");
 		}
@@ -259,6 +265,16 @@ public class BilibiliApiClientTest
 		using ApiClient api = Single(ApiPaths.MasterPlaylist, static () => Responses.Text("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1,CODECS=\"vp09.00.10.08\",BILI-QN=10000\nhttps://a.test/index.m3u8\n"));
 
 		await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetMasterPlaylistVariantsAsync(1, 0, cancellationToken));
+	}
+
+	[Test]
+	public async Task MasterPlaylistErrorKeepsTheApiCodeAsync(CancellationToken cancellationToken)
+	{
+		using ApiClient api = Single(ApiPaths.MasterPlaylist, static () => Responses.Json("""{"code":-400,"message":"请求错误","ttl":1}"""));
+
+		BilibiliApiException? exception = await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetMasterPlaylistVariantsAsync(1, 0, cancellationToken));
+
+		await Assert.That(exception?.Code).IsEqualTo(-400);
 	}
 
 	[Test]
@@ -324,11 +340,16 @@ public class BilibiliApiClientTest
 		await Assert.That(ticket).IsEqualTo(new QrCodeLoginTicket("https://account.bilibili.com/h5/account-h5/auth/scan-web?qrcode_key=abc", "abc"));
 	}
 
+	public static IEnumerable<Func<(int Code, QrCodeLoginResult Expected)>> PendingQrCodeLoginStates()
+	{
+		yield return static () => (86101, new QrCodeLoginResult.WaitingForScan());
+		yield return static () => (86090, new QrCodeLoginResult.WaitingForConfirm());
+		yield return static () => (86038, new QrCodeLoginResult.Expired());
+	}
+
 	[Test]
-	[Arguments(86101, QrCodeLoginState.WaitingForScan)]
-	[Arguments(86090, QrCodeLoginState.WaitingForConfirm)]
-	[Arguments(86038, QrCodeLoginState.Expired)]
-	public async Task PollQrCodeLoginMapsPendingStatesAsync(int code, QrCodeLoginState expected, CancellationToken cancellationToken)
+	[MethodDataSource(nameof(PendingQrCodeLoginStates))]
+	public async Task PollQrCodeLoginMapsPendingStatesAsync(int code, QrCodeLoginResult expected, CancellationToken cancellationToken)
 	{
 		using ApiClient api = Single(ApiPaths.QrCodePoll, () => Responses.Json($$$"""{"code":0,"message":"0","ttl":1,"data":{"url":"","refresh_token":"","timestamp":0,"code":{{{code}}},"message":"..."}}"""));
 
@@ -336,7 +357,7 @@ public class BilibiliApiClientTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(result).IsEqualTo(new QrCodeLoginResult(expected));
+			await Assert.That(result).IsEqualTo(expected);
 			await Assert.That(api.Handler.Requests.Single().Uri.Query).Contains("qrcode_key=abc");
 		}
 	}
@@ -355,7 +376,7 @@ public class BilibiliApiClientTest
 
 		QrCodeLoginResult result = await api.Client.PollQrCodeLoginAsync("abc", cancellationToken);
 
-		await Assert.That(result).IsEqualTo(new QrCodeLoginResult(QrCodeLoginState.Succeeded, "SESSDATA=s%2Ce;bili_jct=csrf;DedeUserID=12345678"));
+		await Assert.That(result).IsEqualTo(new QrCodeLoginResult.Succeeded("SESSDATA=s%2Ce;bili_jct=csrf;DedeUserID=12345678"));
 	}
 
 	[Test]

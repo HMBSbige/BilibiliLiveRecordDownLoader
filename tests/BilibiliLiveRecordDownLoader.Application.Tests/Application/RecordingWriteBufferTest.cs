@@ -1,5 +1,6 @@
 using BilibiliLive.Streams;
 using BilibiliLiveRecordDownLoader.Application.Recording;
+using System.IO.Pipelines;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -17,7 +18,7 @@ public sealed class RecordingWriteBufferTest
 		GatedStream output = new();
 		Progress progress = new();
 
-		Task<StreamEndReason> copy = RecordingWriteBuffer.CopyAsync(session, output, progress, DrainTimeout, cancellationToken);
+		Task<StreamEndReason> copy = CopyAsync(session, output, progress, DrainTimeout, cancellationToken);
 		await progress.WaitForAsync(session.Length, cancellationToken);
 		(long writtenWhileStalled, bool finishedWhileStalled) = (output.Written.Length, copy.IsCompleted);
 		output.Open();
@@ -41,7 +42,7 @@ public sealed class RecordingWriteBufferTest
 		Progress progress = new();
 		using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-		Task<StreamEndReason> copy = RecordingWriteBuffer.CopyAsync(session, output, progress, DrainTimeout, stop.Token);
+		Task<StreamEndReason> copy = CopyAsync(session, output, progress, DrainTimeout, stop.Token);
 		await progress.WaitForAsync(session.Length, cancellationToken);
 		await stop.CancelAsync();
 		output.Open();
@@ -58,7 +59,7 @@ public sealed class RecordingWriteBufferTest
 		GatedStream output = new();
 		using CancellationTokenSource idle = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-		Task<StreamEndReason> copy = RecordingWriteBuffer.CopyAsync(session, output, new Progress(), DrainTimeout, idle.Token);
+		Task<StreamEndReason> copy = CopyAsync(session, output, new Progress(), DrainTimeout, idle.Token);
 		await session.Stalled.WaitAsync(cancellationToken);
 		await idle.CancelAsync();
 		output.Open();
@@ -74,7 +75,7 @@ public sealed class RecordingWriteBufferTest
 		GatedStream output = new(new IOException("disk full"), new IOException("still full"));
 		output.Open();
 
-		RecordingWriteException? exception = await Assert.ThrowsExactlyAsync<RecordingWriteException>(() => RecordingWriteBuffer.CopyAsync(session, output, new Progress(), DrainTimeout, cancellationToken));
+		RecordingWriteException? exception = await Assert.ThrowsExactlyAsync<RecordingWriteException>(() => CopyAsync(session, output, new Progress(), DrainTimeout, cancellationToken));
 
 		using (Assert.Multiple())
 		{
@@ -91,7 +92,7 @@ public sealed class RecordingWriteBufferTest
 		GatedStream output = new(closeFailure: new IOException("disk full"));
 		output.Open();
 
-		RecordingWriteException? exception = await Assert.ThrowsExactlyAsync<RecordingWriteException>(() => RecordingWriteBuffer.CopyAsync(session, output, new Progress(), DrainTimeout, cancellationToken));
+		RecordingWriteException? exception = await Assert.ThrowsExactlyAsync<RecordingWriteException>(() => CopyAsync(session, output, new Progress(), DrainTimeout, cancellationToken));
 
 		await Assert.That(exception?.InnerException?.Message).IsEqualTo("disk full");
 	}
@@ -104,7 +105,7 @@ public sealed class RecordingWriteBufferTest
 		GatedStream output = new();
 		output.Open();
 
-		IOException? exception = await Assert.ThrowsExactlyAsync<IOException>(() => RecordingWriteBuffer.CopyAsync(session, output, new Progress(), DrainTimeout, cancellationToken));
+		IOException? exception = await Assert.ThrowsExactlyAsync<IOException>(() => CopyAsync(session, output, new Progress(), DrainTimeout, cancellationToken));
 
 		using (Assert.Multiple())
 		{
@@ -122,12 +123,56 @@ public sealed class RecordingWriteBufferTest
 		Progress progress = new();
 		using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-		Task<StreamEndReason> copy = RecordingWriteBuffer.CopyAsync(session, output, progress, TimeSpan.FromMilliseconds(100), stop.Token);
+		Task<StreamEndReason> copy = CopyAsync(session, output, progress, TimeSpan.FromMilliseconds(100), stop.Token);
 		await progress.WaitForAsync(session.Length, cancellationToken);
 		await stop.CancelAsync();
 
 		await Assert.ThrowsExactlyAsync<RecordingWriteException>(() => copy);
 		output.Open();
+	}
+
+	// 网络盘断开时卡住的写入常常等到会话超时才以 IO 错误结束，文件仍要关掉，后处理才删得了它
+	[Test]
+	[Timeout(10_000)]
+	public async Task WriteFailingAfterTheDrainTimeoutStillClosesTheFileAsync(CancellationToken cancellationToken)
+	{
+		ChunkSession session = new(1, true);
+		GatedStream output = new(new IOException("the network name is no longer available"));
+		Progress progress = new();
+		using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+		Task<StreamEndReason> copy = CopyAsync(session, output, progress, TimeSpan.FromMilliseconds(100), stop.Token);
+		await progress.WaitForAsync(session.Length, cancellationToken);
+		await stop.CancelAsync();
+		await Assert.ThrowsExactlyAsync<RecordingWriteException>(() => copy);
+		output.Open();
+
+		await output.Closed.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+		await Assert.That(output.Closed.IsCompleted).IsTrue();
+	}
+
+	private static Task<StreamEndReason> CopyAsync(LiveStreamSession session, Stream file, IProgress<long> progress, TimeSpan drainTimeout, CancellationToken cancellationToken)
+	{
+		return RecordingWriteBuffer.CopyAsync(session, new SingleFileOutput(file), progress, drainTimeout, cancellationToken);
+	}
+
+	private sealed class SingleFileOutput(Stream file) : RecordingOutput
+	{
+		public override Task<StreamEndReason> ReceiveAsync(LiveStreamSession session, PipeWriter writer, IProgress<long> progress, CancellationToken cancellationToken)
+		{
+			return session.CopyToAsync(writer.AsStream(), progress, cancellationToken);
+		}
+
+		public override async Task WriteAsync(PipeReader reader, CancellationToken cancellationToken)
+		{
+			await reader.CopyToAsync(file, cancellationToken);
+			await file.DisposeAsync();
+		}
+
+		public override ValueTask AbandonAsync()
+		{
+			return AbandonAsync(file);
+		}
 	}
 
 	private sealed class ChunkSession(int chunks, bool waitForCancellation, Exception? failure = null) : LiveStreamSession
@@ -136,7 +181,6 @@ public sealed class RecordingWriteBufferTest
 
 		public override Uri Source { get; } = new("https://cdn.test/live.flv");
 
-		// 某次写入没有立即完成，缓冲已经写满
 		public Task Stalled => _stalled.Task;
 
 		public byte[] Data { get; } = [.. Enumerable.Range(0, Math.Min(chunks, 16) * ChunkSize).Select(static i => (byte)(i * 31))];
@@ -151,7 +195,7 @@ public sealed class RecordingWriteBufferTest
 			{
 				for (int chunk = 0; chunk < chunks; ++chunk)
 				{
-					// 代替网络读取，真实的会话在读网络时响应取消
+					// 真实的会话在读网络时响应取消
 					await Task.Yield();
 					cancellationToken.ThrowIfCancellationRequested();
 
@@ -191,11 +235,14 @@ public sealed class RecordingWriteBufferTest
 		}
 	}
 
-	// 关闭时不理会取消，模拟一个不再响应的网络共享
+	// 写入不理会取消，模拟一个不再响应的网络共享
 	private sealed class GatedStream(Exception? failure = null, Exception? closeFailure = null) : Stream
 	{
 		private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		private readonly TaskCompletionSource _closed = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		private readonly MemoryStream _written = new();
+
+		public Task Closed => _closed.Task;
 
 		public byte[] Written
 		{
@@ -265,6 +312,7 @@ public sealed class RecordingWriteBufferTest
 		// 和文件流一样，关闭时才写出自己缓冲的数据
 		public override ValueTask DisposeAsync()
 		{
+			_closed.TrySetResult();
 			return closeFailure is null ? base.DisposeAsync() : ValueTask.FromException(closeFailure);
 		}
 	}
@@ -278,12 +326,9 @@ public sealed class RecordingWriteBufferTest
 			Interlocked.Add(ref _total, value);
 		}
 
-		public async Task WaitForAsync(long total, CancellationToken cancellationToken)
+		public Task WaitForAsync(long total, CancellationToken cancellationToken)
 		{
-			while (Interlocked.Read(ref _total) < total)
-			{
-				await Task.Delay(10, cancellationToken);
-			}
+			return TestWait.UntilAsync(() => Interlocked.Read(ref _total) >= total, $"{total} bytes are reported", cancellationToken);
 		}
 	}
 }

@@ -67,11 +67,13 @@ internal static class DanmakuXmlText
 	}
 
 	// 用 decimal 解析，12.345 不会变成 12.344999…，改写偏移时不会丢一毫秒
+	// 上限按 tick 判断：TimeSpan.MaxValue.TotalSeconds 是 double，转成 decimal 时按 15 位有效数字舍入，和真正的上限对不上
 	public static bool TryParseSeconds(string? value, out TimeSpan result)
 	{
-		if (decimal.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal seconds) && Math.Abs(seconds) < (decimal)TimeSpan.MaxValue.TotalSeconds)
+		// 先粗略限定范围，乘以每秒的 tick 数时 decimal 才不会溢出
+		if (decimal.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal seconds) && decimal.Abs(seconds) <= long.MaxValue / TimeSpan.TicksPerSecond + 1 && decimal.Truncate(seconds * TimeSpan.TicksPerSecond) is var ticks && ticks >= long.MinValue && ticks <= long.MaxValue)
 		{
-			result = new TimeSpan((long)(seconds * TimeSpan.TicksPerSecond));
+			result = new TimeSpan((long)ticks);
 			return true;
 		}
 

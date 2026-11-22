@@ -41,7 +41,6 @@ public sealed class RoomAppServiceTest
 			await Assert.That(harness.Config.UpdateCount).IsEqualTo(1);
 			await Assert.That(harness.ConfiguredRoomIds).IsEquivalentTo([ExistingRoomId, 6154037, 5440], EqualityComparer<long>.Default, CollectionOrdering.Matching);
 			await Assert.That(harness.Rooms.GetRooms().Select(static room => room.RoomId).ToArray()).IsEquivalentTo([ExistingRoomId, 6154037, 5440], EqualityComparer<long>.Default, CollectionOrdering.Matching);
-			// 已有的房间不再查询，短号也不会再单独查一次
 			await Assert.That(harness.RoomInfoQueries).Contains("732,6154037,1");
 			await Assert.That(harness.RoomInfoQueries).DoesNotContain("732");
 			await Assert.That(harness.RoomInfoQueries).DoesNotContain("1");
@@ -58,7 +57,7 @@ public sealed class RoomAppServiceTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(results[0] is RoomAddResult.Failed { RequestedRoomId: 404404, Error.Length: > 0 }).IsTrue();
+			await Assert.That(results[0]).IsEqualTo(new RoomAddResult.Failed(404404, AppLanguage.Current.RoomNotFound.ToString(404404)));
 			await Assert.That(results[1] is RoomAddResult.Failed { RequestedRoomId: 0 }).IsTrue();
 			await Assert.That(results[2] is RoomAddResult.Added { RequestedRoomId: 5440 }).IsTrue();
 			await Assert.That(harness.Config.UpdateCount).IsEqualTo(1);
@@ -99,6 +98,18 @@ public sealed class RoomAppServiceTest
 			await Assert.That(harness.Rooms.GetRooms().Count).IsEqualTo(1);
 			await Assert.That(harness.RoomInfoQueries).IsEquivalentTo(["732,1"], EqualityComparer<string>.Default, CollectionOrdering.Matching);
 		}
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	public async Task AddRangeReportsATimeoutWithALocalizedMessageAsync(CancellationToken cancellationToken)
+	{
+		await using Harness harness = await Harness.CreateAsync();
+		harness.Handler.TimesOut = true;
+
+		IReadOnlyList<RoomAddResult> results = await harness.Rooms.AddRangeAsync([Room(732), Room(1)], cancellationToken);
+
+		await Assert.That(results.All(static result => result is RoomAddResult.Failed { Error: var error } && error == AppLanguage.Current.RequestTimedOut)).IsTrue();
 	}
 
 	[Test]
@@ -146,6 +157,61 @@ public sealed class RoomAppServiceTest
 		InvalidOperationException? exception = await Assert.ThrowsAsync<InvalidOperationException>(async () => await harness.Rooms.GetFollowedRoomsAsync(cancellationToken).ToListAsync(cancellationToken));
 
 		await Assert.That(exception?.Message).IsEqualTo(AppLanguage.Current.RequestRateLimited);
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	public async Task TimedOutFollowedRoomsFailWithALocalizedMessageAsync(CancellationToken cancellationToken)
+	{
+		await using Harness harness = await Harness.CreateAsync();
+		harness.Handler.TimesOut = true;
+
+		TimeoutException? exception = await Assert.ThrowsAsync<TimeoutException>(async () => await harness.Rooms.GetFollowedRoomsAsync(cancellationToken).ToListAsync(cancellationToken));
+
+		await Assert.That(exception?.Message).IsEqualTo(AppLanguage.Current.RequestTimedOut);
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	public async Task AddingAnUnknownRoomFailsWithALocalizedMessageAsync(CancellationToken cancellationToken)
+	{
+		await using Harness harness = await Harness.CreateAsync();
+
+		InvalidOperationException? exception = await Assert.ThrowsAsync<InvalidOperationException>(async () => await harness.Rooms.AddAsync(Room(404404), cancellationToken));
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(exception?.Message).IsEqualTo(AppLanguage.Current.RoomNotFound.ToString(404404));
+			await Assert.That(harness.Config.UpdateCount).IsEqualTo(0);
+		}
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	public async Task AddingARoomWhileBlockedFailsWithAReadableMessageAsync(CancellationToken cancellationToken)
+	{
+		await using Harness harness = await Harness.CreateAsync();
+		harness.Handler.RoomInfoStatus = HttpStatusCode.PreconditionFailed;
+
+		InvalidOperationException? exception = await Assert.ThrowsAsync<InvalidOperationException>(async () => await harness.Rooms.AddAsync(Room(732), cancellationToken));
+
+		await Assert.That(exception?.Message).IsEqualTo(AppLanguage.Current.RequestRateLimited);
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	public async Task AddingARoomThatTimesOutFailsWithALocalizedMessageAsync(CancellationToken cancellationToken)
+	{
+		await using Harness harness = await Harness.CreateAsync();
+		harness.Handler.TimesOut = true;
+
+		TimeoutException? exception = await Assert.ThrowsAsync<TimeoutException>(async () => await harness.Rooms.AddAsync(Room(732), cancellationToken));
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(exception?.Message).IsEqualTo(AppLanguage.Current.RequestTimedOut);
+			await Assert.That(harness.Config.UpdateCount).IsEqualTo(0);
+		}
 	}
 
 	[Test]
@@ -199,12 +265,10 @@ public sealed class RoomAppServiceTest
 
 	public static IEnumerable<Func<(long[] RoomIds, long? Before)>> UnchangedMoveCases()
 	{
-		// 已经在目标位置
 		yield return () => ([ThirdRoomId, FourthRoomId], null);
 		yield return () => ([ExistingRoomId, FirstRoomId], SecondRoomId);
 		// 目标和它之后的房间都在移动，等同于移到末尾
 		yield return () => ([ThirdRoomId, FourthRoomId], ThirdRoomId);
-		// 只有未知的房间号，或目标房间不存在
 		yield return () => ([404404], ExistingRoomId);
 		yield return () => ([FirstRoomId], 404404);
 		yield return () => ([], null);
@@ -237,10 +301,8 @@ public sealed class RoomAppServiceTest
 
 		public long[] ConfiguredRoomIds => [.. _config.Rooms.Select(static room => room.RoomId)];
 
-		// 每次查询房间信息时请求的 room_ids，逗号分隔
 		public string[] RoomInfoQueries => [.. Handler.RoomInfoQueries];
 
-		// 已有、第一、第二、第三、第四
 		public static async Task<Harness> CreateWithRoomsAsync(CancellationToken cancellationToken)
 		{
 			Harness harness = await CreateAsync();
@@ -275,12 +337,7 @@ public sealed class RoomAppServiceTest
 		// 已有房间启动时的首次刷新不算在用例的查询里
 		private async Task WaitForStartupRefreshAsync()
 		{
-			using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(5));
-
-			while (!Handler.RoomInfoQueries.Contains(ExistingRoomId.ToString(CultureInfo.InvariantCulture)))
-			{
-				await Task.Delay(10, timeout.Token);
-			}
+			await TestWait.UntilAsync(() => Handler.RoomInfoQueries.Contains(ExistingRoomId.ToString(CultureInfo.InvariantCulture)), "the existing room is refreshed at startup", CancellationToken.None);
 
 			Handler.RoomInfoQueries.Clear();
 		}
@@ -304,8 +361,16 @@ public sealed class RoomAppServiceTest
 
 		public HttpStatusCode FollowingStatus { get; set; } = HttpStatusCode.OK;
 
+		// HttpClient 超时抛的是带着 TimeoutException 的 TaskCanceledException
+		public bool TimesOut { get; set; }
+
 		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 		{
+			if (TimesOut)
+			{
+				return Task.FromException<HttpResponseMessage>(new TaskCanceledException(null, new TimeoutException()));
+			}
+
 			Uri uri = request.RequestUri ?? throw new InvalidOperationException("The request has no uri.");
 
 			HttpResponseMessage response = uri.AbsolutePath switch

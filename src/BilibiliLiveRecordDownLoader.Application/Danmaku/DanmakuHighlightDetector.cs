@@ -2,43 +2,35 @@ using System.Text;
 
 namespace BilibiliLiveRecordDownLoader.Application.Danmaku;
 
-// Peak 是热度最高的那一格的开始；Score 是那一格的热度；Phrase 在事件里只有抽奖口令或复读时为空
+// Peak 是热度最高的那一格的开始；Phrase 在事件里只有抽奖口令或复读时为空
 internal sealed record DanmakuHighlight(TimeSpan Start, TimeSpan Peak, TimeSpan End, double Score, string Phrase);
-
-internal sealed record DanmakuHighlightOptions
-{
-	public static DanmakuHighlightOptions Default { get; } = new();
-
-	public TimeSpan BinWidth { get; init; } = TimeSpan.FromSeconds(5);
-
-	// 基线取前后各这么长的中位数，直播间整体变热或变冷时基线跟着走，不会把整段都当成高能
-	public TimeSpan BaselineWindow { get; init; } = TimeSpan.FromMinutes(10);
-
-	public double BaselineRatio { get; init; } = 2.5;
-
-	// 冷清的直播间基线接近 0，没有下限的话几个人同时说话就算高能
-	public double MinimumScore { get; init; } = 10;
-
-	// 一格里某句话的人数超过这个比例时，多半是抽奖口令或复读，只按 DominantPhraseLimit 个人算
-	public double DominantPhraseShare { get; init; } = 0.5;
-
-	public int DominantPhraseLimit { get; init; } = 3;
-
-	public TimeSpan MinimumSeparation { get; init; } = TimeSpan.FromMinutes(3);
-
-	public double MaxPerHour { get; init; } = 6;
-
-	public int MaxPhraseLength { get; init; } = 15;
-}
 
 internal static class DanmakuHighlightDetector
 {
-	// duration 是视频时长，决定统计范围和事件总数上限；不知道时按最后一条弹幕算
-	public static IReadOnlyList<DanmakuHighlight> Detect(IEnumerable<DanmakuRecord> records, TimeSpan? duration = null, DanmakuHighlightOptions? options = null)
-	{
-		options ??= DanmakuHighlightOptions.Default;
-		ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(options.BinWidth, TimeSpan.Zero);
+	private const double BaselineRatio = 2.5;
 
+	// 冷清的直播间基线接近 0，没有下限的话几个人同时说话就算高能
+	private const double MinimumScore = 10;
+
+	// 一格里某句话的人数超过这个比例时，多半是抽奖口令或复读，只按 DominantPhraseLimit 个人算
+	private const double DominantPhraseShare = 0.5;
+
+	private const int DominantPhraseLimit = 3;
+
+	private const double MaxPerHour = 6;
+
+	private const int MaxPhraseLength = 15;
+
+	private static readonly TimeSpan BinWidth = TimeSpan.FromSeconds(5);
+
+	// 基线取前后各这么长的中位数，直播间整体变热时不会把整段都当成高能
+	private static readonly TimeSpan BaselineWindow = TimeSpan.FromMinutes(10);
+
+	private static readonly TimeSpan MinimumSeparation = TimeSpan.FromMinutes(3);
+
+	// duration 是视频时长，为 null 时按最后一条弹幕算
+	public static IReadOnlyList<DanmakuHighlight> Detect(IEnumerable<DanmakuRecord> records, TimeSpan? duration = null)
+	{
 		DanmakuRecord.Comment[] comments = records.OfType<DanmakuRecord.Comment>().Where(static comment => !comment.IsStorm && comment.Time >= TimeSpan.Zero).OrderBy(static comment => comment.Time).ToArray();
 
 		if (comments.Length is 0)
@@ -46,15 +38,15 @@ internal static class DanmakuHighlightDetector
 			return [];
 		}
 
-		TimeSpan total = duration is { } known && known > comments[^1].Time ? known : comments[^1].Time + options.BinWidth;
-		int binCount = (int)((comments[^1].Time.Ticks / options.BinWidth.Ticks) + 1);
-		binCount = Math.Max(binCount, (int)Math.Ceiling(total.Ticks / (double)options.BinWidth.Ticks));
+		TimeSpan total = duration is { } known && known > comments[^1].Time ? known : comments[^1].Time + BinWidth;
+		int binCount = (int)((comments[^1].Time.Ticks / BinWidth.Ticks) + 1);
+		binCount = Math.Max(binCount, (int)Math.Ceiling(total.Ticks / (double)BinWidth.Ticks));
 		List<Message>?[] bins = new List<Message>?[binCount];
 
 		for (int i = 0; i < comments.Length; ++i)
 		{
 			DanmakuRecord.Comment comment = comments[i];
-			int bin = (int)(comment.Time.Ticks / options.BinWidth.Ticks);
+			int bin = (int)(comment.Time.Ticks / BinWidth.Ticks);
 			(bins[bin] ??= []).Add(new Message(GetUserKey(comment, i), Normalize(comment.Text), comment.Text, comment.Time));
 		}
 
@@ -63,10 +55,10 @@ internal static class DanmakuHighlightDetector
 
 		for (int i = 0; i < binCount; ++i)
 		{
-			(scores[i], dominantPhrases[i]) = bins[i] is { } messages ? Score(messages, options) : (0, null);
+			(scores[i], dominantPhrases[i]) = bins[i] is { } messages ? Score(messages) : (0, null);
 		}
 
-		double[] baselines = ComputeBaselines(scores, (int)(options.BaselineWindow.Ticks / options.BinWidth.Ticks));
+		double[] baselines = ComputeBaselines(scores, (int)(BaselineWindow.Ticks / BinWidth.Ticks));
 		List<DanmakuHighlight> candidates = [];
 
 		for (int i = 0; i < binCount;)
@@ -88,14 +80,14 @@ internal static class DanmakuHighlightDetector
 				}
 			}
 
-			TimeSpan start = options.BinWidth * first;
-			TimeSpan end = options.BinWidth * i;
+			TimeSpan start = BinWidth * first;
+			TimeSpan end = BinWidth * i;
 			HashSet<string> excluded = new(dominantPhrases.Skip(first).Take(i - first).OfType<string>(), StringComparer.Ordinal);
-			candidates.Add(new DanmakuHighlight(start, options.BinWidth * peak, end < total ? end : total, scores[peak], FindPhrase(bins.AsSpan(first, i - first), excluded, options.MaxPhraseLength)));
+			candidates.Add(new DanmakuHighlight(start, BinWidth * peak, end < total ? end : total, scores[peak], FindPhrase(bins.AsSpan(first, i - first), excluded, MaxPhraseLength)));
 		}
 
 		List<DanmakuHighlight> selected = [];
-		int limit = Math.Max(1, (int)Math.Ceiling(total.TotalHours * options.MaxPerHour));
+		int limit = Math.Max(1, (int)Math.Ceiling(total.TotalHours * MaxPerHour));
 
 		foreach (DanmakuHighlight candidate in candidates.OrderByDescending(static highlight => highlight.Score).ThenBy(static highlight => highlight.Start))
 		{
@@ -104,7 +96,7 @@ internal static class DanmakuHighlightDetector
 				break;
 			}
 
-			if (selected.All(other => (other.Peak - candidate.Peak).Duration() >= options.MinimumSeparation))
+			if (selected.All(other => (other.Peak - candidate.Peak).Duration() >= MinimumSeparation))
 			{
 				selected.Add(candidate);
 			}
@@ -114,17 +106,17 @@ internal static class DanmakuHighlightDetector
 
 		bool IsHot(int bin)
 		{
-			return scores[bin] >= options.MinimumScore && scores[bin] >= baselines[bin] * options.BaselineRatio;
+			return scores[bin] >= MinimumScore && scores[bin] >= baselines[bin] * BaselineRatio;
 		}
 	}
 
-	// 按不同用户计数，一个人刷屏只算一次；匿名连接看不到 uid，只能退回按条数。同时返回被判为抽奖口令或复读的那句话
-	private static (double Score, string? Dominant) Score(List<Message> messages, DanmakuHighlightOptions options)
+	// 按不同用户计数，一个人刷屏只算一次
+	private static (double Score, string? Dominant) Score(List<Message> messages)
 	{
 		HashSet<string> users = [.. messages.Select(static message => message.User)];
 		IGrouping<string, Message>? dominant = messages.GroupBy(static message => message.Phrase, StringComparer.Ordinal)
 			.Select(static group => (Group: group, Users: group.Select(static message => message.User).Distinct(StringComparer.Ordinal).Count()))
-			.Where(entry => entry.Users > users.Count * options.DominantPhraseShare)
+			.Where(entry => entry.Users > users.Count * DominantPhraseShare)
 			.Select(static entry => entry.Group)
 			.FirstOrDefault();
 
@@ -135,7 +127,7 @@ internal static class DanmakuHighlightDetector
 
 		HashSet<string> others = [.. messages.Where(message => !string.Equals(message.Phrase, dominant.Key, StringComparison.Ordinal)).Select(static message => message.User)];
 		int dominantOnly = dominant.Select(static message => message.User).Distinct(StringComparer.Ordinal).Count(user => !others.Contains(user));
-		return (others.Count + Math.Min(dominantOnly, options.DominantPhraseLimit), dominant.Key);
+		return (others.Count + Math.Min(dominantOnly, DominantPhraseLimit), dominant.Key);
 	}
 
 	private static double[] ComputeBaselines(double[] scores, int radius)
@@ -162,7 +154,7 @@ internal static class DanmakuHighlightDetector
 		return baselines;
 	}
 
-	// 取说的人最多的短句；同样多时取先出现的。事件里任何一格判为抽奖口令或复读的话不用，否则章节名会是抽奖口令
+	// 判为抽奖口令或复读的话不用，否则章节名会是抽奖口令
 	private static string FindPhrase(ReadOnlySpan<List<Message>?> bins, HashSet<string> excluded, int maxLength)
 	{
 		Dictionary<string, (HashSet<string> Users, string Text, TimeSpan First)> phrases = new(StringComparer.Ordinal);
@@ -197,13 +189,13 @@ internal static class DanmakuHighlightDetector
 		return ranked.FirstOrDefault() is { Value.Text: { } text } ? Truncate(text, maxLength) : string.Empty;
 	}
 
-	// 按 uid 的哈希去重，昵称打码时哈希仍是真的；哈希缺失时每条算一个人
+	// 昵称打码时 uid 的哈希仍是真的
 	private static string GetUserKey(DanmakuRecord.Comment comment, int index)
 	{
 		return comment.UidHash is not @"0" ? comment.UidHash : string.Create(CultureInfo.InvariantCulture, $@"#{index}");
 	}
 
-	// 只去掉首尾和重复的空白、统一大小写；不合并“哈哈哈”和“哈哈哈哈”，大家各自发的不同说法不算复读
+	// 不合并“哈哈哈”和“哈哈哈哈”，各自发的不同说法不算复读
 	private static string Normalize(string text)
 	{
 		StringBuilder builder = new(text.Length);

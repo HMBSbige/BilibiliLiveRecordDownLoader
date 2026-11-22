@@ -1,6 +1,7 @@
 namespace BilibiliLiveRecordDownLoader.Application.Contracts.Tasks;
 
-// Speed 为已处理的媒体时长与实际耗时之比，与 FFmpeg 输出的 speed 含义相同，无法计算时为 null
+// Speed 与 FFmpeg 输出的 speed 含义相同，无法计算时为 null
+// Message 是失败原因，只在失败时有值
 public sealed record BackgroundTaskSnapshot
 (
 	Guid Id,

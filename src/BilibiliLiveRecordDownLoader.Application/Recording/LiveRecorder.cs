@@ -1,6 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.Application.Recording;
 
-internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpClientFactory httpClientFactory, FFmpegProvider ffmpegProvider, IAppConfigManager configManager, TimeProvider timeProvider, ILogger<LiveRecorder> logger)
+internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpClientFactory httpClientFactory, SwitchableWebProxy proxy, FFmpegProvider ffmpegProvider, IAppConfigManager configManager, TimeProvider timeProvider, ILogger<LiveRecorder> logger)
 {
 	private static readonly Uri Referrer = new(AppConsts.LiveRoomUrlPrefix);
 	private static readonly TimeSpan SampleInterval = TimeSpan.FromSeconds(1);
@@ -35,13 +35,15 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		try
 		{
 			RecordingStream stream = new(candidate.Format, candidate.Codec, candidate.Qn, QualityRestrictions.Evaluate(candidate, batch.Candidates, profile, batch.HasCookie));
+			// 换成 FFmpeg 之前取：FFmpeg 拉的是同一条流，数据同样按段到达
+			TimeSpan idleTimeout = GetIdleTimeout(profile.StreamIdleTimeout, session.MaxSilence);
 
 			if (ffmpeg is not null)
 			{
 				// 只用内置连接验证线路，录制交给 FFmpeg 重新拉流
 				string userAgent = BilibiliRequestHandler.ResolveUserAgent(config.UserAgent);
 				await session.DisposeAsync();
-				session = CreateFFmpegSession(ffmpeg, FFmpegArguments.Record(endpoint, userAgent, Referrer, profile.StreamConnectTimeout, GetFillerRemoval(config, stream.Codec)), endpoint);
+				session = CreateFFmpegSession(ffmpeg, FFmpegArguments.Record(endpoint, userAgent, Referrer, profile.StreamConnectTimeout, GetFillerRemoval(config, stream.Codec), GetFFmpegProxy(endpoint)), endpoint);
 			}
 
 			_ = CreateOnDisk(() => Directory.CreateDirectory(RecordingFileLayout.GetRoomDirectory(profile.RecordDirectory, roomId)));
@@ -54,11 +56,16 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 				LogQualityRestricted(logger, stream.Quality, restriction.Highest, Explain(restriction));
 			}
 
-			TransferResult result = await RecordToFileAsync(session, candidate, stream, recorderType, path, Reserve, profile, observer, split, cancellationToken);
+			TransferResult result = await RecordToFileAsync(session, candidate, stream, recorderType, path, Reserve, idleTimeout, observer, split, cancellationToken);
 			return new RecordingAttempt(candidate, endpoint, result.ActiveDuration, result.End);
 		}
 		finally
 		{
+			if (session.MissedSegments is > 0 and var missed)
+			{
+				LogSegmentsMissed(logger, missed, endpoint.Host);
+			}
+
 			await session.DisposeAsync();
 		}
 
@@ -84,7 +91,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		);
 	}
 
-	// 网络盘断开或没有权限时目录和文件都建不了，和写入失败一样换线路也没用
+	// 目录和文件建不了时和写入失败一样，换线路也没用
 	private static T CreateOnDisk<T>(Func<T> create)
 	{
 		try
@@ -115,20 +122,25 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 	private async Task<(LiveStreamSession Session, LiveStreamCandidate Candidate, CandidateBatch Batch)> OpenAsync(long roomId, long streamerUid, HttpClient httpClient, RecordingProfile profile, AppConfig config, LiveRecordingSession liveSession, CancellationToken cancellationToken)
 	{
-		string? lastFailure = null;
-		bool hasCookie = QualityRestrictions.HasCookie(config);
+		// FastestResponse 同时打开各个主机，失败回调可能并发
+		Lock failureLock = new();
+		(string Log, string Display)? lastFailure = null;
 
-		// 登录或退出之后，旧身份拿到的候选流画质不对，按它判断受限原因也会错；失败的线路按主机记，换了身份仍然有用，不清
-		if (liveSession.Candidates is not { } batch || batch.HasCookie != hasCookie)
+		// 主播没在推流时 CDN 返回 404；其他状态码和连不上都可能要人处理
+		bool isEveryFailureNotFound = true;
+		CandidateRequest request = CandidateRequest.Create(profile, QualityRestrictions.HasCookie(config));
+
+		// 条件变了要重新请求；失败的线路按主机记，仍然有用，不清
+		if (liveSession.Candidates is not { } batch || batch.Request != request)
 		{
-			batch = liveSession.Candidates = await GetCandidatesAsync(roomId, streamerUid, profile, hasCookie, cancellationToken);
+			batch = liveSession.Candidates = await GetCandidatesAsync(roomId, streamerUid, profile, request, cancellationToken);
 		}
 
 		foreach (LiveStreamCandidate candidate in liveSession.GetUntriedCandidates(batch.Candidates))
 		{
 			try
 			{
-				return (await LiveStreamReader.OpenAsync(httpClient, candidate, profile.HostSelection, profile.StreamConnectTimeout, (uri, exception) => OnHostFailed(candidate, uri, exception), cancellationToken), candidate, batch);
+				return (await LiveStreamReader.OpenAsync(httpClient, candidate, profile.HostSelection, profile.StreamConnectTimeout, (uri, exception) => OnHostFailed(candidate, uri, exception), timeProvider, cancellationToken), candidate, batch);
 			}
 			catch (AggregateException) when (!cancellationToken.IsCancellationRequested)
 			{
@@ -136,9 +148,14 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 			}
 		}
 
-		// 所有线路都试过一遍，下次等重连间隔后重新请求候选流
 		liveSession.Reset();
-		throw new HttpRequestException(lastFailure is null ? "No live stream endpoint is left to try." : $"None of the live stream endpoints could be opened, the last one failed with {lastFailure}");
+
+		if (lastFailure is not ({ } log, { } display))
+		{
+			throw new StreamUnavailableException("No live stream endpoint is left to try.", AppLanguage.Current.RecordingNoStreamLeft, false);
+		}
+
+		throw new StreamUnavailableException($"None of the live stream endpoints could be opened, the last one failed with {log}", AppLanguage.Current.RecordingStreamsUnavailable.ToString(display), isEveryFailureNotFound);
 
 		void OnHostFailed(LiveStreamCandidate candidate, Uri uri, Exception exception)
 		{
@@ -151,21 +168,31 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 				return;
 			}
 
-			lastFailure = $"{candidate.Name} {uri.Host}: {exception.Message}";
+			lock (failureLock)
+			{
+				lastFailure = ($"{candidate.Name} {uri.Host}: {exception.Message}", AppLanguage.Current.RecordingEndpointFailed.ToString(candidate.Name, uri.Host, RecordingEnd.GetDisplayText(exception)));
+				isEveryFailureNotFound &= exception is HttpRequestException { StatusCode: HttpStatusCode.NotFound };
+			}
+
 			LogEndpointFailed(logger, exception, candidate.Name, uri.Host);
 		}
 	}
 
-	private async Task<CandidateBatch> GetCandidatesAsync(long roomId, long streamerUid, RecordingProfile profile, bool hasCookie, CancellationToken cancellationToken)
+	private async Task<CandidateBatch> GetCandidatesAsync(long roomId, long streamerUid, RecordingProfile profile, CandidateRequest request, CancellationToken cancellationToken)
 	{
 		IReadOnlyList<LiveStreamCandidate.Listed> listed = await apiClient.GetStreamCandidatesAsync(roomId, profile.RequestQuality, profile.CodecPriority, profile.FormatPriority, cancellationToken);
 
-		if (MasterPlaylistCandidates.GetQualities(listed, profile, hasCookie) is not { Length: > 0 } qualities)
+		if (listed.Count is 0)
 		{
-			return new CandidateBatch(listed, hasCookie);
+			throw new StreamUnavailableException($"Room {roomId} has no usable stream.", AppLanguage.Current.RecordingNoStreamOffered, true);
 		}
 
-		return new CandidateBatch([.. await GetVariantsAsync(roomId, MasterPlaylistCandidates.GetMid(profile, streamerUid), qualities, profile.CodecPriority, cancellationToken), .. listed], hasCookie);
+		if (MasterPlaylistCandidates.GetQualities(listed, profile, request.HasCookie) is not { Length: > 0 } qualities)
+		{
+			return new CandidateBatch(listed, request);
+		}
+
+		return new CandidateBatch([.. await GetVariantsAsync(roomId, MasterPlaylistCandidates.GetMid(profile, streamerUid), qualities, profile.CodecPriority, cancellationToken), .. listed], request);
 	}
 
 	// 主播放列表拿不到时照常用接口给的流，不当作故障
@@ -202,19 +229,24 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		};
 	}
 
-	private async Task<TransferResult> RecordToFileAsync(LiveStreamSession session, LiveStreamCandidate candidate, RecordingStream stream, RecorderType recorderType, string path, Func<DateTimeOffset, string> reservePath, RecordingProfile profile, IRecordingObserver observer, SplitControl split, CancellationToken cancellationToken)
+	// 设置的空闲超时是下限；HLS 按段到达，两段之间本来就没有数据
+	internal static TimeSpan GetIdleTimeout(TimeSpan configured, TimeSpan? maxSilence)
+	{
+		return maxSilence is { } silence && silence + SampleInterval > configured ? silence + SampleInterval : configured;
+	}
+
+	private async Task<TransferResult> RecordToFileAsync(LiveStreamSession session, LiveStreamCandidate candidate, RecordingStream stream, RecorderType recorderType, string path, Func<DateTimeOffset, string> reservePath, TimeSpan idleTimeout, IRecordingObserver observer, SplitControl split, CancellationToken cancellationToken)
 	{
 		// 文件由写缓冲关闭
 		Stream file = CreateOnDisk(() => CreateFile(path));
 
-		// 文件建好之后才开始计时，创建失败时不留下看门狗
-		RecordingTimeline timeline = new(path, timeProvider);
+		RecordingTimeline timeline = new(path, timeProvider, idleTimeout);
 		observer.OnRecordingStarted(path, stream, timeline);
 		TransferMeter meter = new();
 		AttemptGate gate = new();
 		RecordingOutput output = CreateOutput(file, path, candidate, recorderType, reservePath, observer, split, gate, timeline);
 
-		return await TransferAsync(CopyAsync, meter.TakePending, profile.StreamIdleTimeout, observer, cancellationToken);
+		return await TransferAsync(CopyAsync, meter.TakePending, idleTimeout, observer, cancellationToken);
 
 		async Task<StreamEndReason> CopyAsync(CancellationToken ct)
 		{
@@ -226,25 +258,19 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 			{
 				gate.Close();
 
-				// 关上之后写盘端不会再建文件，等着归属的弹幕可以放弃没建出来的段
 				timeline.Close();
 			}
 		}
 	}
 
-	// 录制中途也可能打开分段，不分段时同样按容器解析；认不出的容器原样写进一个文件
+	// 录制中途也可能打开分段，所以不分段时同样按容器解析
 	private RecordingOutput CreateOutput(Stream file, string path, LiveStreamCandidate candidate, RecorderType recorderType, Func<DateTimeOffset, string> reservePath, IRecordingObserver observer, SplitControl split, AttemptGate gate, RecordingTimeline timeline)
 	{
-		if (CreateSplitter(candidate, recorderType) is not { } splitter)
-		{
-			return new SingleFileOutput(file, timeline);
-		}
-
+		MediaSplitter splitter = CreateSplitter(candidate, recorderType);
 		return new SegmentedOutput(file, path, (writer, starts) => new RecordingSegmenter(writer, splitter, split, starts, timeProvider, logger, timeline), OpenNext, completed => gate.TryRun(() => observer.OnSegmentCompleted(completed)));
 
 		(string Path, Stream File) OpenNext(SegmentStart start)
 		{
-			// 尝试已经结束时一般在这里就停下，不必建出文件
 			if (gate.IsClosed)
 			{
 				throw new OperationCanceledException(AttemptGate.ClosedMessage);
@@ -271,26 +297,43 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		}
 	}
 
+	// FFmpeg 不读系统代理，按内置连接同样的规则把代理交给它
+	private Uri? GetFFmpegProxy(Uri endpoint)
+	{
+		if (proxy.IsBypassed(endpoint) || proxy.GetProxy(endpoint) is not { } address)
+		{
+			return null;
+		}
+
+		if (address is { IsAbsoluteUri: true, Scheme: "http" })
+		{
+			return address;
+		}
+
+		LogFFmpegProxyUnsupported(logger, address.Scheme, endpoint.Host);
+		return null;
+	}
+
 	// FFmpeg 启动之后改不了参数，录制中途改的设置等下次启动
 	internal static FillerRemoval GetFillerRemoval(AppConfig config, StreamCodec codec)
 	{
 		return (config.RemoveFillerData, codec) switch
 		{
+			(false, _) => FillerRemoval.None,
 			(true, StreamCodec.Avc) => FillerRemoval.Avc,
 			(true, StreamCodec.Hevc) => FillerRemoval.Hevc,
-			_ => FillerRemoval.None
+			(true, StreamCodec.Av1) => FillerRemoval.None
 		};
 	}
 
-	internal static MediaSplitter? CreateSplitter(LiveStreamCandidate candidate, RecorderType recorderType)
+	internal static MediaSplitter CreateSplitter(LiveStreamCandidate candidate, RecorderType recorderType)
 	{
 		return (recorderType, candidate.Protocol, candidate.Format) switch
 		{
 			(RecorderType.FFmpeg, _, _) => new TransportStreamSplitter(),
 			(RecorderType.BuiltIn, StreamProtocol.HttpHls, StreamFormat.Fmp4) => new Fmp4HlsSplitter(),
 			(RecorderType.BuiltIn, StreamProtocol.HttpHls, _) => new TsHlsSplitter(),
-			(RecorderType.BuiltIn, StreamProtocol.HttpStream, _) => new FlvSplitter(),
-			_ => null
+			(RecorderType.BuiltIn, StreamProtocol.HttpStream, _) => new FlvSplitter()
 		};
 	}
 
@@ -315,7 +358,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 			statistics = await watchdog;
 		}
 
-		// 外部没有取消时，传输被取消只可能来自空闲超时；磁盘卡住时网络读取也会停下，这时写盘失败才是原因
+		// 磁盘卡住时网络读取也会停下而触发空闲超时，这时写盘失败才是原因
 		return new TransferResult(statistics.IsIdle && end is not RecordingEnd.WriteFailed ? new RecordingEnd.Idle(idleTimeout) : end, statistics.ActiveDuration);
 	}
 
@@ -377,7 +420,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 	private readonly record struct TransferStatistics(bool IsIdle, TimeSpan ActiveDuration);
 
-	// 排空超时后写盘端还在后台换文件，尝试结束之后它不能再通知观察者；检查和通知在同一把锁里，关上之后就不会再有通知
+	// 排空超时后写盘端还在后台换文件，尝试结束之后它不能再通知观察者；检查和通知在同一把锁里
 	private sealed class AttemptGate
 	{
 		public const string ClosedMessage = "The recording attempt has ended.";
@@ -424,11 +467,17 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 	[LoggerMessage(Level = LogLevel.Warning, Message = "FFmpeg is not available, falling back to the built-in recorder")]
 	private static partial void LogFFmpegFallback(ILogger logger);
 
+	[LoggerMessage(Level = LogLevel.Warning, Message = "FFmpeg cannot use a {Scheme} proxy, connecting to {Host} directly")]
+	private static partial void LogFFmpegProxyUnsupported(ILogger logger, string scheme, string host);
+
 	[LoggerMessage(Level = LogLevel.Information, Message = "Recording {Format}/{Codec} at quality {Quality} from {Host}{StreamPath} to {Path}")]
 	private static partial void LogStreamSelected(ILogger logger, StreamFormat format, StreamCodec codec, long quality, string host, string streamPath, string path);
 
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Recording at quality {Quality} while {Highest} is available: {Reason}")]
 	private static partial void LogQualityRestricted(ILogger logger, long quality, long highest, string reason);
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "{Count} HLS segments from {Host} left the playlist before they could be downloaded")]
+	private static partial void LogSegmentsMissed(ILogger logger, long count, string host);
 
 	[LoggerMessage(Level = LogLevel.Information, Message = "Splitting the recording ({Reason}), continuing in {Path}")]
 	private static partial void LogSplit(ILogger logger, SplitReason reason, string path);
