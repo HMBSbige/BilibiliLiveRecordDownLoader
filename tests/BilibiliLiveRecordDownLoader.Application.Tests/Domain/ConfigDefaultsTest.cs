@@ -82,6 +82,12 @@ public sealed class ConfigDefaultsTest
 	}
 
 	[Test]
+	public async Task FileNamesIncludeTheTitleByDefaultAsync()
+	{
+		await Assert.That(AppConfig.CreateDefault().IncludeTitleInFileName).IsTrue();
+	}
+
+	[Test]
 	public async Task SplitValuesAreClampedToTheirBoundsAsync()
 	{
 		AppConfig config = new()

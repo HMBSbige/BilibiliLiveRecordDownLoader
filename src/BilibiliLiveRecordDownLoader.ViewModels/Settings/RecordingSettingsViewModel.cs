@@ -42,6 +42,9 @@ public sealed partial class RecordingSettingsViewModel(IAppConfigManager configM
 	public partial bool SplitOnTitleChange { get; set; }
 
 	[Reactive]
+	public partial bool IncludeTitleInFileName { get; set; }
+
+	[Reactive]
 	public partial bool IsSplitByDuration { get; private set; }
 
 	[Reactive]
@@ -62,6 +65,7 @@ public sealed partial class RecordingSettingsViewModel(IAppConfigManager configM
 		SplitDurationMinutes = (decimal)config.SplitDuration.TotalMinutes;
 		SplitSizeMegabytes = config.SplitSizeMegabytes;
 		SplitOnTitleChange = config.SplitOnTitleChange;
+		IncludeTitleInFileName = config.IncludeTitleInFileName;
 		CodecPriority.Reset(config.CodecPriority);
 		FormatPriority.Reset(config.FormatPriority);
 
@@ -83,6 +87,7 @@ public sealed partial class RecordingSettingsViewModel(IAppConfigManager configM
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.SplitDurationMinutes), static (appConfig, value) => appConfig.SplitDuration = TimeSpan.FromMinutes((double)value), NumberInputQuietPeriod);
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.SplitSizeMegabytes), static (appConfig, value) => appConfig.SplitSizeMegabytes = (long)value, NumberInputQuietPeriod);
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.SplitOnTitleChange), static (appConfig, value) => appConfig.SplitOnTitleChange = value);
+		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.IncludeTitleInFileName), static (appConfig, value) => appConfig.IncludeTitleInFileName = value);
 		PersistToConfig(configManager, CodecPriority.WhenChanged(static list => list.Values), (appConfig, _) => appConfig.CodecPriority = CodecPriority.ToList<StreamCodec>());
 		PersistToConfig(configManager, FormatPriority.WhenChanged(static list => list.Values), (appConfig, _) => appConfig.FormatPriority = FormatPriority.ToList<StreamFormat>());
 

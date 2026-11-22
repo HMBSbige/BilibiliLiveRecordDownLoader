@@ -109,6 +109,9 @@
                     <ToggleSwitch IsChecked="{Binding SplitOnTitleChange}"
                                   OnContent="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}"
                                   OffContent="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}" />
+                    <ToggleSwitch IsChecked="{Binding IncludeTitleInFileName}"
+                                  OnContent="{Binding IncludeTitleInFileName, Source={x:Static l:AppLanguage.Current}}"
+                                  OffContent="{Binding IncludeTitleInFileName, Source={x:Static l:AppLanguage.Current}}" />
                 </StackPanel>
             </Border>
 

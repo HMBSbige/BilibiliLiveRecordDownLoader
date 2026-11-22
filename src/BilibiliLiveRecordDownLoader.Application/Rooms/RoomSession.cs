@@ -58,6 +58,17 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 	}
 
+	private string? Title
+	{
+		get
+		{
+			lock (_lock)
+			{
+				return _title;
+			}
+		}
+	}
+
 	private string StreamerName
 	{
 		get
@@ -424,7 +435,8 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 
 				try
 				{
-					RecordingAttempt attempt = await services.Recorder.RecordAsync(RoomId, profile, liveSession, this, split, cancellationToken);
+					// 每建一个文件按当时的设置和标题命名
+					RecordingAttempt attempt = await services.Recorder.RecordAsync(RoomId, profile, liveSession, this, split, () => config.IncludeTitleInFileName ? Title : null, cancellationToken);
 
 					// 流结束时尽快确认是否已下播，下播造成的断流不算线路故障
 					await TryRefreshAsync(cancellationToken);

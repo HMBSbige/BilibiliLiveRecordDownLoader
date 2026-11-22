@@ -12,7 +12,7 @@ public sealed class RecordingFileLayoutTest
 	[Arguments(RecorderType.FFmpeg, StreamFormat.Fmp4, "20260102_030405.ts")]
 	public async Task RecordingPathUsesRoomDirectoryAndFormatExtensionAsync(RecorderType recorderType, StreamFormat format, string expectedFileName)
 	{
-		string path = RecordingFileLayout.GetRecordingPath(RecordingFileLayout.GetRecordingStem("records", 123, StartTime), format, recorderType);
+		string path = RecordingFileLayout.GetRecordingPath(RecordingFileLayout.GetRecordingStem("records", 123, StartTime, null), format, recorderType);
 
 		await Assert.That(path).IsEqualTo(Path.Combine("records", "123", expectedFileName));
 	}
@@ -20,10 +20,49 @@ public sealed class RecordingFileLayoutTest
 	[Test]
 	public async Task SequenceKeepsTheFmp4SuffixLastAsync()
 	{
-		string path = RecordingFileLayout.GetRecordingPath(RecordingFileLayout.GetRecordingStem("records", 123, StartTime, 2), StreamFormat.Fmp4, RecorderType.BuiltIn);
+		string path = RecordingFileLayout.GetRecordingPath(RecordingFileLayout.GetRecordingStem("records", 123, StartTime, null, 2), StreamFormat.Fmp4, RecorderType.BuiltIn);
 
 		await Assert.That(path).IsEqualTo(Path.Combine("records", "123", "20260102_030405_2_fmp4.mp4"));
 		await Assert.That(RecordingFileLayout.GetMp4ConversionPath(path)).IsEqualTo(Path.Combine("records", "123", "20260102_030405_2.mp4"));
+	}
+
+	[Test]
+	public async Task TitleGoesBetweenTheTimeAndTheSequenceAsync()
+	{
+		string path = RecordingFileLayout.GetRecordingPath(RecordingFileLayout.GetRecordingStem("records", 123, StartTime, "今晚唱歌", 2), StreamFormat.Fmp4, RecorderType.BuiltIn);
+
+		await Assert.That(path).IsEqualTo(Path.Combine("records", "123", "20260102_030405_今晚唱歌_2_fmp4.mp4"));
+		await Assert.That(RecordingFileLayout.GetMp4ConversionPath(path)).IsEqualTo(Path.Combine("records", "123", "20260102_030405_今晚唱歌_2.mp4"));
+	}
+
+	[Test]
+	[Arguments("a/b\\c:d*e?f\"g<h>i|j", "20260102_030405_a_b_c_d_e_f_g_h_i_j")]
+	[Arguments("  第一行\n第二行\t ", "20260102_030405_第一行_第二行")]
+	[Arguments(null, "20260102_030405")]
+	[Arguments(" \t\n", "20260102_030405")]
+	public async Task TitleIsCleanedForEveryFileSystemAsync(string? title, string expectedFileName)
+	{
+		await Assert.That(Path.GetFileName(RecordingFileLayout.GetRecordingStem("records", 123, StartTime, title))).IsEqualTo(expectedFileName);
+	}
+
+	[Test]
+	public async Task UnpairedSurrogateInTheTitleBecomesTheReplacementCharacterAsync()
+	{
+		await Assert.That(Path.GetFileName(RecordingFileLayout.GetRecordingStem("records", 123, StartTime, "\uD800x"))).IsEqualTo("20260102_030405_\uFFFDx");
+	}
+
+	[Test]
+	public async Task LongTitleIsCutAtWholeCharactersWithinTheByteLimitAsync()
+	{
+		// 38 个汉字是 114 字节，带肤色的 emoji 是两个码位共 8 字节，只放得下前一个码位
+		string cjk = Path.GetFileName(RecordingFileLayout.GetRecordingStem("records", 123, StartTime, new string('啊', 38) + "👍🏽尾"));
+		string ascii = Path.GetFileName(RecordingFileLayout.GetRecordingStem("records", 123, StartTime, new string('a', 200)));
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(cjk).IsEqualTo("20260102_030405_" + new string('啊', 38));
+			await Assert.That(ascii).IsEqualTo("20260102_030405_" + new string('a', 120));
+		}
 	}
 
 	[Test]
@@ -72,6 +111,24 @@ public sealed class RecordingFileLayoutTest
 		{
 			await Assert.That(RecordingFileLayout.GetMp4ConversionPath(fmp4)).IsEqualTo(RecordingFileLayout.GetMp4ConversionPath(flv));
 			await Assert.That(RecordingFileLayout.IsStemAvailable(stem, existing => existing == flv)).IsFalse();
+		}
+	}
+
+	[Test]
+	public async Task RecordingsWhoseConversionLandsOnTheFmp4FileMakeTheStemUnavailableAsync()
+	{
+		string stem = RecordingFileLayout.GetRecordingStem("records", 123, StartTime, "a");
+		string fmp4 = RecordingFileLayout.GetRecordingPath(stem, StreamFormat.Fmp4, RecorderType.BuiltIn);
+		string titledStem = RecordingFileLayout.GetRecordingStem("records", 123, StartTime, "a_fmp4");
+		string[] recordings = [.. Enum.GetValues<StreamFormat>().Select(format => RecordingFileLayout.GetRecordingPath(titledStem, format, RecorderType.BuiltIn)).Distinct()];
+
+		foreach (string recording in recordings)
+		{
+			using (Assert.Multiple())
+			{
+				await Assert.That(RecordingFileLayout.GetMp4ConversionPath(recording)).IsEqualTo(fmp4).Because(recording);
+				await Assert.That(RecordingFileLayout.IsStemAvailable(stem, existing => existing == recording)).IsFalse().Because(recording);
+			}
 		}
 	}
 

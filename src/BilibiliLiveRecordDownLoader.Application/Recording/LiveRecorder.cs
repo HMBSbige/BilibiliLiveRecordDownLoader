@@ -9,7 +9,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 	internal TimeSpan DrainTimeout { get; init; } = RecordingWriteBuffer.DrainTimeout;
 
-	public async Task<RecordingAttempt> RecordAsync(long roomId, RecordingProfile profile, LiveRecordingSession liveSession, IRecordingObserver observer, SplitControl split, CancellationToken cancellationToken)
+	public async Task<RecordingAttempt> RecordAsync(long roomId, RecordingProfile profile, LiveRecordingSession liveSession, IRecordingObserver observer, SplitControl split, Func<string?> getFileTitle, CancellationToken cancellationToken)
 	{
 		FFmpegRunner? ffmpeg = null;
 		RecorderType recorderType = profile.RecorderType;
@@ -53,7 +53,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 		string Reserve(DateTimeOffset startTime)
 		{
-			return ReservePath(liveSession, profile.RecordDirectory, roomId, candidate.Format, recorderType, startTime);
+			return ReservePath(liveSession, profile.RecordDirectory, roomId, getFileTitle(), candidate.Format, recorderType, startTime);
 		}
 	}
 
@@ -87,13 +87,13 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 	}
 
 	// 同一秒内重连会得到相同的时间戳，不同格式的文件转封装后又会落到同一个 .mp4
-	private string ReservePath(LiveRecordingSession liveSession, string recordDirectory, long roomId, StreamFormat format, RecorderType recorderType, DateTimeOffset startTime)
+	private string ReservePath(LiveRecordingSession liveSession, string recordDirectory, long roomId, string? title, StreamFormat format, RecorderType recorderType, DateTimeOffset startTime)
 	{
 		startTime = TimeZoneInfo.ConvertTime(startTime, timeProvider.LocalTimeZone);
 
 		for (int sequence = 0; ; ++sequence)
 		{
-			string stem = RecordingFileLayout.GetRecordingStem(recordDirectory, roomId, startTime, sequence);
+			string stem = RecordingFileLayout.GetRecordingStem(recordDirectory, roomId, startTime, title, sequence);
 
 			if (RecordingFileLayout.IsStemAvailable(stem, File.Exists) && liveSession.TryReserveStem(stem))
 			{

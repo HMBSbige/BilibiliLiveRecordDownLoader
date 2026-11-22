@@ -47,6 +47,31 @@ public sealed class RecordingSettingsViewModelTest
 
 	[Test]
 	[Timeout(30_000)]
+	public async Task TitleInFileNameIsRestoredFromAndSavedToTheConfigAsync(CancellationToken cancellationToken)
+	{
+		AppConfig config = AppConfig.CreateDefault();
+		config.IncludeTitleInFileName = false;
+		FakeConfigManager configManager = new(config);
+		using RecordingSettingsViewModel viewModel = new(configManager);
+
+		viewModel.ApplyConfig(config);
+		bool restored = viewModel.IncludeTitleInFileName;
+		viewModel.IncludeTitleInFileName = true;
+
+		while (configManager.UpdateCount < 1)
+		{
+			await Task.Delay(10, cancellationToken);
+		}
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(restored).IsFalse();
+			await Assert.That(config.IncludeTitleInFileName).IsTrue();
+		}
+	}
+
+	[Test]
+	[Timeout(30_000)]
 	public async Task NumberBeingTypedIsSavedOnceItStopsChangingAsync(CancellationToken cancellationToken)
 	{
 		AppConfig config = AppConfig.CreateDefault();

@@ -46,6 +46,8 @@ public record AppConfig
 
 	public bool SplitOnTitleChange { get; set; }
 
+	public bool IncludeTitleInFileName { get; set; } = true;
+
 	public bool NotifyOnRecordingError { get; set; } = true;
 
 	public bool NotifyOnTitleChange { get; set; }

@@ -61,6 +61,49 @@ public sealed class RoomSplitRecordingTest
 
 	[Test]
 	[Timeout(30_000)]
+	public async Task FileStartedAfterATitleChangeIsNamedWithTheNewTitleAsync(CancellationToken cancellationToken)
+	{
+		RecordingMediaTools mediaTools = new();
+		await using RecordingLoopHarness loop = Create(cancellationToken, mediaTools);
+		loop.Config.SplitMode = RecordingSplitMode.None;
+		loop.Config.SplitOnTitleChange = true;
+		loop.Config.IncludeTitleInFileName = true;
+
+		loop.GoLive();
+		StreamRequest stream = await loop.NextStreamAsync();
+		await stream.AcceptAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. Frame(VideoPacket.KeyFrame, 0)]);
+		await stream.SendAndWaitAsync(Frame(VideoPacket.InterFrame, 33));
+		loop.Session.Handle(new DanmuMessage.RoomChanged("updated title", null, null));
+		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 2000));
+		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 4000));
+		await stream.EndAsync();
+
+		await Assert.That(await RecordedFilesAfterTheAttemptAsync(loop)).IsEqualTo("20260101_000000_title.flv, 20260101_000000_updated title.flv");
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	public async Task TitleInFileNameFollowsTheSettingWhenEachFileStartsAsync(CancellationToken cancellationToken)
+	{
+		RecordingMediaTools mediaTools = new();
+		await using RecordingLoopHarness loop = Create(cancellationToken, mediaTools);
+		loop.Config.IncludeTitleInFileName = true;
+
+		loop.GoLive();
+		StreamRequest stream = await loop.NextStreamAsync();
+		await stream.AcceptAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. Frame(VideoPacket.KeyFrame, 0)]);
+		await stream.SendAndWaitAsync(Frame(VideoPacket.InterFrame, 33));
+		loop.Config.IncludeTitleInFileName = false;
+		loop.Time.Advance(TimeSpan.FromSeconds(61));
+		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 61_000));
+		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 63_000));
+		await stream.EndAsync();
+
+		await Assert.That(await RecordedFilesAfterTheAttemptAsync(loop)).IsEqualTo("20260101_000000_title.flv, 20260101_000101.flv");
+	}
+
+	[Test]
+	[Timeout(30_000)]
 	public async Task EachFileIsPostProcessedOnceFinishedWhileTheRecordingTimeKeepsRunningAsync(CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();
@@ -202,6 +245,9 @@ public sealed class RoomSplitRecordingTest
 		loop.Config.SplitMode = RecordingSplitMode.Duration;
 		loop.Config.SplitDuration = TimeSpan.FromMinutes(1);
 		loop.Config.ConvertToMp4 = true;
+
+		// 只看分段的用例文件名只有时间
+		loop.Config.IncludeTitleInFileName = false;
 
 		// 一次推进一分多钟，不能被当成空闲
 		loop.Settings.StreamIdleTimeout = TimeSpan.FromHours(1);
