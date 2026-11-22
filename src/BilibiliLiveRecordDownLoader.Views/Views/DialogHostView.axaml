@@ -37,6 +37,9 @@
                         <DataTemplate DataType="dialogs:QrCodeLoginViewModel">
                             <views:QrCodeLoginView />
                         </DataTemplate>
+                        <DataTemplate DataType="dialogs:FollowedRoomImportViewModel">
+                            <views:FollowedRoomImportView />
+                        </DataTemplate>
                     </ContentControl.DataTemplates>
                 </ContentControl>
             </DockPanel>

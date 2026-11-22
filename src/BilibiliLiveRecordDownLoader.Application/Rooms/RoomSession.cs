@@ -24,6 +24,17 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 
 	public long RoomId { get; } = settings.RoomId;
 
+	public long ShortId
+	{
+		get
+		{
+			lock (_lock)
+			{
+				return _shortId;
+			}
+		}
+	}
+
 	public bool IsRecording
 	{
 		get

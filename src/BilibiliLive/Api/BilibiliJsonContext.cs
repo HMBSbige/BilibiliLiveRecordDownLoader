@@ -8,6 +8,7 @@ namespace BilibiliLive.Api;
 [JsonSerializable(typeof(RoomPlayInfoData))]
 [JsonSerializable(typeof(DanmuInfoData))]
 [JsonSerializable(typeof(NavData))]
+[JsonSerializable(typeof(FollowingData))]
 [JsonSerializable(typeof(QrCodeGenerateData))]
 [JsonSerializable(typeof(QrCodePollData))]
 [JsonSerializable(typeof(DanmuAuthBody))]

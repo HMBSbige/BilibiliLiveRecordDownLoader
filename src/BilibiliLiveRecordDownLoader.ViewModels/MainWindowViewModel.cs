@@ -28,6 +28,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 	public partial bool IsInitialized { get; private set; }
 
 	[Reactive]
+	public partial int SelectedPageIndex { get; set; }
+
+	[Reactive]
 	public partial double WindowWidth { get; private set; } = 1280;
 
 	[Reactive]
@@ -42,6 +45,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
 		_startupTasksStarted = true;
 		Forget(RunStartupTasksAsync);
+	}
+
+	public void Navigate(MainPage page)
+	{
+		SelectedPageIndex = (int)page;
 	}
 
 	public void SaveWindowSize(double width, double height)

@@ -1,4 +1,6 @@
 using BilibiliLive.Tests.Fakes;
+using System.Net;
+using System.Web;
 
 namespace BilibiliLive.Tests;
 
@@ -31,6 +33,124 @@ public class BilibiliApiClientTest
 		BilibiliApiException? exception = await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetRoomInfoAsync(999999999, cancellationToken));
 
 		await Assert.That(exception?.Code).IsEqualTo(60004);
+	}
+
+	[Test]
+	public async Task GetRoomInfosRequestsAllRoomsAtOnceAsync(CancellationToken cancellationToken)
+	{
+		using ApiClient api = Single(ApiPaths.RoomBaseInfo, () => Responses.Json("""{"code":0,"message":"OK","data":{"by_room_ids":{"6154037":{"room_id":6154037,"short_id":732,"uid":194484313,"uname":"Asaki大人","title":"t","live_status":1},"5440":{"room_id":5440,"short_id":1,"uid":9617619,"live_status":0}}}}"""));
+
+		IReadOnlyList<LiveRoomInfo> rooms = await api.Client.GetRoomInfosAsync([732, 5440, 999999999], cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Sequences.AssertEqualAsync(rooms, [new LiveRoomInfo(6154037, 732, 194484313, "Asaki大人", "t", LiveStatus.Live), new LiveRoomInfo(5440, 1, 9617619, string.Empty, string.Empty, LiveStatus.Idle)]);
+			await Assert.That(api.Handler.Requests.Single().Uri.Query).Contains("room_ids=732&room_ids=5440&room_ids=999999999&");
+		}
+	}
+
+	[Test]
+	public async Task FollowedRoomsArePagedUntilTheLastPageAsync(CancellationToken cancellationToken)
+	{
+		ManualTimeProvider time = new();
+		using ApiClient api = FollowingPages(time, FollowingPage(3, Room(1, "a", 1), Room(2, "b", 0)), FollowingPage(3, Room(3, "c", 2)), FollowingPage(3, Room(4, "d", 0)));
+
+		List<FollowedLiveRoom> rooms = await ToListAsync(api.Client.GetFollowedRoomsAsync(cancellationToken));
+
+		FollowedLiveRoom[] expected =
+		[
+			new(1, 101, "a", "title 1", LiveStatus.Live),
+			new(2, 102, "b", "title 2", LiveStatus.Idle),
+			new(3, 103, "c", "title 3", LiveStatus.Round),
+			new(4, 104, "d", "title 4", LiveStatus.Idle)
+		];
+
+		using (Assert.Multiple())
+		{
+			await Sequences.AssertEqualAsync(rooms, expected);
+			await Sequences.AssertEqualAsync(api.Handler.Requests.Select(static r => HttpUtility.ParseQueryString(r.Uri.Query)["page"]), ["1", "2", "3"]);
+			await Assert.That(api.Handler.Requests.All(static r => HttpUtility.ParseQueryString(r.Uri.Query)["page_size"] is "10")).IsTrue();
+			await Sequences.AssertEqualAsync(time.Delays, [BilibiliApiClient.FollowingPageInterval, BilibiliApiClient.FollowingPageInterval]);
+		}
+	}
+
+	[Test]
+	public async Task FollowedRoomsSkipDuplicatesAndEntriesWithoutRoomAsync(CancellationToken cancellationToken)
+	{
+		using ApiClient api = FollowingPages(new ManualTimeProvider(), """{"code":0,"message":"0","data":{"totalPage":2,"list":[{"roomid":1,"uid":101},{"uid":102,"uname":"no room"},{"roomid":0,"uid":103}]}}""", FollowingPage(2, Room(1, "a", 1), Room(5, "e", 0)));
+
+		List<FollowedLiveRoom> rooms = await ToListAsync(api.Client.GetFollowedRoomsAsync(cancellationToken));
+
+		await Sequences.AssertEqualAsync(rooms, [new FollowedLiveRoom(1, 101, string.Empty, string.Empty, LiveStatus.Idle), new FollowedLiveRoom(5, 105, "e", "title 5", LiveStatus.Idle)]);
+	}
+
+	[Test]
+	[Arguments("""{"code":0,"message":"0","data":{"totalPage":0,"count":0,"list":[]}}""")]
+	[Arguments("""{"code":0,"message":"0","data":{"totalPage":5}}""")]
+	public async Task FollowedRoomsStopAtAnEmptyPageAsync(string json, CancellationToken cancellationToken)
+	{
+		using ApiClient api = FollowingPages(new ManualTimeProvider(), json, json);
+
+		List<FollowedLiveRoom> rooms = await ToListAsync(api.Client.GetFollowedRoomsAsync(cancellationToken));
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(rooms).IsEmpty();
+			await Assert.That(api.Handler.Requests.Count).IsEqualTo(1);
+		}
+	}
+
+	[Test]
+	public async Task FollowedRoomsWithoutTotalPageStopAtAPageThatAddsNothingAsync(CancellationToken cancellationToken)
+	{
+		using ApiClient api = FollowingPages(new ManualTimeProvider(), FollowingPage(0, Room(1, "a", 1), Room(2, "b", 0)), FollowingPage(0, Room(3, "c", 0)), FollowingPage(0, Room(3, "c", 0)), FollowingPage(0, Room(4, "d", 0)));
+
+		List<FollowedLiveRoom> rooms = await ToListAsync(api.Client.GetFollowedRoomsAsync(cancellationToken));
+
+		using (Assert.Multiple())
+		{
+			await Sequences.AssertEqualAsync(rooms.Select(static room => room.RoomId), [1L, 2L, 3L]);
+			await Assert.That(api.Handler.Requests.Count).IsEqualTo(3);
+		}
+	}
+
+	[Test]
+	public async Task FollowedRoomsThrowWhenNotLoggedInAsync(CancellationToken cancellationToken)
+	{
+		using ApiClient api = FollowingPages(new ManualTimeProvider(), """{"code":-101,"message":"账号未登录","ttl":1}""");
+
+		BilibiliApiException? exception = await Assert.ThrowsAsync<BilibiliApiException>(() => ToListAsync(api.Client.GetFollowedRoomsAsync(cancellationToken)));
+
+		await Assert.That(exception?.Code).IsEqualTo(BilibiliApiException.NotLoggedInCode);
+	}
+
+	[Test]
+	public async Task FollowedRoomsSurfaceTheRateLimitStatusAsync(CancellationToken cancellationToken)
+	{
+		using ApiClient api = new(_ => Responses.Status(HttpStatusCode.PreconditionFailed), new ManualTimeProvider());
+
+		HttpRequestException? exception = await Assert.ThrowsAsync<HttpRequestException>(() => ToListAsync(api.Client.GetFollowedRoomsAsync(cancellationToken)));
+
+		await Assert.That(exception?.StatusCode).IsEqualTo(HttpStatusCode.PreconditionFailed);
+	}
+
+	[Test]
+	public async Task FollowedRoomsStopRequestingOnceCanceledAsync(CancellationToken cancellationToken)
+	{
+		using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+		using ApiClient api = FollowingPages(new ManualTimeProvider(), FollowingPage(3, Room(1, "a", 1)), FollowingPage(3, Room(2, "b", 1)), FollowingPage(3, Room(3, "c", 1)));
+
+		await Assert.ThrowsAsync<OperationCanceledException>
+		(async () =>
+			{
+				await foreach (FollowedLiveRoom _ in api.Client.GetFollowedRoomsAsync(cancellation.Token))
+				{
+					await cancellation.CancelAsync();
+				}
+			}
+		);
+
+		await Assert.That(api.Handler.Requests.Count).IsEqualTo(1);
 	}
 
 	[Test]
@@ -215,5 +335,38 @@ public class BilibiliApiClientTest
 			await Assert.That(exception?.Code).IsEqualTo(12345);
 			await Assert.That(exception?.Message).IsEqualTo("未知");
 		}
+	}
+
+	private static ApiClient FollowingPages(TimeProvider timeProvider, params string[] pages)
+	{
+		return new ApiClient
+		(
+			request => request.RequestUri is { AbsolutePath: ApiPaths.Following } uri && int.TryParse(HttpUtility.ParseQueryString(uri.Query)["page"], out int page) && page >= 1 && page <= pages.Length
+				? Responses.Json(pages[page - 1])
+				: Responses.NotFound(),
+			timeProvider
+		);
+	}
+
+	private static string FollowingPage(int totalPage, params string[] rooms)
+	{
+		return $$$"""{"code":0,"message":"0","ttl":1,"data":{"title":"哔哩哔哩直播 - 我的关注","pageSize":10,"totalPage":{{{totalPage}}},"list":[{{{string.Join(',', rooms)}}}],"count":{{{rooms.Length}}}}}""";
+	}
+
+	private static string Room(long roomId, string userName, int liveStatus)
+	{
+		return $$"""{"roomid":{{roomId}},"uid":{{roomId + 100}},"uname":"{{userName}}","title":"title {{roomId}}","face":"https://i0.hdslb.com/face.jpg","live_status":{{liveStatus}},"record_live_time":0}""";
+	}
+
+	private static async Task<List<T>> ToListAsync<T>(IAsyncEnumerable<T> source)
+	{
+		List<T> items = [];
+
+		await foreach (T item in source)
+		{
+			items.Add(item);
+		}
+
+		return items;
 	}
 }

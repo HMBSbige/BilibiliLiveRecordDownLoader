@@ -5,6 +5,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="BilibiliLiveRecordDownLoader.Application.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\BilibiliLiveRecordDownLoader.Application.Contracts\BilibiliLiveRecordDownLoader.Application.Contracts.csproj" />
     <ProjectReference Include="..\BilibiliLiveRecordDownLoader.Domain\BilibiliLiveRecordDownLoader.Domain.csproj" />
   </ItemGroup>

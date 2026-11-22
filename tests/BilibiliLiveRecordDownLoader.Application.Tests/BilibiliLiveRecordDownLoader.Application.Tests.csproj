@@ -8,6 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\BilibiliLiveRecordDownLoader.Application\BilibiliLiveRecordDownLoader.Application.csproj" />
     <ProjectReference Include="..\..\src\BilibiliLiveRecordDownLoader.Configuration\BilibiliLiveRecordDownLoader.Configuration.csproj" />
+    <ProjectReference Include="..\..\src\BilibiliLiveRecordDownLoader.ViewModels\BilibiliLiveRecordDownLoader.ViewModels.csproj" />
   </ItemGroup>
 
 </Project>

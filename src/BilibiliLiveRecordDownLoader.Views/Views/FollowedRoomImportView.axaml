@@ -1,0 +1,155 @@
+<UserControl
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ic="using:FluentIcons.Avalonia"
+    xmlns:dialogs="using:BilibiliLiveRecordDownLoader.ViewModels.Dialogs"
+    xmlns:ctl="using:BilibiliLiveRecordDownLoader.Views.Controls"
+    xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
+    x:Class="BilibiliLiveRecordDownLoader.Views.Views.FollowedRoomImportView"
+    x:DataType="dialogs:FollowedRoomImportViewModel"
+    Width="560">
+    <UserControl.Styles>
+        <Style Selector="Border.row">
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.row:pointerover">
+            <Setter Property="Background" Value="{DynamicResource SemiColorFill0}" />
+        </Style>
+        <Style Selector="Border.row > CheckBox">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+    </UserControl.Styles>
+
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Bottom" Classes="form" Margin="0,16,0,0">
+            <Border Classes="errorBanner" IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                    <ic:FluentIcon Grid.Column="0" Icon="ErrorCircle" IconVariant="Filled" FontSize="16" VerticalAlignment="Top" Foreground="{DynamicResource SemiColorDanger}" />
+                    <ScrollViewer Grid.Column="1" MaxHeight="96">
+                        <SelectableTextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Classes="toolbar">
+                    <Button Command="{Binding DismissDialogCommand}" Content="{Binding Cancel, Source={x:Static l:AppLanguage.Current}}" />
+                    <Button Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding ImportCommand}" IsVisible="{Binding HasRooms}">
+                        <StackPanel Classes="iconText">
+                            <ProgressBar Theme="{DynamicResource ProgressRing}" IsIndeterminate="True" Width="14" Height="14" IsVisible="{Binding IsBusy}" />
+                            <TextBlock Text="{Binding ImportText}" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+                <StackPanel Classes="toolbar" Spacing="16" VerticalAlignment="Center" IsVisible="{Binding HasRooms}" IsEnabled="{Binding !IsBusy}">
+                    <CheckBox IsChecked="{Binding IsRecordingEnabled}" Content="{Binding RecordingEnabled, Source={x:Static l:AppLanguage.Current}}" />
+                    <CheckBox IsChecked="{Binding IsNotificationEnabled}" Content="{Binding NotificationEnabled, Source={x:Static l:AppLanguage.Current}}" />
+                </StackPanel>
+            </DockPanel>
+        </StackPanel>
+
+        <TextBox DockPanel.Dock="Top" Margin="0,0,0,12" Classes="clearButton" Text="{Binding SearchText}"
+                 PlaceholderText="{Binding SearchFollowedRooms, Source={x:Static l:AppLanguage.Current}}"
+                 AutomationProperties.Name="{Binding SearchFollowedRooms, Source={x:Static l:AppLanguage.Current}}"
+                 IsVisible="{Binding HasRooms}" IsEnabled="{Binding !IsBusy}">
+            <TextBox.InnerLeftContent>
+                <ic:FluentIcon Icon="Search" FontSize="16" Margin="8,0,0,0" Foreground="{DynamicResource SemiColorText2}" />
+            </TextBox.InnerLeftContent>
+        </TextBox>
+
+        <Border Classes="table" MaxHeight="360">
+            <Panel>
+                <!-- 撑起首选高度，切换状态时对话框大小不变；窗口较矮时随可用高度收缩，固定 Height 会溢出盖住搜索框 -->
+                <Rectangle Height="360" />
+                <DockPanel IsVisible="{Binding HasRooms}" IsEnabled="{Binding !IsBusy}">
+                    <Border DockPanel.Dock="Top" Classes="tableHeader">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Right" Classes="iconText">
+                                <ProgressBar Theme="{DynamicResource ProgressRing}" IsIndeterminate="True" Width="12" Height="12" IsVisible="{Binding IsLoading}" />
+                                <TextBlock Text="{Binding SummaryText}" />
+                            </StackPanel>
+                            <CheckBox IsChecked="{Binding AreAllVisibleSelected}" IsEnabled="{Binding HasSelectableVisibleRooms}"
+                                      Content="{Binding SelectAllVisible, Source={x:Static l:AppLanguage.Current}}" />
+                        </DockPanel>
+                    </Border>
+                    <Panel>
+                        <ScrollViewer IsVisible="{Binding HasVisibleRooms}">
+                            <ItemsControl ItemsSource="{Binding VisibleRooms}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <VirtualizingStackPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="dialogs:FollowedRoomItemViewModel">
+                                        <Border Classes="row">
+                                            <CheckBox IsChecked="{Binding IsSelected}" IsEnabled="{Binding !IsAdded}" AutomationProperties.Name="{Binding DisplayName}">
+                                                <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="2" Margin="4,8,0,8">
+                                                    <Ellipse Grid.Row="0" Grid.Column="0" Width="8" Height="8" VerticalAlignment="Center" ctl:StatusColor.Value="{Binding LiveStatus}" />
+                                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DisplayName}" FontWeight="SemiBold" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Grid.Row="1" Grid.Column="1" Classes="caption" Text="{Binding Subtitle}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Subtitle}" />
+                                                    <Panel Grid.Row="0" Grid.Column="2" Grid.RowSpan="2" VerticalAlignment="Center">
+                                                        <ContentControl Content="{Binding LiveStatus}" ContentTemplate="{StaticResource LocalizedLabel}"
+                                                                        FontSize="{DynamicResource SemiFontSizeSmall}" ctl:StatusColor.Value="{Binding LiveStatus}"
+                                                                        IsVisible="{Binding !IsAdded}" />
+                                                        <StackPanel Classes="iconText" Spacing="4" IsVisible="{Binding IsAdded}">
+                                                            <ic:FluentIcon Icon="Checkmark" FontSize="14" />
+                                                            <TextBlock Classes="caption" Text="{Binding RoomAdded, Source={x:Static l:AppLanguage.Current}}" />
+                                                        </StackPanel>
+                                                    </Panel>
+                                                </Grid>
+                                            </CheckBox>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                        <ctl:EmptyState Icon="Search" Title="{Binding NoMatchingRooms, Source={x:Static l:AppLanguage.Current}}"
+                                        IsVisible="{Binding !HasVisibleRooms}" />
+                    </Panel>
+                </DockPanel>
+
+                <StackPanel Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <StackPanel.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="IsLoading" />
+                            <Binding Path="!HasRooms" />
+                        </MultiBinding>
+                    </StackPanel.IsVisible>
+                    <ProgressBar Theme="{DynamicResource ProgressRing}" IsIndeterminate="True" Width="40" Height="40" HorizontalAlignment="Center" />
+                    <TextBlock Classes="caption" Text="{Binding SummaryText}" HorizontalAlignment="Center" />
+                </StackPanel>
+
+                <ctl:EmptyState Icon="People"
+                                Title="{Binding NoFollowedRooms, Source={x:Static l:AppLanguage.Current}}"
+                                Description="{Binding NoFollowedRoomsHint, Source={x:Static l:AppLanguage.Current}}"
+                                IsVisible="{Binding IsEmpty}" />
+
+                <ctl:EmptyState Icon="Person"
+                                Title="{Binding LoginRequired, Source={x:Static l:AppLanguage.Current}}"
+                                Description="{Binding LoginRequiredHint, Source={x:Static l:AppLanguage.Current}}"
+                                IsVisible="{Binding State, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dialogs:FollowedRoomLoadState.LoginRequired}}">
+                    <Button Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding LoginCommand}">
+                        <StackPanel Classes="iconText">
+                            <ic:FluentIcon Icon="QrCode" />
+                            <TextBlock Text="{Binding GoToLogin, Source={x:Static l:AppLanguage.Current}}" />
+                        </StackPanel>
+                    </Button>
+                </ctl:EmptyState>
+
+                <ctl:EmptyState Icon="ErrorCircle"
+                                Title="{Binding LoadFailed, Source={x:Static l:AppLanguage.Current}}"
+                                Description="{Binding LoadError}"
+                                IsVisible="{Binding State, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dialogs:FollowedRoomLoadState.Failed}}">
+                    <Button Command="{Binding ReloadCommand}">
+                        <StackPanel Classes="iconText">
+                            <ic:FluentIcon Icon="ArrowSync" />
+                            <TextBlock Text="{Binding Retry, Source={x:Static l:AppLanguage.Current}}" />
+                        </StackPanel>
+                    </Button>
+                </ctl:EmptyState>
+            </Panel>
+        </Border>
+    </DockPanel>
+</UserControl>

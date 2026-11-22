@@ -51,7 +51,7 @@
                                    FontSize="{DynamicResource SemiFontSizeSmall}" />
                         <TextBlock Grid.Row="1" Grid.Column="1" Classes="caption" Text="{Binding Rooms.RecordingSpeed}" TextTrimming="CharacterEllipsis" />
                     </Grid>
-                    <ListBox x:Name="Navigation" Classes="nav" SelectedIndex="0" SelectionChanged="OnNavigationSelectionChanged">
+                    <ListBox x:Name="Navigation" Classes="nav" SelectedIndex="{Binding SelectedPageIndex, Mode=TwoWay}" SelectionChanged="OnNavigationSelectionChanged">
                         <ListBoxItem>
                             <StackPanel Classes="iconText">
                                 <ic:FluentIcon Icon="Video" />

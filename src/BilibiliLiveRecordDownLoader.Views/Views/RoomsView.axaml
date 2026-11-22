@@ -87,6 +87,12 @@
                         <TextBlock Text="{Binding AddRoom, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                 </Button>
+                <Button Command="{Binding ImportFollowedRoomsCommand}" IsVisible="{Binding HasRooms}">
+                    <StackPanel Classes="iconText">
+                        <ic:FluentIcon Icon="PeopleAdd" />
+                        <TextBlock Text="{Binding ImportFollowedRooms, Source={x:Static l:AppLanguage.Current}}" />
+                    </StackPanel>
+                </Button>
                 <StackPanel Classes="toolbar" IsVisible="{Binding HasSelection^}">
                     <Button Command="{Binding StartRecordingCommand}"
                             ToolTip.Tip="{Binding StartRecording, Source={x:Static l:AppLanguage.Current}}"
@@ -212,12 +218,20 @@
                                 Title="{Binding NoRooms, Source={x:Static l:AppLanguage.Current}}"
                                 Description="{Binding NoRoomsHint, Source={x:Static l:AppLanguage.Current}}"
                                 IsVisible="{Binding !HasRooms}">
-                    <Button Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding AddRoomCommand}">
-                        <StackPanel Classes="iconText">
-                            <ic:FluentIcon Icon="Add" />
-                            <TextBlock Text="{Binding AddRoom, Source={x:Static l:AppLanguage.Current}}" />
-                        </StackPanel>
-                    </Button>
+                    <StackPanel Classes="toolbar">
+                        <Button Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding AddRoomCommand}">
+                            <StackPanel Classes="iconText">
+                                <ic:FluentIcon Icon="Add" />
+                                <TextBlock Text="{Binding AddRoom, Source={x:Static l:AppLanguage.Current}}" />
+                            </StackPanel>
+                        </Button>
+                        <Button Command="{Binding ImportFollowedRoomsCommand}">
+                            <StackPanel Classes="iconText">
+                                <ic:FluentIcon Icon="PeopleAdd" />
+                                <TextBlock Text="{Binding ImportFollowedRooms, Source={x:Static l:AppLanguage.Current}}" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
                 </ctl:EmptyState>
                 <ctl:EmptyState Icon="Filter" Title="{Binding NoMatchingRooms, Source={x:Static l:AppLanguage.Current}}">
                     <ctl:EmptyState.IsVisible>

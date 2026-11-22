@@ -2,6 +2,7 @@ using BilibiliLive.Api;
 using BilibiliLive.Http;
 using BilibiliLive.Wbi;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization.Metadata;
 
 namespace BilibiliLive;
@@ -12,8 +13,10 @@ public sealed class BilibiliApiClient
 	private const string NavUrl = "https://api.bilibili.com/x/web-interface/nav";
 	private const string PassportApi = "https://passport.bilibili.com/x/passport-login/web/qrcode/";
 
-	private const long NotLoggedInCode = -101;
 	private const long RoomNotFoundCode = 60004;
+
+	// page_size is documented to accept 1-10
+	private const int FollowingPageSize = 10;
 
 	private readonly WbiKeyCache _wbiKeys;
 
@@ -28,18 +31,63 @@ public sealed class BilibiliApiClient
 
 	internal TimeProvider TimeProvider { get; }
 
+	// Following lists of a few hundred streamers take dozens of pages, pausing between them keeps the request rate low
+	internal static TimeSpan FollowingPageInterval { get; } = TimeSpan.FromMilliseconds(300);
+
 	public async Task<LiveRoomInfo> GetRoomInfoAsync(long roomId, CancellationToken cancellationToken = default)
 	{
-		// getRoomBaseInfo resolves short ids and is the only unsigned endpoint that also returns the streamer name
-		Uri uri = CreateUri($"{LiveApi}xlive/web-room/v1/index/getRoomBaseInfo?room_ids={roomId}&req_biz=web_room_componet");
-		RoomBaseInfoData data = await GetDataAsync(uri, BilibiliJsonContext.Default.RoomBaseInfoData, cancellationToken);
+		IReadOnlyList<LiveRoomInfo> rooms = await GetRoomInfosAsync([roomId], cancellationToken);
+		return rooms is [var room, ..] ? room : throw new BilibiliApiException($"Room {roomId} does not exist.", RoomNotFoundCode);
+	}
 
-		if (data.ByRoomIds?.Values.FirstOrDefault() is not { } room)
+	// Rooms that do not exist are left out of the result
+	public async Task<IReadOnlyList<LiveRoomInfo>> GetRoomInfosAsync(IReadOnlyCollection<long> roomIds, CancellationToken cancellationToken = default)
+	{
+		ArgumentOutOfRangeException.ThrowIfZero(roomIds.Count);
+
+		// getRoomBaseInfo resolves short ids and is the only unsigned endpoint that also returns the streamer name
+		string query = string.Join('&', roomIds.Select(static roomId => string.Create(CultureInfo.InvariantCulture, $"room_ids={roomId}")));
+		RoomBaseInfoData data = await GetDataAsync(new Uri($"{LiveApi}xlive/web-room/v1/index/getRoomBaseInfo?{query}&req_biz=web_room_componet"), BilibiliJsonContext.Default.RoomBaseInfoData, cancellationToken);
+
+		if (data.ByRoomIds is not { } rooms)
 		{
-			throw new BilibiliApiException($"Room {roomId} does not exist.", RoomNotFoundCode);
+			return [];
 		}
 
-		return new LiveRoomInfo(room.RoomId, room.ShortId, room.Uid, room.Uname ?? string.Empty, room.Title ?? string.Empty, ToLiveStatus(room.LiveStatus));
+		return [.. rooms.Values.Select(static room => new LiveRoomInfo(room.RoomId, room.ShortId, room.Uid, room.Uname ?? string.Empty, room.Title ?? string.Empty, ToLiveStatus(room.LiveStatus)))];
+	}
+
+	public async IAsyncEnumerable<FollowedLiveRoom> GetFollowedRoomsAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
+	{
+		HashSet<long> seen = [];
+
+		for (int page = 1; ; ++page)
+		{
+			if (page > 1)
+			{
+				await Task.Delay(FollowingPageInterval, TimeProvider, cancellationToken);
+			}
+
+			Uri uri = CreateUri($"{LiveApi}xlive/web-ucenter/user/following?page={page}&page_size={FollowingPageSize}&ignoreRecord=1&hit_ab=true");
+			FollowingData data = await GetDataAsync(uri, BilibiliJsonContext.Default.FollowingData, cancellationToken);
+			bool hasNewRoom = false;
+
+			foreach (FollowingRoom room in data.List ?? [])
+			{
+				// Entries can shift between pages while paging, so the same room may show up twice
+				if (room.RoomId > 0 && seen.Add(room.RoomId))
+				{
+					hasNewRoom = true;
+					yield return new FollowedLiveRoom(room.RoomId, room.Uid, room.Uname ?? string.Empty, room.Title ?? string.Empty, ToLiveStatus(room.LiveStatus));
+				}
+			}
+
+			// Without totalPage, stop at a page that adds nothing in case pages past the end repeat the last one
+			if (data.List is not { Count: > 0 } || (data.TotalPage > 0 ? page >= data.TotalPage : !hasNewRoom))
+			{
+				yield break;
+			}
+		}
 	}
 
 	public async Task<IReadOnlyList<LiveStreamCandidate>> GetStreamCandidatesAsync(long roomId, long qn, IReadOnlyList<StreamCodec> codecPriority, IReadOnlyList<StreamFormat> formatPriority, CancellationToken cancellationToken = default)
@@ -97,7 +145,7 @@ public sealed class BilibiliApiClient
 	{
 		ApiResponse<NavData> response = await GetNavAsync(cancellationToken);
 
-		if (response.Code is NotLoggedInCode)
+		if (response.Code is BilibiliApiException.NotLoggedInCode)
 		{
 			return 0;
 		}
@@ -192,7 +240,7 @@ public sealed class BilibiliApiClient
 		ApiResponse<NavData> response = await GetNavAsync(cancellationToken);
 
 		// nav answers -101 to anonymous users but still carries the keys
-		if (response.Code is not (0 or NotLoggedInCode))
+		if (response.Code is not (0 or BilibiliApiException.NotLoggedInCode))
 		{
 			throw new BilibiliApiException(response.Message, response.Code);
 		}

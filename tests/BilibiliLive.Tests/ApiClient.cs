@@ -9,6 +9,7 @@ internal static class ApiPaths
 	public const string RoomPlayInfo = "/xlive/web-room/v2/index/getRoomPlayInfo";
 	public const string DanmuInfo = "/xlive/web-room/v1/index/getDanmuInfo";
 	public const string Nav = "/x/web-interface/nav";
+	public const string Following = "/xlive/web-ucenter/user/following";
 	public const string QrCodeGenerate = "/x/passport-login/web/qrcode/generate";
 	public const string QrCodePoll = "/x/passport-login/web/qrcode/poll";
 }

@@ -22,6 +22,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 			.DisposeWith(Disposables);
 
 		AddRoomCommand.DisposeWith(Disposables);
+		ImportFollowedRoomsCommand.DisposeWith(Disposables);
 		EditRoomCommand.DisposeWith(Disposables);
 		RemoveRoomsCommand.DisposeWith(Disposables);
 		RefreshRoomsCommand.DisposeWith(Disposables);
@@ -83,6 +84,16 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		{
 			Sync(roomAppService.GetRooms());
 		}
+	}
+
+	// 导入的房间可能部分失败，对话框关闭时无论结果如何都同步一次
+	[ReactiveCommand]
+	private async Task ImportFollowedRoomsAsync()
+	{
+		IRoomAppService roomAppService = AppLocator.Current.GetRequiredService<IRoomAppService>();
+
+		await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ShowAsync(new FollowedRoomImportViewModel(roomAppService, AppLocator.Current.GetRequiredService<INotificationService>(), static () => AppLocator.Current.GetRequiredService<MainWindowViewModel>().Navigate(MainPage.Account)));
+		Sync(roomAppService.GetRooms());
 	}
 
 	[ReactiveCommand(CanExecute = nameof(HasSingleSelection))]
