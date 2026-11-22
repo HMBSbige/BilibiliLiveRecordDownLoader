@@ -52,6 +52,8 @@ public record AppConfig
 
 	public bool NotifyOnTitleChange { get; set; }
 
+	public bool RemoveFillerData { get; set; }
+
 	public List<RoomConfig> Rooms { get; set; } = [];
 
 	public static AppConfig CreateDefault()

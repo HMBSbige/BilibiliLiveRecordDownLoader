@@ -148,22 +148,24 @@ internal sealed partial class RecordingSegmenter : Stream
 		}
 	}
 
+	// 按大小分段看的是去掉填充数据之后实际写出的长度
 	private void Commit(int length, UnitEnd end)
 	{
-		Span<byte> unit = _pending.Span.Slice(0, length);
+		Span<byte> received = _pending.Span.Slice(0, length);
+		Span<byte> unit = received.Slice(0, Splitter.RemoveFiller(received, _control.RemoveFiller));
 
 		if (_isPendingUnit)
 		{
 			RecordingSplitPolicy policy = _control.Policy;
 
-			if (Decide(policy, length, end) is { } reason)
+			if (Decide(policy, unit.Length, end) is { } reason)
 			{
 				StartSegment(unit, reason);
 			}
 
-			if (!_segmentHasMedia && policy.Split is RecordingSplit.BySize { MaxBytes: var maxBytes } && _segmentLength + length > maxBytes)
+			if (!_segmentHasMedia && policy.Split is RecordingSplit.BySize { MaxBytes: var maxBytes } && _segmentLength + unit.Length > maxBytes)
 			{
-				LogUnitExceedsSize(_logger, _segmentLength + length, maxBytes);
+				LogUnitExceedsSize(_logger, _segmentLength + unit.Length, maxBytes);
 			}
 
 			_segmentHasMedia = true;
@@ -171,7 +173,7 @@ internal sealed partial class RecordingSegmenter : Stream
 
 		Splitter.Rebase(unit);
 		Emit(unit);
-		_segmentLength += length;
+		_segmentLength += unit.Length;
 		_pending.Discard(length);
 	}
 

@@ -10,6 +10,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
 	public NotificationSettingsViewModel Notification => AppLocator.Current.GetRequiredService<NotificationSettingsViewModel>();
 
+	public ExperimentalSettingsViewModel Experimental => AppLocator.Current.GetRequiredService<ExperimentalSettingsViewModel>();
+
 	public AppearanceSettingsViewModel Appearance => AppLocator.Current.GetRequiredService<AppearanceSettingsViewModel>();
 
 	public UpdateSettingsViewModel Update => AppLocator.Current.GetRequiredService<UpdateSettingsViewModel>();
@@ -28,6 +30,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
 		Recording.ApplyConfig(config);
 		Network.ApplyConfig(config);
 		Notification.ApplyConfig(config);
+		Experimental.ApplyConfig(config);
 		Update.ApplyConfig(config);
 
 		_isInitialized = true;

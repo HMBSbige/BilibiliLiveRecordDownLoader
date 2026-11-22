@@ -30,7 +30,7 @@ public static class FFmpegArguments
 	}
 
 	// 以 MPEG-TS 写到标准输出，由调用方写盘
-	public static IReadOnlyList<string> Record(Uri source, string? userAgent, Uri? referrer, TimeSpan ioTimeout)
+	public static IReadOnlyList<string> Record(Uri source, string? userAgent, Uri? referrer, TimeSpan ioTimeout, FillerRemoval fillerRemoval = FillerRemoval.None)
 	{
 		if (!source.IsAbsoluteUri)
 		{
@@ -56,7 +56,22 @@ public static class FFmpegArguments
 		}
 
 		// 签名过的直播地址必须原样传递，AbsoluteUri 会重新规范化转义
-		arguments.AddRange([@"-i", source.OriginalString, @"-c", @"copy", @"-f", @"mpegts", @"pipe:1"]);
+		arguments.AddRange([@"-i", source.OriginalString, @"-c", @"copy"]);
+
+		// filter_units 只按 NAL 头拆分，不解析内容；h264_metadata 的 delete_filler 会完整解析每个 NAL，遇到解析不了的 SEI 会丢掉整帧
+		string? fillerFilter = fillerRemoval switch
+		{
+			FillerRemoval.Avc => @"filter_units=remove_types=12",
+			FillerRemoval.Hevc => @"filter_units=remove_types=38",
+			_ => null
+		};
+
+		if (fillerFilter is not null)
+		{
+			arguments.AddRange([@"-bsf:v", fillerFilter]);
+		}
+
+		arguments.AddRange([@"-f", @"mpegts", @"pipe:1"]);
 
 		return arguments;
 	}

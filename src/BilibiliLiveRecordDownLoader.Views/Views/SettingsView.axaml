@@ -178,6 +178,20 @@
                 </StackPanel>
             </Border>
 
+            <Border Classes="card" DataContext="{Binding Experimental}">
+                <StackPanel Classes="form" x:DataType="settings:ExperimentalSettingsViewModel">
+                    <TextBlock Classes="section" Text="{Binding ExperimentalFeatures, Source={x:Static l:AppLanguage.Current}}" />
+                    <StackPanel Classes="field">
+                        <ToggleSwitch IsChecked="{Binding RemoveFillerData}"
+                                      AutomationProperties.Name="{Binding RemoveFillerData, Source={x:Static l:AppLanguage.Current}}"
+                                      AutomationProperties.HelpText="{Binding RemoveFillerDataHint, Source={x:Static l:AppLanguage.Current}}"
+                                      OnContent="{Binding RemoveFillerData, Source={x:Static l:AppLanguage.Current}}"
+                                      OffContent="{Binding RemoveFillerData, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding RemoveFillerDataHint, Source={x:Static l:AppLanguage.Current}}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <Border Classes="card" DataContext="{Binding Update}">
                 <StackPanel Classes="form" x:DataType="settings:UpdateSettingsViewModel">
                     <TextBlock Classes="section" Text="{Binding About, Source={x:Static l:AppLanguage.Current}}" />

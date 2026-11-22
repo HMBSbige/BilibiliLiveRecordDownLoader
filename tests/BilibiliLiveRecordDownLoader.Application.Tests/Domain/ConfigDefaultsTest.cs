@@ -88,6 +88,12 @@ public sealed class ConfigDefaultsTest
 	}
 
 	[Test]
+	public async Task FillerDataIsKeptByDefaultAsync()
+	{
+		await Assert.That(AppConfig.CreateDefault().RemoveFillerData).IsFalse();
+	}
+
+	[Test]
 	public async Task SplitValuesAreClampedToTheirBoundsAsync()
 	{
 		AppConfig config = new()

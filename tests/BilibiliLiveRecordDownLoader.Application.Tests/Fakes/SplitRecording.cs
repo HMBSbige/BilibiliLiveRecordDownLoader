@@ -37,10 +37,10 @@ internal sealed class SplitRecording
 	public IReadOnlyList<SegmentStart> Starts => [.. _starts];
 
 	// 录制中不改的设置
-	public static SplitControl Fixed(RecordingSplit split, bool onTitleChange = false)
+	public static SplitControl Fixed(RecordingSplit split, bool onTitleChange = false, bool removeFiller = false)
 	{
 		RecordingSplitPolicy policy = new(split, onTitleChange);
-		return new SplitControl(() => policy);
+		return new SplitControl(() => policy, () => removeFiller);
 	}
 
 	public Task<StreamEndReason> RunAsync(MediaSplitter splitter, RecordingSplit split, Func<SessionWriter, Task> script, CancellationToken cancellationToken)

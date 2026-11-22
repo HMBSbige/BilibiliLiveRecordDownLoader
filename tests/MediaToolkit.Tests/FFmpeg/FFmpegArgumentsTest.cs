@@ -88,6 +88,25 @@ public class FFmpegArgumentsTest
 	}
 
 	[Test]
+	[Arguments(FillerRemoval.Avc, "filter_units=remove_types=12")]
+	[Arguments(FillerRemoval.Hevc, "filter_units=remove_types=38")]
+	public async Task RecordRemovesFillerWithABitstreamFilterAfterTheCodecAsync(FillerRemoval fillerRemoval, string filter)
+	{
+		IReadOnlyList<string> arguments = FFmpegArguments.Record(new Uri(@"https://example.com/live.flv"), null, null, Timeout.InfiniteTimeSpan, fillerRemoval);
+
+		string[] expected = [@"-hide_banner", @"-i", @"https://example.com/live.flv", @"-c", @"copy", @"-bsf:v", filter, @"-f", @"mpegts", @"pipe:1"];
+		await Assert.That(arguments).IsEquivalentTo(expected, StringComparer.Ordinal, CollectionOrdering.Matching);
+	}
+
+	[Test]
+	public async Task RecordKeepsFillerWhenNotAskedAsync()
+	{
+		IReadOnlyList<string> arguments = FFmpegArguments.Record(new Uri(@"https://example.com/live.flv"), null, null, Timeout.InfiniteTimeSpan, FillerRemoval.None);
+
+		await Assert.That(arguments).DoesNotContain(@"-bsf:v");
+	}
+
+	[Test]
 	public async Task RecordRejectsRelativeSourceAsync()
 	{
 		await Assert.That(() => FFmpegArguments.Record(new Uri(@"live.flv", UriKind.Relative), null, null, Timeout.InfiniteTimeSpan)).Throws<ArgumentException>();

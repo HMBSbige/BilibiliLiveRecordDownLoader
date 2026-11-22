@@ -36,6 +36,32 @@ public sealed class RecordingSegmenterTest
 
 	[Test]
 	[Timeout(10_000)]
+	[Arguments(true, "abc | H0:def | H0:g")]
+	[Arguments(false, "a | H0:b | H0:c | H0:d | H0:e | H0:f | H0:g")]
+	public async Task SizeLimitCountsTheBytesLeftAfterRemovingFillerAsync(bool removeFiller, string expected, CancellationToken cancellationToken)
+	{
+		SplitRecording recording = new();
+
+		// 每个单元 30 字节，其中一半是填充；去掉之后头 3 字节加 3 个单元正好放得下
+		await recording.RunAsync(new FakeSplitter(), SplitRecording.Fixed(new RecordingSplit.BySize(50), removeFiller: removeFiller), async session =>
+		{
+			foreach (char marker in "abcdefg")
+			{
+				await session.WriteAsync(FakeSplitter.Unit(marker.ToString(), 30, 15));
+			}
+		}, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			// 换文件的位置按写出的字节记，偏一个字节都会把元素切开
+			await Assert.That(Describe(recording.Files)).IsEqualTo(expected);
+			await Assert.That(recording.Files.All(static file => file.Length <= 50)).IsTrue();
+			await Assert.That(recording.Files.Sum(static file => file.Count(static value => value is (byte)'F'))).IsEqualTo(removeFiller ? 0 : 7 * 15);
+		}
+	}
+
+	[Test]
+	[Timeout(10_000)]
 	public async Task UnitLargerThanTheLimitTakesAFileOfItsOwnAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -334,7 +360,7 @@ public sealed class RecordingSegmenterTest
 		RecordingSplitPolicy policy = new(new RecordingSplit.None(), false);
 		SplitRecording recording = new();
 
-		await recording.RunAsync(new FakeSplitter(), new SplitControl(() => policy), async session =>
+		await recording.RunAsync(new FakeSplitter(), new SplitControl(() => policy, static () => false), async session =>
 		{
 			await session.WriteAsync(FakeSplitter.Unit("a", 10));
 			session.Advance(TimeSpan.FromMinutes(2));
@@ -357,7 +383,7 @@ public sealed class RecordingSegmenterTest
 	public async Task TitleChangedWhileTitleSplitIsOffIsNotCarriedOverOnceItIsTurnedOnAsync(CancellationToken cancellationToken)
 	{
 		RecordingSplitPolicy policy = new(new RecordingSplit.None(), false);
-		SplitControl control = new(() => policy);
+		SplitControl control = new(() => policy, static () => false);
 		SplitRecording recording = new();
 
 		await recording.RunAsync(new FakeSplitter(), control, async session =>
@@ -397,15 +423,17 @@ public sealed class RecordingSegmenterTest
 }
 
 /// <summary>
-/// 元素是 [类型][长度][标记][填充]：K 是切分点，S 是序列头，D 是普通数据。新段的头是 "H" 加上已经过去的序列头个数和冒号。
+/// 元素是 [类型][长度][标记][填充]：K 是切分点，S 是序列头，D 是普通数据。新段的头是 "H" 加上已经过去的序列头个数和冒号。填充里的 F 是可以去掉的填充数据。
 /// </summary>
 internal sealed class FakeSplitter : MediaSplitter
 {
 	private int _sequences;
 
-	public static byte[] Unit(string marker, int length)
+	public static byte[] Unit(string marker, int length, int filler = 0)
 	{
-		return Element('K', marker, length);
+		byte[] unit = Element('K', marker, length);
+		unit.AsSpan(length - filler).Fill((byte)'F');
+		return unit;
 	}
 
 	public static byte[] Data(string marker, int length)
@@ -438,6 +466,34 @@ internal sealed class FakeSplitter : MediaSplitter
 		}
 
 		return builder.ToString();
+	}
+
+	public override int RemoveFiller(Span<byte> elements, bool isEnabled)
+	{
+		int read = 0;
+		int write = 0;
+
+		while (isEnabled && elements.Length - read >= 2 && elements[read + 1] <= elements.Length - read)
+		{
+			int length = elements[read + 1];
+			int start = write;
+			elements.Slice(read, 3).CopyTo(elements.Slice(write));
+			write += 3;
+
+			foreach (byte value in elements.Slice(read + 3, length - 3))
+			{
+				if (value is not (byte)'F')
+				{
+					elements[write++] = value;
+				}
+			}
+
+			elements[start + 1] = (byte)(write - start);
+			read += length;
+		}
+
+		elements.Slice(read).CopyTo(elements.Slice(write));
+		return write + elements.Length - read;
 	}
 
 	protected override int Measure(ReadOnlySpan<byte> data, out bool isSplit)

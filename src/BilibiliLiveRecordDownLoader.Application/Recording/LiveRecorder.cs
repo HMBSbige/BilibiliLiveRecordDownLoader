@@ -34,9 +34,10 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 			if (ffmpeg is not null)
 			{
 				// 只用内置连接验证线路，录制交给 FFmpeg 重新拉流
-				string userAgent = BilibiliRequestHandler.ResolveUserAgent((await configManager.GetAsync(cancellationToken)).UserAgent);
+				AppConfig config = await configManager.GetAsync(cancellationToken);
+				string userAgent = BilibiliRequestHandler.ResolveUserAgent(config.UserAgent);
 				await session.DisposeAsync();
-				session = new FFmpegStreamSession(ffmpeg, FFmpegArguments.Record(endpoint, userAgent, Referrer, profile.StreamConnectTimeout), endpoint);
+				session = new FFmpegStreamSession(ffmpeg, FFmpegArguments.Record(endpoint, userAgent, Referrer, profile.StreamConnectTimeout, GetFillerRemoval(config, candidate.Codec)), endpoint);
 			}
 
 			_ = CreateOnDisk(() => Directory.CreateDirectory(RecordingFileLayout.GetRoomDirectory(profile.RecordDirectory, roomId)));
@@ -192,6 +193,17 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 			FileOperations.TryDelete(next, logger);
 			throw new OperationCanceledException(AttemptGate.ClosedMessage);
 		}
+	}
+
+	// FFmpeg 启动之后改不了参数，录制中途改的设置等下次启动
+	internal static FillerRemoval GetFillerRemoval(AppConfig config, StreamCodec codec)
+	{
+		return (config.RemoveFillerData, codec) switch
+		{
+			(true, StreamCodec.Avc) => FillerRemoval.Avc,
+			(true, StreamCodec.Hevc) => FillerRemoval.Hevc,
+			_ => FillerRemoval.None
+		};
 	}
 
 	internal static MediaSplitter? CreateSplitter(LiveStreamCandidate candidate, RecorderType recorderType)

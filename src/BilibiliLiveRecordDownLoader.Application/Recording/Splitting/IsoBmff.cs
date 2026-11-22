@@ -133,7 +133,7 @@ internal static class IsoBmff
 		return null;
 	}
 
-	private static bool IsVideoTrack(ReadOnlySpan<byte> trak, out uint trackId)
+	internal static bool IsVideoTrack(ReadOnlySpan<byte> trak, out uint trackId)
 	{
 		trackId = 0;
 
@@ -154,12 +154,12 @@ internal static class IsoBmff
 		return hdlr.Slice(8, 4).SequenceEqual("vide"u8);
 	}
 
-	private static uint ReadFlags(ReadOnlySpan<byte> fullBox)
+	internal static uint ReadFlags(ReadOnlySpan<byte> fullBox)
 	{
 		return BinaryPrimitives.ReadUInt32BigEndian(fullBox) & 0x00FF_FFFF;
 	}
 
-	private static bool TryFindBox(ReadOnlySpan<byte> data, ReadOnlySpan<byte> wanted, out ReadOnlySpan<byte> content)
+	internal static bool TryFindBox(ReadOnlySpan<byte> data, ReadOnlySpan<byte> wanted, out ReadOnlySpan<byte> content)
 	{
 		int offset = 0;
 
@@ -175,7 +175,7 @@ internal static class IsoBmff
 		return false;
 	}
 
-	private static bool TryReadBox(ReadOnlySpan<byte> data, scoped ref int offset, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> content)
+	internal static bool TryReadBox(ReadOnlySpan<byte> data, scoped ref int offset, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> content)
 	{
 		type = default;
 		content = default;

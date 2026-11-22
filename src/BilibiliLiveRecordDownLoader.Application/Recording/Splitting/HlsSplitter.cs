@@ -42,6 +42,7 @@ internal abstract class HlsSplitter : MediaSplitter, IHlsSegmentObserver
 
 internal sealed class Fmp4HlsSplitter : HlsSplitter
 {
+	private readonly Fmp4FillerRemover _filler = new();
 	private ReadOnlyMemory<byte> _init;
 	private bool _hasTracks;
 	private uint? _videoTrackId;
@@ -59,6 +60,11 @@ internal sealed class Fmp4HlsSplitter : HlsSplitter
 	{
 		bool isSplit = _hasTracks && (_videoTrackId is not { } trackId || IsoBmff.StartsWithSyncSample(data, trackId, _defaultSampleFlags));
 		Add(data.Length, isSplit, _init);
+	}
+
+	public override int RemoveFiller(Span<byte> elements, bool isEnabled)
+	{
+		return _filler.Remove(elements, isEnabled);
 	}
 }
 

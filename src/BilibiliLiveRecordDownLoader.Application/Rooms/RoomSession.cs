@@ -431,7 +431,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 				RecordingProfile profile = RecordingProfile.Create(config, Settings);
 
 				// 配置管理器一直返回同一个实例，设置页的修改直接改在它上面
-				SplitControl split = SetSplitControl(new SplitControl(() => RecordingSplitPolicy.Create(config, Settings)));
+				SplitControl split = SetSplitControl(new SplitControl(() => RecordingSplitPolicy.Create(config, Settings), () => config.RemoveFillerData));
 
 				try
 				{

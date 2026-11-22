@@ -55,6 +55,12 @@ internal abstract class MediaSplitter
 	{
 	}
 
+	// 写出之前原地去掉元素里的填充数据，返回去掉之后的长度，末尾可能是不完整的元素。关闭时也要调用：单元可能攒了一段才提交，NAL 长度字段的宽度这类状态只能按写出的顺序从提交的数据里跟踪，不能用 Measure 提前看到的
+	public virtual int RemoveFiller(Span<byte> elements, bool isEnabled)
+	{
+		return elements.Length;
+	}
+
 	// 返回 data 开头的元素的总长度，可能长于 data；还判断不了时返回 0
 	protected abstract int Measure(ReadOnlySpan<byte> data, out bool isSplit);
 
