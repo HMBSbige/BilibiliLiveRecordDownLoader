@@ -10,19 +10,20 @@
         <ItemsControl x:Name="Items" ItemsSource="{Binding Items}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="common:PriorityItemViewModel">
-                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="4" Margin="4,0">
-                        <ic:FluentIcon Grid.Column="0" Icon="ReOrderDotsVertical" FontSize="16" Opacity="0.5" VerticalAlignment="Center" />
-                        <TextBlock Grid.Column="1" Text="{Binding Label}" VerticalAlignment="Center" />
-                        <Button Grid.Column="2" Theme="{DynamicResource BorderlessButton}"
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="4" Margin="8,0,4,0">
+                        <TextBlock Grid.Column="0" Text="{Binding Label}" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Theme="{DynamicResource BorderlessButton}" IsEnabled="{Binding CanMoveUp}"
                                 Command="{Binding #Items.((common:PriorityListViewModel)DataContext).MoveUpCommand}"
                                 CommandParameter="{Binding}"
-                                ToolTip.Tip="{Binding MoveUp, Source={x:Static l:AppLanguage.Current}}">
+                                ToolTip.Tip="{Binding MoveUp, Source={x:Static l:AppLanguage.Current}}"
+                                AutomationProperties.Name="{Binding MoveUp, Source={x:Static l:AppLanguage.Current}}">
                             <ic:FluentIcon Icon="ArrowUp" FontSize="14" />
                         </Button>
-                        <Button Grid.Column="3" Theme="{DynamicResource BorderlessButton}"
+                        <Button Grid.Column="2" Theme="{DynamicResource BorderlessButton}" IsEnabled="{Binding CanMoveDown}"
                                 Command="{Binding #Items.((common:PriorityListViewModel)DataContext).MoveDownCommand}"
                                 CommandParameter="{Binding}"
-                                ToolTip.Tip="{Binding MoveDown, Source={x:Static l:AppLanguage.Current}}">
+                                ToolTip.Tip="{Binding MoveDown, Source={x:Static l:AppLanguage.Current}}"
+                                AutomationProperties.Name="{Binding MoveDown, Source={x:Static l:AppLanguage.Current}}">
                             <ic:FluentIcon Icon="ArrowDown" FontSize="14" />
                         </Button>
                     </Grid>

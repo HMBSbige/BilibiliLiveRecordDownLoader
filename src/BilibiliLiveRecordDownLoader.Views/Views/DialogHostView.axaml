@@ -4,6 +4,7 @@
     xmlns:ic="using:FluentIcons.Avalonia"
     xmlns:dialogs="using:BilibiliLiveRecordDownLoader.ViewModels.Dialogs"
     xmlns:views="using:BilibiliLiveRecordDownLoader.Views.Views"
+    xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.DialogHostView"
     x:DataType="dialogs:DialogHostViewModel"
     IsVisible="{Binding Current, Converter={x:Static ObjectConverters.IsNotNull}}">
@@ -13,16 +14,19 @@
                 MinWidth="380" MaxWidth="720" Margin="32"
                 Padding="24" CornerRadius="12"
                 Background="{DynamicResource SemiColorBackground2}"
-                BoxShadow="0 8 32 0 #40000000">
+                BoxShadow="0 8 32 0 #40000000"
+                KeyboardNavigation.TabNavigation="Cycle">
             <DockPanel>
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,16">
                     <Button DockPanel.Dock="Right" Theme="{DynamicResource BorderlessButton}" Click="OnCloseClick"
-                            IsEnabled="{Binding !Current.IsBusy, FallbackValue={x:False}}">
+                            IsEnabled="{Binding !Current.IsBusy, FallbackValue={x:False}}"
+                            ToolTip.Tip="{Binding Close, Source={x:Static l:AppLanguage.Current}}"
+                            AutomationProperties.Name="{Binding Close, Source={x:Static l:AppLanguage.Current}}">
                         <ic:FluentIcon Icon="Dismiss" FontSize="16" />
                     </Button>
                     <TextBlock Classes="H5" Theme="{StaticResource TitleTextBlock}" Text="{Binding Current.Title, FallbackValue={x:Null}}" VerticalAlignment="Center" />
                 </DockPanel>
-                <ContentControl Content="{Binding Current}">
+                <ContentControl x:Name="DialogContent" Content="{Binding Current}">
                     <ContentControl.DataTemplates>
                         <DataTemplate DataType="dialogs:ConfirmDialogViewModel">
                             <views:ConfirmDialogView />

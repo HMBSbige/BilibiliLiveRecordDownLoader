@@ -1,6 +1,17 @@
 namespace BilibiliLiveRecordDownLoader.ViewModels.Common;
 
-public sealed record PriorityItemViewModel(Enum Value, string Label);
+public sealed partial class PriorityItemViewModel(Enum value, string label) : ReactiveObject
+{
+	public Enum Value { get; } = value;
+
+	public string Label { get; } = label;
+
+	[Reactive]
+	public partial bool CanMoveUp { get; internal set; }
+
+	[Reactive]
+	public partial bool CanMoveDown { get; internal set; }
+}
 
 public sealed partial class PriorityListViewModel : ViewModelBase
 {
@@ -32,7 +43,7 @@ public sealed partial class PriorityListViewModel : ViewModelBase
 			Items.Add(new PriorityItemViewModel(value, StreamLabels.Of(value)));
 		}
 
-		Values = [.. Items.Select(static item => item.Value)];
+		OnOrderChanged();
 	}
 
 	public List<T> ToList<T>() where T : struct, Enum
@@ -63,6 +74,17 @@ public sealed partial class PriorityListViewModel : ViewModelBase
 		}
 
 		Items.Move(index, target);
+		OnOrderChanged();
+	}
+
+	private void OnOrderChanged()
+	{
+		for (int index = 0; index < Items.Count; ++index)
+		{
+			Items[index].CanMoveUp = index > 0;
+			Items[index].CanMoveDown = index < Items.Count - 1;
+		}
+
 		Values = [.. Items.Select(static item => item.Value)];
 	}
 }

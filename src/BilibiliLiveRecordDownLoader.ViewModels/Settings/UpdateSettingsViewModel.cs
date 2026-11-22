@@ -8,6 +8,12 @@ public sealed partial class UpdateSettingsViewModel : ViewModelBase
 	{
 		CheckUpdateCommand.DisposeWith(Disposables);
 		OpenHomepageCommand.DisposeWith(Disposables);
+		OpenConfigDirectoryCommand.DisposeWith(Disposables);
+
+		this.WhenChanged(static viewModel => viewModel.LatestVersion)
+			.Subscribe(_ => UpdateVersionText())
+			.DisposeWith(Disposables);
+		OnLanguageChanged(UpdateVersionText);
 	}
 
 	public string CurrentVersion => AppLocator.Current.GetRequiredService<IUpdateAppService>().CurrentVersion;
@@ -20,6 +26,9 @@ public sealed partial class UpdateSettingsViewModel : ViewModelBase
 
 	[Reactive]
 	public partial string? LatestVersion { get; private set; }
+
+	[Reactive]
+	public partial string VersionText { get; private set; } = string.Empty;
 
 	internal void ApplyConfig(AppConfig config)
 	{
@@ -63,6 +72,19 @@ public sealed partial class UpdateSettingsViewModel : ViewModelBase
 		await AppLocator.Current.GetRequiredService<ILauncherService>().LaunchUriAsync(new Uri(AppConsts.HomepageUrl));
 	}
 
+	[ReactiveCommand]
+	private async Task OpenConfigDirectoryAsync()
+	{
+		await AppLocator.Current.GetRequiredService<ILauncherService>().OpenFolderAsync(ConfigurationConsts.ConfigDirectory);
+	}
+
+	private void UpdateVersionText()
+	{
+		VersionText = LatestVersion is not { Length: > 0 } latest || latest == CurrentVersion
+			? AppLanguage.Current.CurrentVersion.ToString(CurrentVersion)
+			: AppLanguage.Current.CurrentAndLatestVersion.ToString(CurrentVersion, latest);
+	}
+
 	private void ShowResult(UpdateCheckResult result, bool silentOnLatest)
 	{
 		LatestVersion = result.LatestVersion;
@@ -71,7 +93,7 @@ public sealed partial class UpdateSettingsViewModel : ViewModelBase
 
 		if (result is { HasUpdate: true, LatestVersion: { } latestVersion })
 		{
-			notificationService.Show(AppLanguage.Current.Update, AppLanguage.Current.NewVersionAvailable.ToString(latestVersion));
+			notificationService.Show(AppLanguage.Current.Update, AppLanguage.Current.NewVersionAvailable.ToString(latestVersion), link: new Uri(AppConsts.ReleasesUrl));
 		}
 		else if (!silentOnLatest)
 		{

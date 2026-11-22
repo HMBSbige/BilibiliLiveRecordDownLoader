@@ -3,31 +3,41 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ic="using:FluentIcons.Avalonia"
     xmlns:tools="using:BilibiliLiveRecordDownLoader.ViewModels.Tools"
-    xmlns:c="using:BilibiliLiveRecordDownLoader.Views.Converters"
-    xmlns:ctl="using:BilibiliLiveRecordDownLoader.Views.Controls"
     xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.ToolsView"
     x:DataType="tools:MediaToolsViewModel">
     <ScrollViewer>
-        <StackPanel Margin="16" Spacing="16" MaxWidth="900" HorizontalAlignment="Stretch">
-            <Border Classes="card">
-                <DockPanel>
-                    <Button DockPanel.Dock="Right" Command="{Binding CheckFFmpegCommand}">
-                        <StackPanel Classes="iconText">
-                            <ic:FluentIcon Icon="ArrowSync" />
-                            <TextBlock Text="{Binding CheckAgain, Source={x:Static l:AppLanguage.Current}}" />
-                        </StackPanel>
-                    </Button>
-                    <StackPanel Classes="iconText" VerticalAlignment="Center">
-                        <ic:FluentIcon Icon="CheckmarkCircle" Foreground="{DynamicResource SemiColorSuccess}" IsVisible="{Binding IsFFmpegAvailable, FallbackValue=False, TargetNullValue=False}" />
-                        <TextBlock Text="{Binding FFmpegVersion}" IsVisible="{Binding IsFFmpegAvailable, FallbackValue=False, TargetNullValue=False}" />
-                        <ic:FluentIcon Icon="Warning" Foreground="{DynamicResource SemiColorWarning}" IsVisible="{Binding IsFFmpegAvailable, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}" />
-                        <TextBlock Text="{Binding FFmpegNotFound, Source={x:Static l:AppLanguage.Current}}"
-                                   TextWrapping="Wrap"
-                                   IsVisible="{Binding IsFFmpegAvailable, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}" />
+        <StackPanel Classes="page">
+            <Border Classes="warningBanner" IsVisible="{Binding IsFFmpegAvailable, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                    <ic:FluentIcon Grid.Column="0" Icon="Warning" IconVariant="Filled" FontSize="18" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource SemiColorWarning}" />
+                    <TextBlock Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap"
+                               Text="{Binding FFmpegNotFound, Source={x:Static l:AppLanguage.Current}}" />
+                    <StackPanel Grid.Column="2" Classes="toolbar">
+                        <Button Command="{Binding CheckFFmpegCommand}" Content="{Binding CheckAgain, Source={x:Static l:AppLanguage.Current}}" />
+                        <Button Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding DownloadFFmpegCommand}">
+                            <StackPanel Classes="iconText">
+                                <ic:FluentIcon Icon="ArrowDownload" />
+                                <TextBlock Text="{Binding DownloadFFmpeg, Source={x:Static l:AppLanguage.Current}}" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
-                </DockPanel>
+                </Grid>
             </Border>
+            <StackPanel Classes="iconText" Margin="4,0" IsVisible="{Binding IsFFmpegAvailable, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:True}}">
+                <ic:FluentIcon Icon="CheckmarkCircle" IconVariant="Filled" FontSize="14" Foreground="{DynamicResource SemiColorSuccess}" />
+                <TextBlock Classes="caption" Text="{Binding FFmpegVersion}" />
+                <Button Classes="icon" Padding="2" Command="{Binding CheckFFmpegCommand}"
+                        ToolTip.Tip="{Binding CheckAgain, Source={x:Static l:AppLanguage.Current}}"
+                        AutomationProperties.Name="{Binding CheckAgain, Source={x:Static l:AppLanguage.Current}}">
+                    <ic:FluentIcon Icon="ArrowSync" FontSize="14" />
+                </Button>
+            </StackPanel>
+            <StackPanel Classes="iconText" Margin="4,0" IsVisible="{Binding IsFFmpegAvailable, Converter={x:Static ObjectConverters.IsNull}}">
+                <ProgressBar Theme="{DynamicResource ProgressRing}" IsIndeterminate="True" Width="14" Height="14" />
+                <TextBlock Classes="caption" Text="{Binding Checking, Source={x:Static l:AppLanguage.Current}}" />
+            </StackPanel>
 
             <Border Classes="card">
                 <StackPanel Classes="form">

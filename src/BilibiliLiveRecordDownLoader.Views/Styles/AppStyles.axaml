@@ -73,10 +73,26 @@
         <Setter Property="Foreground" Value="{DynamicResource SemiColorDanger}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
+    <!-- 标题文字和内容与周围的表单左对齐，悬停背景向两侧留出内边距 -->
+    <Style Selector="Expander.inline">
+        <Style.Resources>
+            <Thickness x:Key="ExpanderHeaderMargin">0</Thickness>
+            <Thickness x:Key="ExpanderContentPadding">8,8,8,0</Thickness>
+            <SolidColorBrush x:Key="ExpanderSeparatorBorderBrush" Color="Transparent" />
+        </Style.Resources>
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="Margin" Value="-8,0" />
+    </Style>
+
     <Style Selector="Border.errorBanner">
         <Setter Property="Background" Value="{DynamicResource SemiColorDangerLight}" />
         <Setter Property="CornerRadius" Value="6" />
         <Setter Property="Padding" Value="12,8" />
+    </Style>
+    <Style Selector="Border.warningBanner">
+        <Setter Property="Background" Value="{DynamicResource SemiColorWarningLight}" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="16,12" />
     </Style>
     <Style Selector="StackPanel.toolbar">
         <Setter Property="Orientation" Value="Horizontal" />

@@ -5,6 +5,7 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 	private static readonly TimeSpan DiskSpaceRefreshInterval = TimeSpan.FromSeconds(2);
 
 	private bool _isInitialized;
+	private bool _isRevertingAutoStart;
 
 	public GeneralSettingsViewModel()
 	{
@@ -12,6 +13,8 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 		OpenRecordDirectoryCommand.DisposeWith(Disposables);
 		BrowseFFmpegPathCommand.DisposeWith(Disposables);
 	}
+
+	public bool IsAutoStartSupported => AppLocator.Current.GetRequiredService<IAutoStartService>().IsSupported;
 
 	[Reactive]
 	public partial string RecordDirectory { get; set; } = string.Empty;
@@ -24,6 +27,9 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 
 	[Reactive]
 	public partial double DiskUsagePercent { get; private set; }
+
+	[Reactive]
+	public partial bool IsAutoStartEnabled { get; set; }
 
 	internal void ApplyConfig(AppConfig config)
 	{
@@ -44,6 +50,14 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 
 		IDiskSpaceService diskSpaceService = AppLocator.Current.GetRequiredService<IDiskSpaceService>();
 		Poll(() => diskSpaceService.GetDiskSpace(RecordDirectory), ApplyDiskSpace, DiskSpaceRefreshInterval);
+
+		IAutoStartService autoStartService = AppLocator.Current.GetRequiredService<IAutoStartService>();
+		IsAutoStartEnabled = autoStartService.IsSupported && autoStartService.IsEnabled();
+
+		this.WhenChanged(static viewModel => viewModel.IsAutoStartEnabled)
+			.Skip(1)
+			.Subscribe(enabled => ApplyAutoStart(autoStartService, enabled))
+			.DisposeWith(Disposables);
 
 		_isInitialized = true;
 	}
@@ -71,6 +85,35 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 		if (await AppLocator.Current.GetRequiredService<IStoragePickerService>().PickFileAsync(initialDirectory) is { } path)
 		{
 			FFmpegPath = path;
+		}
+	}
+
+	private void ApplyAutoStart(IAutoStartService autoStartService, bool enabled)
+	{
+		if (_isRevertingAutoStart)
+		{
+			return;
+		}
+
+		try
+		{
+			autoStartService.SetEnabled(enabled);
+		}
+		catch (Exception exception)
+		{
+			RxState.DefaultExceptionHandler.OnNext(exception);
+
+			// 开关要反映实际状态
+			_isRevertingAutoStart = true;
+
+			try
+			{
+				IsAutoStartEnabled = autoStartService.IsEnabled();
+			}
+			finally
+			{
+				_isRevertingAutoStart = false;
+			}
 		}
 	}
 

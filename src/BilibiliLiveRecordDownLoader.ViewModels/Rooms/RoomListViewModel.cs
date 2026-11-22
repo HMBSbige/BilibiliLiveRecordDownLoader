@@ -14,6 +14,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		HasSelection = this.WhenChanged(static viewModel => viewModel.SelectedCount).Map(static count => count > 0);
 		HasSingleSelection = this.WhenChanged(static viewModel => viewModel.SelectedCount).Map(static count => count is 1);
 		SelectedRooms.CollectionChanged += OnSelectionChanged;
+		OnLanguageChanged(UpdateSelection);
 
 		this.WhenChanged(static viewModel => viewModel.SortOrder, static viewModel => viewModel.Filter, static (sortOrder, filter) => (sortOrder, filter))
 			.Skip(1)
@@ -69,6 +70,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	{
 		IRoomAppService roomAppService = AppLocator.Current.GetRequiredService<IRoomAppService>();
 		PollChanges(() => roomAppService.Version, () => Sync(roomAppService.GetRooms()), RefreshInterval);
+		OnLanguageChanged(() => Sync(roomAppService.GetRooms()));
 	}
 
 	[ReactiveCommand]

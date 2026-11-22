@@ -5,6 +5,7 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 	private static readonly string[] RemuxableExtensions = [".flv", ".ts", ".mkv", ".m4s"];
 
 	private readonly HashSet<string> _queuedCutOutputs = new(OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+	private string? _ffmpegVersion;
 
 	public MediaToolsViewModel()
 	{
@@ -12,6 +13,7 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 		CanQueueCut = this.WhenChanged(static viewModel => viewModel.IsFFmpegAvailable, static viewModel => viewModel.CutInput, static viewModel => viewModel.CutOutput, CanQueue);
 
 		CheckFFmpegCommand.DisposeWith(Disposables);
+		DownloadFFmpegCommand.DisposeWith(Disposables);
 		BrowseRemuxInputCommand.DisposeWith(Disposables);
 		BrowseRemuxOutputCommand.DisposeWith(Disposables);
 		QueueRemuxCommand.DisposeWith(Disposables);
@@ -28,6 +30,8 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 			.Skip(1)
 			.Subscribe(input => CutOutput = SuggestCutOutput(input, _queuedCutOutputs))
 			.DisposeWith(Disposables);
+
+		OnLanguageChanged(UpdateFFmpegVersionText);
 	}
 
 	public IObservable<bool> CanQueueRemux { get; }
@@ -73,9 +77,15 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 	private async Task CheckFFmpegAsync(CancellationToken cancellationToken)
 	{
 		IsFFmpegAvailable = null;
-		string? version = await AppLocator.Current.GetRequiredService<IMediaToolAppService>().GetFFmpegVersionAsync(cancellationToken);
-		FFmpegVersion = version is null ? null : AppLanguage.Current.FFmpegVersion.ToString(version);
-		IsFFmpegAvailable = version is not null;
+		_ffmpegVersion = await AppLocator.Current.GetRequiredService<IMediaToolAppService>().GetFFmpegVersionAsync(cancellationToken);
+		UpdateFFmpegVersionText();
+		IsFFmpegAvailable = _ffmpegVersion is not null;
+	}
+
+	[ReactiveCommand]
+	private async Task DownloadFFmpegAsync()
+	{
+		await AppLocator.Current.GetRequiredService<ILauncherService>().LaunchUriAsync(new Uri(AppConsts.FFmpegDownloadUrl));
 	}
 
 	[ReactiveCommand]
@@ -137,6 +147,11 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 		// 排队的任务还没写出文件，下一个建议要跳过它
 		_queuedCutOutputs.Add(Path.GetFullPath(output));
 		CutOutput = SuggestCutOutput(CutInput, _queuedCutOutputs);
+	}
+
+	private void UpdateFFmpegVersionText()
+	{
+		FFmpegVersion = _ffmpegVersion is null ? null : AppLanguage.Current.FFmpegVersion.ToString(_ffmpegVersion);
 	}
 
 	private static bool CanQueue(bool? isFFmpegAvailable, string input, string output)

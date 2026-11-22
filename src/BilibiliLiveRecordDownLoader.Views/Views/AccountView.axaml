@@ -3,56 +3,66 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ic="using:FluentIcons.Avalonia"
     xmlns:vm="using:BilibiliLiveRecordDownLoader.ViewModels"
-    xmlns:c="using:BilibiliLiveRecordDownLoader.Views.Converters"
-    xmlns:ctl="using:BilibiliLiveRecordDownLoader.Views.Controls"
     xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.AccountView"
     x:DataType="vm:AccountViewModel">
     <ScrollViewer>
-        <StackPanel Margin="16" Spacing="16" MaxWidth="900">
+        <StackPanel Classes="page">
             <Border Classes="card">
                 <StackPanel Classes="form">
                     <TextBlock Classes="section" Text="{Binding LoginStatus, Source={x:Static l:AppLanguage.Current}}" />
-                    <StackPanel Classes="iconText">
-                        <ic:FluentIcon Icon="CheckmarkCircle" Foreground="{DynamicResource SemiColorSuccess}" IsVisible="{Binding IsLoggedIn, FallbackValue=False, TargetNullValue=False}" />
-                        <TextBlock Text="{Binding LoggedIn, Source={x:Static l:AppLanguage.Current}}" IsVisible="{Binding IsLoggedIn, FallbackValue=False, TargetNullValue=False}" />
-                        <ic:FluentIcon Icon="DismissCircle" Foreground="{DynamicResource SemiColorDanger}" IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}" />
-                        <TextBlock Text="{Binding NotLoggedIn, Source={x:Static l:AppLanguage.Current}}" IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}" />
-                        <TextBlock Text="{Binding Checking, Source={x:Static l:AppLanguage.Current}}"
-                                   IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.IsNull}}" />
-                    </StackPanel>
-                    <StackPanel Classes="toolbar">
-                        <Button Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding QrCodeLoginCommand}">
-                            <StackPanel Classes="iconText">
-                                <ic:FluentIcon Icon="QrCode" />
-                                <TextBlock Text="{Binding QrCodeLogin, Source={x:Static l:AppLanguage.Current}}" />
-                            </StackPanel>
-                        </Button>
-                        <Button Command="{Binding CheckLoginCommand}">
-                            <StackPanel Classes="iconText">
-                                <ic:FluentIcon Icon="ArrowSync" />
-                                <TextBlock Text="{Binding CheckLogin, Source={x:Static l:AppLanguage.Current}}" />
-                            </StackPanel>
-                        </Button>
-                        <Button Classes="Danger" Command="{Binding LogoutCommand}">
-                            <StackPanel Classes="iconText">
-                                <ic:FluentIcon Icon="SignOut" />
-                                <TextBlock Text="{Binding Logout, Source={x:Static l:AppLanguage.Current}}" />
-                            </StackPanel>
-                        </Button>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
+                    <DockPanel MinHeight="32">
+                        <StackPanel DockPanel.Dock="Right" Classes="toolbar">
+                            <Button Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding QrCodeLoginCommand}"
+                                    IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}">
+                                <StackPanel Classes="iconText">
+                                    <ic:FluentIcon Icon="QrCode" />
+                                    <TextBlock Text="{Binding QrCodeLogin, Source={x:Static l:AppLanguage.Current}}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Command="{Binding CheckLoginCommand}"
+                                    IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:True}}">
+                                <StackPanel Classes="iconText">
+                                    <ic:FluentIcon Icon="ArrowSync" />
+                                    <TextBlock Text="{Binding CheckLogin, Source={x:Static l:AppLanguage.Current}}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="Danger" Command="{Binding LogoutCommand}"
+                                    IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:True}}">
+                                <StackPanel Classes="iconText">
+                                    <ic:FluentIcon Icon="SignOut" />
+                                    <TextBlock Text="{Binding Logout, Source={x:Static l:AppLanguage.Current}}" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
 
-            <Border Classes="card">
-                <StackPanel Classes="field">
-                    <TextBlock Classes="section" Text="{Binding Cookie, Source={x:Static l:AppLanguage.Current}}" />
-                    <DockPanel>
-                        <ToggleButton x:Name="RevealCookie" DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Top">
-                            <ic:FluentIcon Icon="Eye" />
-                        </ToggleButton>
-                        <TextBox Text="{Binding Cookie, UpdateSourceTrigger=LostFocus}" PasswordChar="•" RevealPassword="{Binding #RevealCookie.IsChecked}" />
+                        <Panel VerticalAlignment="Center">
+                            <StackPanel Classes="iconText" IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:True}}">
+                                <ic:FluentIcon Icon="CheckmarkCircle" IconVariant="Filled" Foreground="{DynamicResource SemiColorSuccess}" />
+                                <TextBlock Text="{Binding LoggedIn, Source={x:Static l:AppLanguage.Current}}" />
+                            </StackPanel>
+                            <StackPanel Classes="iconText" IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}">
+                                <ic:FluentIcon Icon="PersonCircle" Foreground="{DynamicResource SemiColorText2}" />
+                                <TextBlock Text="{Binding NotLoggedIn, Source={x:Static l:AppLanguage.Current}}" />
+                            </StackPanel>
+                            <StackPanel Classes="iconText" IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.IsNull}}">
+                                <ProgressBar Theme="{DynamicResource ProgressRing}" IsIndeterminate="True" Width="16" Height="16" />
+                                <TextBlock Text="{Binding Checking, Source={x:Static l:AppLanguage.Current}}" />
+                            </StackPanel>
+                        </Panel>
                     </DockPanel>
+
+                    <Expander Classes="inline" Header="{Binding ManualCookie, Source={x:Static l:AppLanguage.Current}}">
+                        <DockPanel>
+                            <ToggleButton x:Name="RevealCookie" DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Top"
+                                          ToolTip.Tip="{Binding ShowCookie, Source={x:Static l:AppLanguage.Current}}"
+                                          AutomationProperties.Name="{Binding ShowCookie, Source={x:Static l:AppLanguage.Current}}">
+                                <ic:FluentIcon Icon="Eye" FontSize="16" />
+                            </ToggleButton>
+                            <TextBox Text="{Binding Cookie, UpdateSourceTrigger=LostFocus}" PasswordChar="•" RevealPassword="{Binding #RevealCookie.IsChecked}"
+                                     AutomationProperties.Name="{Binding Cookie, Source={x:Static l:AppLanguage.Current}}" />
+                        </DockPanel>
+                    </Expander>
                 </StackPanel>
             </Border>
         </StackPanel>

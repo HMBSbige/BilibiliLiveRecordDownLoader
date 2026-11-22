@@ -7,8 +7,14 @@
     xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.SettingsView"
     x:DataType="settings:SettingsViewModel">
+    <UserControl.Styles>
+        <Style Selector="ComboBox">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+    </UserControl.Styles>
+
     <ScrollViewer>
-        <StackPanel Margin="16" Spacing="16" MaxWidth="900">
+        <StackPanel Classes="page">
             <Border Classes="card" DataContext="{Binding General}">
                 <StackPanel Classes="form" x:DataType="settings:GeneralSettingsViewModel">
                     <TextBlock Classes="section" Text="{Binding General, Source={x:Static l:AppLanguage.Current}}" />
@@ -35,29 +41,29 @@
                             <TextBox Text="{Binding FFmpegPath, UpdateSourceTrigger=LostFocus}" PlaceholderText="{Binding AutoDetect, Source={x:Static l:AppLanguage.Current}}" />
                         </DockPanel>
                     </StackPanel>
+                    <ToggleSwitch IsChecked="{Binding IsAutoStartEnabled}"
+                                  IsVisible="{Binding IsAutoStartSupported}"
+                                  OnContent="{Binding AutoStart, Source={x:Static l:AppLanguage.Current}}"
+                                  OffContent="{Binding AutoStart, Source={x:Static l:AppLanguage.Current}}" />
                 </StackPanel>
             </Border>
 
             <Border Classes="card" DataContext="{Binding Recording}">
                 <StackPanel Classes="form" x:DataType="settings:RecordingSettingsViewModel">
                     <TextBlock Classes="section" Text="{Binding RecordingDefaults, Source={x:Static l:AppLanguage.Current}}" />
-                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <Grid Classes="form" ColumnDefinitions="*,*">
                         <StackPanel Grid.Column="0" Classes="field">
                             <TextBlock Text="{Binding RecorderType, Source={x:Static l:AppLanguage.Current}}" />
-                            <ComboBox HorizontalAlignment="Stretch"
-                                      ItemsSource="{Binding RecorderTypeOptions}"
-                                      SelectedItem="{Binding RecorderType}"
+                            <ComboBox ItemsSource="{Binding RecorderTypeOptions}" SelectedItem="{Binding RecorderType}"
                                       ItemTemplate="{StaticResource LocalizedLabel}" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Classes="field">
                             <TextBlock Text="{Binding StreamHostSelection, Source={x:Static l:AppLanguage.Current}}" />
-                            <ComboBox HorizontalAlignment="Stretch"
-                                      ItemsSource="{Binding HostSelectionOptions}"
-                                      SelectedItem="{Binding HostSelection}"
+                            <ComboBox ItemsSource="{Binding HostSelectionOptions}" SelectedItem="{Binding HostSelection}"
                                       ItemTemplate="{StaticResource LocalizedLabel}" />
                         </StackPanel>
                     </Grid>
-                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <Grid Classes="form" ColumnDefinitions="*,*">
                         <StackPanel Grid.Column="0" Classes="field">
                             <TextBlock Text="{Binding CodecPriority, Source={x:Static l:AppLanguage.Current}}" />
                             <views:PriorityListView DataContext="{Binding CodecPriority}" />
@@ -67,10 +73,15 @@
                             <views:PriorityListView DataContext="{Binding FormatPriority}" />
                         </StackPanel>
                     </Grid>
-                    <TextBlock Classes="caption" Text="{Binding PriorityHint, Source={x:Static l:AppLanguage.Current}}" />
-                    <CheckBox IsChecked="{Binding ConvertToMp4}" Content="{Binding ConvertToMp4, Source={x:Static l:AppLanguage.Current}}" />
-                    <CheckBox IsChecked="{Binding DeleteAfterConvert}" IsEnabled="{Binding ConvertToMp4}"
-                              Content="{Binding DeleteAfterConvert, Source={x:Static l:AppLanguage.Current}}" />
+                    <TextBlock Classes="caption" Margin="0,-8,0,0" Text="{Binding PriorityHint, Source={x:Static l:AppLanguage.Current}}" />
+                    <StackPanel Spacing="8">
+                        <ToggleSwitch IsChecked="{Binding ConvertToMp4}"
+                                      OnContent="{Binding ConvertToMp4, Source={x:Static l:AppLanguage.Current}}"
+                                      OffContent="{Binding ConvertToMp4, Source={x:Static l:AppLanguage.Current}}" />
+                        <ToggleSwitch IsChecked="{Binding DeleteAfterConvert}" IsEnabled="{Binding ConvertToMp4}" Margin="24,0,0,0"
+                                      OnContent="{Binding DeleteAfterConvert, Source={x:Static l:AppLanguage.Current}}"
+                                      OffContent="{Binding DeleteAfterConvert, Source={x:Static l:AppLanguage.Current}}" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
@@ -82,26 +93,23 @@
                         <TextBox Text="{Binding UserAgent, UpdateSourceTrigger=LostFocus}" PlaceholderText="{Binding Default, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                     <ToggleSwitch IsChecked="{Binding UseSystemProxy}"
-                                  Content="{Binding UseSystemProxy, Source={x:Static l:AppLanguage.Current}}" />
+                                  OnContent="{Binding UseSystemProxy, Source={x:Static l:AppLanguage.Current}}"
+                                  OffContent="{Binding UseSystemProxy, Source={x:Static l:AppLanguage.Current}}" />
                 </StackPanel>
             </Border>
 
             <Border Classes="card" DataContext="{Binding Appearance}">
                 <StackPanel Classes="form" x:DataType="settings:AppearanceSettingsViewModel">
                     <TextBlock Classes="section" Text="{Binding Appearance, Source={x:Static l:AppLanguage.Current}}" />
-                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <Grid Classes="form" ColumnDefinitions="*,*">
                         <StackPanel Grid.Column="0" Classes="field">
                             <TextBlock Text="{Binding Theme, Source={x:Static l:AppLanguage.Current}}" />
-                            <ComboBox HorizontalAlignment="Stretch"
-                                      ItemsSource="{Binding ThemeOptions}"
-                                      SelectedItem="{Binding Theme}"
+                            <ComboBox ItemsSource="{Binding ThemeOptions}" SelectedItem="{Binding Theme}"
                                       ItemTemplate="{StaticResource LocalizedLabel}" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Classes="field">
                             <TextBlock Text="{Binding Language, Source={x:Static l:AppLanguage.Current}}" />
-                            <ComboBox HorizontalAlignment="Stretch"
-                                      ItemsSource="{Binding Languages}"
-                                      SelectedItem="{Binding SelectedLanguage}">
+                            <ComboBox ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage}">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate x:DataType="settings:LanguageOptionViewModel">
                                         <Panel>
@@ -115,42 +123,40 @@
                             </ComboBox>
                         </StackPanel>
                     </Grid>
-                    <ToggleSwitch IsChecked="{Binding IsAutoStartEnabled}"
-                                  IsVisible="{Binding IsAutoStartSupported}"
-                                  Content="{Binding AutoStart, Source={x:Static l:AppLanguage.Current}}" />
-                    <Button HorizontalAlignment="Left" Command="{Binding OpenConfigDirectoryCommand}">
-                        <StackPanel Classes="iconText">
-                            <ic:FluentIcon Icon="FolderOpen" />
-                            <TextBlock Text="{Binding OpenConfigDirectory, Source={x:Static l:AppLanguage.Current}}" />
-                        </StackPanel>
-                    </Button>
                 </StackPanel>
             </Border>
 
             <Border Classes="card" DataContext="{Binding Update}">
                 <StackPanel Classes="form" x:DataType="settings:UpdateSettingsViewModel">
-                    <TextBlock Classes="section" Text="{Binding Update, Source={x:Static l:AppLanguage.Current}}" />
-                    <StackPanel Classes="toolbar">
-                        <TextBlock Text="{Binding CurrentVersion, Source={x:Static l:AppLanguage.Current}}" />
-                        <SelectableTextBlock Text="{Binding CurrentVersion}" />
-                    </StackPanel>
-                    <StackPanel Classes="toolbar" IsVisible="{Binding LatestVersion, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                        <TextBlock Text="{Binding LatestVersion, Source={x:Static l:AppLanguage.Current}}" />
-                        <SelectableTextBlock Text="{Binding LatestVersion}" />
-                    </StackPanel>
-                    <CheckBox IsChecked="{Binding AutoCheckUpdate}" Content="{Binding AutoCheckUpdate, Source={x:Static l:AppLanguage.Current}}" />
-                    <CheckBox IsChecked="{Binding IncludePreRelease}" Content="{Binding IncludePreRelease, Source={x:Static l:AppLanguage.Current}}" />
-                    <StackPanel Classes="toolbar">
-                        <Button Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding CheckUpdateCommand}">
+                    <TextBlock Classes="section" Text="{Binding About, Source={x:Static l:AppLanguage.Current}}" />
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Margin="12,0,0,0" Command="{Binding CheckUpdateCommand}">
                             <StackPanel Classes="iconText">
                                 <ic:FluentIcon Icon="ArrowSync" />
                                 <TextBlock Text="{Binding CheckUpdate, Source={x:Static l:AppLanguage.Current}}" />
                             </StackPanel>
                         </Button>
+                        <SelectableTextBlock VerticalAlignment="Center" Text="{Binding VersionText}" TextTrimming="CharacterEllipsis" />
+                    </DockPanel>
+                    <StackPanel Spacing="8">
+                        <ToggleSwitch IsChecked="{Binding AutoCheckUpdate}"
+                                      OnContent="{Binding AutoCheckUpdate, Source={x:Static l:AppLanguage.Current}}"
+                                      OffContent="{Binding AutoCheckUpdate, Source={x:Static l:AppLanguage.Current}}" />
+                        <ToggleSwitch IsChecked="{Binding IncludePreRelease}"
+                                      OnContent="{Binding IncludePreRelease, Source={x:Static l:AppLanguage.Current}}"
+                                      OffContent="{Binding IncludePreRelease, Source={x:Static l:AppLanguage.Current}}" />
+                    </StackPanel>
+                    <StackPanel Classes="toolbar">
                         <Button Command="{Binding OpenHomepageCommand}">
                             <StackPanel Classes="iconText">
                                 <ic:FluentIcon Icon="Open" />
                                 <TextBlock Text="{Binding OpenHomepage, Source={x:Static l:AppLanguage.Current}}" />
+                            </StackPanel>
+                        </Button>
+                        <Button Command="{Binding OpenConfigDirectoryCommand}">
+                            <StackPanel Classes="iconText">
+                                <ic:FluentIcon Icon="FolderOpen" />
+                                <TextBlock Text="{Binding OpenConfigDirectory, Source={x:Static l:AppLanguage.Current}}" />
                             </StackPanel>
                         </Button>
                     </StackPanel>

@@ -45,7 +45,7 @@
             <StackPanel Classes="form" Margin="0,0,12,0" IsEnabled="{Binding !IsBusy}">
                 <StackPanel Classes="field">
                     <TextBlock Text="{Binding RoomId, Source={x:Static l:AppLanguage.Current}}" />
-                    <TextBox x:Name="RoomIdBox" Text="{Binding RoomIdText}" IsEnabled="{Binding IsNew}" />
+                    <TextBox Text="{Binding RoomIdText}" IsEnabled="{Binding IsNew}" />
                     <TextBlock Classes="error" Text="{Binding RoomIdError}"
                                IsVisible="{Binding RoomIdError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 </StackPanel>
@@ -75,7 +75,7 @@
                         <views:PriorityListView DataContext="{Binding FormatPriority}" IsEnabled="{Binding $parent[UserControl].((dialogs:RoomEditorViewModel)DataContext).OverrideFormatPriority}" />
                     </StackPanel>
                 </Grid>
-                <Expander Header="{Binding Advanced, Source={x:Static l:AppLanguage.Current}}" HorizontalAlignment="Stretch">
+                <Expander Classes="inline" Header="{Binding Advanced, Source={x:Static l:AppLanguage.Current}}">
                     <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="12">
                         <StackPanel Grid.Row="0" Grid.Column="0" Classes="field">
                             <TextBlock Text="{Binding StatusCheckInterval, Source={x:Static l:AppLanguage.Current}}" />

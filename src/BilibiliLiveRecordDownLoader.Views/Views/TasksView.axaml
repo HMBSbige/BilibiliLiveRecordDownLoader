@@ -37,6 +37,11 @@
         <Border Classes="table" Grid.IsSharedSizeScope="True">
             <Panel>
                 <ListBox x:Name="TaskList" Classes="table" ItemsSource="{Binding Tasks}" IsVisible="{Binding HasTasks}">
+                    <ListBox.Styles>
+                        <Style Selector="ListBoxItem" x:DataType="tasks:TaskItemViewModel">
+                            <Setter Property="AutomationProperties.Name" Value="{Binding Title}" />
+                        </Style>
+                    </ListBox.Styles>
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="tasks:TaskItemViewModel">
                             <Grid RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="2">

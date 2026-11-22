@@ -64,14 +64,21 @@ public abstract class ViewModelBase : ReactiveObject, IDisposable
 			.DisposeWith(Disposables);
 	}
 
+	// 查询可能涉及磁盘或网络，首次也在后台执行
 	protected void Poll<T>(Func<T> getState, Action<T> apply, TimeSpan interval)
 	{
-		apply(getState());
-
-		Signal.Every(interval, RxSchedulers.TaskpoolScheduler)
+		Signal.Timer(TimeSpan.Zero, interval, RxSchedulers.TaskpoolScheduler)
 			.Map(_ => getState())
 			.ObserveOn(RxSchedulers.MainThreadScheduler)
 			.Subscribe(apply)
+			.DisposeWith(Disposables);
+	}
+
+	// 视图模型里预先格式化的本地化文本需要在切换语言后重新生成
+	protected void OnLanguageChanged(Action apply)
+	{
+		Signal.FromEventPattern(static handler => AppLanguage.CurrentChanged += handler, static handler => AppLanguage.CurrentChanged -= handler)
+			.Subscribe(_ => apply())
 			.DisposeWith(Disposables);
 	}
 

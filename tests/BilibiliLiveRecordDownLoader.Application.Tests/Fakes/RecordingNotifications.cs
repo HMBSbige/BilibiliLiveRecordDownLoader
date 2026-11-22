@@ -9,7 +9,7 @@ internal sealed class RecordingNotifications : INotificationService
 {
 	public ConcurrentQueue<ShownNotification> Shown { get; } = new();
 
-	public void Show(string title, string message, AppNotificationType type = AppNotificationType.Information)
+	public void Show(string title, string message, AppNotificationType type = AppNotificationType.Information, Uri? link = null)
 	{
 		Shown.Enqueue(new ShownNotification(title, message, type));
 	}
