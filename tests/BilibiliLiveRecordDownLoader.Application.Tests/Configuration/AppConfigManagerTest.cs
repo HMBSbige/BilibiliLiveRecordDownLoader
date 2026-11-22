@@ -33,6 +33,7 @@ public sealed class AppConfigManagerTest
 		await Assert.That(saved["Theme"]?.GetValue<string>()).IsEqualTo(nameof(AppTheme.Dark));
 		await Assert.That(saved.ContainsKey(nameof(AppConfig.AutoCheckUpdate))).IsFalse();
 		await Assert.That(saved.ContainsKey(nameof(AppConfig.RecordDirectory))).IsFalse();
+		await Assert.That(string.Join(", ", SavedRoom(saved).Select(static property => property.Key))).IsEqualTo($"{nameof(RoomConfig.RoomId)}, {nameof(RoomConfig.RecorderType)}");
 
 		await using AppConfigManager reloaded = Create(path);
 		AppConfig config = await reloaded.GetAsync(cancellationToken);
@@ -42,6 +43,42 @@ public sealed class AppConfigManagerTest
 		await Assert.That(config.Rooms[0].RoomId).IsEqualTo(732);
 		await Assert.That(config.Rooms[0].RecorderType).IsEqualTo(RecorderType.FFmpeg);
 		await Assert.That(config.Rooms[0].StatusCheckInterval).IsEqualTo(new RoomConfig().StatusCheckInterval);
+	}
+
+	[Test]
+	public async Task RoomsSavedWithEveryValueAreTrimmedOnTheNextSaveAsync(CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string path = directory.Combine("config.json");
+		await File.WriteAllTextAsync(path, """
+			{
+				"Rooms": [
+					{
+						"RoomId": 732,
+						"IsRecordingEnabled": true,
+						"IsNotificationEnabled": false,
+						"Quality": "Original",
+						"StatusCheckInterval": "00:05:00",
+						"DanmuReconnectDelay": "00:00:02",
+						"StreamReconnectDelay": "00:00:06",
+						"StreamConnectTimeout": "00:00:05",
+						"StreamIdleTimeout": "00:00:30"
+					}
+				]
+			}
+			""", cancellationToken);
+
+		await using (AppConfigManager manager = Create(path))
+		{
+			RoomConfig room = (await manager.GetAsync(cancellationToken)).Rooms.Single();
+			await Assert.That(room).IsEqualTo(new RoomConfig { RoomId = 732, StreamIdleTimeout = TimeSpan.FromSeconds(30) });
+
+			await manager.UpdateAsync(static config => config.Theme = AppTheme.Dark, cancellationToken);
+		}
+
+		JsonObject saved = JsonNode.Parse(await File.ReadAllTextAsync(path, cancellationToken)) as JsonObject ?? [];
+
+		await Assert.That(string.Join(", ", SavedRoom(saved).Select(static property => $"{property.Key}={property.Value}"))).IsEqualTo("RoomId=732, StreamIdleTimeout=00:00:30");
 	}
 
 	[Test]
@@ -129,6 +166,54 @@ public sealed class AppConfigManagerTest
 		await using AppConfigManager reloaded = Create(path);
 		await Assert.That((await reloaded.GetAsync(cancellationToken)).Rooms.Count).IsEqualTo(1);
 		await Assert.That(Directory.GetFiles(directory.Root, "config.json.corrupt-*").Length).IsEqualTo(1);
+	}
+
+	[Test]
+	[Arguments("""{ "Rooms": [{ "RoomId": 732 }] }""", 732L)]
+	[Arguments("{ truncated", 1L)]
+	public async Task InterruptedSaveIsRestoredFromTheTempFileThenTheBackupAsync(string temp, long expectedRoomId, CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string path = directory.Combine("config.json");
+		await File.WriteAllTextAsync(path + ".tmp", temp, cancellationToken);
+		await File.WriteAllTextAsync(path + ".bak", """{ "Rooms": [{ "RoomId": 1 }] }""", cancellationToken);
+
+		await using (AppConfigManager manager = Create(path))
+		{
+			AppConfig restored = await manager.GetAsync(cancellationToken);
+
+			await Assert.That(restored.Rooms.Select(static room => room.RoomId).SequenceEqual([expectedRoomId])).IsTrue();
+		}
+
+		JsonObject saved = JsonNode.Parse(await File.ReadAllTextAsync(path, cancellationToken)) as JsonObject ?? [];
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(SavedRoom(saved)[nameof(RoomConfig.RoomId)]?.GetValue<long>()).IsEqualTo(expectedRoomId);
+			await Assert.That(File.Exists(path + ".tmp")).IsFalse();
+		}
+	}
+
+	[Test]
+	public async Task DeletedConfigIsNotRestoredFromTheBackupAsync(CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string path = directory.Combine("config.json");
+		await File.WriteAllTextAsync(path + ".bak", """{ "Rooms": [{ "RoomId": 1 }] }""", cancellationToken);
+
+		await using AppConfigManager manager = Create(path);
+		AppConfig config = await manager.GetAsync(cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(config.Rooms).IsEmpty();
+			await Assert.That(File.Exists(path)).IsFalse();
+		}
+	}
+
+	private static JsonObject SavedRoom(JsonObject saved)
+	{
+		return saved[nameof(AppConfig.Rooms)]?[0] as JsonObject ?? [];
 	}
 
 	private static AppConfigManager Create(string path, TimeSpan? saveDelay = null)

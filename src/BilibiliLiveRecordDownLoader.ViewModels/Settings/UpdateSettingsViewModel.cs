@@ -37,15 +37,24 @@ public sealed partial class UpdateSettingsViewModel : ViewModelBase
 		_isInitialized = true;
 	}
 
-	internal Task CheckForUpdateOnStartupAsync(AppConfig config, CancellationToken cancellationToken = default)
+	internal async Task CheckForUpdateOnStartupAsync(AppConfig config, CancellationToken cancellationToken = default)
 	{
-		return config.AutoCheckUpdate ? CheckForUpdateCoreAsync(true, cancellationToken) : Task.CompletedTask;
+		if (!config.AutoCheckUpdate)
+		{
+			return;
+		}
+
+		// 开机自启时网络可能还没就绪，失败不打扰用户
+		if (await AppLocator.Current.GetRequiredService<IUpdateAppService>().TryCheckForUpdateAsync(IncludePreRelease, cancellationToken) is { } result)
+		{
+			ShowResult(result, silentOnLatest: true);
+		}
 	}
 
 	[ReactiveCommand]
 	private async Task CheckUpdateAsync(CancellationToken cancellationToken)
 	{
-		await CheckForUpdateCoreAsync(false, cancellationToken);
+		ShowResult(await AppLocator.Current.GetRequiredService<IUpdateAppService>().CheckForUpdateAsync(IncludePreRelease, cancellationToken), silentOnLatest: false);
 	}
 
 	[ReactiveCommand]
@@ -54,9 +63,8 @@ public sealed partial class UpdateSettingsViewModel : ViewModelBase
 		await AppLocator.Current.GetRequiredService<ILauncherService>().LaunchUriAsync(new Uri(AppConsts.HomepageUrl));
 	}
 
-	private async Task CheckForUpdateCoreAsync(bool silentOnLatest, CancellationToken cancellationToken)
+	private void ShowResult(UpdateCheckResult result, bool silentOnLatest)
 	{
-		UpdateCheckResult result = await AppLocator.Current.GetRequiredService<IUpdateAppService>().CheckForUpdateAsync(IncludePreRelease, cancellationToken);
 		LatestVersion = result.LatestVersion;
 
 		INotificationService notificationService = AppLocator.Current.GetRequiredService<INotificationService>();

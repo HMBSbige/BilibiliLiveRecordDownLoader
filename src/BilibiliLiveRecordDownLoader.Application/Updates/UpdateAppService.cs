@@ -3,7 +3,7 @@ using UpdateChecker;
 
 namespace BilibiliLiveRecordDownLoader.Application.Updates;
 
-internal sealed class UpdateAppService(IHttpClientFactory httpClientFactory) : IUpdateAppService
+internal sealed partial class UpdateAppService(IHttpClientFactory httpClientFactory, ILogger<UpdateAppService> logger) : IUpdateAppService
 {
 	public string CurrentVersion { get; } = Normalize(ThisAssembly.Info.InformationalVersion) ?? string.Empty;
 
@@ -29,10 +29,26 @@ internal sealed class UpdateAppService(IHttpClientFactory httpClientFactory) : I
 		return new UpdateCheckResult(hasUpdate, checker.LatestVersion);
 	}
 
+	public async Task<UpdateCheckResult?> TryCheckForUpdateAsync(bool includePreRelease, CancellationToken cancellationToken = default)
+	{
+		try
+		{
+			return await CheckForUpdateAsync(includePreRelease, cancellationToken);
+		}
+		catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+		{
+			LogCheckFailed(logger, exception);
+			return null;
+		}
+	}
+
 	private static string? Normalize(string value)
 	{
 		return NuGetVersion.TryParse(value, out NuGetVersion? version) ? version.ToNormalizedString() : null;
 	}
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to check for updates")]
+	private static partial void LogCheckFailed(ILogger logger, Exception exception);
 
 	private sealed class NuGetVersionScheme : IVersionScheme
 	{

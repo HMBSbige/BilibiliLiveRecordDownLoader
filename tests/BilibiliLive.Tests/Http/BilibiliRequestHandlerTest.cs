@@ -94,6 +94,24 @@ public partial class BilibiliRequestHandlerTest
 	}
 
 	[Test]
+	public async Task CookieIsNotSentWhenExcludedAsync(CancellationToken cancellationToken)
+	{
+		BilibiliIdentity identity = new(static _ => ValueTask.FromResult(new BilibiliRequestOptions("agent/1", "SESSDATA=secret")));
+		FakeHttpMessageHandler inner = new(_ => Responses.Text("ok"));
+		using HttpClient client = new(new BilibiliRequestHandler(identity) { IncludeCookie = false, InnerHandler = inner });
+
+		await client.GetAsync(Url, cancellationToken);
+
+		IReadOnlyDictionary<string, string> headers = inner.Requests.Single().Headers;
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(headers.ContainsKey("Cookie")).IsFalse();
+			await Assert.That(headers["User-Agent"]).IsEqualTo("agent/1");
+		}
+	}
+
+	[Test]
 	[Arguments(null)]
 	[Arguments("  ")]
 	public async Task BlankUserAgentFallsBackToDefaultAsync(string? userAgent)

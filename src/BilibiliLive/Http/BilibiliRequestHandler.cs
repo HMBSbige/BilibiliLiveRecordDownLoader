@@ -12,6 +12,9 @@ public sealed class BilibiliRequestHandler(BilibiliIdentity identity) : Delegati
 
 	private static readonly Uri Referrer = new("https://live.bilibili.com/");
 
+	// Automatic redirects carry the Cookie header over to the new host, so a pipeline that follows redirects must not send it
+	public bool IncludeCookie { get; init; } = true;
+
 	protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 	{
 		bool anonymous = request.Options.TryGetValue(AnonymousOption, out bool value) && value;
@@ -25,7 +28,7 @@ public sealed class BilibiliRequestHandler(BilibiliIdentity identity) : Delegati
 
 		headers.Remove("Cookie");
 
-		if (IsBilibiliHost(request.RequestUri))
+		if (IncludeCookie && IsBilibiliHost(request.RequestUri))
 		{
 			headers.TryAddWithoutValidation("Cookie", cookie);
 		}

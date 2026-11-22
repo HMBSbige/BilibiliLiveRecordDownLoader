@@ -8,18 +8,19 @@ internal static class BilibiliHttpServiceCollectionExtensions
 		services.TryAddSingleton(CreateIdentity);
 
 		services.AddHttpClient(HttpClientNames.Default, static client => client.Timeout = TimeSpan.FromSeconds(15))
-			.ConfigurePrimaryHttpMessageHandler(CreatePrimaryHandler)
+			.ConfigurePrimaryHttpMessageHandler(static provider => CreatePrimaryHandler(provider, allowAutoRedirect: true))
 			.SetHandlerLifetime(Timeout.InfiniteTimeSpan);
 
+		// 接口不需要跟随重定向；自动跟随时登录 Cookie 会被带到跳转后的主机
 		services.AddHttpClient(HttpClientNames.BilibiliApi, static client => client.Timeout = TimeSpan.FromSeconds(15))
-			.ConfigurePrimaryHttpMessageHandler(CreatePrimaryHandler)
-			.AddHttpMessageHandler(CreateRequestHandler)
+			.ConfigurePrimaryHttpMessageHandler(static provider => CreatePrimaryHandler(provider, allowAutoRedirect: false))
+			.AddHttpMessageHandler(static provider => new BilibiliRequestHandler(provider.GetRequiredService<BilibiliIdentity>()))
 			.SetHandlerLifetime(Timeout.InfiniteTimeSpan);
 
-		// 直播流持续数小时，超时由录制流程按连接和空闲分别控制
+		// 直播流持续数小时，超时由录制流程按连接和空闲分别控制；CDN 会把请求重定向到其他节点，这条管道不带 Cookie
 		services.AddHttpClient(HttpClientNames.BilibiliStream, static client => client.Timeout = Timeout.InfiniteTimeSpan)
-			.ConfigurePrimaryHttpMessageHandler(CreatePrimaryHandler)
-			.AddHttpMessageHandler(CreateRequestHandler)
+			.ConfigurePrimaryHttpMessageHandler(static provider => CreatePrimaryHandler(provider, allowAutoRedirect: true))
+			.AddHttpMessageHandler(static provider => new BilibiliRequestHandler(provider.GetRequiredService<BilibiliIdentity>()) { IncludeCookie = false })
 			.SetHandlerLifetime(Timeout.InfiniteTimeSpan);
 
 		services.TryAddSingleton(static provider => new BilibiliApiClient(provider.GetRequiredService<IHttpClientFactory>().CreateClient(HttpClientNames.BilibiliApi), provider.GetRequiredService<TimeProvider>()));
@@ -28,22 +29,17 @@ internal static class BilibiliHttpServiceCollectionExtensions
 		return services;
 	}
 
-	private static HttpMessageHandler CreatePrimaryHandler(IServiceProvider provider)
+	private static HttpMessageHandler CreatePrimaryHandler(IServiceProvider provider, bool allowAutoRedirect)
 	{
 		return new SocketsHttpHandler
 		{
 			Proxy = provider.GetRequiredService<SwitchableWebProxy>(),
 			UseProxy = true,
 			UseCookies = false,
+			AllowAutoRedirect = allowAutoRedirect,
 			AutomaticDecompression = DecompressionMethods.All,
 			PooledConnectionLifetime = TimeSpan.FromMinutes(10)
 		};
-	}
-
-	// API 和直播流两条管道共用一个身份，B 站看到的是同一个 buvid3
-	private static DelegatingHandler CreateRequestHandler(IServiceProvider provider)
-	{
-		return new BilibiliRequestHandler(provider.GetRequiredService<BilibiliIdentity>());
 	}
 
 	private static BilibiliIdentity CreateIdentity(IServiceProvider provider)

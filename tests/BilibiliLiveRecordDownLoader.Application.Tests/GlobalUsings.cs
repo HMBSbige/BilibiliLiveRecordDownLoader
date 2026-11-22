@@ -12,4 +12,5 @@ global using BilibiliLiveRecordDownLoader.Domain.Shared.Recording;
 global using MediaToolkit.FFmpeg;
 global using Microsoft.Extensions.Logging.Abstractions;
 global using Microsoft.Extensions.Options;
+global using Microsoft.Extensions.Time.Testing;
 global using System.Text.Json.Nodes;

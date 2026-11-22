@@ -172,13 +172,18 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	{
 		await Task.Yield();
 		using IDisposable? scope = _logger.BeginRoomScope(RoomId);
+		ReconnectBackoff backoff = new(Settings.DanmuReconnectDelay, services.TimeProvider, Random.Shared);
 
 		while (!cancellationToken.IsCancellationRequested)
 		{
+			TimeSpan delay;
+			backoff.OnConnecting();
+
 			try
 			{
 				await foreach (DanmuMessage message in services.DanmuClient.ReceiveAsync(RoomId, cancellationToken))
 				{
+					backoff.OnReceived();
 					Handle(message);
 				}
 
@@ -188,7 +193,8 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 					return;
 				}
 
-				LogDanmuDisconnected(_logger);
+				delay = backoff.NextDelay();
+				LogDanmuDisconnected(_logger, delay);
 			}
 			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
@@ -196,12 +202,13 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 			}
 			catch (Exception exception)
 			{
-				LogDanmuFailed(_logger, exception);
+				delay = backoff.NextDelay();
+				LogDanmuFailed(_logger, exception, delay);
 			}
 
 			try
 			{
-				await Task.Delay(Settings.DanmuReconnectDelay, services.TimeProvider, cancellationToken);
+				await Task.Delay(delay, services.TimeProvider, cancellationToken);
 			}
 			catch (OperationCanceledException)
 			{
@@ -488,11 +495,11 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 	}
 
-	[LoggerMessage(Level = LogLevel.Information, Message = "Danmu connection closed")]
-	private static partial void LogDanmuDisconnected(ILogger logger);
+	[LoggerMessage(Level = LogLevel.Information, Message = "Danmu connection closed, reconnecting in {Delay}")]
+	private static partial void LogDanmuDisconnected(ILogger logger, TimeSpan delay);
 
-	[LoggerMessage(Level = LogLevel.Warning, Message = "Danmu connection failed")]
-	private static partial void LogDanmuFailed(ILogger logger, Exception exception);
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Danmu connection failed, reconnecting in {Delay}")]
+	private static partial void LogDanmuFailed(ILogger logger, Exception exception, TimeSpan delay);
 
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to refresh room status")]
 	private static partial void LogRefreshFailed(ILogger logger, Exception exception);

@@ -8,6 +8,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 
 	private static readonly TimeSpan ReadRetryDelay = TimeSpan.FromMilliseconds(200);
 	private static readonly JsonObject DefaultNode = SerializeToJsonObject(AppConfig.CreateDefault());
+	private static readonly JsonObject DefaultRoomNode = JsonSerializer.SerializeToNode(new RoomConfig(), AppConfigJsonContext.Default.RoomConfig) as JsonObject ?? throw new InvalidOperationException("Serialized room config is not a JSON object.");
 
 	private readonly string _configPath = storageOptions.Value.FilePath;
 	private readonly TimeSpan _saveDelay = storageOptions.Value.SaveDelay;
@@ -21,6 +22,8 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 	private AppConfig? _config;
 
 	private string BackupPath => _configPath + ".bak";
+
+	private string TempPath => _configPath + ".tmp";
 
 	public async ValueTask<AppConfig> GetAsync(CancellationToken cancellationToken = default)
 	{
@@ -152,12 +155,19 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		try
 		{
 			config = await ReadWithRetryAsync(_configPath, cancellationToken).ConfigureAwait(false);
+
+			// 上次保存在替换文件时中断，新内容还留在临时文件里；只剩备份时视为用户删除配置来重置
+			if (config is null && File.Exists(TempPath))
+			{
+				config = await TryRestoreAsync(TempPath, cancellationToken).ConfigureAwait(false) ?? await TryRestoreAsync(BackupPath, cancellationToken).ConfigureAwait(false);
+				restored = config is not null;
+			}
 		}
 		catch (JsonException exception)
 		{
 			LogConfigCorrupted(logger, exception, _configPath);
 			PreserveCorruptedFile();
-			config = await TryReadBackupAsync(cancellationToken).ConfigureAwait(false);
+			config = await TryRestoreAsync(BackupPath, cancellationToken).ConfigureAwait(false);
 			restored = config is not null;
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -201,22 +211,22 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		return await JsonSerializer.DeserializeAsync(stream, AppConfigJsonContext.Default.AppConfig, cancellationToken).ConfigureAwait(false);
 	}
 
-	private async ValueTask<AppConfig?> TryReadBackupAsync(CancellationToken cancellationToken)
+	private async ValueTask<AppConfig?> TryRestoreAsync(string path, CancellationToken cancellationToken)
 	{
 		try
 		{
-			AppConfig? backup = await ReadAsync(BackupPath, cancellationToken).ConfigureAwait(false);
+			AppConfig? config = await ReadAsync(path, cancellationToken).ConfigureAwait(false);
 
-			if (backup is not null)
+			if (config is not null)
 			{
-				LogRestoredFromBackup(logger, BackupPath);
+				LogRestored(logger, path);
 			}
 
-			return backup;
+			return config;
 		}
 		catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
 		{
-			LogConfigCorrupted(logger, exception, BackupPath);
+			LogConfigCorrupted(logger, exception, path);
 			return null;
 		}
 	}
@@ -245,21 +255,22 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 
 		long version = _saveVersion;
 		JsonObject node = SerializeToJsonObject(_config);
+		RemoveDefaults(node, DefaultNode);
 
-		foreach ((string key, JsonNode? value) in node.ToArray())
+		// 房间没改过的属性不写盘，读回时由 RoomConfig 的初始值补齐，以后调整默认值对老房间同样生效
+		if (node[nameof(AppConfig.Rooms)] is JsonArray rooms)
 		{
-			if (JsonNode.DeepEquals(Normalize(value), Normalize(DefaultNode[key])))
+			foreach (JsonObject room in rooms.OfType<JsonObject>())
 			{
-				node.Remove(key);
+				RemoveDefaults(room, DefaultRoomNode);
 			}
 		}
 
 		CreateConfigDirectory();
 
-		string tempPath = _configPath + ".tmp";
-		File.Delete(tempPath);
+		File.Delete(TempPath);
 
-		using (FileStream stream = new(tempPath, CreateTempFileOptions()))
+		using (FileStream stream = new(TempPath, CreateTempFileOptions()))
 		{
 			JsonSerializer.Serialize(stream, node, AppConfigJsonContext.Default.JsonObject);
 			stream.Flush(true);
@@ -267,14 +278,25 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 
 		if (File.Exists(_configPath))
 		{
-			File.Replace(tempPath, _configPath, BackupPath);
+			File.Replace(TempPath, _configPath, BackupPath);
 		}
 		else
 		{
-			File.Move(tempPath, _configPath);
+			File.Move(TempPath, _configPath);
 		}
 
 		_savedVersion = version;
+	}
+
+	private static void RemoveDefaults(JsonObject node, JsonObject defaults)
+	{
+		foreach ((string key, JsonNode? value) in node.ToArray())
+		{
+			if (JsonNode.DeepEquals(Normalize(value), Normalize(defaults[key])))
+			{
+				node.Remove(key);
+			}
+		}
 
 		return;
 
@@ -354,7 +376,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 	private static partial void LogConfigUnreadable(ILogger logger, Exception exception, string path);
 
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Config restored from {Path}")]
-	private static partial void LogRestoredFromBackup(ILogger logger, string path);
+	private static partial void LogRestored(ILogger logger, string path);
 
 	[LoggerMessage(Level = LogLevel.Error, Message = "Failed to save config file {Path}")]
 	private static partial void LogSaveFailed(ILogger logger, Exception exception, string path);
