@@ -10,7 +10,8 @@
     <Authors>HMBSbige</Authors>
   </PropertyGroup>
 
-  <PropertyGroup>
+  <!-- 这里还读不到 IsTestProject -->
+  <PropertyGroup Condition="!$(MSBuildProjectName.EndsWith('.Tests'))">
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
     <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
     <IsAotCompatible>true</IsAotCompatible>
@@ -18,6 +19,9 @@
 
   <PropertyGroup>
     <UseArtifactsOutput>true</UseArtifactsOutput>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="!$(MSBuildProjectName.EndsWith('.Tests'))">
     <PublishSingleFile>true</PublishSingleFile>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <PublishTrimmed>true</PublishTrimmed>
@@ -30,11 +34,11 @@
     <PackageReference Include="MinVer" PrivateAssets="all" />
   </ItemGroup>
 
-  <Target Name="CleanPreviousPublish" BeforeTargets="PrepareForPublish">
+  <Target Name="CleanPreviousPublish" BeforeTargets="PrepareForPublish" Condition="$([MSBuild]::NormalizeDirectory('$(PublishDir)').StartsWith($([MSBuild]::NormalizeDirectory('$(ArtifactsPath)', 'publish'))))">
     <RemoveDir Directories="$(PublishDir)" />
   </Target>
 
-  <PropertyGroup Condition="'$(Configuration)' != 'Debug'">
+  <PropertyGroup Condition="'$(Configuration)' != 'Debug' and !$(MSBuildProjectName.EndsWith('.Tests'))">
     <DebuggerSupport>false</DebuggerSupport>
     <DebugType>none</DebugType>
     <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>

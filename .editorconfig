@@ -236,6 +236,8 @@ dotnet_diagnostic.IDE0240.severity = warning
 dotnet_diagnostic.IDE0280.severity = warning
 # 不需要的 ! 可空抑制
 dotnet_diagnostic.IDE0370.severity = warning
+# 枚举 switch 已列全成员，仍提示没处理其他整数值
+dotnet_diagnostic.CS8524.severity = none
 
 #### 命名样式 ####
 
