@@ -33,6 +33,12 @@ public sealed class LocalizedLabelConverter : IValueConverter, IMultiValueConver
 				RecorderType.FFmpeg => AppLanguage.Current.RecorderFFmpeg,
 				_ => recorderType.ToString()
 			},
+			RecordingSplitMode mode => mode switch
+			{
+				RecordingSplitMode.Duration => AppLanguage.Current.SplitByDuration,
+				RecordingSplitMode.Size => AppLanguage.Current.SplitBySize,
+				_ => AppLanguage.Current.SplitNone
+			},
 			StreamHostSelection selection => selection switch
 			{
 				StreamHostSelection.FirstResponse => AppLanguage.Current.HostFirstResponse,

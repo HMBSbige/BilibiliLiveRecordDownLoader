@@ -6,5 +6,11 @@ public abstract class LiveStreamSession : IAsyncDisposable
 
 	public abstract Task<StreamEndReason> CopyToAsync(Stream destination, IProgress<long>? progress = null, CancellationToken cancellationToken = default);
 
+	/// <summary>Copies the stream like the other overload, and an HLS stream also reports its segments to <paramref name="segments"/>; other streams report nothing.</summary>
+	public virtual Task<StreamEndReason> CopyToAsync(Stream destination, IHlsSegmentObserver segments, IProgress<long>? progress, CancellationToken cancellationToken)
+	{
+		return CopyToAsync(destination, progress, cancellationToken);
+	}
+
 	public abstract ValueTask DisposeAsync();
 }

@@ -20,6 +20,14 @@ public sealed record RoomSettingsDto
 
 	public bool? DeleteAfterConvert { get; init; }
 
+	public RecordingSplitMode? SplitMode { get; init; }
+
+	public TimeSpan? SplitDuration { get; init; }
+
+	public long? SplitSizeMegabytes { get; init; }
+
+	public bool? SplitOnTitleChange { get; init; }
+
 	public TimeSpan StatusCheckInterval { get; init; } = RoomDefaults.StatusCheckInterval;
 
 	public TimeSpan DanmuReconnectDelay { get; init; } = RoomDefaults.DanmuReconnectDelay;

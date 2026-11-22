@@ -44,7 +44,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	private volatile bool _isLive = true;
 	private volatile string _title = "title";
 
-	public RecordingLoopHarness(CancellationToken cancellationToken, Func<string, Stream>? createFile = null, RecorderType recorderType = RecorderType.BuiltIn, bool isNotificationEnabled = false)
+	public RecordingLoopHarness(CancellationToken cancellationToken, Func<string, Stream>? createFile = null, RecorderType recorderType = RecorderType.BuiltIn, bool isNotificationEnabled = false, IMediaToolAppService? mediaTools = null)
 	{
 		_lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		Config.RecordDirectory = _directory.Root;
@@ -70,7 +70,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 			apiClient,
 			new DanmuClient(apiClient, new BilibiliIdentity(static _ => ValueTask.FromResult(new BilibiliRequestOptions(null, null))), NullLogger<DanmuClient>.Instance),
 			recorder,
-			new RecordingPostProcessor(new UnusedMediaTools(), configManager, Notifications, NullLogger<RecordingPostProcessor>.Instance),
+			new RecordingPostProcessor(mediaTools ?? new UnusedMediaTools(), configManager, Notifications, NullLogger<RecordingPostProcessor>.Instance),
 			new LowDiskSpaceMonitor(new UnknownDiskSpace(), configManager, Notifications, Time, NullLogger<LowDiskSpaceMonitor>.Instance),
 			Notifications,
 			configManager,
@@ -287,6 +287,24 @@ internal sealed class StreamRequest(string host)
 	// 读过 FLV 头之后才完成，这时空闲看门狗已经在运行
 	public Task CopyStarted => _copyStarted.Task;
 
+	// 和 AcceptAsync 一样应答，但发送给出的数据；等会话把它交给录制器之后才返回
+	public async Task AcceptAsync(byte[] body)
+	{
+		await _body.Writer.WriteAsync(body);
+		_response.SetResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new ObservedStream(_body.Reader.AsStream(), OnRead)) });
+
+		// 一次读 FLV 签名，一次读其余数据，第三次读说明前面的都处理完了
+		await WaitForReadsAsync(3);
+	}
+
+	// 会话处理完这块数据、开始读下一块时返回，之后推进的时钟不会算到这块数据上
+	public async Task SendAndWaitAsync(byte[] data)
+	{
+		int reads = Volatile.Read(ref _reads);
+		await _body.Writer.WriteAsync(data);
+		await WaitForReadsAsync(reads + 1);
+	}
+
 	public void Reject()
 	{
 		_response.SetResult(new HttpResponseMessage(HttpStatusCode.NotFound));
@@ -327,6 +345,16 @@ internal sealed class StreamRequest(string host)
 	public async Task EndAsync()
 	{
 		await _body.Writer.CompleteAsync();
+	}
+
+	private async Task WaitForReadsAsync(int count)
+	{
+		using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(5));
+
+		while (Volatile.Read(ref _reads) < count)
+		{
+			await Task.Delay(1, timeout.Token);
+		}
 	}
 
 	private void OnRead()

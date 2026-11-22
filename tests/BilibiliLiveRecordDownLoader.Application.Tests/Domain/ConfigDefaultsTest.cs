@@ -64,4 +64,41 @@ public sealed class ConfigDefaultsTest
 		await Assert.That(config.Rooms.Select(static room => room.RoomId).SequenceEqual([2L, 3L])).IsTrue();
 		await Assert.That(config.Rooms[0].Quality).IsEqualTo(StreamQuality.High);
 	}
+
+	[Test]
+	public async Task SplitDefaultsAreAnHourOr4000MegabytesWithoutSplittingOrFollowingTitlesAsync()
+	{
+		AppConfig config = AppConfig.CreateDefault();
+		RoomConfig room = new() { RoomId = 1 };
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(config.SplitMode).IsEqualTo(RecordingSplitMode.None);
+			await Assert.That(config.SplitDuration).IsEqualTo(TimeSpan.FromMinutes(60));
+			await Assert.That(config.SplitSizeMegabytes).IsEqualTo(4000);
+			await Assert.That(config.SplitOnTitleChange).IsFalse();
+			await Assert.That((room.SplitMode, room.SplitDuration, room.SplitSizeMegabytes, room.SplitOnTitleChange)).IsEqualTo((null, null, null, null));
+		}
+	}
+
+	[Test]
+	public async Task SplitValuesAreClampedToTheirBoundsAsync()
+	{
+		AppConfig config = new()
+		{
+			SplitDuration = TimeSpan.FromSeconds(10),
+			SplitSizeMegabytes = 1,
+			Rooms = [new RoomConfig { RoomId = 1, SplitDuration = TimeSpan.FromDays(3), SplitSizeMegabytes = long.MaxValue }]
+		};
+
+		config.ApplyDefaults();
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(config.SplitDuration).IsEqualTo(TimeSpan.FromMinutes(1));
+			await Assert.That(config.SplitSizeMegabytes).IsEqualTo(64);
+			await Assert.That(config.Rooms[0].SplitDuration).IsEqualTo(TimeSpan.FromHours(24));
+			await Assert.That(config.Rooms[0].SplitSizeMegabytes).IsEqualTo(1 << 20);
+		}
+	}
 }

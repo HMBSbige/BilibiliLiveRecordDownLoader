@@ -53,7 +53,7 @@
                     <CheckBox IsChecked="{Binding IsRecordingEnabled}" Content="{Binding RecordingEnabled, Source={x:Static l:AppLanguage.Current}}" />
                     <CheckBox IsChecked="{Binding IsNotificationEnabled}" Content="{Binding NotificationEnabled, Source={x:Static l:AppLanguage.Current}}" />
                 </StackPanel>
-                <Grid Classes="form" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="4">
+                <Grid Classes="form" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="4">
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Quality, Source={x:Static l:AppLanguage.Current}}" />
                     <ComboBox Grid.Row="1" Grid.Column="0" ItemsSource="{Binding QualityOptions}" SelectedItem="{Binding Quality}" />
                     <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding RecorderType, Source={x:Static l:AppLanguage.Current}}" />
@@ -64,6 +64,26 @@
                     <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap"
                                Text="{Binding DeleteAfterConvert, Source={x:Static l:AppLanguage.Current}}" />
                     <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding DeleteAfterConvert}" />
+                    <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap"
+                               Text="{Binding RecordingSplit, Source={x:Static l:AppLanguage.Current}}" />
+                    <ComboBox Grid.Row="5" Grid.Column="0" ItemsSource="{Binding SplitModeOptions}" SelectedItem="{Binding SplitMode}" />
+                    <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap" IsVisible="{Binding IsSplitByDuration}"
+                               Text="{Binding SplitDuration, Source={x:Static l:AppLanguage.Current}}" />
+                    <DockPanel Grid.Row="5" Grid.Column="1" IsVisible="{Binding IsSplitByDuration}">
+                        <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding Minutes, Source={x:Static l:AppLanguage.Current}}" />
+                        <NumericUpDown Value="{Binding SplitDurationMinutes}" FormatString="0"
+                                       Minimum="{x:Static cfg:RecordingSplitDefaults.MinDurationMinutes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxDurationMinutes}" />
+                    </DockPanel>
+                    <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap" IsVisible="{Binding IsSplitBySize}"
+                               Text="{Binding SplitSize, Source={x:Static l:AppLanguage.Current}}" />
+                    <DockPanel Grid.Row="5" Grid.Column="1" IsVisible="{Binding IsSplitBySize}">
+                        <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding Megabytes, Source={x:Static l:AppLanguage.Current}}" />
+                        <NumericUpDown Value="{Binding SplitSizeMegabytes}" Increment="100" FormatString="0"
+                                       Minimum="{x:Static cfg:RecordingSplitDefaults.MinSizeMegabytes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxSizeMegabytes}" />
+                    </DockPanel>
+                    <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap"
+                               Text="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}" />
+                    <ComboBox Grid.Row="7" Grid.Column="0" ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding SplitOnTitleChange}" />
                 </Grid>
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
                     <StackPanel Grid.Column="0" Classes="field">

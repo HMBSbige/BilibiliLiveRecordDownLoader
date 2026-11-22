@@ -63,6 +63,27 @@ public class HlsStreamSessionTest
 
 	[Test]
 	[Timeout(10_000)]
+	[Arguments("#EXTM3U\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n2.m4s\n#EXT-X-ENDLIST\n", "init:[h1] media:[1] media:[2]")]
+	[Arguments("#EXTM3U\n1.ts\n2.ts\n#EXT-X-ENDLIST\n", "media:[1] media:[2]")]
+	public async Task ReportsEachSegmentRightBeforeWritingExactlyItsBytesAsync(string playlist, string expected, CancellationToken cancellationToken)
+	{
+		using HttpClient client = new(new FakeHttpMessageHandler(request => request.RequestUri == PlaylistUri ? Responses.Text(playlist) : Segment(request)));
+		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, new ManualTimeProvider(), cancellationToken);
+		using MemoryStream output = new();
+		SegmentLog segments = new(output);
+
+		await session.CopyToAsync(output, segments, null, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(string.Join(" ", segments.Entries)).IsEqualTo(expected);
+			await Assert.That(segments.MatchedEveryWrite()).IsTrue();
+			await Assert.That(segments.Length).IsEqualTo(output.Length);
+		}
+	}
+
+	[Test]
+	[Timeout(10_000)]
 	public async Task FollowsAMasterPlaylistAndRefreshesItsVariantAsync(CancellationToken cancellationToken)
 	{
 		const string variantPath = "/edge/live-bvc/1/live_2500/index.m3u8";
@@ -417,6 +438,50 @@ public class HlsStreamSessionTest
 		{
 			await Assert.That(MediaSamples.Markers(output.ToArray())).IsEqualTo("[ok]");
 			await Assert.That(handler.Requests.Count(r => r.Uri.AbsolutePath.EndsWith("bad.ts", StringComparison.Ordinal))).IsEqualTo(HlsStreamSession.MaxAttempts);
+		}
+	}
+
+	// Each report must describe exactly the bytes the destination receives next
+	private sealed class SegmentLog(MemoryStream output) : IHlsSegmentObserver
+	{
+		private byte[]? _expected;
+		private long _expectedAt;
+		private bool _matched = true;
+
+		public List<string> Entries { get; } = [];
+
+		public long Length { get; private set; }
+
+		public bool MatchedEveryWrite()
+		{
+			Verify();
+			return _matched;
+		}
+
+		public void OnInitSegment(ReadOnlySpan<byte> data)
+		{
+			Record("init", data);
+		}
+
+		public void OnMediaSegment(ReadOnlySpan<byte> data)
+		{
+			Record("media", data);
+		}
+
+		private void Record(string kind, ReadOnlySpan<byte> data)
+		{
+			Verify();
+			Entries.Add($"{kind}:{MediaSamples.Markers(data.ToArray())}");
+			(_expected, _expectedAt) = (data.ToArray(), output.Length);
+			Length += data.Length;
+		}
+
+		private void Verify()
+		{
+			if (_expected is { } expected)
+			{
+				_matched &= output.Length == _expectedAt + expected.Length && output.ToArray().AsSpan((int)_expectedAt).SequenceEqual(expected);
+			}
 		}
 	}
 }

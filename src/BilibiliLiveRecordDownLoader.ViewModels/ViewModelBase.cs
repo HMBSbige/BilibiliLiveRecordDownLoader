@@ -11,10 +11,17 @@ public abstract class ViewModelBase : ReactiveObject, IDisposable
 		PersistToConfig(AppLocator.Current.GetRequiredService<IAppConfigManager>(), source, updateAction);
 	}
 
-	protected void PersistToConfig<T>(IAppConfigManager configManager, IObservable<T> source, Action<AppConfig, T> updateAction)
+	// quietPeriod 为正时，值停下来这么久之后才保存
+	protected void PersistToConfig<T>(IAppConfigManager configManager, IObservable<T> source, Action<AppConfig, T> updateAction, TimeSpan quietPeriod = default)
 	{
-		source
-			.Skip(1)
+		IObservable<T> changes = source.Skip(1);
+
+		if (quietPeriod > TimeSpan.Zero)
+		{
+			changes = changes.Calm(quietPeriod, RxSchedulers.TaskpoolScheduler);
+		}
+
+		changes
 			.Unique()
 			.Map
 			(value => HandleErrors

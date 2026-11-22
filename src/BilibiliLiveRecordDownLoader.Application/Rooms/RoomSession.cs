@@ -13,6 +13,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	private RecordStatus _recordStatus;
 	private double _bytesPerSecond;
 	private string? _recordingPath;
+	private SplitControl? _split;
 	private ActiveRecordingDto? _activeRecording;
 	private string? _lastError;
 	private CancellationTokenSource? _monitorCancellation;
@@ -167,6 +168,31 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		onChanged();
 	}
 
+	// 路径已经被录制循环取走时，这一段已经交给了后处理
+	void IRecordingObserver.OnSegmentCompleted(string path)
+	{
+		lock (_lock)
+		{
+			if (_recordingPath != path)
+			{
+				return;
+			}
+
+			_recordingPath = null;
+		}
+
+		_ = PostProcessAsync(path);
+	}
+
+	// 分段只换文件，录制时长接着这次连接算
+	void IRecordingObserver.OnSegmentStarted(string path)
+	{
+		lock (_lock)
+		{
+			_recordingPath = path;
+		}
+	}
+
 	void IRecordingObserver.OnSpeedChanged(double bytesPerSecond)
 	{
 		lock (_lock)
@@ -285,6 +311,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	private void SetTitle(string title)
 	{
 		bool notify;
+		SplitControl? split;
 
 		lock (_lock)
 		{
@@ -295,11 +322,15 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 
 			// 启动或添加房间时第一次拿到的标题不算更改
 			notify = _title is not null && _settings.IsNotificationEnabled;
+			split = _title is not null && _recordStatus is RecordStatus.Recording ? _split : null;
 			_title = title;
 		}
 
 		LogTitleChanged(_logger, title);
 		onChanged();
+
+		// 是否按标题分段由切分时的设置决定
+		split?.RequestTitleSplit();
 
 		if (notify)
 		{
@@ -388,9 +419,12 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 				AppConfig config = await services.ConfigManager.GetAsync(cancellationToken);
 				RecordingProfile profile = RecordingProfile.Create(config, Settings);
 
+				// 配置管理器一直返回同一个实例，设置页的修改直接改在它上面
+				SplitControl split = SetSplitControl(new SplitControl(() => RecordingSplitPolicy.Create(config, Settings)));
+
 				try
 				{
-					RecordingAttempt attempt = await services.Recorder.RecordAsync(RoomId, profile, liveSession, this, cancellationToken);
+					RecordingAttempt attempt = await services.Recorder.RecordAsync(RoomId, profile, liveSession, this, split, cancellationToken);
 
 					// 流结束时尽快确认是否已下播，下播造成的断流不算线路故障
 					await TryRefreshAsync(cancellationToken);
@@ -468,7 +502,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 				{
 					if (TakeRecordingPath() is { } path)
 					{
-						_ = services.PostProcessor.ProcessAsync(path, profile, StreamerName);
+						_ = PostProcessAsync(path);
 					}
 				}
 			}
@@ -556,6 +590,23 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 
 		onChanged();
+	}
+
+	private SplitControl SetSplitControl(SplitControl split)
+	{
+		lock (_lock)
+		{
+			_split = split;
+		}
+
+		return split;
+	}
+
+	// 是否转封装按写完这一段时的设置
+	private async Task PostProcessAsync(string path)
+	{
+		AppConfig config = await services.ConfigManager.GetAsync();
+		await services.PostProcessor.ProcessAsync(path, RecordingProfile.Create(config, Settings), StreamerName);
 	}
 
 	private string? TakeRecordingPath()

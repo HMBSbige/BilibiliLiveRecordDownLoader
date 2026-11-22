@@ -20,6 +20,14 @@ public record RoomConfig
 
 	public bool? DeleteAfterConvert { get; set; }
 
+	public RecordingSplitMode? SplitMode { get; set; }
+
+	public TimeSpan? SplitDuration { get; set; }
+
+	public long? SplitSizeMegabytes { get; set; }
+
+	public bool? SplitOnTitleChange { get; set; }
+
 	public TimeSpan StatusCheckInterval { get; set; } = RoomDefaults.StatusCheckInterval;
 
 	public TimeSpan DanmuReconnectDelay { get; set; } = RoomDefaults.DanmuReconnectDelay;
@@ -39,6 +47,8 @@ public record RoomConfig
 		StreamIdleTimeout = Max(StreamIdleTimeout, RoomDefaults.MinStreamIdleTimeoutSeconds);
 		CodecPriority = NormalizeOverride(CodecPriority);
 		FormatPriority = NormalizeOverride(FormatPriority);
+		SplitDuration = SplitDuration is { } duration ? RecordingSplitLimits.ClampDuration(duration) : null;
+		SplitSizeMegabytes = SplitSizeMegabytes is { } size ? RecordingSplitLimits.ClampSize(size) : null;
 
 		return;
 

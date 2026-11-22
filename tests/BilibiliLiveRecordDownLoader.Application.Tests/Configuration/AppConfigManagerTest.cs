@@ -74,6 +74,37 @@ public sealed class AppConfigManagerTest
 	}
 
 	[Test]
+	public async Task SplitModesAreSavedAsNamesAsync(CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string path = directory.Combine("config.json");
+
+		await using (AppConfigManager manager = Create(path))
+		{
+			await manager.UpdateAsync(static config =>
+			{
+				config.SplitMode = RecordingSplitMode.Size;
+				config.Rooms.Add(new RoomConfig { RoomId = 732, SplitMode = RecordingSplitMode.Duration, SplitDuration = TimeSpan.FromMinutes(30) });
+			}, cancellationToken);
+		}
+
+		JsonObject saved = JsonNode.Parse(await File.ReadAllTextAsync(path, cancellationToken)) as JsonObject ?? [];
+		await using AppConfigManager reloaded = Create(path);
+		AppConfig config = await reloaded.GetAsync(cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(saved[nameof(AppConfig.SplitMode)]?.GetValue<string>()).IsEqualTo(nameof(RecordingSplitMode.Size));
+			await Assert.That(SavedRoom(saved)[nameof(RoomConfig.SplitMode)]?.GetValue<string>()).IsEqualTo(nameof(RecordingSplitMode.Duration));
+			await Assert.That(config.SplitMode).IsEqualTo(RecordingSplitMode.Size);
+			await Assert.That(config.SplitSizeMegabytes).IsEqualTo(RecordingSplitDefaults.SizeMegabytes);
+			await Assert.That(config.Rooms[0].SplitMode).IsEqualTo(RecordingSplitMode.Duration);
+			await Assert.That(config.Rooms[0].SplitDuration).IsEqualTo(TimeSpan.FromMinutes(30));
+			await Assert.That(config.Rooms[0].SplitSizeMegabytes).IsNull();
+		}
+	}
+
+	[Test]
 	public async Task RoomsSavedWithEveryValueAreTrimmedOnTheNextSaveAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();

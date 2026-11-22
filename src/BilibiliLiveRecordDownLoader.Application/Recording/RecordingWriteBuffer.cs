@@ -12,21 +12,26 @@ internal static class RecordingWriteBuffer
 
 	private static readonly PipeOptions Options = new(pauseWriterThreshold: PauseThreshold, resumeWriterThreshold: PauseThreshold / 2, minimumSegmentSize: 64 << 10, useSynchronizationContext: false);
 
+	public static Task<StreamEndReason> CopyAsync(LiveStreamSession session, Stream destination, IProgress<long> progress, TimeSpan drainTimeout, CancellationToken cancellationToken)
+	{
+		return CopyAsync(session, new SingleFileOutput(destination), progress, drainTimeout, cancellationToken);
+	}
+
 	// 进度按收到的字节计，缓冲没满时空闲判断和速度反映的是网络；缓冲写满后会话停在写入上，这时被停下算作写盘失败
-	// destination 由写入端关闭，磁盘卡住时调用方不必等在关闭文件上
-	public static async Task<StreamEndReason> CopyAsync(LiveStreamSession session, Stream destination, IProgress<long> progress, TimeSpan drainTimeout, CancellationToken cancellationToken)
+	// 文件由写入端关闭，磁盘卡住时调用方不必等在关闭文件上
+	public static async Task<StreamEndReason> CopyAsync(LiveStreamSession session, RecordingOutput output, IProgress<long> progress, TimeSpan drainTimeout, CancellationToken cancellationToken)
 	{
 		Pipe pipe = new(Options);
 		StallTrackingWriter writer = new(pipe.Writer);
 		using CancellationTokenSource receiving = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		using CancellationTokenSource draining = new();
-		Task writing = WriteAsync(pipe.Reader, destination, receiving, draining.Token);
+		Task writing = WriteAsync(pipe.Reader, output, receiving, draining.Token);
 		StreamEndReason reason = default;
 		ExceptionDispatchInfo? receiveError = null;
 
 		try
 		{
-			reason = await session.CopyToAsync(writer.AsStream(), progress, receiving.Token);
+			reason = await output.ReceiveAsync(session, writer, progress, receiving.Token);
 		}
 		catch (Exception exception)
 		{
@@ -43,6 +48,8 @@ internal static class RecordingWriteBuffer
 		}
 		catch (Exception exception) when (exception is TimeoutException || (exception is OperationCanceledException && draining.IsCancellationRequested))
 		{
+			// 超时和取消是两个计时器，谁先到不确定；先取消再抛出，写盘端从卡住的地方回来时一定看得到尝试已经结束
+			await draining.CancelAsync();
 			_ = writing.ContinueWith(static task => task.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
 			throw new RecordingWriteException($"Writing the buffered recording data did not finish within {drainTimeout}.", exception);
 		}
@@ -56,25 +63,29 @@ internal static class RecordingWriteBuffer
 		return reason;
 	}
 
-	private static async Task WriteAsync(PipeReader reader, Stream destination, CancellationTokenSource receiving, CancellationToken cancellationToken)
+	// 关闭文件时的失败同样是写盘失败
+	private static async Task WriteAsync(PipeReader reader, RecordingOutput output, CancellationTokenSource receiving, CancellationToken cancellationToken)
 	{
 		try
 		{
-			await reader.CopyToAsync(destination, cancellationToken);
-
-			// 文件流自己缓冲的数据关闭时才写出，这里的失败同样是写盘失败
-			await destination.DisposeAsync();
+			await output.WriteAsync(reader, cancellationToken);
 		}
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
-			await AbandonAsync(destination);
+			await output.AbandonAsync();
 			throw;
 		}
 		catch (Exception exception)
 		{
 			// 写不进去时继续收流只会白白占用带宽，立即停止网络读取并让写入错误浮出
 			await receiving.CancelAsync();
-			await AbandonAsync(destination);
+			await output.AbandonAsync();
+
+			if (exception is RecordingWriteException)
+			{
+				throw;
+			}
+
 			throw new RecordingWriteException(exception);
 		}
 		finally
@@ -141,19 +152,6 @@ internal static class RecordingWriteBuffer
 			FlushResult result = await flush;
 			_isStalled = false;
 			return result;
-		}
-	}
-
-	// 写不进去的文件关闭时还会再写一次自己的缓冲，结果已经由最初的错误说明
-	private static async ValueTask AbandonAsync(Stream destination)
-	{
-		try
-		{
-			await destination.DisposeAsync();
-		}
-		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-		{
-			// 已经报告过写盘失败
 		}
 	}
 }

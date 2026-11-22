@@ -18,6 +18,12 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 		RecorderType = _original.RecorderType is { } recorderType ? new ChoiceOption(recorderType) : ChoiceOption.Inherit;
 		ConvertToMp4 = new ChoiceOption(_original.ConvertToMp4);
 		DeleteAfterConvert = new ChoiceOption(_original.DeleteAfterConvert);
+		SplitMode = _original.SplitMode is { } splitMode ? new ChoiceOption(splitMode) : ChoiceOption.Inherit;
+		SplitOnTitleChange = new ChoiceOption(_original.SplitOnTitleChange);
+
+		// 房间没有覆盖的数值从全局设置开始填
+		SplitDurationMinutes = (decimal)(_original.SplitDuration ?? globalConfig.SplitDuration).TotalMinutes;
+		SplitSizeMegabytes = _original.SplitSizeMegabytes ?? globalConfig.SplitSizeMegabytes;
 		OverrideCodecPriority = _original.CodecPriority is not null;
 		OverrideFormatPriority = _original.FormatPriority is not null;
 		CodecPriority = PriorityListViewModel.Create(_original.CodecPriority ?? globalConfig.CodecPriority).DisposeWith(Disposables);
@@ -30,6 +36,16 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 
 		CanSave = this.WhenChanged(static viewModel => viewModel.RoomIdText).Map(static text => TryParseRoomId(text, out _));
 		SaveCommand.DisposeWith(Disposables);
+
+		this.WhenChanged(static viewModel => viewModel.SplitMode)
+			.Subscribe
+			(mode =>
+				{
+					IsSplitByDuration = mode.As<RecordingSplitMode>() is RecordingSplitMode.Duration;
+					IsSplitBySize = mode.As<RecordingSplitMode>() is RecordingSplitMode.Size;
+				}
+			)
+			.DisposeWith(Disposables);
 
 		this.WhenChanged(static viewModel => viewModel.RoomIdText)
 			.Subscribe
@@ -49,6 +65,8 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 	public IReadOnlyList<ChoiceOption> QualityOptions { get; } = ChoiceOption.Of(StreamQuality.Dolby, StreamQuality.UltraHd4K, StreamQuality.Original, StreamQuality.BluRay, StreamQuality.SuperHigh, StreamQuality.High, StreamQuality.Smooth);
 
 	public IReadOnlyList<ChoiceOption> RecorderTypeOptions { get; } = ChoiceOption.InheritOr<RecorderType>();
+
+	public IReadOnlyList<ChoiceOption> SplitModeOptions { get; } = ChoiceOption.InheritOr<RecordingSplitMode>();
 
 	public IReadOnlyList<ChoiceOption> ToggleOptions => ChoiceOption.Toggles;
 
@@ -84,6 +102,24 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 
 	[Reactive]
 	public partial ChoiceOption DeleteAfterConvert { get; set; }
+
+	[Reactive]
+	public partial ChoiceOption SplitMode { get; set; }
+
+	[Reactive]
+	public partial decimal SplitDurationMinutes { get; set; }
+
+	[Reactive]
+	public partial decimal SplitSizeMegabytes { get; set; }
+
+	[Reactive]
+	public partial ChoiceOption SplitOnTitleChange { get; set; }
+
+	[Reactive]
+	public partial bool IsSplitByDuration { get; private set; }
+
+	[Reactive]
+	public partial bool IsSplitBySize { get; private set; }
 
 	[Reactive]
 	public partial bool OverrideCodecPriority { get; set; }
@@ -126,6 +162,10 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 			FormatPriority = OverrideFormatPriority ? FormatPriority.ToList<StreamFormat>() : null,
 			ConvertToMp4 = ConvertToMp4.As<bool>(),
 			DeleteAfterConvert = DeleteAfterConvert.As<bool>(),
+			SplitMode = SplitMode.As<RecordingSplitMode>(),
+			SplitDuration = IsSplitByDuration ? TimeSpan.FromMinutes((double)SplitDurationMinutes) : null,
+			SplitSizeMegabytes = IsSplitBySize ? (long)SplitSizeMegabytes : null,
+			SplitOnTitleChange = SplitOnTitleChange.As<bool>(),
 			StatusCheckInterval = TimeSpan.FromSeconds((double)StatusCheckIntervalSeconds),
 			DanmuReconnectDelay = TimeSpan.FromSeconds((double)DanmuReconnectDelaySeconds),
 			StreamReconnectDelay = TimeSpan.FromSeconds((double)StreamReconnectDelaySeconds),

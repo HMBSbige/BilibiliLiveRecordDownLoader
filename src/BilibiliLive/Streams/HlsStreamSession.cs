@@ -34,7 +34,29 @@ internal sealed class HlsStreamSession : LiveStreamSession
 		return new HlsStreamSession(httpClient, uri, requestTimeout, snapshot, firstSegment, timeProvider);
 	}
 
-	public override async Task<StreamEndReason> CopyToAsync(Stream destination, IProgress<long>? progress = null, CancellationToken cancellationToken = default)
+	public override Task<StreamEndReason> CopyToAsync(Stream destination, IProgress<long>? progress = null, CancellationToken cancellationToken = default)
+	{
+		return CopyCoreAsync(destination, null, progress, cancellationToken);
+	}
+
+	public override Task<StreamEndReason> CopyToAsync(Stream destination, IHlsSegmentObserver segments, IProgress<long>? progress, CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(segments);
+
+		return CopyCoreAsync(destination, segments, progress, cancellationToken);
+	}
+
+	public override ValueTask DisposeAsync()
+	{
+		return ValueTask.CompletedTask;
+	}
+
+	internal static TimeSpan GetPollInterval(HlsPlaylist playlist)
+	{
+		return playlist.TargetDuration is { } duration && duration > TimeSpan.Zero ? duration / 2 : DefaultPollInterval;
+	}
+
+	private async Task<StreamEndReason> CopyCoreAsync(Stream destination, IHlsSegmentObserver? segments, IProgress<long>? progress, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(destination);
 
@@ -52,11 +74,12 @@ internal sealed class HlsStreamSession : LiveStreamSession
 		// Both were already downloaded and validated while opening, and every refresh repeats the init segment that must only be written once
 		if (initData is not null)
 		{
+			segments?.OnInitSegment(initData);
 			await WriteAsync(initData);
 		}
 
 		history.Add(first.Uri);
-		await WriteAsync(firstData);
+		await WriteSegmentAsync(firstData);
 
 		while (true)
 		{
@@ -88,7 +111,13 @@ internal sealed class HlsStreamSession : LiveStreamSession
 		{
 			// Buffering the whole segment keeps a retried download from writing a partial copy twice
 			int length = await RetryAsync(ct => DownloadAsync(hlsSegment, uri, segment, ct), cancellationToken);
-			await WriteAsync(segment.GetBuffer().AsMemory(0, length));
+			await WriteSegmentAsync(segment.GetBuffer().AsMemory(0, length));
+		}
+
+		async Task WriteSegmentAsync(ReadOnlyMemory<byte> data)
+		{
+			segments?.OnMediaSegment(data.Span);
+			await WriteAsync(data);
 		}
 
 		async Task WriteAsync(ReadOnlyMemory<byte> data)
@@ -96,16 +125,6 @@ internal sealed class HlsStreamSession : LiveStreamSession
 			await destination.WriteAsync(data, cancellationToken);
 			progress?.Report(data.Length);
 		}
-	}
-
-	public override ValueTask DisposeAsync()
-	{
-		return ValueTask.CompletedTask;
-	}
-
-	internal static TimeSpan GetPollInterval(HlsPlaylist playlist)
-	{
-		return playlist.TargetDuration is { } duration && duration > TimeSpan.Zero ? duration / 2 : DefaultPollInterval;
 	}
 
 	// Only segments sharing an init segment and a timeline can go into the same file

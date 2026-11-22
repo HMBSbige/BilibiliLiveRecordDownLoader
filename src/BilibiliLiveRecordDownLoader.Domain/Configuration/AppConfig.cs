@@ -38,6 +38,14 @@ public record AppConfig
 
 	public bool DeleteAfterConvert { get; set; }
 
+	public RecordingSplitMode SplitMode { get; set; }
+
+	public TimeSpan SplitDuration { get; set; } = RecordingSplitDefaults.Duration;
+
+	public long SplitSizeMegabytes { get; set; } = RecordingSplitDefaults.SizeMegabytes;
+
+	public bool SplitOnTitleChange { get; set; }
+
 	public bool NotifyOnRecordingError { get; set; } = true;
 
 	public bool NotifyOnTitleChange { get; set; }
@@ -60,6 +68,8 @@ public record AppConfig
 
 		CodecPriority = StreamPriority.Normalize(CodecPriority, StreamPriority.DefaultCodecs);
 		FormatPriority = StreamPriority.Normalize(FormatPriority, StreamPriority.DefaultFormats);
+		SplitDuration = RecordingSplitLimits.ClampDuration(SplitDuration);
+		SplitSizeMegabytes = RecordingSplitLimits.ClampSize(SplitSizeMegabytes);
 		Rooms = [.. Rooms.Where(static room => room.RoomId > 0).DistinctBy(static room => room.RoomId)];
 		Rooms.ForEach(static room => room.ApplyDefaults());
 	}

@@ -21,6 +21,7 @@ global using BilibiliLiveRecordDownLoader.Application.Lifecycle;
 global using BilibiliLiveRecordDownLoader.Application.Logging;
 global using BilibiliLiveRecordDownLoader.Application.Media;
 global using BilibiliLiveRecordDownLoader.Application.Recording;
+global using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 global using BilibiliLiveRecordDownLoader.Application.Rooms;
 global using BilibiliLiveRecordDownLoader.Application.Storage;
 global using BilibiliLiveRecordDownLoader.Application.Tasks;

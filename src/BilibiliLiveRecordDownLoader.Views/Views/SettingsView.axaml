@@ -5,6 +5,7 @@
     xmlns:settings="using:BilibiliLiveRecordDownLoader.ViewModels.Settings"
     xmlns:views="using:BilibiliLiveRecordDownLoader.Views.Views"
     xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
+    xmlns:cfg="using:BilibiliLiveRecordDownLoader.Domain.Shared.Configuration"
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.SettingsView"
     x:DataType="settings:SettingsViewModel">
     <UserControl.Styles>
@@ -82,6 +83,32 @@
                                       OnContent="{Binding DeleteAfterConvert, Source={x:Static l:AppLanguage.Current}}"
                                       OffContent="{Binding DeleteAfterConvert, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
+                    <Grid Classes="form" ColumnDefinitions="*,*">
+                        <StackPanel Grid.Column="0" Classes="field">
+                            <TextBlock Text="{Binding RecordingSplit, Source={x:Static l:AppLanguage.Current}}" />
+                            <ComboBox ItemsSource="{Binding SplitModeOptions}" SelectedItem="{Binding SplitMode}"
+                                      ItemTemplate="{StaticResource LocalizedLabel}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Classes="field" IsVisible="{Binding IsSplitByDuration}">
+                            <TextBlock Text="{Binding SplitDuration, Source={x:Static l:AppLanguage.Current}}" />
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding Minutes, Source={x:Static l:AppLanguage.Current}}" />
+                                <NumericUpDown Value="{Binding SplitDurationMinutes}" Increment="1" FormatString="0" HorizontalAlignment="Stretch"
+                                               Minimum="{x:Static cfg:RecordingSplitDefaults.MinDurationMinutes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxDurationMinutes}" />
+                            </DockPanel>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Classes="field" IsVisible="{Binding IsSplitBySize}">
+                            <TextBlock Text="{Binding SplitSize, Source={x:Static l:AppLanguage.Current}}" />
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding Megabytes, Source={x:Static l:AppLanguage.Current}}" />
+                                <NumericUpDown Value="{Binding SplitSizeMegabytes}" Increment="100" FormatString="0" HorizontalAlignment="Stretch"
+                                               Minimum="{x:Static cfg:RecordingSplitDefaults.MinSizeMegabytes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxSizeMegabytes}" />
+                            </DockPanel>
+                        </StackPanel>
+                    </Grid>
+                    <ToggleSwitch IsChecked="{Binding SplitOnTitleChange}"
+                                  OnContent="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}"
+                                  OffContent="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}" />
                 </StackPanel>
             </Border>
 

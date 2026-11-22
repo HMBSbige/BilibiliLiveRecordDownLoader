@@ -1,0 +1,122 @@
+using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
+using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
+using System.Collections.Concurrent;
+using System.IO.Pipelines;
+
+namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
+
+public sealed class TransportStreamSplitterTest
+{
+	private static readonly RecordingSplit OneMinute = new RecordingSplit.ByDuration(TimeSpan.FromMinutes(1));
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task NewFileStartsWithTheTablesBeforeARandomAccessFrameAsync(CancellationToken cancellationToken)
+	{
+		byte[] first = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k1"), .. Inter("p1")];
+		byte[] repeated = [.. TsSamples.Pat(continuity: 1), .. TsSamples.Pmt(continuity: 1)];
+		byte[] second = [.. Inter("p2"), .. Key("k2"), .. Inter("p3"), .. Key("k3")];
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new TransportStreamSplitter(), OneMinute, async session =>
+		{
+			// FFmpeg 的输出按块读出，包会被切在两次写入之间
+			await session.WriteInChunksAsync(first, 100);
+			session.Advance(TimeSpan.FromMinutes(1));
+			await session.WriteInChunksAsync([.. repeated, .. second], 100);
+		}, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(recording.Files.Count).IsEqualTo(2);
+			await Assert.That(recording.Files[0].SequenceEqual((byte[])[.. first, .. repeated, .. Inter("p2")])).IsTrue();
+			await Assert.That(recording.Files[1].SequenceEqual((byte[])[.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k2"), .. Inter("p3"), .. Key("k3")])).IsTrue();
+		}
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task WithoutSplittingTheFileIsTheStreamAsReceivedAsync(CancellationToken cancellationToken)
+	{
+		byte[] stream = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k1"), .. Inter("p1"), .. TsSamples.Pat(continuity: 1), .. TsSamples.Pmt(continuity: 1), .. Key("k2"), .. Inter("p2"), .. Key("k3")];
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new TransportStreamSplitter(), new RecordingSplit.None(), session => session.WriteInChunksAsync(stream, 100), cancellationToken);
+
+		await Assert.That(recording.Files.Single().SequenceEqual(stream)).IsTrue();
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task ChangedProgramMapReplacesTheCachedOneAsync(CancellationToken cancellationToken)
+	{
+		byte[] changedPmt = TsSamples.Pmt(TsSamples.HevcStreamType, version: 1);
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new TransportStreamSplitter(), OneMinute, async session =>
+		{
+			await session.WriteAsync([.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k1")]);
+			session.Advance(TimeSpan.FromMinutes(1));
+			await session.WriteAsync([.. TsSamples.Pat(), .. changedPmt, .. Key("k2"), .. Key("k3")]);
+		}, cancellationToken);
+
+		await Assert.That(recording.Files[1].AsSpan(0, 2 * TsSamples.PacketSize).SequenceEqual((byte[])[.. TsSamples.Pat(), .. changedPmt])).IsTrue();
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task RandomAccessFrameBeforeTheTablesIsNotASplitPointAsync(CancellationToken cancellationToken)
+	{
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new TransportStreamSplitter(), OneMinute, async session =>
+		{
+			await session.WriteAsync(Key("k1"));
+			session.Advance(TimeSpan.FromMinutes(1));
+			await session.WriteAsync(Key("k2"));
+			await session.WriteAsync(Key("k3"));
+		}, cancellationToken);
+
+		await Assert.That(recording.Files.Count).IsEqualTo(1);
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task LostPacketSyncStopsSplittingWithoutLosingDataAsync(CancellationToken cancellationToken)
+	{
+		byte[] stream = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k1"), 0x00, .. Key("k2"), .. Key("k3")];
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new TransportStreamSplitter(), OneMinute, async session =>
+		{
+			await session.WriteAsync(stream[..^TsSamples.PacketSize]);
+			session.Advance(TimeSpan.FromMinutes(2));
+			await session.WriteAsync(stream[^TsSamples.PacketSize..]);
+		}, cancellationToken);
+
+		await Assert.That(recording.Files.Single().SequenceEqual(stream)).IsTrue();
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task DataAfterLosingPacketSyncIsNotHeldBackAsync(CancellationToken cancellationToken)
+	{
+		byte[] stream = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k1"), 0x00, .. Inter("p1")];
+		Pipe pipe = new();
+		await using RecordingSegmenter segmenter = new(pipe.Writer, new TransportStreamSplitter(), SplitRecording.Fixed(OneMinute), new ConcurrentQueue<SegmentStart>(), TimeProvider.System, NullLogger.Instance);
+
+		await segmenter.WriteAsync(stream, cancellationToken);
+
+		await Assert.That(pipe.Reader.TryRead(out ReadResult result) ? result.Buffer.Length : 0).IsEqualTo(stream.Length);
+	}
+
+	private static byte[] Key(string marker)
+	{
+		return [.. TsSamples.VideoFrame(TsSamples.AvcIdr, true), .. TsSamples.Audio(marker)];
+	}
+
+	private static byte[] Inter(string marker)
+	{
+		return [.. TsSamples.VideoFrame(TsSamples.AvcSlice), .. TsSamples.Audio(marker)];
+	}
+}
