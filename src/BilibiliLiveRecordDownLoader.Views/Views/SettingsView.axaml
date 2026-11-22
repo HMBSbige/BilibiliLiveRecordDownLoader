@@ -189,6 +189,14 @@
                                       OffContent="{Binding RemoveFillerData, Source={x:Static l:AppLanguage.Current}}" />
                         <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding RemoveFillerDataHint, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
+                    <StackPanel Classes="field">
+                        <ToggleSwitch IsChecked="{Binding RequestTrueOriginal}"
+                                      AutomationProperties.Name="{Binding RequestTrueOriginal, Source={x:Static l:AppLanguage.Current}}"
+                                      AutomationProperties.HelpText="{Binding RequestTrueOriginalHint, Source={x:Static l:AppLanguage.Current}}"
+                                      OnContent="{Binding RequestTrueOriginal, Source={x:Static l:AppLanguage.Current}}"
+                                      OffContent="{Binding RequestTrueOriginal, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding RequestTrueOriginalHint, Source={x:Static l:AppLanguage.Current}}" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
 

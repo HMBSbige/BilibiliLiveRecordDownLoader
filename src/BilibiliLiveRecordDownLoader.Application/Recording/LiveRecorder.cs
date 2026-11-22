@@ -42,7 +42,8 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 			_ = CreateOnDisk(() => Directory.CreateDirectory(RecordingFileLayout.GetRoomDirectory(profile.RecordDirectory, roomId)));
 			string path = Reserve(timeProvider.GetLocalNow());
-			LogStreamSelected(logger, candidate.Format, candidate.Codec, candidate.Qn, endpoint.Host, path);
+			// 查询参数里有用户的 uid 和签名，只记路径；流名里的 _bluray、_prohevc 等后缀能看出是不是 B 站重新压过的流
+			LogStreamSelected(logger, candidate.Format, candidate.Codec, candidate.Qn, endpoint.Host, endpoint.AbsolutePath, path);
 
 			TransferResult result = await RecordToFileAsync(session, candidate, recorderType, path, Reserve, profile, observer, split, cancellationToken);
 			return new RecordingAttempt(candidate, endpoint, result.ActiveDuration, result.End);
@@ -106,7 +107,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 	private async Task<(LiveStreamSession Session, LiveStreamCandidate Candidate)> OpenAsync(long roomId, HttpClient httpClient, RecordingProfile profile, LiveRecordingSession liveSession, CancellationToken cancellationToken)
 	{
 		string? lastFailure = null;
-		IReadOnlyList<LiveStreamCandidate> candidates = liveSession.Candidates ??= await apiClient.GetStreamCandidatesAsync(roomId, (long)profile.Quality, profile.CodecPriority, profile.FormatPriority, cancellationToken);
+		IReadOnlyList<LiveStreamCandidate> candidates = liveSession.Candidates ??= await apiClient.GetStreamCandidatesAsync(roomId, profile.RequestQuality, profile.CodecPriority, profile.FormatPriority, cancellationToken);
 
 		foreach (LiveStreamCandidate candidate in liveSession.GetUntriedCandidates(candidates))
 		{
@@ -348,8 +349,8 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 	[LoggerMessage(Level = LogLevel.Warning, Message = "FFmpeg is not available, falling back to the built-in recorder")]
 	private static partial void LogFFmpegFallback(ILogger logger);
 
-	[LoggerMessage(Level = LogLevel.Information, Message = "Recording {Format}/{Codec} at quality {Quality} from {Host} to {Path}")]
-	private static partial void LogStreamSelected(ILogger logger, StreamFormat format, StreamCodec codec, long quality, string host, string path);
+	[LoggerMessage(Level = LogLevel.Information, Message = "Recording {Format}/{Codec} at quality {Quality} from {Host}{StreamPath} to {Path}")]
+	private static partial void LogStreamSelected(ILogger logger, StreamFormat format, StreamCodec codec, long quality, string host, string streamPath, string path);
 
 	[LoggerMessage(Level = LogLevel.Information, Message = "Splitting the recording ({Reason}), continuing in {Path}")]
 	private static partial void LogSplit(ILogger logger, SplitReason reason, string path);

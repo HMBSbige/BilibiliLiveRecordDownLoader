@@ -54,6 +54,8 @@ public record AppConfig
 
 	public bool RemoveFillerData { get; set; }
 
+	public bool RequestTrueOriginal { get; set; }
+
 	public List<RoomConfig> Rooms { get; set; } = [];
 
 	public static AppConfig CreateDefault()

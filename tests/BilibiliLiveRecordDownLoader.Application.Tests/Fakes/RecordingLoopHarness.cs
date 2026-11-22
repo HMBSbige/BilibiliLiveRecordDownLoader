@@ -7,7 +7,9 @@ using BilibiliLiveRecordDownLoader.Application.Contracts.Storage;
 using BilibiliLiveRecordDownLoader.Application.Media;
 using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Storage;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.IO.Pipelines;
 using System.Net;
@@ -43,6 +45,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	private int _playInfoRequests;
 	private volatile bool _isLive = true;
 	private volatile string _title = "title";
+	private volatile string? _playInfoQuery;
 
 	public RecordingLoopHarness(CancellationToken cancellationToken, Func<string, Stream>? createFile = null, RecorderType recorderType = RecorderType.BuiltIn, bool isNotificationEnabled = false, IMediaToolAppService? mediaTools = null)
 	{
@@ -58,7 +61,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		FakeConfigManager configManager = new(Config);
 
 		BilibiliApiClient apiClient = new(new HttpClient(new Handler(RespondApiAsync)), Time);
-		LiveRecorder recorder = new(apiClient, new StreamClientFactory(new Handler(RespondStreamAsync)), new FFmpegProvider(configManager), configManager, Time, NullLogger<LiveRecorder>.Instance)
+		LiveRecorder recorder = new(apiClient, new StreamClientFactory(new Handler(RespondStreamAsync)), new FFmpegProvider(configManager), configManager, Time, new CapturingLogger<LiveRecorder>(RecorderLogs))
 		{
 			CreateFile = createFile ?? LiveRecorder.CreateRecordingFile,
 			// 磁盘卡住的用例不必等满默认的排空时限
@@ -103,6 +106,12 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	public RoomSnapshot Snapshot => Session.GetSnapshot();
 
 	public int PlayInfoRequests => Volatile.Read(ref _playInfoRequests);
+
+	// 最近一次请求候选流时的查询字符串
+	public string? PlayInfoQuery => _playInfoQuery;
+
+	// 录制器写出的日志，已按消息模板格式化
+	public ConcurrentQueue<string> RecorderLogs { get; } = new();
 
 	public void GoLive()
 	{
@@ -211,6 +220,11 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 	private Task<HttpResponseMessage> RespondApiAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 	{
+		if (request.RequestUri is { AbsolutePath: "/xlive/web-room/v2/index/getRoomPlayInfo", Query: var query })
+		{
+			_playInfoQuery = query;
+		}
+
 		string template = request.RequestUri?.AbsolutePath switch
 		{
 			"/xlive/web-room/v2/index/getRoomPlayInfo" => PlayInfoTemplate.Replace("$SIGN", Interlocked.Increment(ref _playInfoRequests).ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal),
@@ -234,6 +248,24 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 		{
 			return respond(request, cancellationToken);
+		}
+	}
+
+	private sealed class CapturingLogger<T>(ConcurrentQueue<string> messages) : ILogger<T>
+	{
+		public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+		{
+			return null;
+		}
+
+		public bool IsEnabled(LogLevel logLevel)
+		{
+			return true;
+		}
+
+		public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+		{
+			messages.Enqueue(formatter(state, exception));
 		}
 	}
 

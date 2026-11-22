@@ -99,6 +99,31 @@ public sealed class AppConfigManagerTest
 	}
 
 	[Test]
+	public async Task TrueOriginalRequestIsOffInAnOlderConfigAndSavedOnceTurnedOnAsync(CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string path = directory.Combine("config.json");
+		await File.WriteAllTextAsync(path, """{ "Theme": "Dark" }""", cancellationToken);
+		bool loaded;
+
+		await using (AppConfigManager manager = Create(path))
+		{
+			loaded = (await manager.GetAsync(cancellationToken)).RequestTrueOriginal;
+			await manager.UpdateAsync(static config => config.RequestTrueOriginal = true, cancellationToken);
+		}
+
+		JsonObject saved = JsonNode.Parse(await File.ReadAllTextAsync(path, cancellationToken)) as JsonObject ?? [];
+		await using AppConfigManager reloaded = Create(path);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(loaded).IsFalse();
+			await Assert.That(saved[nameof(AppConfig.RequestTrueOriginal)]?.GetValue<bool>()).IsTrue();
+			await Assert.That((await reloaded.GetAsync(cancellationToken)).RequestTrueOriginal).IsTrue();
+		}
+	}
+
+	[Test]
 	public async Task SplitModesAreSavedAsNamesAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();

@@ -94,6 +94,12 @@ public sealed class ConfigDefaultsTest
 	}
 
 	[Test]
+	public async Task TrueOriginalIsNotRequestedByDefaultAsync()
+	{
+		await Assert.That(AppConfig.CreateDefault().RequestTrueOriginal).IsFalse();
+	}
+
+	[Test]
 	public async Task SplitValuesAreClampedToTheirBoundsAsync()
 	{
 		AppConfig config = new()

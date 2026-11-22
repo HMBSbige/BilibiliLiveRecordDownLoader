@@ -19,6 +19,7 @@ public static class StreamLabels
 			StreamQuality.Original => AppLanguage.Current.QualityOriginal,
 			StreamQuality.UltraHd4K => AppLanguage.Current.QualityUltraHd4K,
 			StreamQuality.Dolby => AppLanguage.Current.QualityDolby,
+			(StreamQuality)StreamQualityConsts.TrueOriginal => AppLanguage.Current.QualityTrueOriginal,
 			_ => value.ToString()
 		};
 	}

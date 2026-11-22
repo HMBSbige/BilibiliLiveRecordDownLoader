@@ -7,6 +7,9 @@ public sealed partial class ExperimentalSettingsViewModel(IAppConfigManager conf
 	[Reactive]
 	public partial bool RemoveFillerData { get; set; }
 
+	[Reactive]
+	public partial bool RequestTrueOriginal { get; set; }
+
 	internal void ApplyConfig(AppConfig config)
 	{
 		if (_isInitialized)
@@ -15,8 +18,10 @@ public sealed partial class ExperimentalSettingsViewModel(IAppConfigManager conf
 		}
 
 		RemoveFillerData = config.RemoveFillerData;
+		RequestTrueOriginal = config.RequestTrueOriginal;
 
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.RemoveFillerData), static (appConfig, value) => appConfig.RemoveFillerData = value);
+		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.RequestTrueOriginal), static (appConfig, value) => appConfig.RequestTrueOriginal = value);
 
 		_isInitialized = true;
 	}
