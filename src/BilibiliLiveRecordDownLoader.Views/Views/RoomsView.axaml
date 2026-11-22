@@ -44,6 +44,9 @@
         <Style Selector="Border.dragHandle:pointerover > ic|FluentIcon">
             <Setter Property="Foreground" Value="{DynamicResource SemiColorText1}" />
         </Style>
+        <Style Selector="TextBlock.restricted">
+            <Setter Property="Foreground" Value="{DynamicResource SemiColorWarning}" />
+        </Style>
         <Style Selector="Border.dropIndicator">
             <Setter Property="Height" Value="2" />
             <Setter Property="CornerRadius" Value="1" />
@@ -138,6 +141,17 @@
             </StackPanel>
         </DockPanel>
 
+        <Border DockPanel.Dock="Top" Classes="warningBanner" Margin="0,0,0,12"
+                IsVisible="{Binding LoginBannerText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                <ic:FluentIcon Grid.Column="0" Icon="Warning" IconVariant="Filled" FontSize="18" VerticalAlignment="Center"
+                               Foreground="{DynamicResource SemiColorWarning}" />
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding LoginBannerText}" />
+                <Button Grid.Column="2" Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding LoginCommand}"
+                        Content="{Binding Login, Source={x:Static l:AppLanguage.Current}}" />
+            </Grid>
+        </Border>
+
         <Border Classes="table">
             <Panel>
                 <ListBox x:Name="RoomList"
@@ -228,7 +242,20 @@
                                     <Ellipse Grid.Row="0" Grid.Column="0" Width="8" Height="8" ctl:StatusColor.Value="{Binding Status}" />
                                     <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                     <StackPanel Grid.Row="0" Grid.Column="2" Classes="toolbar" Spacing="8" HorizontalAlignment="Right">
-                                        <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding StreamInfo}" IsVisible="{Binding IsRecording}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding IsRecording}">
+                                            <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding StreamInfo}" />
+                                            <TextBlock Classes="caption" VerticalAlignment="Center" Text="·" />
+                                            <StackPanel Orientation="Horizontal" Spacing="2" Background="Transparent"
+                                                        ToolTip.Tip="{Binding QualityRestrictionTip}"
+                                                        AutomationProperties.Name="{Binding QualityText}"
+                                                        AutomationProperties.HelpText="{Binding QualityRestrictionTip}">
+                                                <ic:FluentIcon Icon="Warning" IconVariant="Filled" FontSize="12" VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource SemiColorWarning}"
+                                                               IsVisible="{Binding IsQualityRestricted}"
+                                                               AutomationProperties.Name="{Binding QualityRestricted, Source={x:Static l:AppLanguage.Current}}" />
+                                                <TextBlock Classes="caption" Classes.restricted="{Binding IsQualityRestricted}" VerticalAlignment="Center" Text="{Binding QualityText}" />
+                                            </StackPanel>
+                                        </StackPanel>
                                         <ContentControl Content="{Binding Status}" ContentTemplate="{StaticResource LocalizedLabel}"
                                                         FontSize="{DynamicResource SemiFontSizeSmall}" ctl:StatusColor.Value="{Binding Status}"
                                                         ToolTip.Tip="{Binding StatusTip}" />

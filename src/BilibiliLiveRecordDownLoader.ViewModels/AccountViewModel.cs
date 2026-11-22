@@ -58,14 +58,21 @@ public sealed partial class AccountViewModel : ViewModelBase
 	[ReactiveCommand]
 	private async Task QrCodeLoginAsync(CancellationToken cancellationToken)
 	{
+		await LoginWithQrCodeAsync(cancellationToken);
+	}
+
+	// 其他页面也从这里打开扫码登录，账号页的 Cookie 和登录状态跟着更新
+	internal async Task<bool> LoginWithQrCodeAsync(CancellationToken cancellationToken)
+	{
 		if (!await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ShowAsync(new QrCodeLoginViewModel()))
 		{
-			return;
+			return false;
 		}
 
 		await ReloadCookieAsync(cancellationToken);
 		AppLocator.Current.GetRequiredService<INotificationService>().Show(AppLanguage.Current.Account, AppLanguage.Current.LoginSucceeded, AppNotificationType.Success);
 		await CheckLoginAsync(cancellationToken);
+		return true;
 	}
 
 	[ReactiveCommand(CanExecute = nameof(CanLogout))]

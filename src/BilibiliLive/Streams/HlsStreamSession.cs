@@ -26,6 +26,8 @@ internal sealed class HlsStreamSession : LiveStreamSession
 
 	public override Uri Source { get; }
 
+	public override ReadOnlyMemory<byte> InitSegment => _firstSegment.InitData;
+
 	/// <param name="requestTimeout">Limits every later playlist refresh and segment download, because the stream client itself never times out.</param>
 	public static async Task<LiveStreamSession> OpenAsync(HttpClient httpClient, Uri uri, TimeSpan requestTimeout, TimeProvider timeProvider, CancellationToken cancellationToken)
 	{

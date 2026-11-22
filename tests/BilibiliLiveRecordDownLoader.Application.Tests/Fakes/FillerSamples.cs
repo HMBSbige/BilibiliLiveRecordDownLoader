@@ -99,20 +99,25 @@ internal static class FillerSamples
 		};
 	}
 
-	public static byte[] Init(FillerCodec codec, int lengthSize, string? sampleEntry = null)
+	/// <param name="isAudioFirst">音频轨排在视频轨之前，并带有 mp4a 样本项。</param>
+	public static byte[] Init(FillerCodec codec, int lengthSize, string? sampleEntry = null, bool isAudioFirst = false)
 	{
 		byte[] entry = new byte[78];
 		byte[] config = Fmp4Samples.Box(codec is FillerCodec.Avc ? "avcC" : "hvcC", DecoderConfiguration(codec, lengthSize));
 		byte[] stsd = [0, 0, 0, 0, 0, 0, 0, 1, .. Fmp4Samples.Box(sampleEntry ?? (codec is FillerCodec.Avc ? "avc1" : "hvc1"), [.. entry, .. config])];
 		byte[] videoMedia = [.. Handler("vide"), .. Fmp4Samples.Box("minf", Fmp4Samples.Box("stbl", Fmp4Samples.Box("stsd", stsd)))];
+		byte[] video = Fmp4Samples.Box("trak", [.. TrackHeader(Fmp4Samples.VideoTrack), .. Fmp4Samples.Box("mdia", videoMedia)]);
+		byte[] audioStsd = [0, 0, 0, 0, 0, 0, 0, 1, .. Fmp4Samples.Box("mp4a", new byte[28])];
+		byte[] audioMedia = isAudioFirst ? [.. Handler("soun"), .. Fmp4Samples.Box("minf", Fmp4Samples.Box("stbl", Fmp4Samples.Box("stsd", audioStsd)))] : Handler("soun");
+		byte[] audio = Fmp4Samples.Box("trak", [.. TrackHeader(Fmp4Samples.AudioTrack), .. Fmp4Samples.Box("mdia", audioMedia)]);
+		byte[][] tracks = isAudioFirst ? [audio, video] : [video, audio];
 
 		return
 		[
 			.. Fmp4Samples.Box("ftyp", "isom"u8.ToArray()),
 			.. Fmp4Samples.Box("moov",
 			[
-				.. Fmp4Samples.Box("trak", [.. TrackHeader(Fmp4Samples.VideoTrack), .. Fmp4Samples.Box("mdia", videoMedia)]),
-				.. Fmp4Samples.Box("trak", [.. TrackHeader(Fmp4Samples.AudioTrack), .. Fmp4Samples.Box("mdia", Handler("soun"))]),
+				.. tracks.SelectMany(static track => track),
 				.. Fmp4Samples.Box("mvex", [.. Trex(Fmp4Samples.VideoTrack), .. Trex(Fmp4Samples.AudioTrack)])
 			])
 		];

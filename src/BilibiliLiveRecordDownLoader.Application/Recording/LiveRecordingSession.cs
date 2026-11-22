@@ -6,11 +6,12 @@ internal sealed class LiveRecordingSession
 	private readonly Lock _lock = new();
 	private readonly HashSet<string> _reservedStems = new(StringComparer.OrdinalIgnoreCase);
 	private readonly HashSet<StreamEndpoint> _failedEndpoints = [];
+	private QualityRestriction? _restriction;
 
 	// 快速失败后沿用同一批候选流换线路，长时间正常录制后再重新请求，签名地址可能已过期
-	public IReadOnlyList<LiveStreamCandidate>? Candidates { get; set; }
+	public CandidateBatch? Candidates { get; set; }
 
-	public bool HasUntriedEndpoint => Candidates is not { } candidates || GetUntriedCandidates(candidates).Count > 0;
+	public bool HasUntriedEndpoint => Candidates is not { } batch || GetUntriedCandidates(batch.Candidates).Count > 0;
 
 	// 后处理会在后台删除或转封装上一次的文件，只看磁盘会把同一个主干分给两次录制
 	public bool TryReserveStem(string stem)
@@ -34,6 +35,21 @@ internal sealed class LiveRecordingSession
 		}
 	}
 
+	// 同一场直播重连后受限情况没变就不必再提醒；换线路和重新请求候选流都不清除
+	public bool TryUpdateRestriction(QualityRestriction? restriction)
+	{
+		lock (_lock)
+		{
+			if (_restriction == restriction)
+			{
+				return false;
+			}
+
+			_restriction = restriction;
+			return true;
+		}
+	}
+
 	// 线路失败可能来自并发竞速的多个连接
 	public void MarkFailed(LiveStreamCandidate candidate, Uri endpoint)
 	{
@@ -53,12 +69,18 @@ internal sealed class LiveRecordingSession
 		Candidates = null;
 	}
 
-	// 重新请求后签名会变，只用主机区分同一路流的不同线路
-	private readonly record struct StreamEndpoint(StreamProtocol Protocol, StreamFormat Format, StreamCodec Codec, string Host)
+	// 重新请求后签名会变，只用主机区分同一路流的不同线路；源流和接口给的流在同一主机上，各记各的，源流被拒不影响接口给的流
+	private readonly record struct StreamEndpoint(StreamProtocol Protocol, StreamFormat Format, StreamCodec? Codec, string Host)
 	{
 		public static StreamEndpoint From(LiveStreamCandidate candidate, Uri uri)
 		{
-			return new StreamEndpoint(candidate.Protocol, candidate.Format, candidate.Codec, uri.Authority);
+			StreamCodec? codec = candidate switch
+			{
+				LiveStreamCandidate.Listed listed => listed.Codec,
+				LiveStreamCandidate.Source => null
+			};
+
+			return new StreamEndpoint(candidate.Protocol, candidate.Format, codec, uri.Authority);
 		}
 	}
 }

@@ -30,11 +30,13 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 	private const string RoomInfoTemplate = """{"code":0,"data":{"by_room_ids":{"$ROOM":{"room_id":$ROOM,"uid":1,"live_status":$LIVE,"title":"$TITLE","short_id":0,"uname":"streamer"}}}}""";
 
-	private const string PlayInfoTemplate = """
-		{"code":0,"data":{"room_id":$ROOM,"live_status":$LIVE,"playurl_info":{"playurl":{"stream":[{"protocol_name":"http_stream","format":[{"format_name":"flv","codec":[
+	private const string PlayInfoTemplate = """{"code":0,"data":{"room_id":$ROOM,"live_status":$LIVE,"playurl_info":{"playurl":{"stream":$STREAMS}}}}""";
+
+	private const string DefaultStreams = """
+		[{"protocol_name":"http_stream","format":[{"format_name":"flv","codec":[
 			{"codec_name":"avc","current_qn":10000,"base_url":"/live/avc.flv","url_info":[{"host":"https://a.test","extra":"?sign=$SIGN"},{"host":"https://b.test","extra":"?sign=$SIGN"}]},
 			{"codec_name":"av1","current_qn":10000,"base_url":"/live/av1.flv","url_info":[{"host":"https://c.test","extra":"?sign=$SIGN"}]}
-		]}]}]}}}}
+		]}]}]
 		""";
 
 	private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(5);
@@ -42,14 +44,20 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	private readonly TestDirectory _directory = new();
 	private readonly Channel<StreamRequest> _streams = Channel.CreateUnbounded<StreamRequest>();
 	private readonly CancellationTokenSource _lifetime;
+	private volatile string _streamsTemplate;
+	private readonly Func<HttpRequestMessage, HttpResponseMessage>? _respondStream;
 	private int _playInfoRequests;
 	private volatile bool _isLive = true;
 	private volatile string _title = "title";
 	private volatile string? _playInfoQuery;
 
-	public RecordingLoopHarness(CancellationToken cancellationToken, Func<string, Stream>? createFile = null, RecorderType recorderType = RecorderType.BuiltIn, bool isNotificationEnabled = false, IMediaToolAppService? mediaTools = null)
+	/// <param name="streams">替换接口返回的 stream 数组，其中的 $SIGN 换成第几次请求候选流。</param>
+	/// <param name="respondStream">给出时直接应答全部拉流请求，不再交给 NextStreamAsync；HLS 的播放列表和分片都要立即应答。</param>
+	public RecordingLoopHarness(CancellationToken cancellationToken, Func<string, Stream>? createFile = null, RecorderType recorderType = RecorderType.BuiltIn, bool isNotificationEnabled = false, IMediaToolAppService? mediaTools = null, string streams = DefaultStreams, Func<HttpRequestMessage, HttpResponseMessage>? respondStream = null)
 	{
 		_lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+		_streamsTemplate = streams;
+		_respondStream = respondStream;
 		Config.RecordDirectory = _directory.Root;
 		Config.RecorderType = recorderType;
 
@@ -64,6 +72,11 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		LiveRecorder recorder = new(apiClient, new StreamClientFactory(new Handler(RespondStreamAsync)), new FFmpegProvider(configManager), configManager, Time, new CapturingLogger<LiveRecorder>(RecorderLogs))
 		{
 			CreateFile = createFile ?? LiveRecorder.CreateRecordingFile,
+			CreateFFmpegSession = (ffmpeg, arguments, source) =>
+			{
+				FFmpegRuns.Enqueue(arguments);
+				return new FFmpegStreamSession(ffmpeg, arguments, source);
+			},
 			// 磁盘卡住的用例不必等满默认的排空时限
 			DrainTimeout = TimeSpan.FromSeconds(1)
 		};
@@ -90,6 +103,13 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	// 录制循环每次重连都会重新读取
 	public AppConfig Config { get; } = AppConfig.CreateDefault();
 
+	// 之后请求候选流时返回的 stream 数组，替换规则和构造函数的 streams 参数相同
+	public string Streams
+	{
+		get => _streamsTemplate;
+		set => _streamsTemplate = value;
+	}
+
 	// 之后的状态查询返回的标题
 	public string Title
 	{
@@ -112,6 +132,12 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 	// 录制器写出的日志，已按消息模板格式化
 	public ConcurrentQueue<string> RecorderLogs { get; } = new();
+
+	// 每次启动 FFmpeg 时传的参数
+	public ConcurrentQueue<IReadOnlyList<string>> FFmpegRuns { get; } = new();
+
+	// 按顺序记下的拉流请求地址
+	public ConcurrentQueue<Uri> StreamRequests { get; } = new();
 
 	public void GoLive()
 	{
@@ -227,7 +253,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 		string template = request.RequestUri?.AbsolutePath switch
 		{
-			"/xlive/web-room/v2/index/getRoomPlayInfo" => PlayInfoTemplate.Replace("$SIGN", Interlocked.Increment(ref _playInfoRequests).ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal),
+			"/xlive/web-room/v2/index/getRoomPlayInfo" => PlayInfoTemplate.Replace("$STREAMS", _streamsTemplate, StringComparison.Ordinal).Replace("$SIGN", Interlocked.Increment(ref _playInfoRequests).ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal),
 			"/xlive/web-room/v1/index/getRoomBaseInfo" => RoomInfoTemplate,
 			var path => throw new InvalidOperationException($"Unexpected API request {path}.")
 		};
@@ -238,6 +264,16 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 	private async Task<HttpResponseMessage> RespondStreamAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 	{
+		if (request.RequestUri is { } uri)
+		{
+			StreamRequests.Enqueue(uri);
+		}
+
+		if (_respondStream is not null)
+		{
+			return _respondStream(request);
+		}
+
 		StreamRequest stream = new(request.RequestUri?.Host ?? string.Empty);
 		await _streams.Writer.WriteAsync(stream, cancellationToken);
 		return await stream.Response.WaitAsync(cancellationToken);

@@ -56,6 +56,8 @@ public record AppConfig
 
 	public bool RequestTrueOriginal { get; set; }
 
+	public bool TryOriginalWhenRestricted { get; set; }
+
 	public List<RoomConfig> Rooms { get; set; } = [];
 
 	public static AppConfig CreateDefault()

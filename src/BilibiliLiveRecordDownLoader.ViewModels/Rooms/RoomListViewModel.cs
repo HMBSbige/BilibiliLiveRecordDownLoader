@@ -9,6 +9,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	private readonly IRoomAppService _roomAppService;
 	private readonly IAppConfigManager _configManager;
 	private readonly Dictionary<long, RoomItemViewModel> _rooms = [];
+	private AppConfig? _config;
 	private bool _isArranging;
 
 	public RoomListViewModel(IRoomAppService roomAppService, IAppConfigManager configManager)
@@ -46,6 +47,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		MoveUpCommand.DisposeWith(Disposables);
 		MoveDownCommand.DisposeWith(Disposables);
 		MoveSelectionToCommand.DisposeWith(Disposables);
+		LoginCommand.DisposeWith(Disposables);
 	}
 
 	// 移动完成并刷新列表后触发，参数是按显示顺序排列的被移动的房间
@@ -90,8 +92,17 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	[Reactive]
 	public partial string? RecordingSpeed { get; private set; }
 
+	// 只在没配 Cookie、有直播间因为没登录而画质受限时显示；为 null 时不显示
+	[Reactive]
+	public partial string? LoginBannerText { get; private set; }
+
+	// 打开扫码登录，返回是否登录成功
+	internal Func<CancellationToken, Task<bool>> ShowLogin { get; init; } = static cancellationToken => AppLocator.Current.GetRequiredService<AccountViewModel>().LoginWithQrCodeAsync(cancellationToken);
+
 	internal void ApplyConfig(AppConfig config)
 	{
+		// 配置管理器一直返回同一个实例，账号页登录、退出或改 Cookie 都改在它上面
+		_config = config;
 		SortOrder = config.RoomSortOrder;
 		PersistToConfig(_configManager, this.WhenChanged(static viewModel => viewModel.SortOrder), static (appConfig, value) => appConfig.RoomSortOrder = value);
 	}
@@ -191,6 +202,16 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		if (SelectedRooms is [{ } room])
 		{
 			await AppLocator.Current.GetRequiredService<ILauncherService>().LaunchUriAsync(new Uri(AppConsts.LiveRoomUrlPrefix + room.RoomId.ToString(CultureInfo.InvariantCulture)));
+		}
+	}
+
+	// 已经在录的直播间要等下次请求候选流才能换成更高的画质，横幅按 Cookie 是否已配立即收起
+	[ReactiveCommand]
+	private async Task LoginAsync(CancellationToken cancellationToken)
+	{
+		if (await ShowLogin(cancellationToken))
+		{
+			Sync();
 		}
 	}
 
@@ -295,16 +316,17 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		}
 
 		int order = 0;
+		bool hasCookie = !string.IsNullOrWhiteSpace(_config?.Cookie);
 
 		foreach (RoomSnapshot snapshot in latest.Values)
 		{
 			if (_rooms.TryGetValue(snapshot.RoomId, out RoomItemViewModel? room))
 			{
-				room.Apply(snapshot);
+				room.Apply(snapshot, hasCookie);
 			}
 			else
 			{
-				room = new RoomItemViewModel(snapshot);
+				room = new RoomItemViewModel(snapshot, hasCookie);
 				_rooms.Add(snapshot.RoomId, room);
 			}
 
@@ -312,7 +334,9 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		}
 
 		HasRooms = _rooms.Count > 0;
-		Summarize([.. latest.Values.Where(static snapshot => snapshot.RecordStatus is RecordStatus.Recording)]);
+		RoomSnapshot[] recording = [.. latest.Values.Where(static snapshot => snapshot.RecordStatus is RecordStatus.Recording)];
+		Summarize(recording);
+		UpdateLoginBanner(recording, hasCookie);
 		Arrange();
 	}
 
@@ -401,6 +425,13 @@ public sealed partial class RoomListViewModel : ViewModelBase
 				_ => 4
 			};
 		}
+	}
+
+	// 编码原因和登录可能失效都不是登录能解决的，不提示登录
+	private void UpdateLoginBanner(RoomSnapshot[] recording, bool hasCookie)
+	{
+		int restricted = hasCookie ? 0 : recording.Count(static snapshot => snapshot.Recording?.Restriction is QualityRestriction.NotLoggedIn);
+		LoginBannerText = restricted is 0 ? null : AppLanguage.Current.QualityRestrictedBanner.ToString(restricted.ToString(CultureInfo.CurrentCulture));
 	}
 
 	private void Summarize(RoomSnapshot[] recording)

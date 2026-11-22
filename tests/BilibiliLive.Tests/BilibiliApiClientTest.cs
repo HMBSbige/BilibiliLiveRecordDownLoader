@@ -172,7 +172,7 @@ public class BilibiliApiClientTest
 	{
 		using ApiClient api = Single(ApiPaths.RoomPlayInfo, () => Responses.Fixture("room_play_info.json"));
 
-		IReadOnlyList<LiveStreamCandidate> candidates = await api.Client.GetStreamCandidatesAsync(732, 10000, [StreamCodec.Hevc, StreamCodec.Avc], [StreamFormat.Fmp4, StreamFormat.Flv], cancellationToken);
+		IReadOnlyList<LiveStreamCandidate.Listed> candidates = await api.Client.GetStreamCandidatesAsync(732, 10000, [StreamCodec.Hevc, StreamCodec.Avc], [StreamFormat.Fmp4, StreamFormat.Flv], cancellationToken);
 
 		(StreamProtocol, StreamFormat, StreamCodec)[] expected =
 		[
@@ -183,13 +183,17 @@ public class BilibiliApiClientTest
 			(StreamProtocol.HttpHls, StreamFormat.Ts, StreamCodec.Avc)
 		];
 
-		LiveStreamCandidate flv = candidates.Single(c => c.Format is StreamFormat.Flv);
+		LiveStreamCandidate.Listed flv = candidates.Single(c => c.Format is StreamFormat.Flv);
 		string query = api.Handler.Requests.Single().Uri.Query;
 
 		using (Assert.Multiple())
 		{
 			await Sequences.AssertEqualAsync(candidates.Select(c => (c.Protocol, c.Format, c.Codec)), expected);
 			await Assert.That(flv.Qn).IsEqualTo(10000);
+			await Sequences.AssertEqualAsync(flv.AcceptQualities, [10000L, 400, 250]);
+			// Each codec lists its own qualities, and a codec without accept_qn offers nothing to compare against
+			await Sequences.AssertEqualAsync(candidates.Single(static c => c is { Format: StreamFormat.Fmp4, Codec: StreamCodec.Hevc }).AcceptQualities, [250L]);
+			await Assert.That(candidates.Single(static c => c is { Format: StreamFormat.Fmp4, Codec: StreamCodec.Avc }).AcceptQualities).IsEmpty();
 			await Sequences.AssertEqualAsync(flv.Urls.Select(u => u.AbsoluteUri), ["https://a.bilivideo.com/live-bvc/1/live_2500.flv?expires=1&sign=a", "https://c.bilivideo.com/live-bvc/1/live_2500.flv?expires=1&sign=c"]);
 			await Assert.That(query).Contains("room_id=732");
 			await Assert.That(query).Contains("qn=10000");
@@ -202,7 +206,7 @@ public class BilibiliApiClientTest
 	{
 		using ApiClient api = Single(ApiPaths.RoomPlayInfo, () => Responses.Fixture("room_play_info.json"));
 
-		IReadOnlyList<LiveStreamCandidate> candidates = await api.Client.GetStreamCandidatesAsync(732, 10000, [], [], cancellationToken);
+		IReadOnlyList<LiveStreamCandidate.Listed> candidates = await api.Client.GetStreamCandidatesAsync(732, 10000, [], [], cancellationToken);
 
 		(StreamFormat, StreamCodec)[] expected =
 		[

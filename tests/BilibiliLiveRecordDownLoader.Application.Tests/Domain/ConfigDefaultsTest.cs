@@ -94,6 +94,12 @@ public sealed class ConfigDefaultsTest
 	}
 
 	[Test]
+	public async Task OriginalIsNotTriedWhenRestrictedByDefaultAsync()
+	{
+		await Assert.That(AppConfig.CreateDefault().TryOriginalWhenRestricted).IsFalse();
+	}
+
+	[Test]
 	public async Task TrueOriginalIsNotRequestedByDefaultAsync()
 	{
 		await Assert.That(AppConfig.CreateDefault().RequestTrueOriginal).IsFalse();

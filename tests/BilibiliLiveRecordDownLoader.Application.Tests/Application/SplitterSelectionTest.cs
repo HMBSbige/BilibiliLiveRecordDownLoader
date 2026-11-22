@@ -13,7 +13,7 @@ public sealed class SplitterSelectionTest
 	[Arguments(RecorderType.BuiltIn, StreamProtocol.HttpHls, StreamFormat.Ts, "TsHlsSplitter")]
 	public async Task EachRecordingIsParsedAsTheContainerWrittenToDiskAsync(RecorderType recorderType, StreamProtocol protocol, StreamFormat format, string expected)
 	{
-		LiveStreamCandidate candidate = new(protocol, format, StreamCodec.Avc, 10000, [new Uri("https://cdn.test/live")]);
+		LiveStreamCandidate.Listed candidate = new(protocol, format, StreamCodec.Avc, 10000, [], [new Uri("https://cdn.test/live")]);
 
 		await Assert.That(LiveRecorder.CreateSplitter(candidate, recorderType)?.GetType().Name).IsEqualTo(expected);
 	}

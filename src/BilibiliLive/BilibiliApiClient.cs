@@ -90,7 +90,7 @@ public sealed class BilibiliApiClient
 		}
 	}
 
-	public async Task<IReadOnlyList<LiveStreamCandidate>> GetStreamCandidatesAsync(long roomId, long qn, IReadOnlyList<StreamCodec> codecPriority, IReadOnlyList<StreamFormat> formatPriority, CancellationToken cancellationToken = default)
+	public async Task<IReadOnlyList<LiveStreamCandidate.Listed>> GetStreamCandidatesAsync(long roomId, long qn, IReadOnlyList<StreamCodec> codecPriority, IReadOnlyList<StreamFormat> formatPriority, CancellationToken cancellationToken = default)
 	{
 		Uri uri = CreateUri($"{LiveApi}xlive/web-room/v2/index/getRoomPlayInfo?room_id={roomId}&no_playurl=0&mask=1&qn={qn}&platform=web&protocol=0,1&format=0,1,2&codec=0,1,2");
 		RoomPlayInfoData data = await GetDataAsync(uri, BilibiliJsonContext.Default.RoomPlayInfoData, cancellationToken);
@@ -100,7 +100,7 @@ public sealed class BilibiliApiClient
 			throw new BilibiliApiException($"Room {roomId} is not live.");
 		}
 
-		LiveStreamCandidate[] candidates = StreamCandidates.Select(data, codecPriority, formatPriority);
+		LiveStreamCandidate.Listed[] candidates = StreamCandidates.Select(data, codecPriority, formatPriority);
 
 		if (candidates.Length is 0)
 		{

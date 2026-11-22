@@ -4,12 +4,13 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 {
 	private readonly TimeProvider _timeProvider = AppLocator.Current.GetRequiredService<TimeProvider>();
 	private bool _isApplying;
+	private bool _hasCookie;
 
-	public RoomItemViewModel(RoomSnapshot snapshot)
+	public RoomItemViewModel(RoomSnapshot snapshot, bool hasCookie)
 	{
 		RoomId = snapshot.RoomId;
 		Settings = snapshot.Settings;
-		Apply(snapshot);
+		Apply(snapshot, hasCookie);
 
 		this.WhenChanged(static viewModel => viewModel.IsRecordingEnabled, static viewModel => viewModel.IsNotificationEnabled, static (recording, notification) => (recording, notification))
 			.Skip(1)
@@ -49,8 +50,19 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 	[Reactive]
 	public partial bool IsRecording { get; private set; }
 
+	// 格式和编码；画质单独显示，受限时要标出来
 	[Reactive]
 	public partial string StreamInfo { get; private set; } = string.Empty;
+
+	[Reactive]
+	public partial string QualityText { get; private set; } = string.Empty;
+
+	[Reactive]
+	public partial bool IsQualityRestricted { get; private set; }
+
+	// 不受限时为 null
+	[Reactive]
+	public partial string? QualityRestrictionTip { get; private set; }
 
 	[Reactive]
 	public partial string RecordingInfo { get; private set; } = string.Empty;
@@ -61,9 +73,11 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 	[Reactive]
 	public partial bool IsNotificationEnabled { get; set; }
 
-	internal void Apply(RoomSnapshot snapshot)
+	// hasCookie 是现在有没有配 Cookie，受限原因是按请求候选流时的身份判断的
+	internal void Apply(RoomSnapshot snapshot, bool hasCookie)
 	{
 		_isApplying = true;
+		_hasCookie = hasCookie;
 
 		try
 		{
@@ -83,9 +97,11 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 			Status = snapshot.RecordStatus is RecordStatus.Idle ? snapshot.LiveStatus : snapshot.RecordStatus;
 			StatusTip = snapshot.Recording is null ? snapshot.LastError : null;
 			IsRecording = snapshot.RecordStatus is RecordStatus.Recording;
-			(StreamInfo, RecordingInfo) = snapshot.Recording is { } recording
-				? ($"{StreamLabels.Of(recording.Format)} · {StreamLabels.Of(recording.Codec)} · {StreamLabels.Of((StreamQuality)recording.Quality)}", $"{ByteSize.Format(snapshot.BytesPerSecond)}/s · {FormatDuration(recording.StartedAt)}")
-				: (string.Empty, string.Empty);
+			(StreamInfo, QualityText, RecordingInfo) = snapshot.Recording is { } recording
+				? ($"{StreamLabels.Of(recording.Format)} · {StreamLabels.OfCodec(recording.Codec)}", StreamLabels.OfQuality(recording.Quality), $"{ByteSize.Format(snapshot.BytesPerSecond)}/s · {FormatDuration(recording.StartedAt)}")
+				: (string.Empty, string.Empty, string.Empty);
+			QualityRestrictionTip = snapshot.Recording is { Restriction: { } restriction } restricted ? DescribeRestriction(restriction, restricted.Quality, hasCookie) : null;
+			IsQualityRestricted = QualityRestrictionTip is not null;
 			IsRecordingEnabled = snapshot.Settings.IsRecordingEnabled;
 			IsNotificationEnabled = snapshot.Settings.IsNotificationEnabled;
 		}
@@ -93,6 +109,19 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 		{
 			_isApplying = false;
 		}
+	}
+
+	internal static string DescribeRestriction(QualityRestriction restriction, long quality, bool hasCookie)
+	{
+		return restriction switch
+		{
+			QualityRestriction.OtherCodec other => AppLanguage.Current.QualityRestrictedByCodec.ToString(StreamLabels.Of(other.Codec), StreamLabels.OfQuality(other.Quality)),
+			QualityRestriction.OtherCodecUnavailable other => AppLanguage.Current.QualityRestrictedByCodecUnavailable.ToString(StreamLabels.Of(other.Codec), StreamLabels.OfQuality(other.Quality)),
+			// 录制没断就不会重新请求候选流，登录之后仍是登录前的画质
+			QualityRestriction.NotLoggedIn notLoggedIn when hasCookie => AppLanguage.Current.QualityRestrictedLoggedIn.ToString(StreamLabels.OfQuality(notLoggedIn.Highest)),
+			QualityRestriction.NotLoggedIn notLoggedIn => AppLanguage.Current.QualityRestrictedNotLoggedIn.ToString(StreamLabels.OfQuality(quality), StreamLabels.OfQuality(notLoggedIn.Highest)),
+			QualityRestriction.LoginMayHaveExpired expired => AppLanguage.Current.QualityRestrictedLoginMayHaveExpired.ToString(StreamLabels.OfQuality(expired.Highest), StreamLabels.OfQuality(quality))
+		};
 	}
 
 	private string FormatDuration(DateTimeOffset startedAt)
@@ -126,7 +155,7 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 				// 保存失败时恢复为应用服务中的实际设置
 				if (roomAppService.GetRooms().FirstOrDefault(snapshot => snapshot.RoomId == RoomId) is { } snapshot)
 				{
-					Apply(snapshot);
+					Apply(snapshot, _hasCookie);
 				}
 
 				throw;

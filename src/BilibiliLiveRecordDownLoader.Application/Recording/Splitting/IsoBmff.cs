@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-// fMP4 的视频轨和每个分片第一个视频样本是不是同步样本
+// fMP4 的视频轨、视频编码和每个分片第一个视频样本是不是同步样本
 internal static class IsoBmff
 {
 	private const int BoxHeaderSize = 8;
@@ -131,6 +131,59 @@ internal static class IsoBmff
 		}
 
 		return null;
+	}
+
+	// 看第一条视频轨的第一个样本项；encv 等加密的样本项和没见过的编码返回 null
+	public static StreamCodec? ReadVideoCodec(ReadOnlySpan<byte> init)
+	{
+		if (!TryFindBox(init, "moov"u8, out ReadOnlySpan<byte> moov))
+		{
+			return null;
+		}
+
+		int offset = 0;
+
+		while (TryReadBox(moov, ref offset, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> trak))
+		{
+			if (type.SequenceEqual("trak"u8) && IsVideoTrack(trak, out _))
+			{
+				return TryReadSampleEntry(trak, out ReadOnlySpan<byte> entryType, out _, out _) ? ToCodec(entryType) : null;
+			}
+		}
+
+		return null;
+
+		static StreamCodec? ToCodec(ReadOnlySpan<byte> entryType)
+		{
+			if (entryType.SequenceEqual("avc1"u8) || entryType.SequenceEqual("avc3"u8))
+			{
+				return StreamCodec.Avc;
+			}
+
+			if (entryType.SequenceEqual("hvc1"u8) || entryType.SequenceEqual("hev1"u8))
+			{
+				return StreamCodec.Hevc;
+			}
+
+			return entryType.SequenceEqual("av01"u8) ? StreamCodec.Av1 : null;
+		}
+	}
+
+	// stsd 是 FullBox，版本和标志之后是 entry_count，接着才是各个样本项
+	internal static bool TryReadSampleEntry(ReadOnlySpan<byte> trak, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> entry, out uint entryCount)
+	{
+		type = default;
+		entry = default;
+		entryCount = 0;
+
+		if (!TryFindBox(trak, "mdia"u8, out ReadOnlySpan<byte> mdia) || !TryFindBox(mdia, "minf"u8, out ReadOnlySpan<byte> minf) || !TryFindBox(minf, "stbl"u8, out ReadOnlySpan<byte> stbl) || !TryFindBox(stbl, "stsd"u8, out ReadOnlySpan<byte> stsd) || stsd.Length < 8)
+		{
+			return false;
+		}
+
+		entryCount = BinaryPrimitives.ReadUInt32BigEndian(stsd.Slice(4));
+		int offset = 8;
+		return entryCount > 0 && TryReadBox(stsd, ref offset, out type, out entry);
 	}
 
 	internal static bool IsVideoTrack(ReadOnlySpan<byte> trak, out uint trackId)

@@ -167,12 +167,12 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		_lifetime.Dispose();
 	}
 
-	void IRecordingObserver.OnRecordingStarted(string path, LiveStreamCandidate stream)
+	void IRecordingObserver.OnRecordingStarted(string path, RecordingStream stream)
 	{
 		lock (_lock)
 		{
 			_recordingPath = path;
-			_activeRecording = new ActiveRecordingDto(stream.Format, stream.Codec, stream.Qn, services.TimeProvider.GetUtcNow());
+			_activeRecording = new ActiveRecordingDto(stream.Format, stream.Codec, stream.Quality, stream.Restriction, services.TimeProvider.GetUtcNow());
 			_recordStatus = RecordStatus.Recording;
 		}
 
@@ -462,7 +462,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 						// 立即换下一条线路，全部试过之后才会等待重连间隔
 						liveSession.MarkFailed(attempt.Candidate, attempt.Endpoint);
 						LogAttemptFailed(attempt);
-						SetLastError($"{attempt.Candidate.Format}/{attempt.Candidate.Codec} {attempt.Endpoint.Host}: {attempt.End.Description}");
+						SetLastError($"{attempt.Candidate.Name} {attempt.Endpoint.Host}: {attempt.End.Description}");
 
 						if (!liveSession.HasUntriedEndpoint)
 						{
@@ -648,15 +648,15 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 
 	private void LogAttemptFailed(RecordingAttempt attempt)
 	{
-		(StreamFormat format, StreamCodec codec, string host) = (attempt.Candidate.Format, attempt.Candidate.Codec, attempt.Endpoint.Host);
+		(string stream, string host) = (attempt.Candidate.Name, attempt.Endpoint.Host);
 
 		if (attempt.End is RecordingEnd.Faulted { Exception: var exception })
 		{
-			LogAttemptFaulted(_logger, exception, format, codec, host, attempt.ActiveDuration);
+			LogAttemptFaulted(_logger, exception, stream, host, attempt.ActiveDuration);
 		}
 		else
 		{
-			LogAttemptEnded(_logger, format, codec, host, attempt.ActiveDuration, attempt.End.Description);
+			LogAttemptEnded(_logger, stream, host, attempt.ActiveDuration, attempt.End.Description);
 		}
 	}
 
@@ -666,11 +666,11 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	[LoggerMessage(Level = LogLevel.Information, Message = "Recording ended: {Reason}")]
 	private static partial void LogRecordingEnded(ILogger logger, string reason);
 
-	[LoggerMessage(Level = LogLevel.Warning, Message = "{Format}/{Codec} stream from {Host} failed after {Duration} of data, switching to the next stream")]
-	private static partial void LogAttemptFaulted(ILogger logger, Exception exception, StreamFormat format, StreamCodec codec, string host, TimeSpan duration);
+	[LoggerMessage(Level = LogLevel.Warning, Message = "{Stream} stream from {Host} failed after {Duration} of data, switching to the next stream")]
+	private static partial void LogAttemptFaulted(ILogger logger, Exception exception, string stream, string host, TimeSpan duration);
 
-	[LoggerMessage(Level = LogLevel.Warning, Message = "{Format}/{Codec} stream from {Host} ended after {Duration} of data ({Reason}), switching to the next stream")]
-	private static partial void LogAttemptEnded(ILogger logger, StreamFormat format, StreamCodec codec, string host, TimeSpan duration, string reason);
+	[LoggerMessage(Level = LogLevel.Warning, Message = "{Stream} stream from {Host} ended after {Duration} of data ({Reason}), switching to the next stream")]
+	private static partial void LogAttemptEnded(ILogger logger, string stream, string host, TimeSpan duration, string reason);
 
 	[LoggerMessage(Level = LogLevel.Information, Message = "Recording stopped")]
 	private static partial void LogRecordingStopped(ILogger logger);

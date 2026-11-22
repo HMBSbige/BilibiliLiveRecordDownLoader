@@ -84,14 +84,7 @@ internal sealed class Fmp4FillerRemover
 	// 解码器配置在视觉样本项的固定字段之后；有多个样本项时分片可能换着用，宽度不一定相同
 	private static (NalSyntax Syntax, int LengthSize) ReadSampleEntry(ReadOnlySpan<byte> trak)
 	{
-		if (!IsoBmff.TryFindBox(trak, "mdia"u8, out ReadOnlySpan<byte> mdia) || !IsoBmff.TryFindBox(mdia, "minf"u8, out ReadOnlySpan<byte> minf) || !IsoBmff.TryFindBox(minf, "stbl"u8, out ReadOnlySpan<byte> stbl) || !IsoBmff.TryFindBox(stbl, "stsd"u8, out ReadOnlySpan<byte> stsd))
-		{
-			return default;
-		}
-
-		int offset = 8;
-
-		if (stsd.Length < offset || BinaryPrimitives.ReadUInt32BigEndian(stsd.Slice(4)) is not 1 || !IsoBmff.TryReadBox(stsd, ref offset, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> entry) || entry.Length < VisualSampleEntrySize)
+		if (!IsoBmff.TryReadSampleEntry(trak, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> entry, out uint entryCount) || entryCount is not 1 || entry.Length < VisualSampleEntrySize)
 		{
 			return default;
 		}

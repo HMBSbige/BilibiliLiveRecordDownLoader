@@ -402,7 +402,9 @@ public sealed class FillerRemovalTest
 	[Arguments(true, StreamCodec.Hevc, FillerRemoval.Hevc)]
 	[Arguments(true, StreamCodec.Av1, FillerRemoval.None)]
 	[Arguments(false, StreamCodec.Avc, FillerRemoval.None)]
-	public async Task FFmpegRecordingRemovesFillerByTheSettingAndCodecAsync(bool removeFiller, StreamCodec codec, FillerRemoval expected)
+	// 源流的 init 段认不出编码
+	[Arguments(true, null, FillerRemoval.None)]
+	public async Task FFmpegRecordingRemovesFillerByTheSettingAndCodecAsync(bool removeFiller, StreamCodec? codec, FillerRemoval expected)
 	{
 		AppConfig config = AppConfig.CreateDefault();
 		config.RemoveFillerData = removeFiller;

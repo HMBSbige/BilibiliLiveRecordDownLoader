@@ -2,9 +2,9 @@ namespace BilibiliLive.Api;
 
 internal static class StreamCandidates
 {
-	public static LiveStreamCandidate[] Select(RoomPlayInfoData data, IReadOnlyList<StreamCodec> codecPriority, IReadOnlyList<StreamFormat> formatPriority)
+	public static LiveStreamCandidate.Listed[] Select(RoomPlayInfoData data, IReadOnlyList<StreamCodec> codecPriority, IReadOnlyList<StreamFormat> formatPriority)
 	{
-		List<LiveStreamCandidate> candidates = [];
+		List<LiveStreamCandidate.Listed> candidates = [];
 
 		foreach (PlayStream stream in data.PlayurlInfo?.Playurl?.Stream ?? [])
 		{
@@ -37,7 +37,7 @@ internal static class StreamCandidates
 
 					if (urls.Length is not 0)
 					{
-						candidates.Add(new LiveStreamCandidate(protocol, streamFormat, streamCodec, codec.CurrentQn, urls));
+						candidates.Add(new LiveStreamCandidate.Listed(protocol, streamFormat, streamCodec, codec.CurrentQn, codec.AcceptQn ?? [], urls));
 					}
 				}
 			}

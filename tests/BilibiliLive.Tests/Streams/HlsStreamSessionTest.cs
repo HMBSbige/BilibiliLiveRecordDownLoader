@@ -115,6 +115,19 @@ public class HlsStreamSessionTest
 
 	[Test]
 	[Timeout(10_000)]
+	[Arguments("#EXTM3U\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n#EXT-X-ENDLIST\n", true)]
+	[Arguments("#EXTM3U\n1.ts\n#EXT-X-ENDLIST\n", false)]
+	public async Task InitSegmentValidatedWhileOpeningIsExposedAsync(string playlist, bool hasInit, CancellationToken cancellationToken)
+	{
+		using HttpClient client = new(new FakeHttpMessageHandler(request => request.RequestUri == PlaylistUri ? Responses.Text(playlist) : Segment(request)));
+
+		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, new ManualTimeProvider(), cancellationToken);
+
+		await Assert.That(session.InitSegment.ToArray().SequenceEqual(hasInit ? MediaSamples.Fmp4Init("h1") : [])).IsTrue();
+	}
+
+	[Test]
+	[Timeout(10_000)]
 	public async Task ValidatedFirstSegmentAndMapAreNotDownloadedAgainAsync(CancellationToken cancellationToken)
 	{
 		FakeHttpMessageHandler handler = new(request => request.RequestUri == PlaylistUri

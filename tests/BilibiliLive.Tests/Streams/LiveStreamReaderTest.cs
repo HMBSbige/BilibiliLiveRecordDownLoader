@@ -17,7 +17,7 @@ public class LiveStreamReaderTest
 		"FLV"u8.CopyTo(body);
 		FakeHttpMessageHandler handler = new(request => request.RequestUri == WorkingHost ? Responses.Bytes(body) : Responses.NotFound());
 		using HttpClient client = new(handler);
-		LiveStreamCandidate candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [BrokenHost, WorkingHost]);
+		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [], [BrokenHost, WorkingHost]);
 
 		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, null, cancellationToken);
 		using MemoryStream output = new();
@@ -47,7 +47,7 @@ public class LiveStreamReaderTest
 			_ => Responses.NotFound()
 		});
 		using HttpClient client = new(handler);
-		LiveStreamCandidate candidate = new(StreamProtocol.HttpHls, StreamFormat.Ts, StreamCodec.Avc, 10000, [garbage, valid]);
+		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpHls, StreamFormat.Ts, StreamCodec.Avc, 10000, [], [garbage, valid]);
 
 		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, null, cancellationToken);
 		using MemoryStream output = new();
@@ -64,7 +64,7 @@ public class LiveStreamReaderTest
 	public async Task AllHostsFailingThrowsAsync(CancellationToken cancellationToken)
 	{
 		using HttpClient client = new(new FakeHttpMessageHandler(_ => Responses.NotFound()));
-		LiveStreamCandidate candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [BrokenHost, WorkingHost]);
+		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [], [BrokenHost, WorkingHost]);
 
 		AggregateException? exception = await Assert.ThrowsAsync<AggregateException>(() => LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FastestResponse, ConnectTimeout, null, cancellationToken));
 
@@ -85,7 +85,7 @@ public class LiveStreamReaderTest
 			return Responses.Bytes([.. "FLV"u8]);
 		});
 		using HttpClient client = new(handler);
-		LiveStreamCandidate candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [BrokenHost, WorkingHost]);
+		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [], [BrokenHost, WorkingHost]);
 		List<(Uri Host, Exception Error)> failures = [];
 
 		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, TimeSpan.FromMilliseconds(200), (host, error) => failures.Add((host, error)), cancellationToken);
@@ -104,7 +104,7 @@ public class LiveStreamReaderTest
 	{
 		using HttpClient client = new(new FakeHttpMessageHandler(request => request.RequestUri == WorkingHost ? Responses.Bytes([.. "FLV"u8]) : Responses.NotFound()));
 		Uri otherBroken = new("https://other-broken.test/live.flv");
-		LiveStreamCandidate candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [BrokenHost, otherBroken, WorkingHost]);
+		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [], [BrokenHost, otherBroken, WorkingHost]);
 		List<Uri> failed = [];
 
 		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, (host, _) => failed.Add(host), cancellationToken);
@@ -118,7 +118,7 @@ public class LiveStreamReaderTest
 	public async Task HttpStreamThatIsNotFlvIsRejectedAsync(byte[] body, CancellationToken cancellationToken)
 	{
 		using HttpClient client = new(new FakeHttpMessageHandler(_ => Responses.Bytes(body)));
-		LiveStreamCandidate candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [WorkingHost]);
+		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [], [WorkingHost]);
 		List<Exception> failures = [];
 
 		await Assert.ThrowsAsync<AggregateException>(() => LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, (_, error) => failures.Add(error), cancellationToken));
@@ -131,7 +131,7 @@ public class LiveStreamReaderTest
 	public async Task HttpStreamThatSendsNoDataWithinTheConnectTimeoutIsRejectedAsync(CancellationToken cancellationToken)
 	{
 		using HttpClient client = new(new FakeHttpMessageHandler(_ => new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StreamContent(new StalledStream()) }));
-		LiveStreamCandidate candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [WorkingHost]);
+		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [], [WorkingHost]);
 		List<Exception> failures = [];
 
 		await Assert.ThrowsAsync<AggregateException>(() => LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, TimeSpan.FromMilliseconds(200), (_, error) => failures.Add(error), cancellationToken));

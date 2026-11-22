@@ -7,7 +7,7 @@ public sealed class LiveRecordingSessionTest
 {
 	private static LiveStreamCandidate Candidate(StreamFormat format, string signature, params string[] hosts)
 	{
-		return new LiveStreamCandidate(StreamProtocol.HttpHls, format, StreamCodec.Avc, 10000, [.. hosts.Select(host => new Uri($"https://{host}/live/index.m3u8?sign={signature}"))]);
+		return new LiveStreamCandidate.Listed(StreamProtocol.HttpHls, format, StreamCodec.Avc, 10000, [], [.. hosts.Select(host => new Uri($"https://{host}/live/index.m3u8?sign={signature}"))]);
 	}
 
 	private static string Describe(IEnumerable<LiveStreamCandidate> candidates)
@@ -51,7 +51,7 @@ public sealed class LiveRecordingSessionTest
 	{
 		LiveRecordingSession session = new();
 		LiveStreamCandidate candidate = Candidate(StreamFormat.Flv, "a", "a.test");
-		session.Candidates = [candidate];
+		session.Candidates = new CandidateBatch([candidate], false);
 		session.MarkFailed(candidate, candidate.Urls[0]);
 		bool exhausted = session.GetUntriedCandidates([candidate]).Count is 0;
 
@@ -70,7 +70,7 @@ public sealed class LiveRecordingSessionTest
 	{
 		LiveStreamCandidate flv = Candidate(StreamFormat.Flv, "a", "a.test");
 		LiveStreamCandidate ts = Candidate(StreamFormat.Ts, "a", "a.test");
-		LiveRecordingSession session = new() { Candidates = [flv, ts] };
+		LiveRecordingSession session = new() { Candidates = new CandidateBatch([flv, ts], false) };
 
 		session.MarkFailed(flv, flv.Urls[0]);
 		bool afterOne = session.HasUntriedEndpoint;
@@ -80,6 +80,45 @@ public sealed class LiveRecordingSessionTest
 		{
 			await Assert.That(afterOne).IsTrue();
 			await Assert.That(session.HasUntriedEndpoint).IsFalse();
+		}
+	}
+
+	// 源流和接口给的 fMP4 在同一个节点上，源流被拒不能让节点上接口给的流也算失败
+	[Test]
+	public async Task RejectedSourceStreamLeavesTheListedStreamOfTheSameHostUntriedAsync()
+	{
+		LiveStreamCandidate.Source source = new(StreamProtocol.HttpHls, StreamFormat.Fmp4, [new Uri("https://a.test/live/index.m3u8?sign=a")]);
+		LiveStreamCandidate fmp4 = Candidate(StreamFormat.Fmp4, "a", "a.test");
+		LiveRecordingSession session = new() { Candidates = new CandidateBatch([source, fmp4], false) };
+
+		session.MarkFailed(source, source.Urls[0]);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(Describe(session.GetUntriedCandidates([source, fmp4]))).IsEqualTo("Fmp4@a.test");
+			await Assert.That(session.HasUntriedEndpoint).IsTrue();
+		}
+	}
+
+	[Test]
+	public async Task RestrictionIsReportedOnlyWhenItChangesAsync()
+	{
+		LiveRecordingSession session = new();
+		bool unrestricted = session.TryUpdateRestriction(null);
+		bool first = session.TryUpdateRestriction(new QualityRestriction.NotLoggedIn(10000));
+		bool same = session.TryUpdateRestriction(new QualityRestriction.NotLoggedIn(10000));
+		// 换线路和重新请求候选流时会重置，提醒状态要留到下播
+		session.Reset();
+		bool afterReset = session.TryUpdateRestriction(new QualityRestriction.NotLoggedIn(10000));
+		bool other = session.TryUpdateRestriction(new QualityRestriction.LoginMayHaveExpired(10000));
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(unrestricted).IsFalse();
+			await Assert.That(first).IsTrue();
+			await Assert.That(same).IsFalse();
+			await Assert.That(afterReset).IsFalse();
+			await Assert.That(other).IsTrue();
 		}
 	}
 

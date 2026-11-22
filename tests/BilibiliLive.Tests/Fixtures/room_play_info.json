@@ -71,6 +71,7 @@
                   {
                     "codec_name": "hevc",
                     "current_qn": 10000,
+                    "accept_qn": [250],
                     "base_url": "/live-bvc/6/live_minihevc/index.m3u8?",
                     "url_info": [{ "host": "https://fmp4.bilivideo.com", "extra": "sign=h", "stream_ttl": 0 }]
                   },
