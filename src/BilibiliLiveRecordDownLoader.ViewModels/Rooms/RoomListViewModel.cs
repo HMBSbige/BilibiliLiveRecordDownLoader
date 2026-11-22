@@ -12,10 +12,11 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	private AppConfig? _config;
 	private bool _isArranging;
 
-	public RoomListViewModel(IRoomAppService roomAppService, IAppConfigManager configManager)
+	public RoomListViewModel(IRoomAppService roomAppService, IAppConfigManager configManager, IDanmakuAppService danmakuAppService)
 	{
 		_roomAppService = roomAppService;
 		_configManager = configManager;
+		Danmaku = new DanmakuPanelViewModel(danmakuAppService, configManager, cancellationToken => ShowLogin(cancellationToken)).DisposeWith(Disposables);
 		HasSelection = this.WhenChanged(static viewModel => viewModel.SelectedCount).Map(static count => count > 0);
 		HasSingleSelection = this.WhenChanged(static viewModel => viewModel.SelectedCount).Map(static count => count is 1);
 		CanMoveSelection = this.WhenChanged(static viewModel => viewModel.CanReorder, static viewModel => viewModel.SelectedCount, static (canReorder, count) => canReorder && count > 0);
@@ -40,6 +41,8 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		StopRecordingCommand.DisposeWith(Disposables);
 		OpenRoomFolderCommand.DisposeWith(Disposables);
 		OpenLiveRoomCommand.DisposeWith(Disposables);
+		ShowDanmakuCommand.DisposeWith(Disposables);
+		OpenDanmakuFileCommand.DisposeWith(Disposables);
 		SortByCommand.DisposeWith(Disposables);
 		FilterByCommand.DisposeWith(Disposables);
 		MoveToTopCommand.DisposeWith(Disposables);
@@ -63,6 +66,8 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	public IObservable<bool> HasSingleSelection { get; }
 
 	public IObservable<bool> CanMoveSelection { get; }
+
+	public DanmakuPanelViewModel Danmaku { get; }
 
 	[Reactive]
 	public partial bool HasRooms { get; private set; }
@@ -92,7 +97,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	[Reactive]
 	public partial string? RecordingSpeed { get; private set; }
 
-	// 只在没配 Cookie、有直播间因为没登录而画质受限时显示；为 null 时不显示
+	// 只在没配 Cookie、有直播间因为没登录而画质受限或者在录弹幕时显示；为 null 时不显示
 	[Reactive]
 	public partial string? LoginBannerText { get; private set; }
 
@@ -205,6 +210,28 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		}
 	}
 
+	[ReactiveCommand(CanExecute = nameof(HasSingleSelection))]
+	private void ShowDanmaku()
+	{
+		if (SelectedRooms is [{ } room])
+		{
+			Danmaku.Follow(room);
+			Danmaku.IsOpen = true;
+		}
+	}
+
+	[ReactiveCommand(CanExecute = nameof(HasSingleSelection))]
+	private async Task OpenDanmakuFileAsync(CancellationToken cancellationToken)
+	{
+		if (SelectedRooms is not [{ } room])
+		{
+			return;
+		}
+
+		Danmaku.Follow(room);
+		await Danmaku.PickFileAsync(cancellationToken);
+	}
+
 	// 已经在录的直播间要等下次请求候选流才能换成更高的画质，横幅按 Cookie 是否已配立即收起
 	[ReactiveCommand]
 	private async Task LoginAsync(CancellationToken cancellationToken)
@@ -278,6 +305,12 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	private void UpdateSelection()
 	{
 		SelectedCount = SelectedRooms.Count;
+
+		if (SelectedRooms is [var room])
+		{
+			Danmaku.Follow(room);
+		}
+
 		SelectionText = SelectedCount is 0 ? null : AppLanguage.Current.SelectedCount.ToString(SelectedCount.ToString(CultureInfo.CurrentCulture));
 	}
 
@@ -312,6 +345,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		{
 			_rooms.Remove(removed.RoomId);
 			Rooms.Remove(removed);
+			Danmaku.OnRoomRemoved(removed);
 			removed.Dispose();
 		}
 
@@ -336,7 +370,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		HasRooms = _rooms.Count > 0;
 		RoomSnapshot[] recording = [.. latest.Values.Where(static snapshot => snapshot.RecordStatus is RecordStatus.Recording)];
 		Summarize(recording);
-		UpdateLoginBanner(recording, hasCookie);
+		UpdateLoginBanner(latest.Values, recording, hasCookie);
 		Arrange();
 	}
 
@@ -427,11 +461,20 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		}
 	}
 
-	// 编码原因和登录可能失效都不是登录能解决的，不提示登录
-	private void UpdateLoginBanner(RoomSnapshot[] recording, bool hasCookie)
+	// 编码原因和登录可能失效都不是登录能解决的，不提示登录；仅录弹幕时视频不在录，所以弹幕看全部直播间
+	private void UpdateLoginBanner(IEnumerable<RoomSnapshot> rooms, RoomSnapshot[] recording, bool hasCookie)
 	{
 		int restricted = hasCookie ? 0 : recording.Count(static snapshot => snapshot.Recording?.Restriction is QualityRestriction.NotLoggedIn);
-		LoginBannerText = restricted is 0 ? null : AppLanguage.Current.QualityRestrictedBanner.ToString(restricted.ToString(CultureInfo.CurrentCulture));
+		bool isDanmakuMasked = !hasCookie && rooms.Any(static snapshot => snapshot.Danmaku.IsRecording);
+		string count = restricted.ToString(CultureInfo.CurrentCulture);
+
+		LoginBannerText = (restricted, isDanmakuMasked) switch
+		{
+			(0, false) => null,
+			(0, true) => AppLanguage.Current.DanmakuMaskedBanner,
+			(_, false) => AppLanguage.Current.QualityRestrictedBanner.ToString(count),
+			_ => AppLanguage.Current.QualityRestrictedAndDanmakuMaskedBanner.ToString(count)
+		};
 	}
 
 	private void Summarize(RoomSnapshot[] recording)

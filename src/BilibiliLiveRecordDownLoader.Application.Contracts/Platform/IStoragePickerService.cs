@@ -8,5 +8,7 @@ public interface IStoragePickerService
 
 	Task<string?> PickVideoFileAsync(string? initialDirectory = null);
 
+	Task<string?> PickDanmakuFileAsync(string? initialDirectory = null);
+
 	Task<string?> PickSaveVideoFileAsync(string? suggestedPath = null);
 }

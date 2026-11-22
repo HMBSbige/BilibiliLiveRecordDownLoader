@@ -1,5 +1,6 @@
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using System.ComponentModel;
 using System.Windows.Input;
 
 namespace BilibiliLiveRecordDownLoader.Views.Views;
@@ -15,12 +16,17 @@ public partial class RoomsView : UserControl
 
 	private const double DropIndicatorInset = 8;
 
+	private const double DanmakuPanelMinWidth = 300;
+
 	private static readonly Cursor DragCursor = new(StandardCursorType.DragMove);
 
 	private readonly DispatcherTimer _autoScrollTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
 	private RoomListViewModel? _viewModel;
 	private RoomDrag? _drag;
 	private RoomItemViewModel? _focusAfterMove;
+
+	// 收起时记住拖出来的宽度，再打开时恢复
+	private GridLength _danmakuPanelWidth = new(360);
 
 	public RoomsView()
 	{
@@ -33,8 +39,11 @@ public partial class RoomsView : UserControl
 	protected override void OnDataContextChanged(EventArgs e)
 	{
 		_viewModel?.RoomsMoved -= OnRoomsMoved;
+		_viewModel?.Danmaku.PropertyChanged -= OnDanmakuPropertyChanged;
 		_viewModel = DataContext as RoomListViewModel;
 		_viewModel?.RoomsMoved += OnRoomsMoved;
+		_viewModel?.Danmaku.PropertyChanged += OnDanmakuPropertyChanged;
+		UpdateDanmakuPanel();
 
 		base.OnDataContextChanged(e);
 	}
@@ -43,6 +52,31 @@ public partial class RoomsView : UserControl
 	{
 		EndDrag();
 		base.OnDetachedFromVisualTree(e);
+	}
+
+	private void OnDanmakuPropertyChanged(object? sender, PropertyChangedEventArgs e)
+	{
+		if (e.PropertyName is nameof(DanmakuPanelViewModel.IsOpen))
+		{
+			UpdateDanmakuPanel();
+		}
+	}
+
+	// 收起时整列宽度归零，房间列表占满
+	private void UpdateDanmakuPanel()
+	{
+		bool isOpen = _viewModel?.Danmaku.IsOpen is true;
+		ColumnDefinition column = ContentGrid.ColumnDefinitions[2];
+
+		if (!isOpen && column.Width.Value > 0)
+		{
+			_danmakuPanelWidth = column.Width;
+		}
+
+		column.MinWidth = isOpen ? DanmakuPanelMinWidth : 0;
+		column.Width = isOpen ? _danmakuPanelWidth : new GridLength(0);
+		DanmakuSplitter.IsVisible = isOpen;
+		DanmakuPanel.IsVisible = isOpen;
 	}
 
 	private void OnRoomDoubleTapped(object? sender, TappedEventArgs e)

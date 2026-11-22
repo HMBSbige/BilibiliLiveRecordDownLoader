@@ -14,6 +14,9 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 		RoomIdText = IsNew ? string.Empty : _original.RoomId.ToString(CultureInfo.InvariantCulture);
 		IsRecordingEnabled = _original.IsRecordingEnabled;
 		IsNotificationEnabled = _original.IsNotificationEnabled;
+		IsDanmakuEnabled = _original.IsDanmakuEnabled;
+		DanmakuOffsetSeconds = _original.DanmakuOffset is { } offset ? (decimal)offset.TotalSeconds : null;
+		DanmakuOffsetPlaceholder = AppLanguage.Current.InheritValue.ToString(((decimal)globalConfig.DanmakuOffset.TotalSeconds).ToString("0.###", CultureInfo.CurrentCulture));
 		Quality = new ChoiceOption(_original.Quality);
 		RecorderType = _original.RecorderType is { } recorderType ? new ChoiceOption(recorderType) : ChoiceOption.Inherit;
 		ConvertToMp4 = new ChoiceOption(_original.ConvertToMp4);
@@ -21,7 +24,6 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 		SplitMode = _original.SplitMode is { } splitMode ? new ChoiceOption(splitMode) : ChoiceOption.Inherit;
 		SplitOnTitleChange = new ChoiceOption(_original.SplitOnTitleChange);
 
-		// 房间没有覆盖的数值从全局设置开始填
 		SplitDurationMinutes = (decimal)(_original.SplitDuration ?? globalConfig.SplitDuration).TotalMinutes;
 		SplitSizeMegabytes = _original.SplitSizeMegabytes ?? globalConfig.SplitSizeMegabytes;
 		OverrideCodecPriority = _original.CodecPriority is not null;
@@ -92,6 +94,15 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 	public partial bool IsNotificationEnabled { get; set; }
 
 	[Reactive]
+	public partial bool IsDanmakuEnabled { get; set; }
+
+	// 留空时用全局的偏移
+	[Reactive]
+	public partial decimal? DanmakuOffsetSeconds { get; set; }
+
+	public string DanmakuOffsetPlaceholder { get; }
+
+	[Reactive]
 	public partial ChoiceOption Quality { get; set; }
 
 	[Reactive]
@@ -142,7 +153,6 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 	[Reactive]
 	public partial decimal StreamIdleTimeoutSeconds { get; set; }
 
-	// 提交成功才关闭，失败时保留输入并在对话框内显示原因
 	[ReactiveCommand(CanExecute = nameof(CanSave))]
 	private async Task SaveAsync(CancellationToken cancellationToken)
 	{
@@ -156,6 +166,8 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 			RoomId = roomId,
 			IsRecordingEnabled = IsRecordingEnabled,
 			IsNotificationEnabled = IsNotificationEnabled,
+			IsDanmakuEnabled = IsDanmakuEnabled,
+			DanmakuOffset = DanmakuOffsetSeconds is { } seconds ? DanmakuDefaults.ClampOffset(TimeSpan.FromSeconds((double)seconds)) : null,
 			Quality = Quality.As<StreamQuality>() ?? StreamQuality.Original,
 			RecorderType = RecorderType.As<RecorderType>(),
 			CodecPriority = OverrideCodecPriority ? CodecPriority.ToList<StreamCodec>() : null,

@@ -31,9 +31,9 @@ public sealed class StatusColor
 	{
 		return status switch
 		{
-			LiveStatus.Live or BackgroundTaskStatus.Completed or NotificationType.Success => "SemiColorSuccess",
-			LiveStatus.Round or RecordStatus.Connecting or BackgroundTaskStatus.Running or LogLevel.Warning or NotificationType.Warning => "SemiColorWarning",
-			RecordStatus.Recording or BackgroundTaskStatus.Failed or LogLevel.Error or LogLevel.Critical or NotificationType.Error => "SemiColorDanger",
+			LiveStatus.Live or BackgroundTaskStatus.Completed or NotificationType.Success or DanmakuConnectionState.Connected => "SemiColorSuccess",
+			LiveStatus.Round or RecordStatus.Connecting or BackgroundTaskStatus.Running or LogLevel.Warning or NotificationType.Warning or DanmakuConnectionState.Connecting => "SemiColorWarning",
+			RecordStatus.Recording or BackgroundTaskStatus.Failed or LogLevel.Error or LogLevel.Critical or NotificationType.Error or DanmakuConnectionState.Disconnected => "SemiColorDanger",
 			NotificationType.Information or LogLevel.Information => "SemiColorPrimary",
 			LiveStatus or RecordStatus or BackgroundTaskStatus or LogLevel => "SemiColorText2",
 			_ => null

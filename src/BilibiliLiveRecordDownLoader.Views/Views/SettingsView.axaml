@@ -115,6 +115,64 @@
                 </StackPanel>
             </Border>
 
+            <Border Classes="card" DataContext="{Binding Danmaku}">
+                <StackPanel Classes="form" x:DataType="settings:DanmakuSettingsViewModel">
+                    <TextBlock Classes="section" Text="{Binding Danmaku, Source={x:Static l:AppLanguage.Current}}" />
+                    <Grid Classes="form" ColumnDefinitions="*,*">
+                        <StackPanel Grid.Column="0" Classes="field">
+                            <TextBlock Text="{Binding RecordGifts, Source={x:Static l:AppLanguage.Current}}" />
+                            <ComboBox ItemsSource="{Binding GiftModeOptions}" SelectedItem="{Binding GiftMode}"
+                                      ItemTemplate="{StaticResource LocalizedLabel}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Classes="field">
+                            <TextBlock Text="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}" />
+                            <NumericUpDown Value="{Binding OffsetSeconds}" Increment="0.1" FormatString="0.###" HorizontalAlignment="Stretch"
+                                           Minimum="{x:Static cfg:DanmakuDefaults.MinOffsetSeconds}" Maximum="{x:Static cfg:DanmakuDefaults.MaxOffsetSeconds}"
+                                           AutomationProperties.Name="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}"
+                                           AutomationProperties.HelpText="{Binding DanmakuOffsetHint, Source={x:Static l:AppLanguage.Current}}" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Classes="caption" Margin="0,-8,0,0" TextWrapping="Wrap" Text="{Binding DanmakuOffsetHint, Source={x:Static l:AppLanguage.Current}}" />
+                    <StackPanel Spacing="8">
+                        <ToggleSwitch IsChecked="{Binding RecordSuperChats}"
+                                      OnContent="{Binding RecordSuperChats, Source={x:Static l:AppLanguage.Current}}"
+                                      OffContent="{Binding RecordSuperChats, Source={x:Static l:AppLanguage.Current}}" />
+                        <ToggleSwitch IsChecked="{Binding RecordGuards}"
+                                      OnContent="{Binding RecordGuards, Source={x:Static l:AppLanguage.Current}}"
+                                      OffContent="{Binding RecordGuards, Source={x:Static l:AppLanguage.Current}}" />
+                    </StackPanel>
+                    <StackPanel Classes="field">
+                        <StackPanel Spacing="8">
+                            <ToggleSwitch IsChecked="{Binding GenerateSubtitle}"
+                                          AutomationProperties.Name="{Binding GenerateDanmakuSubtitle, Source={x:Static l:AppLanguage.Current}}"
+                                          AutomationProperties.HelpText="{Binding GenerateDanmakuSubtitleHint, Source={x:Static l:AppLanguage.Current}}"
+                                          OnContent="{Binding GenerateDanmakuSubtitle, Source={x:Static l:AppLanguage.Current}}"
+                                          OffContent="{Binding GenerateDanmakuSubtitle, Source={x:Static l:AppLanguage.Current}}" />
+                            <ToggleSwitch IsChecked="{Binding ShowPaidMessagesInSubtitle}" IsEnabled="{Binding GenerateSubtitle}" Margin="24,0,0,0"
+                                          OnContent="{Binding ShowPaidMessagesInSubtitle, Source={x:Static l:AppLanguage.Current}}"
+                                          OffContent="{Binding ShowPaidMessagesInSubtitle, Source={x:Static l:AppLanguage.Current}}" />
+                        </StackPanel>
+                        <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding GenerateDanmakuSubtitleHint, Source={x:Static l:AppLanguage.Current}}" />
+                    </StackPanel>
+                    <StackPanel Classes="field">
+                        <ToggleSwitch IsChecked="{Binding SaveRawMessages}"
+                                      AutomationProperties.Name="{Binding SaveRawDanmaku, Source={x:Static l:AppLanguage.Current}}"
+                                      AutomationProperties.HelpText="{Binding SaveRawDanmakuHint, Source={x:Static l:AppLanguage.Current}}"
+                                      OnContent="{Binding SaveRawDanmaku, Source={x:Static l:AppLanguage.Current}}"
+                                      OffContent="{Binding SaveRawDanmaku, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding SaveRawDanmakuHint, Source={x:Static l:AppLanguage.Current}}" />
+                    </StackPanel>
+                    <StackPanel Classes="field">
+                        <ToggleSwitch IsChecked="{Binding WriteChaptersOnConvert}"
+                                      AutomationProperties.Name="{Binding WriteChaptersOnConvert, Source={x:Static l:AppLanguage.Current}}"
+                                      AutomationProperties.HelpText="{Binding WriteChaptersOnConvertHint, Source={x:Static l:AppLanguage.Current}}"
+                                      OnContent="{Binding WriteChaptersOnConvert, Source={x:Static l:AppLanguage.Current}}"
+                                      OffContent="{Binding WriteChaptersOnConvert, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding WriteChaptersOnConvertHint, Source={x:Static l:AppLanguage.Current}}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <Border Classes="card" DataContext="{Binding Network}">
                 <StackPanel Classes="form" x:DataType="settings:NetworkSettingsViewModel">
                     <TextBlock Classes="section" Text="{Binding Network, Source={x:Static l:AppLanguage.Current}}" />

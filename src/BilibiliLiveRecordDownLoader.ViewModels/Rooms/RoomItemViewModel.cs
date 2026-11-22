@@ -12,7 +12,7 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 		Settings = snapshot.Settings;
 		Apply(snapshot, hasCookie);
 
-		this.WhenChanged(static viewModel => viewModel.IsRecordingEnabled, static viewModel => viewModel.IsNotificationEnabled, static (recording, notification) => (recording, notification))
+		this.WhenChanged(static viewModel => viewModel.IsRecordingEnabled, static viewModel => viewModel.IsNotificationEnabled, static viewModel => viewModel.IsDanmakuEnabled, static (recording, notification, danmaku) => (recording, notification, danmaku))
 			.Skip(1)
 			.Subscribe(OnTogglesChanged)
 			.DisposeWith(Disposables);
@@ -73,6 +73,9 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 	[Reactive]
 	public partial bool IsNotificationEnabled { get; set; }
 
+	[Reactive]
+	public partial bool IsDanmakuEnabled { get; set; }
+
 	// hasCookie 是现在有没有配 Cookie，受限原因是按请求候选流时的身份判断的
 	internal void Apply(RoomSnapshot snapshot, bool hasCookie)
 	{
@@ -104,6 +107,7 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 			IsQualityRestricted = QualityRestrictionTip is not null;
 			IsRecordingEnabled = snapshot.Settings.IsRecordingEnabled;
 			IsNotificationEnabled = snapshot.Settings.IsNotificationEnabled;
+			IsDanmakuEnabled = snapshot.Settings.IsDanmakuEnabled;
 		}
 		finally
 		{
@@ -131,14 +135,14 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 		return elapsed > TimeSpan.Zero ? string.Create(CultureInfo.InvariantCulture, $"{(int)elapsed.TotalHours}:{elapsed:mm\\:ss}") : "0:00:00";
 	}
 
-	private void OnTogglesChanged((bool IsRecordingEnabled, bool IsNotificationEnabled) toggles)
+	private void OnTogglesChanged((bool IsRecordingEnabled, bool IsNotificationEnabled, bool IsDanmakuEnabled) toggles)
 	{
 		if (_isApplying)
 		{
 			return;
 		}
 
-		RoomSettingsDto settings = Settings with { IsRecordingEnabled = toggles.IsRecordingEnabled, IsNotificationEnabled = toggles.IsNotificationEnabled };
+		RoomSettingsDto settings = Settings with { IsRecordingEnabled = toggles.IsRecordingEnabled, IsNotificationEnabled = toggles.IsNotificationEnabled, IsDanmakuEnabled = toggles.IsDanmakuEnabled };
 		Settings = settings;
 
 		IRoomAppService roomAppService = AppLocator.Current.GetRequiredService<IRoomAppService>();

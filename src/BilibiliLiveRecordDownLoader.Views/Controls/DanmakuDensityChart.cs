@@ -1,0 +1,200 @@
+using Avalonia.Input;
+using System.Windows.Input;
+
+namespace BilibiliLiveRecordDownLoader.Views.Controls;
+
+// 弹幕密度曲线，高能事件画成背景色带并在峰值处加点；点击时把对应的文件内时间交给 Command
+public sealed class DanmakuDensityChart : Control
+{
+	private const double PeakRadius = 3;
+
+	public static readonly StyledProperty<DanmakuDensityDto?> DensityProperty = AvaloniaProperty.Register<DanmakuDensityChart, DanmakuDensityDto?>(nameof(Density));
+
+	public static readonly StyledProperty<IReadOnlyList<DanmakuHighlightViewModel>?> HighlightsProperty = AvaloniaProperty.Register<DanmakuDensityChart, IReadOnlyList<DanmakuHighlightViewModel>?>(nameof(Highlights));
+
+	public static readonly StyledProperty<TimeSpan> DurationProperty = AvaloniaProperty.Register<DanmakuDensityChart, TimeSpan>(nameof(Duration));
+
+	public static readonly StyledProperty<TimeSpan?> PositionProperty = AvaloniaProperty.Register<DanmakuDensityChart, TimeSpan?>(nameof(Position));
+
+	public static readonly StyledProperty<ICommand?> CommandProperty = AvaloniaProperty.Register<DanmakuDensityChart, ICommand?>(nameof(Command));
+
+	public static readonly StyledProperty<IBrush?> FillProperty = AvaloniaProperty.Register<DanmakuDensityChart, IBrush?>(nameof(Fill));
+
+	public static readonly StyledProperty<IBrush?> StrokeProperty = AvaloniaProperty.Register<DanmakuDensityChart, IBrush?>(nameof(Stroke));
+
+	public static readonly StyledProperty<IBrush?> HighlightBrushProperty = AvaloniaProperty.Register<DanmakuDensityChart, IBrush?>(nameof(HighlightBrush));
+
+	public static readonly StyledProperty<IBrush?> PeakBrushProperty = AvaloniaProperty.Register<DanmakuDensityChart, IBrush?>(nameof(PeakBrush));
+
+	public static readonly StyledProperty<IBrush?> PositionBrushProperty = AvaloniaProperty.Register<DanmakuDensityChart, IBrush?>(nameof(PositionBrush));
+
+	static DanmakuDensityChart()
+	{
+		AffectsRender<DanmakuDensityChart>(DensityProperty, HighlightsProperty, DurationProperty, PositionProperty, FillProperty, StrokeProperty, HighlightBrushProperty, PeakBrushProperty, PositionBrushProperty);
+		CursorProperty.OverrideDefaultValue<DanmakuDensityChart>(new Cursor(StandardCursorType.Hand));
+	}
+
+	public DanmakuDensityDto? Density
+	{
+		get => GetValue(DensityProperty);
+		set => SetValue(DensityProperty, value);
+	}
+
+	public IReadOnlyList<DanmakuHighlightViewModel>? Highlights
+	{
+		get => GetValue(HighlightsProperty);
+		set => SetValue(HighlightsProperty, value);
+	}
+
+	public TimeSpan Duration
+	{
+		get => GetValue(DurationProperty);
+		set => SetValue(DurationProperty, value);
+	}
+
+	public TimeSpan? Position
+	{
+		get => GetValue(PositionProperty);
+		set => SetValue(PositionProperty, value);
+	}
+
+	// 参数是 TimeSpan
+	public ICommand? Command
+	{
+		get => GetValue(CommandProperty);
+		set => SetValue(CommandProperty, value);
+	}
+
+	public IBrush? Fill
+	{
+		get => GetValue(FillProperty);
+		set => SetValue(FillProperty, value);
+	}
+
+	public IBrush? Stroke
+	{
+		get => GetValue(StrokeProperty);
+		set => SetValue(StrokeProperty, value);
+	}
+
+	public IBrush? HighlightBrush
+	{
+		get => GetValue(HighlightBrushProperty);
+		set => SetValue(HighlightBrushProperty, value);
+	}
+
+	public IBrush? PeakBrush
+	{
+		get => GetValue(PeakBrushProperty);
+		set => SetValue(PeakBrushProperty, value);
+	}
+
+	public IBrush? PositionBrush
+	{
+		get => GetValue(PositionBrushProperty);
+		set => SetValue(PositionBrushProperty, value);
+	}
+
+	public override void Render(DrawingContext context)
+	{
+		Size size = Bounds.Size;
+		TimeSpan duration = Duration;
+
+		// 点击要落在控件上，背景透明也得画出来
+		context.FillRectangle(Brushes.Transparent, new Rect(size));
+
+		if (duration <= TimeSpan.Zero || size.Width <= 0 || size.Height <= 0)
+		{
+			return;
+		}
+
+		foreach (DanmakuHighlightViewModel highlight in Highlights ?? [])
+		{
+			double left = ToX(highlight.Start, duration, size.Width);
+			double right = Math.Max(ToX(highlight.End, duration, size.Width), left + 2);
+			context.FillRectangle(HighlightBrush ?? Brushes.Transparent, new Rect(left, 0, right - left, size.Height));
+		}
+
+		if (Density is { Counts.Count: > 0 } density && BuildCurve(density, duration, size) is { } curve)
+		{
+			context.DrawGeometry(Fill, Stroke is { } stroke ? new Pen(stroke, 1) : null, curve);
+		}
+
+		foreach (DanmakuHighlightViewModel highlight in Highlights ?? [])
+		{
+			context.DrawEllipse(PeakBrush, null, new Point(ToX(highlight.Peak, duration, size.Width), PeakRadius + 1), PeakRadius, PeakRadius);
+		}
+
+		if (Position is { } position && PositionBrush is { } positionBrush)
+		{
+			double x = ToX(position, duration, size.Width);
+			context.DrawLine(new Pen(positionBrush, 1.5), new Point(x, 0), new Point(x, size.Height));
+		}
+	}
+
+	protected override void OnPointerPressed(PointerPressedEventArgs e)
+	{
+		base.OnPointerPressed(e);
+
+		if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed || Bounds.Width <= 0 || Command is not { } command)
+		{
+			return;
+		}
+
+		double ratio = Math.Clamp(e.GetPosition(this).X / Bounds.Width, 0, 1);
+		TimeSpan time = TimeSpan.FromTicks((long)(Duration.Ticks * ratio));
+
+		if (command.CanExecute(time))
+		{
+			e.Handled = true;
+			command.Execute(time);
+		}
+	}
+
+	private static double ToX(TimeSpan time, TimeSpan duration, double width)
+	{
+		return Math.Clamp(time.Ticks / (double)duration.Ticks, 0, 1) * width;
+	}
+
+	// 每个像素列取它覆盖的格子里的最大值，长文件的格子比像素多时尖峰也不会被抹平
+	private static StreamGeometry? BuildCurve(DanmakuDensityDto density, TimeSpan duration, Size size)
+	{
+		IReadOnlyList<int> counts = density.Counts;
+		int max = counts.Max();
+
+		if (max <= 0 || density.BinWidth <= TimeSpan.Zero)
+		{
+			return null;
+		}
+
+		int columns = Math.Max(1, (int)Math.Ceiling(size.Width));
+		double binsPerColumn = duration.Ticks / (double)density.BinWidth.Ticks / columns;
+		double top = PeakRadius * 2 + 2;
+		StreamGeometry geometry = new();
+
+		using (StreamGeometryContext builder = geometry.Open())
+		{
+			builder.BeginFigure(new Point(0, size.Height), true);
+
+			for (int column = 0; column < columns; ++column)
+			{
+				int first = (int)(column * binsPerColumn);
+				int last = Math.Max(first, (int)Math.Ceiling((column + 1) * binsPerColumn) - 1);
+				int value = 0;
+
+				for (int bin = first; bin <= last && bin < counts.Count; ++bin)
+				{
+					value = Math.Max(value, counts[bin]);
+				}
+
+				double y = size.Height - value / (double)max * (size.Height - top);
+				builder.LineTo(new Point(Math.Min(column + 0.5, size.Width), y));
+			}
+
+			builder.LineTo(new Point(size.Width, size.Height));
+			builder.EndFigure(true);
+		}
+
+		return geometry;
+	}
+}

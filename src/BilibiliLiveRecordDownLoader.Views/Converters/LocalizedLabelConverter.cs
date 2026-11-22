@@ -39,6 +39,12 @@ public sealed class LocalizedLabelConverter : IValueConverter, IMultiValueConver
 				RecordingSplitMode.Size => AppLanguage.Current.SplitBySize,
 				_ => AppLanguage.Current.SplitNone
 			},
+			DanmakuGiftMode mode => mode switch
+			{
+				DanmakuGiftMode.Paid => AppLanguage.Current.GiftModePaid,
+				DanmakuGiftMode.All => AppLanguage.Current.GiftModeAll,
+				_ => AppLanguage.Current.GiftModeNone
+			},
 			StreamHostSelection selection => selection switch
 			{
 				StreamHostSelection.FirstResponse => AppLanguage.Current.HostFirstResponse,

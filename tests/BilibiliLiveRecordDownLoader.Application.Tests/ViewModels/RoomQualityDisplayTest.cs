@@ -29,7 +29,7 @@ public sealed class RoomQualityDisplayTest
 
 	private static RoomListViewModel CreateList(FakeRoomAppService rooms, AppConfig config, Func<CancellationToken, Task<bool>>? showLogin = null)
 	{
-		RoomListViewModel viewModel = new(rooms, new FakeConfigManager(config)) { ShowLogin = showLogin ?? (static _ => Task.FromResult(false)) };
+		RoomListViewModel viewModel = new(rooms, new FakeConfigManager(config), new FakeDanmakuAppService()) { ShowLogin = showLogin ?? (static _ => Task.FromResult(false)) };
 		viewModel.ApplyConfig(config);
 		viewModel.Sync();
 		return viewModel;
@@ -136,6 +136,25 @@ public sealed class RoomQualityDisplayTest
 		using RoomListViewModel viewModel = CreateList(rooms, AppConfig.CreateDefault());
 
 		await Assert.That(viewModel.LoginBannerText).IsEqualTo(AppLanguage.Current.QualityRestrictedBanner.ToString(2.ToString(CultureInfo.CurrentCulture)));
+	}
+
+	// 仅录弹幕时视频不在录，也要提示昵称会打码
+	[Test]
+	public async Task BannerMentionsMaskedNamesWhileRecordingDanmakuAsync()
+	{
+		RoomSnapshot danmakuOnly = Idle(2) with { Danmaku = new RoomDanmakuSnapshot(true, 0, true) };
+		using RoomListViewModel withRestriction = CreateList(new FakeRoomAppService(Recording(1, new QualityRestriction.NotLoggedIn(10000)), danmakuOnly), AppConfig.CreateDefault());
+		using RoomListViewModel withoutRestriction = CreateList(new FakeRoomAppService(danmakuOnly, Idle(3)), AppConfig.CreateDefault());
+		AppConfig loggedIn = AppConfig.CreateDefault();
+		loggedIn.Cookie = "SESSDATA=x";
+		using RoomListViewModel withCookie = CreateList(new FakeRoomAppService(danmakuOnly), loggedIn);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(withRestriction.LoginBannerText).IsEqualTo(AppLanguage.Current.QualityRestrictedAndDanmakuMaskedBanner.ToString(1.ToString(CultureInfo.CurrentCulture)));
+			await Assert.That(withoutRestriction.LoginBannerText).IsEqualTo(AppLanguage.Current.DanmakuMaskedBanner);
+			await Assert.That(withCookie.LoginBannerText).IsNull();
+		}
 	}
 
 	[Test]

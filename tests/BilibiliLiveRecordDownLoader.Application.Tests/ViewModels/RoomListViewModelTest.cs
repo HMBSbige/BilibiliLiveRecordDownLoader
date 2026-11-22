@@ -110,7 +110,7 @@ public sealed class RoomListViewModelTest
 		AppConfig config = AppConfig.CreateDefault();
 		config.RoomSortOrder = RoomSortOrder.Name;
 		FakeConfigManager configManager = new(config);
-		using RoomListViewModel viewModel = new(new FakeRoomAppService(InitialOrder), configManager);
+		using RoomListViewModel viewModel = new(new FakeRoomAppService(InitialOrder), configManager, new FakeDanmakuAppService());
 
 		viewModel.ApplyConfig(config);
 		(RoomSortOrder restored, bool canReorder, int updates) = (viewModel.SortOrder, viewModel.CanReorder, configManager.UpdateCount);
@@ -134,7 +134,7 @@ public sealed class RoomListViewModelTest
 
 	private static RoomListViewModel Create(FakeRoomAppService rooms)
 	{
-		RoomListViewModel viewModel = new(rooms, new FakeConfigManager());
+		RoomListViewModel viewModel = new(rooms, new FakeConfigManager(), new FakeDanmakuAppService());
 		((ICommand)viewModel.SortByCommand).Execute(RoomSortOrder.Custom);
 		viewModel.Sync();
 		return viewModel;

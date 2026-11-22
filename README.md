@@ -13,6 +13,8 @@
 - [x] 开播提醒
 - [x] 扫码登录，登录后可录制付费直播
 - [x] 录制完成后自动转 MP4
+- [x] 录制弹幕（XML），可生成 ASS 字幕，字幕里可显示 SC、上舰和礼物
+- [x] 实时弹幕面板、弹幕文件查看和偏移调整，转 MP4 时可按标题变化和高能片段写入章节
 - [x] 转封装、修复 FLV、剪辑片段
 - [x] 托盘常驻、开机自启
 
@@ -43,8 +45,9 @@ flowchart TD
     ViewModels --> Domain
 
     ApplicationContracts --> DomainShared["Domain.Shared"]
+    ApplicationContracts --> BilibiliLive
     Domain --> DomainShared
-    DomainShared --> BilibiliLive
+    Domain --> BilibiliLive
 ```
 
 - `BilibiliLive`：直播间 API、扫码登录、弹幕和直播流读取

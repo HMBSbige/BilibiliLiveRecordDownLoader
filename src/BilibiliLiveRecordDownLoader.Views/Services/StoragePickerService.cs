@@ -3,6 +3,7 @@ namespace BilibiliLiveRecordDownLoader.Views.Services;
 internal sealed class StoragePickerService(ApplicationShell shell) : IStoragePickerService
 {
 	private static readonly string[] VideoPatterns = ["*.flv", "*.mp4", "*.ts", "*.mkv", "*.m4s"];
+	private static readonly string[] DanmakuPatterns = ["*.xml"];
 
 	private IStorageProvider StorageProvider => shell.Window.StorageProvider;
 
@@ -29,6 +30,11 @@ internal sealed class StoragePickerService(ApplicationShell shell) : IStoragePic
 		return PickOpenFileAsync(initialDirectory, [VideoFileType, AllFileType]);
 	}
 
+	public Task<string?> PickDanmakuFileAsync(string? initialDirectory = null)
+	{
+		return PickOpenFileAsync(initialDirectory, [DanmakuFileType, AllFileType]);
+	}
+
 	public async Task<string?> PickSaveVideoFileAsync(string? suggestedPath = null)
 	{
 		bool hasSuggestion = !string.IsNullOrWhiteSpace(suggestedPath);
@@ -48,6 +54,8 @@ internal sealed class StoragePickerService(ApplicationShell shell) : IStoragePic
 	}
 
 	private static FilePickerFileType VideoFileType => new(AppLanguage.Current.VideoFiles) { Patterns = VideoPatterns };
+
+	private static FilePickerFileType DanmakuFileType => new(AppLanguage.Current.DanmakuFiles) { Patterns = DanmakuPatterns };
 
 	// "*" 才能匹配 Unix 上没有扩展名的 ffmpeg
 	private static FilePickerFileType AllFileType => new(AppLanguage.Current.AllFiles) { Patterns = ["*"] };

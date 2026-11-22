@@ -1,5 +1,7 @@
+using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels.Common;
 using BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
+using System.Globalization;
 using System.Windows.Input;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
@@ -67,6 +69,51 @@ public sealed class RoomEditorViewModelTest
 			await Assert.That(megabytes).IsEqualTo(1000m);
 			await Assert.That(onTitle).IsEqualTo(new ChoiceOption(true));
 			await Assert.That((settings.SplitMode, settings.SplitDuration, settings.SplitSizeMegabytes, settings.SplitOnTitleChange)).IsEqualTo((null, null, null, null));
+		}
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task EmptyDanmakuOffsetFollowsTheGlobalOneAsync(CancellationToken cancellationToken)
+	{
+		TaskCompletionSource<RoomSettingsDto> saved = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		AppConfig global = new() { DanmakuOffset = TimeSpan.FromSeconds(0.5) };
+		using RoomEditorViewModel editor = new(new RoomSettingsDto { RoomId = 1 }, global, (settings, _) =>
+		{
+			saved.TrySetResult(settings);
+			return Task.CompletedTask;
+		});
+
+		(decimal? offset, string placeholder) = (editor.DanmakuOffsetSeconds, editor.DanmakuOffsetPlaceholder);
+		((ICommand)editor.SaveCommand).Execute(null);
+		RoomSettingsDto settings = await saved.Task.WaitAsync(cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(offset).IsNull();
+			await Assert.That(placeholder).IsEqualTo(AppLanguage.Current.InheritValue.ToString(0.5m.ToString("0.###", CultureInfo.CurrentCulture)));
+			await Assert.That(settings.DanmakuOffset).IsNull();
+		}
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task DanmakuSettingsOfTheRoomAreSavedAsync(CancellationToken cancellationToken)
+	{
+		TaskCompletionSource<RoomSettingsDto> saved = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1, DanmakuOffset = TimeSpan.FromSeconds(-1) }, saved);
+
+		decimal? restored = editor.DanmakuOffsetSeconds;
+		editor.IsDanmakuEnabled = true;
+		editor.DanmakuOffsetSeconds = 1.25m;
+		((ICommand)editor.SaveCommand).Execute(null);
+		RoomSettingsDto settings = await saved.Task.WaitAsync(cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(restored).IsEqualTo(-1m);
+			await Assert.That(settings.IsDanmakuEnabled).IsTrue();
+			await Assert.That(settings.DanmakuOffset).IsEqualTo(TimeSpan.FromSeconds(1.25));
 		}
 	}
 

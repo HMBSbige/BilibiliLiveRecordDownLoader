@@ -6,6 +6,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
 	public RecordingSettingsViewModel Recording => AppLocator.Current.GetRequiredService<RecordingSettingsViewModel>();
 
+	public DanmakuSettingsViewModel Danmaku => AppLocator.Current.GetRequiredService<DanmakuSettingsViewModel>();
+
 	public NetworkSettingsViewModel Network => AppLocator.Current.GetRequiredService<NetworkSettingsViewModel>();
 
 	public NotificationSettingsViewModel Notification => AppLocator.Current.GetRequiredService<NotificationSettingsViewModel>();
@@ -28,6 +30,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
 		Appearance.ApplyConfig(config);
 		General.ApplyConfig(config);
 		Recording.ApplyConfig(config);
+		Danmaku.ApplyConfig(config);
 		Network.ApplyConfig(config);
 		Notification.ApplyConfig(config);
 		Experimental.ApplyConfig(config);

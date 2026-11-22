@@ -1,0 +1,346 @@
+<UserControl
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ic="using:FluentIcons.Avalonia"
+    xmlns:danmaku="using:BilibiliLiveRecordDownLoader.ViewModels.Danmaku"
+    xmlns:shared="using:BilibiliLiveRecordDownLoader.Domain.Shared"
+    xmlns:cfg="using:BilibiliLiveRecordDownLoader.Domain.Shared.Configuration"
+    xmlns:ctl="using:BilibiliLiveRecordDownLoader.Views.Controls"
+    xmlns:conv="using:BilibiliLiveRecordDownLoader.Views.Converters"
+    xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
+    x:Class="BilibiliLiveRecordDownLoader.Views.Views.DanmakuPanelView"
+    x:DataType="danmaku:DanmakuPanelViewModel">
+    <UserControl.Styles>
+        <Style Selector="Border.panelHeader">
+            <Setter Property="BorderBrush" Value="{DynamicResource SemiColorBorder}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="12,6,6,6" />
+        </Style>
+        <Style Selector="ToggleButton.chip">
+            <Setter Property="Padding" Value="10,2" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="{DynamicResource SemiFontSizeSmall}" />
+        </Style>
+        <Style Selector="ListBox.danmaku">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="0,4" />
+        </Style>
+        <Style Selector="ListBox.danmaku > ListBoxItem">
+            <Setter Property="Padding" Value="12,3" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Border.badge">
+            <Setter Property="Background" Value="{DynamicResource SemiColorText3}" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="4,0" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+        </Style>
+        <Style Selector="Border.badge.guard">
+            <Setter Property="Background" Value="{DynamicResource SemiColorPrimary}" />
+        </Style>
+        <Style Selector="Border.badge > TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="TextBlock.storm">
+            <Setter Property="Opacity" Value="0.5" />
+        </Style>
+        <!-- 被直播间删掉的 SC 留着可查，淡化并划掉正文 -->
+        <Style Selector="Border.superChat.deleted">
+            <Setter Property="Opacity" Value="0.5" />
+        </Style>
+        <Style Selector="Border.superChat.deleted TextBlock.superChatText">
+            <Setter Property="TextDecorations" Value="Strikethrough" />
+        </Style>
+        <Style Selector="TextBlock.notice">
+            <Setter Property="Foreground" Value="{DynamicResource SemiColorText2}" />
+            <Setter Property="FontSize" Value="{DynamicResource SemiFontSizeSmall}" />
+        </Style>
+        <Style Selector="Border.successBanner">
+            <Setter Property="Background" Value="{DynamicResource SemiColorSuccessLight}" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="12,8" />
+        </Style>
+        <Style Selector="Border.messageBanner.warningBanner">
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="12,8" />
+        </Style>
+    </UserControl.Styles>
+
+    <UserControl.Resources>
+        <DataTemplate x:Key="DanmakuEntry" x:DataType="danmaku:DanmakuEntryViewModel">
+            <Panel>
+                <!-- SC 沿用上浅下深的配色，和字幕里画的一致 -->
+                <Border Classes="superChat" Classes.deleted="{Binding IsDeleted}" IsVisible="{Binding IsSuperChat}" CornerRadius="6" ClipToBounds="True" Margin="0,2">
+                    <StackPanel>
+                        <Border Background="{Binding SuperChatBackground, Converter={x:Static conv:RgbBrushConverter.Instance}}" Padding="8,4">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" FontWeight="SemiBold" Text="{Binding PriceText}"
+                                           Foreground="{Binding SuperChatPriceColor, Converter={x:Static conv:RgbBrushConverter.Instance}}" />
+                                <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Center" FontSize="{DynamicResource SemiFontSizeSmall}"
+                                           Foreground="#666666" IsVisible="{Binding IsDeleted}" Text="{Binding DeletedText}" />
+                                <TextBlock DockPanel.Dock="Left" Margin="0,0,6,0" VerticalAlignment="Center" FontSize="{DynamicResource SemiFontSizeSmall}"
+                                           Foreground="#666666" Text="{Binding TimeText}" />
+                                <TextBlock FontWeight="SemiBold" Foreground="#333333" TextTrimming="CharacterEllipsis" Text="{Binding Name}" />
+                            </DockPanel>
+                        </Border>
+                        <Border Background="{Binding SuperChatBottomBackground, Converter={x:Static conv:RgbBrushConverter.Instance}}" Padding="8,4">
+                            <TextBlock Classes="superChatText" Foreground="White" TextWrapping="Wrap" Text="{Binding Text}" />
+                        </Border>
+                    </StackPanel>
+                </Border>
+                <Grid IsVisible="{Binding !IsSuperChat}" ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                    <TextBlock Grid.Column="0" Classes="caption" Foreground="{DynamicResource SemiColorText3}" Text="{Binding TimeText}" />
+                    <TextBlock Grid.Column="1" TextWrapping="Wrap" Classes.storm="{Binding IsStorm}" Classes.notice="{Binding IsNotice}">
+                        <InlineUIContainer BaselineAlignment="Center">
+                            <Border Classes="badge" Classes.guard="{Binding IsGuardBadge}"
+                                    Background="{Binding MedalColor, Converter={x:Static conv:RgbBrushConverter.Instance}}"
+                                    IsVisible="{Binding Badge, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                <TextBlock Text="{Binding Badge}" />
+                            </Border>
+                        </InlineUIContainer>
+                        <Run Foreground="{DynamicResource SemiColorText2}" Text="{Binding Name}" /><Run Foreground="{DynamicResource SemiColorText2}" Text="{Binding NameSeparator}" /><Run Text="{Binding Text}" />
+                        <Run Foreground="{DynamicResource SemiColorWarning}" FontWeight="SemiBold" Text="{Binding PriceText}" />
+                    </TextBlock>
+                </Grid>
+            </Panel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <UserControl.DataTemplates>
+        <DataTemplate DataType="danmaku:DanmakuFilterViewModel">
+            <StackPanel Spacing="8">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <ToggleButton Classes="chip" IsChecked="{Binding ShowComments}" Content="{Binding DanmakuComments, Source={x:Static l:AppLanguage.Current}}" />
+                    <ToggleButton Classes="chip" IsChecked="{Binding ShowSuperChats}" Content="{Binding DanmakuSuperChats, Source={x:Static l:AppLanguage.Current}}" />
+                    <ToggleButton Classes="chip" IsChecked="{Binding ShowGifts}" Content="{Binding DanmakuGifts, Source={x:Static l:AppLanguage.Current}}" />
+                    <ToggleButton Classes="chip" IsChecked="{Binding ShowGuards}" Content="{Binding DanmakuGuards, Source={x:Static l:AppLanguage.Current}}" />
+                </StackPanel>
+                <TextBox Classes="clearButton" Text="{Binding SearchText}"
+                         PlaceholderText="{Binding SearchDanmaku, Source={x:Static l:AppLanguage.Current}}"
+                         AutomationProperties.Name="{Binding SearchDanmaku, Source={x:Static l:AppLanguage.Current}}">
+                    <TextBox.InnerLeftContent>
+                        <ic:FluentIcon Icon="Search" FontSize="16" Margin="8,0,0,0" Foreground="{DynamicResource SemiColorText2}" />
+                    </TextBox.InnerLeftContent>
+                </TextBox>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.DataTemplates>
+
+    <Border Classes="table">
+        <DockPanel>
+            <Border DockPanel.Dock="Top" Classes="panelHeader">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2">
+                        <Button Classes="icon" Command="{Binding CloseFileCommand}"
+                                IsVisible="{Binding File, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                ToolTip.Tip="{Binding BackToLiveDanmaku, Source={x:Static l:AppLanguage.Current}}"
+                                AutomationProperties.Name="{Binding BackToLiveDanmaku, Source={x:Static l:AppLanguage.Current}}">
+                            <ic:FluentIcon Icon="ChatMultiple" />
+                        </Button>
+                        <Button Classes="icon" Command="{Binding OpenFileCommand}"
+                                ToolTip.Tip="{Binding OpenDanmakuFile, Source={x:Static l:AppLanguage.Current}}"
+                                AutomationProperties.Name="{Binding OpenDanmakuFile, Source={x:Static l:AppLanguage.Current}}">
+                            <ic:FluentIcon Icon="FolderOpen" />
+                        </Button>
+                        <Button Classes="icon" Command="{Binding CloseCommand}"
+                                ToolTip.Tip="{Binding Close, Source={x:Static l:AppLanguage.Current}}"
+                                AutomationProperties.Name="{Binding Close, Source={x:Static l:AppLanguage.Current}}">
+                            <ic:FluentIcon Icon="Dismiss" />
+                        </Button>
+                    </StackPanel>
+                    <Panel VerticalAlignment="Center">
+                        <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                   Text="{Binding File.FileName, FallbackValue={x:Null}}" ToolTip.Tip="{Binding File.Path, FallbackValue={x:Null}}"
+                                   IsVisible="{Binding File, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding Room.DisplayName, FallbackValue={x:Null}}">
+                            <TextBlock.IsVisible>
+                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="File" Converter="{x:Static ObjectConverters.IsNull}" />
+                                    <Binding Path="Room" Converter="{x:Static ObjectConverters.IsNotNull}" />
+                                </MultiBinding>
+                            </TextBlock.IsVisible>
+                        </TextBlock>
+                        <TextBlock FontWeight="SemiBold" Text="{Binding Danmaku, Source={x:Static l:AppLanguage.Current}}">
+                            <TextBlock.IsVisible>
+                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="File" Converter="{x:Static ObjectConverters.IsNull}" />
+                                    <Binding Path="Room" Converter="{x:Static ObjectConverters.IsNull}" />
+                                </MultiBinding>
+                            </TextBlock.IsVisible>
+                        </TextBlock>
+                    </Panel>
+                </DockPanel>
+            </Border>
+
+            <Border DockPanel.Dock="Top" Classes="errorBanner" Margin="12,8,12,0"
+                    IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                    <ic:FluentIcon Grid.Column="0" Icon="ErrorCircle" IconVariant="Filled" FontSize="16" Foreground="{DynamicResource SemiColorDanger}" />
+                    <SelectableTextBlock Grid.Column="1" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+                </Grid>
+            </Border>
+
+            <Panel>
+                <DockPanel DataContext="{Binding Live}" x:DataType="danmaku:LiveDanmakuViewModel"
+                           IsVisible="{Binding $parent[UserControl].((danmaku:DanmakuPanelViewModel)DataContext).Live, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue={x:False}}">
+                    <StackPanel DockPanel.Dock="Top" Margin="12,8,12,0" Spacing="2">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" Classes="caption" VerticalAlignment="Center" Margin="8,0,0,0" Text="{Binding RateText}" />
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Ellipse Width="8" Height="8" VerticalAlignment="Center" ctl:StatusColor.Value="{Binding State}" />
+                                <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding StateText}" />
+                                <TextBlock Classes="caption" VerticalAlignment="Center" Text="·"
+                                           IsVisible="{Binding IdentityText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding IdentityText}" TextTrimming="CharacterEllipsis" />
+                                <Button Theme="{DynamicResource BorderlessButton}" Classes="Primary" Padding="4,0" MinHeight="0" VerticalAlignment="Center"
+                                        FontSize="{DynamicResource SemiFontSizeSmall}" IsVisible="{Binding CanLogin}"
+                                        Command="{Binding $parent[UserControl].((danmaku:DanmakuPanelViewModel)DataContext).LoginCommand, FallbackValue={x:Null}}"
+                                        Content="{Binding Login, Source={x:Static l:AppLanguage.Current}}" />
+                            </StackPanel>
+                        </DockPanel>
+                        <TextBlock Classes="caption" Foreground="{DynamicResource SemiColorWarning}" TextWrapping="Wrap" Text="{Binding ReconnectingText}"
+                                   IsVisible="{Binding ReconnectingText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
+                    <ContentControl DockPanel.Dock="Top" Margin="12,8" Content="{Binding Filter}" />
+
+                    <Panel>
+                        <ListBox x:Name="LiveList" Classes="danmaku" ItemsSource="{Binding Entries}" ItemTemplate="{StaticResource DanmakuEntry}"
+                                 IsVisible="{Binding HasVisibleEntries}" />
+                        <ctl:EmptyState Icon="ChatMultiple"
+                                        Title="{Binding NoDanmaku, Source={x:Static l:AppLanguage.Current}}"
+                                        Description="{Binding NoDanmakuHint, Source={x:Static l:AppLanguage.Current}}"
+                                        IsVisible="{Binding !HasEntries}" />
+                        <ctl:EmptyState Icon="DocumentSearch" Title="{Binding NoMatchingDanmaku, Source={x:Static l:AppLanguage.Current}}">
+                            <ctl:EmptyState.IsVisible>
+                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="HasEntries" />
+                                    <Binding Path="!HasVisibleEntries" />
+                                </MultiBinding>
+                            </ctl:EmptyState.IsVisible>
+                        </ctl:EmptyState>
+                        <Button Theme="{DynamicResource SolidButton}" Classes="Primary" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,12"
+                                Command="{Binding ScrollToLatestCommand}"
+                                IsVisible="{Binding NewEntriesText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                            <StackPanel Classes="iconText">
+                                <ic:FluentIcon Icon="ArrowDown" />
+                                <TextBlock Text="{Binding NewEntriesText}" />
+                            </StackPanel>
+                        </Button>
+                    </Panel>
+                </DockPanel>
+
+                <DockPanel DataContext="{Binding File}" x:DataType="danmaku:DanmakuFileViewModel"
+                           IsVisible="{Binding $parent[UserControl].((danmaku:DanmakuPanelViewModel)DataContext).File, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue={x:False}}">
+                    <StackPanel DockPanel.Dock="Top" Margin="12,8,12,0" Spacing="8">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="caption" TextTrimming="CharacterEllipsis" Text="{Binding Summary}" ToolTip.Tip="{Binding Summary}" />
+                            <TextBlock Classes="caption" Foreground="{DynamicResource SemiColorWarning}" TextWrapping="Wrap" Text="{Binding Notice}"
+                                       IsVisible="{Binding Notice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        </StackPanel>
+                        <ctl:DanmakuDensityChart Height="56"
+                                                 Density="{Binding Density}" Highlights="{Binding Highlights}" Duration="{Binding Duration}"
+                                                 Position="{Binding SelectedEntry.Time, FallbackValue={x:Null}}" Command="{Binding JumpToCommand}"
+                                                 Fill="{DynamicResource SemiColorPrimaryLight}" Stroke="{DynamicResource SemiColorPrimary}"
+                                                 HighlightBrush="{DynamicResource SemiColorWarningLight}" PeakBrush="{DynamicResource SemiColorWarning}"
+                                                 PositionBrush="{DynamicResource SemiColorText1}"
+                                                 IsVisible="{Binding HasEntries}"
+                                                 AutomationProperties.Name="{Binding DanmakuHighlights, Source={x:Static l:AppLanguage.Current}}" />
+                        <StackPanel Spacing="2" IsVisible="{Binding HasHighlights}">
+                            <TextBlock Classes="caption" FontWeight="SemiBold" Text="{Binding DanmakuHighlights, Source={x:Static l:AppLanguage.Current}}" />
+                            <ScrollViewer MaxHeight="128">
+                                <ItemsControl ItemsSource="{Binding Highlights}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="danmaku:DanmakuHighlightViewModel">
+                                            <DockPanel>
+                                                <Button DockPanel.Dock="Right" Classes="icon"
+                                                        Command="{Binding $parent[ItemsControl].((danmaku:DanmakuFileViewModel)DataContext).ExportHighlightCommand, FallbackValue={x:Null}}"
+                                                        CommandParameter="{Binding}"
+                                                        IsVisible="{Binding $parent[ItemsControl].((danmaku:DanmakuFileViewModel)DataContext).HasVideo, FallbackValue={x:False}}"
+                                                        ToolTip.Tip="{Binding ExportHighlight, Source={x:Static l:AppLanguage.Current}}"
+                                                        AutomationProperties.Name="{Binding ExportHighlight, Source={x:Static l:AppLanguage.Current}}">
+                                                    <ic:FluentIcon Icon="Cut" />
+                                                </Button>
+                                                <Button Theme="{DynamicResource BorderlessButton}" Padding="4,2" MinHeight="0"
+                                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                        Command="{Binding $parent[ItemsControl].((danmaku:DanmakuFileViewModel)DataContext).JumpToCommand, FallbackValue={x:Null}}"
+                                                        CommandParameter="{Binding Start}">
+                                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                                        <TextBlock Grid.Column="0" Classes="caption" VerticalAlignment="Center" Text="{Binding TimeText}" />
+                                                        <TextBlock Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                                   Foreground="{DynamicResource SemiColorText0}" FontWeight="Normal" Text="{Binding Phrase}" ToolTip.Tip="{Binding Phrase}" />
+                                                    </Grid>
+                                                </Button>
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel DockPanel.Dock="Bottom" Margin="12,8" Spacing="8">
+                        <Border Classes="messageBanner"
+                                Classes.successBanner="{Binding MessageType, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static shared:AppNotificationType.Success}}"
+                                Classes.warningBanner="{Binding MessageType, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static shared:AppNotificationType.Warning}}"
+                                Classes.errorBanner="{Binding MessageType, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static shared:AppNotificationType.Error}}"
+                                IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                            <SelectableTextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+                        </Border>
+                        <DockPanel IsVisible="{Binding CanAdjustOffset}">
+                            <Button DockPanel.Dock="Right" Margin="8,0,0,0" Command="{Binding RegenerateCommand}"
+                                    ToolTip.Tip="{Binding RegenerateDanmakuHint, Source={x:Static l:AppLanguage.Current}}">
+                                <StackPanel Classes="iconText">
+                                    <ProgressBar Theme="{DynamicResource ProgressRing}" IsIndeterminate="True" Width="14" Height="14" IsVisible="{Binding IsBusy}" />
+                                    <ic:FluentIcon Icon="ArrowSync" IsVisible="{Binding !IsBusy}" />
+                                    <TextBlock Text="{Binding RegenerateDanmaku, Source={x:Static l:AppLanguage.Current}}" />
+                                </StackPanel>
+                            </Button>
+                            <NumericUpDown Value="{Binding OffsetSeconds}" Increment="0.1" FormatString="0.###" HorizontalAlignment="Stretch"
+                                           Minimum="{x:Static cfg:DanmakuDefaults.MinOffsetSeconds}" Maximum="{x:Static cfg:DanmakuDefaults.MaxOffsetSeconds}"
+                                           IsEnabled="{Binding !IsBusy}"
+                                           ToolTip.Tip="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}"
+                                           AutomationProperties.Name="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}">
+                                <NumericUpDown.InnerLeftContent>
+                                    <TextBlock Classes="caption" VerticalAlignment="Center" Margin="8,0,0,0" Text="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}" />
+                                </NumericUpDown.InnerLeftContent>
+                            </NumericUpDown>
+                        </DockPanel>
+                    </StackPanel>
+
+                    <ContentControl DockPanel.Dock="Top" Margin="12,8" Content="{Binding Filter}" />
+
+                    <Panel>
+                        <ListBox Classes="danmaku" ItemsSource="{Binding Entries}" ItemTemplate="{StaticResource DanmakuEntry}"
+                                 SelectedItem="{Binding SelectedEntry}" IsVisible="{Binding HasVisibleEntries}" />
+                        <ctl:EmptyState Icon="DocumentSearch" Title="{Binding NoMatchingDanmaku, Source={x:Static l:AppLanguage.Current}}">
+                            <ctl:EmptyState.IsVisible>
+                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="HasEntries" />
+                                    <Binding Path="!HasVisibleEntries" />
+                                </MultiBinding>
+                            </ctl:EmptyState.IsVisible>
+                        </ctl:EmptyState>
+                        <ctl:EmptyState Icon="ChatMultiple" Title="{Binding NoDanmaku, Source={x:Static l:AppLanguage.Current}}"
+                                        IsVisible="{Binding !HasEntries}" />
+                    </Panel>
+                </DockPanel>
+
+                <ctl:EmptyState Icon="ChatMultiple" Title="{Binding SelectRoomForDanmaku, Source={x:Static l:AppLanguage.Current}}">
+                    <ctl:EmptyState.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="Live" Converter="{x:Static ObjectConverters.IsNull}" />
+                            <Binding Path="File" Converter="{x:Static ObjectConverters.IsNull}" />
+                            <Binding Path="!IsLoadingFile" />
+                        </MultiBinding>
+                    </ctl:EmptyState.IsVisible>
+                </ctl:EmptyState>
+                <ProgressBar Theme="{DynamicResource ProgressRing}" IsIndeterminate="True" Width="32" Height="32"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding IsLoadingFile}" />
+            </Panel>
+        </DockPanel>
+    </Border>
+</UserControl>

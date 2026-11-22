@@ -51,6 +51,7 @@
                 </StackPanel>
                 <StackPanel Classes="toolbar" Spacing="24">
                     <CheckBox IsChecked="{Binding IsRecordingEnabled}" Content="{Binding RecordingEnabled, Source={x:Static l:AppLanguage.Current}}" />
+                    <CheckBox IsChecked="{Binding IsDanmakuEnabled}" Content="{Binding RecordDanmaku, Source={x:Static l:AppLanguage.Current}}" />
                     <CheckBox IsChecked="{Binding IsNotificationEnabled}" Content="{Binding NotificationEnabled, Source={x:Static l:AppLanguage.Current}}" />
                 </StackPanel>
                 <Grid Classes="form" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="4">
@@ -84,6 +85,12 @@
                     <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap"
                                Text="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}" />
                     <ComboBox Grid.Row="7" Grid.Column="0" ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding SplitOnTitleChange}" />
+                    <TextBlock Grid.Row="6" Grid.Column="1" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap"
+                               Text="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}" />
+                    <NumericUpDown Grid.Row="7" Grid.Column="1" Value="{Binding DanmakuOffsetSeconds}" Increment="0.1" FormatString="0.###"
+                                   Minimum="{x:Static cfg:DanmakuDefaults.MinOffsetSeconds}" Maximum="{x:Static cfg:DanmakuDefaults.MaxOffsetSeconds}"
+                                   PlaceholderText="{Binding DanmakuOffsetPlaceholder}"
+                                   AutomationProperties.Name="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}" />
                 </Grid>
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
                     <StackPanel Grid.Column="0" Classes="field">

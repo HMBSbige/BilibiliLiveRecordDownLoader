@@ -1,7 +1,9 @@
+global using BilibiliLive.Danmu;
 global using BilibiliLive.Enums;
 global using BilibiliLive.Models;
 global using BilibiliLiveRecordDownLoader.Application.Contracts;
 global using BilibiliLiveRecordDownLoader.Application.Contracts.Accounts;
+global using BilibiliLiveRecordDownLoader.Application.Contracts.Danmaku;
 global using BilibiliLiveRecordDownLoader.Application.Contracts.Lifecycle;
 global using BilibiliLiveRecordDownLoader.Application.Contracts.Logging;
 global using BilibiliLiveRecordDownLoader.Application.Contracts.Media;
@@ -18,6 +20,7 @@ global using BilibiliLiveRecordDownLoader.Domain.Shared.Configuration;
 global using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 global using BilibiliLiveRecordDownLoader.Domain.Shared.Recording;
 global using BilibiliLiveRecordDownLoader.ViewModels.Common;
+global using BilibiliLiveRecordDownLoader.ViewModels.Danmaku;
 global using BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
 global using BilibiliLiveRecordDownLoader.ViewModels.Logs;
 global using BilibiliLiveRecordDownLoader.ViewModels.Rooms;
