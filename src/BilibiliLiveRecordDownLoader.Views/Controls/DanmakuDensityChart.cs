@@ -3,10 +3,12 @@ using System.Windows.Input;
 
 namespace BilibiliLiveRecordDownLoader.Views.Controls;
 
-// 弹幕密度曲线，高能事件画成背景色带并在峰值处加点；点击时把对应的文件内时间交给 Command
 public sealed class DanmakuDensityChart : Control
 {
 	private const double PeakRadius = 3;
+
+	// 高能区间正是曲线最高处，色带画在曲线下面会被填充盖住
+	private const double HighlightOpacity = 0.25;
 
 	public static readonly StyledProperty<DanmakuDensityDto?> DensityProperty = AvaloniaProperty.Register<DanmakuDensityChart, DanmakuDensityDto?>(nameof(Density));
 
@@ -58,7 +60,7 @@ public sealed class DanmakuDensityChart : Control
 		set => SetValue(PositionProperty, value);
 	}
 
-	// 参数是 TimeSpan
+	// 参数是文件内的 TimeSpan
 	public ICommand? Command
 	{
 		get => GetValue(CommandProperty);
@@ -108,16 +110,22 @@ public sealed class DanmakuDensityChart : Control
 			return;
 		}
 
-		foreach (DanmakuHighlightViewModel highlight in Highlights ?? [])
-		{
-			double left = ToX(highlight.Start, duration, size.Width);
-			double right = Math.Max(ToX(highlight.End, duration, size.Width), left + 2);
-			context.FillRectangle(HighlightBrush ?? Brushes.Transparent, new Rect(left, 0, right - left, size.Height));
-		}
-
 		if (Density is { Counts.Count: > 0 } density && BuildCurve(density, duration, size) is { } curve)
 		{
 			context.DrawGeometry(Fill, Stroke is { } stroke ? new Pen(stroke, 1) : null, curve);
+		}
+
+		if (HighlightBrush is { } highlightBrush)
+		{
+			using (context.PushOpacity(HighlightOpacity))
+			{
+				foreach (DanmakuHighlightViewModel highlight in Highlights ?? [])
+				{
+					double left = ToX(highlight.Start, duration, size.Width);
+					double right = Math.Max(ToX(highlight.End, duration, size.Width), left + 2);
+					context.FillRectangle(highlightBrush, new Rect(left, 0, right - left, size.Height));
+				}
+			}
 		}
 
 		foreach (DanmakuHighlightViewModel highlight in Highlights ?? [])
@@ -156,7 +164,7 @@ public sealed class DanmakuDensityChart : Control
 		return Math.Clamp(time.Ticks / (double)duration.Ticks, 0, 1) * width;
 	}
 
-	// 每个像素列取它覆盖的格子里的最大值，长文件的格子比像素多时尖峰也不会被抹平
+	// 每列取覆盖格子的最大值，格子比像素多时尖峰才不会被抹平
 	private static StreamGeometry? BuildCurve(DanmakuDensityDto density, TimeSpan duration, Size size)
 	{
 		IReadOnlyList<int> counts = density.Counts;

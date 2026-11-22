@@ -20,16 +20,12 @@ public sealed class NotificationSettingsViewModelTest
 		viewModel.NotifyOnRecordingError = true;
 		viewModel.NotifyOnTitleChange = false;
 
-		while (configManager.UpdateCount < 2)
-		{
-			await Task.Delay(10, cancellationToken);
-		}
+		await TestWait.UntilAsync(() => configManager.UpdateCount >= 2, "both changes are saved", cancellationToken);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(recordingError).IsFalse();
 			await Assert.That(titleChange).IsTrue();
-			// 读取配置时不回写
 			await Assert.That(updates).IsEqualTo(0);
 			await Assert.That(config.NotifyOnRecordingError).IsTrue();
 			await Assert.That(config.NotifyOnTitleChange).IsFalse();

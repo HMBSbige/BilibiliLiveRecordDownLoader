@@ -30,46 +30,44 @@ public sealed class LocalizedLabelConverter : IValueConverter, IMultiValueConver
 			RecorderType recorderType => recorderType switch
 			{
 				RecorderType.BuiltIn => AppLanguage.Current.RecorderBuiltIn,
-				RecorderType.FFmpeg => AppLanguage.Current.RecorderFFmpeg,
-				_ => recorderType.ToString()
+				RecorderType.FFmpeg => AppLanguage.Current.RecorderFFmpeg
 			},
 			RecordingSplitMode mode => mode switch
 			{
 				RecordingSplitMode.Duration => AppLanguage.Current.SplitByDuration,
 				RecordingSplitMode.Size => AppLanguage.Current.SplitBySize,
-				_ => AppLanguage.Current.SplitNone
+				RecordingSplitMode.None => AppLanguage.Current.SplitNone
 			},
 			DanmakuGiftMode mode => mode switch
 			{
 				DanmakuGiftMode.Paid => AppLanguage.Current.GiftModePaid,
 				DanmakuGiftMode.All => AppLanguage.Current.GiftModeAll,
-				_ => AppLanguage.Current.GiftModeNone
+				DanmakuGiftMode.None => AppLanguage.Current.GiftModeNone
 			},
 			StreamHostSelection selection => selection switch
 			{
 				StreamHostSelection.FirstResponse => AppLanguage.Current.HostFirstResponse,
 				StreamHostSelection.FastestResponse => AppLanguage.Current.HostFastestResponse,
-				StreamHostSelection.Random => AppLanguage.Current.HostRandom,
-				_ => selection.ToString()
+				StreamHostSelection.Random => AppLanguage.Current.HostRandom
 			},
 			AppTheme theme => theme switch
 			{
 				AppTheme.Light => AppLanguage.Current.ThemeLight,
 				AppTheme.Dark => AppLanguage.Current.ThemeDark,
-				_ => AppLanguage.Current.FollowSystem
+				AppTheme.FollowSystem => AppLanguage.Current.FollowSystem
 			},
 			LiveStatus status => status switch
 			{
 				LiveStatus.Idle => AppLanguage.Current.LiveStatusIdle,
 				LiveStatus.Live => AppLanguage.Current.LiveStatusLive,
 				LiveStatus.Round => AppLanguage.Current.LiveStatusRound,
-				_ => AppLanguage.Current.LiveStatusUnknown
+				LiveStatus.Unknown => AppLanguage.Current.LiveStatusUnknown
 			},
 			RecordStatus status => status switch
 			{
 				RecordStatus.Connecting => AppLanguage.Current.RecordStatusConnecting,
 				RecordStatus.Recording => AppLanguage.Current.RecordStatusRecording,
-				_ => AppLanguage.Current.RecordStatusIdle
+				RecordStatus.Idle => AppLanguage.Current.RecordStatusIdle
 			},
 			BackgroundTaskStatus status => status switch
 			{
@@ -77,7 +75,7 @@ public sealed class LocalizedLabelConverter : IValueConverter, IMultiValueConver
 				BackgroundTaskStatus.Running => AppLanguage.Current.TaskRunning,
 				BackgroundTaskStatus.Completed => AppLanguage.Current.TaskCompleted,
 				BackgroundTaskStatus.Failed => AppLanguage.Current.TaskFailed,
-				_ => AppLanguage.Current.TaskCanceled
+				BackgroundTaskStatus.Canceled => AppLanguage.Current.TaskCanceled
 			},
 			LogLevel level => level switch
 			{
@@ -86,27 +84,28 @@ public sealed class LocalizedLabelConverter : IValueConverter, IMultiValueConver
 				LogLevel.Information => AppLanguage.Current.LogLevelInformation,
 				LogLevel.Warning => AppLanguage.Current.LogLevelWarning,
 				LogLevel.Error => AppLanguage.Current.LogLevelError,
-				_ => AppLanguage.Current.LogLevelCritical
+				LogLevel.Critical => AppLanguage.Current.LogLevelCritical,
+				LogLevel.None => string.Empty
 			},
 			RoomSortOrder sortOrder => sortOrder switch
 			{
 				RoomSortOrder.Name => AppLanguage.Current.SortByName,
 				RoomSortOrder.RoomId => AppLanguage.Current.SortByRoomId,
 				RoomSortOrder.Custom => AppLanguage.Current.SortByCustom,
-				_ => AppLanguage.Current.SortByStatus
+				RoomSortOrder.Status => AppLanguage.Current.SortByStatus
 			},
 			RoomFilter filter => filter switch
 			{
 				RoomFilter.Live => AppLanguage.Current.FilterLive,
 				RoomFilter.Recording => AppLanguage.Current.FilterRecording,
-				_ => AppLanguage.Current.FilterAll
+				RoomFilter.All => AppLanguage.Current.FilterAll
 			},
 			QrCodeLoginState state => state switch
 			{
 				QrCodeLoginState.WaitingForConfirm => AppLanguage.Current.QrCodeScanned,
 				QrCodeLoginState.Expired => AppLanguage.Current.QrCodeExpired,
 				QrCodeLoginState.Succeeded => AppLanguage.Current.LoginSucceeded,
-				_ => AppLanguage.Current.QrCodeScanHint
+				QrCodeLoginState.WaitingForScan => AppLanguage.Current.QrCodeScanHint
 			},
 			_ => value.ToString() ?? string.Empty
 		};

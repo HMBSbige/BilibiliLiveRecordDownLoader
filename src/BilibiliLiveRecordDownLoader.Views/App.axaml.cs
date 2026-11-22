@@ -14,8 +14,8 @@ public class App : Avalonia.Application
 
 		if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
 		{
-			// 窗口关闭后程序留在托盘，只有托盘菜单的退出才结束进程
 			desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+			AppLocator.Current.GetRequiredService<ApplicationShell>().Attach(this, desktop);
 			Dispatcher.UIThread.Post(viewModel.RunStartupTasks, DispatcherPriority.Background);
 		}
 

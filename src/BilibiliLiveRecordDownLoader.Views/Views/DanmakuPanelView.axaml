@@ -32,6 +32,10 @@
             <Setter Property="MinHeight" Value="0" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         </Style>
+        <!-- 列表项的内容是视图模型，读屏念整行的文字 -->
+        <Style Selector="ListBox.danmaku > ListBoxItem" x:DataType="danmaku:DanmakuEntryViewModel">
+            <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleText}" />
+        </Style>
         <Style Selector="Border.badge">
             <Setter Property="Background" Value="{DynamicResource SemiColorText3}" />
             <Setter Property="CornerRadius" Value="3" />
@@ -39,16 +43,24 @@
             <Setter Property="Margin" Value="0,0,4,0" />
         </Style>
         <Style Selector="Border.badge.guard">
-            <Setter Property="Background" Value="{DynamicResource SemiColorPrimary}" />
+            <Setter Property="Background" Value="{DynamicResource GuardBadgeBackground}" />
         </Style>
         <Style Selector="Border.badge > TextBlock">
             <Setter Property="FontSize" Value="11" />
             <Setter Property="Foreground" Value="White" />
         </Style>
+        <Style Selector="Border.badge.unlit">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SemiColorBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Border.badge.unlit > TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource SemiColorText2}" />
+        </Style>
         <Style Selector="TextBlock.storm">
             <Setter Property="Opacity" Value="0.5" />
         </Style>
-        <!-- 被直播间删掉的 SC 留着可查，淡化并划掉正文 -->
+        <!-- 被直播间删掉的 SC 留着可查 -->
         <Style Selector="Border.superChat.deleted">
             <Setter Property="Opacity" Value="0.5" />
         </Style>
@@ -59,21 +71,14 @@
             <Setter Property="Foreground" Value="{DynamicResource SemiColorText2}" />
             <Setter Property="FontSize" Value="{DynamicResource SemiFontSizeSmall}" />
         </Style>
-        <Style Selector="Border.successBanner">
-            <Setter Property="Background" Value="{DynamicResource SemiColorSuccessLight}" />
-            <Setter Property="CornerRadius" Value="6" />
-            <Setter Property="Padding" Value="12,8" />
-        </Style>
-        <Style Selector="Border.messageBanner.warningBanner">
-            <Setter Property="CornerRadius" Value="6" />
-            <Setter Property="Padding" Value="12,8" />
-        </Style>
     </UserControl.Styles>
 
     <UserControl.Resources>
+        <!-- 两个主题都用浅色主题的主色：深色主题的主色太浅，白字看不清 -->
+        <SolidColorBrush x:Key="GuardBadgeBackground" Color="#0064FA" />
         <DataTemplate x:Key="DanmakuEntry" x:DataType="danmaku:DanmakuEntryViewModel">
             <Panel>
-                <!-- SC 沿用上浅下深的配色，和字幕里画的一致 -->
+                <!-- 各档 SC 上半部分都是浅底，文字用固定深色 -->
                 <Border Classes="superChat" Classes.deleted="{Binding IsDeleted}" IsVisible="{Binding IsSuperChat}" CornerRadius="6" ClipToBounds="True" Margin="0,2">
                     <StackPanel>
                         <Border Background="{Binding SuperChatBackground, Converter={x:Static conv:RgbBrushConverter.Instance}}" Padding="8,4">
@@ -81,22 +86,24 @@
                                 <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" FontWeight="SemiBold" Text="{Binding PriceText}"
                                            Foreground="{Binding SuperChatPriceColor, Converter={x:Static conv:RgbBrushConverter.Instance}}" />
                                 <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Center" FontSize="{DynamicResource SemiFontSizeSmall}"
-                                           Foreground="#666666" IsVisible="{Binding IsDeleted}" Text="{Binding DeletedText}" />
+                                           Foreground="#666666" IsVisible="{Binding IsDeleted}"
+                                           Text="{Binding DanmakuSuperChatDeleted, Source={x:Static l:AppLanguage.Current}}" />
                                 <TextBlock DockPanel.Dock="Left" Margin="0,0,6,0" VerticalAlignment="Center" FontSize="{DynamicResource SemiFontSizeSmall}"
                                            Foreground="#666666" Text="{Binding TimeText}" />
                                 <TextBlock FontWeight="SemiBold" Foreground="#333333" TextTrimming="CharacterEllipsis" Text="{Binding Name}" />
                             </DockPanel>
                         </Border>
                         <Border Background="{Binding SuperChatBottomBackground, Converter={x:Static conv:RgbBrushConverter.Instance}}" Padding="8,4">
-                            <TextBlock Classes="superChatText" Foreground="White" TextWrapping="Wrap" Text="{Binding Text}" />
+                            <TextBlock Classes="superChatText" TextWrapping="Wrap" Text="{Binding Text}"
+                                       Foreground="{Binding SuperChatTextColor, Converter={x:Static conv:RgbBrushConverter.Instance}}" />
                         </Border>
                     </StackPanel>
                 </Border>
                 <Grid IsVisible="{Binding !IsSuperChat}" ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                    <TextBlock Grid.Column="0" Classes="caption" Foreground="{DynamicResource SemiColorText3}" Text="{Binding TimeText}" />
+                    <TextBlock Grid.Column="0" Classes="caption" Text="{Binding TimeText}" />
                     <TextBlock Grid.Column="1" TextWrapping="Wrap" Classes.storm="{Binding IsStorm}" Classes.notice="{Binding IsNotice}">
                         <InlineUIContainer BaselineAlignment="Center">
-                            <Border Classes="badge" Classes.guard="{Binding IsGuardBadge}"
+                            <Border Classes="badge" Classes.guard="{Binding IsGuardBadge}" Classes.unlit="{Binding IsUnlitMedal}"
                                     Background="{Binding MedalColor, Converter={x:Static conv:RgbBrushConverter.Instance}}"
                                     IsVisible="{Binding Badge, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                                 <TextBlock Text="{Binding Badge}" />
@@ -156,14 +163,22 @@
                         <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                                    Text="{Binding File.FileName, FallbackValue={x:Null}}" ToolTip.Tip="{Binding File.Path, FallbackValue={x:Null}}"
                                    IsVisible="{Binding File, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                        <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding Room.DisplayName, FallbackValue={x:Null}}">
-                            <TextBlock.IsVisible>
+                        <!-- 靠左只取需要的宽度，在录的标记才能紧跟在名称后面 -->
+                        <DockPanel HorizontalAlignment="Left">
+                            <DockPanel.IsVisible>
                                 <MultiBinding Converter="{x:Static BoolConverters.And}">
                                     <Binding Path="File" Converter="{x:Static ObjectConverters.IsNull}" />
                                     <Binding Path="Room" Converter="{x:Static ObjectConverters.IsNotNull}" />
                                 </MultiBinding>
-                            </TextBlock.IsVisible>
-                        </TextBlock>
+                            </DockPanel.IsVisible>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" Margin="8,0,0,0" VerticalAlignment="Center"
+                                        IsVisible="{Binding Room.IsRecordingDanmaku, FallbackValue={x:False}}">
+                                <ic:FluentIcon Icon="CommentMultiple" IconVariant="Filled" FontSize="12" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource SemiColorDanger}" />
+                                <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding RecordingDanmaku, Source={x:Static l:AppLanguage.Current}}" />
+                            </StackPanel>
+                            <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding Room.DisplayName, FallbackValue={x:Null}}" />
+                        </DockPanel>
                         <TextBlock FontWeight="SemiBold" Text="{Binding Danmaku, Source={x:Static l:AppLanguage.Current}}">
                             <TextBlock.IsVisible>
                                 <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -190,17 +205,22 @@
                     <StackPanel DockPanel.Dock="Top" Margin="12,8,12,0" Spacing="2">
                         <DockPanel>
                             <TextBlock DockPanel.Dock="Right" Classes="caption" VerticalAlignment="Center" Margin="8,0,0,0" Text="{Binding RateText}" />
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <Ellipse Width="8" Height="8" VerticalAlignment="Center" ctl:StatusColor.Value="{Binding State}" />
-                                <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding StateText}" />
-                                <TextBlock Classes="caption" VerticalAlignment="Center" Text="·"
+                            <!-- 身份文字放在星号列里才会截断，横向 StackPanel 按无限宽测量 -->
+                            <Grid ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="6">
+                                <Ellipse Grid.Column="0" Width="8" Height="8" VerticalAlignment="Center" ctl:StatusColor.Value="{Binding State}" />
+                                <TextBlock Grid.Column="1" Classes="caption" VerticalAlignment="Center" Text="{Binding StateText}" />
+                                <TextBlock Grid.Column="2" Classes="caption" VerticalAlignment="Center" Text="·"
                                            IsVisible="{Binding IdentityText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding IdentityText}" TextTrimming="CharacterEllipsis" />
-                                <Button Theme="{DynamicResource BorderlessButton}" Classes="Primary" Padding="4,0" MinHeight="0" VerticalAlignment="Center"
-                                        FontSize="{DynamicResource SemiFontSizeSmall}" IsVisible="{Binding CanLogin}"
-                                        Command="{Binding $parent[UserControl].((danmaku:DanmakuPanelViewModel)DataContext).LoginCommand, FallbackValue={x:Null}}"
-                                        Content="{Binding Login, Source={x:Static l:AppLanguage.Current}}" />
-                            </StackPanel>
+                                <DockPanel Grid.Column="3" HorizontalAlignment="Left">
+                                    <Button DockPanel.Dock="Right" Theme="{DynamicResource BorderlessButton}" Classes="Primary" Padding="4,0" Margin="2,0,0,0"
+                                            MinHeight="0" VerticalAlignment="Center"
+                                            FontSize="{DynamicResource SemiFontSizeSmall}" IsVisible="{Binding CanLogin}"
+                                            Command="{Binding $parent[UserControl].((danmaku:DanmakuPanelViewModel)DataContext).LoginCommand, FallbackValue={x:Null}}"
+                                            Content="{Binding Login, Source={x:Static l:AppLanguage.Current}}" />
+                                    <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding IdentityText}" TextTrimming="CharacterEllipsis"
+                                               ToolTip.Tip="{Binding IdentityText}" />
+                                </DockPanel>
+                            </Grid>
                         </DockPanel>
                         <TextBlock Classes="caption" Foreground="{DynamicResource SemiColorWarning}" TextWrapping="Wrap" Text="{Binding ReconnectingText}"
                                    IsVisible="{Binding ReconnectingText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
@@ -245,7 +265,7 @@
                                                  Density="{Binding Density}" Highlights="{Binding Highlights}" Duration="{Binding Duration}"
                                                  Position="{Binding SelectedEntry.Time, FallbackValue={x:Null}}" Command="{Binding JumpToCommand}"
                                                  Fill="{DynamicResource SemiColorPrimaryLight}" Stroke="{DynamicResource SemiColorPrimary}"
-                                                 HighlightBrush="{DynamicResource SemiColorWarningLight}" PeakBrush="{DynamicResource SemiColorWarning}"
+                                                 HighlightBrush="{DynamicResource SemiColorWarning}" PeakBrush="{DynamicResource SemiColorWarning}"
                                                  PositionBrush="{DynamicResource SemiColorText1}"
                                                  IsVisible="{Binding HasEntries}"
                                                  AutomationProperties.Name="{Binding DanmakuHighlights, Source={x:Static l:AppLanguage.Current}}" />
@@ -267,7 +287,8 @@
                                                 <Button Theme="{DynamicResource BorderlessButton}" Padding="4,2" MinHeight="0"
                                                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                                                         Command="{Binding $parent[ItemsControl].((danmaku:DanmakuFileViewModel)DataContext).JumpToCommand, FallbackValue={x:Null}}"
-                                                        CommandParameter="{Binding Start}">
+                                                        CommandParameter="{Binding Start}"
+                                                        AutomationProperties.Name="{Binding Phrase}" AutomationProperties.HelpText="{Binding TimeText}">
                                                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
                                                         <TextBlock Grid.Column="0" Classes="caption" VerticalAlignment="Center" Text="{Binding TimeText}" />
                                                         <TextBlock Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
@@ -290,25 +311,22 @@
                                 IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                             <SelectableTextBlock Text="{Binding Message}" TextWrapping="Wrap" />
                         </Border>
-                        <DockPanel IsVisible="{Binding CanAdjustOffset}">
-                            <Button DockPanel.Dock="Right" Margin="8,0,0,0" Command="{Binding RegenerateCommand}"
-                                    ToolTip.Tip="{Binding RegenerateDanmakuHint, Source={x:Static l:AppLanguage.Current}}">
-                                <StackPanel Classes="iconText">
-                                    <ProgressBar Theme="{DynamicResource ProgressRing}" IsIndeterminate="True" Width="14" Height="14" IsVisible="{Binding IsBusy}" />
-                                    <ic:FluentIcon Icon="ArrowSync" IsVisible="{Binding !IsBusy}" />
-                                    <TextBlock Text="{Binding RegenerateDanmaku, Source={x:Static l:AppLanguage.Current}}" />
-                                </StackPanel>
-                            </Button>
-                            <NumericUpDown Value="{Binding OffsetSeconds}" Increment="0.1" FormatString="0.###" HorizontalAlignment="Stretch"
-                                           Minimum="{x:Static cfg:DanmakuDefaults.MinOffsetSeconds}" Maximum="{x:Static cfg:DanmakuDefaults.MaxOffsetSeconds}"
-                                           IsEnabled="{Binding !IsBusy}"
-                                           ToolTip.Tip="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}"
-                                           AutomationProperties.Name="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}">
-                                <NumericUpDown.InnerLeftContent>
-                                    <TextBlock Classes="caption" VerticalAlignment="Center" Margin="8,0,0,0" Text="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}" />
-                                </NumericUpDown.InnerLeftContent>
-                            </NumericUpDown>
-                        </DockPanel>
+                        <StackPanel Classes="field" IsVisible="{Binding CanAdjustOffset}">
+                            <TextBlock Classes="caption" Text="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}" />
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Margin="8,0,0,0" Command="{Binding RegenerateCommand}"
+                                        ToolTip.Tip="{Binding RegenerateDanmakuHint, Source={x:Static l:AppLanguage.Current}}">
+                                    <StackPanel Classes="iconText">
+                                        <ProgressBar Theme="{DynamicResource ProgressRing}" IsIndeterminate="True" Width="14" Height="14" IsVisible="{Binding IsBusy}" />
+                                        <ic:FluentIcon Icon="ArrowSync" IsVisible="{Binding !IsBusy}" />
+                                        <TextBlock Text="{Binding RegenerateDanmaku, Source={x:Static l:AppLanguage.Current}}" />
+                                    </StackPanel>
+                                </Button>
+                                <NumericUpDown Value="{Binding OffsetSeconds}" Increment="0.1" FormatString="0.###" HorizontalAlignment="Stretch"
+                                               Minimum="{x:Static cfg:DanmakuDefaults.MinOffsetSeconds}" Maximum="{x:Static cfg:DanmakuDefaults.MaxOffsetSeconds}"
+                                               IsEnabled="{Binding !IsBusy}" />
+                            </DockPanel>
+                        </StackPanel>
                     </StackPanel>
 
                     <ContentControl DockPanel.Dock="Top" Margin="12,8" Content="{Binding Filter}" />

@@ -1,9 +1,9 @@
 namespace BilibiliLiveRecordDownLoader.ViewModels.Danmaku;
 
-// 一个房间的实时弹幕；释放时退订，房间不录弹幕时就不再为它解析
+// 释放时退订，房间不录弹幕时就不再为它解析
 public sealed partial class LiveDanmakuViewModel : ViewModelBase
 {
-	// 每秒约 7 次，新弹幕成批加入列表；再快滚动跟不上，再慢看起来一顿一顿的
+	// 再快滚动跟不上，再慢看起来一顿一顿的
 	internal static readonly TimeSpan RefreshInterval = TimeSpan.FromMilliseconds(150);
 
 	private readonly IDanmakuFeed _feed;
@@ -12,11 +12,17 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 	private long? _lastVersion;
 	private DanmakuFeedStatus? _status;
 
-	// autoRefresh 为 false 时由调用方调用 Refresh，测试用
-	public LiveDanmakuViewModel(IDanmakuFeed feed, bool autoRefresh = true)
+	// 不跟随时 Entries 不动：虚拟化列表不做滚动锚定，从头部删条目会让正在读的行滑走
+	private bool _isStale;
+
+	// 登录时的连接，要等重连才换成登录身份
+	private long? _loginConnection;
+
+	// autoRefresh 为 false 时由测试调用 Refresh
+	public LiveDanmakuViewModel(IDanmakuFeed feed, DanmakuFilterViewModel filter, bool autoRefresh = true)
 	{
 		_feed = feed;
-		Filter = new DanmakuFilterViewModel().DisposeWith(Disposables);
+		Filter = filter;
 		Filter.CriteriaChanged.Subscribe(_ => Rebuild()).DisposeWith(Disposables);
 		ScrollToLatestCommand.DisposeWith(Disposables);
 
@@ -24,9 +30,16 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 			.Subscribe
 			(isFollowing =>
 				{
-					if (isFollowing)
+					if (!isFollowing)
 					{
-						NewEntryCount = 0;
+						return;
+					}
+
+					NewEntryCount = 0;
+
+					if (_isStale)
+					{
+						Reset();
 					}
 				}
 			)
@@ -52,7 +65,6 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 
 	public DanmakuFilterViewModel Filter { get; }
 
-	// 按过滤条件显示的条目，从旧到新
 	public DanmakuEntryCollection Entries { get; } = [];
 
 	[Reactive]
@@ -65,14 +77,13 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 	[Reactive]
 	public partial string? IdentityText { get; private set; }
 
-	// 匿名连接看不到昵称，登录后重连就能看到
+	// 匿名连接看不到昵称，登录后重连才能看到
 	[Reactive]
 	public partial bool CanLogin { get; private set; }
 
 	[Reactive]
 	public partial string RateText { get; private set; } = string.Empty;
 
-	// 连接断开等待重连时显示；连上后为 null
 	[Reactive]
 	public partial string? ReconnectingText { get; private set; }
 
@@ -82,18 +93,17 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 	[Reactive]
 	public partial bool HasVisibleEntries { get; private set; }
 
-	// 停在底部时跟随新消息；视图在用户往上翻时设为 false，回到底部时设为 true
+	// 视图在用户往上翻时设为 false，回到底部时设为 true
 	[Reactive]
 	public partial bool IsFollowing { get; set; } = true;
 
-	// 不跟随期间新加入列表的条数
 	[Reactive]
 	public partial int NewEntryCount { get; private set; }
 
 	[Reactive]
 	public partial string? NewEntriesText { get; private set; }
 
-	// 版本号没变时只更新状态，接收速率随时间变化但不计入版本号
+	// 接收速率随时间变化但不计入版本号
 	internal void Refresh()
 	{
 		long version = _feed.Version;
@@ -108,6 +118,16 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 		UpdateStatus(_status);
 	}
 
+	// 连接换掉之前状态里还是匿名，先显示正在等重连
+	internal void OnLoggedIn()
+	{
+		if (_status is { } status)
+		{
+			_loginConnection = status.Connection;
+			UpdateStatus(status);
+		}
+	}
+
 	[ReactiveCommand]
 	private void ScrollToLatest()
 	{
@@ -116,6 +136,7 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 
 	private void Append(IReadOnlyList<LiveDanmakuEntryDto> entries)
 	{
+		Func<DanmakuEntryViewModel, bool> matches = Filter.CreatePredicate();
 		List<DanmakuEntryViewModel> visible = [];
 
 		foreach (LiveDanmakuEntryDto entry in entries)
@@ -136,24 +157,26 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 			DanmakuEntryViewModel row = DanmakuEntryViewModel.FromLive(entry);
 			_all.Add(row);
 
-			if (Filter.Matches(row))
+			if (matches(row))
 			{
 				visible.Add(row);
 			}
 		}
 
-		Entries.AddRange(visible);
-		Trim();
-
-		if (!IsFollowing)
+		if (IsFollowing)
 		{
+			Entries.AddRange(visible);
+		}
+		else if (visible.Count > 0)
+		{
+			_isStale = true;
 			NewEntryCount += visible.Count;
 		}
 
+		Trim();
 		UpdateState();
 	}
 
-	// 只保留最近的条目，和应用服务保留的条数一致
 	private void Trim()
 	{
 		int excess = _all.Count - DanmakuConsts.MaxFeedEntries;
@@ -165,6 +188,12 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 
 		long lastRemoved = _all[excess - 1].Sequence;
 		_all.RemoveRange(0, excess);
+
+		if (!IsFollowing)
+		{
+			_isStale = true;
+			return;
+		}
 
 		int removed = 0;
 
@@ -179,9 +208,15 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 	// 重建后原来的滚动位置没有意义
 	private void Rebuild()
 	{
-		Entries.Reset(_all.Where(Filter.Matches));
+		Reset();
 		IsFollowing = true;
 		NewEntryCount = 0;
+	}
+
+	private void Reset()
+	{
+		_isStale = false;
+		Entries.Reset(_all.Where(Filter.CreatePredicate()));
 		UpdateState();
 	}
 
@@ -200,8 +235,10 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 			DanmakuConnectionState.Disconnected => AppLanguage.Current.DanmakuDisconnected,
 			_ => AppLanguage.Current.DanmakuConnecting
 		};
-		IdentityText = DanmakuEntryViewModel.FormatIdentity(status.UserId, status.IsMasked);
-		CanLogin = status is { UserId: 0, IsMasked: true };
+		bool isMaskedAnonymous = status is { UserId: 0, IsMasked: true };
+		bool isLoginPending = isMaskedAnonymous && status.Connection == _loginConnection;
+		IdentityText = isLoginPending ? AppLanguage.Current.DanmakuLoginPending : DanmakuEntryViewModel.FormatIdentity(status.UserId, status.IsMasked);
+		CanLogin = isMaskedAnonymous && !isLoginPending;
 		RateText = AppLanguage.Current.DanmakuRate.ToString(Math.Round(status.MessagesPerMinute).ToString("0", CultureInfo.CurrentCulture));
 		ReconnectingText = status.DisconnectedAt is { } disconnectedAt ? AppLanguage.Current.DanmakuReconnecting.ToString(disconnectedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture)) : null;
 	}

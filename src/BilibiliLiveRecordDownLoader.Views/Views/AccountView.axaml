@@ -21,7 +21,7 @@
                                 </StackPanel>
                             </Button>
                             <Button Command="{Binding CheckLoginCommand}"
-                                    IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:True}}">
+                                    IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.IsNotNull}}">
                                 <StackPanel Classes="iconText">
                                     <ic:FluentIcon Icon="ArrowSync" />
                                     <TextBlock Text="{Binding CheckLogin, Source={x:Static l:AppLanguage.Current}}" />

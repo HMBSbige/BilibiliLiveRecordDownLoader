@@ -53,7 +53,7 @@ internal sealed class LogStoreSink : ILogEventSink
 			LogEventLevel.Information => LogLevel.Information,
 			LogEventLevel.Warning => LogLevel.Warning,
 			LogEventLevel.Error => LogLevel.Error,
-			_ => LogLevel.Critical
+			LogEventLevel.Fatal => LogLevel.Critical
 		};
 
 		store.Add(logEvent.Timestamp, level, roomId, message);

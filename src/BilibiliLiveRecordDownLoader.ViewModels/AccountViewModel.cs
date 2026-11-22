@@ -2,10 +2,16 @@ namespace BilibiliLiveRecordDownLoader.ViewModels;
 
 public sealed partial class AccountViewModel : ViewModelBase
 {
+	private readonly IAccountAppService _accountAppService;
+	private readonly IAppConfigManager _configManager;
 	private bool _isInitialized;
+	private bool _isReloadingCookie;
 
-	public AccountViewModel()
+	public AccountViewModel(IAccountAppService accountAppService, IAppConfigManager configManager)
 	{
+		_accountAppService = accountAppService;
+		_configManager = configManager;
+
 		CanLogout = this.WhenChanged(static viewModel => viewModel.IsLoggedIn).Map(static isLoggedIn => isLoggedIn is true);
 
 		CheckLoginCommand.DisposeWith(Disposables);
@@ -29,7 +35,16 @@ public sealed partial class AccountViewModel : ViewModelBase
 		}
 
 		Cookie = config.Cookie;
-		PersistToConfig(this.WhenChanged(static viewModel => viewModel.Cookie), static (appConfig, value) => appConfig.Cookie = value);
+
+		// 请求从配置读 Cookie，要等写完再查
+		this.WhenChanged(static viewModel => viewModel.Cookie)
+			.Skip(1)
+			.Unique()
+			.Keep(_ => !_isReloadingCookie)
+			.Map(cookie => Signal.FromAsync(cancellationToken => SaveCookieAsync(cookie, cancellationToken)))
+			.SwitchTo()
+			.Subscribe()
+			.DisposeWith(Disposables);
 
 		_isInitialized = true;
 	}
@@ -46,9 +61,9 @@ public sealed partial class AccountViewModel : ViewModelBase
 
 		try
 		{
-			IsLoggedIn = await AppLocator.Current.GetRequiredService<IAccountAppService>().IsLoggedInAsync(cancellationToken);
+			IsLoggedIn = await _accountAppService.IsLoggedInAsync(cancellationToken);
 		}
-		catch (Exception exception) when (exception is not OperationCanceledException)
+		catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
 		{
 			IsLoggedIn = false;
 			throw;
@@ -61,10 +76,9 @@ public sealed partial class AccountViewModel : ViewModelBase
 		await LoginWithQrCodeAsync(cancellationToken);
 	}
 
-	// 其他页面也从这里打开扫码登录，账号页的 Cookie 和登录状态跟着更新
 	internal async Task<bool> LoginWithQrCodeAsync(CancellationToken cancellationToken)
 	{
-		if (!await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ShowAsync(new QrCodeLoginViewModel()))
+		if (!await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ShowAsync(new QrCodeLoginViewModel(_accountAppService)))
 		{
 			return false;
 		}
@@ -78,14 +92,42 @@ public sealed partial class AccountViewModel : ViewModelBase
 	[ReactiveCommand(CanExecute = nameof(CanLogout))]
 	private async Task LogoutAsync(CancellationToken cancellationToken)
 	{
-		await AppLocator.Current.GetRequiredService<IAccountAppService>().LogoutAsync(cancellationToken);
+		await _accountAppService.LogoutAsync(cancellationToken);
 		await ReloadCookieAsync(cancellationToken);
 		IsLoggedIn = false;
 	}
 
+	private async Task<RxVoid> SaveCookieAsync(string? cookie, CancellationToken cancellationToken)
+	{
+		try
+		{
+			await _configManager.UpdateAsync(config => config.Cookie = cookie, cancellationToken);
+			await CheckLoginAsync(cancellationToken);
+		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		{
+		}
+		catch (Exception exception)
+		{
+			RxState.DefaultExceptionHandler.OnNext(exception);
+		}
+
+		return RxVoid.Default;
+	}
+
+	// 配置已经写好，读回时不再保存和检查
 	private async Task ReloadCookieAsync(CancellationToken cancellationToken)
 	{
-		AppConfig config = await AppLocator.Current.GetRequiredService<IAppConfigManager>().GetAsync(cancellationToken);
-		Cookie = config.Cookie;
+		AppConfig config = await _configManager.GetAsync(cancellationToken);
+		_isReloadingCookie = true;
+
+		try
+		{
+			Cookie = config.Cookie;
+		}
+		finally
+		{
+			_isReloadingCookie = false;
+		}
 	}
 }

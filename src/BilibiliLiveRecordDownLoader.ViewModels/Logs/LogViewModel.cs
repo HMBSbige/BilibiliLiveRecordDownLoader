@@ -8,12 +8,14 @@ public sealed partial class LogViewModel : ViewModelBase
 	private static readonly TimeSpan RefreshInterval = TimeSpan.FromMilliseconds(500);
 	private static readonly TimeSpan FilterDelay = TimeSpan.FromMilliseconds(200);
 
+	private readonly ILogStore _logStore;
 	private readonly List<LogEntry> _all = [];
 	private readonly IComparer<LogEntry> _comparer;
 	private long _lastSequence;
 
-	public LogViewModel()
+	public LogViewModel(ILogStore logStore)
 	{
+		_logStore = logStore;
 		_comparer = Comparer<LogEntry>.Create(Compare);
 
 		CanResetFilters = this.WhenChanged
@@ -24,7 +26,6 @@ public sealed partial class LogViewModel : ViewModelBase
 			static (level, room, search) => level != ChoiceOption.Inherit || !string.IsNullOrWhiteSpace(room) || !string.IsNullOrWhiteSpace(search)
 		);
 
-		// 输入框停顿后再过滤，级别和排序立即生效
 		Signal.Merge
 			(
 				this.WhenChanged(static viewModel => viewModel.MinimumLevel).Skip(1).Map(static _ => RxVoid.Default),
@@ -42,7 +43,6 @@ public sealed partial class LogViewModel : ViewModelBase
 		SortByCommand.DisposeWith(Disposables);
 	}
 
-	// 按当前过滤和排序显示的日志
 	public ObservableCollection<LogEntry> Entries { get; } = [];
 
 	public IReadOnlyList<ChoiceOption> LevelOptions { get; } = [ChoiceOption.Inherit, .. ChoiceOption.Of(LogLevel.Information, LogLevel.Warning, LogLevel.Error)];
@@ -69,8 +69,13 @@ public sealed partial class LogViewModel : ViewModelBase
 
 	internal void StartMonitoring()
 	{
-		ILogStore logStore = AppLocator.Current.GetRequiredService<ILogStore>();
-		PollChanges(() => logStore.Version, () => Append(logStore.GetEntries()), RefreshInterval);
+		PollChanges(() => _logStore.Version, Refresh, RefreshInterval);
+	}
+
+	// 测试不启动定时刷新，改为直接调用
+	internal void Refresh()
+	{
+		Append(_logStore.GetEntries());
 	}
 
 	[ReactiveCommand]
@@ -87,7 +92,6 @@ public sealed partial class LogViewModel : ViewModelBase
 		SearchText = null;
 	}
 
-	// 再次点击同一列切换方向，时间和级别默认降序
 	[ReactiveCommand]
 	private void SortBy(LogSortColumn column)
 	{
@@ -184,11 +188,12 @@ public sealed partial class LogViewModel : ViewModelBase
 
 	private int Compare(LogEntry x, LogEntry y)
 	{
+		// 按时间排就是按序号排，交给下面统一比较
 		int result = Sort.Column switch
 		{
+			LogSortColumn.Time => 0,
 			LogSortColumn.Level => x.Level.CompareTo(y.Level),
-			LogSortColumn.Room => Nullable.Compare(x.RoomId, y.RoomId),
-			_ => 0
+			LogSortColumn.Room => Nullable.Compare(x.RoomId, y.RoomId)
 		};
 
 		if (result is 0)

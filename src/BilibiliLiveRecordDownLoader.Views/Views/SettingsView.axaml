@@ -44,8 +44,7 @@
                     </StackPanel>
                     <ToggleSwitch IsChecked="{Binding IsAutoStartEnabled}"
                                   IsVisible="{Binding IsAutoStartSupported}"
-                                  OnContent="{Binding AutoStart, Source={x:Static l:AppLanguage.Current}}"
-                                  OffContent="{Binding AutoStart, Source={x:Static l:AppLanguage.Current}}" />
+                                  OnContent="{Binding AutoStart, Source={x:Static l:AppLanguage.Current}}" />
                 </StackPanel>
             </Border>
 
@@ -77,11 +76,9 @@
                     <TextBlock Classes="caption" Margin="0,-8,0,0" Text="{Binding PriorityHint, Source={x:Static l:AppLanguage.Current}}" />
                     <StackPanel Spacing="8">
                         <ToggleSwitch IsChecked="{Binding ConvertToMp4}"
-                                      OnContent="{Binding ConvertToMp4, Source={x:Static l:AppLanguage.Current}}"
-                                      OffContent="{Binding ConvertToMp4, Source={x:Static l:AppLanguage.Current}}" />
+                                      OnContent="{Binding ConvertToMp4, Source={x:Static l:AppLanguage.Current}}" />
                         <ToggleSwitch IsChecked="{Binding DeleteAfterConvert}" IsEnabled="{Binding ConvertToMp4}" Margin="24,0,0,0"
-                                      OnContent="{Binding DeleteAfterConvert, Source={x:Static l:AppLanguage.Current}}"
-                                      OffContent="{Binding DeleteAfterConvert, Source={x:Static l:AppLanguage.Current}}" />
+                                      OnContent="{Binding DeleteAfterConvert, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                     <Grid Classes="form" ColumnDefinitions="*,*">
                         <StackPanel Grid.Column="0" Classes="field">
@@ -107,11 +104,9 @@
                         </StackPanel>
                     </Grid>
                     <ToggleSwitch IsChecked="{Binding SplitOnTitleChange}"
-                                  OnContent="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}"
-                                  OffContent="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}" />
+                                  OnContent="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}" />
                     <ToggleSwitch IsChecked="{Binding IncludeTitleInFileName}"
-                                  OnContent="{Binding IncludeTitleInFileName, Source={x:Static l:AppLanguage.Current}}"
-                                  OffContent="{Binding IncludeTitleInFileName, Source={x:Static l:AppLanguage.Current}}" />
+                                  OnContent="{Binding IncludeTitleInFileName, Source={x:Static l:AppLanguage.Current}}" />
                 </StackPanel>
             </Border>
 
@@ -128,46 +123,36 @@
                             <TextBlock Text="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}" />
                             <NumericUpDown Value="{Binding OffsetSeconds}" Increment="0.1" FormatString="0.###" HorizontalAlignment="Stretch"
                                            Minimum="{x:Static cfg:DanmakuDefaults.MinOffsetSeconds}" Maximum="{x:Static cfg:DanmakuDefaults.MaxOffsetSeconds}"
-                                           AutomationProperties.Name="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}"
                                            AutomationProperties.HelpText="{Binding DanmakuOffsetHint, Source={x:Static l:AppLanguage.Current}}" />
                         </StackPanel>
                     </Grid>
                     <TextBlock Classes="caption" Margin="0,-8,0,0" TextWrapping="Wrap" Text="{Binding DanmakuOffsetHint, Source={x:Static l:AppLanguage.Current}}" />
                     <StackPanel Spacing="8">
                         <ToggleSwitch IsChecked="{Binding RecordSuperChats}"
-                                      OnContent="{Binding RecordSuperChats, Source={x:Static l:AppLanguage.Current}}"
-                                      OffContent="{Binding RecordSuperChats, Source={x:Static l:AppLanguage.Current}}" />
+                                      OnContent="{Binding RecordSuperChats, Source={x:Static l:AppLanguage.Current}}" />
                         <ToggleSwitch IsChecked="{Binding RecordGuards}"
-                                      OnContent="{Binding RecordGuards, Source={x:Static l:AppLanguage.Current}}"
-                                      OffContent="{Binding RecordGuards, Source={x:Static l:AppLanguage.Current}}" />
+                                      OnContent="{Binding RecordGuards, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                     <StackPanel Classes="field">
                         <StackPanel Spacing="8">
                             <ToggleSwitch IsChecked="{Binding GenerateSubtitle}"
-                                          AutomationProperties.Name="{Binding GenerateDanmakuSubtitle, Source={x:Static l:AppLanguage.Current}}"
                                           AutomationProperties.HelpText="{Binding GenerateDanmakuSubtitleHint, Source={x:Static l:AppLanguage.Current}}"
-                                          OnContent="{Binding GenerateDanmakuSubtitle, Source={x:Static l:AppLanguage.Current}}"
-                                          OffContent="{Binding GenerateDanmakuSubtitle, Source={x:Static l:AppLanguage.Current}}" />
+                                          OnContent="{Binding GenerateDanmakuSubtitle, Source={x:Static l:AppLanguage.Current}}" />
                             <ToggleSwitch IsChecked="{Binding ShowPaidMessagesInSubtitle}" IsEnabled="{Binding GenerateSubtitle}" Margin="24,0,0,0"
-                                          OnContent="{Binding ShowPaidMessagesInSubtitle, Source={x:Static l:AppLanguage.Current}}"
-                                          OffContent="{Binding ShowPaidMessagesInSubtitle, Source={x:Static l:AppLanguage.Current}}" />
+                                          OnContent="{Binding ShowPaidMessagesInSubtitle, Source={x:Static l:AppLanguage.Current}}" />
                         </StackPanel>
                         <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding GenerateDanmakuSubtitleHint, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                     <StackPanel Classes="field">
                         <ToggleSwitch IsChecked="{Binding SaveRawMessages}"
-                                      AutomationProperties.Name="{Binding SaveRawDanmaku, Source={x:Static l:AppLanguage.Current}}"
                                       AutomationProperties.HelpText="{Binding SaveRawDanmakuHint, Source={x:Static l:AppLanguage.Current}}"
-                                      OnContent="{Binding SaveRawDanmaku, Source={x:Static l:AppLanguage.Current}}"
-                                      OffContent="{Binding SaveRawDanmaku, Source={x:Static l:AppLanguage.Current}}" />
+                                      OnContent="{Binding SaveRawDanmaku, Source={x:Static l:AppLanguage.Current}}" />
                         <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding SaveRawDanmakuHint, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                     <StackPanel Classes="field">
                         <ToggleSwitch IsChecked="{Binding WriteChaptersOnConvert}"
-                                      AutomationProperties.Name="{Binding WriteChaptersOnConvert, Source={x:Static l:AppLanguage.Current}}"
                                       AutomationProperties.HelpText="{Binding WriteChaptersOnConvertHint, Source={x:Static l:AppLanguage.Current}}"
-                                      OnContent="{Binding WriteChaptersOnConvert, Source={x:Static l:AppLanguage.Current}}"
-                                      OffContent="{Binding WriteChaptersOnConvert, Source={x:Static l:AppLanguage.Current}}" />
+                                      OnContent="{Binding WriteChaptersOnConvert, Source={x:Static l:AppLanguage.Current}}" />
                         <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding WriteChaptersOnConvertHint, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                 </StackPanel>
@@ -181,8 +166,7 @@
                         <TextBox Text="{Binding UserAgent, UpdateSourceTrigger=LostFocus}" PlaceholderText="{Binding Default, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                     <ToggleSwitch IsChecked="{Binding UseSystemProxy}"
-                                  OnContent="{Binding UseSystemProxy, Source={x:Static l:AppLanguage.Current}}"
-                                  OffContent="{Binding UseSystemProxy, Source={x:Static l:AppLanguage.Current}}" />
+                                  OnContent="{Binding UseSystemProxy, Source={x:Static l:AppLanguage.Current}}" />
                 </StackPanel>
             </Border>
 
@@ -191,18 +175,14 @@
                     <TextBlock Classes="section" Text="{Binding Notifications, Source={x:Static l:AppLanguage.Current}}" />
                     <StackPanel Classes="field">
                         <ToggleSwitch IsChecked="{Binding NotifyOnRecordingError}"
-                                      AutomationProperties.Name="{Binding NotifyOnRecordingError, Source={x:Static l:AppLanguage.Current}}"
                                       AutomationProperties.HelpText="{Binding NotifyOnRecordingErrorHint, Source={x:Static l:AppLanguage.Current}}"
-                                      OnContent="{Binding NotifyOnRecordingError, Source={x:Static l:AppLanguage.Current}}"
-                                      OffContent="{Binding NotifyOnRecordingError, Source={x:Static l:AppLanguage.Current}}" />
+                                      OnContent="{Binding NotifyOnRecordingError, Source={x:Static l:AppLanguage.Current}}" />
                         <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding NotifyOnRecordingErrorHint, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                     <StackPanel Classes="field">
                         <ToggleSwitch IsChecked="{Binding NotifyOnTitleChange}"
-                                      AutomationProperties.Name="{Binding NotifyOnTitleChange, Source={x:Static l:AppLanguage.Current}}"
                                       AutomationProperties.HelpText="{Binding NotifyOnTitleChangeHint, Source={x:Static l:AppLanguage.Current}}"
-                                      OnContent="{Binding NotifyOnTitleChange, Source={x:Static l:AppLanguage.Current}}"
-                                      OffContent="{Binding NotifyOnTitleChange, Source={x:Static l:AppLanguage.Current}}" />
+                                      OnContent="{Binding NotifyOnTitleChange, Source={x:Static l:AppLanguage.Current}}" />
                         <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding NotifyOnTitleChangeHint, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                 </StackPanel>
@@ -241,26 +221,20 @@
                     <TextBlock Classes="section" Text="{Binding ExperimentalFeatures, Source={x:Static l:AppLanguage.Current}}" />
                     <StackPanel Classes="field">
                         <ToggleSwitch IsChecked="{Binding RemoveFillerData}"
-                                      AutomationProperties.Name="{Binding RemoveFillerData, Source={x:Static l:AppLanguage.Current}}"
                                       AutomationProperties.HelpText="{Binding RemoveFillerDataHint, Source={x:Static l:AppLanguage.Current}}"
-                                      OnContent="{Binding RemoveFillerData, Source={x:Static l:AppLanguage.Current}}"
-                                      OffContent="{Binding RemoveFillerData, Source={x:Static l:AppLanguage.Current}}" />
+                                      OnContent="{Binding RemoveFillerData, Source={x:Static l:AppLanguage.Current}}" />
                         <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding RemoveFillerDataHint, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                     <StackPanel Classes="field">
                         <ToggleSwitch IsChecked="{Binding RequestTrueOriginal}"
-                                      AutomationProperties.Name="{Binding RequestTrueOriginal, Source={x:Static l:AppLanguage.Current}}"
                                       AutomationProperties.HelpText="{Binding RequestTrueOriginalHint, Source={x:Static l:AppLanguage.Current}}"
-                                      OnContent="{Binding RequestTrueOriginal, Source={x:Static l:AppLanguage.Current}}"
-                                      OffContent="{Binding RequestTrueOriginal, Source={x:Static l:AppLanguage.Current}}" />
+                                      OnContent="{Binding RequestTrueOriginal, Source={x:Static l:AppLanguage.Current}}" />
                         <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding RequestTrueOriginalHint, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                     <StackPanel Classes="field">
                         <ToggleSwitch IsChecked="{Binding UseMasterPlaylistWhenRestricted}"
-                                      AutomationProperties.Name="{Binding UseMasterPlaylistWhenRestricted, Source={x:Static l:AppLanguage.Current}}"
                                       AutomationProperties.HelpText="{Binding UseMasterPlaylistWhenRestrictedHint, Source={x:Static l:AppLanguage.Current}}"
-                                      OnContent="{Binding UseMasterPlaylistWhenRestricted, Source={x:Static l:AppLanguage.Current}}"
-                                      OffContent="{Binding UseMasterPlaylistWhenRestricted, Source={x:Static l:AppLanguage.Current}}" />
+                                      OnContent="{Binding UseMasterPlaylistWhenRestricted, Source={x:Static l:AppLanguage.Current}}" />
                         <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding UseMasterPlaylistWhenRestrictedHint, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                 </StackPanel>
@@ -280,11 +254,9 @@
                     </DockPanel>
                     <StackPanel Spacing="8">
                         <ToggleSwitch IsChecked="{Binding AutoCheckUpdate}"
-                                      OnContent="{Binding AutoCheckUpdate, Source={x:Static l:AppLanguage.Current}}"
-                                      OffContent="{Binding AutoCheckUpdate, Source={x:Static l:AppLanguage.Current}}" />
+                                      OnContent="{Binding AutoCheckUpdate, Source={x:Static l:AppLanguage.Current}}" />
                         <ToggleSwitch IsChecked="{Binding IncludePreRelease}"
-                                      OnContent="{Binding IncludePreRelease, Source={x:Static l:AppLanguage.Current}}"
-                                      OffContent="{Binding IncludePreRelease, Source={x:Static l:AppLanguage.Current}}" />
+                                      OnContent="{Binding IncludePreRelease, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                     <StackPanel Classes="toolbar">
                         <Button Command="{Binding OpenHomepageCommand}">

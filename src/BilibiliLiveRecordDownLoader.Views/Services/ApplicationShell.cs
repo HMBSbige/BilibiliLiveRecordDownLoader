@@ -1,8 +1,13 @@
+using System.Windows.Input;
+
 namespace BilibiliLiveRecordDownLoader.Views.Services;
 
 internal sealed class ApplicationShell(IServiceProvider serviceProvider, AppStartupOptions startupOptions) : IApplicationShell
 {
+	private readonly CancellationTokenSource _shuttingDown = new();
 	private bool _isShuttingDown;
+
+	public CancellationToken ShuttingDown => _shuttingDown.Token;
 
 	public bool StartMinimized => startupOptions.StartMinimized;
 
@@ -33,6 +38,11 @@ internal sealed class ApplicationShell(IServiceProvider serviceProvider, AppStar
 		window.Activate();
 	}
 
+	public void BeginShutdown()
+	{
+		_shuttingDown.Cancel();
+	}
+
 	public void Shutdown()
 	{
 		_isShuttingDown = true;
@@ -43,7 +53,21 @@ internal sealed class ApplicationShell(IServiceProvider serviceProvider, AppStar
 		}
 	}
 
-	// 用户关窗只是隐藏到托盘，录制继续进行；应用退出、注销和关机时放行，否则会拦住系统
+	public void Attach(Avalonia.Application application, IClassicDesktopStyleApplicationLifetime desktop)
+	{
+		// Windows 只在注销和关机时触发这个事件，拦下会挡住系统，又区分不出是不是系统关机
+		if (OperatingSystem.IsMacOS())
+		{
+			desktop.ShutdownRequested += OnShutdownRequested;
+		}
+
+		if (application.TryGetFeature<IActivatableLifetime>() is { } activatable)
+		{
+			activatable.Activated += OnActivated;
+		}
+	}
+
+	// 注销和关机时要放行，否则会拦住系统
 	private void OnWindowClosing(object? sender, WindowClosingEventArgs e)
 	{
 		if (_isShuttingDown || e.CloseReason is not WindowCloseReason.WindowClosing || sender is not Window window)
@@ -53,5 +77,34 @@ internal sealed class ApplicationShell(IServiceProvider serviceProvider, AppStar
 
 		e.Cancel = true;
 		window.Hide();
+	}
+
+	// macOS 的应用菜单、Cmd+Q 和 Dock 的“退出”不经过托盘菜单，要改走同一个退出命令先确认
+	private void OnShutdownRequested(object? sender, ShutdownRequestedEventArgs e)
+	{
+		MainWindowViewModel viewModel = serviceProvider.GetRequiredService<MainWindowViewModel>();
+
+		if (_isShuttingDown || !viewModel.NeedsExitConfirmation)
+		{
+			return;
+		}
+
+		e.Cancel = true;
+		ICommand exit = viewModel.ExitCommand;
+
+		// 确认框打开时再按一次退出不重复进入
+		if (exit.CanExecute(null))
+		{
+			exit.Execute(null);
+		}
+	}
+
+	// macOS 上窗口隐藏后点 Dock 图标
+	private void OnActivated(object? sender, ActivatedEventArgs e)
+	{
+		if (e.Kind is ActivationKind.Reopen)
+		{
+			ShowMainWindow();
+		}
 	}
 }

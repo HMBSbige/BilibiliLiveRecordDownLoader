@@ -10,7 +10,6 @@ public partial class ToastWindow : Window
 
 	private static readonly TimeSpan DisplayDuration = TimeSpan.FromSeconds(6);
 
-	// 按打开顺序排列，最新的在最下面
 	private static readonly List<ToastWindow> OpenToasts = [];
 
 	private Action? _onClick;
@@ -31,7 +30,7 @@ public partial class ToastWindow : Window
 			NotificationType.Success => Symbol.CheckmarkCircle,
 			NotificationType.Warning => Symbol.Warning,
 			NotificationType.Error => Symbol.ErrorCircle,
-			_ => Symbol.Info
+			NotificationType.Information => Symbol.Info
 		};
 		StatusColor.SetValue(toast.TypeIcon, type);
 		toast.Show();
@@ -68,7 +67,6 @@ public partial class ToastWindow : Window
 		base.OnClosed(e);
 	}
 
-	// 从最新的开始自下而上排列，放不下的旧通知直接关闭
 	private static void Relayout()
 	{
 		List<ToastWindow> overflow = [];

@@ -4,8 +4,11 @@ public sealed partial class TaskListViewModel : ViewModelBase
 {
 	private static readonly TimeSpan RefreshInterval = TimeSpan.FromMilliseconds(300);
 
-	public TaskListViewModel()
+	private readonly IBackgroundTaskAppService _taskAppService;
+
+	public TaskListViewModel(IBackgroundTaskAppService taskAppService)
 	{
+		_taskAppService = taskAppService;
 		CanCancelAll = this.WhenChanged(static viewModel => viewModel.HasActiveTasks);
 		CanClearFinished = this.WhenChanged(static viewModel => viewModel.HasFinishedTasks);
 
@@ -32,14 +35,19 @@ public sealed partial class TaskListViewModel : ViewModelBase
 
 	internal void StartMonitoring()
 	{
-		IBackgroundTaskAppService taskAppService = AppLocator.Current.GetRequiredService<IBackgroundTaskAppService>();
-		PollChanges(() => taskAppService.Version, () => Sync(taskAppService.GetTasks()), RefreshInterval);
+		PollChanges(() => _taskAppService.Version, Refresh, RefreshInterval);
+	}
+
+	// 测试不启动定时刷新，改为直接调用
+	internal void Refresh()
+	{
+		Sync(_taskAppService.GetTasks());
 	}
 
 	[ReactiveCommand]
 	private void CancelTask(TaskItemViewModel task)
 	{
-		AppLocator.Current.GetRequiredService<IBackgroundTaskAppService>().Cancel(task.Id);
+		_taskAppService.Cancel(task.Id);
 	}
 
 	[ReactiveCommand]
@@ -54,18 +62,16 @@ public sealed partial class TaskListViewModel : ViewModelBase
 	[ReactiveCommand(CanExecute = nameof(CanCancelAll))]
 	private async Task CancelAllTasksAsync()
 	{
-		IBackgroundTaskAppService taskAppService = AppLocator.Current.GetRequiredService<IBackgroundTaskAppService>();
-
-		if (taskAppService.HasActiveTasks && await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ConfirmAsync(AppLanguage.Current.CancelAllTasks, AppLanguage.Current.CancelAllTasksConfirm, AppLanguage.Current.CancelAllTasks, true))
+		if (_taskAppService.HasActiveTasks && await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ConfirmAsync(AppLanguage.Current.CancelAllTasks, AppLanguage.Current.CancelAllTasksConfirm, AppLanguage.Current.CancelAllTasks, true))
 		{
-			taskAppService.CancelAll();
+			_taskAppService.CancelAll();
 		}
 	}
 
 	[ReactiveCommand(CanExecute = nameof(CanClearFinished))]
 	private void ClearFinishedTasks()
 	{
-		AppLocator.Current.GetRequiredService<IBackgroundTaskAppService>().RemoveFinished();
+		_taskAppService.RemoveFinished();
 	}
 
 	private void Sync(IReadOnlyList<BackgroundTaskSnapshot> snapshots)

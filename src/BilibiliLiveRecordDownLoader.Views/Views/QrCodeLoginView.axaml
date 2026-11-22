@@ -26,12 +26,15 @@
                     <Image Source="{Binding QrCodeUrl, Converter={x:Static c:QrCodeImageConverter.Instance}}"
                            RenderOptions.BitmapInterpolationMode="None" />
                     <ProgressBar IsIndeterminate="True" Theme="{DynamicResource ProgressRing}" Width="48" Height="48"
-                                 IsVisible="{Binding QrCodeUrl, Converter={x:Static StringConverters.IsNullOrEmpty}}" />
+                                 IsVisible="{Binding IsLoadingQrCode}" />
                 </Panel>
             </Border>
             <ContentControl HorizontalAlignment="Center"
                             Content="{Binding State}"
-                            ContentTemplate="{StaticResource LocalizedLabel}" />
+                            ContentTemplate="{StaticResource LocalizedLabel}"
+                            IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNullOrEmpty}}" />
+            <TextBlock Classes="error" MaxWidth="240" TextAlignment="Center" Text="{Binding ErrorMessage}"
+                       IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
         </StackPanel>
     </DockPanel>
 </UserControl>

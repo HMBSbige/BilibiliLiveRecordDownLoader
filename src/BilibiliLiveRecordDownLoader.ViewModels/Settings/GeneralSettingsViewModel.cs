@@ -4,17 +4,24 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 {
 	private static readonly TimeSpan DiskSpaceRefreshInterval = TimeSpan.FromSeconds(2);
 
+	private readonly IAppConfigManager _configManager;
+	private readonly IDiskSpaceService _diskSpaceService;
+	private readonly IAutoStartService _autoStartService;
 	private bool _isInitialized;
 	private bool _isRevertingAutoStart;
 
-	public GeneralSettingsViewModel()
+	public GeneralSettingsViewModel(IAppConfigManager configManager, IDiskSpaceService diskSpaceService, IAutoStartService autoStartService)
 	{
+		_configManager = configManager;
+		_diskSpaceService = diskSpaceService;
+		_autoStartService = autoStartService;
+
 		BrowseRecordDirectoryCommand.DisposeWith(Disposables);
 		OpenRecordDirectoryCommand.DisposeWith(Disposables);
 		BrowseFFmpegPathCommand.DisposeWith(Disposables);
 	}
 
-	public bool IsAutoStartSupported => AppLocator.Current.GetRequiredService<IAutoStartService>().IsSupported;
+	public bool IsAutoStartSupported => _autoStartService.IsSupported;
 
 	[Reactive]
 	public partial string RecordDirectory { get; set; } = string.Empty;
@@ -41,22 +48,22 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 		RecordDirectory = config.RecordDirectory;
 		FFmpegPath = config.FFmpegPath;
 
-		PersistToConfig
-		(
-			this.WhenChanged(static viewModel => viewModel.RecordDirectory).Map(static directory => directory.Trim()),
-			static (appConfig, value) => appConfig.RecordDirectory = string.IsNullOrEmpty(value) ? ConfigurationConsts.DefaultRecordDirectory : value
-		);
-		PersistToConfig(this.WhenChanged(static viewModel => viewModel.FFmpegPath), static (appConfig, value) => appConfig.FFmpegPath = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
+		// 输入框显示的就是实际保存的目录
+		this.WhenChanged(static viewModel => viewModel.RecordDirectory)
+			.Skip(1)
+			.Subscribe(directory => RecordDirectory = NormalizeRecordDirectory(directory))
+			.DisposeWith(Disposables);
 
-		IDiskSpaceService diskSpaceService = AppLocator.Current.GetRequiredService<IDiskSpaceService>();
-		Poll(() => diskSpaceService.GetDiskSpace(RecordDirectory), ApplyDiskSpace, DiskSpaceRefreshInterval);
+		PersistToConfig(_configManager, this.WhenChanged(static viewModel => viewModel.RecordDirectory), static (appConfig, value) => appConfig.RecordDirectory = NormalizeRecordDirectory(value));
+		PersistToConfig(_configManager, this.WhenChanged(static viewModel => viewModel.FFmpegPath), static (appConfig, value) => appConfig.FFmpegPath = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
 
-		IAutoStartService autoStartService = AppLocator.Current.GetRequiredService<IAutoStartService>();
-		IsAutoStartEnabled = autoStartService.IsSupported && autoStartService.IsEnabled();
+		Poll(() => _diskSpaceService.GetDiskSpace(RecordDirectory), ApplyDiskSpace, DiskSpaceRefreshInterval);
+
+		IsAutoStartEnabled = _autoStartService.IsSupported && _autoStartService.IsEnabled();
 
 		this.WhenChanged(static viewModel => viewModel.IsAutoStartEnabled)
 			.Skip(1)
-			.Subscribe(enabled => ApplyAutoStart(autoStartService, enabled))
+			.Subscribe(ApplyAutoStart)
 			.DisposeWith(Disposables);
 
 		_isInitialized = true;
@@ -88,7 +95,12 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 		}
 	}
 
-	private void ApplyAutoStart(IAutoStartService autoStartService, bool enabled)
+	private static string NormalizeRecordDirectory(string directory)
+	{
+		return directory.Trim() is { Length: > 0 } trimmed ? trimmed : ConfigurationConsts.DefaultRecordDirectory;
+	}
+
+	private void ApplyAutoStart(bool enabled)
 	{
 		if (_isRevertingAutoStart)
 		{
@@ -97,18 +109,16 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 
 		try
 		{
-			autoStartService.SetEnabled(enabled);
+			_autoStartService.SetEnabled(enabled);
 		}
 		catch (Exception exception)
 		{
 			RxState.DefaultExceptionHandler.OnNext(exception);
-
-			// 开关要反映实际状态
 			_isRevertingAutoStart = true;
 
 			try
 			{
-				IsAutoStartEnabled = autoStartService.IsEnabled();
+				IsAutoStartEnabled = _autoStartService.IsEnabled();
 			}
 			finally
 			{

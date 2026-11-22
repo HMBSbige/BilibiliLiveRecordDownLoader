@@ -60,6 +60,8 @@
                     </StackPanel>
                     <CheckBox IsChecked="{Binding RepairFlv}" Content="{Binding RepairFlv, Source={x:Static l:AppLanguage.Current}}" />
                     <CheckBox IsChecked="{Binding DeleteRemuxSource}" Content="{Binding DeleteSource, Source={x:Static l:AppLanguage.Current}}" />
+                    <TextBlock Classes="error" Text="{Binding RemuxError}"
+                               IsVisible="{Binding RemuxError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                     <Button HorizontalAlignment="Left" Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding QueueRemuxCommand}">
                         <StackPanel Classes="iconText">
                             <ic:FluentIcon Icon="ArrowRepeatAll" />
@@ -98,6 +100,8 @@
                             <TextBox Text="{Binding CutEnd}" PlaceholderText="hh:mm:ss.fff" />
                         </StackPanel>
                     </Grid>
+                    <TextBlock Classes="error" Text="{Binding CutError}"
+                               IsVisible="{Binding CutError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                     <Button HorizontalAlignment="Left" Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding QueueCutCommand}">
                         <StackPanel Classes="iconText">
                             <ic:FluentIcon Icon="Cut" />

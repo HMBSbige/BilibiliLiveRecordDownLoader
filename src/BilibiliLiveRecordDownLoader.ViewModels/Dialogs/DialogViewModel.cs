@@ -5,6 +5,7 @@ public abstract partial class DialogViewModel : ViewModelBase
 	protected DialogViewModel()
 	{
 		CanDismiss = this.WhenChanged(static viewModel => viewModel.IsBusy).Map(static isBusy => !isBusy);
+		DismissDialogCommand.DisposeWith(Disposables);
 	}
 
 	public abstract string Title { get; }
@@ -19,23 +20,20 @@ public abstract partial class DialogViewModel : ViewModelBase
 	{
 	}
 
-	internal abstract Task Completion { get; }
-
 	public abstract void Dismiss();
+
+	[ReactiveCommand(CanExecute = nameof(CanDismiss))]
+	private void DismissDialog()
+	{
+		Dismiss();
+	}
 }
 
 public abstract partial class DialogViewModel<TResult> : DialogViewModel
 {
 	private readonly TaskCompletionSource<TResult?> _result = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-	protected DialogViewModel()
-	{
-		DismissDialogCommand.DisposeWith(Disposables);
-	}
-
 	internal Task<TResult?> Result => _result.Task;
-
-	internal override Task Completion => _result.Task;
 
 	public override void Dismiss()
 	{
@@ -45,11 +43,5 @@ public abstract partial class DialogViewModel<TResult> : DialogViewModel
 	protected void Close(TResult result)
 	{
 		_result.TrySetResult(result);
-	}
-
-	[ReactiveCommand(CanExecute = nameof(CanDismiss))]
-	private void DismissDialog()
-	{
-		Dismiss();
 	}
 }

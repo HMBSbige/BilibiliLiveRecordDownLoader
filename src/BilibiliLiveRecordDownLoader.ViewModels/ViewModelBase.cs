@@ -40,7 +40,7 @@ public abstract class ViewModelBase : ReactiveObject, IDisposable
 			.DisposeWith(Disposables);
 	}
 
-	// 视图模型释放时取消，异常交给全局处理
+	// 不是由释放引起的取消异常（例如请求超时）也交给全局处理
 	protected void Forget(Func<CancellationToken, Task> taskFactory)
 	{
 		_ = RunAsync(taskFactory, _lifetime.Token);
@@ -51,7 +51,7 @@ public abstract class ViewModelBase : ReactiveObject, IDisposable
 			{
 				await taskFactory(cancellationToken);
 			}
-			catch (OperationCanceledException)
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
 			}
 			catch (Exception exception)
@@ -61,7 +61,6 @@ public abstract class ViewModelBase : ReactiveObject, IDisposable
 		}
 	}
 
-	// 应用服务以版本号暴露状态变化，界面按固定间隔比较版本号后再刷新
 	protected void PollChanges(Func<long> getVersion, Action apply, TimeSpan interval)
 	{
 		apply();
@@ -84,7 +83,6 @@ public abstract class ViewModelBase : ReactiveObject, IDisposable
 			.DisposeWith(Disposables);
 	}
 
-	// 视图模型里预先格式化的本地化文本需要在切换语言后重新生成
 	protected void OnLanguageChanged(Action apply)
 	{
 		Signal.FromEventPattern(static handler => AppLanguage.CurrentChanged += handler, static handler => AppLanguage.CurrentChanged -= handler)

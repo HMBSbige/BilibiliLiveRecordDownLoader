@@ -18,8 +18,7 @@
                 KeyboardNavigation.TabNavigation="Cycle">
             <DockPanel>
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,16">
-                    <Button DockPanel.Dock="Right" Theme="{DynamicResource BorderlessButton}" Click="OnCloseClick"
-                            IsEnabled="{Binding !Current.IsBusy, FallbackValue={x:False}}"
+                    <Button DockPanel.Dock="Right" Theme="{DynamicResource BorderlessButton}" Command="{Binding Current.DismissDialogCommand, FallbackValue={x:Null}}"
                             ToolTip.Tip="{Binding Close, Source={x:Static l:AppLanguage.Current}}"
                             AutomationProperties.Name="{Binding Close, Source={x:Static l:AppLanguage.Current}}">
                         <ic:FluentIcon Icon="Dismiss" FontSize="16" />

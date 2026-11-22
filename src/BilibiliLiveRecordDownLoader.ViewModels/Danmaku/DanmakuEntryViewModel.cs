@@ -8,11 +8,10 @@ public enum DanmakuEntryKind
 	SuperChat,
 	Gift,
 	Guard,
-	// 标题变化、连接断开和连接建立，只出现在弹幕文件里
 	Notice
 }
 
-// 文字在读取时按当前语言生成，切换语言后滚动到的行就是新语言，不必整表重建
+// 文字读取时才按当前语言生成，切换语言不必重建列表
 public sealed partial class DanmakuEntryViewModel : ReactiveObject
 {
 	private readonly DanmakuEntryDto _entry;
@@ -36,7 +35,7 @@ public sealed partial class DanmakuEntryViewModel : ReactiveObject
 		if (entry is DanmakuEntryDto.SuperChat superChat)
 		{
 			SuperChatTier tier = SuperChatTier.For(superChat.Price);
-			(SuperChatBackground, SuperChatPriceColor, SuperChatBottomBackground) = (tier.Background, tier.PriceColor, tier.BottomBackground);
+			(SuperChatBackground, SuperChatPriceColor, SuperChatBottomBackground, SuperChatTextColor) = (tier.Background, tier.PriceColor, tier.BottomBackground, tier.TextColor);
 		}
 	}
 
@@ -45,7 +44,6 @@ public sealed partial class DanmakuEntryViewModel : ReactiveObject
 		return new DanmakuEntryViewModel(entry.Sequence, null, entry.ReceivedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture), entry.Entry);
 	}
 
-	// 文件里的条目没有序号，用在文件中的位置代替
 	public static DanmakuEntryViewModel FromFile(long index, DanmakuFileEntryDto entry)
 	{
 		return new DanmakuEntryViewModel(index, entry.Time, FormatTime(entry.Time), entry.Entry);
@@ -53,7 +51,7 @@ public sealed partial class DanmakuEntryViewModel : ReactiveObject
 
 	public long Sequence { get; }
 
-	// 文件内时间；实时弹幕为 null
+	// 实时弹幕为 null
 	public TimeSpan? Time { get; }
 
 	public string TimeText { get; }
@@ -62,20 +60,17 @@ public sealed partial class DanmakuEntryViewModel : ReactiveObject
 
 	public bool IsSuperChat => Kind is DanmakuEntryKind.SuperChat;
 
-	// 直播间删掉的 SC 留在列表里可查，只是标出来；删除可能在 SC 显示之后才到
+	// 删除可能在 SC 显示之后才到
 	[Reactive]
 	public partial bool IsDeleted { get; private set; }
 
-	public string DeletedText => AppLanguage.Current.DanmakuSuperChatDeleted;
-
 	public bool IsNotice => Kind is DanmakuEntryKind.Notice;
 
-	// 节奏风暴是系统代发的，淡化显示
 	public bool IsStorm => _entry is DanmakuEntryDto.Comment { IsStorm: true };
 
 	public string? Name => Sender?.Name;
 
-	// 弹幕和 SC 是昵称说了什么，礼物和上舰是昵称做了什么
+	// 礼物和上舰的文字和昵称连成一句
 	public string? NameSeparator => Kind switch
 	{
 		DanmakuEntryKind.Comment or DanmakuEntryKind.SuperChat => AppLanguage.Current.DanmakuNameSeparator,
@@ -83,49 +78,53 @@ public sealed partial class DanmakuEntryViewModel : ReactiveObject
 		_ => null
 	};
 
-	// 舰队等级优先，其次是粉丝牌
 	public string? Badge => Sender switch
 	{
-		{ GuardLevel: not GuardLevel.None and var level } => FormatGuardLevel(level),
+		{ GuardLevel: not GuardLevel.None and var level } => DanmakuGuardText.FormatLevel(level),
 		{ Medal: { } medal } => string.Create(CultureInfo.CurrentCulture, $"{medal.Name} {medal.Level}"),
 		_ => null
 	};
 
 	public bool IsGuardBadge => Sender is { GuardLevel: not GuardLevel.None };
 
-	// 点亮的粉丝牌用它自己的颜色，其余用主题色
+	// null 时用主题色
 	public int? MedalColor => Sender is { GuardLevel: GuardLevel.None, Medal: { IsLit: true, Color: var color } } ? color : null;
+
+	// 没点亮的粉丝牌只画边框，灰底白字看不清
+	public bool IsUnlitMedal => Sender is { GuardLevel: GuardLevel.None, Medal.IsLit: false };
 
 	public string Text => _entry switch
 	{
 		DanmakuEntryDto.Comment comment => comment.Text,
 		DanmakuEntryDto.SuperChat superChat => superChat.Text,
 		DanmakuEntryDto.Gift gift => AppLanguage.Current.DanmakuGiftText.ToString(gift.Name, gift.Count.ToString(CultureInfo.CurrentCulture)),
-		DanmakuEntryDto.Guard { Months: > 1, IsRenewal: true } guard => AppLanguage.Current.DanmakuGuardRenewalMonthsText.ToString(FormatGuardLevel(guard.Level), guard.Months.ToString(CultureInfo.CurrentCulture)),
-		DanmakuEntryDto.Guard { Months: > 1 } guard => AppLanguage.Current.DanmakuGuardMonthsText.ToString(FormatGuardLevel(guard.Level), guard.Months.ToString(CultureInfo.CurrentCulture)),
-		DanmakuEntryDto.Guard { IsRenewal: true } guard => AppLanguage.Current.DanmakuGuardRenewalText.ToString(FormatGuardLevel(guard.Level)),
-		DanmakuEntryDto.Guard guard => AppLanguage.Current.DanmakuGuardText.ToString(FormatGuardLevel(guard.Level)),
+		DanmakuEntryDto.Guard guard => DanmakuGuardText.Format(guard.Level, guard.Months, guard.IsRenewal),
 		DanmakuEntryDto.TitleChange title => AppLanguage.Current.DanmakuTitleText.ToString(title.Title),
 		DanmakuEntryDto.Gap gap => AppLanguage.Current.DanmakuGapText.ToString(FormatTime(gap.End)),
 		DanmakuEntryDto.Connection connection => AppLanguage.Current.DanmakuConnectionText.ToString(DescribeIdentity(!connection.IsAnonymous, connection.IsMasked)),
 		DanmakuEntryDto.SuperChatDeletion => throw new UnreachableException()
 	};
 
-	// 银瓜子礼物不花钱，不显示价格
 	public string? PriceText => _entry switch
 	{
 		DanmakuEntryDto.SuperChat superChat => FormatPrice(superChat.Price),
 		DanmakuEntryDto.Gift { Price: > 0 } gift => FormatPrice(gift.Price),
 		DanmakuEntryDto.Guard { Price: > 0 } guard => FormatPrice(guard.Price),
-		_ => null
+		DanmakuEntryDto.Comment or DanmakuEntryDto.Gift or DanmakuEntryDto.Guard or DanmakuEntryDto.TitleChange or DanmakuEntryDto.Gap or DanmakuEntryDto.Connection => null,
+		DanmakuEntryDto.SuperChatDeletion => throw new UnreachableException()
 	};
 
-	// SC 的配色和字幕共用一份，RGB；不是 SC 时为 0
+	// 列表项的内容是视图模型，读屏要单独给出整行的文字
+	public string AccessibleText => string.Join(' ', ((string?[])[TimeText, Badge, Name is null ? Text : $"{Name}{NameSeparator}{Text}", PriceText, IsDeleted ? AppLanguage.Current.DanmakuSuperChatDeleted : null]).Where(static part => !string.IsNullOrEmpty(part)));
+
+	// RGB；不是 SC 时为 0
 	public int SuperChatBackground { get; }
 
 	public int SuperChatPriceColor { get; }
 
 	public int SuperChatBottomBackground { get; }
+
+	public int SuperChatTextColor { get; }
 
 	private DanmuSender? Sender => _entry switch
 	{
@@ -137,7 +136,7 @@ public sealed partial class DanmakuEntryViewModel : ReactiveObject
 		DanmakuEntryDto.SuperChatDeletion => throw new UnreachableException()
 	};
 
-	// id 为 0 的 SC 是文件里没记 id，不能和任何删除对上
+	// id 为 0 是文件里没记 id
 	public static void MarkDeleted(IEnumerable<DanmakuEntryViewModel> entries, IReadOnlyCollection<long> ids)
 	{
 		foreach (DanmakuEntryViewModel entry in entries)
@@ -145,13 +144,15 @@ public sealed partial class DanmakuEntryViewModel : ReactiveObject
 			if (entry._entry is DanmakuEntryDto.SuperChat { Id: not 0 and var id } && ids.Contains(id))
 			{
 				entry.IsDeleted = true;
+				entry.RaisePropertyChanged(nameof(AccessibleText));
 			}
 		}
 	}
 
+	// 过滤在界面线程上逐条比较，按区域性比较中文会慢很多
 	public bool Contains(string text)
 	{
-		return Text.Contains(text, StringComparison.CurrentCultureIgnoreCase) || (Name?.Contains(text, StringComparison.CurrentCultureIgnoreCase) ?? false);
+		return Text.Contains(text, StringComparison.OrdinalIgnoreCase) || (Name?.Contains(text, StringComparison.OrdinalIgnoreCase) ?? false);
 	}
 
 	public static string FormatTime(TimeSpan time)
@@ -176,19 +177,9 @@ public sealed partial class DanmakuEntryViewModel : ReactiveObject
 		return isLoggedIn ? AppLanguage.Current.DanmakuLoggedIn : isMasked ? AppLanguage.Current.DanmakuAnonymousMasked : AppLanguage.Current.DanmakuAnonymous;
 	}
 
-	// 价格是千分之一元，整数元不带小数
+	// 价格单位是千分之一元
 	public static string FormatPrice(long price)
 	{
 		return AppLanguage.Current.DanmakuPrice.ToString((price / 1000m).ToString("0.##", CultureInfo.CurrentCulture));
-	}
-
-	public static string FormatGuardLevel(GuardLevel level)
-	{
-		return level switch
-		{
-			GuardLevel.Governor => AppLanguage.Current.GuardLevelGovernor,
-			GuardLevel.Admiral => AppLanguage.Current.GuardLevelAdmiral,
-			_ => AppLanguage.Current.GuardLevelCaptain
-		};
 	}
 }

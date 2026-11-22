@@ -200,7 +200,7 @@ public sealed partial class DanmakuFileViewModel : ViewModelBase
 
 	private void Rebuild()
 	{
-		Entries.Reset(_all.Where(Filter.Matches));
+		Entries.Reset(_all.Where(Filter.CreatePredicate()));
 		SelectedEntry = null;
 		HasEntries = _all.Length > 0;
 		HasVisibleEntries = Entries.Count > 0;

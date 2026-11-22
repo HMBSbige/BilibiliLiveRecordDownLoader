@@ -17,7 +17,7 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 		IsDanmakuEnabled = _original.IsDanmakuEnabled;
 		DanmakuOffsetSeconds = _original.DanmakuOffset is { } offset ? (decimal)offset.TotalSeconds : null;
 		DanmakuOffsetPlaceholder = AppLanguage.Current.InheritValue.ToString(((decimal)globalConfig.DanmakuOffset.TotalSeconds).ToString("0.###", CultureInfo.CurrentCulture));
-		Quality = new ChoiceOption(_original.Quality);
+		Quality = _original.Quality;
 		RecorderType = _original.RecorderType is { } recorderType ? new ChoiceOption(recorderType) : ChoiceOption.Inherit;
 		ConvertToMp4 = new ChoiceOption(_original.ConvertToMp4);
 		DeleteAfterConvert = new ChoiceOption(_original.DeleteAfterConvert);
@@ -64,7 +64,7 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 
 	public override string Title => IsNew ? AppLanguage.Current.AddRoom : AppLanguage.Current.EditRoom;
 
-	public IReadOnlyList<ChoiceOption> QualityOptions { get; } = ChoiceOption.Of(StreamQuality.Dolby, StreamQuality.UltraHd4K, StreamQuality.Original, StreamQuality.BluRay, StreamQuality.SuperHigh, StreamQuality.High, StreamQuality.Smooth);
+	public IReadOnlyList<StreamQuality> QualityOptions { get; } = [StreamQuality.Dolby, StreamQuality.UltraHd4K, StreamQuality.Original, StreamQuality.BluRay, StreamQuality.SuperHigh, StreamQuality.High, StreamQuality.Smooth];
 
 	public IReadOnlyList<ChoiceOption> RecorderTypeOptions { get; } = ChoiceOption.InheritOr<RecorderType>();
 
@@ -103,7 +103,7 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 	public string DanmakuOffsetPlaceholder { get; }
 
 	[Reactive]
-	public partial ChoiceOption Quality { get; set; }
+	public partial StreamQuality Quality { get; set; }
 
 	[Reactive]
 	public partial ChoiceOption RecorderType { get; set; }
@@ -167,8 +167,8 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 			IsRecordingEnabled = IsRecordingEnabled,
 			IsNotificationEnabled = IsNotificationEnabled,
 			IsDanmakuEnabled = IsDanmakuEnabled,
-			DanmakuOffset = DanmakuOffsetSeconds is { } seconds ? DanmakuDefaults.ClampOffset(TimeSpan.FromSeconds((double)seconds)) : null,
-			Quality = Quality.As<StreamQuality>() ?? StreamQuality.Original,
+			DanmakuOffset = DanmakuOffsetSeconds is { } seconds ? TimeSpan.FromSeconds((double)seconds) : null,
+			Quality = Quality,
 			RecorderType = RecorderType.As<RecorderType>(),
 			CodecPriority = OverrideCodecPriority ? CodecPriority.ToList<StreamCodec>() : null,
 			FormatPriority = OverrideFormatPriority ? FormatPriority.ToList<StreamFormat>() : null,

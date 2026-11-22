@@ -4,13 +4,13 @@ public sealed partial class DanmakuSettingsViewModel(IAppConfigManager configMan
 {
 	private bool _isInitialized;
 
-	public IReadOnlyList<ChoiceOption> GiftModeOptions { get; } = ChoiceOption.OfAll<DanmakuGiftMode>();
+	public IReadOnlyList<DanmakuGiftMode> GiftModeOptions { get; } = Enum.GetValues<DanmakuGiftMode>();
 
 	[Reactive]
 	public partial bool RecordSuperChats { get; set; }
 
 	[Reactive]
-	public partial ChoiceOption GiftMode { get; set; } = new(DanmakuGiftMode.None);
+	public partial DanmakuGiftMode GiftMode { get; set; } = DanmakuGiftMode.None;
 
 	[Reactive]
 	public partial bool RecordGuards { get; set; }
@@ -38,7 +38,7 @@ public sealed partial class DanmakuSettingsViewModel(IAppConfigManager configMan
 		}
 
 		RecordSuperChats = config.RecordSuperChats;
-		GiftMode = new ChoiceOption(config.GiftMode);
+		GiftMode = config.GiftMode;
 		RecordGuards = config.RecordGuards;
 		OffsetSeconds = (decimal)config.DanmakuOffset.TotalSeconds;
 		GenerateSubtitle = config.GenerateDanmakuSubtitle;
@@ -47,9 +47,9 @@ public sealed partial class DanmakuSettingsViewModel(IAppConfigManager configMan
 		WriteChaptersOnConvert = config.WriteChaptersOnConvert;
 
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.RecordSuperChats), static (appConfig, value) => appConfig.RecordSuperChats = value);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.GiftMode), static (appConfig, value) => appConfig.GiftMode = value.As<DanmakuGiftMode>() ?? appConfig.GiftMode);
+		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.GiftMode), static (appConfig, value) => appConfig.GiftMode = value);
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.RecordGuards), static (appConfig, value) => appConfig.RecordGuards = value);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.OffsetSeconds), static (appConfig, value) => appConfig.DanmakuOffset = DanmakuDefaults.ClampOffset(TimeSpan.FromSeconds((double)value)), RecordingSettingsViewModel.NumberInputQuietPeriod);
+		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.OffsetSeconds), static (appConfig, value) => appConfig.DanmakuOffset = TimeSpan.FromSeconds((double)value), RecordingSettingsViewModel.NumberInputQuietPeriod);
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.GenerateSubtitle), static (appConfig, value) => appConfig.GenerateDanmakuSubtitle = value);
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.ShowPaidMessagesInSubtitle), static (appConfig, value) => appConfig.ShowPaidMessagesInSubtitle = value);
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.SaveRawMessages), static (appConfig, value) => appConfig.SaveRawDanmaku = value);

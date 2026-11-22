@@ -49,7 +49,6 @@ public sealed class FollowedRoomImportViewModelTest
 		bool? afterSelectAll = dialog.AreAllVisibleSelected;
 		long[] selectedAfterSelectAll = [.. dialog.VisibleRooms.Where(static room => room.IsSelected).Select(static room => room.RoomId)];
 
-		// 换一个搜索条件后，之前的选择保留，新的可见项都没选中
 		dialog.SearchText = "7777";
 		bool? afterSearch = dialog.AreAllVisibleSelected;
 		dialog.SearchText = null;
@@ -88,18 +87,20 @@ public sealed class FollowedRoomImportViewModelTest
 
 	[Test]
 	[Timeout(30_000)]
-	[Arguments(true, false)]
-	[Arguments(false, true)]
-	public async Task ImportAppliesTheTogglesToEveryRoomAndClosesAsync(bool isRecordingEnabled, bool isNotificationEnabled, CancellationToken cancellationToken)
+	[Arguments(true, true, false)]
+	[Arguments(false, false, true)]
+	public async Task ImportAppliesTheTogglesToEveryRoomAndClosesAsync(bool isRecordingEnabled, bool isDanmakuEnabled, bool isNotificationEnabled, CancellationToken cancellationToken)
 	{
 		FakeRoomAppService rooms = new(Followed);
 		RecordingNotifications notifications = new();
 		using FollowedRoomImportViewModel dialog = Open(rooms, notifications);
 		bool defaultRecording = dialog.IsRecordingEnabled;
+		bool defaultDanmaku = dialog.IsDanmakuEnabled;
 		bool defaultNotification = dialog.IsNotificationEnabled;
 
 		Select(dialog, 6154037, 22907643);
 		dialog.IsRecordingEnabled = isRecordingEnabled;
+		dialog.IsDanmakuEnabled = isDanmakuEnabled;
 		dialog.IsNotificationEnabled = isNotificationEnabled;
 		((ICommand)dialog.ImportCommand).Execute(null);
 		bool result = await dialog.Result.WaitAsync(cancellationToken);
@@ -107,13 +108,14 @@ public sealed class FollowedRoomImportViewModelTest
 		RoomSettingsDto defaults = new() { RoomId = 0 };
 		RoomSettingsDto[] expected =
 		[
-			defaults with { RoomId = 6154037, IsRecordingEnabled = isRecordingEnabled, IsNotificationEnabled = isNotificationEnabled },
-			defaults with { RoomId = 22907643, IsRecordingEnabled = isRecordingEnabled, IsNotificationEnabled = isNotificationEnabled }
+			defaults with { RoomId = 6154037, IsRecordingEnabled = isRecordingEnabled, IsDanmakuEnabled = isDanmakuEnabled, IsNotificationEnabled = isNotificationEnabled },
+			defaults with { RoomId = 22907643, IsRecordingEnabled = isRecordingEnabled, IsDanmakuEnabled = isDanmakuEnabled, IsNotificationEnabled = isNotificationEnabled }
 		];
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(defaultRecording == RoomDefaults.IsRecordingEnabled).IsTrue();
+			await Assert.That(defaultDanmaku == DanmakuDefaults.IsEnabled).IsTrue();
 			await Assert.That(defaultNotification).IsFalse();
 			await Assert.That(result).IsTrue();
 			await Assert.That(rooms.Added.Single()).IsEquivalentTo(expected, EqualityComparer<RoomSettingsDto>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
@@ -133,14 +135,14 @@ public sealed class FollowedRoomImportViewModelTest
 
 		Select(dialog, 6154037, 7777);
 		((ICommand)dialog.ImportCommand).Execute(null);
-		await WaitUntilAsync(() => !dialog.IsBusy && dialog.ErrorMessage is not null, cancellationToken);
+		await TestWait.UntilAsync(() => !dialog.IsBusy && dialog.ErrorMessage is not null, "the failed import shows its error", cancellationToken);
 
 		FollowedRoomItemViewModel skipped = dialog.VisibleRooms.Single(static room => room.RoomId is 6154037);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(dialog.Result.IsCompleted).IsFalse();
-			await Assert.That(dialog.ErrorMessage).Contains("其他: boom");
+			await Assert.That(dialog.ErrorMessage).Contains(AppLanguage.Current.NamedReason.ToString("其他", "boom"));
 			await Assert.That(skipped.IsAdded).IsTrue();
 			await Assert.That(SelectedRoomIds(dialog)).IsEquivalentTo([7777], EqualityComparer<long>.Default);
 		}
@@ -221,15 +223,7 @@ public sealed class FollowedRoomImportViewModelTest
 		return [.. dialog.VisibleRooms.Where(static room => room.IsSelected).Select(static room => room.RoomId)];
 	}
 
-	private static async Task WaitUntilAsync(Func<bool> condition, CancellationToken cancellationToken)
-	{
-		while (!condition())
-		{
-			await Task.Delay(10, cancellationToken);
-		}
-	}
-
-	private sealed class FakeRoomAppService(IReadOnlyList<FollowedRoomDto> followed) : IRoomAppService
+	private sealed class FakeRoomAppService(IReadOnlyList<FollowedRoomDto> followed) : RoomAppServiceStub
 	{
 		public Exception? Failure { get; set; }
 
@@ -237,22 +231,13 @@ public sealed class FollowedRoomImportViewModelTest
 
 		public ConcurrentQueue<RoomSettingsDto[]> Added { get; } = new();
 
-		public long Version => 0;
-
-		public bool IsRecording => false;
-
-		public IReadOnlyList<RoomSnapshot> GetRooms()
-		{
-			return [];
-		}
-
-		public Task<IReadOnlyList<RoomAddResult>> AddRangeAsync(IReadOnlyList<RoomSettingsDto> settings, CancellationToken cancellationToken = default)
+		public override Task<IReadOnlyList<RoomAddResult>> AddRangeAsync(IReadOnlyList<RoomSettingsDto> settings, CancellationToken cancellationToken = default)
 		{
 			Added.Enqueue([.. settings]);
 			return Task.FromResult(AddRange(settings));
 		}
 
-		public async IAsyncEnumerable<FollowedRoomDto> GetFollowedRoomsAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
+		public override async IAsyncEnumerable<FollowedRoomDto> GetFollowedRoomsAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
 		{
 			if (Failure is { } failure)
 			{
@@ -265,31 +250,6 @@ public sealed class FollowedRoomImportViewModelTest
 			}
 
 			await Task.CompletedTask;
-		}
-
-		public Task<RoomSnapshot> AddAsync(RoomSettingsDto settings, CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
-		}
-
-		public Task UpdateAsync(RoomSettingsDto settings, CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
-		}
-
-		public Task MoveAsync(IReadOnlyCollection<long> roomIds, long? before, CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
-		}
-
-		public Task RemoveAsync(IReadOnlyCollection<long> roomIds, CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
-		}
-
-		public Task RefreshAsync(IReadOnlyCollection<long> roomIds, CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
 		}
 	}
 }

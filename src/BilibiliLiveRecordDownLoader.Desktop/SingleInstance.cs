@@ -1,6 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.Desktop;
 
-internal sealed class SingleInstance : IDisposable
+internal sealed partial class SingleInstance : IDisposable
 {
 	private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(2);
 	private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(1);
@@ -15,7 +15,7 @@ internal sealed class SingleInstance : IDisposable
 		// 按用户隔离；用哈希缩短名称，Unix 域套接字路径有长度限制
 		_name = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"{id}\0{Environment.UserName}")).AsSpan(0, 12));
 
-		// Unix 上的“会话”是进程会话，不同终端启动的进程互不相同，所以不按会话隔离
+		// Unix 上的“会话”是进程会话，不同终端启动的进程互不相同
 		_mutex = new Mutex(false, _name, new NamedWaitHandleOptions { CurrentUserOnly = true, CurrentSessionOnly = OperatingSystem.IsWindows() });
 	}
 
@@ -27,7 +27,7 @@ internal sealed class SingleInstance : IDisposable
 		}
 		catch (AbandonedMutexException)
 		{
-			// 上一个实例异常退出，所有权已转给当前进程
+			// 上一个实例异常退出，所有权已转给当前线程
 			_isOwned = true;
 		}
 
@@ -40,12 +40,18 @@ internal sealed class SingleInstance : IDisposable
 		{
 			using NamedPipeClientStream client = new(".", _name, PipeDirection.Out, PipeOptions.CurrentUserOnly);
 			client.Connect(ConnectTimeout);
+
+			// 后台进程不能把自己的窗口带到前台；新实例刚由用户启动，可以把这个权限让给首个实例
+			if (OperatingSystem.IsWindows() && GetNamedPipeServerProcessId(client.SafePipeHandle, out uint processId))
+			{
+				AllowSetForegroundWindow(processId);
+			}
+
 			client.WriteByte(1);
 			return true;
 		}
 		catch (Exception ex) when (ex is IOException or TimeoutException or UnauthorizedAccessException)
 		{
-			// 首个实例可能正在启动或退出
 			return false;
 		}
 	}
@@ -89,6 +95,16 @@ internal sealed class SingleInstance : IDisposable
 			}
 		}
 	}
+
+	[LibraryImport("kernel32.dll")]
+	[return: MarshalAs(UnmanagedType.Bool)]
+	[SupportedOSPlatform("windows")]
+	private static partial bool GetNamedPipeServerProcessId(SafePipeHandle pipe, out uint processId);
+
+	[LibraryImport("user32.dll")]
+	[return: MarshalAs(UnmanagedType.Bool)]
+	[SupportedOSPlatform("windows")]
+	private static partial bool AllowSetForegroundWindow(uint processId);
 
 	public void Dispose()
 	{

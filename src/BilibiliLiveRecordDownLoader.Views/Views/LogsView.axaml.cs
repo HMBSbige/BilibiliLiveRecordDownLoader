@@ -11,7 +11,7 @@ public partial class LogsView : UserControl
 	private const double EdgeTolerance = 4;
 	private const double MinColumnWidth = 40;
 
-	// 默认 NaN 表示按内容自适应，拖动列边界后改为固定宽度
+	// NaN 表示按内容自适应
 	public static readonly StyledProperty<double> TimeColumnWidthProperty = AvaloniaProperty.Register<LogsView, double>(nameof(TimeColumnWidth), double.NaN);
 
 	public static readonly StyledProperty<double> LevelColumnWidthProperty = AvaloniaProperty.Register<LogsView, double>(nameof(LevelColumnWidth), double.NaN);
@@ -53,7 +53,6 @@ public partial class LogsView : UserControl
 		base.OnDataContextChanged(e);
 	}
 
-	// 按时间排序且停在最新一端时跟随新日志，一批变化只滚动一次
 	private void OnEntriesChanged(object? sender, NotifyCollectionChangedEventArgs e)
 	{
 		if (e.Action is not (NotifyCollectionChangedAction.Add or NotifyCollectionChangedAction.Reset) || _isScrollPending || _viewModel is not { Sort.Column: LogSortColumn.Time } || !IsAtNewestEdge())
@@ -87,21 +86,27 @@ public partial class LogsView : UserControl
 			: scroll.Offset.Y + scroll.Viewport.Height >= scroll.Extent.Height - EdgeTolerance;
 	}
 
-	private void OnColumnResize(object? sender, VectorEventArgs e)
+	private void OnTimeColumnResize(object? sender, VectorEventArgs e)
 	{
-		if (sender is not Thumb { Parent: Control cell } thumb)
+		ResizeColumn(sender, e, TimeColumnWidthProperty);
+	}
+
+	private void OnLevelColumnResize(object? sender, VectorEventArgs e)
+	{
+		ResizeColumn(sender, e, LevelColumnWidthProperty);
+	}
+
+	private void OnRoomColumnResize(object? sender, VectorEventArgs e)
+	{
+		ResizeColumn(sender, e, RoomColumnWidthProperty);
+	}
+
+	private void ResizeColumn(object? sender, VectorEventArgs e, StyledProperty<double> property)
+	{
+		if (sender is Thumb { Parent: Control cell })
 		{
-			return;
+			SetValue(property, Math.Max(MinColumnWidth, cell.Bounds.Width + e.Vector.X));
 		}
-
-		StyledProperty<double> property = thumb.Tag switch
-		{
-			"Level" => LevelColumnWidthProperty,
-			"Room" => RoomColumnWidthProperty,
-			_ => TimeColumnWidthProperty
-		};
-
-		SetValue(property, Math.Max(MinColumnWidth, cell.Bounds.Width + e.Vector.X));
 	}
 
 	private async void OnCopyClick(object? sender, RoutedEventArgs e)
@@ -111,14 +116,14 @@ public partial class LogsView : UserControl
 
 	private async void OnLogListKeyDown(object? sender, KeyEventArgs e)
 	{
-		if (e.Key is Key.C && e.KeyModifiers.HasFlag(KeyModifiers.Control))
+		if (Avalonia.Application.Current?.PlatformSettings?.HotkeyConfiguration.Copy is { } gestures && gestures.Any(gesture => gesture.Matches(e)))
 		{
 			e.Handled = true;
 			await CopySelectionAsync();
 		}
 	}
 
-	// 剪贴板可能被其他程序占用，失败时只提示
+	// 剪贴板可能被其他程序占用
 	private async Task CopySelectionAsync()
 	{
 		if (_viewModel is null || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard || LogList.SelectedItems is not { Count: > 0 } selection)

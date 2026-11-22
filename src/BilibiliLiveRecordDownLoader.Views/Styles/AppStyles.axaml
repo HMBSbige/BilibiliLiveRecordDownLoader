@@ -60,6 +60,20 @@
     <Style Selector="StackPanel.field">
         <Setter Property="Spacing" Value="{StaticResource FieldSpacing}" />
     </Style>
+    <!-- 字段的第一个子元素是标签，读屏时随输入控件一起读出 -->
+    <Style Selector="StackPanel.field > TextBox, StackPanel.field > ComboBox, StackPanel.field > NumericUpDown, StackPanel.field > DockPanel > TextBox, StackPanel.field > DockPanel > NumericUpDown">
+        <Setter Property="AutomationProperties.LabeledBy" Value="{Binding $parent[StackPanel].Children[0]}" />
+    </Style>
+    <!-- 数字框获得焦点的是模板里的输入框，名称也要给它 -->
+    <Style Selector="NumericUpDown /template/ TextBox#PART_TextBox">
+        <Setter Property="AutomationProperties.Name" Value="{Binding $parent[NumericUpDown].(AutomationProperties.Name)}" />
+        <Setter Property="AutomationProperties.LabeledBy" Value="{Binding $parent[NumericUpDown].(AutomationProperties.LabeledBy)}" />
+    </Style>
+    <!-- 开关的文字不随状态变化；文字在 OnContent 里，读屏取不到 -->
+    <Style Selector="ToggleSwitch">
+        <Setter Property="OffContent" Value="{Binding $self.OnContent}" />
+        <Setter Property="AutomationProperties.Name" Value="{Binding $self.OnContent}" />
+    </Style>
     <Style Selector="TextBlock.section">
         <Setter Property="FontSize" Value="{DynamicResource SemiFontSizeHeader6}" />
         <Setter Property="FontWeight" Value="SemiBold" />
@@ -73,7 +87,7 @@
         <Setter Property="Foreground" Value="{DynamicResource SemiColorDanger}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
-    <!-- 标题文字和内容与周围的表单左对齐，悬停背景向两侧留出内边距 -->
+    <!-- 负边距让文字与表单对齐，同时悬停背景伸出两侧 -->
     <Style Selector="Expander.inline">
         <Style.Resources>
             <Thickness x:Key="ExpanderHeaderMargin">0</Thickness>
@@ -84,15 +98,25 @@
         <Setter Property="Margin" Value="-8,0" />
     </Style>
 
-    <Style Selector="Border.errorBanner">
-        <Setter Property="Background" Value="{DynamicResource SemiColorDangerLight}" />
-        <Setter Property="CornerRadius" Value="6" />
-        <Setter Property="Padding" Value="12,8" />
-    </Style>
+    <!-- 警告再加 messageBanner 就变紧凑，靠下面的样式排在后面 -->
     <Style Selector="Border.warningBanner">
         <Setter Property="Background" Value="{DynamicResource SemiColorWarningLight}" />
         <Setter Property="CornerRadius" Value="8" />
         <Setter Property="Padding" Value="16,12" />
+    </Style>
+    <Style Selector="Border.errorBanner, Border.successBanner, Border.messageBanner">
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="12,8" />
+    </Style>
+    <Style Selector="Border.errorBanner">
+        <Setter Property="Background" Value="{DynamicResource SemiColorDangerLight}" />
+    </Style>
+    <Style Selector="Border.successBanner">
+        <Setter Property="Background" Value="{DynamicResource SemiColorSuccessLight}" />
+    </Style>
+    <Style Selector="Border.errorBanner ic|FluentIcon">
+        <Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="Margin" Value="0,2,0,0" />
     </Style>
     <Style Selector="StackPanel.toolbar">
         <Setter Property="Orientation" Value="Horizontal" />

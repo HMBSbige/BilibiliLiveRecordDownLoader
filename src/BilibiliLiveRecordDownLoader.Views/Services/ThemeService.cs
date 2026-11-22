@@ -13,7 +13,7 @@ internal sealed class ThemeService : IThemeService
 		{
 			AppTheme.Light => ThemeVariant.Light,
 			AppTheme.Dark => ThemeVariant.Dark,
-			_ => ThemeVariant.Default
+			AppTheme.FollowSystem => ThemeVariant.Default
 		};
 	}
 }

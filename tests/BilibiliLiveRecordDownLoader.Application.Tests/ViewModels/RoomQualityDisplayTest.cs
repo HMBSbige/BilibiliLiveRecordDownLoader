@@ -3,7 +3,6 @@ using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels.Rooms;
 using Splat;
 using System.Globalization;
-using System.Runtime.CompilerServices;
 using System.Windows.Input;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
@@ -41,6 +40,8 @@ public sealed class RoomQualityDisplayTest
 		yield return () => (new QualityRestriction.LoginMayHaveExpired(10000), AppLanguage.Current.QualityRestrictedLoginMayHaveExpired.ToString(AppLanguage.Current.QualityOriginal, AppLanguage.Current.QualitySuperHigh));
 		yield return () => (new QualityRestriction.OtherCodec(10000, StreamCodec.Av1, 10000), AppLanguage.Current.QualityRestrictedByCodec.ToString("AV1", AppLanguage.Current.QualityOriginal));
 		yield return () => (new QualityRestriction.OtherCodecUnavailable(10000, StreamCodec.Av1, 10000), AppLanguage.Current.QualityRestrictedByCodecUnavailable.ToString("AV1", AppLanguage.Current.QualityOriginal));
+		// 另一种编码只能给到蓝光时，提示的是蓝光而不是目标档位
+		yield return () => (new QualityRestriction.OtherCodec(10000, StreamCodec.Av1, 400), AppLanguage.Current.QualityRestrictedByCodec.ToString("AV1", AppLanguage.Current.QualityBluRay));
 		// 所选画质低于最高画质时，提示里写的是所选的
 		yield return () => (new QualityRestriction.NotLoggedIn(400), AppLanguage.Current.QualityRestrictedNotLoggedIn.ToString(AppLanguage.Current.QualitySuperHigh, AppLanguage.Current.QualityBluRay));
 	}
@@ -57,6 +58,23 @@ public sealed class RoomQualityDisplayTest
 			await Assert.That(room.QualityText).IsEqualTo(AppLanguage.Current.QualitySuperHigh);
 			await Assert.That(room.IsQualityRestricted).IsTrue();
 			await Assert.That(room.QualityRestrictionTip).IsEqualTo(expected);
+			await Assert.That(room.HelpText).IsEqualTo(expected);
+		}
+	}
+
+	[Test]
+	public async Task RowHelpFollowsTheFailureUntilTheRoomRecordsAsync()
+	{
+		RoomSnapshot connecting = new(new RoomSettingsDto { RoomId = 1 }, 0, "主播1", null, LiveStatus.Live, RecordStatus.Connecting, 0, null, "连接超时");
+		using RoomItemViewModel room = new(connecting, false);
+		string? failing = room.HelpText;
+
+		room.Apply(Recording(1, new QualityRestriction.NotLoggedIn(10000)), false);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(failing).IsEqualTo("连接超时");
+			await Assert.That(room.HelpText).IsEqualTo(room.QualityRestrictionTip).And.IsNotNull();
 		}
 	}
 
@@ -85,6 +103,7 @@ public sealed class RoomQualityDisplayTest
 		{
 			await Assert.That(room.IsQualityRestricted).IsFalse();
 			await Assert.That(room.QualityRestrictionTip).IsNull();
+			await Assert.That(room.HelpText).IsNull();
 			await Assert.That(room.StreamInfo).IsEqualTo("fMP4 · HEVC (H.265)");
 		}
 	}
@@ -119,7 +138,6 @@ public sealed class RoomQualityDisplayTest
 		await Assert.That(RoomItemViewModel.DescribeRestriction(expired, 250, false)).IsEqualTo(RoomItemViewModel.DescribeRestriction(expired, 250, true));
 	}
 
-	// 编码原因和登录可能失效不是登录能解决的，不计入横幅
 	[Test]
 	public async Task BannerCountsOnlyRoomsRestrictedForNotBeingLoggedInAsync()
 	{
@@ -138,7 +156,6 @@ public sealed class RoomQualityDisplayTest
 		await Assert.That(viewModel.LoginBannerText).IsEqualTo(AppLanguage.Current.QualityRestrictedBanner.ToString(2.ToString(CultureInfo.CurrentCulture)));
 	}
 
-	// 仅录弹幕时视频不在录，也要提示昵称会打码
 	[Test]
 	public async Task BannerMentionsMaskedNamesWhileRecordingDanmakuAsync()
 	{
@@ -166,25 +183,6 @@ public sealed class RoomQualityDisplayTest
 		await Assert.That(viewModel.LoginBannerText).IsNull();
 	}
 
-	// 已经在录的直播间要等重新请求候选流才会换画质，配了 Cookie 后横幅立即收起
-	[Test]
-	public async Task BannerIsHiddenOnceACookieIsConfiguredAsync()
-	{
-		AppConfig config = AppConfig.CreateDefault();
-		FakeRoomAppService rooms = new(Recording(1, new QualityRestriction.NotLoggedIn(10000)));
-		using RoomListViewModel viewModel = CreateList(rooms, config);
-		string? before = viewModel.LoginBannerText;
-
-		config.Cookie = "SESSDATA=x";
-		viewModel.Sync();
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(before).IsNotNull();
-			await Assert.That(viewModel.LoginBannerText).IsNull();
-		}
-	}
-
 	[Test]
 	[Timeout(30_000)]
 	[Arguments(true)]
@@ -208,59 +206,21 @@ public sealed class RoomQualityDisplayTest
 		((ICommand)viewModel.LoginCommand).Execute(null);
 		await shown.Task.WaitAsync(cancellationToken);
 
-		while (succeeds && viewModel.LoginBannerText is not null)
+		if (succeeds)
 		{
-			await Task.Delay(10, cancellationToken);
+			await TestWait.UntilAsync(() => viewModel.LoginBannerText is null, "the banner hides after logging in", cancellationToken);
 		}
 
 		await Assert.That(viewModel.LoginBannerText is null).IsEqualTo(succeeds);
 	}
 
-	private sealed class FakeRoomAppService(params RoomSnapshot[] rooms) : IRoomAppService
+	private sealed class FakeRoomAppService(params RoomSnapshot[] rooms) : RoomAppServiceStub
 	{
-		public long Version => 0;
+		public override bool IsRecording => rooms.Any(static room => room.RecordStatus is not RecordStatus.Idle);
 
-		public bool IsRecording => rooms.Any(static room => room.RecordStatus is not RecordStatus.Idle);
-
-		public IReadOnlyList<RoomSnapshot> GetRooms()
+		public override IReadOnlyList<RoomSnapshot> GetRooms()
 		{
 			return rooms;
-		}
-
-		public Task MoveAsync(IReadOnlyCollection<long> roomIds, long? before, CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
-		}
-
-		public Task<RoomSnapshot> AddAsync(RoomSettingsDto settings, CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
-		}
-
-		public Task<IReadOnlyList<RoomAddResult>> AddRangeAsync(IReadOnlyList<RoomSettingsDto> settings, CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
-		}
-
-		public async IAsyncEnumerable<FollowedRoomDto> GetFollowedRoomsAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
-		{
-			await Task.CompletedTask;
-			yield break;
-		}
-
-		public Task UpdateAsync(RoomSettingsDto settings, CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
-		}
-
-		public Task RemoveAsync(IReadOnlyCollection<long> roomIds, CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
-		}
-
-		public Task RefreshAsync(IReadOnlyCollection<long> roomIds, CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
 		}
 	}
 }

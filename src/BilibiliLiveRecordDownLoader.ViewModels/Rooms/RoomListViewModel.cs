@@ -16,7 +16,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	{
 		_roomAppService = roomAppService;
 		_configManager = configManager;
-		Danmaku = new DanmakuPanelViewModel(danmakuAppService, configManager, cancellationToken => ShowLogin(cancellationToken)).DisposeWith(Disposables);
+		Danmaku = new DanmakuPanelViewModel(danmakuAppService, configManager, LoginAndSyncAsync).DisposeWith(Disposables);
 		HasSelection = this.WhenChanged(static viewModel => viewModel.SelectedCount).Map(static count => count > 0);
 		HasSingleSelection = this.WhenChanged(static viewModel => viewModel.SelectedCount).Map(static count => count is 1);
 		CanMoveSelection = this.WhenChanged(static viewModel => viewModel.CanReorder, static viewModel => viewModel.SelectedCount, static (canReorder, count) => canReorder && count > 0);
@@ -53,10 +53,9 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		LoginCommand.DisposeWith(Disposables);
 	}
 
-	// 移动完成并刷新列表后触发，参数是按显示顺序排列的被移动的房间
+	// 刷新列表后触发，参数按显示顺序排列
 	public event EventHandler<IReadOnlyList<RoomItemViewModel>>? RoomsMoved;
 
-	// 按当前排序和筛选显示的直播间
 	public ObservableCollection<RoomItemViewModel> Rooms { get; } = [];
 
 	public ObservableCollection<RoomItemViewModel> SelectedRooms { get; } = [];
@@ -97,16 +96,18 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	[Reactive]
 	public partial string? RecordingSpeed { get; private set; }
 
-	// 只在没配 Cookie、有直播间因为没登录而画质受限或者在录弹幕时显示；为 null 时不显示
 	[Reactive]
 	public partial string? LoginBannerText { get; private set; }
 
-	// 打开扫码登录，返回是否登录成功
+	// 为 null 时交给全局处理
+	internal Action<Exception>? ReportSaveFailure { get; init; }
+
+	// 返回是否登录成功
 	internal Func<CancellationToken, Task<bool>> ShowLogin { get; init; } = static cancellationToken => AppLocator.Current.GetRequiredService<AccountViewModel>().LoginWithQrCodeAsync(cancellationToken);
 
 	internal void ApplyConfig(AppConfig config)
 	{
-		// 配置管理器一直返回同一个实例，账号页登录、退出或改 Cookie 都改在它上面
+		// 配置管理器一直返回同一个实例，Cookie 的改动也在它上面
 		_config = config;
 		SortOrder = config.RoomSortOrder;
 		PersistToConfig(_configManager, this.WhenChanged(static viewModel => viewModel.SortOrder), static (appConfig, value) => appConfig.RoomSortOrder = value);
@@ -129,7 +130,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		}
 	}
 
-	// 导入的房间可能部分失败，对话框关闭时无论结果如何都同步一次
+	// 导入可能部分失败，无论结果如何都要同步
 	[ReactiveCommand]
 	private async Task ImportFollowedRoomsAsync()
 	{
@@ -147,7 +148,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 
 		AppConfig config = await _configManager.GetAsync(cancellationToken);
 
-		// 立即同步，行内开关基于最新设置修改
+		// 行内开关要基于最新设置修改
 		if (await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ShowAsync(new RoomEditorViewModel(room.Settings, config, _roomAppService.UpdateAsync)) is not null)
 		{
 			Sync();
@@ -166,7 +167,6 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		}
 	}
 
-	// 没有选中时刷新全部
 	[ReactiveCommand]
 	private async Task RefreshRoomsAsync(CancellationToken cancellationToken)
 	{
@@ -215,8 +215,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	{
 		if (SelectedRooms is [{ } room])
 		{
-			Danmaku.Follow(room);
-			Danmaku.IsOpen = true;
+			Danmaku.ShowLive(room);
 		}
 	}
 
@@ -229,17 +228,26 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		}
 
 		Danmaku.Follow(room);
-		await Danmaku.PickFileAsync(cancellationToken);
+		await Danmaku.PickFileAsync(room, cancellationToken);
 	}
 
-	// 已经在录的直播间要等下次请求候选流才能换成更高的画质，横幅按 Cookie 是否已配立即收起
 	[ReactiveCommand]
-	private async Task LoginAsync(CancellationToken cancellationToken)
+	private Task LoginAsync(CancellationToken cancellationToken)
 	{
-		if (await ShowLogin(cancellationToken))
+		return LoginAndSyncAsync(cancellationToken);
+	}
+
+	// 在录的直播间和弹幕连接都要等重连才用上登录身份，横幅按 Cookie 立即收起，面板先显示等重连
+	private async Task<bool> LoginAndSyncAsync(CancellationToken cancellationToken)
+	{
+		if (!await ShowLogin(cancellationToken))
 		{
-			Sync();
+			return false;
 		}
+
+		Sync();
+		Danmaku.OnLoggedIn();
+		return true;
 	}
 
 	[ReactiveCommand]
@@ -345,6 +353,8 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		{
 			_rooms.Remove(removed.RoomId);
 			Rooms.Remove(removed);
+			// 不依赖列表控件移除条目时顺带取消选中，免得面板又跟随已移除的房间
+			SelectedRooms.Remove(removed);
 			Danmaku.OnRoomRemoved(removed);
 			removed.Dispose();
 		}
@@ -360,7 +370,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 			}
 			else
 			{
-				room = new RoomItemViewModel(snapshot, hasCookie);
+				room = new RoomItemViewModel(snapshot, hasCookie) { RoomAppService = _roomAppService, ReportSaveFailure = ReportSaveFailure };
 				_rooms.Add(snapshot.RoomId, room);
 			}
 
@@ -461,7 +471,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		}
 	}
 
-	// 编码原因和登录可能失效都不是登录能解决的，不提示登录；仅录弹幕时视频不在录，所以弹幕看全部直播间
+	// 编码原因和登录可能失效都不是登录能解决的；仅录弹幕时视频不在录，所以弹幕看全部直播间
 	private void UpdateLoginBanner(IEnumerable<RoomSnapshot> rooms, RoomSnapshot[] recording, bool hasCookie)
 	{
 		int restricted = hasCookie ? 0 : recording.Count(static snapshot => snapshot.Recording?.Restriction is QualityRestriction.NotLoggedIn);

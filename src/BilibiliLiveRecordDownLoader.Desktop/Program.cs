@@ -4,7 +4,6 @@ internal static class Program
 {
 	private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(10);
 
-	// 旧实例正在退出时，等它收尾后再启动
 	private static readonly TimeSpan ExitingInstanceTimeout = TimeSpan.FromSeconds(15);
 
 	private static readonly PosixSignal[] TerminationSignals = [PosixSignal.SIGTERM, PosixSignal.SIGINT, PosixSignal.SIGHUP];
@@ -42,31 +41,46 @@ internal static class Program
 		return AppBuilder.Configure<App>()
 			.UsePlatformDetect()
 			.UseBilibiliLiveRecordDownLoader(startupOptions)
-			// 平台初始化之后才能把激活请求投递到 UI 线程
-			.AfterSetup(_ => singleInstance.StartListening(static () => Dispatcher.UIThread.Post(static () => AppLocator.Current.GetRequiredService<IApplicationShell>().ShowMainWindow())))
+			// 平台初始化之后才能把激活请求投递到 UI 线程，容器也在那时建好
+			.AfterSetup(_ => ListenForActivation(singleInstance))
 			.LogToTrace()
 			.With(new Win32PlatformOptions { RenderingMode = [Win32RenderingMode.AngleEgl, Win32RenderingMode.Vulkan, Win32RenderingMode.Wgl, Win32RenderingMode.Software] })
 			.With(new X11PlatformOptions { RenderingMode = [X11RenderingMode.Vulkan, X11RenderingMode.Egl, X11RenderingMode.Glx, X11RenderingMode.Software] })
-			// Skia in SkiaSharp 4 validates Vulkan entry points up to 1.4 by the loader version, so Avalonia's default 1.1 instance is not enough.
+			// Skia requires the entry points of the loader's Vulkan version, up to 1.4, not the instance's
 			.With(new VulkanOptions { VulkanInstanceCreationOptions = { VulkanVersion = new Version(1, 4, 0) } });
+	}
+
+	private static void ListenForActivation(SingleInstance singleInstance)
+	{
+		IApplicationShell shell = AppLocator.Current.GetRequiredService<IApplicationShell>();
+		_ = shell.ShuttingDown.Register(singleInstance.StopListening);
+		singleInstance.StartListening(() => Dispatcher.UIThread.Post(shell.ShowMainWindow));
 	}
 
 	private static void Shutdown()
 	{
-		// 超时后容器可能正在后台释放，那时已无法再解析服务，所以先取出来
+		// 超时后容器可能正在后台释放，那时已无法再解析服务
 		IAppConfigManager? configManager = AppLocator.Current.GetService<IAppConfigManager>();
 		ILoggerProvider[] loggerProviders = [.. AppLocator.Current.GetServices<ILoggerProvider>()];
 		ILogger? logger = AppLocator.Current.GetService<ILoggerFactory>()?.CreateLogger(typeof(Program));
 
-		// 主循环结束后 UI 线程不再调度，等待中的续体回不来，清理放到线程池上
-		if (Task.Run(ShutdownAsync).Wait(ShutdownTimeout))
+		try
 		{
-			return;
+			// 主循环结束后 UI 线程不再调度，等待中的续体回不来
+			if (Task.Run(() => ShutdownAsync(logger)).Wait(ShutdownTimeout))
+			{
+				return;
+			}
+
+			logger?.LogWarning("Shutdown did not finish within {Timeout}, saving config and flushing logs", ShutdownTimeout);
+		}
+		catch (AggregateException exception)
+		{
+			// 只有释放容器本身出错会到这里，日志可能已经关闭
+			logger?.LogError(exception, "Disposing services failed, saving config and flushing logs");
 		}
 
-		logger?.LogWarning("Shutdown did not finish within {Timeout}, saving config and flushing logs", ShutdownTimeout);
-
-		// 容器没有释放完，配置的同步写盘和异步日志的刷新要在进程退出前补上；两者重复释放都是安全的
+		// 两者重复释放都是安全的
 		(configManager as IDisposable)?.Dispose();
 
 		foreach (ILoggerProvider provider in loggerProviders)
@@ -75,15 +89,25 @@ internal static class Program
 		}
 	}
 
-	// 正常退出时 ExitCommand 已经停止过，这里兜底系统注销、信号等直接结束生命周期的情况
-	private static async Task ShutdownAsync()
+	// 兜底注销、信号等不经过 ExitCommand 结束的情况
+	private static async Task ShutdownAsync(ILogger? logger)
 	{
-		if (AppLocator.Current.GetService<IAppLifecycleService>() is { } lifecycle)
+		try
 		{
-			await lifecycle.StopAsync();
+			if (AppLocator.Current.GetService<IAppLifecycleService>() is { } lifecycle)
+			{
+				await lifecycle.StopAsync();
+			}
 		}
-
-		AppLocator.GetLocator().Dispose();
+		catch (Exception exception)
+		{
+			// 释放容器会关闭日志，要在 finally 之前记下
+			logger?.LogError(exception, "Shutdown failed");
+		}
+		finally
+		{
+			AppLocator.GetLocator().Dispose();
+		}
 	}
 
 	// 与托盘退出走同一条路径，让录制正常收尾

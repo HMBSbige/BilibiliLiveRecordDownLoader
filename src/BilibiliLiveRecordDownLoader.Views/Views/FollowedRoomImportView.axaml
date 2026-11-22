@@ -26,7 +26,7 @@
         <StackPanel DockPanel.Dock="Bottom" Classes="form" Margin="0,16,0,0">
             <Border Classes="errorBanner" IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                    <ic:FluentIcon Grid.Column="0" Icon="ErrorCircle" IconVariant="Filled" FontSize="16" VerticalAlignment="Top" Foreground="{DynamicResource SemiColorDanger}" />
+                    <ic:FluentIcon Grid.Column="0" Icon="ErrorCircle" IconVariant="Filled" FontSize="16" Foreground="{DynamicResource SemiColorDanger}" />
                     <ScrollViewer Grid.Column="1" MaxHeight="96">
                         <SelectableTextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
                     </ScrollViewer>
@@ -44,6 +44,7 @@
                 </StackPanel>
                 <StackPanel Classes="toolbar" Spacing="16" VerticalAlignment="Center" IsVisible="{Binding HasRooms}" IsEnabled="{Binding !IsBusy}">
                     <CheckBox IsChecked="{Binding IsRecordingEnabled}" Content="{Binding RecordingEnabled, Source={x:Static l:AppLanguage.Current}}" />
+                    <CheckBox IsChecked="{Binding IsDanmakuEnabled}" Content="{Binding RecordDanmaku, Source={x:Static l:AppLanguage.Current}}" />
                     <CheckBox IsChecked="{Binding IsNotificationEnabled}" Content="{Binding NotificationEnabled, Source={x:Static l:AppLanguage.Current}}" />
                 </StackPanel>
             </DockPanel>
@@ -60,7 +61,7 @@
 
         <Border Classes="table" MaxHeight="360">
             <Panel>
-                <!-- 撑起首选高度，切换状态时对话框大小不变；窗口较矮时随可用高度收缩，固定 Height 会溢出盖住搜索框 -->
+                <!-- 撑起首选高度，又能随窗口收缩；固定 Height 会溢出盖住搜索框 -->
                 <Rectangle Height="360" />
                 <DockPanel IsVisible="{Binding HasRooms}" IsEnabled="{Binding !IsBusy}">
                     <Border DockPanel.Dock="Top" Classes="tableHeader">

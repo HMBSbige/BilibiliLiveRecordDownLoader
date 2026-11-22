@@ -18,6 +18,7 @@ public sealed partial class FollowedRoomImportViewModel : DialogViewModel<bool>
 		_notifications = notifications;
 		_showLogin = showLogin;
 		IsRecordingEnabled = _defaults.IsRecordingEnabled;
+		IsDanmakuEnabled = _defaults.IsDanmakuEnabled;
 		IsNotificationEnabled = _defaults.IsNotificationEnabled;
 
 		CanImport = this.WhenChanged(static viewModel => viewModel.State, static viewModel => viewModel.SelectedCount, static (state, count) => state is FollowedRoomLoadState.Loaded && count > 0);
@@ -37,7 +38,6 @@ public sealed partial class FollowedRoomImportViewModel : DialogViewModel<bool>
 
 	public override string Title => AppLanguage.Current.ImportFollowedRooms;
 
-	// 按搜索条件显示的房间
 	public ObservableCollection<FollowedRoomItemViewModel> VisibleRooms { get; } = [];
 
 	public IObservable<bool> CanImport { get; }
@@ -48,9 +48,11 @@ public sealed partial class FollowedRoomImportViewModel : DialogViewModel<bool>
 	[Reactive]
 	public partial string? SearchText { get; set; }
 
-	// 统一作用于本次导入的房间；开启录制时，导入那一刻正在直播的房间都会立即开录
 	[Reactive]
 	public partial bool IsRecordingEnabled { get; set; }
+
+	[Reactive]
+	public partial bool IsDanmakuEnabled { get; set; }
 
 	[Reactive]
 	public partial bool IsNotificationEnabled { get; set; }
@@ -76,7 +78,6 @@ public sealed partial class FollowedRoomImportViewModel : DialogViewModel<bool>
 	[Reactive]
 	public partial string ImportText { get; private set; } = string.Empty;
 
-	// 加载中显示进度，加载完成后显示总数
 	[Reactive]
 	public partial string? SummaryText { get; private set; }
 
@@ -86,7 +87,7 @@ public sealed partial class FollowedRoomImportViewModel : DialogViewModel<bool>
 	[Reactive]
 	public partial string? ErrorMessage { get; private set; }
 
-	// 部分选中时为 null；设置时选中或取消当前可见的全部房间
+	// 部分选中时为 null
 	public bool? AreAllVisibleSelected
 	{
 		get => _areAllVisibleSelected;
@@ -130,7 +131,6 @@ public sealed partial class FollowedRoomImportViewModel : DialogViewModel<bool>
 		_showLogin();
 	}
 
-	// 全部成功才关闭；有失败时保留对话框，已导入的房间标记为已添加，失败的仍保持选中以便重试
 	[ReactiveCommand(CanExecute = nameof(CanImport))]
 	private async Task ImportAsync(CancellationToken cancellationToken)
 	{
@@ -146,8 +146,7 @@ public sealed partial class FollowedRoomImportViewModel : DialogViewModel<bool>
 
 		try
 		{
-			// 除这两个开关外与手动添加时的默认设置相同，之后可以在编辑界面里修改
-			RoomSettingsDto settings = _defaults with { IsRecordingEnabled = IsRecordingEnabled, IsNotificationEnabled = IsNotificationEnabled };
+			RoomSettingsDto settings = _defaults with { IsRecordingEnabled = IsRecordingEnabled, IsDanmakuEnabled = IsDanmakuEnabled, IsNotificationEnabled = IsNotificationEnabled };
 			IReadOnlyList<RoomAddResult> results = await _roomAppService.AddRangeAsync([.. selected.Select(room => settings with { RoomId = room.RoomId })], cancellationToken);
 			List<string> failures = [];
 			int added = 0;
@@ -169,7 +168,7 @@ public sealed partial class FollowedRoomImportViewModel : DialogViewModel<bool>
 					}
 					case RoomAddResult.Failed failed:
 					{
-						failures.Add($"{selected[index].DisplayName}: {failed.Error}");
+						failures.Add(AppLanguage.Current.NamedReason.ToString(selected[index].DisplayName, failed.Error));
 						break;
 					}
 					default:
@@ -213,7 +212,6 @@ public sealed partial class FollowedRoomImportViewModel : DialogViewModel<bool>
 
 		try
 		{
-			// 关注较多时要翻很多页，边加载边显示
 			await foreach (FollowedRoomDto dto in _roomAppService.GetFollowedRoomsAsync(cancellationToken))
 			{
 				FollowedRoomItemViewModel room = new(dto, OnSelectionChanged);
@@ -236,7 +234,6 @@ public sealed partial class FollowedRoomImportViewModel : DialogViewModel<bool>
 		}
 		catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
 		{
-			// 不保留加载了一半的列表，重试时从头加载
 			ClearRooms();
 			LoadError = exception.Message;
 			State = FollowedRoomLoadState.Failed;
@@ -288,7 +285,7 @@ public sealed partial class FollowedRoomImportViewModel : DialogViewModel<bool>
 		{
 			FollowedRoomLoadState.Loading => AppLanguage.Current.LoadingFollowedRooms.ToString(total),
 			FollowedRoomLoadState.Loaded when HasRooms => AppLanguage.Current.FollowedRoomsSummary.ToString(total, _rooms.Count(static room => room.LiveStatus is LiveStatus.Live).ToString(CultureInfo.CurrentCulture)),
-			_ => null
+			FollowedRoomLoadState.Loaded or FollowedRoomLoadState.LoginRequired or FollowedRoomLoadState.Failed => null
 		};
 
 		UpdateSelection();

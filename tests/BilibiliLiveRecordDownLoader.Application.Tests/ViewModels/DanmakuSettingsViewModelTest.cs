@@ -1,5 +1,4 @@
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
-using BilibiliLiveRecordDownLoader.ViewModels.Common;
 using BilibiliLiveRecordDownLoader.ViewModels.Settings;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
@@ -24,11 +23,11 @@ public sealed class DanmakuSettingsViewModelTest
 		using DanmakuSettingsViewModel viewModel = new(configManager);
 
 		viewModel.ApplyConfig(config);
-		(bool, ChoiceOption, bool, decimal, bool, bool, bool, bool) restored = (viewModel.RecordSuperChats, viewModel.GiftMode, viewModel.RecordGuards, viewModel.OffsetSeconds, viewModel.GenerateSubtitle, viewModel.ShowPaidMessagesInSubtitle, viewModel.SaveRawMessages, viewModel.WriteChaptersOnConvert);
+		(bool, DanmakuGiftMode, bool, decimal, bool, bool, bool, bool) restored = (viewModel.RecordSuperChats, viewModel.GiftMode, viewModel.RecordGuards, viewModel.OffsetSeconds, viewModel.GenerateSubtitle, viewModel.ShowPaidMessagesInSubtitle, viewModel.SaveRawMessages, viewModel.WriteChaptersOnConvert);
 		int updates = configManager.UpdateCount;
 
 		viewModel.RecordSuperChats = true;
-		viewModel.GiftMode = new ChoiceOption(DanmakuGiftMode.All);
+		viewModel.GiftMode = DanmakuGiftMode.All;
 		viewModel.RecordGuards = true;
 		viewModel.OffsetSeconds = -0.8m;
 		viewModel.GenerateSubtitle = true;
@@ -36,14 +35,11 @@ public sealed class DanmakuSettingsViewModelTest
 		viewModel.SaveRawMessages = false;
 		viewModel.WriteChaptersOnConvert = false;
 
-		while (configManager.UpdateCount < 8)
-		{
-			await Task.Delay(10, cancellationToken);
-		}
+		await TestWait.UntilAsync(() => configManager.UpdateCount >= 8, "all eight changes are saved", cancellationToken);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(restored).IsEqualTo((false, new ChoiceOption(DanmakuGiftMode.Paid), false, 1.5m, false, false, true, true));
+			await Assert.That(restored).IsEqualTo((false, DanmakuGiftMode.Paid, false, 1.5m, false, false, true, true));
 			await Assert.That(updates).IsEqualTo(0);
 			await Assert.That((config.RecordSuperChats, config.GiftMode, config.RecordGuards)).IsEqualTo((true, DanmakuGiftMode.All, true));
 			await Assert.That(config.DanmakuOffset).IsEqualTo(TimeSpan.FromSeconds(-0.8));

@@ -20,9 +20,15 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 
 	public long RoomId { get; }
 
+	// 为 null 时从全局取
+	internal IRoomAppService? RoomAppService { get; init; }
+
+	// 开关保存失败并回滚后调用；为 null 时交给全局处理
+	internal Action<Exception>? ReportSaveFailure { get; init; }
+
 	public RoomSettingsDto Settings { get; private set; }
 
-	// 在应用服务返回的列表中的位置，即自定义顺序
+	// 在自定义顺序中的位置
 	public int Order { get; internal set; }
 
 	[Reactive]
@@ -40,7 +46,6 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 	[Reactive]
 	public partial RecordStatus RecordStatus { get; private set; }
 
-	// 录制状态优先，其次是直播状态
 	[Reactive]
 	public partial Enum Status { get; private set; } = LiveStatus.Unknown;
 
@@ -48,9 +53,18 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 	public partial string? StatusTip { get; private set; }
 
 	[Reactive]
+	public partial bool HasError { get; private set; }
+
+	[Reactive]
 	public partial bool IsRecording { get; private set; }
 
-	// 格式和编码；画质单独显示，受限时要标出来
+	// 筛选、汇总和排序只看视频
+	[Reactive]
+	public partial bool IsRecordingDanmakuOnly { get; private set; }
+
+	[Reactive]
+	public partial bool IsRecordingDanmaku { get; private set; }
+
 	[Reactive]
 	public partial string StreamInfo { get; private set; } = string.Empty;
 
@@ -60,9 +74,12 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 	[Reactive]
 	public partial bool IsQualityRestricted { get; private set; }
 
-	// 不受限时为 null
 	[Reactive]
 	public partial string? QualityRestrictionTip { get; private set; }
+
+	// 读屏只读得到列表项上的说明；录不上的原因和画质受限不会同时出现
+	[Reactive]
+	public partial string? HelpText { get; private set; }
 
 	[Reactive]
 	public partial string RecordingInfo { get; private set; } = string.Empty;
@@ -98,13 +115,17 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 			LiveStatus = snapshot.LiveStatus;
 			RecordStatus = snapshot.RecordStatus;
 			Status = snapshot.RecordStatus is RecordStatus.Idle ? snapshot.LiveStatus : snapshot.RecordStatus;
-			StatusTip = snapshot.Recording is null ? snapshot.LastError : null;
+			StatusTip = snapshot is { Recording: null, RecordStatus: RecordStatus.Connecting } ? snapshot.LastError : null;
+			HasError = StatusTip is not null;
 			IsRecording = snapshot.RecordStatus is RecordStatus.Recording;
+			IsRecordingDanmaku = snapshot.Danmaku.IsRecording;
+			IsRecordingDanmakuOnly = IsRecordingDanmaku && !IsRecording;
 			(StreamInfo, QualityText, RecordingInfo) = snapshot.Recording is { } recording
 				? ($"{StreamLabels.Of(recording.Format)} · {StreamLabels.Of(recording.Codec)}", StreamLabels.OfQuality(recording.Quality), $"{ByteSize.Format(snapshot.BytesPerSecond)}/s · {FormatDuration(recording.StartedAt)}")
 				: (string.Empty, string.Empty, string.Empty);
 			QualityRestrictionTip = snapshot.Recording is { Restriction: { } restriction } restricted ? DescribeRestriction(restriction, restricted.Quality, hasCookie) : null;
 			IsQualityRestricted = QualityRestrictionTip is not null;
+			HelpText = StatusTip ?? QualityRestrictionTip;
 			IsRecordingEnabled = snapshot.Settings.IsRecordingEnabled;
 			IsNotificationEnabled = snapshot.Settings.IsNotificationEnabled;
 			IsDanmakuEnabled = snapshot.Settings.IsDanmakuEnabled;
@@ -145,24 +166,27 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 		RoomSettingsDto settings = Settings with { IsRecordingEnabled = toggles.IsRecordingEnabled, IsNotificationEnabled = toggles.IsNotificationEnabled, IsDanmakuEnabled = toggles.IsDanmakuEnabled };
 		Settings = settings;
 
-		IRoomAppService roomAppService = AppLocator.Current.GetRequiredService<IRoomAppService>();
-		Forget(UpdateAsync);
+		IRoomAppService roomAppService = RoomAppService ?? AppLocator.Current.GetRequiredService<IRoomAppService>();
+		Action<Exception> reportFailure = ReportSaveFailure ?? RxState.DefaultExceptionHandler.OnNext;
+		Forget(SaveAsync);
 
-		async Task UpdateAsync(CancellationToken cancellationToken)
+		async Task SaveAsync(CancellationToken cancellationToken)
 		{
+			// 保存同步失败时，回滚嵌在这次变更通知里，其通知在 _isApplying 复位后才送达，旧值会再被保存一次
+			await Task.Yield();
+
 			try
 			{
 				await roomAppService.UpdateAsync(settings, cancellationToken);
 			}
 			catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
 			{
-				// 保存失败时恢复为应用服务中的实际设置
 				if (roomAppService.GetRooms().FirstOrDefault(snapshot => snapshot.RoomId == RoomId) is { } snapshot)
 				{
 					Apply(snapshot, _hasCookie);
 				}
 
-				throw;
+				reportFailure(exception);
 			}
 		}
 	}

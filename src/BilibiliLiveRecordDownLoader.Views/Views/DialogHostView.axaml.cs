@@ -2,6 +2,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
+using System.Windows.Input;
 
 namespace BilibiliLiveRecordDownLoader.Views.Views;
 
@@ -27,7 +28,6 @@ public partial class DialogHostView : UserControl
 		base.OnDetachedFromVisualTree(e);
 	}
 
-	// 打开时记住原焦点并聚焦对话框，关闭后还原
 	protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
 	{
 		base.OnPropertyChanged(change);
@@ -49,48 +49,39 @@ public partial class DialogHostView : UserControl
 		}
 	}
 
-	// 优先聚焦输入控件，没有时聚焦第一个按钮，确认框中即为“取消”
+	// 没有输入控件时聚焦第一个按钮，确认框里是“取消”
 	private void FocusFirstInput()
 	{
 		Control[] candidates = [.. DialogContent.GetVisualDescendants().OfType<Control>().Where(static control => control is { Focusable: true, IsEffectivelyEnabled: true, IsEffectivelyVisible: true })];
 
-		Control? target = candidates.FirstOrDefault(static control => control is TextBox)
+		// NumericUpDown 模板里也有 TextBox，不能让它越过排在前面的下拉框和复选框
+		Control? target = candidates.FirstOrDefault(static control => control is TextBox { TemplatedParent: null })
 			?? candidates.FirstOrDefault(static control => control is ComboBox or ToggleButton or NumericUpDown)
 			?? candidates.FirstOrDefault(static control => control is Button);
 
 		target?.Focus(NavigationMethod.Tab);
 	}
 
+	// 忙碌时不关闭，但按键也不再传给下面的页面
 	private void OnTopLevelKeyDown(object? sender, KeyEventArgs e)
 	{
-		if (e.Key is Key.Escape && DismissCurrent())
+		if (e.Key is not Key.Escape || DataContext is not DialogHostViewModel { Current: { } dialog })
 		{
-			e.Handled = true;
+			return;
 		}
+
+		ICommand dismiss = dialog.DismissDialogCommand;
+
+		if (dismiss.CanExecute(null))
+		{
+			dismiss.Execute(null);
+		}
+
+		e.Handled = true;
 	}
 
 	private void OnOverlayPressed(object? sender, PointerPressedEventArgs e)
 	{
 		e.Handled = true;
-	}
-
-	private void OnCloseClick(object? sender, RoutedEventArgs e)
-	{
-		DismissCurrent();
-	}
-
-	private bool DismissCurrent()
-	{
-		if (DataContext is not DialogHostViewModel { Current: { } dialog })
-		{
-			return false;
-		}
-
-		if (!dialog.IsBusy)
-		{
-			dialog.Dismiss();
-		}
-
-		return true;
 	}
 }

@@ -1,5 +1,6 @@
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 using System.ComponentModel;
 using System.Windows.Input;
 
@@ -7,10 +8,9 @@ namespace BilibiliLiveRecordDownLoader.Views.Views;
 
 public partial class RoomsView : UserControl
 {
-	// 移动超过这个距离才开始拖动，单击手柄只选中所在行
+	// 单击手柄只选中所在行
 	private const double DragThreshold = 4;
 
-	// 指针在列表上下边缘这个范围内时自动滚动，越靠近边缘越快
 	private const double AutoScrollEdge = 40;
 	private const double AutoScrollMaxStep = 20;
 
@@ -25,13 +25,13 @@ public partial class RoomsView : UserControl
 	private RoomDrag? _drag;
 	private RoomItemViewModel? _focusAfterMove;
 
-	// 收起时记住拖出来的宽度，再打开时恢复
 	private GridLength _danmakuPanelWidth = new(360);
 
 	public RoomsView()
 	{
 		InitializeComponent();
 		_autoScrollTimer.Tick += OnAutoScroll;
+		ContentGrid.SizeChanged += OnContentGridSizeChanged;
 		// 列表自己会把 Alt+方向键当作移动焦点，在隧道阶段先处理
 		RoomList.AddHandler(KeyDownEvent, OnRoomListKeyDown, RoutingStrategies.Tunnel);
 	}
@@ -62,7 +62,6 @@ public partial class RoomsView : UserControl
 		}
 	}
 
-	// 收起时整列宽度归零，房间列表占满
 	private void UpdateDanmakuPanel()
 	{
 		bool isOpen = _viewModel?.Danmaku.IsOpen is true;
@@ -77,17 +76,57 @@ public partial class RoomsView : UserControl
 		column.Width = isOpen ? _danmakuPanelWidth : new GridLength(0);
 		DanmakuSplitter.IsVisible = isOpen;
 		DanmakuPanel.IsVisible = isOpen;
+		UpdateDanmakuPanelMaxWidth();
 	}
 
+	private void OnContentGridSizeChanged(object? sender, SizeChangedEventArgs e)
+	{
+		UpdateDanmakuPanelMaxWidth();
+	}
+
+	// 像素宽度的列不随窗口变窄；只限 MaxWidth 不改 Width，窗口放大后能恢复
+	private void UpdateDanmakuPanelMaxWidth()
+	{
+		ColumnDefinition column = ContentGrid.ColumnDefinitions[2];
+
+		column.MaxWidth = _viewModel?.Danmaku.IsOpen is true
+			? Math.Max(DanmakuPanelMinWidth, ContentGrid.Bounds.Width - ContentGrid.ColumnDefinitions[0].MinWidth - DanmakuSplitter.Width)
+			: double.PositiveInfinity;
+	}
+
+	// 双击手势按连击数另外触发，按钮处理了按下也拦不住
 	private void OnRoomDoubleTapped(object? sender, TappedEventArgs e)
 	{
-		if (DataContext is RoomListViewModel { EditRoomCommand: ICommand command } && command.CanExecute(null))
+		if (IsOnRow(e.Source) && DataContext is RoomListViewModel { EditRoomCommand: ICommand command } && command.CanExecute(null))
 		{
 			command.Execute(null);
 		}
 	}
 
-	// 更多菜单就是右键菜单，先选中所在行；菜单只能在挂载它的列表上打开，所以临时改为贴着按钮弹出
+	private static bool IsOnRow(object? source)
+	{
+		if (source is not Visual visual)
+		{
+			return false;
+		}
+
+		foreach (Visual element in visual.GetSelfAndVisualAncestors())
+		{
+			if (element is Button || element.Classes.Contains("dragHandle"))
+			{
+				return false;
+			}
+
+			if (element is ListBoxItem)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	// 更多菜单就是右键菜单，只能在挂载它的列表上打开，所以临时改为贴着按钮弹出
 	private void OnMoreClick(object? sender, RoutedEventArgs e)
 	{
 		if (sender is not Control { DataContext: RoomItemViewModel room } button || RoomList.ContextMenu is not { } menu)
@@ -130,8 +169,7 @@ public partial class RoomsView : UserControl
 		command.Execute(null);
 	}
 
-	// 移动的行会重新生成，焦点随之丢失；布局更新后让焦点回到原来的行并滚动到可见。
-	// 不用方向键导航的方式设置焦点，否则列表会把多选收成单选
+	// 移动的行会重新生成而丢失焦点；不用方向键导航的方式设焦点，否则列表会把多选收成单选
 	private void OnRoomsMoved(object? sender, IReadOnlyList<RoomItemViewModel> rooms)
 	{
 		if (rooms is not [var first, ..])
@@ -153,7 +191,6 @@ public partial class RoomsView : UserControl
 		);
 	}
 
-	// 按住未选中的行时只拖动这一行，按住选中的行时拖动全部选中的行。
 	// 拖动期间所在行保持焦点，虚拟化列表就不会回收它，指针捕获也就不会丢失
 	private void OnHandlePointerPressed(object? sender, PointerPressedEventArgs e)
 	{
@@ -197,7 +234,6 @@ public partial class RoomsView : UserControl
 		UpdateDrop(drag);
 	}
 
-	// 在列表外松开时取消
 	private void OnHandlePointerReleased(object? sender, PointerReleasedEventArgs e)
 	{
 		if (_drag is not { } drag || drag.Pointer != e.Pointer)
@@ -331,7 +367,7 @@ public partial class RoomsView : UserControl
 		return last is { } row ? (row.Index + 1, row.Bottom) : null;
 	}
 
-	// 只看与可见区域相交的行，虚拟化列表为保留焦点而留下的行可能不在可见区域里
+	// 虚拟化列表为保留焦点而留下的行可能不在可见区域里
 	private IEnumerable<(int Index, double Top, double Bottom)> GetVisibleRows()
 	{
 		double height = RoomList.Bounds.Height;

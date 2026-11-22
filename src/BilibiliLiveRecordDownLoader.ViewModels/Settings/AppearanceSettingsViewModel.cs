@@ -4,12 +4,12 @@ public sealed partial class AppearanceSettingsViewModel : ViewModelBase
 {
 	private bool _isInitialized;
 
-	public IReadOnlyList<ChoiceOption> ThemeOptions { get; } = ChoiceOption.OfAll<AppTheme>();
+	public IReadOnlyList<AppTheme> ThemeOptions { get; } = Enum.GetValues<AppTheme>();
 
 	public ObservableCollection<LanguageOptionViewModel> Languages { get; } = [];
 
 	[Reactive]
-	public partial ChoiceOption Theme { get; set; } = new(AppTheme.FollowSystem);
+	public partial AppTheme Theme { get; set; } = AppTheme.FollowSystem;
 
 	[Reactive]
 	public partial LanguageOptionViewModel? SelectedLanguage { get; set; }
@@ -32,11 +32,11 @@ public sealed partial class AppearanceSettingsViewModel : ViewModelBase
 		SelectedLanguage = Languages.FirstOrDefault(language => language.CultureName == config.Language) ?? Languages[0];
 		ApplyCulture(SelectedLanguage.CultureName);
 
-		Theme = new ChoiceOption(config.Theme);
+		Theme = config.Theme;
 		AppLocator.Current.GetRequiredService<IThemeService>().Apply(config.Theme);
 
 		PersistToConfig(this.WhenChanged(static viewModel => viewModel.SelectedLanguage).Map(static language => language?.CultureName), static (appConfig, value) => appConfig.Language = string.IsNullOrEmpty(value) ? null : value);
-		PersistToConfig(this.WhenChanged(static viewModel => viewModel.Theme), static (appConfig, value) => appConfig.Theme = value.As<AppTheme>() ?? AppTheme.FollowSystem);
+		PersistToConfig(this.WhenChanged(static viewModel => viewModel.Theme), static (appConfig, value) => appConfig.Theme = value);
 
 		this.WhenChanged(static viewModel => viewModel.SelectedLanguage)
 			.Skip(1)
@@ -46,7 +46,7 @@ public sealed partial class AppearanceSettingsViewModel : ViewModelBase
 
 		this.WhenChanged(static viewModel => viewModel.Theme)
 			.Skip(1)
-			.Subscribe(static theme => AppLocator.Current.GetRequiredService<IThemeService>().Apply(theme.As<AppTheme>() ?? AppTheme.FollowSystem))
+			.Subscribe(static theme => AppLocator.Current.GetRequiredService<IThemeService>().Apply(theme))
 			.DisposeWith(Disposables);
 
 		_isInitialized = true;

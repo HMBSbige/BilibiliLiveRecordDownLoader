@@ -5,7 +5,7 @@ using System.Text;
 
 namespace BilibiliLiveRecordDownLoader.Views.Services;
 
-internal sealed class AutoStartService : IAutoStartService
+internal sealed partial class AutoStartService(ILogger<AutoStartService> logger) : IAutoStartService
 {
 	private const string WindowsRunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
 	private const string MacLaunchAgentLabel = "io.github.hmbsbige.bilibililiverecorddownloader";
@@ -14,16 +14,25 @@ internal sealed class AutoStartService : IAutoStartService
 
 	private static string ExecutablePath => Environment.ProcessPath ?? throw new PlatformNotSupportedException();
 
+	// 启动时就要读，不能让启动失败
 	public bool IsEnabled()
 	{
-		// 程序换了目录后旧的登记已经失效
-		if (OperatingSystem.IsWindows())
+		try
 		{
-			using RegistryKey? key = Registry.CurrentUser.OpenSubKey(WindowsRunKey);
-			return key?.GetValue(AppConsts.Name) is string command && command.Equals(WindowsCommand, StringComparison.OrdinalIgnoreCase);
-		}
+			// 程序换了目录后旧的登记已经失效
+			if (OperatingSystem.IsWindows())
+			{
+				using RegistryKey? key = Registry.CurrentUser.OpenSubKey(WindowsRunKey);
+				return key?.GetValue(AppConsts.Name) is string command && command.Equals(WindowsCommand, StringComparison.OrdinalIgnoreCase);
+			}
 
-		return GetStartupFilePath() is { } path && File.Exists(path) && File.ReadAllText(path) == CreateStartupFile();
+			return GetStartupFilePath() is { } path && File.Exists(path) && File.ReadAllText(path) == CreateStartupFile();
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SecurityException)
+		{
+			LogReadFailed(exception);
+			return false;
+		}
 	}
 
 	public void SetEnabled(bool enabled)
@@ -98,7 +107,7 @@ internal sealed class AutoStartService : IAutoStartService
 			""";
 	}
 
-	// 引号内的 " ` $ \ 要转义，% 写成 %%；Exec 的值本身又是字符串，反斜杠还要再转义一次
+	// Exec 的值本身又是字符串，加引号转义后的反斜杠还要整体再转义一次
 	private static string QuoteDesktopExecArgument(string value)
 	{
 		StringBuilder builder = new("\"");
@@ -137,4 +146,7 @@ internal sealed class AutoStartService : IAutoStartService
 
 			""";
 	}
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to read the auto start registration")]
+	private partial void LogReadFailed(Exception exception);
 }

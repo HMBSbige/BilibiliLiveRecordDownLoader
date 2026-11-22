@@ -103,7 +103,7 @@
                                                    IsVisible="{Binding Sort.Column, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static logs:LogSortColumn.Time}}" />
                                 </StackPanel>
                             </Button>
-                            <Thumb Classes="columnResizer" Tag="Time" DragDelta="OnColumnResize" />
+                            <Thumb Classes="columnResizer" DragDelta="OnTimeColumnResize" />
                         </Panel>
                         <Panel Grid.Column="1" Width="{Binding $parent[views:LogsView].LevelColumnWidth}">
                             <Button Classes="columnHeader" Command="{Binding SortByCommand}" CommandParameter="{x:Static logs:LogSortColumn.Level}">
@@ -113,7 +113,7 @@
                                                    IsVisible="{Binding Sort.Column, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static logs:LogSortColumn.Level}}" />
                                 </StackPanel>
                             </Button>
-                            <Thumb Classes="columnResizer" Tag="Level" DragDelta="OnColumnResize" />
+                            <Thumb Classes="columnResizer" DragDelta="OnLevelColumnResize" />
                         </Panel>
                         <Panel Grid.Column="2" Width="{Binding $parent[views:LogsView].RoomColumnWidth}">
                             <Button Classes="columnHeader" Command="{Binding SortByCommand}" CommandParameter="{x:Static logs:LogSortColumn.Room}">
@@ -123,7 +123,7 @@
                                                    IsVisible="{Binding Sort.Column, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static logs:LogSortColumn.Room}}" />
                                 </StackPanel>
                             </Button>
-                            <Thumb Classes="columnResizer" Tag="Room" DragDelta="OnColumnResize" />
+                            <Thumb Classes="columnResizer" DragDelta="OnRoomColumnResize" />
                         </Panel>
                         <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="{Binding LogMessage, Source={x:Static l:AppLanguage.Current}}" />
                     </Grid>
@@ -134,7 +134,7 @@
                              KeyDown="OnLogListKeyDown" IsVisible="{Binding HasVisibleEntries}">
                         <ListBox.ContextMenu>
                             <ContextMenu>
-                                <MenuItem Header="{Binding Copy, Source={x:Static l:AppLanguage.Current}}" InputGesture="Ctrl+C" Click="OnCopyClick">
+                                <MenuItem Header="{Binding Copy, Source={x:Static l:AppLanguage.Current}}" InputGesture="{OnPlatform Ctrl+C, macOS=Cmd+C}" Click="OnCopyClick">
                                     <MenuItem.Icon>
                                         <ic:FluentIcon Icon="Copy" />
                                     </MenuItem.Icon>

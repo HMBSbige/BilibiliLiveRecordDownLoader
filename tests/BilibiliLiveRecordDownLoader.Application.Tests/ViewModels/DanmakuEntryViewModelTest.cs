@@ -2,6 +2,7 @@ using BilibiliLive.Danmu;
 using BilibiliLiveRecordDownLoader.Application.Contracts.Danmaku;
 using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels.Danmaku;
+using System.Globalization;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 
@@ -14,7 +15,6 @@ public sealed class DanmakuEntryViewModelTest
 		return DanmakuEntryViewModel.FromFile(0, new DanmakuFileEntryDto(TimeSpan.FromSeconds(seconds), entry));
 	}
 
-	// 面板和字幕共用同一份档位配色
 	[Test]
 	[Arguments(30_000L)]
 	[Arguments(100_000L)]
@@ -27,7 +27,7 @@ public sealed class DanmakuEntryViewModelTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(entry.IsSuperChat).IsTrue();
-			await Assert.That((entry.SuperChatBackground, entry.SuperChatPriceColor, entry.SuperChatBottomBackground)).IsEqualTo((tier.Background, tier.PriceColor, tier.BottomBackground));
+			await Assert.That((entry.SuperChatBackground, entry.SuperChatPriceColor, entry.SuperChatBottomBackground, entry.SuperChatTextColor)).IsEqualTo((tier.Background, tier.PriceColor, tier.BottomBackground, tier.TextColor));
 			await Assert.That(entry.PriceText).IsEqualTo(DanmakuEntryViewModel.FormatPrice(price));
 		}
 	}
@@ -38,7 +38,10 @@ public sealed class DanmakuEntryViewModelTest
 	[Arguments(1_234L, "1.23")]
 	public async Task PriceInThousandthsOfAYuanIsShownInYuanAsync(long price, string yuan)
 	{
-		await Assert.That(DanmakuEntryViewModel.FormatPrice(price)).IsEqualTo(AppLanguage.Current.DanmakuPrice.ToString(yuan));
+		// 小数点跟随区域设置
+		string expected = decimal.Parse(yuan, CultureInfo.InvariantCulture).ToString(CultureInfo.CurrentCulture);
+
+		await Assert.That(DanmakuEntryViewModel.FormatPrice(price)).IsEqualTo(AppLanguage.Current.DanmakuPrice.ToString(expected));
 	}
 
 	// 银瓜子礼物不花钱
@@ -68,7 +71,55 @@ public sealed class DanmakuEntryViewModelTest
 		{
 			await Assert.That((guard.Badge, guard.IsGuardBadge, guard.MedalColor)).IsEqualTo((AppLanguage.Current.GuardLevelCaptain, true, null));
 			await Assert.That((fan.Badge, fan.IsGuardBadge, fan.MedalColor)).IsEqualTo(("粉丝团 21", false, 0x1A2B3C));
-			await Assert.That(unlit.MedalColor).IsNull();
+			await Assert.That((unlit.MedalColor, unlit.IsUnlitMedal)).IsEqualTo((null, true));
+			await Assert.That((guard.IsUnlitMedal, fan.IsUnlitMedal)).IsEqualTo((false, false));
+		}
+	}
+
+	[Test]
+	public async Task AccessibleTextReadsTheWholeRowAsync()
+	{
+		DanmuMedal medal = new(21, "粉丝团", 0x1A2B3C, 2, 3, true);
+		DanmakuEntryViewModel comment = File(new DanmakuEntryDto.Comment(new DanmuSender(1, "粉丝", GuardLevel.None, medal), "你好", 0xFFFFFF, false), 65);
+		DanmakuEntryViewModel superChat = File(new DanmakuEntryDto.SuperChat(7, Viewer, "加油", 30_000, TimeSpan.FromMinutes(1)));
+		DanmakuEntryViewModel title = File(new DanmakuEntryDto.TitleChange("新标题"));
+		bool notified = false;
+		superChat.PropertyChanged += (_, e) => notified |= e.PropertyName is nameof(DanmakuEntryViewModel.AccessibleText);
+
+		DanmakuEntryViewModel.MarkDeleted([superChat], [7]);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(comment.AccessibleText).IsEqualTo($"0:01:05 粉丝团 21 粉丝{AppLanguage.Current.DanmakuNameSeparator}你好");
+			await Assert.That(superChat.AccessibleText).IsEqualTo($"0:00:00 观众{AppLanguage.Current.DanmakuNameSeparator}加油 {DanmakuEntryViewModel.FormatPrice(30_000)} {AppLanguage.Current.DanmakuSuperChatDeleted}");
+			await Assert.That(notified).IsTrue();
+			await Assert.That(title.AccessibleText).IsEqualTo($"0:00:00 {AppLanguage.Current.DanmakuTitleText.ToString("新标题")}");
+		}
+	}
+
+	[Test]
+	public async Task OnlyPaidMessagesHaveAPriceAsync()
+	{
+		using (Assert.Multiple())
+		{
+			await Assert.That(File(FakeComment()).PriceText).IsNull();
+			await Assert.That(File(new DanmakuEntryDto.Guard(Viewer, GuardLevel.Captain, 1, 0, false)).PriceText).IsNull();
+			await Assert.That(File(new DanmakuEntryDto.Connection(true, false)).PriceText).IsNull();
+			await Assert.That(File(new DanmakuEntryDto.Guard(Viewer, GuardLevel.Captain, 1, 138_000, false)).PriceText).IsEqualTo(DanmakuEntryViewModel.FormatPrice(138_000));
+		}
+	}
+
+	[Test]
+	public async Task SearchIgnoresCaseInNamesAndTextAsync()
+	{
+		DanmakuEntryViewModel entry = File(new DanmakuEntryDto.Comment(new DanmuSender(1, "Viewer", GuardLevel.None, null), "Hello 世界", 0xFFFFFF, false));
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(entry.Contains("hello")).IsTrue();
+			await Assert.That(entry.Contains("VIEW")).IsTrue();
+			await Assert.That(entry.Contains("世界")).IsTrue();
+			await Assert.That(entry.Contains("再见")).IsFalse();
 		}
 	}
 
@@ -108,11 +159,7 @@ public sealed class DanmakuEntryViewModelTest
 
 		DanmakuEntryViewModel.MarkDeleted([deleted, kept, withoutId], [7, 0]);
 
-		using (Assert.Multiple())
-		{
-			await Assert.That((deleted.IsDeleted, kept.IsDeleted, withoutId.IsDeleted)).IsEqualTo((true, false, false));
-			await Assert.That(deleted.DeletedText).IsEqualTo(AppLanguage.Current.DanmakuSuperChatDeleted);
-		}
+		await Assert.That((deleted.IsDeleted, kept.IsDeleted, withoutId.IsDeleted)).IsEqualTo((true, false, false));
 	}
 
 	[Test]

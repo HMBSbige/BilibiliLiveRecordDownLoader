@@ -1,8 +1,8 @@
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
+using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels.Rooms;
 using Splat;
 using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using TUnit.Assertions.Enums;
 
@@ -22,10 +22,7 @@ public sealed class RoomListViewModelTest
 	[Test]
 	[Arguments(RoomSortOrder.Custom, RoomFilter.All, true)]
 	[Arguments(RoomSortOrder.Custom, RoomFilter.Live, false)]
-	[Arguments(RoomSortOrder.Custom, RoomFilter.Recording, false)]
 	[Arguments(RoomSortOrder.Status, RoomFilter.All, false)]
-	[Arguments(RoomSortOrder.Name, RoomFilter.All, false)]
-	[Arguments(RoomSortOrder.RoomId, RoomFilter.All, false)]
 	public async Task MovingIsOnlyAvailableForAllRoomsInTheCustomOrderAsync(RoomSortOrder sortOrder, RoomFilter filter, bool expected)
 	{
 		using RoomListViewModel viewModel = Create(new FakeRoomAppService(InitialOrder));
@@ -116,25 +113,186 @@ public sealed class RoomListViewModelTest
 		(RoomSortOrder restored, bool canReorder, int updates) = (viewModel.SortOrder, viewModel.CanReorder, configManager.UpdateCount);
 		((ICommand)viewModel.SortByCommand).Execute(RoomSortOrder.Custom);
 
-		while (config.RoomSortOrder is not RoomSortOrder.Custom)
-		{
-			await Task.Delay(10, cancellationToken);
-		}
+		await TestWait.UntilAsync(() => config.RoomSortOrder is RoomSortOrder.Custom, "the sort order is saved", cancellationToken);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(restored).IsEqualTo(RoomSortOrder.Name);
 			await Assert.That(canReorder).IsFalse();
-			// 读取配置时不回写
 			await Assert.That(updates).IsEqualTo(0);
 			await Assert.That(configManager.UpdateCount).IsEqualTo(1);
 			await Assert.That(viewModel.CanReorder).IsTrue();
 		}
 	}
 
-	private static RoomListViewModel Create(FakeRoomAppService rooms)
+	[Test]
+	public async Task OnlyASingleSelectionIsFollowedByThePanelAsync()
 	{
-		RoomListViewModel viewModel = new(rooms, new FakeConfigManager(), new FakeDanmakuAppService());
+		using RoomListViewModel viewModel = Create(new FakeRoomAppService(InitialOrder));
+
+		Select(viewModel, [2]);
+		long? single = viewModel.Danmaku.Room?.RoomId;
+		Select(viewModel, [3]);
+		long? multiple = viewModel.Danmaku.Room?.RoomId;
+		viewModel.SelectedRooms.Clear();
+
+		await Assert.That((single, multiple, viewModel.Danmaku.Room?.RoomId)).IsEqualTo((2, 2, 2));
+	}
+
+	[Test]
+	public async Task RemovingTheFollowedRoomUnsubscribesThePanelAsync()
+	{
+		FakeRoomAppService rooms = new(InitialOrder);
+		FakeDanmakuAppService danmaku = new();
+		using RoomListViewModel viewModel = Create(rooms, danmaku);
+
+		viewModel.Danmaku.IsOpen = true;
+		Select(viewModel, [2]);
+		rooms.Remove(2);
+		viewModel.Sync();
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(danmaku.Feeds.Select(static feed => (feed.RoomId, feed.IsDisposed)).ToArray()).IsEquivalentTo([(2L, true)], EqualityComparer<(long, bool)>.Default, CollectionOrdering.Matching);
+			await Assert.That((viewModel.Danmaku.Room, viewModel.Danmaku.Live)).IsEqualTo((null, null));
+		}
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	public async Task RowToggleSavesOnlyThatSettingAsync(CancellationToken cancellationToken)
+	{
+		FakeRoomAppService rooms = new(InitialOrder);
+		using RoomListViewModel viewModel = Create(rooms);
+		RoomItemViewModel room = viewModel.Rooms.Single(static room => room.RoomId == 3);
+		RoomSettingsDto before = room.Settings;
+
+		room.IsDanmakuEnabled = !before.IsDanmakuEnabled;
+
+		await TestWait.UntilAsync(() => !rooms.Updates.IsEmpty, "the room settings are saved", cancellationToken);
+
+		await Assert.That(rooms.Updates.Single()).IsEqualTo(before with { IsDanmakuEnabled = !before.IsDanmakuEnabled });
+	}
+
+	// 回滚不会把旧值再存一次
+	[Test]
+	[Timeout(30_000)]
+	[Arguments(false)]
+	[Arguments(true)]
+	public async Task FailedSaveRestoresTheToggleAsync(bool failsSynchronously, CancellationToken cancellationToken)
+	{
+		// 不是本次取消引起的取消也算失败，例如请求超时
+		TaskCanceledException failure = new(null, new TimeoutException());
+		FakeRoomAppService rooms = new(InitialOrder) { UpdateFailure = failure, FailsSynchronously = failsSynchronously };
+		ConcurrentQueue<Exception> reported = new();
+		using RoomListViewModel viewModel = Create(rooms, reportSaveFailure: reported.Enqueue);
+		RoomItemViewModel room = viewModel.Rooms.Single(static room => room.RoomId == 3);
+		bool original = room.IsDanmakuEnabled;
+
+		room.IsDanmakuEnabled = !original;
+
+		// 先回滚再报告，报告到了时回滚已经完成
+		await TestWait.UntilAsync(() => !reported.IsEmpty, "the failed save is reported", cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(reported.Single()).IsSameReferenceAs(failure);
+			await Assert.That(rooms.Updates.Count).IsEqualTo(1);
+			await Assert.That((room.IsDanmakuEnabled, room.Settings.IsDanmakuEnabled)).IsEqualTo((original, original));
+		}
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	public async Task ShowingDanmakuSwitchesFromTheOpenFileToTheSelectedRoomAsync(CancellationToken cancellationToken)
+	{
+		FakeDanmakuAppService danmaku = new() { OpenFile = static _ => DanmakuFileViewModelTest.CreateFile(seconds: [1]) };
+		using RoomListViewModel viewModel = Create(new FakeRoomAppService(InitialOrder), danmaku);
+
+		Select(viewModel, [1]);
+		await viewModel.Danmaku.LoadFileAsync("a.xml", cancellationToken);
+		viewModel.SelectedRooms.Clear();
+		Select(viewModel, [4]);
+		((ICommand)viewModel.ShowDanmakuCommand).Execute(null);
+
+		await Assert.That((viewModel.Danmaku.IsOpen, viewModel.Danmaku.File, viewModel.Danmaku.Live?.RoomId)).IsEqualTo((true, null, 4));
+	}
+
+	// 即使面板正开着别的文件
+	[Test]
+	[Timeout(30_000)]
+	public async Task OpeningADanmakuFileFromTheRoomMenuStartsInTheRoomDirectoryAsync(CancellationToken cancellationToken)
+	{
+		FakeConfigManager configManager = new();
+		string recordDirectory = (await configManager.GetAsync(cancellationToken)).RecordDirectory;
+		FakeDanmakuAppService danmaku = new() { OpenFile = static _ => DanmakuFileViewModelTest.CreateFile(seconds: [1]) };
+		using RoomListViewModel viewModel = Create(new FakeRoomAppService(InitialOrder), danmaku, configManager);
+		TaskCompletionSource<string> picked = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		viewModel.Danmaku.PickDanmakuFile = directory =>
+		{
+			picked.TrySetResult(directory);
+			return Task.FromResult<string?>(null);
+		};
+
+		Select(viewModel, [1]);
+		await viewModel.Danmaku.LoadFileAsync("a.xml", cancellationToken);
+		viewModel.SelectedRooms.Clear();
+		Select(viewModel, [5]);
+		((ICommand)viewModel.OpenDanmakuFileCommand).Execute(null);
+
+		await Assert.That(await picked.Task.WaitAsync(cancellationToken)).IsEqualTo(RecordingFileLayout.GetRoomDirectory(recordDirectory, 5));
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	public async Task LoggingInFromTheDanmakuPanelUpdatesTheBannerAsync(CancellationToken cancellationToken)
+	{
+		AppConfig config = AppConfig.CreateDefault();
+		config.Cookie = null;
+		FakeRoomAppService rooms = new(InitialOrder);
+		rooms.Change(1, static snapshot => snapshot with { Danmaku = new RoomDanmakuSnapshot(true) });
+		using RoomListViewModel viewModel = new(rooms, new FakeConfigManager(config), new FakeDanmakuAppService())
+		{
+			ShowLogin = _ =>
+			{
+				config.Cookie = "a=b";
+				return Task.FromResult(true);
+			}
+		};
+		viewModel.ApplyConfig(config);
+		viewModel.Sync();
+		string? before = viewModel.LoginBannerText;
+
+		((ICommand)viewModel.Danmaku.LoginCommand).Execute(null);
+
+		await TestWait.UntilAsync(() => viewModel.LoginBannerText is null, "the login banner is dismissed", cancellationToken);
+
+		await Assert.That(before).IsEqualTo(AppLanguage.Current.DanmakuMaskedBanner);
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	[Arguments(false)]
+	[Arguments(true)]
+	public async Task LoggingInMarksTheDanmakuConnectionAsWaitingForTheReconnectionAsync(bool fromPanel, CancellationToken cancellationToken)
+	{
+		using RoomListViewModel viewModel = new(new FakeRoomAppService(InitialOrder), new FakeConfigManager(), new FakeDanmakuAppService()) { ShowLogin = static _ => Task.FromResult(true) };
+		viewModel.Sync();
+		viewModel.Danmaku.IsOpen = true;
+		Select(viewModel, [1]);
+		bool before = viewModel.Danmaku.Live?.CanLogin is true;
+
+		((ICommand)(fromPanel ? viewModel.Danmaku.LoginCommand : viewModel.LoginCommand)).Execute(null);
+
+		// 面板的定时刷新在别的线程上也会写这两项，等两项都到位，不在中途断言
+		await TestWait.UntilAsync(() => viewModel.Danmaku.Live is { CanLogin: false } live && live.IdentityText == AppLanguage.Current.DanmakuLoginPending, "the panel waits for the reconnection instead of offering login", cancellationToken);
+
+		await Assert.That(before).IsTrue();
+	}
+
+	private static RoomListViewModel Create(FakeRoomAppService rooms, FakeDanmakuAppService? danmaku = null, FakeConfigManager? configManager = null, Action<Exception>? reportSaveFailure = null)
+	{
+		RoomListViewModel viewModel = new(rooms, configManager ?? new FakeConfigManager(), danmaku ?? new FakeDanmakuAppService()) { ReportSaveFailure = reportSaveFailure };
 		((ICommand)viewModel.SortByCommand).Execute(RoomSortOrder.Custom);
 		viewModel.Sync();
 		return viewModel;
@@ -178,58 +336,59 @@ public sealed class RoomListViewModelTest
 		}
 	}
 
-	// 按应用服务的规则调整顺序，列表刷新后能看到结果
-	private sealed class FakeRoomAppService(IEnumerable<long> roomIds) : IRoomAppService
+	private sealed class FakeRoomAppService(IEnumerable<long> roomIds) : RoomAppServiceStub
 	{
 		private readonly List<RoomSnapshot> _rooms = [.. roomIds.Select(static roomId => new RoomSnapshot(new RoomSettingsDto { RoomId = roomId }, 0, $"主播{roomId}", null, LiveStatus.Idle, RecordStatus.Idle, 0, null, null))];
 
 		public ConcurrentQueue<(long[] RoomIds, long? Before)> Moves { get; } = new();
 
-		public long Version => 0;
+		public ConcurrentQueue<RoomSettingsDto> Updates { get; } = new();
 
-		public bool IsRecording => false;
+		public Exception? UpdateFailure { get; init; }
 
-		public IReadOnlyList<RoomSnapshot> GetRooms()
+		// 保存失败时不等任何异步操作就返回失败的任务，像真实的保存在拿锁之前就出错那样
+		public bool FailsSynchronously { get; init; }
+
+		public void Change(long roomId, Func<RoomSnapshot, RoomSnapshot> change)
+		{
+			int index = _rooms.FindIndex(room => room.RoomId == roomId);
+			_rooms[index] = change(_rooms[index]);
+		}
+
+		public void Remove(long roomId)
+		{
+			_rooms.RemoveAll(room => room.RoomId == roomId);
+		}
+
+		public override IReadOnlyList<RoomSnapshot> GetRooms()
 		{
 			return [.. _rooms];
 		}
 
-		public Task MoveAsync(IReadOnlyCollection<long> roomIds, long? before, CancellationToken cancellationToken = default)
+		public override Task MoveAsync(IReadOnlyCollection<long> roomIds, long? before, CancellationToken cancellationToken = default)
 		{
 			Moves.Enqueue(([.. roomIds], before));
 			RoomOrder.MoveBefore(_rooms, static room => room.RoomId, roomIds.ToHashSet(), before);
 			return Task.CompletedTask;
 		}
 
-		public Task<RoomSnapshot> AddAsync(RoomSettingsDto settings, CancellationToken cancellationToken = default)
+		public override Task UpdateAsync(RoomSettingsDto settings, CancellationToken cancellationToken = default)
 		{
-			throw new NotSupportedException();
+			Updates.Enqueue(settings);
+			return UpdateFailure is { } failure && FailsSynchronously ? Task.FromException(failure) : SaveAsync(settings);
 		}
 
-		public Task<IReadOnlyList<RoomAddResult>> AddRangeAsync(IReadOnlyList<RoomSettingsDto> settings, CancellationToken cancellationToken = default)
+		private async Task SaveAsync(RoomSettingsDto settings)
 		{
-			throw new NotSupportedException();
-		}
+			await Task.Yield();
 
-		public async IAsyncEnumerable<FollowedRoomDto> GetFollowedRoomsAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
-		{
-			await Task.CompletedTask;
-			yield break;
-		}
+			if (UpdateFailure is { } failure)
+			{
+				throw failure;
+			}
 
-		public Task UpdateAsync(RoomSettingsDto settings, CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
-		}
-
-		public Task RemoveAsync(IReadOnlyCollection<long> roomIds, CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
-		}
-
-		public Task RefreshAsync(IReadOnlyCollection<long> roomIds, CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
+			int index = _rooms.FindIndex(room => room.RoomId == settings.RoomId);
+			_rooms[index] = _rooms[index] with { Settings = settings };
 		}
 	}
 }

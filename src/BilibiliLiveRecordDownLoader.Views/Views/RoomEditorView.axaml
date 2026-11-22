@@ -56,35 +56,43 @@
                 </StackPanel>
                 <Grid Classes="form" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="4">
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Quality, Source={x:Static l:AppLanguage.Current}}" />
-                    <ComboBox Grid.Row="1" Grid.Column="0" ItemsSource="{Binding QualityOptions}" SelectedItem="{Binding Quality}" />
+                    <ComboBox Grid.Row="1" Grid.Column="0" ItemsSource="{Binding QualityOptions}" SelectedItem="{Binding Quality}"
+                              AutomationProperties.Name="{Binding Quality, Source={x:Static l:AppLanguage.Current}}" />
                     <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding RecorderType, Source={x:Static l:AppLanguage.Current}}" />
-                    <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding RecorderTypeOptions}" SelectedItem="{Binding RecorderType}" />
+                    <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding RecorderTypeOptions}" SelectedItem="{Binding RecorderType}"
+                              AutomationProperties.Name="{Binding RecorderType, Source={x:Static l:AppLanguage.Current}}" />
                     <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap"
                                Text="{Binding ConvertToMp4, Source={x:Static l:AppLanguage.Current}}" />
-                    <ComboBox Grid.Row="3" Grid.Column="0" ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding ConvertToMp4}" />
+                    <ComboBox Grid.Row="3" Grid.Column="0" ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding ConvertToMp4}"
+                              AutomationProperties.Name="{Binding ConvertToMp4, Source={x:Static l:AppLanguage.Current}}" />
                     <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap"
                                Text="{Binding DeleteAfterConvert, Source={x:Static l:AppLanguage.Current}}" />
-                    <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding DeleteAfterConvert}" />
+                    <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding DeleteAfterConvert}"
+                              AutomationProperties.Name="{Binding DeleteAfterConvert, Source={x:Static l:AppLanguage.Current}}" />
                     <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap"
                                Text="{Binding RecordingSplit, Source={x:Static l:AppLanguage.Current}}" />
-                    <ComboBox Grid.Row="5" Grid.Column="0" ItemsSource="{Binding SplitModeOptions}" SelectedItem="{Binding SplitMode}" />
+                    <ComboBox Grid.Row="5" Grid.Column="0" ItemsSource="{Binding SplitModeOptions}" SelectedItem="{Binding SplitMode}"
+                              AutomationProperties.Name="{Binding RecordingSplit, Source={x:Static l:AppLanguage.Current}}" />
                     <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap" IsVisible="{Binding IsSplitByDuration}"
                                Text="{Binding SplitDuration, Source={x:Static l:AppLanguage.Current}}" />
                     <DockPanel Grid.Row="5" Grid.Column="1" IsVisible="{Binding IsSplitByDuration}">
                         <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding Minutes, Source={x:Static l:AppLanguage.Current}}" />
                         <NumericUpDown Value="{Binding SplitDurationMinutes}" FormatString="0"
-                                       Minimum="{x:Static cfg:RecordingSplitDefaults.MinDurationMinutes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxDurationMinutes}" />
+                                       Minimum="{x:Static cfg:RecordingSplitDefaults.MinDurationMinutes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxDurationMinutes}"
+                                       AutomationProperties.Name="{Binding SplitDuration, Source={x:Static l:AppLanguage.Current}}" />
                     </DockPanel>
                     <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap" IsVisible="{Binding IsSplitBySize}"
                                Text="{Binding SplitSize, Source={x:Static l:AppLanguage.Current}}" />
                     <DockPanel Grid.Row="5" Grid.Column="1" IsVisible="{Binding IsSplitBySize}">
                         <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding Megabytes, Source={x:Static l:AppLanguage.Current}}" />
                         <NumericUpDown Value="{Binding SplitSizeMegabytes}" Increment="100" FormatString="0"
-                                       Minimum="{x:Static cfg:RecordingSplitDefaults.MinSizeMegabytes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxSizeMegabytes}" />
+                                       Minimum="{x:Static cfg:RecordingSplitDefaults.MinSizeMegabytes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxSizeMegabytes}"
+                                       AutomationProperties.Name="{Binding SplitSize, Source={x:Static l:AppLanguage.Current}}" />
                     </DockPanel>
                     <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap"
                                Text="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}" />
-                    <ComboBox Grid.Row="7" Grid.Column="0" ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding SplitOnTitleChange}" />
+                    <ComboBox Grid.Row="7" Grid.Column="0" ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding SplitOnTitleChange}"
+                              AutomationProperties.Name="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}" />
                     <TextBlock Grid.Row="6" Grid.Column="1" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap"
                                Text="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}" />
                     <NumericUpDown Grid.Row="7" Grid.Column="1" Value="{Binding DanmakuOffsetSeconds}" Increment="0.1" FormatString="0.###"
@@ -106,23 +114,23 @@
                     <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="12">
                         <StackPanel Grid.Row="0" Grid.Column="0" Classes="field">
                             <TextBlock Text="{Binding StatusCheckInterval, Source={x:Static l:AppLanguage.Current}}" />
-                            <NumericUpDown Value="{Binding StatusCheckIntervalSeconds}" Minimum="{x:Static cfg:RoomDefaults.MinStatusCheckIntervalSeconds}" />
+                            <NumericUpDown Value="{Binding StatusCheckIntervalSeconds}" Minimum="{x:Static cfg:RoomDefaults.MinStatusCheckIntervalSeconds}" Maximum="{x:Static cfg:RoomDefaults.MaxIntervalSeconds}" />
                         </StackPanel>
                         <StackPanel Grid.Row="0" Grid.Column="1" Classes="field">
                             <TextBlock Text="{Binding DanmuReconnectDelay, Source={x:Static l:AppLanguage.Current}}" />
-                            <NumericUpDown Value="{Binding DanmuReconnectDelaySeconds}" Minimum="{x:Static cfg:RoomDefaults.MinDanmuReconnectDelaySeconds}" />
+                            <NumericUpDown Value="{Binding DanmuReconnectDelaySeconds}" Minimum="{x:Static cfg:RoomDefaults.MinDanmuReconnectDelaySeconds}" Maximum="{x:Static cfg:RoomDefaults.MaxIntervalSeconds}" />
                         </StackPanel>
                         <StackPanel Grid.Row="1" Grid.Column="0" Classes="field">
                             <TextBlock Text="{Binding StreamReconnectDelay, Source={x:Static l:AppLanguage.Current}}" />
-                            <NumericUpDown Value="{Binding StreamReconnectDelaySeconds}" Minimum="{x:Static cfg:RoomDefaults.MinStreamReconnectDelaySeconds}" />
+                            <NumericUpDown Value="{Binding StreamReconnectDelaySeconds}" Minimum="{x:Static cfg:RoomDefaults.MinStreamReconnectDelaySeconds}" Maximum="{x:Static cfg:RoomDefaults.MaxIntervalSeconds}" />
                         </StackPanel>
                         <StackPanel Grid.Row="1" Grid.Column="1" Classes="field">
                             <TextBlock Text="{Binding StreamConnectTimeout, Source={x:Static l:AppLanguage.Current}}" />
-                            <NumericUpDown Value="{Binding StreamConnectTimeoutSeconds}" Minimum="{x:Static cfg:RoomDefaults.MinStreamConnectTimeoutSeconds}" />
+                            <NumericUpDown Value="{Binding StreamConnectTimeoutSeconds}" Minimum="{x:Static cfg:RoomDefaults.MinStreamConnectTimeoutSeconds}" Maximum="{x:Static cfg:RoomDefaults.MaxIntervalSeconds}" />
                         </StackPanel>
                         <StackPanel Grid.Row="2" Grid.Column="0" Classes="field">
                             <TextBlock Text="{Binding StreamIdleTimeout, Source={x:Static l:AppLanguage.Current}}" />
-                            <NumericUpDown Value="{Binding StreamIdleTimeoutSeconds}" Minimum="{x:Static cfg:RoomDefaults.MinStreamIdleTimeoutSeconds}" />
+                            <NumericUpDown Value="{Binding StreamIdleTimeoutSeconds}" Minimum="{x:Static cfg:RoomDefaults.MinStreamIdleTimeoutSeconds}" Maximum="{x:Static cfg:RoomDefaults.MaxIntervalSeconds}" />
                         </StackPanel>
                     </Grid>
                 </Expander>

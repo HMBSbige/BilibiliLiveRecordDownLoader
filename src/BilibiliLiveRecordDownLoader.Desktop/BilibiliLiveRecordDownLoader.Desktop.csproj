@@ -4,6 +4,7 @@
     <AssemblyName>BilibiliLiveRecordDownLoader</AssemblyName>
     <ApplicationIcon>..\BilibiliLiveRecordDownLoader.Views\Assets\Asaki.ico</ApplicationIcon>
     <PublishAot>true</PublishAot>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

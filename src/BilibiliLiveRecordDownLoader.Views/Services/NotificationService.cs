@@ -21,7 +21,6 @@ internal sealed class NotificationService(ApplicationShell shell, ILauncherServi
 			return;
 		}
 
-		// 窗口在托盘或后台时用独立的置顶小窗提醒
 		ToastWindow.Show(title, message, ToNotificationType(type), openLink ?? shell.ShowMainWindow);
 	}
 
@@ -44,7 +43,7 @@ internal sealed class NotificationService(ApplicationShell shell, ILauncherServi
 			AppNotificationType.Success => NotificationType.Success,
 			AppNotificationType.Warning => NotificationType.Warning,
 			AppNotificationType.Error => NotificationType.Error,
-			_ => NotificationType.Information
+			AppNotificationType.Information => NotificationType.Information
 		};
 	}
 }

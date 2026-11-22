@@ -6,7 +6,6 @@ public sealed partial class DanmakuFilterViewModel : ViewModelBase
 
 	public DanmakuFilterViewModel()
 	{
-		// 输入框停顿后再过滤，类别开关立即生效
 		CriteriaChanged = Signal.Merge
 		(
 			this.WhenChanged(static viewModel => viewModel.ShowComments).Skip(1).Map(static _ => RxVoid.Default),
@@ -21,7 +20,7 @@ public sealed partial class DanmakuFilterViewModel : ViewModelBase
 		);
 	}
 
-	// 条件变化时触发，在界面线程上
+	// 在界面线程上触发
 	public IObservable<RxVoid> CriteriaChanged { get; }
 
 	[Reactive]
@@ -40,17 +39,18 @@ public sealed partial class DanmakuFilterViewModel : ViewModelBase
 	public partial string? SearchText { get; set; }
 
 	// 标题变化、断开这类提示条数很少，不受类别开关影响
-	public bool Matches(DanmakuEntryViewModel entry)
+	public Func<DanmakuEntryViewModel, bool> CreatePredicate()
 	{
-		bool isShown = entry.Kind switch
-		{
-			DanmakuEntryKind.Comment => ShowComments,
-			DanmakuEntryKind.SuperChat => ShowSuperChats,
-			DanmakuEntryKind.Gift => ShowGifts,
-			DanmakuEntryKind.Guard => ShowGuards,
-			_ => true
-		};
+		(bool comments, bool superChats, bool gifts, bool guards) = (ShowComments, ShowSuperChats, ShowGifts, ShowGuards);
+		string? search = string.IsNullOrWhiteSpace(SearchText) ? null : SearchText.Trim();
 
-		return isShown && (string.IsNullOrWhiteSpace(SearchText) || entry.Contains(SearchText.Trim()));
+		return entry => entry.Kind switch
+		{
+			DanmakuEntryKind.Comment => comments,
+			DanmakuEntryKind.SuperChat => superChats,
+			DanmakuEntryKind.Gift => gifts,
+			DanmakuEntryKind.Guard => guards,
+			DanmakuEntryKind.Notice => true
+		} && (search is null || entry.Contains(search));
 	}
 }

@@ -57,7 +57,7 @@
 
     <DockPanel Classes="page">
         <DockPanel Classes="toolbar">
-            <StackPanel DockPanel.Dock="Right" Classes="toolbar" IsVisible="{Binding HasRooms}">
+            <StackPanel DockPanel.Dock="Right" Classes="toolbar" VerticalAlignment="Top" IsVisible="{Binding HasRooms}">
                 <DropDownButton ToolTip.Tip="{Binding SortBy, Source={x:Static l:AppLanguage.Current}}"
                                 AutomationProperties.Name="{Binding SortBy, Source={x:Static l:AppLanguage.Current}}">
                     <StackPanel Classes="iconText">
@@ -113,7 +113,8 @@
                 </ToggleButton>
             </StackPanel>
 
-            <StackPanel Classes="toolbar">
+            <!-- 窄窗口里放不下时换行，免得画到右边那组上面 -->
+            <WrapPanel ItemSpacing="{StaticResource ToolbarSpacing}" LineSpacing="{StaticResource ToolbarSpacing}">
                 <Button Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding AddRoomCommand}" IsVisible="{Binding HasRooms}">
                     <StackPanel Classes="iconText">
                         <ic:FluentIcon Icon="Add" />
@@ -144,7 +145,7 @@
                     </Button>
                     <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding SelectionText}" />
                 </StackPanel>
-            </StackPanel>
+            </WrapPanel>
         </DockPanel>
 
         <Border DockPanel.Dock="Top" Classes="warningBanner" Margin="0,0,0,12"
@@ -158,7 +159,12 @@
             </Grid>
         </Border>
 
-        <Grid x:Name="ContentGrid" ColumnDefinitions="*,Auto,0">
+        <Grid x:Name="ContentGrid">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="320" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="0" />
+            </Grid.ColumnDefinitions>
             <Border Grid.Column="0" Classes="table">
                 <Panel>
                     <ListBox x:Name="RoomList"
@@ -169,16 +175,20 @@
                              IsVisible="{Binding HasVisibleRooms}"
                              DoubleTapped="OnRoomDoubleTapped">
                         <ListBox.Styles>
+                            <!-- 读屏停在列表项上，行里的面板没有自动化节点 -->
                             <Style Selector="ListBoxItem" x:DataType="rooms:RoomItemViewModel">
                                 <Setter Property="AutomationProperties.Name" Value="{Binding DisplayName}" />
+                                <Setter Property="AutomationProperties.HelpText" Value="{Binding HelpText}" />
                             </Style>
                         </ListBox.Styles>
                         <ListBox.KeyBindings>
-                            <KeyBinding Gesture="Delete" Command="{Binding RemoveRoomsCommand}" />
+                            <KeyBinding Gesture="Return" Command="{Binding EditRoomCommand}" />
+                            <!-- Mac 键盘上标着 delete 的键是退格键 -->
+                            <KeyBinding Gesture="{OnPlatform Delete, macOS=Back}" Command="{Binding RemoveRoomsCommand}" />
                         </ListBox.KeyBindings>
                         <ListBox.ContextMenu>
                             <ContextMenu>
-                                <MenuItem Header="{Binding EditRoom, Source={x:Static l:AppLanguage.Current}}" Command="{Binding EditRoomCommand}">
+                                <MenuItem Header="{Binding EditRoom, Source={x:Static l:AppLanguage.Current}}" Command="{Binding EditRoomCommand}" InputGesture="Return">
                                     <MenuItem.Icon>
                                         <ic:FluentIcon Icon="Edit" />
                                     </MenuItem.Icon>
@@ -236,7 +246,7 @@
                                     </MenuItem.Icon>
                                 </MenuItem>
                                 <Separator />
-                                <MenuItem Header="{Binding RemoveRooms, Source={x:Static l:AppLanguage.Current}}" Command="{Binding RemoveRoomsCommand}" InputGesture="Delete">
+                                <MenuItem Header="{Binding RemoveRooms, Source={x:Static l:AppLanguage.Current}}" Command="{Binding RemoveRoomsCommand}" InputGesture="{OnPlatform Delete, macOS=Back}">
                                     <MenuItem.Icon>
                                         <ic:FluentIcon Icon="Delete" />
                                     </MenuItem.Icon>
@@ -264,9 +274,7 @@
                                                 <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding StreamInfo}" />
                                                 <TextBlock Classes="caption" VerticalAlignment="Center" Text="·" />
                                                 <StackPanel Orientation="Horizontal" Spacing="2" Background="Transparent"
-                                                            ToolTip.Tip="{Binding QualityRestrictionTip}"
-                                                            AutomationProperties.Name="{Binding QualityText}"
-                                                            AutomationProperties.HelpText="{Binding QualityRestrictionTip}">
+                                                            ToolTip.Tip="{Binding QualityRestrictionTip}">
                                                     <ic:FluentIcon Icon="Warning" IconVariant="Filled" FontSize="12" VerticalAlignment="Center"
                                                                    Foreground="{DynamicResource SemiColorWarning}"
                                                                    IsVisible="{Binding IsQualityRestricted}"
@@ -274,9 +282,19 @@
                                                     <TextBlock Classes="caption" Classes.restricted="{Binding IsQualityRestricted}" VerticalAlignment="Center" Text="{Binding QualityText}" />
                                                 </StackPanel>
                                             </StackPanel>
-                                            <ContentControl Content="{Binding Status}" ContentTemplate="{StaticResource LocalizedLabel}"
-                                                            FontSize="{DynamicResource SemiFontSizeSmall}" ctl:StatusColor.Value="{Binding Status}"
-                                                            ToolTip.Tip="{Binding StatusTip}" />
+                                            <StackPanel Orientation="Horizontal" Spacing="2" IsVisible="{Binding IsRecordingDanmakuOnly}">
+                                                <ic:FluentIcon Icon="CommentMultiple" IconVariant="Filled" FontSize="12" VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource SemiColorDanger}" />
+                                                <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding RecordingDanmaku, Source={x:Static l:AppLanguage.Current}}" />
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="2" Background="Transparent"
+                                                        ToolTip.Tip="{Binding StatusTip}">
+                                                <ic:FluentIcon Icon="ErrorCircle" IconVariant="Filled" FontSize="12" VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource SemiColorDanger}"
+                                                               IsVisible="{Binding HasError}" />
+                                                <ContentControl Content="{Binding Status}" ContentTemplate="{StaticResource LocalizedLabel}" VerticalAlignment="Center"
+                                                                FontSize="{DynamicResource SemiFontSizeSmall}" ctl:StatusColor.Value="{Binding Status}" />
+                                            </StackPanel>
                                         </StackPanel>
 
                                         <TextBlock Grid.Row="1" Grid.Column="1" Classes="caption" VerticalAlignment="Center"

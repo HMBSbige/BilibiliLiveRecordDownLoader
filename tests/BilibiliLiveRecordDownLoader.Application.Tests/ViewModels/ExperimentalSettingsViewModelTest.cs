@@ -5,82 +5,49 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 
 public sealed class ExperimentalSettingsViewModelTest
 {
-	[Test]
-	[Timeout(30_000)]
-	public async Task FillerRemovalIsRestoredFromAndSavedToTheConfigAsync(CancellationToken cancellationToken)
+	public enum Setting
 	{
-		AppConfig config = AppConfig.CreateDefault();
-		config.RemoveFillerData = true;
-		FakeConfigManager configManager = new(config);
-		using ExperimentalSettingsViewModel viewModel = new(configManager);
-
-		viewModel.ApplyConfig(config);
-		(bool restored, int updates) = (viewModel.RemoveFillerData, configManager.UpdateCount);
-		viewModel.RemoveFillerData = false;
-
-		while (configManager.UpdateCount < 1)
-		{
-			await Task.Delay(10, cancellationToken);
-		}
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(restored).IsTrue();
-			await Assert.That(updates).IsEqualTo(0);
-			await Assert.That(config.RemoveFillerData).IsFalse();
-		}
+		RemoveFillerData,
+		RequestTrueOriginal,
+		UseMasterPlaylistWhenRestricted
 	}
 
 	[Test]
 	[Timeout(30_000)]
-	public async Task MasterPlaylistSwitchIsRestoredFromAndSavedToTheConfigAsync(CancellationToken cancellationToken)
+	[Arguments(Setting.RemoveFillerData)]
+	[Arguments(Setting.RequestTrueOriginal)]
+	[Arguments(Setting.UseMasterPlaylistWhenRestricted)]
+	public async Task SettingIsRestoredFromAndSavedToTheConfigAsync(Setting setting, CancellationToken cancellationToken)
 	{
-		// 默认开着，从关着的配置恢复才看得出读了配置
+		(Func<AppConfig, bool> readConfig, Action<AppConfig, bool> writeConfig, Func<ExperimentalSettingsViewModel, bool> readViewModel, Action<ExperimentalSettingsViewModel, bool> writeViewModel) = Accessors(setting);
 		AppConfig config = AppConfig.CreateDefault();
-		config.UseMasterPlaylistWhenRestricted = false;
+		// 和默认值相反，才看得出读了配置
+		bool configured = !readConfig(config);
+		writeConfig(config, configured);
 		FakeConfigManager configManager = new(config);
 		using ExperimentalSettingsViewModel viewModel = new(configManager);
 
 		viewModel.ApplyConfig(config);
-		(bool restored, int updates) = (viewModel.UseMasterPlaylistWhenRestricted, configManager.UpdateCount);
-		viewModel.UseMasterPlaylistWhenRestricted = true;
+		(bool restored, int updates) = (readViewModel(viewModel), configManager.UpdateCount);
+		writeViewModel(viewModel, !configured);
 
-		while (configManager.UpdateCount < 1)
-		{
-			await Task.Delay(10, cancellationToken);
-		}
+		await TestWait.UntilAsync(() => configManager.UpdateCount >= 1, "the change is saved", cancellationToken);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(restored).IsFalse();
+			await Assert.That(restored).IsEqualTo(configured);
 			await Assert.That(updates).IsEqualTo(0);
-			await Assert.That(config.UseMasterPlaylistWhenRestricted).IsTrue();
+			await Assert.That(readConfig(config)).IsEqualTo(!configured);
 		}
 	}
 
-	[Test]
-	[Timeout(30_000)]
-	public async Task TrueOriginalRequestIsRestoredFromAndSavedToTheConfigAsync(CancellationToken cancellationToken)
+	private static (Func<AppConfig, bool> ReadConfig, Action<AppConfig, bool> WriteConfig, Func<ExperimentalSettingsViewModel, bool> ReadViewModel, Action<ExperimentalSettingsViewModel, bool> WriteViewModel) Accessors(Setting setting)
 	{
-		AppConfig config = AppConfig.CreateDefault();
-		config.RequestTrueOriginal = true;
-		FakeConfigManager configManager = new(config);
-		using ExperimentalSettingsViewModel viewModel = new(configManager);
-
-		viewModel.ApplyConfig(config);
-		(bool restored, int updates) = (viewModel.RequestTrueOriginal, configManager.UpdateCount);
-		viewModel.RequestTrueOriginal = false;
-
-		while (configManager.UpdateCount < 1)
+		return setting switch
 		{
-			await Task.Delay(10, cancellationToken);
-		}
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(restored).IsTrue();
-			await Assert.That(updates).IsEqualTo(0);
-			await Assert.That(config.RequestTrueOriginal).IsFalse();
-		}
+			Setting.RemoveFillerData => (static config => config.RemoveFillerData, static (config, value) => config.RemoveFillerData = value, static viewModel => viewModel.RemoveFillerData, static (viewModel, value) => viewModel.RemoveFillerData = value),
+			Setting.RequestTrueOriginal => (static config => config.RequestTrueOriginal, static (config, value) => config.RequestTrueOriginal = value, static viewModel => viewModel.RequestTrueOriginal, static (viewModel, value) => viewModel.RequestTrueOriginal = value),
+			Setting.UseMasterPlaylistWhenRestricted => (static config => config.UseMasterPlaylistWhenRestricted, static (config, value) => config.UseMasterPlaylistWhenRestricted = value, static viewModel => viewModel.UseMasterPlaylistWhenRestricted, static (viewModel, value) => viewModel.UseMasterPlaylistWhenRestricted = value)
+		};
 	}
 }

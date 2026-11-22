@@ -2,15 +2,32 @@ namespace BilibiliLiveRecordDownLoader.ViewModels;
 
 public sealed partial class MainWindowViewModel : ViewModelBase
 {
+	private readonly IApplicationShell _shell;
+	private readonly IAppLifecycleService _lifecycle;
+	private readonly IRoomAppService _roomAppService;
+	private readonly IBackgroundTaskAppService _backgroundTasks;
 	private bool _startupTasksStarted;
 
-	public MainWindowViewModel()
+	public MainWindowViewModel(DialogHostViewModel dialogs, IApplicationShell shell, IAppLifecycleService lifecycle, IRoomAppService roomAppService, IBackgroundTaskAppService backgroundTasks)
 	{
+		Dialogs = dialogs;
+		_shell = shell;
+		_lifecycle = lifecycle;
+		_roomAppService = roomAppService;
+		_backgroundTasks = backgroundTasks;
+
 		ShowWindowCommand.DisposeWith(Disposables);
 		ExitCommand.DisposeWith(Disposables);
+
+		// 设置页可能改了 FFmpeg 路径
+		this.WhenChanged(static viewModel => viewModel.IsInitialized, static viewModel => viewModel.SelectedPageIndex, static (isInitialized, page) => isInitialized && page == (int)MainPage.Tools)
+			.Unique()
+			.Keep(static isToolsPage => isToolsPage)
+			.Subscribe(_ => Tools.RefreshFFmpegStatus())
+			.DisposeWith(Disposables);
 	}
 
-	public DialogHostViewModel Dialogs => AppLocator.Current.GetRequiredService<DialogHostViewModel>();
+	public DialogHostViewModel Dialogs { get; }
 
 	public RoomListViewModel Rooms => AppLocator.Current.GetRequiredService<RoomListViewModel>();
 
@@ -26,6 +43,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
 	[Reactive]
 	public partial bool IsInitialized { get; private set; }
+
+	public bool NeedsExitConfirmation => _roomAppService.IsRecording || _backgroundTasks.HasActiveTasks;
 
 	[Reactive]
 	public partial int SelectedPageIndex { get; set; }
@@ -69,7 +88,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 	private async Task RunStartupTasksAsync(CancellationToken cancellationToken)
 	{
 		IAppConfigManager configManager = AppLocator.Current.GetRequiredService<IAppConfigManager>();
-		IApplicationShell shell = AppLocator.Current.GetRequiredService<IApplicationShell>();
 		AppConfig config = await configManager.GetAsync(cancellationToken);
 
 		WindowWidth = config.WindowWidth;
@@ -79,12 +97,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 		Rooms.ApplyConfig(config);
 		IsInitialized = true;
 
-		if (!shell.StartMinimized)
+		if (!_shell.StartMinimized)
 		{
-			shell.ShowMainWindow();
+			_shell.ShowMainWindow();
 		}
 
-		await AppLocator.Current.GetRequiredService<IAppLifecycleService>().StartAsync(cancellationToken);
+		await _lifecycle.StartAsync(cancellationToken);
 
 		Rooms.StartMonitoring();
 		Tasks.StartMonitoring();
@@ -98,18 +116,23 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 	[ReactiveCommand]
 	private void ShowWindow()
 	{
-		AppLocator.Current.GetRequiredService<IApplicationShell>().ShowMainWindow();
+		_shell.ShowMainWindow();
 	}
 
 	[ReactiveCommand]
 	private async Task ExitAsync()
 	{
-		IApplicationShell shell = AppLocator.Current.GetRequiredService<IApplicationShell>();
-		bool isBusy = AppLocator.Current.GetRequiredService<IRoomAppService>().IsRecording || AppLocator.Current.GetRequiredService<IBackgroundTaskAppService>().HasActiveTasks;
-
-		if (isBusy)
+		if (NeedsExitConfirmation)
 		{
-			shell.ShowMainWindow();
+			_shell.ShowMainWindow();
+
+			// 对话框依次显示，不先关掉当前的，确认框会排在它后面
+			if (Dialogs.Current is { IsBusy: true })
+			{
+				return;
+			}
+
+			Dialogs.Current?.Dismiss();
 
 			if (!await Dialogs.ConfirmAsync(AppLanguage.Current.ExitConfirmTitle, AppLanguage.Current.ExitConfirmMessage, AppLanguage.Current.Exit, true))
 			{
@@ -117,7 +140,16 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 			}
 		}
 
-		await AppLocator.Current.GetRequiredService<IAppLifecycleService>().StopAsync();
-		shell.Shutdown();
+		_shell.BeginShutdown();
+
+		// Program 退出前还会再停止一次
+		try
+		{
+			await _lifecycle.StopAsync();
+		}
+		finally
+		{
+			_shell.Shutdown();
+		}
 	}
 }
