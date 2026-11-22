@@ -26,14 +26,14 @@ public partial class ToastWindow : Window
 		ToastWindow toast = new() { _onClick = onClick };
 		toast.TitleText.Text = title;
 		toast.MessageText.Text = message;
-		(toast.TypeIcon.Icon, toast.Accent.BorderBrush) = type switch
+		toast.TypeIcon.Icon = type switch
 		{
-			NotificationType.Success => (Symbol.CheckmarkCircle, StatusBrushes.Positive),
-			NotificationType.Warning => (Symbol.Warning, StatusBrushes.Warning),
-			NotificationType.Error => (Symbol.ErrorCircle, StatusBrushes.Danger),
-			_ => (Symbol.Info, StatusBrushes.Info)
+			NotificationType.Success => Symbol.CheckmarkCircle,
+			NotificationType.Warning => Symbol.Warning,
+			NotificationType.Error => Symbol.ErrorCircle,
+			_ => Symbol.Info
 		};
-		toast.TypeIcon.Foreground = toast.Accent.BorderBrush;
+		StatusColor.SetValue(toast.TypeIcon, type);
 		toast.Show();
 	}
 

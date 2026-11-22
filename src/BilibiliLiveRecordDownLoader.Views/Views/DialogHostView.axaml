@@ -16,7 +16,8 @@
                 BoxShadow="0 8 32 0 #40000000">
             <DockPanel>
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,16">
-                    <Button DockPanel.Dock="Right" Theme="{DynamicResource BorderlessButton}" Click="OnCloseClick">
+                    <Button DockPanel.Dock="Right" Theme="{DynamicResource BorderlessButton}" Click="OnCloseClick"
+                            IsEnabled="{Binding !Current.IsBusy, FallbackValue={x:False}}">
                         <ic:FluentIcon Icon="Dismiss" FontSize="16" />
                     </Button>
                     <TextBlock Classes="H5" Theme="{StaticResource TitleTextBlock}" Text="{Binding Current.Title, FallbackValue={x:Null}}" VerticalAlignment="Center" />

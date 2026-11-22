@@ -6,10 +6,14 @@ public sealed partial class AccountViewModel : ViewModelBase
 
 	public AccountViewModel()
 	{
+		CanLogout = this.WhenChanged(static viewModel => viewModel.IsLoggedIn).Map(static isLoggedIn => isLoggedIn is true);
+
 		CheckLoginCommand.DisposeWith(Disposables);
 		QrCodeLoginCommand.DisposeWith(Disposables);
 		LogoutCommand.DisposeWith(Disposables);
 	}
+
+	public IObservable<bool> CanLogout { get; }
 
 	[Reactive]
 	public partial bool? IsLoggedIn { get; private set; }
@@ -64,7 +68,7 @@ public sealed partial class AccountViewModel : ViewModelBase
 		await CheckLoginAsync(cancellationToken);
 	}
 
-	[ReactiveCommand]
+	[ReactiveCommand(CanExecute = nameof(CanLogout))]
 	private async Task LogoutAsync(CancellationToken cancellationToken)
 	{
 		await AppLocator.Current.GetRequiredService<IAccountAppService>().LogoutAsync(cancellationToken);

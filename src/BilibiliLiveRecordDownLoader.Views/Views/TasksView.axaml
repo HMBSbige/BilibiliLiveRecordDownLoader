@@ -3,67 +3,95 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ic="using:FluentIcons.Avalonia"
     xmlns:tasks="using:BilibiliLiveRecordDownLoader.ViewModels.Tasks"
-    xmlns:c="using:BilibiliLiveRecordDownLoader.Views.Converters"
+    xmlns:ctl="using:BilibiliLiveRecordDownLoader.Views.Controls"
+    xmlns:shared="using:BilibiliLiveRecordDownLoader.Domain.Shared"
     xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.TasksView"
     x:DataType="tasks:TaskListViewModel">
-    <DockPanel Margin="16">
-        <StackPanel DockPanel.Dock="Top" Classes="toolbar" Margin="0,0,0,12">
-            <Button Command="{Binding ClearFinishedTasksCommand}">
-                <StackPanel Classes="iconText">
-                    <ic:FluentIcon Icon="Broom" />
-                    <TextBlock Text="{Binding ClearFinishedTasks, Source={x:Static l:AppLanguage.Current}}" />
-                </StackPanel>
-            </Button>
-            <Button Classes="Danger" Command="{Binding CancelAllTasksCommand}">
-                <StackPanel Classes="iconText">
-                    <ic:FluentIcon Icon="DismissCircle" />
-                    <TextBlock Text="{Binding CancelAllTasks, Source={x:Static l:AppLanguage.Current}}" />
-                </StackPanel>
-            </Button>
-        </StackPanel>
+    <UserControl.Styles>
+        <Style Selector="ProgressBar.thin">
+            <Setter Property="MinHeight" Value="4" />
+            <Setter Property="Height" Value="4" />
+        </Style>
+    </UserControl.Styles>
 
-        <Panel>
-            <ScrollViewer>
-                <ItemsControl ItemsSource="{Binding Tasks}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Spacing="8" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
+    <DockPanel Classes="page">
+        <DockPanel Classes="toolbar">
+            <StackPanel DockPanel.Dock="Right" Classes="toolbar">
+                <Button Command="{Binding ClearFinishedTasksCommand}">
+                    <StackPanel Classes="iconText">
+                        <ic:FluentIcon Icon="Broom" />
+                        <TextBlock Text="{Binding ClearFinishedTasks, Source={x:Static l:AppLanguage.Current}}" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="Danger" Command="{Binding CancelAllTasksCommand}">
+                    <StackPanel Classes="iconText">
+                        <ic:FluentIcon Icon="DismissCircle" />
+                        <TextBlock Text="{Binding CancelAllTasks, Source={x:Static l:AppLanguage.Current}}" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+            <Panel />
+        </DockPanel>
+
+        <Border Classes="table" Grid.IsSharedSizeScope="True">
+            <Panel>
+                <ListBox x:Name="TaskList" Classes="table" ItemsSource="{Binding Tasks}" IsVisible="{Binding HasTasks}">
+                    <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="tasks:TaskItemViewModel">
-                            <Border Classes="card">
-                                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="6">
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                    <ContentControl Grid.Row="0" Grid.Column="1"
-                                                    Content="{Binding Status}" ContentTemplate="{StaticResource LocalizedLabel}"
-                                                    Foreground="{Binding Status, Converter={x:Static c:StatusBrushConverter.Instance}}" />
-                                    <ProgressBar Grid.Row="1" Grid.Column="0"
-                                                 Value="{Binding Progress}" Maximum="100"
-                                                 IsIndeterminate="{Binding IsIndeterminate}" />
-                                    <Button Grid.Row="1" Grid.Column="1" Grid.RowSpan="2" VerticalAlignment="Top"
-                                            Theme="{DynamicResource BorderlessButton}"
-                                            IsVisible="{Binding IsActive}"
-                                            Command="{Binding $parent[ItemsControl].((tasks:TaskListViewModel)DataContext).CancelTaskCommand}"
+                            <Grid RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="Actions" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding Title}" />
+                                <StackPanel Grid.Row="0" Grid.Column="1" Classes="toolbar" Spacing="6" HorizontalAlignment="Right">
+                                    <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding Details}"
+                                               IsVisible="{Binding Details, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                    <ContentControl Content="{Binding Status}" ContentTemplate="{StaticResource LocalizedLabel}"
+                                                    FontSize="{DynamicResource SemiFontSizeSmall}" ctl:StatusColor.Value="{Binding Status}" />
+                                </StackPanel>
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Classes="caption" Text="{Binding Paths}"
+                                           TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding PathsTip}"
+                                           IsVisible="{Binding Paths, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <ProgressBar Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Classes="thin" Margin="0,6,0,2"
+                                             Value="{Binding Progress}" Maximum="100" IsIndeterminate="{Binding IsIndeterminate}"
+                                             IsVisible="{Binding Status, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static shared:BackgroundTaskStatus.Running}}" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Classes="error" Text="{Binding Message}"
+                                           MaxLines="2" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Message}"
+                                           IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+                                <StackPanel Grid.Row="0" Grid.Column="2" Grid.RowSpan="3" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                    <Button Classes="icon"
+                                            Command="{Binding #TaskList.((tasks:TaskListViewModel)DataContext).CancelTaskCommand}"
                                             CommandParameter="{Binding}"
-                                            ToolTip.Tip="{Binding CancelTask, Source={x:Static l:AppLanguage.Current}}">
+                                            IsVisible="{Binding IsActive}"
+                                            ToolTip.Tip="{Binding CancelTask, Source={x:Static l:AppLanguage.Current}}"
+                                            AutomationProperties.Name="{Binding CancelTask, Source={x:Static l:AppLanguage.Current}}">
                                         <ic:FluentIcon Icon="Dismiss" />
                                     </Button>
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="{Binding Message}" Classes="caption"
-                                               TextTrimming="CharacterEllipsis"
-                                               IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                </Grid>
-                            </Border>
+                                    <Button Classes="icon"
+                                            Command="{Binding #TaskList.((tasks:TaskListViewModel)DataContext).OpenTargetFolderCommand}"
+                                            CommandParameter="{Binding}"
+                                            IsVisible="{Binding TargetPath, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                            ToolTip.Tip="{Binding OpenTargetFolder, Source={x:Static l:AppLanguage.Current}}"
+                                            AutomationProperties.Name="{Binding OpenTargetFolder, Source={x:Static l:AppLanguage.Current}}">
+                                        <ic:FluentIcon Icon="FolderOpen" />
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
                         </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
+                    </ListBox.ItemTemplate>
+                </ListBox>
 
-            <TextBlock Text="{Binding NoTasks, Source={x:Static l:AppLanguage.Current}}"
-                       Classes="caption"
-                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                       IsVisible="{Binding !HasTasks}" />
-        </Panel>
+                <ctl:EmptyState Icon="TaskList"
+                                Title="{Binding NoTasks, Source={x:Static l:AppLanguage.Current}}"
+                                Description="{Binding NoTasksHint, Source={x:Static l:AppLanguage.Current}}"
+                                IsVisible="{Binding !HasTasks}" />
+            </Panel>
+        </Border>
     </DockPanel>
 </UserControl>

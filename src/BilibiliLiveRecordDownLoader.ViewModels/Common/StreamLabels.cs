@@ -12,6 +12,13 @@ public static class StreamLabels
 			StreamFormat.Fmp4 => "fMP4",
 			StreamFormat.Ts => "MPEG-TS",
 			StreamFormat.Flv => "FLV",
+			StreamQuality.Smooth => AppLanguage.Current.QualitySmooth,
+			StreamQuality.High => AppLanguage.Current.QualityHigh,
+			StreamQuality.SuperHigh => AppLanguage.Current.QualitySuperHigh,
+			StreamQuality.BluRay => AppLanguage.Current.QualityBluRay,
+			StreamQuality.Original => AppLanguage.Current.QualityOriginal,
+			StreamQuality.UltraHd4K => AppLanguage.Current.QualityUltraHd4K,
+			StreamQuality.Dolby => AppLanguage.Current.QualityDolby,
 			_ => value.ToString()
 		};
 	}

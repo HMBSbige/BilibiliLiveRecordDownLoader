@@ -3,45 +3,180 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ic="using:FluentIcons.Avalonia"
     xmlns:logs="using:BilibiliLiveRecordDownLoader.ViewModels.Logs"
+    xmlns:common="using:BilibiliLiveRecordDownLoader.ViewModels.Common"
     xmlns:logging="using:BilibiliLiveRecordDownLoader.Application.Contracts.Logging"
-    xmlns:c="using:BilibiliLiveRecordDownLoader.Views.Converters"
+    xmlns:ctl="using:BilibiliLiveRecordDownLoader.Views.Controls"
+    xmlns:views="using:BilibiliLiveRecordDownLoader.Views.Views"
     xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.LogsView"
     x:DataType="logs:LogViewModel">
-    <DockPanel Margin="16">
-        <StackPanel DockPanel.Dock="Top" Classes="toolbar" Margin="0,0,0,12">
-            <Button Command="{Binding OpenLogFolderCommand}">
-                <StackPanel Classes="iconText">
-                    <ic:FluentIcon Icon="FolderOpen" />
-                    <TextBlock Text="{Binding OpenLogFolder, Source={x:Static l:AppLanguage.Current}}" />
-                </StackPanel>
-            </Button>
-        </StackPanel>
+    <UserControl.Styles>
+        <Style Selector="Button.columnHeader">
+            <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.columnHeader TextBlock">
+            <Setter Property="FontSize" Value="{DynamicResource SemiFontSizeSmall}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource SemiColorText2}" />
+        </Style>
+        <Style Selector="ic|FluentIcon.sortArrow">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource SemiColorText2}" />
+        </Style>
+        <Style Selector="ic|FluentIcon.sortArrow.ascending">
+            <Setter Property="RenderTransform" Value="rotate(180deg)" />
+        </Style>
+        <Style Selector="Thumb.columnResizer">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="Margin" Value="0,0,-12,0" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="Cursor" Value="SizeWestEast" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="Transparent">
+                        <Border Width="1" Margin="0,2" Background="{DynamicResource SemiColorBorder}" HorizontalAlignment="Center" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="ListBox.table > ListBoxItem">
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="12,7" />
+        </Style>
+    </UserControl.Styles>
 
-        <Border Classes="table">
+    <DockPanel Classes="page">
+        <DockPanel Classes="toolbar">
+            <Button DockPanel.Dock="Right" Margin="8,0,0,0" Command="{Binding OpenLogFolderCommand}"
+                    ToolTip.Tip="{Binding OpenLogFolder, Source={x:Static l:AppLanguage.Current}}"
+                    AutomationProperties.Name="{Binding OpenLogFolder, Source={x:Static l:AppLanguage.Current}}">
+                <ic:FluentIcon Icon="FolderOpen" FontSize="16" />
+            </Button>
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8">
+                <ComboBox Grid.Column="0" MinWidth="120" ItemsSource="{Binding LevelOptions}" SelectedItem="{Binding MinimumLevel}"
+                          ToolTip.Tip="{Binding MinimumLevel, Source={x:Static l:AppLanguage.Current}}"
+                          AutomationProperties.Name="{Binding MinimumLevel, Source={x:Static l:AppLanguage.Current}}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="common:ChoiceOption">
+                            <Panel>
+                                <TextBlock Text="{Binding AllLevels, Source={x:Static l:AppLanguage.Current}}"
+                                           IsVisible="{Binding Value, Converter={x:Static ObjectConverters.IsNull}}" />
+                                <ContentControl Content="{Binding}" ContentTemplate="{StaticResource LocalizedLabel}"
+                                                IsVisible="{Binding Value, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            </Panel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBox Grid.Column="1" Width="120" Text="{Binding RoomFilter}"
+                         PlaceholderText="{Binding RoomId, Source={x:Static l:AppLanguage.Current}}"
+                         AutomationProperties.Name="{Binding RoomId, Source={x:Static l:AppLanguage.Current}}" />
+                <TextBox Grid.Column="2" Classes="clearButton" Text="{Binding SearchText}"
+                         PlaceholderText="{Binding SearchLogs, Source={x:Static l:AppLanguage.Current}}"
+                         AutomationProperties.Name="{Binding SearchLogs, Source={x:Static l:AppLanguage.Current}}">
+                    <TextBox.InnerLeftContent>
+                        <ic:FluentIcon Icon="Search" FontSize="16" Margin="8,0,0,0" Foreground="{DynamicResource SemiColorText2}" />
+                    </TextBox.InnerLeftContent>
+                </TextBox>
+                <Button Grid.Column="3" Command="{Binding ResetFiltersCommand}" Content="{Binding ResetFilters, Source={x:Static l:AppLanguage.Current}}" />
+            </Grid>
+        </DockPanel>
+
+        <Border Classes="table" Grid.IsSharedSizeScope="True">
             <DockPanel>
                 <Border DockPanel.Dock="Top" Classes="tableHeader">
-                    <Grid ColumnDefinitions="80,72,110,*">
-                        <TextBlock Grid.Column="0" Text="{Binding LogTime, Source={x:Static l:AppLanguage.Current}}" />
-                        <TextBlock Grid.Column="1" Text="{Binding LogLevel, Source={x:Static l:AppLanguage.Current}}" />
-                        <TextBlock Grid.Column="2" Text="{Binding LogRoom, Source={x:Static l:AppLanguage.Current}}" />
-                        <TextBlock Grid.Column="3" Text="{Binding LogMessage, Source={x:Static l:AppLanguage.Current}}" />
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" SharedSizeGroup="Time" />
+                            <ColumnDefinition Width="Auto" SharedSizeGroup="Level" />
+                            <ColumnDefinition Width="Auto" SharedSizeGroup="Room" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Panel Grid.Column="0" Width="{Binding $parent[views:LogsView].TimeColumnWidth}">
+                            <Button Classes="columnHeader" Command="{Binding SortByCommand}" CommandParameter="{x:Static logs:LogSortColumn.Time}">
+                                <StackPanel Classes="iconText" Spacing="4">
+                                    <TextBlock Text="{Binding LogTime, Source={x:Static l:AppLanguage.Current}}" />
+                                    <ic:FluentIcon Icon="ArrowDown" Classes="sortArrow" Classes.ascending="{Binding !Sort.IsDescending}"
+                                                   IsVisible="{Binding Sort.Column, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static logs:LogSortColumn.Time}}" />
+                                </StackPanel>
+                            </Button>
+                            <Thumb Classes="columnResizer" Tag="Time" DragDelta="OnColumnResize" />
+                        </Panel>
+                        <Panel Grid.Column="1" Width="{Binding $parent[views:LogsView].LevelColumnWidth}">
+                            <Button Classes="columnHeader" Command="{Binding SortByCommand}" CommandParameter="{x:Static logs:LogSortColumn.Level}">
+                                <StackPanel Classes="iconText" Spacing="4">
+                                    <TextBlock Text="{Binding LogLevel, Source={x:Static l:AppLanguage.Current}}" />
+                                    <ic:FluentIcon Icon="ArrowDown" Classes="sortArrow" Classes.ascending="{Binding !Sort.IsDescending}"
+                                                   IsVisible="{Binding Sort.Column, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static logs:LogSortColumn.Level}}" />
+                                </StackPanel>
+                            </Button>
+                            <Thumb Classes="columnResizer" Tag="Level" DragDelta="OnColumnResize" />
+                        </Panel>
+                        <Panel Grid.Column="2" Width="{Binding $parent[views:LogsView].RoomColumnWidth}">
+                            <Button Classes="columnHeader" Command="{Binding SortByCommand}" CommandParameter="{x:Static logs:LogSortColumn.Room}">
+                                <StackPanel Classes="iconText" Spacing="4">
+                                    <TextBlock Text="{Binding LogRoom, Source={x:Static l:AppLanguage.Current}}" />
+                                    <ic:FluentIcon Icon="ArrowDown" Classes="sortArrow" Classes.ascending="{Binding !Sort.IsDescending}"
+                                                   IsVisible="{Binding Sort.Column, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static logs:LogSortColumn.Room}}" />
+                                </StackPanel>
+                            </Button>
+                            <Thumb Classes="columnResizer" Tag="Room" DragDelta="OnColumnResize" />
+                        </Panel>
+                        <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="{Binding LogMessage, Source={x:Static l:AppLanguage.Current}}" />
                     </Grid>
                 </Border>
 
-                <ListBox x:Name="LogList" Classes="table" ItemsSource="{Binding Entries}">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate x:DataType="logging:LogEntry">
-                            <Grid ColumnDefinitions="80,72,110,*">
-                                <TextBlock Grid.Column="0" VerticalAlignment="Top" Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}" />
-                                <TextBlock Grid.Column="1" VerticalAlignment="Top" Text="{Binding Level}"
-                                           Foreground="{Binding Level, Converter={x:Static c:StatusBrushConverter.Instance}}" />
-                                <TextBlock Grid.Column="2" VerticalAlignment="Top" Text="{Binding RoomId}" />
-                                <SelectableTextBlock Grid.Column="3" Text="{Binding Message}" TextWrapping="Wrap" />
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+                <Panel>
+                    <ListBox x:Name="LogList" Classes="table" ItemsSource="{Binding Entries}" SelectionMode="Multiple"
+                             KeyDown="OnLogListKeyDown" IsVisible="{Binding HasVisibleEntries}">
+                        <ListBox.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="{Binding Copy, Source={x:Static l:AppLanguage.Current}}" InputGesture="Ctrl+C" Click="OnCopyClick">
+                                    <MenuItem.Icon>
+                                        <ic:FluentIcon Icon="Copy" />
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                            </ContextMenu>
+                        </ListBox.ContextMenu>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="logging:LogEntry">
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Time" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Level" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Room" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Width="{Binding $parent[views:LogsView].TimeColumnWidth}" TextTrimming="CharacterEllipsis"
+                                               Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}"
+                                               ToolTip.Tip="{Binding Timestamp, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss.fff zzz}'}" />
+                                    <ContentControl Grid.Column="1" Width="{Binding $parent[views:LogsView].LevelColumnWidth}"
+                                                    Content="{Binding Level}" ContentTemplate="{StaticResource LocalizedLabel}"
+                                                    ctl:StatusColor.Value="{Binding Level}" />
+                                    <TextBlock Grid.Column="2" Width="{Binding $parent[views:LogsView].RoomColumnWidth}" TextTrimming="CharacterEllipsis"
+                                               Text="{Binding RoomId}" />
+                                    <TextBlock Grid.Column="3" Text="{Binding Message}" MaxLines="1" TextTrimming="CharacterEllipsis"
+                                               ToolTip.Tip="{Binding Message}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <ctl:EmptyState Icon="DocumentText" Title="{Binding NoLogs, Source={x:Static l:AppLanguage.Current}}"
+                                    IsVisible="{Binding !HasEntries}" />
+                    <ctl:EmptyState Icon="DocumentSearch" Title="{Binding NoMatchingLogs, Source={x:Static l:AppLanguage.Current}}">
+                        <ctl:EmptyState.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <Binding Path="HasEntries" />
+                                <Binding Path="!HasVisibleEntries" />
+                            </MultiBinding>
+                        </ctl:EmptyState.IsVisible>
+                        <Button Command="{Binding ResetFiltersCommand}" Content="{Binding ResetFilters, Source={x:Static l:AppLanguage.Current}}" />
+                    </ctl:EmptyState>
+                </Panel>
             </DockPanel>
         </Border>
     </DockPanel>

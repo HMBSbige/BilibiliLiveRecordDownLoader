@@ -155,10 +155,24 @@ public sealed class BackgroundTaskAppServiceTest
 	}
 
 	[Test]
+	public async Task SnapshotCarriesSourceAndTargetPathsAsync()
+	{
+		BackgroundTaskAppService service = CreateService();
+
+		Guid id = service.Enqueue("task", "q", static (_, _) => Task.CompletedTask, "in.flv", "out.mp4");
+		await WaitForStatusAsync(service, id, BackgroundTaskStatus.Completed);
+
+		BackgroundTaskSnapshot snapshot = Snapshot(service, id);
+		await Assert.That(snapshot.SourcePath).IsEqualTo("in.flv");
+		await Assert.That(snapshot.TargetPath).IsEqualTo("out.mp4");
+		await Assert.That(snapshot.Speed).IsNull();
+	}
+
+	[Test]
 	public async Task FFmpegProgressUsesReportedDurationAndWeightAsync()
 	{
 		List<double?> values = [];
-		BackgroundTaskContext context = new((progress, _) => values.Add(progress));
+		BackgroundTaskContext context = new((progress, _, _) => values.Add(progress), TimeProvider.System);
 		IProgress<FFmpegProgress> progress = context.CreateFFmpegProgress(start: 0.5, weight: 0.5);
 
 		progress.Report(new FFmpegProgress(TimeSpan.FromSeconds(100), null, "start"));
@@ -168,9 +182,24 @@ public sealed class BackgroundTaskAppServiceTest
 		await Assert.That(values.SequenceEqual([null, 0.75, 1.0])).IsTrue();
 	}
 
+	[Test]
+	public async Task FFmpegProgressReportsMediaTimePerElapsedTimeAsSpeedAsync()
+	{
+		FakeTimeProvider time = new();
+		List<double?> speeds = [];
+		BackgroundTaskContext context = new((_, speed, _) => speeds.Add(speed), time);
+		IProgress<FFmpegProgress> progress = context.CreateFFmpegProgress();
+
+		progress.Report(new FFmpegProgress(TimeSpan.FromSeconds(100), null, "start"));
+		time.Advance(TimeSpan.FromSeconds(2));
+		progress.Report(new FFmpegProgress(null, TimeSpan.FromSeconds(50), "half"));
+
+		await Assert.That(speeds.SequenceEqual([null, 25.0])).IsTrue();
+	}
+
 	private static BackgroundTaskAppService CreateService()
 	{
-		return new BackgroundTaskAppService(NullLogger<BackgroundTaskAppService>.Instance);
+		return new BackgroundTaskAppService(TimeProvider.System, NullLogger<BackgroundTaskAppService>.Instance);
 	}
 
 	private static BackgroundTaskSnapshot Snapshot(BackgroundTaskAppService service, Guid id)

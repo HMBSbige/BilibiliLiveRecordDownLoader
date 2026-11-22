@@ -8,8 +8,9 @@
     <DockPanel>
         <StackPanel DockPanel.Dock="Bottom" Classes="toolbar" HorizontalAlignment="Right" Margin="0,24,0,0">
             <Button Command="{Binding DismissDialogCommand}" Content="{Binding Cancel, Source={x:Static l:AppLanguage.Current}}" />
-            <Button Theme="{DynamicResource SolidButton}" Classes="Primary" IsDefault="True"
-                    Command="{Binding ConfirmCommand}" Content="{Binding Ok, Source={x:Static l:AppLanguage.Current}}" />
+            <Button Theme="{DynamicResource SolidButton}" IsDefault="True"
+                    Classes.Primary="{Binding !IsDestructive}" Classes.Danger="{Binding IsDestructive}"
+                    Command="{Binding ConfirmCommand}" Content="{Binding ConfirmText}" />
         </StackPanel>
         <ScrollViewer MaxHeight="360">
             <SelectableTextBlock Text="{Binding Message}" TextWrapping="Wrap" />

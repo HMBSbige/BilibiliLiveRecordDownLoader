@@ -4,6 +4,7 @@
     xmlns:ic="using:FluentIcons.Avalonia"
     xmlns:tools="using:BilibiliLiveRecordDownLoader.ViewModels.Tools"
     xmlns:c="using:BilibiliLiveRecordDownLoader.Views.Converters"
+    xmlns:ctl="using:BilibiliLiveRecordDownLoader.Views.Controls"
     xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.ToolsView"
     x:DataType="tools:MediaToolsViewModel">
@@ -18,9 +19,9 @@
                         </StackPanel>
                     </Button>
                     <StackPanel Classes="iconText" VerticalAlignment="Center">
-                        <ic:FluentIcon Icon="CheckmarkCircle" Foreground="{x:Static c:StatusBrushes.Positive}" IsVisible="{Binding IsFFmpegAvailable, FallbackValue=False, TargetNullValue=False}" />
+                        <ic:FluentIcon Icon="CheckmarkCircle" Foreground="{DynamicResource SemiColorSuccess}" IsVisible="{Binding IsFFmpegAvailable, FallbackValue=False, TargetNullValue=False}" />
                         <TextBlock Text="{Binding FFmpegVersion}" IsVisible="{Binding IsFFmpegAvailable, FallbackValue=False, TargetNullValue=False}" />
-                        <ic:FluentIcon Icon="Warning" Foreground="{x:Static c:StatusBrushes.Warning}" IsVisible="{Binding IsFFmpegAvailable, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}" />
+                        <ic:FluentIcon Icon="Warning" Foreground="{DynamicResource SemiColorWarning}" IsVisible="{Binding IsFFmpegAvailable, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}" />
                         <TextBlock Text="{Binding FFmpegNotFound, Source={x:Static l:AppLanguage.Current}}"
                                    TextWrapping="Wrap"
                                    IsVisible="{Binding IsFFmpegAvailable, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}" />

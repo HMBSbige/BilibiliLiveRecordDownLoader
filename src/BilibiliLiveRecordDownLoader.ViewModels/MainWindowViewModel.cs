@@ -102,7 +102,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 		{
 			shell.ShowMainWindow();
 
-			if (!await Dialogs.ConfirmAsync(AppLanguage.Current.ExitConfirmTitle, AppLanguage.Current.ExitConfirmMessage))
+			if (!await Dialogs.ConfirmAsync(AppLanguage.Current.ExitConfirmTitle, AppLanguage.Current.ExitConfirmMessage, AppLanguage.Current.Exit, true))
 			{
 				return;
 			}

@@ -3,118 +3,226 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ic="using:FluentIcons.Avalonia"
     xmlns:rooms="using:BilibiliLiveRecordDownLoader.ViewModels.Rooms"
-    xmlns:c="using:BilibiliLiveRecordDownLoader.Views.Converters"
+    xmlns:ctl="using:BilibiliLiveRecordDownLoader.Views.Controls"
     xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.RoomsView"
     x:DataType="rooms:RoomListViewModel">
-    <DockPanel Margin="16">
-        <StackPanel DockPanel.Dock="Top" Classes="toolbar" Margin="0,0,0,12">
-            <Button Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding AddRoomCommand}">
-                <StackPanel Classes="iconText">
-                    <ic:FluentIcon Icon="Add" />
-                    <TextBlock Text="{Binding AddRoom, Source={x:Static l:AppLanguage.Current}}" />
+    <UserControl.Styles>
+        <Style Selector="ToggleButton.flag">
+            <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+            <Setter Property="Padding" Value="3" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
+        <Style Selector="ToggleButton.flag > ic|FluentIcon">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="Foreground" Value="{DynamicResource SemiColorText3}" />
+        </Style>
+        <Style Selector="ToggleButton.flag:checked > ic|FluentIcon">
+            <Setter Property="IconVariant" Value="Filled" />
+            <Setter Property="Foreground" Value="{DynamicResource SemiColorPrimary}" />
+        </Style>
+        <Style Selector="DropDownButton ContentControl, DropDownButton TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
+
+    <DockPanel Classes="page">
+        <DockPanel Classes="toolbar">
+            <StackPanel DockPanel.Dock="Right" Classes="toolbar" IsVisible="{Binding HasRooms}">
+                <DropDownButton ToolTip.Tip="{Binding SortBy, Source={x:Static l:AppLanguage.Current}}"
+                                AutomationProperties.Name="{Binding SortBy, Source={x:Static l:AppLanguage.Current}}">
+                    <StackPanel Classes="iconText">
+                        <ic:FluentIcon Icon="ArrowSort" />
+                        <ContentControl Content="{Binding SortOrder}" ContentTemplate="{StaticResource LocalizedLabel}" />
+                    </StackPanel>
+                    <DropDownButton.Flyout>
+                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                            <MenuItem Header="{Binding SortByStatus, Source={x:Static l:AppLanguage.Current}}" ToggleType="Radio" GroupName="Sort"
+                                      IsChecked="{Binding SortOrder, Mode=OneWay, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static rooms:RoomSortOrder.Status}}"
+                                      Command="{Binding SortByCommand}" CommandParameter="{x:Static rooms:RoomSortOrder.Status}" />
+                            <MenuItem Header="{Binding SortByName, Source={x:Static l:AppLanguage.Current}}" ToggleType="Radio" GroupName="Sort"
+                                      IsChecked="{Binding SortOrder, Mode=OneWay, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static rooms:RoomSortOrder.Name}}"
+                                      Command="{Binding SortByCommand}" CommandParameter="{x:Static rooms:RoomSortOrder.Name}" />
+                            <MenuItem Header="{Binding SortByRoomId, Source={x:Static l:AppLanguage.Current}}" ToggleType="Radio" GroupName="Sort"
+                                      IsChecked="{Binding SortOrder, Mode=OneWay, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static rooms:RoomSortOrder.RoomId}}"
+                                      Command="{Binding SortByCommand}" CommandParameter="{x:Static rooms:RoomSortOrder.RoomId}" />
+                            <MenuItem Header="{Binding SortByAdded, Source={x:Static l:AppLanguage.Current}}" ToggleType="Radio" GroupName="Sort"
+                                      IsChecked="{Binding SortOrder, Mode=OneWay, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static rooms:RoomSortOrder.Added}}"
+                                      Command="{Binding SortByCommand}" CommandParameter="{x:Static rooms:RoomSortOrder.Added}" />
+                        </MenuFlyout>
+                    </DropDownButton.Flyout>
+                </DropDownButton>
+                <DropDownButton ToolTip.Tip="{Binding FilterBy, Source={x:Static l:AppLanguage.Current}}"
+                                AutomationProperties.Name="{Binding FilterBy, Source={x:Static l:AppLanguage.Current}}">
+                    <StackPanel Classes="iconText">
+                        <ic:FluentIcon Icon="Filter" />
+                        <ContentControl Content="{Binding Filter}" ContentTemplate="{StaticResource LocalizedLabel}" />
+                    </StackPanel>
+                    <DropDownButton.Flyout>
+                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                            <MenuItem Header="{Binding FilterAll, Source={x:Static l:AppLanguage.Current}}" ToggleType="Radio" GroupName="Filter"
+                                      IsChecked="{Binding Filter, Mode=OneWay, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static rooms:RoomFilter.All}}"
+                                      Command="{Binding FilterByCommand}" CommandParameter="{x:Static rooms:RoomFilter.All}" />
+                            <MenuItem Header="{Binding FilterLive, Source={x:Static l:AppLanguage.Current}}" ToggleType="Radio" GroupName="Filter"
+                                      IsChecked="{Binding Filter, Mode=OneWay, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static rooms:RoomFilter.Live}}"
+                                      Command="{Binding FilterByCommand}" CommandParameter="{x:Static rooms:RoomFilter.Live}" />
+                            <MenuItem Header="{Binding FilterRecording, Source={x:Static l:AppLanguage.Current}}" ToggleType="Radio" GroupName="Filter"
+                                      IsChecked="{Binding Filter, Mode=OneWay, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static rooms:RoomFilter.Recording}}"
+                                      Command="{Binding FilterByCommand}" CommandParameter="{x:Static rooms:RoomFilter.Recording}" />
+                        </MenuFlyout>
+                    </DropDownButton.Flyout>
+                </DropDownButton>
+                <Button Command="{Binding RefreshRoomsCommand}"
+                        ToolTip.Tip="{Binding RefreshRooms, Source={x:Static l:AppLanguage.Current}}"
+                        AutomationProperties.Name="{Binding RefreshRooms, Source={x:Static l:AppLanguage.Current}}">
+                    <ic:FluentIcon Icon="ArrowSync" FontSize="16" />
+                </Button>
+            </StackPanel>
+
+            <StackPanel Classes="toolbar">
+                <Button Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding AddRoomCommand}" IsVisible="{Binding HasRooms}">
+                    <StackPanel Classes="iconText">
+                        <ic:FluentIcon Icon="Add" />
+                        <TextBlock Text="{Binding AddRoom, Source={x:Static l:AppLanguage.Current}}" />
+                    </StackPanel>
+                </Button>
+                <StackPanel Classes="toolbar" IsVisible="{Binding HasSelection^}">
+                    <Button Command="{Binding StartRecordingCommand}"
+                            ToolTip.Tip="{Binding StartRecording, Source={x:Static l:AppLanguage.Current}}"
+                            AutomationProperties.Name="{Binding StartRecording, Source={x:Static l:AppLanguage.Current}}">
+                        <ic:FluentIcon Icon="Record" FontSize="16" />
+                    </Button>
+                    <Button Command="{Binding StopRecordingCommand}"
+                            ToolTip.Tip="{Binding StopRecording, Source={x:Static l:AppLanguage.Current}}"
+                            AutomationProperties.Name="{Binding StopRecording, Source={x:Static l:AppLanguage.Current}}">
+                        <ic:FluentIcon Icon="RecordStop" FontSize="16" />
+                    </Button>
+                    <Button Classes="Danger" Command="{Binding RemoveRoomsCommand}"
+                            ToolTip.Tip="{Binding RemoveRooms, Source={x:Static l:AppLanguage.Current}}"
+                            AutomationProperties.Name="{Binding RemoveRooms, Source={x:Static l:AppLanguage.Current}}">
+                        <ic:FluentIcon Icon="Delete" FontSize="16" />
+                    </Button>
+                    <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding SelectionText}" />
                 </StackPanel>
-            </Button>
-            <Button Command="{Binding RefreshRoomsCommand}" CommandParameter="{Binding #RoomList.SelectedItems}">
-                <StackPanel Classes="iconText">
-                    <ic:FluentIcon Icon="ArrowSync" />
-                    <TextBlock Text="{Binding RefreshRooms, Source={x:Static l:AppLanguage.Current}}" />
-                </StackPanel>
-            </Button>
-            <Button Classes="Danger" Command="{Binding RemoveRoomsCommand}" CommandParameter="{Binding #RoomList.SelectedItems}">
-                <StackPanel Classes="iconText">
-                    <ic:FluentIcon Icon="Delete" />
-                    <TextBlock Text="{Binding RemoveRooms, Source={x:Static l:AppLanguage.Current}}" />
-                </StackPanel>
-            </Button>
-        </StackPanel>
+            </StackPanel>
+        </DockPanel>
 
         <Border Classes="table">
-            <DockPanel>
-                <Border DockPanel.Dock="Top" Classes="tableHeader">
-                    <Grid ColumnDefinitions="64,64,150,150,*,90,90,100">
-                        <TextBlock Grid.Column="0" HorizontalAlignment="Center" Text="{Binding RecordingEnabled, Source={x:Static l:AppLanguage.Current}}" />
-                        <TextBlock Grid.Column="1" HorizontalAlignment="Center" Text="{Binding NotificationEnabled, Source={x:Static l:AppLanguage.Current}}" />
-                        <TextBlock Grid.Column="2" Text="{Binding RoomId, Source={x:Static l:AppLanguage.Current}}" />
-                        <TextBlock Grid.Column="3" Text="{Binding Streamer, Source={x:Static l:AppLanguage.Current}}" />
-                        <TextBlock Grid.Column="4" Text="{Binding RoomTitle, Source={x:Static l:AppLanguage.Current}}" />
-                        <TextBlock Grid.Column="5" Text="{Binding LiveStatus, Source={x:Static l:AppLanguage.Current}}" />
-                        <TextBlock Grid.Column="6" Text="{Binding RecordStatus, Source={x:Static l:AppLanguage.Current}}" />
-                        <TextBlock Grid.Column="7" HorizontalAlignment="Right" Text="{Binding Speed, Source={x:Static l:AppLanguage.Current}}" />
-                    </Grid>
-                </Border>
+            <Panel>
+                <ListBox x:Name="RoomList"
+                         Classes="table"
+                         ItemsSource="{Binding Rooms}"
+                         SelectedItems="{Binding SelectedRooms}"
+                         SelectionMode="Multiple"
+                         IsVisible="{Binding HasVisibleRooms}"
+                         DoubleTapped="OnRoomDoubleTapped">
+                    <ListBox.KeyBindings>
+                        <KeyBinding Gesture="Delete" Command="{Binding RemoveRoomsCommand}" />
+                    </ListBox.KeyBindings>
+                    <ListBox.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="{Binding EditRoom, Source={x:Static l:AppLanguage.Current}}" Command="{Binding EditRoomCommand}">
+                                <MenuItem.Icon>
+                                    <ic:FluentIcon Icon="Edit" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="{Binding OpenRoomFolder, Source={x:Static l:AppLanguage.Current}}" Command="{Binding OpenRoomFolderCommand}">
+                                <MenuItem.Icon>
+                                    <ic:FluentIcon Icon="Folder" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="{Binding OpenLiveRoom, Source={x:Static l:AppLanguage.Current}}" Command="{Binding OpenLiveRoomCommand}">
+                                <MenuItem.Icon>
+                                    <ic:FluentIcon Icon="Open" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <Separator />
+                            <MenuItem Header="{Binding StartRecording, Source={x:Static l:AppLanguage.Current}}" Command="{Binding StartRecordingCommand}">
+                                <MenuItem.Icon>
+                                    <ic:FluentIcon Icon="Record" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="{Binding StopRecording, Source={x:Static l:AppLanguage.Current}}" Command="{Binding StopRecordingCommand}">
+                                <MenuItem.Icon>
+                                    <ic:FluentIcon Icon="RecordStop" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="{Binding RefreshRooms, Source={x:Static l:AppLanguage.Current}}" Command="{Binding RefreshRoomsCommand}">
+                                <MenuItem.Icon>
+                                    <ic:FluentIcon Icon="ArrowSync" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <Separator />
+                            <MenuItem Header="{Binding RemoveRooms, Source={x:Static l:AppLanguage.Current}}" Command="{Binding RemoveRoomsCommand}" InputGesture="Delete">
+                                <MenuItem.Icon>
+                                    <ic:FluentIcon Icon="Delete" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                        </ContextMenu>
+                    </ListBox.ContextMenu>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="rooms:RoomItemViewModel">
+                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="2">
+                                <Ellipse Grid.Row="0" Grid.Column="0" Width="8" Height="8" ctl:StatusColor.Value="{Binding Status}" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                <StackPanel Grid.Row="0" Grid.Column="2" Classes="toolbar" Spacing="8" HorizontalAlignment="Right">
+                                    <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding StreamInfo}" IsVisible="{Binding IsRecording}" />
+                                    <ContentControl Content="{Binding Status}" ContentTemplate="{StaticResource LocalizedLabel}"
+                                                    FontSize="{DynamicResource SemiFontSizeSmall}" ctl:StatusColor.Value="{Binding Status}"
+                                                    ToolTip.Tip="{Binding StatusTip}" />
+                                </StackPanel>
 
-                <Panel>
-                    <ListBox x:Name="RoomList"
-                             Classes="table"
-                             ItemsSource="{Binding Rooms}"
-                             SelectionMode="Multiple"
-                             DoubleTapped="OnRoomDoubleTapped">
-                        <ListBox.ContextMenu>
-                            <ContextMenu>
-                                <MenuItem Header="{Binding EditRoom, Source={x:Static l:AppLanguage.Current}}"
-                                          Command="{Binding EditRoomCommand}" CommandParameter="{Binding #RoomList.SelectedItem}">
-                                    <MenuItem.Icon>
-                                        <ic:FluentIcon Icon="Edit" />
-                                    </MenuItem.Icon>
-                                </MenuItem>
-                                <MenuItem Header="{Binding OpenRoomFolder, Source={x:Static l:AppLanguage.Current}}"
-                                          Command="{Binding OpenRoomFolderCommand}" CommandParameter="{Binding #RoomList.SelectedItem}">
-                                    <MenuItem.Icon>
-                                        <ic:FluentIcon Icon="Folder" />
-                                    </MenuItem.Icon>
-                                </MenuItem>
-                                <MenuItem Header="{Binding OpenLiveRoom, Source={x:Static l:AppLanguage.Current}}"
-                                          Command="{Binding OpenLiveRoomCommand}" CommandParameter="{Binding #RoomList.SelectedItem}">
-                                    <MenuItem.Icon>
-                                        <ic:FluentIcon Icon="Open" />
-                                    </MenuItem.Icon>
-                                </MenuItem>
-                                <Separator />
-                                <MenuItem Header="{Binding RefreshRooms, Source={x:Static l:AppLanguage.Current}}"
-                                          Command="{Binding RefreshRoomsCommand}" CommandParameter="{Binding #RoomList.SelectedItems}">
-                                    <MenuItem.Icon>
-                                        <ic:FluentIcon Icon="ArrowSync" />
-                                    </MenuItem.Icon>
-                                </MenuItem>
-                                <MenuItem Header="{Binding RemoveRooms, Source={x:Static l:AppLanguage.Current}}"
-                                          Command="{Binding RemoveRoomsCommand}" CommandParameter="{Binding #RoomList.SelectedItems}">
-                                    <MenuItem.Icon>
-                                        <ic:FluentIcon Icon="Delete" />
-                                    </MenuItem.Icon>
-                                </MenuItem>
-                            </ContextMenu>
-                        </ListBox.ContextMenu>
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="rooms:RoomItemViewModel">
-                                <Grid ColumnDefinitions="64,64,150,150,*,90,90,100">
-                                    <CheckBox Grid.Column="0" HorizontalAlignment="Center" IsChecked="{Binding IsRecordingEnabled}" />
-                                    <CheckBox Grid.Column="1" HorizontalAlignment="Center" IsChecked="{Binding IsNotificationEnabled}" />
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
-                                        <SelectableTextBlock Text="{Binding RoomId}" />
-                                        <TextBlock Classes="caption" Text="{Binding ShortId, StringFormat='({0})'}"
-                                                   IsVisible="{Binding ShortId, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Classes="caption" VerticalAlignment="Center"
+                                           Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}"
+                                           IsVisible="{Binding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <Panel Grid.Row="1" Grid.Column="2" MinHeight="22" HorizontalAlignment="Right">
+                                    <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding RecordingInfo}" IsVisible="{Binding IsRecording}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="2" IsVisible="{Binding !IsRecording}">
+                                        <ToggleButton Classes="flag" IsChecked="{Binding IsRecordingEnabled}"
+                                                      ToolTip.Tip="{Binding RecordingEnabled, Source={x:Static l:AppLanguage.Current}}"
+                                                      AutomationProperties.Name="{Binding RecordingEnabled, Source={x:Static l:AppLanguage.Current}}">
+                                            <ic:FluentIcon Icon="Video" />
+                                        </ToggleButton>
+                                        <ToggleButton Classes="flag" IsChecked="{Binding IsNotificationEnabled}"
+                                                      ToolTip.Tip="{Binding NotificationEnabled, Source={x:Static l:AppLanguage.Current}}"
+                                                      AutomationProperties.Name="{Binding NotificationEnabled, Source={x:Static l:AppLanguage.Current}}">
+                                            <ic:FluentIcon Icon="Alert" />
+                                        </ToggleButton>
                                     </StackPanel>
-                                    <TextBlock Grid.Column="3" Text="{Binding UserName}" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Grid.Column="4" Text="{Binding Title}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}" />
-                                    <ContentControl Grid.Column="5"
-                                                    Content="{Binding LiveStatus}" ContentTemplate="{StaticResource LocalizedLabel}"
-                                                    Foreground="{Binding LiveStatus, Converter={x:Static c:StatusBrushConverter.Instance}}" />
-                                    <ContentControl Grid.Column="6"
-                                                    Content="{Binding RecordStatus}" ContentTemplate="{StaticResource LocalizedLabel}"
-                                                    Foreground="{Binding RecordStatus, Converter={x:Static c:StatusBrushConverter.Instance}}" />
-                                    <TextBlock Grid.Column="7" HorizontalAlignment="Right" Text="{Binding Speed}" />
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
+                                </Panel>
 
-                    <TextBlock Text="{Binding NoRooms, Source={x:Static l:AppLanguage.Current}}"
-                               Classes="caption"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                               IsVisible="{Binding !HasRooms}" />
-                </Panel>
-            </DockPanel>
+                                <Button Grid.Row="0" Grid.Column="3" Grid.RowSpan="2" Classes="icon" VerticalAlignment="Center"
+                                        Click="OnMoreClick"
+                                        ToolTip.Tip="{Binding More, Source={x:Static l:AppLanguage.Current}}"
+                                        AutomationProperties.Name="{Binding More, Source={x:Static l:AppLanguage.Current}}">
+                                    <ic:FluentIcon Icon="MoreHorizontal" />
+                                </Button>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <ctl:EmptyState Icon="LiveOff"
+                                Title="{Binding NoRooms, Source={x:Static l:AppLanguage.Current}}"
+                                Description="{Binding NoRoomsHint, Source={x:Static l:AppLanguage.Current}}"
+                                IsVisible="{Binding !HasRooms}">
+                    <Button Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding AddRoomCommand}">
+                        <StackPanel Classes="iconText">
+                            <ic:FluentIcon Icon="Add" />
+                            <TextBlock Text="{Binding AddRoom, Source={x:Static l:AppLanguage.Current}}" />
+                        </StackPanel>
+                    </Button>
+                </ctl:EmptyState>
+                <ctl:EmptyState Icon="Filter" Title="{Binding NoMatchingRooms, Source={x:Static l:AppLanguage.Current}}">
+                    <ctl:EmptyState.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="HasRooms" />
+                            <Binding Path="!HasVisibleRooms" />
+                        </MultiBinding>
+                    </ctl:EmptyState.IsVisible>
+                </ctl:EmptyState>
+            </Panel>
         </Border>
     </DockPanel>
 </UserControl>

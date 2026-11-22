@@ -1,10 +1,10 @@
 namespace BilibiliLiveRecordDownLoader.Application.Tasks;
 
-internal sealed class BackgroundTaskContext(Action<double?, string?> report)
+internal sealed class BackgroundTaskContext(Action<double?, double?, string?> report, TimeProvider timeProvider)
 {
 	public void Report(double? progress, string? message = null)
 	{
-		report(progress is { } value ? Math.Clamp(value, 0, 1) : null, message);
+		Report(progress, null, message);
 	}
 
 	public IProgress<double> CreateProgress(double start = 0, double weight = 1)
@@ -14,7 +14,12 @@ internal sealed class BackgroundTaskContext(Action<double?, string?> report)
 
 	public IProgress<FFmpegProgress> CreateFFmpegProgress(TimeSpan? expectedDuration = null, double start = 0, double weight = 1)
 	{
-		return new FFmpegProgressReporter(this, expectedDuration, start, weight);
+		return new FFmpegProgressReporter(this, timeProvider, expectedDuration, start, weight);
+	}
+
+	private void Report(double? progress, double? speed, string? message)
+	{
+		report(progress is { } value ? Math.Clamp(value, 0, 1) : null, speed, message);
 	}
 
 	private sealed class ScaledProgress(BackgroundTaskContext context, double start, double weight) : IProgress<double>
@@ -25,8 +30,10 @@ internal sealed class BackgroundTaskContext(Action<double?, string?> report)
 		}
 	}
 
-	private sealed class FFmpegProgressReporter(BackgroundTaskContext context, TimeSpan? expectedDuration, double start, double weight) : IProgress<FFmpegProgress>
+	// 速度与 FFmpeg 的算法一致：已处理的媒体时长除以开始后经过的时间
+	private sealed class FFmpegProgressReporter(BackgroundTaskContext context, TimeProvider timeProvider, TimeSpan? expectedDuration, double start, double weight) : IProgress<FFmpegProgress>
 	{
+		private readonly long _startedAt = timeProvider.GetTimestamp();
 		private TimeSpan? _duration = expectedDuration;
 
 		public void Report(FFmpegProgress value)
@@ -39,7 +46,13 @@ internal sealed class BackgroundTaskContext(Action<double?, string?> report)
 				_ => null
 			};
 
-			context.Report(progress, value.Message);
+			double? speed = (value.Position, timeProvider.GetElapsedTime(_startedAt)) switch
+			{
+				({ TotalSeconds: > 0 } position, { TotalSeconds: > 0 } elapsed) => position / elapsed,
+				_ => null
+			};
+
+			context.Report(progress, speed, value.Message);
 		}
 	}
 }

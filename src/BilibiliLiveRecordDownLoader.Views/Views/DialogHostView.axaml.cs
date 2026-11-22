@@ -42,12 +42,16 @@ public partial class DialogHostView : UserControl
 
 	private bool DismissCurrent()
 	{
-		if (DataContext is DialogHostViewModel { Current: { } dialog })
+		if (DataContext is not DialogHostViewModel { Current: { } dialog })
 		{
-			dialog.Dismiss();
-			return true;
+			return false;
 		}
 
-		return false;
+		if (!dialog.IsBusy)
+		{
+			dialog.Dismiss();
+		}
+
+		return true;
 	}
 }

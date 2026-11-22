@@ -3,9 +3,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
 public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDto>
 {
 	private readonly RoomSettingsDto _original;
+	private readonly Func<RoomSettingsDto, CancellationToken, Task> _submit;
 
-	public RoomEditorViewModel(RoomSettingsDto? existing, AppConfig globalConfig)
+	public RoomEditorViewModel(RoomSettingsDto? existing, AppConfig globalConfig, Func<RoomSettingsDto, CancellationToken, Task> submit)
 	{
+		_submit = submit;
 		IsNew = existing is null;
 		_original = existing ?? new RoomSettingsDto { RoomId = 0 };
 
@@ -28,6 +30,16 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 
 		CanSave = this.WhenChanged(static viewModel => viewModel.RoomIdText).Map(static text => TryParseRoomId(text, out _));
 		SaveCommand.DisposeWith(Disposables);
+
+		this.WhenChanged(static viewModel => viewModel.RoomIdText)
+			.Subscribe
+			(text =>
+				{
+					RoomIdError = string.IsNullOrWhiteSpace(text) || TryParseRoomId(text, out _) ? null : AppLanguage.Current.InvalidRoomId;
+					ErrorMessage = null;
+				}
+			)
+			.DisposeWith(Disposables);
 	}
 
 	public bool IsNew { get; }
@@ -48,6 +60,12 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 
 	[Reactive]
 	public partial string RoomIdText { get; set; }
+
+	[Reactive]
+	public partial string? RoomIdError { get; private set; }
+
+	[Reactive]
+	public partial string? ErrorMessage { get; private set; }
 
 	[Reactive]
 	public partial bool IsRecordingEnabled { get; set; }
@@ -88,34 +106,49 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 	[Reactive]
 	public partial decimal StreamIdleTimeoutSeconds { get; set; }
 
+	// 提交成功才关闭，失败时保留输入并在对话框内显示原因
 	[ReactiveCommand(CanExecute = nameof(CanSave))]
-	private void Save()
+	private async Task SaveAsync(CancellationToken cancellationToken)
 	{
 		if (!TryParseRoomId(RoomIdText, out long roomId))
 		{
 			return;
 		}
 
-		Close
-		(
-			_original with
-			{
-				RoomId = roomId,
-				IsRecordingEnabled = IsRecordingEnabled,
-				IsNotificationEnabled = IsNotificationEnabled,
-				Quality = Quality.As<StreamQuality>() ?? StreamQuality.Original,
-				RecorderType = RecorderType.As<RecorderType>(),
-				CodecPriority = OverrideCodecPriority ? CodecPriority.ToList<StreamCodec>() : null,
-				FormatPriority = OverrideFormatPriority ? FormatPriority.ToList<StreamFormat>() : null,
-				ConvertToMp4 = ConvertToMp4.As<bool>(),
-				DeleteAfterConvert = DeleteAfterConvert.As<bool>(),
-				StatusCheckInterval = TimeSpan.FromSeconds((double)StatusCheckIntervalSeconds),
-				DanmuReconnectDelay = TimeSpan.FromSeconds((double)DanmuReconnectDelaySeconds),
-				StreamReconnectDelay = TimeSpan.FromSeconds((double)StreamReconnectDelaySeconds),
-				StreamConnectTimeout = TimeSpan.FromSeconds((double)StreamConnectTimeoutSeconds),
-				StreamIdleTimeout = TimeSpan.FromSeconds((double)StreamIdleTimeoutSeconds)
-			}
-		);
+		RoomSettingsDto settings = _original with
+		{
+			RoomId = roomId,
+			IsRecordingEnabled = IsRecordingEnabled,
+			IsNotificationEnabled = IsNotificationEnabled,
+			Quality = Quality.As<StreamQuality>() ?? StreamQuality.Original,
+			RecorderType = RecorderType.As<RecorderType>(),
+			CodecPriority = OverrideCodecPriority ? CodecPriority.ToList<StreamCodec>() : null,
+			FormatPriority = OverrideFormatPriority ? FormatPriority.ToList<StreamFormat>() : null,
+			ConvertToMp4 = ConvertToMp4.As<bool>(),
+			DeleteAfterConvert = DeleteAfterConvert.As<bool>(),
+			StatusCheckInterval = TimeSpan.FromSeconds((double)StatusCheckIntervalSeconds),
+			DanmuReconnectDelay = TimeSpan.FromSeconds((double)DanmuReconnectDelaySeconds),
+			StreamReconnectDelay = TimeSpan.FromSeconds((double)StreamReconnectDelaySeconds),
+			StreamConnectTimeout = TimeSpan.FromSeconds((double)StreamConnectTimeoutSeconds),
+			StreamIdleTimeout = TimeSpan.FromSeconds((double)StreamIdleTimeoutSeconds)
+		};
+
+		ErrorMessage = null;
+		IsBusy = true;
+
+		try
+		{
+			await _submit(settings, cancellationToken);
+			Close(settings);
+		}
+		catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+		{
+			ErrorMessage = exception.Message;
+		}
+		finally
+		{
+			IsBusy = false;
+		}
 	}
 
 	private static bool TryParseRoomId(string? text, out long roomId)

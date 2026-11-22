@@ -1,23 +1,69 @@
+using System.Collections.Specialized;
+
 namespace BilibiliLiveRecordDownLoader.ViewModels.Rooms;
 
 public sealed partial class RoomListViewModel : ViewModelBase
 {
 	private static readonly TimeSpan RefreshInterval = TimeSpan.FromMilliseconds(500);
 
+	private readonly Dictionary<long, RoomItemViewModel> _rooms = [];
+	private bool _isArranging;
+
 	public RoomListViewModel()
 	{
+		HasSelection = this.WhenChanged(static viewModel => viewModel.SelectedCount).Map(static count => count > 0);
+		HasSingleSelection = this.WhenChanged(static viewModel => viewModel.SelectedCount).Map(static count => count is 1);
+		SelectedRooms.CollectionChanged += OnSelectionChanged;
+
+		this.WhenChanged(static viewModel => viewModel.SortOrder, static viewModel => viewModel.Filter, static (sortOrder, filter) => (sortOrder, filter))
+			.Skip(1)
+			.Subscribe(_ => Arrange())
+			.DisposeWith(Disposables);
+
 		AddRoomCommand.DisposeWith(Disposables);
 		EditRoomCommand.DisposeWith(Disposables);
 		RemoveRoomsCommand.DisposeWith(Disposables);
 		RefreshRoomsCommand.DisposeWith(Disposables);
+		StartRecordingCommand.DisposeWith(Disposables);
+		StopRecordingCommand.DisposeWith(Disposables);
 		OpenRoomFolderCommand.DisposeWith(Disposables);
 		OpenLiveRoomCommand.DisposeWith(Disposables);
+		SortByCommand.DisposeWith(Disposables);
+		FilterByCommand.DisposeWith(Disposables);
 	}
 
+	// 按当前排序和筛选显示的直播间
 	public ObservableCollection<RoomItemViewModel> Rooms { get; } = [];
+
+	public ObservableCollection<RoomItemViewModel> SelectedRooms { get; } = [];
+
+	public IObservable<bool> HasSelection { get; }
+
+	public IObservable<bool> HasSingleSelection { get; }
 
 	[Reactive]
 	public partial bool HasRooms { get; private set; }
+
+	[Reactive]
+	public partial bool HasVisibleRooms { get; private set; }
+
+	[Reactive]
+	public partial int SelectedCount { get; private set; }
+
+	[Reactive]
+	public partial string? SelectionText { get; private set; }
+
+	[Reactive]
+	public partial RoomSortOrder SortOrder { get; private set; }
+
+	[Reactive]
+	public partial RoomFilter Filter { get; private set; }
+
+	[Reactive]
+	public partial string? RecordingSummary { get; private set; }
+
+	[Reactive]
+	public partial string? RecordingSpeed { get; private set; }
 
 	internal void StartMonitoring()
 	{
@@ -29,68 +75,69 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	private async Task AddRoomAsync(CancellationToken cancellationToken)
 	{
 		AppConfig config = await AppLocator.Current.GetRequiredService<IAppConfigManager>().GetAsync(cancellationToken);
-		RoomSettingsDto? settings = await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ShowAsync(new RoomEditorViewModel(null, config));
-
-		if (settings is null)
-		{
-			return;
-		}
-
 		IRoomAppService roomAppService = AppLocator.Current.GetRequiredService<IRoomAppService>();
-		await roomAppService.AddAsync(settings, cancellationToken);
-		Sync(roomAppService.GetRooms());
+
+		if (await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ShowAsync(new RoomEditorViewModel(null, config, roomAppService.AddAsync)) is not null)
+		{
+			Sync(roomAppService.GetRooms());
+		}
 	}
 
-	[ReactiveCommand]
-	private async Task EditRoomAsync(RoomItemViewModel? room, CancellationToken cancellationToken)
+	[ReactiveCommand(CanExecute = nameof(HasSingleSelection))]
+	private async Task EditRoomAsync(CancellationToken cancellationToken)
 	{
-		if (room is null)
+		if (SelectedRooms is not [{ } room])
 		{
 			return;
 		}
 
 		AppConfig config = await AppLocator.Current.GetRequiredService<IAppConfigManager>().GetAsync(cancellationToken);
-		RoomSettingsDto? settings = await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ShowAsync(new RoomEditorViewModel(room.Settings, config));
+		IRoomAppService roomAppService = AppLocator.Current.GetRequiredService<IRoomAppService>();
 
-		if (settings is not null)
+		// 立即同步，行内开关基于最新设置修改
+		if (await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ShowAsync(new RoomEditorViewModel(room.Settings, config, roomAppService.UpdateAsync)) is not null)
 		{
-			await AppLocator.Current.GetRequiredService<IRoomAppService>().UpdateAsync(settings, cancellationToken);
+			Sync(roomAppService.GetRooms());
 		}
 	}
 
-	[ReactiveCommand]
-	private async Task RemoveRoomsAsync(IList? selection, CancellationToken cancellationToken)
+	[ReactiveCommand(CanExecute = nameof(HasSelection))]
+	private async Task RemoveRoomsAsync(CancellationToken cancellationToken)
 	{
-		RoomItemViewModel[] rooms = Select(selection);
-
-		if (rooms.Length is 0)
-		{
-			return;
-		}
-
+		RoomItemViewModel[] rooms = [.. SelectedRooms];
 		string names = string.Join(Environment.NewLine, rooms.Select(static room => room.DisplayName));
 
-		if (await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ConfirmAsync(AppLanguage.Current.RemoveRoomsConfirm, names))
+		if (rooms.Length > 0 && await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ConfirmAsync(AppLanguage.Current.RemoveRoomsConfirm, names, AppLanguage.Current.RemoveRooms, true))
 		{
 			await AppLocator.Current.GetRequiredService<IRoomAppService>().RemoveAsync([.. rooms.Select(static room => room.RoomId)], cancellationToken);
 		}
 	}
 
+	// 没有选中时刷新全部
 	[ReactiveCommand]
-	private async Task RefreshRoomsAsync(IList? selection, CancellationToken cancellationToken)
+	private async Task RefreshRoomsAsync(CancellationToken cancellationToken)
 	{
-		RoomItemViewModel[] rooms = Select(selection);
-		IRoomAppService roomAppService = AppLocator.Current.GetRequiredService<IRoomAppService>();
+		IEnumerable<RoomItemViewModel> targets = SelectedRooms.Count is 0 ? _rooms.Values : SelectedRooms;
 
-		IEnumerable<RoomItemViewModel> targets = rooms.Length is 0 ? Rooms : rooms;
-
-		await roomAppService.RefreshAsync([.. targets.Select(static room => room.RoomId)], cancellationToken);
+		await AppLocator.Current.GetRequiredService<IRoomAppService>().RefreshAsync([.. targets.Select(static room => room.RoomId)], cancellationToken);
 	}
 
-	[ReactiveCommand]
-	private async Task OpenRoomFolderAsync(RoomItemViewModel? room, CancellationToken cancellationToken)
+	[ReactiveCommand(CanExecute = nameof(HasSelection))]
+	private void StartRecording()
 	{
-		if (room is null)
+		SetRecordingEnabled(true);
+	}
+
+	[ReactiveCommand(CanExecute = nameof(HasSelection))]
+	private void StopRecording()
+	{
+		SetRecordingEnabled(false);
+	}
+
+	[ReactiveCommand(CanExecute = nameof(HasSingleSelection))]
+	private async Task OpenRoomFolderAsync(CancellationToken cancellationToken)
+	{
+		if (SelectedRooms is not [{ } room])
 		{
 			return;
 		}
@@ -101,15 +148,48 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		await AppLocator.Current.GetRequiredService<ILauncherService>().OpenFolderAsync(directory);
 	}
 
-	[ReactiveCommand]
-	private async Task OpenLiveRoomAsync(RoomItemViewModel? room)
+	[ReactiveCommand(CanExecute = nameof(HasSingleSelection))]
+	private async Task OpenLiveRoomAsync()
 	{
-		if (room is null)
+		if (SelectedRooms is [{ } room])
 		{
-			return;
+			await AppLocator.Current.GetRequiredService<ILauncherService>().LaunchUriAsync(new Uri(AppConsts.LiveRoomUrlPrefix + room.RoomId.ToString(CultureInfo.InvariantCulture)));
 		}
+	}
 
-		await AppLocator.Current.GetRequiredService<ILauncherService>().LaunchUriAsync(new Uri(AppConsts.LiveRoomUrlPrefix + room.RoomId.ToString(CultureInfo.InvariantCulture)));
+	[ReactiveCommand]
+	private void SortBy(RoomSortOrder sortOrder)
+	{
+		SortOrder = sortOrder;
+	}
+
+	[ReactiveCommand]
+	private void FilterBy(RoomFilter filter)
+	{
+		Filter = filter;
+	}
+
+	// 每行自己保存开关，失败时各自回滚
+	private void SetRecordingEnabled(bool enabled)
+	{
+		foreach (RoomItemViewModel room in SelectedRooms.ToArray())
+		{
+			room.IsRecordingEnabled = enabled;
+		}
+	}
+
+	private void OnSelectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+	{
+		if (!_isArranging)
+		{
+			UpdateSelection();
+		}
+	}
+
+	private void UpdateSelection()
+	{
+		SelectedCount = SelectedRooms.Count;
+		SelectionText = SelectedCount is 0 ? null : AppLanguage.Current.SelectedCount.ToString(SelectedCount.ToString(CultureInfo.CurrentCulture));
 	}
 
 	private void Sync(IReadOnlyList<RoomSnapshot> snapshots)
@@ -118,35 +198,140 @@ public sealed partial class RoomListViewModel : ViewModelBase
 
 		foreach (RoomSnapshot snapshot in snapshots)
 		{
-			latest[snapshot.RoomId] = snapshot;
+			latest.TryAdd(snapshot.RoomId, snapshot);
 		}
 
-		for (int index = Rooms.Count - 1; index >= 0; --index)
+		foreach (RoomItemViewModel removed in _rooms.Values.Where(room => !latest.ContainsKey(room.RoomId)).ToArray())
 		{
-			if (!latest.ContainsKey(Rooms[index].RoomId))
-			{
-				Rooms[index].Dispose();
-				Rooms.RemoveAt(index);
-			}
+			_rooms.Remove(removed.RoomId);
+			Rooms.Remove(removed);
+			removed.Dispose();
 		}
+
+		int order = 0;
 
 		foreach (RoomSnapshot snapshot in latest.Values)
 		{
-			if (Rooms.FirstOrDefault(room => room.RoomId == snapshot.RoomId) is { } room)
+			if (_rooms.TryGetValue(snapshot.RoomId, out RoomItemViewModel? room))
 			{
 				room.Apply(snapshot);
 			}
 			else
 			{
-				Rooms.Add(new RoomItemViewModel(snapshot));
+				room = new RoomItemViewModel(snapshot);
+				_rooms.Add(snapshot.RoomId, room);
 			}
+
+			room.Order = order++;
 		}
 
-		HasRooms = Rooms.Count > 0;
+		HasRooms = _rooms.Count > 0;
+		Summarize([.. latest.Values.Where(static snapshot => snapshot.RecordStatus is RecordStatus.Recording)]);
+		Arrange();
 	}
 
-	private static RoomItemViewModel[] Select(IList? selection)
+	// 只移动位置变化的项以保留滚动位置；ListBox 会取消选中被移动的项，重排后恢复
+	private void Arrange()
 	{
-		return selection is null ? [] : [.. selection.OfType<RoomItemViewModel>()];
+		RoomItemViewModel[] visible = [.. _rooms.Values.Where(Matches).Order(Comparer<RoomItemViewModel>.Create(Compare))];
+		HashSet<RoomItemViewModel> visibleSet = [.. visible];
+		RoomItemViewModel[] selected = [.. SelectedRooms.Where(visibleSet.Contains)];
+
+		_isArranging = true;
+
+		try
+		{
+			for (int index = Rooms.Count - 1; index >= 0; --index)
+			{
+				if (!visibleSet.Contains(Rooms[index]))
+				{
+					Rooms.RemoveAt(index);
+				}
+			}
+
+			for (int index = 0; index < visible.Length; ++index)
+			{
+				int current = Rooms.IndexOf(visible[index]);
+
+				if (current < 0)
+				{
+					Rooms.Insert(index, visible[index]);
+				}
+				else if (current != index)
+				{
+					Rooms.Move(current, index);
+				}
+			}
+
+			foreach (RoomItemViewModel room in selected.Where(room => !SelectedRooms.Contains(room)))
+			{
+				SelectedRooms.Add(room);
+			}
+		}
+		finally
+		{
+			_isArranging = false;
+		}
+
+		UpdateSelection();
+		HasVisibleRooms = Rooms.Count > 0;
+	}
+
+	private bool Matches(RoomItemViewModel room)
+	{
+		return Filter switch
+		{
+			RoomFilter.Live => room.LiveStatus is LiveStatus.Live,
+			RoomFilter.Recording => room.RecordStatus is not RecordStatus.Idle,
+			_ => true
+		};
+	}
+
+	private int Compare(RoomItemViewModel x, RoomItemViewModel y)
+	{
+		int result = SortOrder switch
+		{
+			RoomSortOrder.Status => Rank(x).CompareTo(Rank(y)) is var rank and not 0 ? rank : CompareNames(x, y),
+			RoomSortOrder.Name => CompareNames(x, y),
+			RoomSortOrder.RoomId => x.RoomId.CompareTo(y.RoomId),
+			_ => x.Order.CompareTo(y.Order)
+		};
+
+		return result is 0 ? x.RoomId.CompareTo(y.RoomId) : result;
+
+		static int CompareNames(RoomItemViewModel x, RoomItemViewModel y)
+		{
+			return string.Compare(x.DisplayName, y.DisplayName, StringComparison.CurrentCultureIgnoreCase);
+		}
+
+		static int Rank(RoomItemViewModel room)
+		{
+			return (room.RecordStatus, room.LiveStatus) switch
+			{
+				(RecordStatus.Recording, _) => 0,
+				(RecordStatus.Connecting, _) => 1,
+				(_, LiveStatus.Live) => 2,
+				(_, LiveStatus.Round) => 3,
+				_ => 4
+			};
+		}
+	}
+
+	private void Summarize(RoomSnapshot[] recording)
+	{
+		RecordingSummary = recording.Length is 0 ? null : AppLanguage.Current.RecordingSummary.ToString(recording.Length.ToString(CultureInfo.CurrentCulture));
+		RecordingSpeed = recording.Length is 0 ? null : ByteSize.Format(recording.Sum(static snapshot => snapshot.BytesPerSecond)) + "/s";
+	}
+
+	public override void Dispose()
+	{
+		SelectedRooms.CollectionChanged -= OnSelectionChanged;
+
+		foreach (RoomItemViewModel room in _rooms.Values)
+		{
+			room.Dispose();
+		}
+
+		base.Dispose();
 	}
 }

@@ -1,27 +1,86 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:ic="using:FluentIcons.Avalonia">
+        xmlns:ic="using:FluentIcons.Avalonia"
+        xmlns:ctl="using:BilibiliLiveRecordDownLoader.Views.Controls">
+    <Styles.Resources>
+        <Thickness x:Key="PageMargin">16</Thickness>
+        <Thickness x:Key="CardPadding">16</Thickness>
+        <Thickness x:Key="ToolbarMargin">0,0,0,12</Thickness>
+        <x:Double x:Key="PageSpacing">16</x:Double>
+        <x:Double x:Key="FormSpacing">12</x:Double>
+        <x:Double x:Key="FieldSpacing">4</x:Double>
+        <x:Double x:Key="ToolbarSpacing">8</x:Double>
+
+        <ControlTheme x:Key="{x:Type ctl:EmptyState}" TargetType="ctl:EmptyState">
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="24" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <StackPanel Spacing="8" MaxWidth="360">
+                        <ic:FluentIcon Icon="{TemplateBinding Icon}" FontSize="40" HorizontalAlignment="Center"
+                                       Foreground="{DynamicResource SemiColorText3}" />
+                        <TextBlock Text="{TemplateBinding Title}" HorizontalAlignment="Center"
+                                   FontSize="{DynamicResource SemiFontSizeHeader6}" FontWeight="SemiBold"
+                                   TextAlignment="Center" TextWrapping="Wrap" />
+                        <TextBlock Classes="caption" Text="{TemplateBinding Description}" HorizontalAlignment="Center"
+                                   TextAlignment="Center" TextWrapping="Wrap"
+                                   IsVisible="{TemplateBinding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          HorizontalAlignment="Center" Margin="0,8,0,0"
+                                          IsVisible="{TemplateBinding Content, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    </StackPanel>
+                </ControlTemplate>
+            </Setter>
+        </ControlTheme>
+    </Styles.Resources>
+
+    <Style Selector=":is(Panel).page">
+        <Setter Property="Margin" Value="{StaticResource PageMargin}" />
+    </Style>
+    <Style Selector="StackPanel.page">
+        <Setter Property="Spacing" Value="{StaticResource PageSpacing}" />
+        <Setter Property="MaxWidth" Value="900" />
+    </Style>
+    <Style Selector="DockPanel.toolbar">
+        <Setter Property="DockPanel.Dock" Value="Top" />
+        <Setter Property="Margin" Value="{StaticResource ToolbarMargin}" />
+    </Style>
     <Style Selector="Border.card">
         <Setter Property="Theme" Value="{DynamicResource CardBorder}" />
-        <Setter Property="Padding" Value="16" />
+        <Setter Property="Padding" Value="{StaticResource CardPadding}" />
     </Style>
     <Style Selector="StackPanel.form">
-        <Setter Property="Spacing" Value="12" />
+        <Setter Property="Spacing" Value="{StaticResource FormSpacing}" />
+    </Style>
+    <Style Selector="Grid.form">
+        <Setter Property="ColumnSpacing" Value="{StaticResource FormSpacing}" />
+        <Setter Property="RowSpacing" Value="{StaticResource FormSpacing}" />
     </Style>
     <Style Selector="StackPanel.field">
-        <Setter Property="Spacing" Value="4" />
+        <Setter Property="Spacing" Value="{StaticResource FieldSpacing}" />
     </Style>
     <Style Selector="TextBlock.section">
-        <Setter Property="FontSize" Value="16" />
+        <Setter Property="FontSize" Value="{DynamicResource SemiFontSizeHeader6}" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Margin" Value="0,0,0,4" />
     </Style>
-    <Style Selector="TextBlock.caption">
-        <Setter Property="Opacity" Value="0.7" />
+    <Style Selector="TextBlock.caption, SelectableTextBlock.caption">
+        <Setter Property="FontSize" Value="{DynamicResource SemiFontSizeSmall}" />
+        <Setter Property="Foreground" Value="{DynamicResource SemiColorText2}" />
+    </Style>
+    <Style Selector="TextBlock.error">
+        <Setter Property="FontSize" Value="{DynamicResource SemiFontSizeSmall}" />
+        <Setter Property="Foreground" Value="{DynamicResource SemiColorDanger}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="Border.errorBanner">
+        <Setter Property="Background" Value="{DynamicResource SemiColorDangerLight}" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="12,8" />
     </Style>
     <Style Selector="StackPanel.toolbar">
         <Setter Property="Orientation" Value="Horizontal" />
-        <Setter Property="Spacing" Value="8" />
+        <Setter Property="Spacing" Value="{StaticResource ToolbarSpacing}" />
     </Style>
     <Style Selector="StackPanel.iconText">
         <Setter Property="Orientation" Value="Horizontal" />
@@ -30,6 +89,11 @@
     <Style Selector="StackPanel.iconText > TextBlock">
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
+    <Style Selector="StackPanel.iconText > ic|FluentIcon">
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
     <Style Selector="Border.table">
         <Setter Property="BorderBrush" Value="{DynamicResource SemiColorBorder}" />
         <Setter Property="BorderThickness" Value="1" />
@@ -38,24 +102,35 @@
     </Style>
     <Style Selector="Border.tableHeader">
         <Setter Property="Background" Value="{DynamicResource SemiColorFill0}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SemiColorBorder}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
         <Setter Property="Padding" Value="12,8" />
     </Style>
     <Style Selector="Border.tableHeader TextBlock">
+        <Setter Property="FontSize" Value="{DynamicResource SemiFontSizeSmall}" />
         <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource SemiColorText2}" />
     </Style>
     <Style Selector="ListBox.table">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Padding" Value="0" />
     </Style>
     <Style Selector="ListBox.table > ListBoxItem">
-        <Setter Property="Padding" Value="12,6" />
+        <Setter Property="Padding" Value="12,8" />
         <Setter Property="Margin" Value="0" />
         <Setter Property="CornerRadius" Value="0" />
+        <Setter Property="MinHeight" Value="40" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
-    <Style Selector="StackPanel.iconText > ic|FluentIcon">
+
+    <Style Selector="Button.icon">
+        <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+        <Setter Property="Padding" Value="6" />
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="Button.icon > ic|FluentIcon">
         <Setter Property="FontSize" Value="16" />
-        <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 </Styles>

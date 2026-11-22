@@ -1,6 +1,7 @@
 <UserControl
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ic="using:FluentIcons.Avalonia"
     xmlns:dialogs="using:BilibiliLiveRecordDownLoader.ViewModels.Dialogs"
     xmlns:views="using:BilibiliLiveRecordDownLoader.Views.Views"
     xmlns:cfg="using:BilibiliLiveRecordDownLoader.Domain.Shared.Configuration"
@@ -22,40 +23,48 @@
     </UserControl.Styles>
 
     <DockPanel>
-        <StackPanel DockPanel.Dock="Bottom" Classes="toolbar" HorizontalAlignment="Right" Margin="0,24,0,0">
-            <Button Command="{Binding DismissDialogCommand}" Content="{Binding Cancel, Source={x:Static l:AppLanguage.Current}}" />
-            <Button Theme="{DynamicResource SolidButton}" Classes="Primary" IsDefault="True"
-                    Command="{Binding SaveCommand}" Content="{Binding Save, Source={x:Static l:AppLanguage.Current}}" />
+        <StackPanel DockPanel.Dock="Bottom" Classes="form" Margin="0,20,0,0">
+            <Border Classes="errorBanner" IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                    <ic:FluentIcon Grid.Column="0" Icon="ErrorCircle" IconVariant="Filled" FontSize="16" Foreground="{DynamicResource SemiColorDanger}" />
+                    <SelectableTextBlock Grid.Column="1" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+                </Grid>
+            </Border>
+            <StackPanel Classes="toolbar" HorizontalAlignment="Right">
+                <Button Command="{Binding DismissDialogCommand}" Content="{Binding Cancel, Source={x:Static l:AppLanguage.Current}}" />
+                <Button Theme="{DynamicResource SolidButton}" Classes="Primary" IsDefault="True" Command="{Binding SaveCommand}">
+                    <StackPanel Classes="iconText">
+                        <ProgressBar Theme="{DynamicResource ProgressRing}" IsIndeterminate="True" Width="14" Height="14" IsVisible="{Binding IsBusy}" />
+                        <TextBlock Text="{Binding Save, Source={x:Static l:AppLanguage.Current}}" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
         </StackPanel>
 
         <ScrollViewer MaxHeight="560">
-            <StackPanel Classes="form" Margin="0,0,12,0">
+            <StackPanel Classes="form" Margin="0,0,12,0" IsEnabled="{Binding !IsBusy}">
                 <StackPanel Classes="field">
                     <TextBlock Text="{Binding RoomId, Source={x:Static l:AppLanguage.Current}}" />
                     <TextBox x:Name="RoomIdBox" Text="{Binding RoomIdText}" IsEnabled="{Binding IsNew}" />
+                    <TextBlock Classes="error" Text="{Binding RoomIdError}"
+                               IsVisible="{Binding RoomIdError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 </StackPanel>
                 <StackPanel Classes="toolbar" Spacing="24">
                     <CheckBox IsChecked="{Binding IsRecordingEnabled}" Content="{Binding RecordingEnabled, Source={x:Static l:AppLanguage.Current}}" />
                     <CheckBox IsChecked="{Binding IsNotificationEnabled}" Content="{Binding NotificationEnabled, Source={x:Static l:AppLanguage.Current}}" />
                 </StackPanel>
-                <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
-                    <StackPanel Grid.Column="0" Classes="field">
-                        <TextBlock Text="{Binding Quality, Source={x:Static l:AppLanguage.Current}}" />
-                        <ComboBox ItemsSource="{Binding QualityOptions}" SelectedItem="{Binding Quality}" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="1" Classes="field">
-                        <TextBlock Text="{Binding RecorderType, Source={x:Static l:AppLanguage.Current}}" />
-                        <ComboBox ItemsSource="{Binding RecorderTypeOptions}" SelectedItem="{Binding RecorderType}" />
-                    </StackPanel>
+                <Grid Classes="form" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="4">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Quality, Source={x:Static l:AppLanguage.Current}}" />
+                    <ComboBox Grid.Row="1" Grid.Column="0" ItemsSource="{Binding QualityOptions}" SelectedItem="{Binding Quality}" />
+                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding RecorderType, Source={x:Static l:AppLanguage.Current}}" />
+                    <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding RecorderTypeOptions}" SelectedItem="{Binding RecorderType}" />
+                    <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap"
+                               Text="{Binding ConvertToMp4, Source={x:Static l:AppLanguage.Current}}" />
+                    <ComboBox Grid.Row="3" Grid.Column="0" ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding ConvertToMp4}" />
+                    <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap"
+                               Text="{Binding DeleteAfterConvert, Source={x:Static l:AppLanguage.Current}}" />
+                    <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding DeleteAfterConvert}" />
                 </Grid>
-                <StackPanel Classes="field">
-                    <TextBlock Text="{Binding ConvertToMp4, Source={x:Static l:AppLanguage.Current}}" />
-                    <ComboBox ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding ConvertToMp4}" />
-                </StackPanel>
-                <StackPanel Classes="field">
-                    <TextBlock Text="{Binding DeleteAfterConvert, Source={x:Static l:AppLanguage.Current}}" />
-                    <ComboBox ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding DeleteAfterConvert}" />
-                </StackPanel>
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
                     <StackPanel Grid.Column="0" Classes="field">
                         <CheckBox IsChecked="{Binding OverrideCodecPriority}" Content="{Binding CustomCodecPriority, Source={x:Static l:AppLanguage.Current}}" />

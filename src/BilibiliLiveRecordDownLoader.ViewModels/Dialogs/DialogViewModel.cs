@@ -1,8 +1,19 @@
 namespace BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
 
-public abstract class DialogViewModel : ViewModelBase
+public abstract partial class DialogViewModel : ViewModelBase
 {
+	protected DialogViewModel()
+	{
+		CanDismiss = this.WhenChanged(static viewModel => viewModel.IsBusy).Map(static isBusy => !isBusy);
+	}
+
 	public abstract string Title { get; }
+
+	// 提交进行中不能关闭，否则提交仍会生效且失败原因无处显示
+	[Reactive]
+	public partial bool IsBusy { get; protected set; }
+
+	public IObservable<bool> CanDismiss { get; }
 
 	public virtual void OnOpened()
 	{
@@ -36,7 +47,7 @@ public abstract partial class DialogViewModel<TResult> : DialogViewModel
 		_result.TrySetResult(result);
 	}
 
-	[ReactiveCommand]
+	[ReactiveCommand(CanExecute = nameof(CanDismiss))]
 	private void DismissDialog()
 	{
 		Dismiss();

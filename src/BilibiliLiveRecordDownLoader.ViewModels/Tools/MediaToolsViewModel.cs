@@ -8,6 +8,9 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 
 	public MediaToolsViewModel()
 	{
+		CanQueueRemux = this.WhenChanged(static viewModel => viewModel.IsFFmpegAvailable, static viewModel => viewModel.RemuxInput, static viewModel => viewModel.RemuxOutput, CanQueue);
+		CanQueueCut = this.WhenChanged(static viewModel => viewModel.IsFFmpegAvailable, static viewModel => viewModel.CutInput, static viewModel => viewModel.CutOutput, CanQueue);
+
 		CheckFFmpegCommand.DisposeWith(Disposables);
 		BrowseRemuxInputCommand.DisposeWith(Disposables);
 		BrowseRemuxOutputCommand.DisposeWith(Disposables);
@@ -26,6 +29,10 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 			.Subscribe(input => CutOutput = SuggestCutOutput(input, _queuedCutOutputs))
 			.DisposeWith(Disposables);
 	}
+
+	public IObservable<bool> CanQueueRemux { get; }
+
+	public IObservable<bool> CanQueueCut { get; }
 
 	[Reactive]
 	public partial bool? IsFFmpegAvailable { get; private set; }
@@ -89,7 +96,7 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 		}
 	}
 
-	[ReactiveCommand]
+	[ReactiveCommand(CanExecute = nameof(CanQueueRemux))]
 	private async Task QueueRemuxAsync(CancellationToken cancellationToken)
 	{
 		await AppLocator.Current.GetRequiredService<IMediaToolAppService>().QueueRemuxAsync(new RemuxInput(RemuxInput.Trim(), RemuxOutput.Trim(), DeleteRemuxSource, RepairFlv), cancellationToken);
@@ -115,7 +122,7 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 		}
 	}
 
-	[ReactiveCommand]
+	[ReactiveCommand(CanExecute = nameof(CanQueueCut))]
 	private async Task QueueCutAsync(CancellationToken cancellationToken)
 	{
 		if (!TryParseTime(CutStart, out TimeSpan start) || !TryParseTime(CutEnd, out TimeSpan end))
@@ -130,6 +137,11 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 		// 排队的任务还没写出文件，下一个建议要跳过它
 		_queuedCutOutputs.Add(Path.GetFullPath(output));
 		CutOutput = SuggestCutOutput(CutInput, _queuedCutOutputs);
+	}
+
+	private static bool CanQueue(bool? isFFmpegAvailable, string input, string output)
+	{
+		return isFFmpegAvailable is true && !string.IsNullOrWhiteSpace(input) && !string.IsNullOrWhiteSpace(output);
 	}
 
 	private static void NotifyQueued()

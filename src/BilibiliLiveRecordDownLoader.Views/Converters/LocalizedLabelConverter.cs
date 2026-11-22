@@ -26,17 +26,7 @@ public sealed class LocalizedLabelConverter : IValueConverter, IMultiValueConver
 			null => AppLanguage.Current.Inherit,
 			true => AppLanguage.Current.Enabled,
 			false => AppLanguage.Current.Disabled,
-			StreamQuality quality => quality switch
-			{
-				StreamQuality.Smooth => AppLanguage.Current.QualitySmooth,
-				StreamQuality.High => AppLanguage.Current.QualityHigh,
-				StreamQuality.SuperHigh => AppLanguage.Current.QualitySuperHigh,
-				StreamQuality.BluRay => AppLanguage.Current.QualityBluRay,
-				StreamQuality.Original => AppLanguage.Current.QualityOriginal,
-				StreamQuality.UltraHd4K => AppLanguage.Current.QualityUltraHd4K,
-				StreamQuality.Dolby => AppLanguage.Current.QualityDolby,
-				_ => quality.ToString()
-			},
+			StreamQuality quality => StreamLabels.Of(quality),
 			RecorderType recorderType => recorderType switch
 			{
 				RecorderType.BuiltIn => AppLanguage.Current.RecorderBuiltIn,
@@ -76,6 +66,28 @@ public sealed class LocalizedLabelConverter : IValueConverter, IMultiValueConver
 				BackgroundTaskStatus.Completed => AppLanguage.Current.TaskCompleted,
 				BackgroundTaskStatus.Failed => AppLanguage.Current.TaskFailed,
 				_ => AppLanguage.Current.TaskCanceled
+			},
+			LogLevel level => level switch
+			{
+				LogLevel.Trace => AppLanguage.Current.LogLevelTrace,
+				LogLevel.Debug => AppLanguage.Current.LogLevelDebug,
+				LogLevel.Information => AppLanguage.Current.LogLevelInformation,
+				LogLevel.Warning => AppLanguage.Current.LogLevelWarning,
+				LogLevel.Error => AppLanguage.Current.LogLevelError,
+				_ => AppLanguage.Current.LogLevelCritical
+			},
+			RoomSortOrder sortOrder => sortOrder switch
+			{
+				RoomSortOrder.Name => AppLanguage.Current.SortByName,
+				RoomSortOrder.RoomId => AppLanguage.Current.SortByRoomId,
+				RoomSortOrder.Added => AppLanguage.Current.SortByAdded,
+				_ => AppLanguage.Current.SortByStatus
+			},
+			RoomFilter filter => filter switch
+			{
+				RoomFilter.Live => AppLanguage.Current.FilterLive,
+				RoomFilter.Recording => AppLanguage.Current.FilterRecording,
+				_ => AppLanguage.Current.FilterAll
 			},
 			QrCodeLoginState state => state switch
 			{

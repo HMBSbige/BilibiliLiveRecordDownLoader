@@ -36,7 +36,9 @@ internal sealed class MediaToolAppService(FFmpegProvider ffmpegProvider, Backgro
 				{
 					FileOperations.TryDelete(input.Source, logger);
 				}
-			}
+			},
+			input.Source,
+			input.Destination
 		);
 	}
 
@@ -58,7 +60,9 @@ internal sealed class MediaToolAppService(FFmpegProvider ffmpegProvider, Backgro
 			(
 				input.Destination,
 				() => runner.RunAsync(FFmpegArguments.Cut(input.Source, input.Destination, input.Start, input.End), context.CreateFFmpegProgress(input.End - input.Start), token)
-			)
+			),
+			input.Source,
+			input.Destination
 		);
 	}
 

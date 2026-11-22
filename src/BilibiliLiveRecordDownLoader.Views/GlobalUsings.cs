@@ -23,6 +23,7 @@ global using BilibiliLiveRecordDownLoader.ViewModels.Common;
 global using BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
 global using BilibiliLiveRecordDownLoader.ViewModels.Logs;
 global using BilibiliLiveRecordDownLoader.ViewModels.Rooms;
+global using BilibiliLiveRecordDownLoader.Views.Controls;
 global using BilibiliLiveRecordDownLoader.Views.Converters;
 global using BilibiliLiveRecordDownLoader.Views.Infrastructure;
 global using BilibiliLiveRecordDownLoader.Views.Services;

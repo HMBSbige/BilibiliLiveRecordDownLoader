@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tasks;
 
-internal sealed partial class BackgroundTaskAppService(ILogger<BackgroundTaskAppService> logger) : IBackgroundTaskAppService
+internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider, ILogger<BackgroundTaskAppService> logger) : IBackgroundTaskAppService
 {
 	private readonly Lock _lock = new();
 	private readonly List<TaskEntry> _entries = [];
@@ -32,9 +32,9 @@ internal sealed partial class BackgroundTaskAppService(ILogger<BackgroundTaskApp
 	}
 
 	// 同一队列中的任务依次执行，避免多个转封装同时读写同一块磁盘
-	public Guid Enqueue(string title, string queueKey, Func<BackgroundTaskContext, CancellationToken, Task> work)
+	public Guid Enqueue(string title, string queueKey, Func<BackgroundTaskContext, CancellationToken, Task> work, string? sourcePath = null, string? targetPath = null)
 	{
-		TaskEntry entry = new(Guid.CreateVersion7(), title);
+		TaskEntry entry = new(Guid.CreateVersion7(), title, sourcePath, targetPath);
 		bool isStopping;
 
 		lock (_lock)
@@ -117,7 +117,7 @@ internal sealed partial class BackgroundTaskAppService(ILogger<BackgroundTaskApp
 		try
 		{
 			Update(entry, BackgroundTaskStatus.Running);
-			BackgroundTaskContext context = new((progress, message) => Update(entry, BackgroundTaskStatus.Running, progress, message));
+			BackgroundTaskContext context = new((progress, speed, message) => Update(entry, BackgroundTaskStatus.Running, progress, speed, message), timeProvider);
 			await Task.Run(() => work(context, cancellationToken), cancellationToken);
 			Update(entry, BackgroundTaskStatus.Completed, 1);
 		}
@@ -136,12 +136,14 @@ internal sealed partial class BackgroundTaskAppService(ILogger<BackgroundTaskApp
 		}
 	}
 
-	private void Update(TaskEntry entry, BackgroundTaskStatus status, double? progress = null, string? message = null)
+	// 速度只在运行中有意义，每次都用最新的值覆盖
+	private void Update(TaskEntry entry, BackgroundTaskStatus status, double? progress = null, double? speed = null, string? message = null)
 	{
 		lock (_lock)
 		{
 			entry.Status = status;
 			entry.Progress = progress ?? entry.Progress;
+			entry.Speed = speed;
 			entry.Message = message ?? entry.Message;
 		}
 
@@ -156,7 +158,7 @@ internal sealed partial class BackgroundTaskAppService(ILogger<BackgroundTaskApp
 	[LoggerMessage(Level = LogLevel.Error, Message = "Task {Title} failed")]
 	private static partial void LogTaskFailed(ILogger logger, Exception exception, string title);
 
-	private sealed class TaskEntry(Guid id, string title)
+	private sealed class TaskEntry(Guid id, string title, string? sourcePath, string? targetPath)
 	{
 		private readonly CancellationTokenSource _cancellation = new();
 
@@ -164,9 +166,15 @@ internal sealed partial class BackgroundTaskAppService(ILogger<BackgroundTaskApp
 
 		public string Title { get; } = title;
 
+		public string? SourcePath { get; } = sourcePath;
+
+		public string? TargetPath { get; } = targetPath;
+
 		public BackgroundTaskStatus Status { get; set; }
 
 		public double? Progress { get; set; }
+
+		public double? Speed { get; set; }
 
 		public string? Message { get; set; }
 
@@ -186,7 +194,7 @@ internal sealed partial class BackgroundTaskAppService(ILogger<BackgroundTaskApp
 
 		public BackgroundTaskSnapshot ToSnapshot()
 		{
-			return new BackgroundTaskSnapshot(Id, Title, Status, Progress, Message);
+			return new BackgroundTaskSnapshot(Id, Title, SourcePath, TargetPath, Status, Progress, Speed, Message);
 		}
 	}
 }

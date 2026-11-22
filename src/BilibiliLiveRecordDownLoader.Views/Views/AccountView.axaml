@@ -4,6 +4,7 @@
     xmlns:ic="using:FluentIcons.Avalonia"
     xmlns:vm="using:BilibiliLiveRecordDownLoader.ViewModels"
     xmlns:c="using:BilibiliLiveRecordDownLoader.Views.Converters"
+    xmlns:ctl="using:BilibiliLiveRecordDownLoader.Views.Controls"
     xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.AccountView"
     x:DataType="vm:AccountViewModel">
@@ -13,9 +14,9 @@
                 <StackPanel Classes="form">
                     <TextBlock Classes="section" Text="{Binding LoginStatus, Source={x:Static l:AppLanguage.Current}}" />
                     <StackPanel Classes="iconText">
-                        <ic:FluentIcon Icon="CheckmarkCircle" Foreground="{x:Static c:StatusBrushes.Positive}" IsVisible="{Binding IsLoggedIn, FallbackValue=False, TargetNullValue=False}" />
+                        <ic:FluentIcon Icon="CheckmarkCircle" Foreground="{DynamicResource SemiColorSuccess}" IsVisible="{Binding IsLoggedIn, FallbackValue=False, TargetNullValue=False}" />
                         <TextBlock Text="{Binding LoggedIn, Source={x:Static l:AppLanguage.Current}}" IsVisible="{Binding IsLoggedIn, FallbackValue=False, TargetNullValue=False}" />
-                        <ic:FluentIcon Icon="DismissCircle" Foreground="{x:Static c:StatusBrushes.Danger}" IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}" />
+                        <ic:FluentIcon Icon="DismissCircle" Foreground="{DynamicResource SemiColorDanger}" IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}" />
                         <TextBlock Text="{Binding NotLoggedIn, Source={x:Static l:AppLanguage.Current}}" IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}" />
                         <TextBlock Text="{Binding Checking, Source={x:Static l:AppLanguage.Current}}"
                                    IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.IsNull}}" />
