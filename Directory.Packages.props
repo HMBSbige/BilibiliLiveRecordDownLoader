@@ -15,7 +15,7 @@
     <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="4.157.0" />
   </ItemGroup>
   <ItemGroup>
-    <PackageVersion Include="ReactiveUI" Version="27.0.1" />
+    <PackageVersion Include="ReactiveUI" Version="28.0.0" />
     <PackageVersion Include="ReactiveUI.Avalonia.Microsoft.Extensions.DependencyInjection" Version="12.1.7" />
     <PackageVersion Include="Splat.Serilog" Version="22.0.1" />
   </ItemGroup>
