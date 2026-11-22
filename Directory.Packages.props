@@ -4,7 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Avalonia.Desktop" Version="12.1.6" />
-    <PackageVersion Include="ChsBuffer.Angle.Static" Version="2.1.27548.1" />
+    <PackageVersion Include="ChsBuffer.Angle.Static" Version="2.1.27548.2" />
     <PackageVersion Include="ChsBuffer.Avalonia.Native.Static" Version="12.1.6.1" />
     <PackageVersion Include="ChsBuffer.SkiaSharp.Static" Version="4.157.0.2" />
     <PackageVersion Include="FluentIcons.Avalonia" Version="2.1.345" />
