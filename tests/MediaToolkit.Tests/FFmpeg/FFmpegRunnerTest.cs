@@ -272,9 +272,8 @@ public class FFmpegRunnerTest
 	[Timeout(TestTimeout)]
 	public async Task StartedProcessIsTrackedForCleanupAsync(CancellationToken cancellationToken)
 	{
-		ProcessStartInfo startInfo = new(FakeProcess.Executable, FakeProcess.Arguments(@"Start-Sleep -Seconds 60", @"exec sleep 60")) { CreateNoWindow = true };
-		using Process tracked = ChildProcessTracker.Start(startInfo);
-		using Process untracked = Process.Start(startInfo) ?? throw new InvalidOperationException();
+		using Process tracked = ChildProcessTracker.Start(SleepStartInfo());
+		using Process untracked = Process.Start(SleepStartInfo()) ?? throw new InvalidOperationException();
 
 		try
 		{
@@ -287,6 +286,11 @@ public class FFmpegRunnerTest
 			untracked.Kill();
 			await tracked.WaitForExitAsync(cancellationToken);
 			await untracked.WaitForExitAsync(cancellationToken);
+		}
+
+		static ProcessStartInfo SleepStartInfo()
+		{
+			return new ProcessStartInfo(FakeProcess.Executable, FakeProcess.Arguments(@"Start-Sleep -Seconds 60", @"exec sleep 60")) { CreateNoWindow = true };
 		}
 	}
 }

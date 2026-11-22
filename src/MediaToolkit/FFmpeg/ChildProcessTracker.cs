@@ -2,7 +2,8 @@ using System.Runtime.Versioning;
 
 namespace MediaToolkit.FFmpeg;
 
-// 保证子进程不会在本进程退出后残留：Windows 交给 Job Object，其他平台在 ProcessExit 时逐个结束
+// 保证子进程不会在本进程退出后残留：Windows 和 Linux 由系统结束子进程，本进程崩溃或被强制结束时也一样
+// macOS 不支持 KillOnParentExit，设了也会被忽略，只能在正常退出时逐个结束
 internal static class ChildProcessTracker
 {
 	private static readonly Lock Gate = new();
@@ -10,11 +11,15 @@ internal static class ChildProcessTracker
 
 	static ChildProcessTracker()
 	{
-		if (!OperatingSystem.IsWindows())
+		if (!IsEndedBySystem)
 		{
 			AppDomain.CurrentDomain.ProcessExit += (_, _) => KillAll();
 		}
 	}
+
+	[SupportedOSPlatformGuard(@"windows")]
+	[SupportedOSPlatformGuard(@"linux")]
+	private static bool IsEndedBySystem => OperatingSystem.IsWindows() || OperatingSystem.IsLinux();
 
 	public static Process Start(ProcessStartInfo startInfo)
 	{
@@ -22,9 +27,10 @@ internal static class ChildProcessTracker
 
 		try
 		{
-			if (OperatingSystem.IsWindows())
+			if (IsEndedBySystem)
 			{
-				StartInJob(process);
+				startInfo.KillOnParentExit = true;
+				process.Start();
 			}
 			else
 			{
@@ -42,30 +48,14 @@ internal static class ChildProcessTracker
 
 	public static bool IsTracked(Process process)
 	{
-		if (OperatingSystem.IsWindows())
+		if (IsEndedBySystem)
 		{
-			return WindowsJobObject.Contains(process);
+			return process.StartInfo.KillOnParentExit;
 		}
 
 		lock (Gate)
 		{
 			return Running.Contains(process);
-		}
-	}
-
-	[SupportedOSPlatform(@"windows")]
-	private static void StartInJob(Process process)
-	{
-		process.Start();
-
-		try
-		{
-			WindowsJobObject.Assign(process);
-		}
-		catch
-		{
-			process.Kill(true);
-			throw;
 		}
 	}
 

@@ -1,10 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <!-- LibraryImport 生成的封送代码需要 -->
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-  </PropertyGroup>
-
   <ItemGroup>
     <InternalsVisibleTo Include="MediaToolkit.Tests" />
   </ItemGroup>
