@@ -14,7 +14,7 @@ internal static class RecordingWriteBuffer
 
 	public static Task<StreamEndReason> CopyAsync(LiveStreamSession session, Stream destination, IProgress<long> progress, TimeSpan drainTimeout, CancellationToken cancellationToken)
 	{
-		return CopyAsync(session, new SingleFileOutput(destination), progress, drainTimeout, cancellationToken);
+		return CopyAsync(session, new SingleFileOutput(destination, null), progress, drainTimeout, cancellationToken);
 	}
 
 	// 进度按收到的字节计，缓冲没满时空闲判断和速度反映的是网络；缓冲写满后会话停在写入上，这时被停下算作写盘失败

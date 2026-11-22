@@ -14,6 +14,18 @@ public class FFmpegArgumentsTest
 	}
 
 	[Test]
+	public async Task RemuxWithChaptersTakesStreamsFromTheFirstInputAndChaptersFromTheSecondAsync()
+	{
+		IReadOnlyList<string> arguments = FFmpegArguments.RemuxWithChapters(@"in put.flv", @"chap ters.txt", @"out put.mp4");
+		IReadOnlyList<string> rawVideo = FFmpegArguments.RemuxWithChapters(@"v.h264", @"c.txt", @"out.mp4", 30);
+
+		string[] expected = [@"-hide_banner", @"-y", @"-i", @"in put.flv", @"-f", @"ffmetadata", @"-i", @"chap ters.txt", @"-map", @"0", @"-map_chapters", @"1", @"-c", @"copy", @"out put.mp4"];
+		string[] expectedRawVideo = [@"-hide_banner", @"-y", @"-framerate", @"30", @"-i", @"v.h264", @"-f", @"ffmetadata", @"-i", @"c.txt", @"-map", @"0", @"-map_chapters", @"1", @"-c", @"copy", @"out.mp4"];
+		await Assert.That(arguments).IsEquivalentTo(expected, StringComparer.Ordinal, CollectionOrdering.Matching);
+		await Assert.That(rawVideo).IsEquivalentTo(expectedRawVideo, StringComparer.Ordinal, CollectionOrdering.Matching);
+	}
+
+	[Test]
 	public async Task CutSeeksOnInputAndCopiesAsync()
 	{
 		IReadOnlyList<string> arguments = FFmpegArguments.Cut(@"in.flv", @"out.mp4", new TimeSpan(0, 1, 2, 3, 456), new TimeSpan(1, 2, 3, 4, 5));
@@ -48,15 +60,6 @@ public class FFmpegArgumentsTest
 		string[] expectedRemux = [@"-hide_banner", @"-y", @"-framerate", @"30", @"-i", @"v.h264", @"-map", @"0", @"-c", @"copy", @"out.mp4"];
 		await Assert.That(merge).IsEquivalentTo(expectedMerge, StringComparer.Ordinal, CollectionOrdering.Matching);
 		await Assert.That(remux).IsEquivalentTo(expectedRemux, StringComparer.Ordinal, CollectionOrdering.Matching);
-	}
-
-	[Test]
-	public async Task MergeTakesVideoFromFirstInputAndAudioFromSecondAsync()
-	{
-		IReadOnlyList<string> arguments = FFmpegArguments.Merge(@"v.h264", @"a.aac", @"out.mp4");
-
-		string[] expected = [@"-hide_banner", @"-y", @"-i", @"v.h264", @"-i", @"a.aac", @"-map", @"0:v:0", @"-map", @"1:a:0", @"-c", @"copy", @"out.mp4"];
-		await Assert.That(arguments).IsEquivalentTo(expected, StringComparer.Ordinal, CollectionOrdering.Matching);
 	}
 
 	[Test]

@@ -15,6 +15,8 @@ public sealed class BilibiliApiClient
 
 	private const long RoomNotFoundCode = 60004;
 
+	private static readonly TimeSpan BeijingOffset = TimeSpan.FromHours(8);
+
 	// page_size is documented to accept 1-10
 	private const int FollowingPageSize = 10;
 
@@ -54,7 +56,24 @@ public sealed class BilibiliApiClient
 			return [];
 		}
 
-		return [.. rooms.Values.Select(static room => new LiveRoomInfo(room.RoomId, room.ShortId, room.Uid, room.Uname ?? string.Empty, room.Title ?? string.Empty, ToLiveStatus(room.LiveStatus)))];
+		return [.. rooms.Values.Select(static room => ToRoomInfo(room))];
+	}
+
+	private static LiveRoomInfo ToRoomInfo(RoomBaseInfo room)
+	{
+		return new LiveRoomInfo(room.RoomId, room.ShortId, room.Uid, room.Uname ?? string.Empty, room.Title ?? string.Empty, ToLiveStatus(room.LiveStatus))
+		{
+			AreaName = room.AreaName ?? string.Empty,
+			ParentAreaName = room.ParentAreaName ?? string.Empty,
+			LiveStartTime = ParseBeijingTime(room.LiveTime),
+			LiveId = room.LiveIdStr ?? string.Empty
+		};
+	}
+
+	// live_time has no offset and is always Beijing time; rooms that have never been live report all zeros
+	internal static DateTimeOffset? ParseBeijingTime(string? value)
+	{
+		return DateTime.TryParseExact(value, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime time) ? new DateTimeOffset(time, BeijingOffset) : null;
 	}
 
 	public async IAsyncEnumerable<FollowedLiveRoom> GetFollowedRoomsAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)

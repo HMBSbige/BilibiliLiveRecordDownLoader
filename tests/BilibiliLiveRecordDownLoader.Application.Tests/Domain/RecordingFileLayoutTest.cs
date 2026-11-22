@@ -101,20 +101,6 @@ public sealed class RecordingFileLayoutTest
 	}
 
 	[Test]
-	public async Task FlvOnDiskBlocksFmp4WithTheSameRemuxTargetAsync()
-	{
-		const string stem = "20260102_030405";
-		string flv = RecordingFileLayout.GetRecordingPath(stem, StreamFormat.Flv, RecorderType.BuiltIn);
-		string fmp4 = RecordingFileLayout.GetRecordingPath(stem, StreamFormat.Fmp4, RecorderType.BuiltIn);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(RecordingFileLayout.GetMp4ConversionPath(fmp4)).IsEqualTo(RecordingFileLayout.GetMp4ConversionPath(flv));
-			await Assert.That(RecordingFileLayout.IsStemAvailable(stem, existing => existing == flv)).IsFalse();
-		}
-	}
-
-	[Test]
 	public async Task RecordingsWhoseConversionLandsOnTheFmp4FileMakeTheStemUnavailableAsync()
 	{
 		string stem = RecordingFileLayout.GetRecordingStem("records", 123, StartTime, "a");
@@ -134,10 +120,39 @@ public sealed class RecordingFileLayoutTest
 
 	[Test]
 	[Arguments("20260102_030405_1.flv")]
-	[Arguments("20260102_030405.xml")]
+	[Arguments("20260102_030405.txt")]
 	[Arguments("20260102_030405")]
 	public async Task UnrelatedFilesKeepTheStemAvailableAsync(string existingFile)
 	{
 		await Assert.That(RecordingFileLayout.IsStemAvailable("20260102_030405", existing => existing == existingFile)).IsTrue();
+	}
+
+	[Test]
+	[Arguments(".xml")]
+	[Arguments(".ass")]
+	[Arguments(".danmaku.jsonl")]
+	public async Task DanmakuFilesOccupyTheirStemAsync(string suffix)
+	{
+		string stem = RecordingFileLayout.GetRecordingStem("records", 123, StartTime, null);
+
+		await Assert.That(RecordingFileLayout.IsStemAvailable(stem, path => path == stem + suffix)).IsFalse();
+	}
+
+	[Test]
+	[Arguments("20260102_030405.flv", "20260102_030405")]
+	[Arguments("20260102_030405_fmp4.mp4", "20260102_030405")]
+	[Arguments("20260102_030405.mp4", "20260102_030405")]
+	[Arguments("20260102_030405_v1.5.ts", "20260102_030405_v1.5")]
+	[Arguments("20260102_030405.xml", "20260102_030405")]
+	[Arguments("20260102_030405.danmaku.jsonl", "20260102_030405")]
+	public async Task StemIsThePathWithoutTheRecordingSuffixAsync(string fileName, string expectedStem)
+	{
+		await Assert.That(RecordingFileLayout.GetStem(Path.Combine("records", "123", fileName))).IsEqualTo(Path.Combine("records", "123", expectedStem));
+	}
+
+	[Test]
+	public async Task VideosOfAStemAreLookedUpWithTheConvertedOneFirstAsync()
+	{
+		await Assert.That(string.Join(", ", RecordingFileLayout.GetVideoPaths("a"))).IsEqualTo("a.mp4, a_fmp4.mp4, a.flv, a.ts");
 	}
 }

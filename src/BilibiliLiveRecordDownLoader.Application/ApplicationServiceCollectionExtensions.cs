@@ -25,6 +25,7 @@ public static class ApplicationServiceCollectionExtensions
 		services.TryAddSingleton<RoomSessionFactory>();
 		services.TryAddSingleton<RoomAppService>();
 		services.TryAddSingleton<IRoomAppService>(static provider => provider.GetRequiredService<RoomAppService>());
+		services.TryAddSingleton<IDanmakuAppService, DanmakuAppService>();
 
 		services.TryAddSingleton<IAppLifecycleService, AppLifecycleService>();
 

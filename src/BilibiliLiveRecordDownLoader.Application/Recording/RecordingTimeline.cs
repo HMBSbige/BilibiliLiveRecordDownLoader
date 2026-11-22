@@ -1,0 +1,402 @@
+using System.Runtime.InteropServices;
+
+namespace BilibiliLiveRecordDownLoader.Application.Recording;
+
+// 弹幕在录制文件里的位置：这次尝试的第 Segment 个文件（从 0 开始），Time 从这个文件的第一帧算起，即播放器显示的时间
+internal readonly record struct TimelinePosition(int Segment, string Path, TimeSpan Time);
+
+internal interface IRecordingTimeline
+{
+	// timestamp 是 TimeProvider.GetTimestamp() 取的接收时刻。归属还没确定时等到确定；返回 null 表示这一刻没有对应的录制文件
+	ValueTask<TimelinePosition?> PlaceAsync(long timestamp, CancellationToken cancellationToken);
+
+	// 归属已经确定时返回 true，position 和 PlaceAsync 的结果相同；还要等时返回 false
+	bool TryPlace(long timestamp, out TimelinePosition? position);
+
+	// 这个文件开始时流头里的画面尺寸，开始时读不到就用这一段里第一次读到的；读不到或者不是这次尝试的文件时为 null
+	VideoResolution? GetResolution(string path);
+
+	// 这个文件到目前为止提交的内容的时长，即最后一个带媒体时间的元素在文件里的结束时间；段关闭之后就是文件的时长。整段都读不到媒体时间或者不是这次尝试的文件时为 null
+	TimeSpan? GetDuration(string path);
+}
+
+/// <summary>
+/// 一次录制尝试的媒体时间轴：记下每个元素到达的时刻和它在源时间轴上的媒体时间，单元提交时归到所在的文件并换算成文件里从第一帧算起的时间。
+/// 弹幕的位置是收到它之前最后到达的元素的文件时间，加上从那个元素到达起经过的时间；所以连上时一下收到的几秒 GOP 缓存和 HLS 窗口里的积压会让媒体时间很快追上，不会把弹幕放早。
+/// 网络端（分段器）、写盘端（换文件）和弹幕端各在自己的线程上调用，全部在一把锁里。
+/// </summary>
+internal sealed class RecordingTimeline : IRecordingTimeline
+{
+	/// <summary>
+	/// 从最后到达的元素往后推的上限，从最后一次收到数据算起。正常录制时最长的到达间隔是 TS HLS：分片 3–5 秒，加上半个目标时长的刷新间隔和下载，约 8 秒，碰不到这个上限；
+	/// 卡住更久时默认的空闲超时（10 秒）已经结束这次尝试，再往后推只会把弹幕放到文件最后一帧之后，恢复时又倒回来。
+	/// </summary>
+	public static readonly TimeSpan MaxExtrapolation = TimeSpan.FromSeconds(10);
+
+	// 弹幕从收到到放置要排队，前面的弹幕可能在等单元提交，最长到卡流后的空闲超时；远超过这个时长的记录不再保留
+	internal static readonly TimeSpan Retention = TimeSpan.FromMinutes(2);
+
+	// 和 FlvSplitter 一样：倒退超过这么多说明源的时间线重新开始了，从已经到达的时间接着往后排
+	private static readonly TimeSpan TimelineTolerance = TimeSpan.FromSeconds(1);
+
+	private const int PruneThreshold = 1024;
+
+	// 只有数据没有新元素时（大的 tag 还在收、认不出的容器）最多每秒记一次，往后推的上限因此最多早算 1 秒
+	private static readonly TimeSpan DataRecordInterval = TimeSpan.FromSeconds(1);
+
+	private readonly Lock _lock = new();
+	private readonly TimeProvider _timeProvider;
+	private readonly long _retention;
+	private readonly List<Record> _records = [];
+	private readonly List<Segment> _segments = [];
+	private int _resolvedCount;
+	private long _recordedEnd;
+	private long _committedEnd;
+	private long? _receivingEnd;
+	private bool _isClosed;
+	private TaskCompletionSource? _changed;
+
+	public RecordingTimeline(string path, TimeProvider timeProvider)
+	{
+		_timeProvider = timeProvider;
+		_retention = (long)(Retention.TotalSeconds * timeProvider.TimestampFrequency);
+		Created = timeProvider.GetTimestamp();
+		_segments.Add(new Segment(0, Created) { Path = path });
+	}
+
+	// 第一个文件建好的时刻；读不到媒体时间时第一个文件从这里按单调时钟算
+	public long Created { get; }
+
+	public async ValueTask<TimelinePosition?> PlaceAsync(long timestamp, CancellationToken cancellationToken)
+	{
+		while (true)
+		{
+			Task changed;
+
+			lock (_lock)
+			{
+				if (TryPlaceCore(timestamp, out TimelinePosition? position))
+				{
+					return position;
+				}
+
+				changed = (_changed ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
+			}
+
+			await changed.WaitAsync(cancellationToken);
+		}
+	}
+
+	public bool TryPlace(long timestamp, out TimelinePosition? position)
+	{
+		lock (_lock)
+		{
+			return TryPlaceCore(timestamp, out position);
+		}
+	}
+
+	public VideoResolution? GetResolution(string path)
+	{
+		lock (_lock)
+		{
+			return _segments.Find(segment => string.Equals(segment.Path, path, StringComparison.Ordinal))?.Resolution;
+		}
+	}
+
+	public TimeSpan? GetDuration(string path)
+	{
+		lock (_lock)
+		{
+			return _segments.Find(segment => string.Equals(segment.Path, path, StringComparison.Ordinal)) is { HasMedia: true } segment ? segment.Last : null;
+		}
+	}
+
+	// 网络端：一次写入里过去的带媒体时间的元素，End 按收到的字节算
+	internal void AddMedia(ReadOnlySpan<MediaMark> marks, long arrival)
+	{
+		if (marks.IsEmpty)
+		{
+			return;
+		}
+
+		lock (_lock)
+		{
+			foreach (MediaMark mark in marks)
+			{
+				_records.Add(new Record(mark.End, arrival, mark.Span, mark.Resolution));
+				_recordedEnd = mark.End;
+			}
+
+			ResolveCommitted();
+		}
+	}
+
+	// 网络端：每次写入之后调用，acceptedEnd 是已经完整过去的元素的末尾；不分段时这些元素已经提交，当场就能确定。没有新元素过去时只记下数据还在到达，往后推的上限从这里算
+	internal void AddArrival(long acceptedEnd, VideoResolution? resolution, long arrival)
+	{
+		lock (_lock)
+		{
+			AddArrivalCore(acceptedEnd, resolution, arrival);
+		}
+	}
+
+	// 网络端：接下来提交的单元写进新的一段，返回它的序号
+	internal int StartSegment()
+	{
+		lock (_lock)
+		{
+			int index = _segments.Count;
+			_segments.Add(new Segment(index, null));
+			return index;
+		}
+	}
+
+	// 网络端：收到的前 committedEnd 个字节已经写进当前这一段
+	internal void Commit(long committedEnd)
+	{
+		lock (_lock)
+		{
+			_committedEnd = committedEnd;
+			ResolveCommitted();
+		}
+	}
+
+	// 认不出容器时整个流原样写进第一个文件，收到即提交；只有一段，记录只用来算往后推的上限
+	internal void AddUnparsed(long received)
+	{
+		long arrival = _timeProvider.GetTimestamp();
+
+		lock (_lock)
+		{
+			_committedEnd = received;
+
+			if (_records.Count is 0 || _timeProvider.GetElapsedTime(_records[^1].Arrival, arrival) >= DataRecordInterval)
+			{
+				_records.Add(new Record(received, arrival, null, null));
+				_recordedEnd = received;
+				ResolveCommitted();
+			}
+		}
+	}
+
+	// 网络端：会话结束，攒着的数据都已经提交；之后收到的弹幕不属于这次尝试的任何文件
+	internal void EndReceiving()
+	{
+		long timestamp = _timeProvider.GetTimestamp();
+
+		lock (_lock)
+		{
+			_receivingEnd ??= timestamp;
+			Signal();
+		}
+	}
+
+	// 写盘端：观察者已经知道新文件之后调用，这一段的弹幕从这时起才放得进去；尝试关闭之后不再接受
+	internal void OpenSegment(int segment, string path)
+	{
+		lock (_lock)
+		{
+			if (!_isClosed && segment < _segments.Count)
+			{
+				_segments[segment].Path = path;
+				Signal();
+			}
+		}
+	}
+
+	// 尝试结束，写盘端不会再建文件；没建出文件的段和没提交的记录都放不进去了
+	internal void Close()
+	{
+		lock (_lock)
+		{
+			_isClosed = true;
+			Signal();
+		}
+	}
+
+	private bool TryPlaceCore(long timestamp, out TimelinePosition? position)
+	{
+		position = null;
+
+		if (timestamp < Created || timestamp > _receivingEnd)
+		{
+			return true;
+		}
+
+		// 第一个元素到达之前收到的弹幕按第一个元素放
+		int index = Math.Max(FindLatest(timestamp), 0);
+
+		if (index >= _records.Count)
+		{
+			return _isClosed || _receivingEnd is not null;
+		}
+
+		Record record = _records[index];
+
+		if (record.Segment < 0 || _segments[record.Segment].Path is not { } path)
+		{
+			return _isClosed;
+		}
+
+		TimeSpan limit = _timeProvider.GetElapsedTime(record.BaseArrival, record.Arrival) + MaxExtrapolation;
+		TimeSpan elapsed = _timeProvider.GetElapsedTime(record.BaseArrival, timestamp);
+		position = new TimelinePosition(record.Segment, path, record.BaseTime + (elapsed < TimeSpan.Zero ? TimeSpan.Zero : elapsed > limit ? limit : elapsed));
+		return true;
+	}
+
+	// 到达时刻不晚于 timestamp 的最后一条记录，没有时返回 -1；同一次写入的记录到达时刻相同，取最后一条
+	private int FindLatest(long timestamp)
+	{
+		int low = 0;
+		int high = _records.Count;
+
+		while (low < high)
+		{
+			int middle = low + (high - low) / 2;
+
+			if (_records[middle].Arrival <= timestamp)
+			{
+				low = middle + 1;
+			}
+			else
+			{
+				high = middle;
+			}
+		}
+
+		return low - 1;
+	}
+
+	// 只有数据的记录沿用上一条记录所在的段和文件时间，只把数据到达的时刻往后挪；不改已有的记录，晚到的查询仍按当时的情况算上限
+	private void AddArrivalCore(long acceptedEnd, VideoResolution? resolution, long arrival)
+	{
+		if (acceptedEnd <= _recordedEnd && (_records.Count is 0 || _timeProvider.GetElapsedTime(_records[^1].Arrival, arrival) < DataRecordInterval))
+		{
+			return;
+		}
+
+		_records.Add(new Record(Math.Max(acceptedEnd, _recordedEnd), arrival, null, resolution));
+		_recordedEnd = Math.Max(acceptedEnd, _recordedEnd);
+		ResolveCommitted();
+	}
+
+	private void ResolveCommitted()
+	{
+		Span<Record> records = CollectionsMarshal.AsSpan(_records);
+		int resolved = _resolvedCount;
+
+		while (_resolvedCount < records.Length && records[_resolvedCount].End <= _committedEnd)
+		{
+			Resolve(ref records[_resolvedCount++]);
+		}
+
+		if (_resolvedCount != resolved)
+		{
+			Prune();
+			Signal();
+		}
+	}
+
+	// 文件时间以这一段第一个带媒体时间的元素为 0；它之前（流头）和整段都读不到媒体时间时，按单调时钟从这一段开始算
+	private void Resolve(ref Record record)
+	{
+		Segment segment = _segments[^1];
+		segment.Resolution ??= record.Resolution;
+
+		if (segment.Start is not { } start)
+		{
+			start = record.Arrival;
+			segment.Start = start;
+			segment.BaseArrival = start;
+		}
+
+		if (record.Span is { } span)
+		{
+			if (!segment.HasMedia)
+			{
+				segment.HasMedia = true;
+				segment.Offset = span.Start;
+				segment.Last = TimeSpan.Zero;
+			}
+
+			TimeSpan time = span.End - segment.Offset;
+
+			// 重新开始的元素从已经到达的时间接着排，HLS 分片保留自己的时长
+			if (time < segment.Last - TimelineTolerance)
+			{
+				segment.Offset = span.Start - segment.Last;
+				time = span.End - segment.Offset;
+			}
+
+			// 音视频交错和 B 帧让时间小幅来回，只往前走
+			segment.Last = time > segment.Last ? time : segment.Last;
+			segment.BaseTime = segment.Last;
+			segment.BaseArrival = record.Arrival;
+		}
+
+		record.Segment = segment.Index;
+		record.BaseTime = segment.BaseTime;
+		record.BaseArrival = segment.BaseArrival;
+	}
+
+	// 攒够一批才删，至少留下最后一条已经确定的记录；早于留下的记录太久的弹幕按最早的一条放
+	private void Prune()
+	{
+		int count = Math.Min(FindLatest(_records[_resolvedCount - 1].Arrival - _retention - 1) + 1, _resolvedCount - 1);
+
+		if (count >= PruneThreshold)
+		{
+			_records.RemoveRange(0, count);
+			_resolvedCount -= count;
+		}
+	}
+
+	private void Signal()
+	{
+		_changed?.TrySetResult();
+		_changed = null;
+	}
+
+	private struct Record(long end, long arrival, MediaSpan? span, VideoResolution? resolution)
+	{
+		public long End { get; } = end;
+
+		public long Arrival { get; } = arrival;
+
+		public MediaSpan? Span { get; } = span;
+
+		public VideoResolution? Resolution { get; } = resolution;
+
+		// 还没提交时为 -1
+		public int Segment { get; set; } = -1;
+
+		// 这条记录到达时这一段最新的文件时间和它对应的到达时刻
+		public TimeSpan BaseTime { get; set; }
+
+		public long BaseArrival { get; set; }
+	}
+
+	private sealed class Segment(int index, long? start)
+	{
+		public int Index { get; } = index;
+
+		// 写盘端建好文件之前为 null
+		public string? Path { get; set; }
+
+		public VideoResolution? Resolution { get; set; }
+
+		// 这一段第一个元素到达的时刻，第一段是文件建好的时刻
+		public long? Start { get; set; } = start;
+
+		public bool HasMedia { get; set; }
+
+		// 源时间轴上对应文件时间 0 的时间
+		public TimeSpan Offset { get; set; }
+
+		public TimeSpan Last { get; set; }
+
+		public TimeSpan BaseTime { get; set; }
+
+		public long BaseArrival { get; set; } = start ?? 0;
+	}
+}

@@ -9,9 +9,10 @@ internal abstract class HlsSplitter : MediaSplitter, IHlsSegmentObserver
 
 	public abstract void OnMediaSegment(ReadOnlySpan<byte> data);
 
-	protected void Add(int length, bool isSplit, ReadOnlyMemory<byte> header)
+	// span 是分片从第一帧到最后一帧的媒体时间，会话报告时就算好，分片过去时再报告
+	protected void Add(int length, bool isSplit, ReadOnlyMemory<byte> header, MediaSpan? span)
 	{
-		_elements.Enqueue(new Element(length, isSplit, header));
+		_elements.Enqueue(new Element(length, isSplit, header, span));
 	}
 
 	protected override int Measure(ReadOnlySpan<byte> data, out bool isSplit)
@@ -29,7 +30,10 @@ internal abstract class HlsSplitter : MediaSplitter, IHlsSegmentObserver
 
 	protected override void Accept(ReadOnlySpan<byte> element)
 	{
-		_elements.TryDequeue(out _);
+		if (_elements.TryDequeue(out Element accepted) && accepted.Span is { } span)
+		{
+			ReportMediaTime(span);
+		}
 	}
 
 	protected override ReadOnlyMemory<byte> CaptureHeader(ReadOnlySpan<byte> element)
@@ -37,7 +41,7 @@ internal abstract class HlsSplitter : MediaSplitter, IHlsSegmentObserver
 		return _elements.Peek().Header;
 	}
 
-	private readonly record struct Element(int Length, bool IsSplit, ReadOnlyMemory<byte> Header);
+	private readonly record struct Element(int Length, bool IsSplit, ReadOnlyMemory<byte> Header, MediaSpan? Span);
 }
 
 internal sealed class Fmp4HlsSplitter : HlsSplitter
@@ -47,19 +51,23 @@ internal sealed class Fmp4HlsSplitter : HlsSplitter
 	private bool _hasTracks;
 	private uint? _videoTrackId;
 	private uint _defaultSampleFlags;
+	private Fmp4VideoTrack? _timing;
 
 	public override void OnInitSegment(ReadOnlySpan<byte> data)
 	{
 		_init = data.ToArray();
 		_hasTracks = IsoBmff.TryReadVideoTrack(data, out _videoTrackId, out _defaultSampleFlags);
-		Add(data.Length, false, default);
+		_timing = IsoBmff.ReadVideoTrackTiming(data);
+		Resolution = _timing?.Resolution;
+		Add(data.Length, false, default, null);
 	}
 
-	// 每段都从 init 段开始；没有视频轨时任何分片开头都能解码
+	// 每段都从 init 段开始；没有视频轨时任何分片开头都能解码。分段不改 tfdt，文件里的时间就是源时间；用解码时间，不看合成时间偏移，只差几帧
 	public override void OnMediaSegment(ReadOnlySpan<byte> data)
 	{
 		bool isSplit = _hasTracks && (_videoTrackId is not { } trackId || IsoBmff.StartsWithSyncSample(data, trackId, _defaultSampleFlags));
-		Add(data.Length, isSplit, _init);
+		MediaSpan? span = _timing is { } timing && IsoBmff.ReadFragmentTime(data, timing) is (var start, var end) ? new MediaSpan(timing.ToTime(start), timing.ToTime(end)) : null;
+		Add(data.Length, isSplit, _init, span);
 	}
 
 	public override int RemoveFiller(Span<byte> elements, bool isEnabled)
@@ -71,10 +79,11 @@ internal sealed class Fmp4HlsSplitter : HlsSplitter
 internal sealed class TsHlsSplitter : HlsSplitter
 {
 	private readonly ProgramTables _tables = new();
+	private PtsClock _clock;
 
 	public override void OnInitSegment(ReadOnlySpan<byte> data)
 	{
-		Add(data.Length, false, default);
+		Add(data.Length, false, default, null);
 	}
 
 	// 分片开头自带 PAT 和 PMT 时不再补；补的是这个分片之前最近的一份
@@ -110,7 +119,47 @@ internal sealed class TsHlsSplitter : HlsSplitter
 
 		bool hasOwnTables = hasLeadingPat && hasLeadingPmt;
 		bool isSplit = isAligned && _tables.IsComplete && (hasOwnTables || !previousTables.IsEmpty) && StartsWithRandomAccess(data);
-		Add(data.Length, isSplit, hasOwnTables ? default : previousTables);
+		ReadResolution(data);
+		Add(data.Length, isSplit, hasOwnTables ? default : previousTables, ReadSpan(data));
+	}
+
+	// 视频 PES 的 PTS 按分片顺序展开回绕，取最早和最晚的；B 帧让 PTS 不按顺序出现
+	private MediaSpan? ReadSpan(ReadOnlySpan<byte> data)
+	{
+		TimeSpan? start = null;
+		TimeSpan end = TimeSpan.MinValue;
+
+		for (int offset = 0; _tables.VideoPid >= 0 && offset + TransportStream.PacketSize <= data.Length; offset += TransportStream.PacketSize)
+		{
+			ReadOnlySpan<byte> packet = data.Slice(offset, TransportStream.PacketSize);
+
+			if (packet[0] is not TransportStream.SyncByte)
+			{
+				break;
+			}
+
+			if (TransportStream.GetPid(packet) == _tables.VideoPid && TransportStream.IsPayloadStart(packet) && TransportStream.TryReadPts(TransportStream.GetPayload(packet), out long pts))
+			{
+				TimeSpan time = _clock.Unwrap(pts);
+				start = start is { } earliest && earliest < time ? earliest : time;
+				end = time > end ? time : end;
+			}
+		}
+
+		return start is { } value ? new MediaSpan(value, end) : null;
+	}
+
+	// 分片第一个视频 PES 前面一般带着 SPS；不带的分片沿用之前读到的尺寸
+	private void ReadResolution(ReadOnlySpan<byte> data)
+	{
+		if (_tables is not { VideoPid: >= 0, VideoCodec: TransportVideoCodec.Avc or TransportVideoCodec.Hevc })
+		{
+			return;
+		}
+
+		Span<byte> pes = stackalloc byte[TransportStream.ParameterSetCapacity];
+		int length = TransportStream.CopyFirstPes(data, _tables.VideoPid, pes);
+		Resolution = ParameterSets.ReadAnnexB(TransportStream.SkipPesHeader(pes.Slice(0, length)), _tables.VideoCodec is TransportVideoCodec.Hevc) ?? Resolution;
 	}
 
 	private bool StartsWithRandomAccess(ReadOnlySpan<byte> data)

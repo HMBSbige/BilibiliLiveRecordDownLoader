@@ -2,6 +2,9 @@ namespace BilibiliLiveRecordDownLoader.Application.Rooms;
 
 internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServices services, Action onChanged) : IRecordingObserver, IAsyncDisposable
 {
+	// 段关闭之后等它的弹幕文件写完；写入者卡住时不让后处理一直等下去
+	internal static readonly TimeSpan DanmakuCloseTimeout = TimeSpan.FromMinutes(2);
+
 	private readonly Lock _lock = new();
 	private readonly CancellationTokenSource _lifetime = new();
 	private readonly ILogger _logger = services.Logger.WithRoomScope(settings.RoomId);
@@ -11,6 +14,11 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	private long _userId;
 	private string? _userName;
 	private string? _title;
+	private string _area = string.Empty;
+	private string _parentArea = string.Empty;
+	private string _liveId = string.Empty;
+	private DateTimeOffset? _liveStartTime;
+	private bool _isTextOnlyActive;
 	private LiveStatus _liveStatus = LiveStatus.Unknown;
 	private RecordStatus _recordStatus;
 	private double _bytesPerSecond;
@@ -26,6 +34,8 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	private bool _disposed;
 
 	public long RoomId { get; } = settings.RoomId;
+
+	internal RoomDanmaku Danmaku { get; } = new(settings.RoomId, services.TimeProvider, services.Logger.WithRoomScope(settings.RoomId), onChanged);
 
 	public long ShortId
 	{
@@ -96,7 +106,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	{
 		lock (_lock)
 		{
-			return new RoomSnapshot(_settings.ToDto(), _shortId, _userName, _title, _liveStatus, _recordStatus, _bytesPerSecond, _activeRecording, _lastError);
+			return new RoomSnapshot(_settings.ToDto(), _shortId, _userName, _title, _liveStatus, _recordStatus, _bytesPerSecond, _activeRecording, _lastError) { Danmaku = Danmaku.Snapshot };
 		}
 	}
 
@@ -116,8 +126,14 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 			{
 				_recordingCancellation?.Cancel();
 			}
+
+			if (previous.IsDanmakuEnabled != settings.IsDanmakuEnabled || previous.DanmakuOffset != settings.DanmakuOffset)
+			{
+				Danmaku.OnSettingsChanged();
+			}
 		}
 
+		UpdateDanmaku();
 		onChanged();
 		TryStartRecording();
 	}
@@ -134,6 +150,10 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 			_shortId = info.ShortId;
 			_userId = info.UserId;
 			_userName = info.UserName;
+			_area = info.AreaName;
+			_parentArea = info.ParentAreaName;
+			_liveId = info.LiveId;
+			_liveStartTime = info.LiveStartTime;
 		}
 
 		SetTitle(info.Title);
@@ -161,6 +181,10 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		await _lifetime.CancelAsync();
 		await Task.WhenAll(monitor, recording);
 
+		// 录制循环已经结束，写入者把排队的内容写完再关闭文件
+		UpdateDanmaku();
+		await Danmaku.DisposeAsync();
+
 		lock (_lock)
 		{
 			_monitorCancellation?.Dispose();
@@ -170,13 +194,14 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		_lifetime.Dispose();
 	}
 
-	void IRecordingObserver.OnRecordingStarted(string path, RecordingStream stream)
+	void IRecordingObserver.OnRecordingStarted(string path, RecordingStream stream, IRecordingTimeline timeline)
 	{
 		lock (_lock)
 		{
 			_recordingPath = path;
 			_activeRecording = new ActiveRecordingDto(stream.Format, stream.Codec, stream.Quality, stream.Restriction, services.TimeProvider.GetUtcNow());
 			_recordStatus = RecordStatus.Recording;
+			Danmaku.OnVideoStarted(timeline, path, CreateDanmakuRun());
 		}
 
 		onChanged();
@@ -195,7 +220,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 			_recordingPath = null;
 		}
 
-		_ = PostProcessAsync(path);
+		_ = PostProcessAsync(path, Danmaku.CompleteSegment(path));
 	}
 
 	// 分段只换文件，录制时长接着这次连接算
@@ -204,6 +229,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		lock (_lock)
 		{
 			_recordingPath = path;
+			Danmaku.OnSegmentStarted(path);
 		}
 	}
 
@@ -242,12 +268,19 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		{
 			TimeSpan delay;
 			backoff.OnConnecting();
+			Danmaku.OnConnecting();
 
 			try
 			{
-				await foreach (DanmuMessage message in services.DanmuClient.ReceiveAsync(RoomId, cancellationToken))
+				await foreach (DanmuMessage message in services.ReceiveDanmu(RoomId, Danmaku.Options, cancellationToken))
 				{
-					backoff.OnReceived();
+					// 认证成功后马上就有这两条，算作收到消息会让认证后立刻断开的连接一直不退避
+					if (message is not (DanmuMessage.Connected or DanmuMessage.LoginNotice))
+					{
+						backoff.OnReceived();
+					}
+
+					Danmaku.OnReceived(message);
 					Handle(message);
 				}
 
@@ -269,6 +302,9 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 				delay = backoff.NextDelay();
 				LogDanmuFailed(_logger, exception, delay);
 			}
+
+			// 取消时不算断开：重启监控时新的连接可能已经在建立
+			Danmaku.OnDisconnected();
 
 			try
 			{
@@ -308,7 +344,8 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 			DanmuMessage.LiveStarted => (LiveStatus.Live, null),
 			DanmuMessage.LiveStopped { IsRound: true } => (LiveStatus.Round, null),
 			DanmuMessage.LiveStopped => (LiveStatus.Idle, null),
-			DanmuMessage.RoomChanged changed => ((LiveStatus?)null, changed.Title)
+			DanmuMessage.RoomChanged changed => ((LiveStatus?)null, SetArea(changed)),
+			DanmuMessage.Connected or DanmuMessage.LoginNotice or DanmuMessage.Comment or DanmuMessage.SuperChat or DanmuMessage.SuperChatDeleted or DanmuMessage.Gift or DanmuMessage.GuardBought or DanmuMessage.Raw => (null, null)
 		};
 
 		if (title is not null)
@@ -320,6 +357,17 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		{
 			SetLiveStatus(value);
 		}
+	}
+
+	private string SetArea(DanmuMessage.RoomChanged changed)
+	{
+		lock (_lock)
+		{
+			_area = changed.AreaName ?? _area;
+			_parentArea = changed.ParentAreaName ?? _parentArea;
+		}
+
+		return changed.Title;
 	}
 
 	private void SetTitle(string title)
@@ -337,6 +385,13 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 			// 启动或添加房间时第一次拿到的标题不算更改
 			notify = _title is not null && _settings.IsNotificationEnabled;
 			split = _title is not null && _recordStatus is RecordStatus.Recording ? _split : null;
+
+			// 和分段、开始仅弹幕的工作在同一把锁里排队，标题记录不会排到它们前面
+			if (_title is not null)
+			{
+				Danmaku.OnTitleChanged(title);
+			}
+
 			_title = title;
 		}
 
@@ -378,6 +433,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 
 		LogLiveStatusChanged(_logger, status);
+		UpdateDanmaku();
 		onChanged();
 
 		if (status is not LiveStatus.Live)
@@ -406,6 +462,64 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 			_recordingCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
 			_recordingTask = RunRecordingLoopAsync(_recordingCancellation.Token);
 		}
+
+		UpdateDanmaku();
+	}
+
+	// 开了录弹幕、没开录制时，开播期间仅录弹幕；录制循环还在收尾时等它结束，免得两边同时写
+	private void UpdateDanmaku()
+	{
+		lock (_lock)
+		{
+			bool isTextOnly = !_disposed && _settings is { IsDanmakuEnabled: true, IsRecordingEnabled: false } && !_isRecordingLoopActive && _liveStatus is LiveStatus.Live;
+
+			if (isTextOnly != _isTextOnlyActive)
+			{
+				_isTextOnlyActive = isTextOnly;
+
+				if (isTextOnly)
+				{
+					Danmaku.StartTextOnly(CreateDanmakuRun());
+				}
+				else
+				{
+					Danmaku.StopTextOnly();
+					Danmaku.EndSession();
+				}
+			}
+
+			Danmaku.SetRecording(!_disposed && _settings.IsDanmakuEnabled && (_isRecordingLoopActive || isTextOnly));
+		}
+	}
+
+	private DanmakuRun CreateDanmakuRun()
+	{
+		return new DanmakuRun(CreateDanmakuHeader, GetDanmakuSettingsAsync);
+	}
+
+	private DanmakuFileHeader CreateDanmakuHeader()
+	{
+		lock (_lock)
+		{
+			return new DanmakuFileHeader
+			{
+				RoomId = RoomId,
+				ShortId = _shortId,
+				Streamer = _userName ?? string.Empty,
+				Title = _title ?? string.Empty,
+				Area = _area,
+				ParentArea = _parentArea,
+				LiveId = _liveId,
+				LiveStartTime = _liveStartTime
+			};
+		}
+	}
+
+	private async ValueTask<DanmakuRunSettings> GetDanmakuSettingsAsync(CancellationToken cancellationToken)
+	{
+		AppConfig config = await services.ConfigManager.GetAsync(cancellationToken);
+		RoomConfig room = Settings;
+		return new DanmakuRunSettings(DanmakuProfile.Create(config, room), config.RecordDirectory, config.IncludeTitleInFileName, RecordingSplitPolicy.Create(config, room).OnTitleChange);
 	}
 
 	private bool ShouldKeepRecording(CancellationToken cancellationToken)
@@ -517,8 +631,10 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 				{
 					if (TakeRecordingPath() is { } path)
 					{
-						_ = PostProcessAsync(path);
+						_ = PostProcessAsync(path, Danmaku.CompleteSegment(path));
 					}
+
+					Danmaku.OnVideoEnded();
 				}
 			}
 		}
@@ -540,8 +656,10 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 				_bytesPerSecond = 0;
 				_recordingCancellation?.Dispose();
 				_recordingCancellation = null;
+				Danmaku.EndSession();
 			}
 
+			UpdateDanmaku();
 			onChanged();
 
 			// 循环退出的同时可能又收到了开播消息
@@ -617,11 +735,25 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		return split;
 	}
 
-	// 是否转封装按写完这一段时的设置
-	private async Task PostProcessAsync(string path)
+	// 是否转封装按写完这一段时的设置；弹幕文件写完关闭之后才能生成字幕和章节
+	private async Task PostProcessAsync(string path, Task<DanmakuSegment?> danmaku)
 	{
 		AppConfig config = await services.ConfigManager.GetAsync();
-		await services.PostProcessor.ProcessAsync(path, RecordingProfile.Create(config, Settings), StreamerName);
+		RecordingProfile profile = RecordingProfile.Create(config, Settings);
+		DanmakuProfile danmakuProfile = DanmakuProfile.Create(config, Settings);
+		DanmakuSegment? segment;
+
+		try
+		{
+			segment = await danmaku.WaitAsync(DanmakuCloseTimeout, services.TimeProvider);
+		}
+		catch (TimeoutException)
+		{
+			LogDanmakuCloseTimedOut(_logger, path);
+			segment = null;
+		}
+
+		await services.PostProcessor.ProcessAsync(path, profile, StreamerName, segment, danmakuProfile);
 	}
 
 	private string? TakeRecordingPath()
@@ -633,6 +765,9 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 			return path;
 		}
 	}
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "The danmaku file of {Path} is still being written, post-processing it without danmaku")]
+	private static partial void LogDanmakuCloseTimedOut(ILogger logger, string path);
 
 	[LoggerMessage(Level = LogLevel.Information, Message = "Danmu connection closed, reconnecting in {Delay}")]
 	private static partial void LogDanmuDisconnected(ILogger logger, TimeSpan delay);

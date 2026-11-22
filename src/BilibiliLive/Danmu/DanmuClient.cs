@@ -29,12 +29,21 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 	// Rooms reconnect within seconds, refetching on every attempt would trip risk control
 	internal static readonly TimeSpan ServerCacheDuration = TimeSpan.FromMinutes(1);
 
+	// Never handed out, so it stays at the defaults
+	private static readonly DanmuReceiveOptions DefaultOptions = new();
+
 	private readonly ILogger _logger = logger ?? NullLogger<DanmuClient>.Instance;
 	private readonly ConcurrentDictionary<long, DanmuServer> _servers = new();
 
-	public async IAsyncEnumerable<DanmuMessage> ReceiveAsync(long roomId, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+	public IAsyncEnumerable<DanmuMessage> ReceiveAsync(long roomId, CancellationToken cancellationToken = default)
 	{
-		await using IAsyncEnumerator<DanmuMessage> enumerator = ReceiveCoreAsync(roomId, cancellationToken).GetAsyncEnumerator(cancellationToken);
+		return ReceiveAsync(roomId, DefaultOptions, cancellationToken);
+	}
+
+	/// <param name="options">Read for every WebSocket frame, so changing it takes effect without reconnecting.</param>
+	public async IAsyncEnumerable<DanmuMessage> ReceiveAsync(long roomId, DanmuReceiveOptions options, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+	{
+		await using IAsyncEnumerator<DanmuMessage> enumerator = ReceiveCoreAsync(roomId, options, cancellationToken).GetAsyncEnumerator(cancellationToken);
 
 		while (true)
 		{
@@ -59,7 +68,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		}
 	}
 
-	private async IAsyncEnumerable<DanmuMessage> ReceiveCoreAsync(long roomId, [EnumeratorCancellation] CancellationToken cancellationToken)
+	private async IAsyncEnumerable<DanmuMessage> ReceiveCoreAsync(long roomId, DanmuReceiveOptions options, [EnumeratorCancellation] CancellationToken cancellationToken)
 	{
 		DanmuEndpoint endpoint = await ResolveEndpointAsync(roomId, cancellationToken);
 		Uri uri = new($"wss://{endpoint.Host}:{endpoint.Port}/sub");
@@ -77,12 +86,17 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		ReceiveActivity activity = new(apiClient.TimeProvider);
 		Task heartbeat = HeartbeatAsync(socket, activity, heartbeatCts.Token);
 		ArrayBufferWriter<byte> buffer = new(ReceiveChunkSize);
+		List<DanmuMessage> messages = [];
 
 		try
 		{
 			while (await ReceiveMessageAsync(socket, buffer, activity, cancellationToken))
 			{
 				activity.Touch();
+
+				// Taken once the whole frame is in, so batching on the server does not spread one frame over several arrival times
+				DanmuReceiveTime receivedAt = new(apiClient.TimeProvider.GetTimestamp(), apiClient.TimeProvider.GetUtcNow());
+				DanmuParseMode mode = options.Mode;
 
 				foreach (DanmuPacket packet in DanmuPacket.Decode(buffer.WrittenMemory))
 				{
@@ -91,11 +105,19 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 						case DanmuOperation.AuthReply:
 						{
 							EnsureAuthenticated(roomId, packet.Body);
+							yield return new DanmuMessage.Connected(endpoint.UserId) { ReceivedAt = receivedAt };
 							break;
 						}
-						case DanmuOperation.Message when TryParse(packet.Body) is { } message:
+						case DanmuOperation.Message:
 						{
-							yield return message;
+							TryParse(packet.Body, mode, receivedAt, messages);
+
+							foreach (DanmuMessage message in messages)
+							{
+								yield return message;
+							}
+
+							messages.Clear();
 							break;
 						}
 					}
@@ -204,16 +226,15 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		LogAuthenticated(roomId);
 	}
 
-	private DanmuMessage? TryParse(ReadOnlyMemory<byte> body)
+	private void TryParse(ReadOnlyMemory<byte> body, DanmuParseMode mode, DanmuReceiveTime receivedAt, List<DanmuMessage> output)
 	{
 		try
 		{
-			return DanmuMessageParser.Parse(body);
+			DanmuMessageParser.Parse(body, mode, receivedAt, output);
 		}
-		catch (JsonException ex)
+		catch (Exception ex) when (ex is JsonException or InvalidDataException or FormatException)
 		{
 			LogMalformedMessage(ex);
-			return null;
 		}
 	}
 

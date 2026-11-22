@@ -2,11 +2,13 @@ namespace BilibiliLiveRecordDownLoader.Application.Recording;
 
 internal interface IRecordingObserver
 {
-	void OnRecordingStarted(string path, RecordingStream stream);
+	// path 是第一段；timeline 在 RecordAsync 返回前关闭，之后的接收时刻都不再有位置
+	void OnRecordingStarted(string path, RecordingStream stream, IRecordingTimeline timeline);
 
-	// 录制中分段时，前一段写完并关闭，接着开始下一段；最后一段仍随录制尝试结束
+	// 最后一段不调用；调用时下一段的起点已过去至少一个切分单元，接收时刻早于起点的弹幕都已能放置
 	void OnSegmentCompleted(string path);
 
+	// 返回之后时间轴才把弹幕放进这一段
 	void OnSegmentStarted(string path);
 
 	void OnSpeedChanged(double bytesPerSecond);

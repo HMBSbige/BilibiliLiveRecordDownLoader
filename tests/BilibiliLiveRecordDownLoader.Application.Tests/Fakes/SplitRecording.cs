@@ -15,6 +15,11 @@ internal sealed class SplitRecording
 	private readonly ConcurrentQueue<string> _completed = new();
 	private readonly ConcurrentQueue<SegmentStart> _starts = new();
 
+	public SplitRecording()
+	{
+		Timeline = new RecordingTimeline("0", Time);
+	}
+
 	public FakeTimeProvider Time { get; } = new(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
 
 	// 打开第几个文件（从 1 开始）时失败
@@ -30,11 +35,17 @@ internal sealed class SplitRecording
 
 	public TimeSpan DrainTimeout { get; init; } = TimeSpan.FromSeconds(5);
 
+	// 写盘端关闭一段之后、建下一段之前调用，和录制时通知观察者的时机相同
+	public Action<string>? SegmentCompleted { get; init; }
+
 	public IReadOnlyList<byte[]> Files => [.. _files.Select(static file => file.Data)];
 
 	public IReadOnlyList<string> Completed => [.. _completed];
 
 	public IReadOnlyList<SegmentStart> Starts => [.. _starts];
+
+	// 每个实例只录一次，时间轴随实例建好，第一个文件从这时算起；RunAsync 结束时关闭
+	public RecordingTimeline Timeline { get; }
 
 	// 录制中不改的设置
 	public static SplitControl Fixed(RecordingSplit split, bool onTitleChange = false, bool removeFiller = false)
@@ -51,9 +62,20 @@ internal sealed class SplitRecording
 	public async Task<StreamEndReason> RunAsync(MediaSplitter splitter, SplitControl control, Func<SessionWriter, Task> script, CancellationToken cancellationToken)
 	{
 		MemoryFile first = Create(0);
-		SegmentedOutput output = new(first, "0", (writer, starts) => new RecordingSegmenter(writer, splitter, control, starts, Time, NullLogger.Instance) { MaxPendingLength = MaxPendingLength }, OpenNext, _completed.Enqueue);
+		SegmentedOutput output = new(first, "0", (writer, starts) => new RecordingSegmenter(writer, splitter, control, starts, Time, NullLogger.Instance, Timeline) { MaxPendingLength = MaxPendingLength }, OpenNext, path =>
+		{
+			_completed.Enqueue(path);
+			SegmentCompleted?.Invoke(path);
+		});
 
-		return await RecordingWriteBuffer.CopyAsync(new ScriptedSession(script, Time), output, new Progress<long>(), DrainTimeout, cancellationToken);
+		try
+		{
+			return await RecordingWriteBuffer.CopyAsync(new ScriptedSession(script, Time), output, new Progress<long>(), DrainTimeout, cancellationToken);
+		}
+		finally
+		{
+			Timeline.Close();
+		}
 
 		(string Path, Stream File) OpenNext(SegmentStart start)
 		{
@@ -65,7 +87,10 @@ internal sealed class SplitRecording
 			}
 
 			_starts.Enqueue(start);
-			return (index.ToString(CultureInfo.InvariantCulture), Create(index));
+			string path = index.ToString(CultureInfo.InvariantCulture);
+			Stream file = Create(index);
+			Timeline.OpenSegment(start.Segment, path);
+			return (path, file);
 		}
 	}
 
@@ -162,4 +187,7 @@ internal sealed class SessionWriter(Stream destination, IHlsSegmentObserver? seg
 	{
 		time.Advance(duration);
 	}
+
+	// 现在的单调时间戳，当作这一刻收到的弹幕
+	public long Now => time.GetTimestamp();
 }

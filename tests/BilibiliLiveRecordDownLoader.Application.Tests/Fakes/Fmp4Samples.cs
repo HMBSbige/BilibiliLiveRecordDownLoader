@@ -43,6 +43,68 @@ internal static class Fmp4Samples
 		return [.. Box("moof", [.. audio, .. video]), .. Box("mdat", Encoding.ASCII.GetBytes($"[{marker}]"))];
 	}
 
+	// 带时间信息的 init 段：视频轨 mdhd 的 timescale、avc1 样本项的宽高、trex 的默认样本时长，后面跟一条音频轨
+	public static byte[] TimedInit(uint timescale, ushort width, ushort height, uint defaultDuration = 0, byte mdhdVersion = 0)
+	{
+		byte[] tkhd = new byte[24];
+		BinaryPrimitives.WriteUInt32BigEndian(tkhd.AsSpan(12), VideoTrack);
+		byte[] mdhd = new byte[mdhdVersion is 1 ? 36 : 24];
+		mdhd[0] = mdhdVersion;
+		BinaryPrimitives.WriteUInt32BigEndian(mdhd.AsSpan(mdhdVersion is 1 ? 20 : 12), timescale);
+		byte[] hdlr = new byte[24];
+		Encoding.ASCII.GetBytes("vide", hdlr.AsSpan(8));
+		byte[] entry = new byte[78];
+		BinaryPrimitives.WriteUInt16BigEndian(entry.AsSpan(24), width);
+		BinaryPrimitives.WriteUInt16BigEndian(entry.AsSpan(26), height);
+		byte[] stsd = [0, 0, 0, 0, 0, 0, 0, 1, .. Box("avc1", entry)];
+		byte[] video = Box("trak", [.. Box("tkhd", tkhd), .. Box("mdia", [.. Box("mdhd", mdhd), .. Box("hdlr", hdlr), .. Box("minf", Box("stbl", Box("stsd", stsd)))])]);
+		byte[] trex = new byte[24];
+		BinaryPrimitives.WriteUInt32BigEndian(trex.AsSpan(4), VideoTrack);
+		BinaryPrimitives.WriteUInt32BigEndian(trex.AsSpan(12), defaultDuration);
+		BinaryPrimitives.WriteUInt32BigEndian(trex.AsSpan(20), NonSyncFlags);
+		return [.. Box("ftyp", "isom"u8.ToArray()), .. Box("moov", [.. Track(AudioTrack, "soun", 0), .. video, .. Box("mvex", [.. Trex(AudioTrack, SyncFlags), .. Box("trex", trex)])])];
+	}
+
+	// 音频 traf 在前；视频 traf 的 tfdt 给出第一个样本的解码时间，sampleCount 个样本各 sampleDuration，为 0 时用 trex 的默认值
+	public static byte[] TimedFragment(ulong decodeTime, uint sampleCount, uint sampleDuration, bool isKeyFrame = true, byte tfdtVersion = 1)
+	{
+		byte[] tfdt = tfdtVersion is 1 ? new byte[12] : new byte[8];
+		tfdt[0] = tfdtVersion;
+
+		if (tfdtVersion is 1)
+		{
+			BinaryPrimitives.WriteUInt64BigEndian(tfdt.AsSpan(4), decodeTime);
+		}
+		else
+		{
+			BinaryPrimitives.WriteUInt32BigEndian(tfdt.AsSpan(4), (uint)decodeTime);
+		}
+
+		uint trunFlags = 0x04 | (sampleDuration is 0 ? 0u : 0x100);
+		List<byte> trun = [];
+		Append(trunFlags);
+		Append(sampleCount);
+		Append(isKeyFrame ? SyncFlags : NonSyncFlags);
+
+		for (uint sample = 0; sample < sampleCount && sampleDuration is not 0; ++sample)
+		{
+			Append(sampleDuration);
+		}
+
+		byte[] tfhd = new byte[8];
+		BinaryPrimitives.WriteUInt32BigEndian(tfhd.AsSpan(4), VideoTrack);
+		byte[] audio = Box("traf", [.. Tfhd(AudioTrack, SyncFlags), .. Trun(0x04, 3, NonSyncFlags)]);
+		byte[] video = Box("traf", [.. Box("tfhd", tfhd), .. Box("tfdt", tfdt), .. Box("trun", [.. trun])]);
+		return [.. Box("moof", [.. audio, .. video]), .. Box("mdat", "[timed]"u8.ToArray())];
+
+		void Append(uint value)
+		{
+			byte[] bytes = new byte[4];
+			BinaryPrimitives.WriteUInt32BigEndian(bytes, value);
+			trun.AddRange(bytes);
+		}
+	}
+
 	public static byte[] Box(string type, byte[] payload)
 	{
 		byte[] box = new byte[8 + payload.Length];

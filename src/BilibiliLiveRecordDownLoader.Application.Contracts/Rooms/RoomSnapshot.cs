@@ -14,4 +14,6 @@ public sealed record RoomSnapshot
 )
 {
 	public long RoomId => Settings.RoomId;
+
+	public RoomDanmakuSnapshot Danmaku { get; init; } = RoomDanmakuSnapshot.Idle;
 }

@@ -52,6 +52,21 @@ internal static class TsSamples
 		return Pes(VideoPid, pes, randomAccess);
 	}
 
+	// 带 PTS 的视频访问单元：AUD、可选的 SPS，再加上图像 NAL
+	public static byte[] TimedVideoFrame(byte[] picture, long pts, bool randomAccess = false, byte[]? sps = null, bool isHevc = false)
+	{
+		List<byte> es = isHevc ? [0, 0, 0, 1, 0x46, 0x01, 0x50] : [0, 0, 0, 1, 0x09, 0xF0];
+
+		if (sps is not null)
+		{
+			es.AddRange([0, 0, 0, 1, .. sps]);
+		}
+
+		es.AddRange([0, 0, 1, .. picture]);
+		byte[] header = [0, 0, 1, 0xE0, 0, 0, 0x80, 0x80, 5, (byte)(0x21 | (pts >> 29 & 0x0E)), (byte)(pts >> 22), (byte)(pts >> 14 | 1), (byte)(pts >> 7), (byte)(pts << 1 | 1)];
+		return Pes(VideoPid, [.. header, .. es], randomAccess);
+	}
+
 	public static byte[] Audio(string marker = "")
 	{
 		byte[] pes = [0, 0, 1, 0xC0, 0, 0, 0x80, 0x00, 0x00, .. Encoding.ASCII.GetBytes($"[{marker}]")];

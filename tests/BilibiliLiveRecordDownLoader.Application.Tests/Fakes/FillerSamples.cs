@@ -3,7 +3,7 @@ using System.Text;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 
-// 带填充数据 NAL 的 FLV 视频 tag 和 fMP4 分片。同一组样本去掉填充之后再拼一遍，就是去填充应得的结果，长度字段都由这里重新计算
+// 同一组样本去掉填充之后再拼一遍，就是去填充应得的结果
 internal static class FillerSamples
 {
 	public static byte[] Picture(FillerCodec codec, bool isKey, string marker)
@@ -35,7 +35,6 @@ internal static class FillerSamples
 		return codec is FillerCodec.Avc ? (nal[0] & 0x1F) is 12 : (nal[0] >> 1 & 0x3F) is 38;
 	}
 
-	// 长度前缀加上 NAL
 	public static byte[] Sample(int lengthSize, IEnumerable<byte[]> nals)
 	{
 		List<byte> sample = [];
@@ -99,25 +98,20 @@ internal static class FillerSamples
 		};
 	}
 
-	/// <param name="isAudioFirst">音频轨排在视频轨之前，并带有 mp4a 样本项。</param>
-	public static byte[] Init(FillerCodec codec, int lengthSize, string? sampleEntry = null, bool isAudioFirst = false)
+	public static byte[] Init(FillerCodec codec, int lengthSize, string? sampleEntry = null)
 	{
 		byte[] entry = new byte[78];
 		byte[] config = Fmp4Samples.Box(codec is FillerCodec.Avc ? "avcC" : "hvcC", DecoderConfiguration(codec, lengthSize));
 		byte[] stsd = [0, 0, 0, 0, 0, 0, 0, 1, .. Fmp4Samples.Box(sampleEntry ?? (codec is FillerCodec.Avc ? "avc1" : "hvc1"), [.. entry, .. config])];
 		byte[] videoMedia = [.. Handler("vide"), .. Fmp4Samples.Box("minf", Fmp4Samples.Box("stbl", Fmp4Samples.Box("stsd", stsd)))];
-		byte[] video = Fmp4Samples.Box("trak", [.. TrackHeader(Fmp4Samples.VideoTrack), .. Fmp4Samples.Box("mdia", videoMedia)]);
-		byte[] audioStsd = [0, 0, 0, 0, 0, 0, 0, 1, .. Fmp4Samples.Box("mp4a", new byte[28])];
-		byte[] audioMedia = isAudioFirst ? [.. Handler("soun"), .. Fmp4Samples.Box("minf", Fmp4Samples.Box("stbl", Fmp4Samples.Box("stsd", audioStsd)))] : Handler("soun");
-		byte[] audio = Fmp4Samples.Box("trak", [.. TrackHeader(Fmp4Samples.AudioTrack), .. Fmp4Samples.Box("mdia", audioMedia)]);
-		byte[][] tracks = isAudioFirst ? [audio, video] : [video, audio];
 
 		return
 		[
 			.. Fmp4Samples.Box("ftyp", "isom"u8.ToArray()),
 			.. Fmp4Samples.Box("moov",
 			[
-				.. tracks.SelectMany(static track => track),
+				.. Fmp4Samples.Box("trak", [.. TrackHeader(Fmp4Samples.VideoTrack), .. Fmp4Samples.Box("mdia", videoMedia)]),
+				.. Fmp4Samples.Box("trak", [.. TrackHeader(Fmp4Samples.AudioTrack), .. Fmp4Samples.Box("mdia", Handler("soun"))]),
 				.. Fmp4Samples.Box("mvex", [.. Trex(Fmp4Samples.VideoTrack), .. Trex(Fmp4Samples.AudioTrack)])
 			])
 		];
@@ -188,7 +182,6 @@ internal static class FillerSamples
 
 		videoTfhd.AddRange(Word(Fmp4Samples.SyncFlags));
 
-		// 两个视频 trun 时第二个的数据接在第一个后面
 		int half = layout is Fmp4Layout.TwoVideoRuns ? (video.Length + 1) / 2 : video.Length;
 		byte[] videoTruns = [.. VideoTrun(video[..half], videoOffset), .. half < video.Length ? VideoTrun(video[half..], videoOffset + video[..half].Sum(static sample => sample.Length)) : []];
 

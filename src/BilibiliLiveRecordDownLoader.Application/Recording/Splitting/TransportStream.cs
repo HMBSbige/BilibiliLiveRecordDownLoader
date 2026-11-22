@@ -17,6 +17,9 @@ internal static class TransportStream
 
 	public const byte SyncByte = 0x47;
 
+	// SPS 一般紧跟在访问单元分隔符后面，SEI 再长也不会把它推到 PES 的这么多字节以外
+	public const int ParameterSetCapacity = 4096;
+
 	private const byte PatTableId = 0x00;
 	private const byte PmtTableId = 0x02;
 	private const int CrcSize = 4;
@@ -155,6 +158,73 @@ internal static class TransportStream
 		}
 
 		return false;
+	}
+
+	// payload 以 PES 头开始时读出 33 位的 PTS；没有 PTS 时返回 false
+	public static bool TryReadPts(ReadOnlySpan<byte> payload, out long pts)
+	{
+		pts = 0;
+
+		// 起始码和流 ID、长度、两个标志字节、头数据长度之后是 5 字节的 PTS
+		if (payload.Length < 14 || !payload.StartsWith((ReadOnlySpan<byte>)[0, 0, 1]) || (payload[7] & 0x80) is 0 || payload[8] < 5)
+		{
+			return false;
+		}
+
+		pts = (long)(payload[9] >> 1 & 0x07) << 30 | (long)payload[10] << 22 | (long)(payload[11] >> 1) << 15 | (long)payload[12] << 7 | (long)(payload[13] >> 1);
+		return true;
+	}
+
+	// 一个 PES 开头的数据，最多取 capacity 字节，用来找 SPS；返回取到的长度
+	public static int CopyFirstPes(ReadOnlySpan<byte> data, int videoPid, Span<byte> destination)
+	{
+		int length = 0;
+		bool started = false;
+
+		for (int offset = 0; offset + PacketSize <= data.Length && length < destination.Length; offset += PacketSize)
+		{
+			ReadOnlySpan<byte> packet = data.Slice(offset, PacketSize);
+
+			if (packet[0] is not SyncByte)
+			{
+				break;
+			}
+
+			if (GetPid(packet) != videoPid)
+			{
+				continue;
+			}
+
+			if (IsPayloadStart(packet))
+			{
+				if (started)
+				{
+					break;
+				}
+
+				started = true;
+			}
+
+			if (started)
+			{
+				length += Append(GetPayload(packet), destination.Slice(length));
+			}
+		}
+
+		return length;
+	}
+
+	// 去掉 PES 头，只留下基本流；不是 PES 头时原样返回
+	public static ReadOnlySpan<byte> SkipPesHeader(ReadOnlySpan<byte> payload)
+	{
+		return payload.Length >= 9 && payload.StartsWith((ReadOnlySpan<byte>)[0, 0, 1]) && 9 + payload[8] <= payload.Length ? payload.Slice(9 + payload[8]) : payload;
+	}
+
+	public static int Append(ReadOnlySpan<byte> source, Span<byte> destination)
+	{
+		int count = Math.Min(source.Length, destination.Length);
+		source.Slice(0, count).CopyTo(destination);
+		return count;
 	}
 
 	private static bool TryGetSection(ReadOnlySpan<byte> packet, byte tableId, out ReadOnlySpan<byte> section)

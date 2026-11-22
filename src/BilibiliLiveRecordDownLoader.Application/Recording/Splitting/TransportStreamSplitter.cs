@@ -4,7 +4,12 @@ namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 internal sealed class TransportStreamSplitter : MediaSplitter
 {
 	private readonly ProgramTables _tables = new();
+	private readonly byte[] _parameterSets = new byte[TransportStream.ParameterSetCapacity];
 	private bool _isUnaligned;
+	private PtsClock _clock;
+
+	// 正在收集的 PES 开头已经存下的字节数，不在收集时为 -1
+	private int _parameterSetLength = -1;
 
 	public override bool CanSplit => !_isUnaligned;
 
@@ -35,9 +40,40 @@ internal sealed class TransportStreamSplitter : MediaSplitter
 
 	protected override void Accept(ReadOnlySpan<byte> element)
 	{
-		if (!_isUnaligned)
+		if (_isUnaligned || _tables.Inspect(element) || TransportStream.GetPid(element) != _tables.VideoPid)
 		{
-			_tables.Inspect(element);
+			return;
+		}
+
+		ReadOnlySpan<byte> payload = TransportStream.GetPayload(element);
+
+		if (TransportStream.IsPayloadStart(element))
+		{
+			if (TransportStream.TryReadPts(payload, out long pts))
+			{
+				ReportMediaTime(MediaSpan.At(_clock.Unwrap(pts)));
+			}
+
+			// SPS 跟在关键帧前面；还没读到尺寸时每个 PES 都看，读到之后只看关键帧，尺寸中途变了也能跟上
+			_parameterSetLength = _tables.VideoCodec is TransportVideoCodec.Avc or TransportVideoCodec.Hevc && (Resolution is null || TransportStream.IsRandomAccess(element)) ? 0 : -1;
+			payload = TransportStream.SkipPesHeader(payload);
+		}
+
+		if (_parameterSetLength < 0)
+		{
+			return;
+		}
+
+		_parameterSetLength += TransportStream.Append(payload, _parameterSets.AsSpan(_parameterSetLength));
+
+		if (ParameterSets.ReadAnnexB(_parameterSets.AsSpan(0, _parameterSetLength), _tables.VideoCodec is TransportVideoCodec.Hevc) is { } resolution)
+		{
+			Resolution = resolution;
+			_parameterSetLength = -1;
+		}
+		else if (_parameterSetLength == _parameterSets.Length)
+		{
+			_parameterSetLength = -1;
 		}
 	}
 

@@ -21,9 +21,24 @@ public class BilibiliApiClientTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(info).IsEqualTo(new LiveRoomInfo(6154037, 732, 194484313, "Asaki大人", "GTA6！满血复活！", LiveStatus.Live));
+			await Assert.That(info).IsEqualTo(new LiveRoomInfo(6154037, 732, 194484313, "Asaki大人", "GTA6！满血复活！", LiveStatus.Live)
+			{
+				AreaName = "新游推荐",
+				ParentAreaName = "单机游戏",
+				LiveStartTime = new DateTimeOffset(2026, 11, 21, 14, 1, 8, TimeSpan.FromHours(8)),
+				LiveId = "748173982890321717"
+			});
 			await Assert.That(api.Handler.Requests.Single().Uri.Query).Contains("room_ids=732");
 		}
+	}
+
+	[Test]
+	[Arguments("0000-00-00 00:00:00")]
+	[Arguments("")]
+	[Arguments(null)]
+	public async Task RoomThatHasNeverBeenLiveHasNoStartTimeAsync(string? value)
+	{
+		await Assert.That(BilibiliApiClient.ParseBeijingTime(value)).IsNull();
 	}
 
 	[Test]

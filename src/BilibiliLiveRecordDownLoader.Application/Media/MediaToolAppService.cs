@@ -29,7 +29,7 @@ internal sealed class MediaToolAppService(FFmpegProvider ffmpegProvider, Backgro
 					input.Destination,
 					() => repair
 						? RepairAndRemuxAsync(runner, input, context, token)
-						: runner.RunAsync(FFmpegArguments.Remux(input.Source, input.Destination), context.CreateFFmpegProgress(), token)
+						: runner.RunAsync(input.Chapters is { } chapters ? FFmpegArguments.RemuxWithChapters(input.Source, chapters, input.Destination) : FFmpegArguments.Remux(input.Source, input.Destination), context.CreateFFmpegProgress(), token)
 				);
 
 				if (input.DeleteSource)

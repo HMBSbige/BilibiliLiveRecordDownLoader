@@ -16,7 +16,7 @@ public class WbiSignerTest
 	[Test]
 	public async Task SignMatchesKnownVectorAsync()
 	{
-		// From the bilibili-API-collect Wbi documentation
+		// Example from the public Wbi signing documentation
 		KeyValuePair<string, string>[] parameters = [new("foo", "114"), new("bar", "514"), new("zab", "1919810")];
 
 		string query = WbiSigner.Sign(parameters, WbiSigner.GetMixinKey(ImgKey, SubKey), 1702204169);

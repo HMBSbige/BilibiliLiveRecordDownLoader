@@ -19,6 +19,57 @@ internal static class FlvSamples
 		return Tag(ScriptTag, timestamp, [.. name, .. Encoding.ASCII.GetBytes(marker)]);
 	}
 
+	// ECMA 数组里 width 和 height 排在字符串、布尔值和嵌套对象后面，确认会跳过不认识的值
+	public static byte[] MetadataWithSize(double width, double height)
+	{
+		List<byte> body = [2, 0, 10, .. "onMetaData"u8, 8, 0, 0, 0, 5];
+		Key("encoder");
+		body.AddRange([2, 0, 4, .. "test"u8]);
+		Key("hasVideo");
+		body.AddRange([1, 1]);
+		Key("nested");
+		body.Add(3);
+		Key("x");
+		Number(1);
+		body.AddRange([0, 0, 9]);
+		Key("width");
+		Number(width);
+		Key("height");
+		Number(height);
+		body.AddRange([0, 0, 9]);
+		return Tag(ScriptTag, 0, [.. body]);
+
+		void Key(string key)
+		{
+			body.AddRange([0, (byte)key.Length, .. Encoding.ASCII.GetBytes(key)]);
+		}
+
+		void Number(double value)
+		{
+			byte[] bytes = new byte[8];
+			BinaryPrimitives.WriteDoubleBigEndian(bytes, value);
+			body.AddRange([0, .. bytes]);
+		}
+	}
+
+	// AVCDecoderConfigurationRecord 带一个 SPS 和一个 PPS
+	public static byte[] AvcSequenceHeader(byte[] sps, uint timestamp = 0)
+	{
+		byte[] record = [1, sps[1], sps[2], sps[3], 0xFF, 0xE1, (byte)(sps.Length >> 8), (byte)sps.Length, .. sps, 1, 0, 4, 0x68, 0xEB, 0xE3, 0xCB];
+		return Tag(VideoTag, timestamp, [0x17, 0, 0, 0, 0, .. record]);
+	}
+
+	// HEVCDecoderConfigurationRecord 的 22 字节固定部分之后只放一组 SPS；国内扩展用编码 ID 12，Enhanced FLV 用 hvc1
+	public static byte[] HevcSequenceHeader(byte[] sps, bool isEnhanced, uint timestamp = 0)
+	{
+		byte[] fixedPart = new byte[22];
+		fixedPart[0] = 1;
+		fixedPart[21] = 0x03;
+		byte[] record = [.. fixedPart, 1, 0x80 | 33, 0, 1, (byte)(sps.Length >> 8), (byte)sps.Length, .. sps];
+		byte[] prefix = isEnhanced ? [0x90, .. "hvc1"u8] : [0x1C, 0, 0, 0, 0];
+		return Tag(VideoTag, timestamp, [.. prefix, .. record]);
+	}
+
 	public static byte[] Video(VideoStyle style, VideoPacket packet, uint timestamp, string marker = "")
 	{
 		bool isKey = packet is VideoPacket.KeyFrame or VideoPacket.SequenceHeader;

@@ -208,10 +208,11 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		Stream file = CreateOnDisk(() => CreateFile(path));
 
 		// 文件建好之后才开始计时，创建失败时不留下看门狗
-		observer.OnRecordingStarted(path, stream);
+		RecordingTimeline timeline = new(path, timeProvider);
+		observer.OnRecordingStarted(path, stream, timeline);
 		TransferMeter meter = new();
 		AttemptGate gate = new();
-		RecordingOutput output = CreateOutput(file, path, candidate, recorderType, reservePath, observer, split, gate);
+		RecordingOutput output = CreateOutput(file, path, candidate, recorderType, reservePath, observer, split, gate, timeline);
 
 		return await TransferAsync(CopyAsync, meter.TakePending, profile.StreamIdleTimeout, observer, cancellationToken);
 
@@ -224,19 +225,22 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 			finally
 			{
 				gate.Close();
+
+				// 关上之后写盘端不会再建文件，等着归属的弹幕可以放弃没建出来的段
+				timeline.Close();
 			}
 		}
 	}
 
 	// 录制中途也可能打开分段，不分段时同样按容器解析；认不出的容器原样写进一个文件
-	private RecordingOutput CreateOutput(Stream file, string path, LiveStreamCandidate candidate, RecorderType recorderType, Func<DateTimeOffset, string> reservePath, IRecordingObserver observer, SplitControl split, AttemptGate gate)
+	private RecordingOutput CreateOutput(Stream file, string path, LiveStreamCandidate candidate, RecorderType recorderType, Func<DateTimeOffset, string> reservePath, IRecordingObserver observer, SplitControl split, AttemptGate gate, RecordingTimeline timeline)
 	{
 		if (CreateSplitter(candidate, recorderType) is not { } splitter)
 		{
-			return new SingleFileOutput(file);
+			return new SingleFileOutput(file, timeline);
 		}
 
-		return new SegmentedOutput(file, path, (writer, starts) => new RecordingSegmenter(writer, splitter, split, starts, timeProvider, logger), OpenNext, completed => gate.TryRun(() => observer.OnSegmentCompleted(completed)));
+		return new SegmentedOutput(file, path, (writer, starts) => new RecordingSegmenter(writer, splitter, split, starts, timeProvider, logger, timeline), OpenNext, completed => gate.TryRun(() => observer.OnSegmentCompleted(completed)));
 
 		(string Path, Stream File) OpenNext(SegmentStart start)
 		{
@@ -249,10 +253,12 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 			string next = reservePath(start.StartTime);
 			Stream nextFile = CreateOnDisk(() => CreateFile(next));
 
+			// 观察者知道新文件之后时间轴才往里放弹幕；和关闭尝试在同一把锁里，关上之后不会再多出一段
 			if (gate.TryRun(() =>
 				{
 					LogSplit(logger, start.Reason, next);
 					observer.OnSegmentStarted(next);
+					timeline.OpenSegment(start.Segment, next);
 				}))
 			{
 				return (next, nextFile);

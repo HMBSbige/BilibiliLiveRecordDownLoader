@@ -11,7 +11,11 @@ internal sealed record RoomSessionServices
 	IAppConfigManager ConfigManager,
 	TimeProvider TimeProvider,
 	ILogger<RoomSession> Logger
-);
+)
+{
+	// 测试替换成假的弹幕来源
+	public Func<long, DanmuReceiveOptions, CancellationToken, IAsyncEnumerable<DanmuMessage>> ReceiveDanmu { get; init; } = DanmuClient.ReceiveAsync;
+}
 
 internal sealed class RoomSessionFactory(BilibiliApiClient apiClient, DanmuClient danmuClient, LiveRecorder recorder, RecordingPostProcessor postProcessor, LowDiskSpaceMonitor diskSpaceMonitor, INotificationService notifications, IAppConfigManager configManager, TimeProvider timeProvider, ILogger<RoomSession> logger)
 {

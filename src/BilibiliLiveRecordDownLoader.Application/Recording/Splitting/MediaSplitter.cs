@@ -1,8 +1,11 @@
+using System.Runtime.InteropServices;
+
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
 // 按容器把会话写出的字节划成完整的元素（FLV tag、TS 包、HLS 分片），找出新段可以从哪个元素开始独立解码，并准备新段开头要补的头
 internal abstract class MediaSplitter
 {
+	private readonly List<MediaMark> _mediaMarks = [];
 	private bool _isAtReportedSplit;
 
 	// 从最近一次找到的切分点开始新段时，要先写进新文件的头
@@ -10,6 +13,15 @@ internal abstract class MediaSplitter
 
 	// 解析不下去之后再也不会有切分点
 	public virtual bool CanSplit => true;
+
+	// 已经完整过去的元素按收到的字节算的总长，即下一个元素在收到的数据里的起点
+	public long AcceptedLength { get; private set; }
+
+	// 上次取走之后过去的元素里带媒体时间的那些，按到达顺序
+	public ReadOnlySpan<MediaMark> MediaMarks => CollectionsMarshal.AsSpan(_mediaMarks);
+
+	// 流头（onMetaData、序列头、init 段、SPS）里最近读到的画面尺寸，读不到时为 null
+	public VideoResolution? Resolution { get; protected set; }
 
 	// 从 position 起逐个看完整的元素：遇到切分点时停在它前面并返回 true，下次调用从这个元素接着看；看完所有完整的元素时返回 false
 	public bool TryFindSplit(ReadOnlySpan<byte> data, ref int position)
@@ -38,6 +50,7 @@ internal abstract class MediaSplitter
 			}
 
 			_isAtReportedSplit = false;
+			AcceptedLength += length;
 			Accept(rest.Slice(0, length));
 			position += length;
 		}
@@ -61,6 +74,11 @@ internal abstract class MediaSplitter
 		return elements.Length;
 	}
 
+	public void ClearMediaMarks()
+	{
+		_mediaMarks.Clear();
+	}
+
 	// 返回 data 开头的元素的总长度，可能长于 data；还判断不了时返回 0
 	protected abstract int Measure(ReadOnlySpan<byte> data, out bool isSplit);
 
@@ -68,4 +86,10 @@ internal abstract class MediaSplitter
 	protected abstract void Accept(ReadOnlySpan<byte> element);
 
 	protected abstract ReadOnlyMemory<byte> CaptureHeader(ReadOnlySpan<byte> element);
+
+	// 在 Accept 里报告正在过去的元素的媒体时间；只报告源时间轴上的原值，换到输出文件的时间轴由时间轴组件按段处理，分割器不必关心元素最后写进哪一段
+	protected void ReportMediaTime(MediaSpan span)
+	{
+		_mediaMarks.Add(new MediaMark(AcceptedLength, span, Resolution));
+	}
 }

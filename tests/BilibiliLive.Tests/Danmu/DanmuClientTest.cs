@@ -142,6 +142,23 @@ public class DanmuClientTest
 		return document.RootElement.Clone();
 	}
 
+	private static DanmuMessage WithoutReceiveTime(DanmuMessage message)
+	{
+		return message with { ReceivedAt = default };
+	}
+
+	private static async Task<List<DanmuMessage>> TakeAsync(IAsyncEnumerator<DanmuMessage> messages, int count)
+	{
+		List<DanmuMessage> taken = [];
+
+		while (taken.Count < count && await messages.MoveNextAsync())
+		{
+			taken.Add(messages.Current);
+		}
+
+		return taken;
+	}
+
 	private static async Task<List<DanmuMessage>> CollectAsync(IAsyncEnumerable<DanmuMessage> source)
 	{
 		List<DanmuMessage> messages = [];
@@ -181,7 +198,7 @@ public class DanmuClientTest
 
 		using (Assert.Multiple())
 		{
-			await Sequences.AssertEqualAsync(messages, [new DanmuMessage.LiveStarted(), new DanmuMessage.LiveStopped(true), new DanmuMessage.RoomChanged("T", "A", "P")]);
+			await Sequences.AssertEqualAsync(messages.Select(WithoutReceiveTime), [new DanmuMessage.Connected(12345678), new DanmuMessage.LiveStarted(), new DanmuMessage.LiveStopped(true), new DanmuMessage.RoomChanged("T", "A", "P")]);
 			await Assert.That((auth.Operation, auth.ProtocolVersion)).IsEqualTo((DanmuOperation.Auth, (ushort)1));
 			await Assert.That(authJson.GetProperty("uid").GetInt64()).IsEqualTo(12345678);
 			await Assert.That(authJson.GetProperty("roomid").GetInt64()).IsEqualTo(RoomId);
@@ -337,8 +354,7 @@ public class DanmuClientTest
 		await using IAsyncEnumerator<DanmuMessage> enumerator = harness.Client.ReceiveAsync(RoomId, cts.Token).GetAsyncEnumerator(cts.Token);
 		ValueTask<bool> first = enumerator.MoveNextAsync();
 
-		WebSocket server = await AuthenticateAsync(harness, """{"code":0}""", cancellationToken);
-		await SendAsync(server, Live, cancellationToken);
+		await AuthenticateAsync(harness, """{"code":0}""", cancellationToken);
 
 		bool hasFirst = await first;
 		DanmuMessage firstMessage = enumerator.Current;
@@ -349,7 +365,7 @@ public class DanmuClientTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(hasFirst).IsTrue();
-			await Assert.That(firstMessage).IsEqualTo(new DanmuMessage.LiveStarted());
+			await Assert.That(firstMessage is DanmuMessage.Connected).IsTrue();
 			await Assert.That(hasSecond).IsFalse();
 		}
 	}
@@ -418,9 +434,8 @@ public class DanmuClientTest
 		await using IAsyncEnumerator<DanmuMessage> messages = harness.Client.ReceiveAsync(RoomId, cancellationToken).GetAsyncEnumerator(cancellationToken);
 		ValueTask<bool> next = messages.MoveNextAsync();
 
-		// Waiting for the message pins the last receive to the current fake time
+		// Waiting for the connected message pins the last receive to the current fake time
 		WebSocket server = await AuthenticateAsync(harness, """{"code":0}""", cancellationToken);
-		await SendAsync(server, Live, cancellationToken);
 		await Assert.That(await next).IsTrue();
 		await ReceiveHeartbeatAsync(server, cancellationToken);
 
@@ -447,6 +462,8 @@ public class DanmuClientTest
 		ValueTask<bool> next = messages.MoveNextAsync();
 
 		WebSocket server = await AuthenticateAsync(harness, """{"code":0}""", cancellationToken);
+		await Assert.That(await next).IsTrue();
+		next = messages.MoveNextAsync();
 		await ReceiveHeartbeatAsync(server, cancellationToken);
 
 		// Twice the timeout passes in total, but no heartbeat interval is silent
@@ -463,5 +480,92 @@ public class DanmuClientTest
 		await server.CloseAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
 
 		await Assert.That(await next).IsFalse();
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task AnonymousConnectionIsReportedAsync(CancellationToken cancellationToken)
+	{
+		using Harness harness = new(_ => RiskControl(), () => Responses.Fixture("nav_logged_in.json"));
+		Task<List<DanmuMessage>> receiving = CollectAsync(harness.Client.ReceiveAsync(RoomId, cancellationToken));
+
+		WebSocket server = await AuthenticateAsync(harness, """{"code":0}""", cancellationToken);
+		await server.CloseAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
+		List<DanmuMessage> messages = await receiving;
+
+		await Assert.That(messages.SingleOrDefault() is DanmuMessage.Connected { UserId: 0, IsAnonymous: true }).IsTrue();
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task OptionsTakeEffectWithoutReconnectingAsync(CancellationToken cancellationToken)
+	{
+		FakeTimeProvider time = new();
+		using Harness harness = CreateDefault(timeProvider: time);
+		DanmuReceiveOptions options = new();
+		await using IAsyncEnumerator<DanmuMessage> messages = harness.Client.ReceiveAsync(RoomId, options, cancellationToken).GetAsyncEnumerator(cancellationToken);
+		ValueTask<bool> connected = messages.MoveNextAsync();
+		WebSocket server = await AuthenticateAsync(harness, """{"code":0}""", cancellationToken);
+		await Assert.That(await connected).IsTrue();
+
+		byte[] comment = DanmuMessageParserTest.Fixture("comment_masked.json");
+		byte[] frame = DanmuPacketTest.Brotli(DanmuPacket.Encode(DanmuOperation.Message, 0, comment), Live);
+
+		// Each change waits until the previous frame has been read, so every frame meets the options set before it
+		await SendAsync(server, frame, cancellationToken);
+		List<DanmuMessage> plain = await TakeAsync(messages, 1);
+
+		options.IncludeChat = true;
+		options.IncludeRaw = true;
+		time.Advance(TimeSpan.FromSeconds(1));
+		DanmuReceiveTime frameTime = new(time.GetTimestamp(), time.GetUtcNow());
+		await SendAsync(server, frame, cancellationToken);
+		List<DanmuMessage> full = await TakeAsync(messages, 4);
+
+		options.IncludeChat = false;
+		options.IncludeRaw = false;
+		await SendAsync(server, frame, cancellationToken);
+		List<DanmuMessage> plainAgain = await TakeAsync(messages, 1);
+
+		// The client answers the close only while it is receiving
+		ValueTask<bool> next = messages.MoveNextAsync();
+		await server.CloseAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
+		bool hasMore = await next;
+
+		using (Assert.Multiple())
+		{
+			await Sequences.AssertEqualAsync(plain.Select(WithoutReceiveTime), [new DanmuMessage.LiveStarted()]);
+			await Assert.That(full.Count).IsEqualTo(4);
+			await Assert.That(full.ElementAtOrDefault(0) is DanmuMessage.Raw { Command: "DANMU_MSG" } raw && raw.Json.Span.SequenceEqual(comment)).IsTrue();
+			await Assert.That(full.ElementAtOrDefault(1) is DanmuMessage.Comment { Text: "666" }).IsTrue();
+			await Assert.That(full.ElementAtOrDefault(2) is DanmuMessage.Raw { Command: "LIVE" }).IsTrue();
+			await Assert.That(full.ElementAtOrDefault(3) is DanmuMessage.LiveStarted).IsTrue();
+			await Sequences.AssertEqualAsync(full.Select(static m => m.ReceivedAt), Enumerable.Repeat(frameTime, 4));
+			await Sequences.AssertEqualAsync(plainAgain.Select(WithoutReceiveTime), [new DanmuMessage.LiveStarted()]);
+			await Assert.That(hasMore).IsFalse();
+		}
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task MalformedChatDoesNotInterruptReceivingAsync(CancellationToken cancellationToken)
+	{
+		using Harness harness = CreateDefault();
+		Task<List<DanmuMessage>> receiving = CollectAsync(harness.Client.ReceiveAsync(RoomId, new DanmuReceiveOptions { IncludeChat = true }, cancellationToken));
+
+		WebSocket server = await AuthenticateAsync(harness, """{"code":0}""", cancellationToken);
+		await SendAsync(server, DanmuPacketTest.Brotli
+		(
+			DanmuPacketTest.Json("""{"cmd":"SEND_GIFT_V2","data":{"pb":"not base64"}}"""),
+			// A gift field whose length runs past the end
+			DanmuPacketTest.Json("""{"cmd":"SEND_GIFT_V2","data":{"pb":"UgU="}}"""),
+			DanmuPacketTest.Json("""{"cmd":"DANMU_MSG","info":[[0,1"""),
+			Live
+		), cancellationToken);
+		await server.CloseAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
+
+		List<DanmuMessage> messages = await receiving;
+
+		await Sequences.AssertEqualAsync(messages.Select(WithoutReceiveTime), [new DanmuMessage.Connected(12345678), new DanmuMessage.LiveStarted()]);
 	}
 }

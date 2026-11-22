@@ -10,6 +10,8 @@ public sealed class RoomSettingsMapperTest
 			RoomId = 732,
 			IsRecordingEnabled = false,
 			IsNotificationEnabled = true,
+			IsDanmakuEnabled = true,
+			DanmakuOffset = TimeSpan.FromSeconds(-1.5),
 			Quality = StreamQuality.UltraHd4K,
 			RecorderType = RecorderType.FFmpeg,
 			CodecPriority = [StreamCodec.Hevc],

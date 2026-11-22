@@ -39,6 +39,8 @@ internal sealed class FlvSplitter : MediaSplitter
 	private bool _isFilterStopped;
 	private NalSyntax _sequenceSyntax;
 	private int _nalLengthSize;
+	private VideoResolution? _sequenceResolution;
+	private VideoResolution? _metadataResolution;
 
 	public override bool CanSplit => !IsUnparsable;
 
@@ -178,14 +180,42 @@ internal sealed class FlvSplitter : MediaSplitter
 		{
 			case VideoTag when IsVideoSequenceHeader(body):
 				Store(ref _videoSequence, element);
+				_sequenceResolution = ReadSequenceResolution(body);
+				Resolution = _sequenceResolution ?? _metadataResolution;
 				break;
 			case AudioTag when IsAudioSequenceHeader(body):
 				Store(ref _audioSequence, element);
 				break;
 			case ScriptTag when IsMetadata(body):
 				Store(ref _metadata, element);
+				_metadataResolution = FlvMetadata.ReadResolution(body);
+				Resolution = _sequenceResolution ?? _metadataResolution;
+				break;
+			// 序列头和脚本 tag 不是画面：FFmpeg 把序列头当作解码器配置而不输出成帧，中途重发的 onMetaData 时间戳又常是 0，都不能当作文件第一帧
+			case VideoTag or AudioTag:
+				ReportMediaTime(MediaSpan.At(TimeSpan.FromMilliseconds(ReadTimestamp(element))));
 				break;
 		}
+	}
+
+	// SPS 里的尺寸是实际编码的，比编码器写进 onMetaData 的可靠；AV1 等认不出的编码只能用 onMetaData
+	private static VideoResolution? ReadSequenceResolution(ReadOnlySpan<byte> body)
+	{
+		NalSyntax? syntax = body switch
+		{
+			[var first, _, _, _, _, ..] when (first & 0x80) is not 0 => GetEnhancedSyntax(body.Slice(1, 4)),
+			[var first, ..] when (first & 0x0F) is AvcCodec => NalSyntax.Avc,
+			[var first, ..] when (first & 0x0F) is HevcCodec => NalSyntax.Hevc,
+			_ => null
+		};
+
+		// 传统格式的帧头之后是包类型和 3 字节合成时间，Enhanced FLV 的帧头之后是 FourCC，配置记录都从第 6 字节开始
+		return body.Length <= 5 ? null : syntax switch
+		{
+			NalSyntax.Avc => ParameterSets.ReadAvcConfiguration(body.Slice(5)),
+			NalSyntax.Hevc => ParameterSets.ReadHevcConfiguration(body.Slice(5)),
+			_ => null
+		};
 	}
 
 	protected override ReadOnlyMemory<byte> CaptureHeader(ReadOnlySpan<byte> element)

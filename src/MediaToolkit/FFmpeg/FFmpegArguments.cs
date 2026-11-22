@@ -9,6 +9,13 @@ public static class FFmpegArguments
 		return [@"-hide_banner", @"-y", .. FrameRate(inputFrameRate), @"-i", input, @"-map", @"0", @"-c", @"copy", output];
 	}
 
+	// 章节来自第二个输入的 ffmetadata 文件；-map 0 只选第一个输入的流，ffmetadata 没有流，只经 -map_chapters 1 提供章节
+	// 显式指定 -f ffmetadata，不依赖内容探测，文件扩展名也就无所谓
+	public static IReadOnlyList<string> RemuxWithChapters(string input, string chapters, string output, double? inputFrameRate = null)
+	{
+		return [@"-hide_banner", @"-y", .. FrameRate(inputFrameRate), @"-i", input, @"-f", @"ffmetadata", @"-i", chapters, @"-map", @"0", @"-map_chapters", @"1", @"-c", @"copy", output];
+	}
+
 	public static IReadOnlyList<string> Cut(string input, string output, TimeSpan start, TimeSpan end)
 	{
 		ArgumentOutOfRangeException.ThrowIfLessThan(start, TimeSpan.Zero);

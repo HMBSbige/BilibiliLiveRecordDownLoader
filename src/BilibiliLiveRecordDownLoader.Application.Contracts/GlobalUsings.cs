@@ -1,3 +1,4 @@
+global using BilibiliLive.Danmu;
 global using BilibiliLive.Enums;
 global using BilibiliLive.Models;
 global using BilibiliLiveRecordDownLoader.Domain.Shared;

@@ -125,4 +125,44 @@ public sealed class ConfigDefaultsTest
 			await Assert.That(config.Rooms[0].SplitSizeMegabytes).IsEqualTo(1 << 20);
 		}
 	}
+
+	[Test]
+	public async Task DanmakuDefaultsRecordCommentsSuperChatsAndGuardsWithSubtitlesAsync()
+	{
+		AppConfig config = AppConfig.CreateDefault();
+		RoomConfig room = new() { RoomId = 1 };
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(room.IsDanmakuEnabled).IsFalse();
+			await Assert.That(room.DanmakuOffset).IsNull();
+			await Assert.That(config.RecordSuperChats).IsTrue();
+			await Assert.That(config.GiftMode).IsEqualTo(DanmakuGiftMode.None);
+			await Assert.That(config.RecordGuards).IsTrue();
+			await Assert.That(config.DanmakuOffset).IsEqualTo(TimeSpan.Zero);
+			await Assert.That(config.GenerateDanmakuSubtitle).IsTrue();
+			await Assert.That(config.ShowPaidMessagesInSubtitle).IsTrue();
+			await Assert.That(config.SaveRawDanmaku).IsFalse();
+			await Assert.That(config.WriteChaptersOnConvert).IsFalse();
+		}
+	}
+
+	[Test]
+	public async Task DanmakuOffsetsAreClampedToAMinuteEitherWayAsync()
+	{
+		AppConfig config = new()
+		{
+			DanmakuOffset = TimeSpan.FromMinutes(-5),
+			Rooms = [new RoomConfig { RoomId = 1, DanmakuOffset = TimeSpan.FromSeconds(90) }, new RoomConfig { RoomId = 2, DanmakuOffset = TimeSpan.FromSeconds(-1.5) }]
+		};
+
+		config.ApplyDefaults();
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(config.DanmakuOffset).IsEqualTo(TimeSpan.FromSeconds(-60));
+			await Assert.That(config.Rooms[0].DanmakuOffset).IsEqualTo(TimeSpan.FromSeconds(60));
+			await Assert.That(config.Rooms[1].DanmakuOffset).IsEqualTo(TimeSpan.FromSeconds(-1.5));
+		}
+	}
 }

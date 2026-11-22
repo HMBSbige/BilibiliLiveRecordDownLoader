@@ -182,7 +182,6 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 		}
 	}
 
-	// 迭代器的 yield 不能放在带 catch 的 try 里，所以单独转换翻页时的异常
 	private static async ValueTask<bool> MoveNextFollowedAsync(IAsyncEnumerator<FollowedLiveRoom> rooms)
 	{
 		try
@@ -279,6 +278,22 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 		await Task.WhenAll(targets.Select(session => session.RefreshAsync(cancellationToken)));
 	}
 
+	internal RoomSession? FindSession(long roomId)
+	{
+		lock (_lock)
+		{
+			return Find(roomId);
+		}
+	}
+
+	internal bool IsRecordingDanmakuFile(string path)
+	{
+		lock (_lock)
+		{
+			return _sessions.Any(session => session.Danmaku.IsWriting(path));
+		}
+	}
+
 	private RoomSession? Find(long roomId)
 	{
 		return _sessions.Find(session => session.RoomId == roomId);
@@ -290,7 +305,6 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 		return roomId > 0 ? _sessions.Find(session => session.RoomId == roomId || session.ShortId == roomId) : null;
 	}
 
-	// 一律以接口返回的真实房间号添加。批量查询的结果里缺少的房间，或接口拒绝了批量查询时，再逐个查询
 	private async Task<Dictionary<long, LiveRoomInfo>> ResolveAsync(IReadOnlyList<long> roomIds, Dictionary<long, string> errors, CancellationToken cancellationToken)
 	{
 		Dictionary<long, LiveRoomInfo> resolved = [];

@@ -142,6 +142,39 @@ public partial class FFmpegIntegrationTest
 
 	[Test]
 	[Timeout(TestTimeout)]
+	public async Task RemuxWritesChaptersWithSpecialCharactersAsync(CancellationToken cancellationToken)
+	{
+		FFmpegRunner runner = CreateRunner();
+		using TestDirectory directory = new();
+		string flv = directory.Combine(@"sample.flv");
+		await GenerateFlvAsync(runner, flv, cancellationToken);
+
+		string chapters = directory.Combine(@"章节.txt");
+		await FFmpegMetadata.WriteChaptersFileAsync(chapters,
+		[
+			new FFmpegChapter(TimeSpan.Zero, TimeSpan.FromSeconds(1), @"直播标题"),
+			new FFmpegChapter(TimeSpan.FromSeconds(1), SampleDuration, @"高能：a=b;c#d\e")
+		], cancellationToken);
+		string mp4 = directory.Combine(@"remuxed.mp4");
+		await runner.RunAsync(FFmpegArguments.RemuxWithChapters(flv, chapters, mp4), null, cancellationToken);
+
+		// 把 MP4 里的章节再导出成 ffmetadata，导出时 FFmpeg 用同样的规则转义
+		string exported = directory.Combine(@"exported.txt");
+		await runner.RunAsync([@"-hide_banner", @"-y", @"-i", mp4, @"-f", @"ffmetadata", exported], null, cancellationToken);
+		string metadata = await File.ReadAllTextAsync(exported, cancellationToken);
+		(_, int frames) = await DecodeAsync(runner, mp4, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(metadata).Contains("title=直播标题\n");
+			await Assert.That(metadata).Contains("title=高能：a\\=b\\;c\\#d\\\\e\n");
+			await Assert.That(metadata.Split(@"[CHAPTER]").Length).IsEqualTo(3);
+			await Assert.That(frames).IsEqualTo(20);
+		}
+	}
+
+	[Test]
+	[Timeout(TestTimeout)]
 	public async Task RecordSendsHttpHeadersAndSavesStreamAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = CreateRunner();

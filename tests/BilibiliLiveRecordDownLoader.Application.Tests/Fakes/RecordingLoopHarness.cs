@@ -28,7 +28,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 	public static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(6);
 
-	private const string RoomInfoTemplate = """{"code":0,"data":{"by_room_ids":{"$ROOM":{"room_id":$ROOM,"uid":1,"live_status":$LIVE,"title":"$TITLE","short_id":0,"uname":"streamer"}}}}""";
+	private const string RoomInfoTemplate = """{"code":0,"data":{"by_room_ids":{"$ROOM":{"room_id":$ROOM,"uid":1,"live_status":$LIVE,"title":"$TITLE","short_id":0,"uname":"streamer","area_name":"area","parent_area_name":"parent area","live_time":"2026-01-01 07:59:00","live_id_str":"745"}}}}""";
 
 	private const string PlayInfoTemplate = """{"code":0,"data":{"room_id":$ROOM,"live_status":$LIVE,"playurl_info":{"playurl":{"stream":$STREAMS}}}}""";
 
@@ -81,6 +81,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 			DrainTimeout = TimeSpan.FromSeconds(1)
 		};
 
+		Danmu = new FakeDanmuSource(Time);
 		RoomSessionServices services = new
 		(
 			apiClient,
@@ -92,7 +93,10 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 			configManager,
 			Time,
 			NullLogger<RoomSession>.Instance
-		);
+		)
+		{
+			ReceiveDanmu = Danmu.ReceiveAsync
+		};
 
 		Settings = new RoomConfig { RoomId = RoomId, IsNotificationEnabled = isNotificationEnabled, StreamReconnectDelay = ReconnectDelay };
 		Session = new RoomSession(Settings, services, static () => { });
@@ -118,6 +122,11 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	}
 
 	public RecordingNotifications Notifications { get; } = new();
+
+	// 只在 Session.Start() 之后连接，录制循环的用例不必理会
+	public FakeDanmuSource Danmu { get; }
+
+	public string RoomDirectory => RecordingFileLayout.GetRoomDirectory(Config.RecordDirectory, RoomId);
 
 	public RoomConfig Settings { get; }
 

@@ -58,6 +58,23 @@ public record AppConfig
 
 	public bool UseMasterPlaylistWhenRestricted { get; set; } = true;
 
+	public bool RecordSuperChats { get; set; } = true;
+
+	public DanmakuGiftMode GiftMode { get; set; }
+
+	public bool RecordGuards { get; set; } = true;
+
+	// 正数让弹幕更晚出现
+	public TimeSpan DanmakuOffset { get; set; }
+
+	public bool GenerateDanmakuSubtitle { get; set; } = true;
+
+	public bool ShowPaidMessagesInSubtitle { get; set; } = true;
+
+	public bool SaveRawDanmaku { get; set; }
+
+	public bool WriteChaptersOnConvert { get; set; }
+
 	public List<RoomConfig> Rooms { get; set; } = [];
 
 	public static AppConfig CreateDefault()
@@ -78,6 +95,7 @@ public record AppConfig
 		FormatPriority = StreamPriority.Normalize(FormatPriority, StreamPriority.DefaultFormats);
 		SplitDuration = RecordingSplitLimits.ClampDuration(SplitDuration);
 		SplitSizeMegabytes = RecordingSplitLimits.ClampSize(SplitSizeMegabytes);
+		DanmakuOffset = DanmakuDefaults.ClampOffset(DanmakuOffset);
 		Rooms = [.. Rooms.Where(static room => room.RoomId > 0).DistinctBy(static room => room.RoomId)];
 		Rooms.ForEach(static room => room.ApplyDefaults());
 	}

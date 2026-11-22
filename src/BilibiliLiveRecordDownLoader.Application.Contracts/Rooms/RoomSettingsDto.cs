@@ -8,6 +8,11 @@ public sealed record RoomSettingsDto
 
 	public bool IsNotificationEnabled { get; init; }
 
+	public bool IsDanmakuEnabled { get; init; } = DanmakuDefaults.IsEnabled;
+
+	// 为 null 时用全局的弹幕时间偏移
+	public TimeSpan? DanmakuOffset { get; init; }
+
 	public StreamQuality Quality { get; init; } = RoomDefaults.Quality;
 
 	public RecorderType? RecorderType { get; init; }

@@ -11,6 +11,7 @@ internal sealed partial class RecordingSegmenter : Stream
 
 	private readonly PipeWriter _output;
 	private readonly SplitControl _control;
+	private readonly RecordingTimeline _timeline;
 	private readonly ConcurrentQueue<SegmentStart> _starts;
 	private readonly TimeProvider _timeProvider;
 	private readonly ILogger _logger;
@@ -23,14 +24,18 @@ internal sealed partial class RecordingSegmenter : Stream
 	private int _pendingTitleChange;
 	private int _seenTitleChange;
 	private long _written;
+	private long _committed;
+	private long _arrival;
 	private long _segmentLength;
 	private bool _segmentHasMedia;
 	private DateTimeOffset _segmentStart;
 
-	public RecordingSegmenter(PipeWriter output, MediaSplitter splitter, SplitControl control, ConcurrentQueue<SegmentStart> starts, TimeProvider timeProvider, ILogger logger)
+	// 没有给出时间轴时照常记一份，只是没有人查
+	public RecordingSegmenter(PipeWriter output, MediaSplitter splitter, SplitControl control, ConcurrentQueue<SegmentStart> starts, TimeProvider timeProvider, ILogger logger, RecordingTimeline? timeline = null)
 	{
 		_output = output;
 		Splitter = splitter;
+		_timeline = timeline ?? new RecordingTimeline(string.Empty, timeProvider);
 		_control = control;
 		_seenTitleChange = _pendingTitleChange = control.TitleChanges;
 		_starts = starts;
@@ -56,8 +61,11 @@ internal sealed partial class RecordingSegmenter : Stream
 
 	public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
 	{
+		_arrival = _timeProvider.GetTimestamp();
 		_pending.Append(buffer.Span);
 		Process();
+		TakeMediaMarks();
+		_timeline.AddArrival(Splitter.AcceptedLength, Splitter.Resolution, _arrival);
 		await _output.FlushAsync(cancellationToken);
 	}
 
@@ -78,6 +86,8 @@ internal sealed partial class RecordingSegmenter : Stream
 		{
 			Commit(_pending.Length, UnitEnd.StreamEnd);
 		}
+
+		_timeline.EndReceiving();
 	}
 
 	public override void Flush()
@@ -151,6 +161,8 @@ internal sealed partial class RecordingSegmenter : Stream
 	// 按大小分段看的是去掉填充数据之后实际写出的长度
 	private void Commit(int length, UnitEnd end)
 	{
+		// 单元里的元素要先记进时间轴，才能随单元一起归到这一段
+		TakeMediaMarks();
 		Span<byte> received = _pending.Span.Slice(0, length);
 		Span<byte> unit = received.Slice(0, Splitter.RemoveFiller(received, _control.RemoveFiller));
 
@@ -175,6 +187,14 @@ internal sealed partial class RecordingSegmenter : Stream
 		Emit(unit);
 		_segmentLength += unit.Length;
 		_pending.Discard(length);
+		_committed += length;
+		_timeline.Commit(_committed);
+	}
+
+	private void TakeMediaMarks()
+	{
+		_timeline.AddMedia(Splitter.MediaMarks, _arrival);
+		Splitter.ClearMediaMarks();
 	}
 
 	// 每个单元按写出时的设置判断。还没有媒体数据或者没开按标题分段时改了标题都不切，这次请求就此作废。攒不下的单元总长未知，只能保守地从它开头换文件；收流结束时最后半个单元切出去只会得到一个太短的文件，只有放不下才切
@@ -200,7 +220,7 @@ internal sealed partial class RecordingSegmenter : Stream
 
 	private void StartSegment(ReadOnlySpan<byte> unit, SplitReason reason)
 	{
-		_starts.Enqueue(new SegmentStart(_written, _pendingTime, reason));
+		_starts.Enqueue(new SegmentStart(_written, _pendingTime, reason, _timeline.StartSegment()));
 		Splitter.StartSegment(unit);
 		Emit(_pendingHeader.Span);
 		_segmentLength = _pendingHeader.Length;

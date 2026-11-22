@@ -8,6 +8,10 @@ public record RoomConfig
 
 	public bool IsNotificationEnabled { get; set; }
 
+	public bool IsDanmakuEnabled { get; set; } = DanmakuDefaults.IsEnabled;
+
+	public TimeSpan? DanmakuOffset { get; set; }
+
 	public StreamQuality Quality { get; set; } = RoomDefaults.Quality;
 
 	public RecorderType? RecorderType { get; set; }
@@ -49,6 +53,7 @@ public record RoomConfig
 		FormatPriority = NormalizeOverride(FormatPriority);
 		SplitDuration = SplitDuration is { } duration ? RecordingSplitLimits.ClampDuration(duration) : null;
 		SplitSizeMegabytes = SplitSizeMegabytes is { } size ? RecordingSplitLimits.ClampSize(size) : null;
+		DanmakuOffset = DanmakuOffset is { } offset ? DanmakuDefaults.ClampOffset(offset) : null;
 
 		return;
 
