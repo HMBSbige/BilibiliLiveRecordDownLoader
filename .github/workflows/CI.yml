@@ -14,6 +14,9 @@ env:
   DOTNET_GENERATE_ASPNET_CERTIFICATE: false
   NET_VERSION: 11.0.x
 
+permissions:
+  contents: read
+
 jobs:
   check_format:
     name: Check format
@@ -21,6 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.NET_VERSION }}
@@ -39,9 +44,19 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.NET_VERSION }}
+
+      - name: Install FFmpeg
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends ffmpeg
+          echo "REQUIRE_FFMPEG=1" >> "$GITHUB_ENV"
+
       - run: dotnet test -c Release
 
   build:
@@ -67,6 +82,7 @@ jobs:
         with:
           fetch-depth: 0
           filter: tree:0
+          persist-credentials: false
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.NET_VERSION }}
@@ -118,7 +134,7 @@ jobs:
           done
 
       - name: Create a new GitHub release
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           prerelease: ${{ contains(github.ref_name, '-') }}
