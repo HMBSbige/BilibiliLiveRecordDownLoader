@@ -98,7 +98,7 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 			StatusTip = snapshot.Recording is null ? snapshot.LastError : null;
 			IsRecording = snapshot.RecordStatus is RecordStatus.Recording;
 			(StreamInfo, QualityText, RecordingInfo) = snapshot.Recording is { } recording
-				? ($"{StreamLabels.Of(recording.Format)} · {StreamLabels.OfCodec(recording.Codec)}", StreamLabels.OfQuality(recording.Quality), $"{ByteSize.Format(snapshot.BytesPerSecond)}/s · {FormatDuration(recording.StartedAt)}")
+				? ($"{StreamLabels.Of(recording.Format)} · {StreamLabels.Of(recording.Codec)}", StreamLabels.OfQuality(recording.Quality), $"{ByteSize.Format(snapshot.BytesPerSecond)}/s · {FormatDuration(recording.StartedAt)}")
 				: (string.Empty, string.Empty, string.Empty);
 			QualityRestrictionTip = snapshot.Recording is { Restriction: { } restriction } restricted ? DescribeRestriction(restriction, restricted.Quality, hasCookie) : null;
 			IsQualityRestricted = QualityRestrictionTip is not null;

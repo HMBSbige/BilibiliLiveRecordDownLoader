@@ -11,7 +11,7 @@ public sealed partial class ExperimentalSettingsViewModel(IAppConfigManager conf
 	public partial bool RequestTrueOriginal { get; set; }
 
 	[Reactive]
-	public partial bool TryOriginalWhenRestricted { get; set; }
+	public partial bool UseMasterPlaylistWhenRestricted { get; set; }
 
 	internal void ApplyConfig(AppConfig config)
 	{
@@ -22,11 +22,11 @@ public sealed partial class ExperimentalSettingsViewModel(IAppConfigManager conf
 
 		RemoveFillerData = config.RemoveFillerData;
 		RequestTrueOriginal = config.RequestTrueOriginal;
-		TryOriginalWhenRestricted = config.TryOriginalWhenRestricted;
+		UseMasterPlaylistWhenRestricted = config.UseMasterPlaylistWhenRestricted;
 
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.RemoveFillerData), static (appConfig, value) => appConfig.RemoveFillerData = value);
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.RequestTrueOriginal), static (appConfig, value) => appConfig.RequestTrueOriginal = value);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.TryOriginalWhenRestricted), static (appConfig, value) => appConfig.TryOriginalWhenRestricted = value);
+		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.UseMasterPlaylistWhenRestricted), static (appConfig, value) => appConfig.UseMasterPlaylistWhenRestricted = value);
 
 		_isInitialized = true;
 	}

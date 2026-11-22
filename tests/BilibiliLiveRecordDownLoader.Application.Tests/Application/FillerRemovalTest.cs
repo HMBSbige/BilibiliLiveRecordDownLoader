@@ -402,9 +402,7 @@ public sealed class FillerRemovalTest
 	[Arguments(true, StreamCodec.Hevc, FillerRemoval.Hevc)]
 	[Arguments(true, StreamCodec.Av1, FillerRemoval.None)]
 	[Arguments(false, StreamCodec.Avc, FillerRemoval.None)]
-	// 源流的 init 段认不出编码
-	[Arguments(true, null, FillerRemoval.None)]
-	public async Task FFmpegRecordingRemovesFillerByTheSettingAndCodecAsync(bool removeFiller, StreamCodec? codec, FillerRemoval expected)
+	public async Task FFmpegRecordingRemovesFillerByTheSettingAndCodecAsync(bool removeFiller, StreamCodec codec, FillerRemoval expected)
 	{
 		AppConfig config = AppConfig.CreateDefault();
 		config.RemoveFillerData = removeFiller;
@@ -412,7 +410,7 @@ public sealed class FillerRemovalTest
 		await Assert.That(LiveRecorder.GetFillerRemoval(config, codec)).IsEqualTo(expected);
 	}
 
-	// 后面跟一个能处理的分片，确认原样写的分片不影响后面的解析；样本项加密时拿不到长度字段宽度，后面的也不动
+	// 后面跟一个能处理的分片，确认原样写的分片不影响后面的解析
 	private static async Task AssertFmp4UnchangedAsync(byte[] init, byte[] fragment, bool isNextProcessed, CancellationToken cancellationToken)
 	{
 		byte[][] nals = [FillerSamples.Picture(FillerCodec.Avc, true, "k2"), FillerSamples.Filler(FillerCodec.Avc, 50)];

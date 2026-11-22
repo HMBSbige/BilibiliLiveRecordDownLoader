@@ -130,6 +130,12 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	// 最近一次请求候选流时的查询字符串
 	public string? PlayInfoQuery => _playInfoQuery;
 
+	// 主播放列表接口的应答，没给时按 404 应答
+	public Func<HttpRequestMessage, HttpResponseMessage>? MasterPlaylist { get; set; }
+
+	// 按顺序记下的主播放列表请求的查询字符串
+	public ConcurrentQueue<string> MasterPlaylistQueries { get; } = new();
+
 	// 录制器写出的日志，已按消息模板格式化
 	public ConcurrentQueue<string> RecorderLogs { get; } = new();
 
@@ -139,6 +145,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	// 按顺序记下的拉流请求地址
 	public ConcurrentQueue<Uri> StreamRequests { get; } = new();
 
+	// 主播的 uid 是 1
 	public void GoLive()
 	{
 		_isLive = true;
@@ -249,6 +256,12 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		if (request.RequestUri is { AbsolutePath: "/xlive/web-room/v2/index/getRoomPlayInfo", Query: var query })
 		{
 			_playInfoQuery = query;
+		}
+
+		if (request.RequestUri is { AbsolutePath: "/xlive/play-gateway/master/url", Query: var masterQuery })
+		{
+			MasterPlaylistQueries.Enqueue(masterQuery);
+			return Task.FromResult(MasterPlaylist?.Invoke(request) ?? new HttpResponseMessage(HttpStatusCode.NotFound));
 		}
 
 		string template = request.RequestUri?.AbsolutePath switch

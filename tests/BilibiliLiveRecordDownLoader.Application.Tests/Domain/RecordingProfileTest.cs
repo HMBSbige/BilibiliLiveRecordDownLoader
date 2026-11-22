@@ -53,16 +53,6 @@ public sealed class RecordingProfileTest
 	}
 
 	[Test]
-	[Arguments(false)]
-	[Arguments(true)]
-	public async Task OriginalIsTriedWhenRestrictedByTheGlobalSettingAsync(bool tryOriginal)
-	{
-		RecordingProfile profile = RecordingProfile.Create(Global with { TryOriginalWhenRestricted = tryOriginal }, new RoomConfig { RoomId = 1 });
-
-		await Assert.That(profile.TryOriginalWhenRestricted).IsEqualTo(tryOriginal);
-	}
-
-	[Test]
 	[Arguments(StreamQuality.Original, true, 25000L)]
 	[Arguments(StreamQuality.Original, false, 10000L)]
 	[Arguments(StreamQuality.UltraHd4K, true, 20000L)]

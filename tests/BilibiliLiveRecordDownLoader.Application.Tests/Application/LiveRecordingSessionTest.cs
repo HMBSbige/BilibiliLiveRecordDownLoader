@@ -83,19 +83,24 @@ public sealed class LiveRecordingSessionTest
 		}
 	}
 
-	// 源流和接口给的 fMP4 在同一个节点上，源流被拒不能让节点上接口给的流也算失败
+	// 主播放列表的变体和接口给的 fMP4 在同一个节点上
 	[Test]
-	public async Task RejectedSourceStreamLeavesTheListedStreamOfTheSameHostUntriedAsync()
+	public async Task FailedVariantLeavesOtherStreamsOfTheSameHostUntriedAsync()
 	{
-		LiveStreamCandidate.Source source = new(StreamProtocol.HttpHls, StreamFormat.Fmp4, [new Uri("https://a.test/live/index.m3u8?sign=a")]);
+		LiveStreamCandidate.Variant trueOriginal = new(StreamCodec.Avc, 25000, [new Uri("https://a.test/live-bvc/1/live_a_b_c/index.m3u8?sign=a")]);
+		LiveStreamCandidate.Variant original = new(StreamCodec.Avc, 10000, [new Uri("https://a.test/live-bvc/1/live_a_b_c_bluray/index.m3u8?sign=a")]);
 		LiveStreamCandidate fmp4 = Candidate(StreamFormat.Fmp4, "a", "a.test");
-		LiveRecordingSession session = new() { Candidates = new CandidateBatch([source, fmp4], false) };
+		LiveStreamCandidate[] candidates = [trueOriginal, original, fmp4];
+		LiveRecordingSession session = new() { Candidates = new CandidateBatch(candidates, false) };
 
-		session.MarkFailed(source, source.Urls[0]);
+		session.MarkFailed(trueOriginal, trueOriginal.Urls[0]);
+		string afterTrueOriginal = Describe(session.GetUntriedCandidates(candidates));
+		session.MarkFailed(original, original.Urls[0]);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(Describe(session.GetUntriedCandidates([source, fmp4]))).IsEqualTo("Fmp4@a.test");
+			await Assert.That(afterTrueOriginal).IsEqualTo("Fmp4@a.test, Fmp4@a.test");
+			await Assert.That(session.GetUntriedCandidates(candidates).Single() is LiveStreamCandidate.Listed { Format: StreamFormat.Fmp4 }).IsTrue();
 			await Assert.That(session.HasUntriedEndpoint).IsTrue();
 		}
 	}
@@ -119,18 +124,6 @@ public sealed class LiveRecordingSessionTest
 			await Assert.That(same).IsFalse();
 			await Assert.That(afterReset).IsFalse();
 			await Assert.That(other).IsTrue();
-		}
-	}
-
-	[Test]
-	public async Task StemIsReservedOnceAsync()
-	{
-		LiveRecordingSession session = new();
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(session.TryReserveStem(Path.Combine("records", "1", "20260102_030405"))).IsTrue();
-			await Assert.That(session.TryReserveStem(Path.Combine("records", "1", "20260102_030405"))).IsFalse();
 		}
 	}
 

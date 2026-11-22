@@ -17,7 +17,7 @@ public sealed class RoomQualityDisplayTest
 		AppLocator.CurrentMutable.RegisterConstant(TimeProvider.System);
 	}
 
-	private static RoomSnapshot Recording(long roomId, QualityRestriction? restriction, StreamCodec? codec = StreamCodec.Avc, long quality = 250)
+	private static RoomSnapshot Recording(long roomId, QualityRestriction? restriction, StreamCodec codec = StreamCodec.Avc, long quality = 250)
 	{
 		return new RoomSnapshot(new RoomSettingsDto { RoomId = roomId }, 0, $"主播{roomId}", null, LiveStatus.Live, RecordStatus.Recording, 0, new ActiveRecordingDto(StreamFormat.Fmp4, codec, quality, restriction, DateTimeOffset.UtcNow), null);
 	}
@@ -61,14 +61,14 @@ public sealed class RoomQualityDisplayTest
 	}
 
 	[Test]
-	public async Task UnrestrictedSourceStreamShowsAnUnknownCodecWithoutAWarningAsync()
+	public async Task TrueOriginalFromTheMasterPlaylistShowsWithoutAWarningAsync()
 	{
-		using RoomItemViewModel room = new(Recording(1, null, null, 10000), false);
+		using RoomItemViewModel room = new(Recording(1, null, StreamCodec.Hevc, 25000), false);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(room.StreamInfo).IsEqualTo($"fMP4 · {AppLanguage.Current.CodecUnknown}");
-			await Assert.That(room.QualityText).IsEqualTo(AppLanguage.Current.QualityOriginal);
+			await Assert.That(room.StreamInfo).IsEqualTo("fMP4 · HEVC (H.265)");
+			await Assert.That(room.QualityText).IsEqualTo(AppLanguage.Current.QualityTrueOriginal);
 			await Assert.That(room.IsQualityRestricted).IsFalse();
 			await Assert.That(room.QualityRestrictionTip).IsNull();
 		}

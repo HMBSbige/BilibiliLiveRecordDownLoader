@@ -18,7 +18,7 @@ internal static class QualityRestrictions
 		return offered.Where(qn => qn <= selected).DefaultIfEmpty(offered.Min()).Max();
 	}
 
-	// response 是同一次接口返回的全部候选流；源流按原画比较
+	// response 是同一批候选流，档位只看接口给的；主播放列表的变体只取目标档位及以上，录到它们不算受限
 	public static QualityRestriction? Evaluate(LiveStreamCandidate recorded, IEnumerable<LiveStreamCandidate> response, RecordingProfile profile, bool hasCookie)
 	{
 		LiveStreamCandidate.Listed[] candidates = [.. response.OfType<LiveStreamCandidate.Listed>()];
@@ -28,13 +28,10 @@ internal static class QualityRestrictions
 			return null;
 		}
 
-		// 源流的编码连上之前不知道，任何编码的更高画质都算
-		StreamCodec? recordedCodec = recorded is LiveStreamCandidate.Listed listed ? listed.Codec : null;
-
-		if (candidates.Where(candidate => candidate.Codec != recordedCodec && candidate.Qn > recorded.Qn).MaxBy(static candidate => candidate.Qn) is { } better)
+		if (candidates.Where(candidate => candidate.Codec != recorded.Codec && candidate.Qn > recorded.Qn).MaxBy(static candidate => candidate.Qn) is { } better)
 		{
-			// 候选流按编码优先级排，排在前面的编码已经先试过；源流排在所有接口给的流之前，不存在已试过的情况
-			return recordedCodec is { } codec && Rank(profile.CodecPriority, better.Codec) < Rank(profile.CodecPriority, codec)
+			// 候选流按编码优先级排，排在前面的编码已经先试过
+			return Rank(profile.CodecPriority, better.Codec) < Rank(profile.CodecPriority, recorded.Codec)
 				? new QualityRestriction.OtherCodecUnavailable(highest, better.Codec, better.Qn)
 				: new QualityRestriction.OtherCodec(highest, better.Codec, better.Qn);
 		}
@@ -49,7 +46,7 @@ internal static class QualityRestrictions
 	}
 
 	// 不在优先级里的编码排最后，和接口候选流的排序一致
-	private static int Rank(IReadOnlyList<StreamCodec> priority, StreamCodec codec)
+	internal static int Rank(IReadOnlyList<StreamCodec> priority, StreamCodec codec)
 	{
 		for (int index = 0; index < priority.Count; ++index)
 		{

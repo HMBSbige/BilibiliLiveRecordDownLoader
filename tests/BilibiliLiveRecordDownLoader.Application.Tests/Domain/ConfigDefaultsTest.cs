@@ -94,9 +94,9 @@ public sealed class ConfigDefaultsTest
 	}
 
 	[Test]
-	public async Task OriginalIsNotTriedWhenRestrictedByDefaultAsync()
+	public async Task MasterPlaylistIsUsedWhenRestrictedByDefaultAsync()
 	{
-		await Assert.That(AppConfig.CreateDefault().TryOriginalWhenRestricted).IsFalse();
+		await Assert.That(AppConfig.CreateDefault().UseMasterPlaylistWhenRestricted).IsTrue();
 	}
 
 	[Test]

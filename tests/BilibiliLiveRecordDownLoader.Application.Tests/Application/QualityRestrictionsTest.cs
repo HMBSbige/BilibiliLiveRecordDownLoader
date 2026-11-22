@@ -5,7 +5,10 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
 public sealed class QualityRestrictionsTest
 {
-	private static readonly LiveStreamCandidate.Source Source = new(StreamProtocol.HttpHls, StreamFormat.Fmp4, [new Uri("https://cdn.test/live-bvc/1/live_a_b_c/index.m3u8")]);
+	private static LiveStreamCandidate.Variant Variant(StreamCodec codec, long qn)
+	{
+		return new LiveStreamCandidate.Variant(codec, qn, [new Uri($"https://cdn.test/live-bvc/1/live_a_b_c_{codec}_{qn}/index.m3u8")]);
+	}
 
 	private static LiveStreamCandidate.Listed Listed(StreamCodec codec, long qn, params long[] accept)
 	{
@@ -111,30 +114,29 @@ public sealed class QualityRestrictionsTest
 		await Assert.That(QualityRestrictions.Evaluate(avc, [avc], Profile(StreamQuality.Original), false)).IsNull();
 	}
 
+	// 主播放列表的变体只取目标档位，接口按登录状态给的档位不受影响
 	[Test]
-	public async Task SourceStreamIsTheOriginalAsync()
+	[Arguments(StreamQuality.Original, 10000L)]
+	[Arguments(StreamQuality.BluRay, 400L)]
+	public async Task VariantAtTheTargetIsNotRestrictedAsync(StreamQuality quality, long target)
 	{
-		LiveStreamCandidate.Listed avc = Listed(StreamCodec.Avc, 250, 10000, 250);
+		LiveStreamCandidate.Listed avc = Listed(StreamCodec.Avc, 250, 10000, 400, 250);
+		LiveStreamCandidate.Variant hevc = Variant(StreamCodec.Hevc, target);
 
-		await Assert.That(QualityRestrictions.Evaluate(Source, [Source, avc], Profile(StreamQuality.Original), false)).IsNull();
+		await Assert.That(QualityRestrictions.Evaluate(hevc, [hevc, avc], Profile(quality), false)).IsNull();
 	}
 
-	// 源流只是原画，选了 4K 而接口列出 4K 时仍然受限；源流的编码未知，同为 AVC 的 4K 也算更高画质的编码
+	// 真原画高于按所选的原画算出的目标档位
 	[Test]
 	[Arguments(false)]
 	[Arguments(true)]
-	public async Task SourceStreamBelowAHigherTargetIsRestrictedAsync(bool hasCookie)
+	public async Task TrueOriginalVariantIsNotRestrictedAsync(bool hasCookie)
 	{
-		LiveStreamCandidate.Listed avc = Listed(StreamCodec.Avc, 250, 20000, 10000, 250);
-		LiveStreamCandidate.Listed av1 = Listed(StreamCodec.Av1, 20000, 20000, 10000);
+		LiveStreamCandidate.Listed avc = Listed(StreamCodec.Avc, 250, 10000, 250);
+		LiveStreamCandidate.Variant hevc = Variant(StreamCodec.Hevc, 25000);
+		RecordingProfile profile = Profile(StreamQuality.Original) with { RequestTrueOriginal = true };
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(QualityRestrictions.Evaluate(Source, [Source, avc], Profile(StreamQuality.UltraHd4K), hasCookie)?.Highest).IsEqualTo(20000);
-			// 源流排在所有接口给的流之前，没有试过更高画质的编码
-			await Assert.That(QualityRestrictions.Evaluate(Source, [Source, avc, av1], Profile(StreamQuality.UltraHd4K, StreamCodec.Av1, StreamCodec.Avc, StreamCodec.Hevc), hasCookie)).IsEqualTo(new QualityRestriction.OtherCodec(20000, StreamCodec.Av1, 20000));
-			await Assert.That(QualityRestrictions.Evaluate(Source, [Source, Listed(StreamCodec.Avc, 20000, 20000, 10000)], Profile(StreamQuality.UltraHd4K), hasCookie)).IsEqualTo(new QualityRestriction.OtherCodec(20000, StreamCodec.Avc, 20000));
-		}
+		await Assert.That(QualityRestrictions.Evaluate(hevc, [hevc, Variant(StreamCodec.Hevc, 10000), avc], profile, hasCookie)).IsNull();
 	}
 
 	// 所选画质不在 accept_qn 里时，按其中不高于所选的最高一档算，不能拿所选画质和最高档位取小
@@ -162,8 +164,8 @@ public sealed class QualityRestrictionsTest
 			await Assert.That(QualityRestrictions.Target([Listed(StreamCodec.Hevc, 250, 250), Listed(StreamCodec.Avc, 250, 10000, 250)], StreamQuality.Original)).IsEqualTo(10000);
 			await Assert.That(QualityRestrictions.Target([Listed(StreamCodec.Avc, 250, 400, 250), Listed(StreamCodec.Hevc, 250, 20000, 250)], StreamQuality.Dolby)).IsEqualTo(20000);
 			await Assert.That(QualityRestrictions.Target([Listed(StreamCodec.Avc, 250, 10000, 250)], StreamQuality.Smooth)).IsEqualTo(250);
-			// 源流不带 accept_qn
-			await Assert.That(QualityRestrictions.Target([Source, Listed(StreamCodec.Avc, 250)], StreamQuality.Original)).IsNull();
+			// 主播放列表的变体不带 accept_qn，档位只看接口给的
+			await Assert.That(QualityRestrictions.Target([Variant(StreamCodec.Hevc, 25000), Listed(StreamCodec.Avc, 250)], StreamQuality.Original)).IsNull();
 		}
 	}
 

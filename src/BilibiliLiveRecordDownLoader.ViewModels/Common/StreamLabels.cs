@@ -24,12 +24,6 @@ public static class StreamLabels
 		};
 	}
 
-	// 源流的编码要从 init 段认，认不出时为 null
-	public static string OfCodec(StreamCodec? codec)
-	{
-		return codec is { } value ? Of(value) : AppLanguage.Current.CodecUnknown;
-	}
-
 	public static string OfQuality(long quality)
 	{
 		return Of((StreamQuality)quality);

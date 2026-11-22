@@ -198,12 +198,12 @@
                         <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding RequestTrueOriginalHint, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                     <StackPanel Classes="field">
-                        <ToggleSwitch IsChecked="{Binding TryOriginalWhenRestricted}"
-                                      AutomationProperties.Name="{Binding TryOriginalWhenRestricted, Source={x:Static l:AppLanguage.Current}}"
-                                      AutomationProperties.HelpText="{Binding TryOriginalWhenRestrictedHint, Source={x:Static l:AppLanguage.Current}}"
-                                      OnContent="{Binding TryOriginalWhenRestricted, Source={x:Static l:AppLanguage.Current}}"
-                                      OffContent="{Binding TryOriginalWhenRestricted, Source={x:Static l:AppLanguage.Current}}" />
-                        <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding TryOriginalWhenRestrictedHint, Source={x:Static l:AppLanguage.Current}}" />
+                        <ToggleSwitch IsChecked="{Binding UseMasterPlaylistWhenRestricted}"
+                                      AutomationProperties.Name="{Binding UseMasterPlaylistWhenRestricted, Source={x:Static l:AppLanguage.Current}}"
+                                      AutomationProperties.HelpText="{Binding UseMasterPlaylistWhenRestrictedHint, Source={x:Static l:AppLanguage.Current}}"
+                                      OnContent="{Binding UseMasterPlaylistWhenRestricted, Source={x:Static l:AppLanguage.Current}}"
+                                      OffContent="{Binding UseMasterPlaylistWhenRestricted, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding UseMasterPlaylistWhenRestrictedHint, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                 </StackPanel>
             </Border>

@@ -56,7 +56,7 @@ public record AppConfig
 
 	public bool RequestTrueOriginal { get; set; }
 
-	public bool TryOriginalWhenRestricted { get; set; }
+	public bool UseMasterPlaylistWhenRestricted { get; set; } = true;
 
 	public List<RoomConfig> Rooms { get; set; } = [];
 

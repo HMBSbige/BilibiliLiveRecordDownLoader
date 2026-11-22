@@ -110,6 +110,23 @@ public sealed class BilibiliApiClient
 		return candidates;
 	}
 
+	/// <summary>Lists the fMP4 variants of every quality and codec from the HLS master playlist of play-gateway.</summary>
+	/// <param name="mid">Meant to be the uid of the requester, but not checked against the login, which is why the request goes without the login cookie.</param>
+	public async Task<IReadOnlyList<LiveStreamCandidate.Variant>> GetMasterPlaylistVariantsAsync(long roomId, long mid, CancellationToken cancellationToken = default)
+	{
+		Uri uri = CreateUri($"{LiveApi}xlive/play-gateway/master/url?cid={roomId}&mid={mid}&pt=web&p2p_type=-1&net=0&free_type=0&build=0&feature=2&qn=10000&drm_type=0&codec=0,1");
+		using HttpRequestMessage request = new(HttpMethod.Get, uri);
+		request.Options.Set(BilibiliRequestHandler.AnonymousOption, true);
+		using HttpResponseMessage response = await HttpClient.SendAsync(request, cancellationToken);
+		response.EnsureSuccessStatusCode();
+
+		// A room that is not live gets an empty response
+		string content = await response.Content.ReadAsStringAsync(cancellationToken);
+		LiveStreamCandidate.Variant[] variants = MasterPlaylistVariants.Parse(content, uri);
+
+		return variants.Length is 0 ? throw new BilibiliApiException($"The master playlist of room {roomId} lists no usable variant.") : variants;
+	}
+
 	public Task<DanmuServerInfo> GetDanmuServerInfoAsync(long roomId, CancellationToken cancellationToken = default)
 	{
 		return GetDanmuServerInfoCoreAsync(roomId, false, cancellationToken);

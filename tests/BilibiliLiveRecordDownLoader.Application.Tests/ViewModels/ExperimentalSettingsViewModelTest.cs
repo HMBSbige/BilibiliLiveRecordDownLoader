@@ -26,7 +26,6 @@ public sealed class ExperimentalSettingsViewModelTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(restored).IsTrue();
-			// 读取配置时不回写
 			await Assert.That(updates).IsEqualTo(0);
 			await Assert.That(config.RemoveFillerData).IsFalse();
 		}
@@ -34,16 +33,17 @@ public sealed class ExperimentalSettingsViewModelTest
 
 	[Test]
 	[Timeout(30_000)]
-	public async Task TryingTheOriginalIsRestoredFromAndSavedToTheConfigAsync(CancellationToken cancellationToken)
+	public async Task MasterPlaylistSwitchIsRestoredFromAndSavedToTheConfigAsync(CancellationToken cancellationToken)
 	{
+		// 默认开着，从关着的配置恢复才看得出读了配置
 		AppConfig config = AppConfig.CreateDefault();
-		config.TryOriginalWhenRestricted = true;
+		config.UseMasterPlaylistWhenRestricted = false;
 		FakeConfigManager configManager = new(config);
 		using ExperimentalSettingsViewModel viewModel = new(configManager);
 
 		viewModel.ApplyConfig(config);
-		(bool restored, int updates) = (viewModel.TryOriginalWhenRestricted, configManager.UpdateCount);
-		viewModel.TryOriginalWhenRestricted = false;
+		(bool restored, int updates) = (viewModel.UseMasterPlaylistWhenRestricted, configManager.UpdateCount);
+		viewModel.UseMasterPlaylistWhenRestricted = true;
 
 		while (configManager.UpdateCount < 1)
 		{
@@ -52,10 +52,9 @@ public sealed class ExperimentalSettingsViewModelTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(restored).IsTrue();
-			// 读取配置时不回写
+			await Assert.That(restored).IsFalse();
 			await Assert.That(updates).IsEqualTo(0);
-			await Assert.That(config.TryOriginalWhenRestricted).IsFalse();
+			await Assert.That(config.UseMasterPlaylistWhenRestricted).IsTrue();
 		}
 	}
 
@@ -80,7 +79,6 @@ public sealed class ExperimentalSettingsViewModelTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(restored).IsTrue();
-			// 读取配置时不回写
 			await Assert.That(updates).IsEqualTo(0);
 			await Assert.That(config.RequestTrueOriginal).IsFalse();
 		}

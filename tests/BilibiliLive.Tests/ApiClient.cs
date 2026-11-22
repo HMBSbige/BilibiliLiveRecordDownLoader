@@ -7,6 +7,7 @@ internal static class ApiPaths
 {
 	public const string RoomBaseInfo = "/xlive/web-room/v1/index/getRoomBaseInfo";
 	public const string RoomPlayInfo = "/xlive/web-room/v2/index/getRoomPlayInfo";
+	public const string MasterPlaylist = "/xlive/play-gateway/master/url";
 	public const string DanmuInfo = "/xlive/web-room/v1/index/getDanmuInfo";
 	public const string Nav = "/x/web-interface/nav";
 	public const string Following = "/xlive/web-ucenter/user/following";

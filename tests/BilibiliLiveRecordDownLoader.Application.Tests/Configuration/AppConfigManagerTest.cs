@@ -99,17 +99,18 @@ public sealed class AppConfigManagerTest
 	}
 
 	[Test]
-	public async Task TryingTheOriginalIsOffInAnOlderConfigAndSavedOnceTurnedOnAsync(CancellationToken cancellationToken)
+	// 已不再使用的 TryOriginalWhenRestricted 键读到时忽略，不影响这个开关的默认值
+	public async Task MasterPlaylistIsOnInAnOlderConfigAndSavedOnceTurnedOffAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
 		string path = directory.Combine("config.json");
-		await File.WriteAllTextAsync(path, """{ "Theme": "Dark" }""", cancellationToken);
+		await File.WriteAllTextAsync(path, """{ "Theme": "Dark", "TryOriginalWhenRestricted": false }""", cancellationToken);
 		bool loaded;
 
 		await using (AppConfigManager manager = Create(path))
 		{
-			loaded = (await manager.GetAsync(cancellationToken)).TryOriginalWhenRestricted;
-			await manager.UpdateAsync(static config => config.TryOriginalWhenRestricted = true, cancellationToken);
+			loaded = (await manager.GetAsync(cancellationToken)).UseMasterPlaylistWhenRestricted;
+			await manager.UpdateAsync(static config => config.UseMasterPlaylistWhenRestricted = false, cancellationToken);
 		}
 
 		JsonObject saved = JsonNode.Parse(await File.ReadAllTextAsync(path, cancellationToken)) as JsonObject ?? [];
@@ -117,9 +118,9 @@ public sealed class AppConfigManagerTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(loaded).IsFalse();
-			await Assert.That(saved[nameof(AppConfig.TryOriginalWhenRestricted)]?.GetValue<bool>()).IsTrue();
-			await Assert.That((await reloaded.GetAsync(cancellationToken)).TryOriginalWhenRestricted).IsTrue();
+			await Assert.That(loaded).IsTrue();
+			await Assert.That(saved[nameof(AppConfig.UseMasterPlaylistWhenRestricted)]?.GetValue<bool>()).IsFalse();
+			await Assert.That((await reloaded.GetAsync(cancellationToken)).UseMasterPlaylistWhenRestricted).IsFalse();
 		}
 	}
 

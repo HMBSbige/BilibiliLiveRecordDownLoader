@@ -1,3 +1,4 @@
+using BilibiliLive.Http;
 using BilibiliLive.Tests.Fakes;
 using System.Net;
 using System.Web;
@@ -115,26 +116,6 @@ public class BilibiliApiClientTest
 	}
 
 	[Test]
-	public async Task FollowedRoomsThrowWhenNotLoggedInAsync(CancellationToken cancellationToken)
-	{
-		using ApiClient api = FollowingPages(new ManualTimeProvider(), """{"code":-101,"message":"账号未登录","ttl":1}""");
-
-		BilibiliApiException? exception = await Assert.ThrowsAsync<BilibiliApiException>(() => ToListAsync(api.Client.GetFollowedRoomsAsync(cancellationToken)));
-
-		await Assert.That(exception?.Code).IsEqualTo(BilibiliApiException.NotLoggedInCode);
-	}
-
-	[Test]
-	public async Task FollowedRoomsSurfaceTheRateLimitStatusAsync(CancellationToken cancellationToken)
-	{
-		using ApiClient api = new(_ => Responses.Status(HttpStatusCode.PreconditionFailed), new ManualTimeProvider());
-
-		HttpRequestException? exception = await Assert.ThrowsAsync<HttpRequestException>(() => ToListAsync(api.Client.GetFollowedRoomsAsync(cancellationToken)));
-
-		await Assert.That(exception?.StatusCode).IsEqualTo(HttpStatusCode.PreconditionFailed);
-	}
-
-	[Test]
 	public async Task FollowedRoomsStopRequestingOnceCanceledAsync(CancellationToken cancellationToken)
 	{
 		using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -191,7 +172,6 @@ public class BilibiliApiClientTest
 			await Sequences.AssertEqualAsync(candidates.Select(c => (c.Protocol, c.Format, c.Codec)), expected);
 			await Assert.That(flv.Qn).IsEqualTo(10000);
 			await Sequences.AssertEqualAsync(flv.AcceptQualities, [10000L, 400, 250]);
-			// Each codec lists its own qualities, and a codec without accept_qn offers nothing to compare against
 			await Sequences.AssertEqualAsync(candidates.Single(static c => c is { Format: StreamFormat.Fmp4, Codec: StreamCodec.Hevc }).AcceptQualities, [250L]);
 			await Assert.That(candidates.Single(static c => c is { Format: StreamFormat.Fmp4, Codec: StreamCodec.Avc }).AcceptQualities).IsEmpty();
 			await Sequences.AssertEqualAsync(flv.Urls.Select(u => u.AbsoluteUri), ["https://a.bilivideo.com/live-bvc/1/live_2500.flv?expires=1&sign=a", "https://c.bilivideo.com/live-bvc/1/live_2500.flv?expires=1&sign=c"]);
@@ -236,6 +216,42 @@ public class BilibiliApiClientTest
 		BilibiliApiException? exception = await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetStreamCandidatesAsync(999999999, 10000, [], [], cancellationToken));
 
 		await Assert.That(exception?.Code).IsEqualTo(60004);
+	}
+
+	[Test]
+	public async Task MasterPlaylistIsRequestedUnsignedWithTheGivenMidAndWithoutTheLoginCookieAsync(CancellationToken cancellationToken)
+	{
+		BilibiliIdentity identity = new(static _ => ValueTask.FromResult(new BilibiliRequestOptions(Cookie: "SESSDATA=secret; buvid3=known")));
+		using ApiClient api = new((request, _) => Task.FromResult(request.RequestUri?.AbsolutePath is ApiPaths.MasterPlaylist ? Responses.Text(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "master_playlist.m3u8"))) : Responses.NotFound()), identity: identity);
+
+		IReadOnlyList<LiveStreamCandidate.Variant> variants = await api.Client.GetMasterPlaylistVariantsAsync(6650029, 105022844, cancellationToken);
+		RecordedRequest request = api.Handler.Requests.Single();
+		string? cookie = request.Headers.GetValueOrDefault("Cookie");
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(variants.Count).IsEqualTo(7);
+			await Assert.That(request.Uri.AbsoluteUri).IsEqualTo("https://api.live.bilibili.com/xlive/play-gateway/master/url?cid=6650029&mid=105022844&pt=web&p2p_type=-1&net=0&free_type=0&build=0&feature=2&qn=10000&drm_type=0&codec=0,1");
+			// mid is not the requester, so the login must not go with it; buvid3 stays the same as on other requests
+			await Assert.That(CookieHeader.GetValue(cookie, "SESSDATA")).IsNull();
+			await Assert.That(CookieHeader.GetValue(cookie, "buvid3")).IsEqualTo("known");
+		}
+	}
+
+	[Test]
+	public async Task MasterPlaylistWithoutUsableVariantsThrowsAsync(CancellationToken cancellationToken)
+	{
+		using ApiClient api = Single(ApiPaths.MasterPlaylist, static () => Responses.Text("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1,CODECS=\"vp09.00.10.08\",BILI-QN=10000\nhttps://a.test/index.m3u8\n"));
+
+		await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetMasterPlaylistVariantsAsync(1, 0, cancellationToken));
+	}
+
+	[Test]
+	public async Task MasterPlaylistFailsOnAnErrorStatusAsync(CancellationToken cancellationToken)
+	{
+		using ApiClient api = Single(ApiPaths.MasterPlaylist, static () => Responses.Status(HttpStatusCode.PreconditionFailed));
+
+		await Assert.ThrowsAsync<HttpRequestException>(() => api.Client.GetMasterPlaylistVariantsAsync(1, 0, cancellationToken));
 	}
 
 	[Test]

@@ -7,6 +7,8 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	private readonly ILogger _logger = services.Logger.WithRoomScope(settings.RoomId);
 	private RoomConfig _settings = settings;
 	private long _shortId;
+	// 房间信息还没拿到时为 0
+	private long _userId;
 	private string? _userName;
 	private string? _title;
 	private LiveStatus _liveStatus = LiveStatus.Unknown;
@@ -130,6 +132,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		lock (_lock)
 		{
 			_shortId = info.ShortId;
+			_userId = info.UserId;
 			_userName = info.UserName;
 		}
 
@@ -436,7 +439,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 				try
 				{
 					// 每建一个文件按当时的设置和标题命名
-					RecordingAttempt attempt = await services.Recorder.RecordAsync(RoomId, profile, liveSession, this, split, () => config.IncludeTitleInFileName ? Title : null, cancellationToken);
+					RecordingAttempt attempt = await services.Recorder.RecordAsync(RoomId, Volatile.Read(ref _userId), profile, liveSession, this, split, () => config.IncludeTitleInFileName ? Title : null, cancellationToken);
 
 					// 流结束时尽快确认是否已下播，下播造成的断流不算线路故障
 					await TryRefreshAsync(cancellationToken);

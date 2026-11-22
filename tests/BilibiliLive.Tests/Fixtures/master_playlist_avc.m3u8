@@ -1,0 +1,6 @@
+#EXTM3U
+#EXT-X-CONTENT-STEERING:SERVER-URI="reserved",PATHWAY-ID="https://cn-jsyz-ct-03-101.bilivideo.com",BILI-PATHWAY-PRIORITY="https://cn-jsyz-ct-03-101.bilivideo.com,https://d1--cn-gotcha204b.bilivideo.com",BILI-CTR-MODE=1,BILI-TTL=150
+#EXT-X-STREAM-INF:BANDWIDTH=3762016,RESOLUTION=1920x1080,CODECS="avc1.640028,mp4a.40.2",BILI-ORDER=0,BILI-DISPLAY="原画",BILI-QN=10000,PATHWAY-ID="https://cn-jsyz-ct-03-101.bilivideo.com",BILI-STREAM="live_1642194396_25398220"
+https://cn-jsyz-ct-03-101.bilivideo.com/live-bvc/595443/live_r5pxb0_S1spqOL_f4de4/index.m3u8?expires=1700000000&mid=0&sign=fake
+#EXT-X-STREAM-INF:BANDWIDTH=3762016,RESOLUTION=1920x1080,CODECS="avc1.640028,mp4a.40.2",BILI-ORDER=0,BILI-DISPLAY="原画",BILI-QN=10000,PATHWAY-ID="https://d1--cn-gotcha204b.bilivideo.com",BILI-STREAM="live_1642194396_25398220"
+https://d1--cn-gotcha204b.bilivideo.com/live-bvc/595443/live_r5pxb0_S1spqOL_f4de4/index.m3u8?expires=1700000000&mid=0&sign=fake

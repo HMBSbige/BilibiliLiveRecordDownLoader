@@ -63,7 +63,7 @@ public sealed record HlsPlaylist(int Version, TimeSpan? TargetDuration, IReadOnl
 			}
 			else if (line.StartsWith(MapTag, StringComparison.Ordinal))
 			{
-				mapUri = GetQuotedAttribute(line.Slice(MapTag.Length), "URI") ?? throw new FormatException($"{MapTag} has no URI.");
+				mapUri = GetAttribute(line.Slice(MapTag.Length), "URI") ?? throw new FormatException($"{MapTag} has no URI.");
 			}
 			else if (line.StartsWith(DiscontinuitySequenceTag, StringComparison.Ordinal))
 			{
@@ -116,7 +116,7 @@ public sealed record HlsPlaylist(int Version, TimeSpan? TargetDuration, IReadOnl
 		return null;
 	}
 
-	private static string? GetQuotedAttribute(ReadOnlySpan<char> attributes, ReadOnlySpan<char> name)
+	internal static string? GetAttribute(ReadOnlySpan<char> attributes, ReadOnlySpan<char> name)
 	{
 		while (!attributes.IsEmpty)
 		{
