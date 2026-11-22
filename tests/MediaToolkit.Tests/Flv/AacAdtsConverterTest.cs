@@ -26,31 +26,38 @@ public class AacAdtsConverterTest
 	}
 
 	[Test]
-	public async Task RawFrameBeforeSequenceHeaderIsDroppedAsync()
-	{
-		await Assert.That(Run(new AacAdtsConverter(), FlvSamples.AacFrame)).IsEmpty();
-	}
-
-	[Test]
-	public async Task UnsupportedSequenceHeaderDisablesOutputAsync()
+	public async Task ClassifiesEachTagAsync()
 	{
 		AacAdtsConverter converter = new();
-		Run(converter, FlvSamples.AacSequenceHeader);
 
-		// AudioObjectType 6（BSAC）无法用 ADTS 的 2 位 profile 表示
-		Run(converter, Convert.FromHexString(@"AF00" + @"3210"));
+		FlvTagConversion rawBeforeSequenceHeader = Classify(converter, FlvSamples.AacFrame);
+		FlvTagConversion sequenceHeader = Classify(converter, FlvSamples.AacSequenceHeader);
+		FlvTagConversion frame = Classify(converter, FlvSamples.AacFrame);
+		FlvTagConversion emptyFrame = Classify(converter, Convert.FromHexString(@"AF01"));
+		FlvTagConversion truncated = Classify(converter, Convert.FromHexString(@"AF"));
+		FlvTagConversion unknownPacketType = Classify(converter, Convert.FromHexString(@"AF02"));
+		FlvTagConversion mp3 = Classify(converter, Convert.FromHexString(@"2F01" + @"21004990"));
+		// AudioObjectType 6（BSAC）无法用 ADTS 表示
+		FlvTagConversion unsupportedSequenceHeader = Classify(converter, Convert.FromHexString(@"AF00" + @"3210"));
+		FlvTagConversion rawAfterUnsupportedSequenceHeader = Classify(converter, FlvSamples.AacFrame);
 
-		await Assert.That(Run(converter, FlvSamples.AacFrame)).IsEmpty();
-	}
+		using (Assert.Multiple())
+		{
+			await Assert.That(rawBeforeSequenceHeader).IsEqualTo(FlvTagConversion.Unsupported);
+			await Assert.That(sequenceHeader).IsEqualTo(FlvTagConversion.NonFrame);
+			await Assert.That(frame).IsEqualTo(FlvTagConversion.Frame);
+			await Assert.That(emptyFrame).IsEqualTo(FlvTagConversion.NonFrame);
+			await Assert.That(truncated).IsEqualTo(FlvTagConversion.NonFrame);
+			await Assert.That(unknownPacketType).IsEqualTo(FlvTagConversion.Unsupported);
+			await Assert.That(mp3).IsEqualTo(FlvTagConversion.Unsupported);
+			await Assert.That(unsupportedSequenceHeader).IsEqualTo(FlvTagConversion.Unsupported);
+			await Assert.That(rawAfterUnsupportedSequenceHeader).IsEqualTo(FlvTagConversion.Unsupported);
+		}
 
-	[Test]
-	public async Task NonAacAudioProducesNoOutputAsync()
-	{
-		AacAdtsConverter converter = new();
-		Run(converter, FlvSamples.AacSequenceHeader);
-
-		// SoundFormat 2：MP3
-		await Assert.That(Run(converter, Convert.FromHexString(@"2F01" + @"21004990"))).IsEmpty();
+		static FlvTagConversion Classify(AacAdtsConverter converter, byte[] data)
+		{
+			return converter.Convert(data, new ArrayBufferWriter<byte>());
+		}
 	}
 
 	[Test]

@@ -21,11 +21,21 @@ internal sealed class AacAdtsConverter : IFlvTagConverter
 
 	private AdtsConfiguration? _configuration;
 
-	public void Convert(ReadOnlySpan<byte> data, IBufferWriter<byte> output)
+	public FlvTagConversion Convert(ReadOnlySpan<byte> data, IBufferWriter<byte> output)
 	{
-		if (data is not [var flags, var packetType, ..] || flags >> 4 is not SoundFormatAac)
+		if (data is not [var flags, ..])
 		{
-			return;
+			return FlvTagConversion.NonFrame;
+		}
+
+		if (flags >> 4 is not SoundFormatAac)
+		{
+			return FlvTagConversion.Unsupported;
+		}
+
+		if (data is not [_, var packetType, ..])
+		{
+			return FlvTagConversion.NonFrame;
 		}
 
 		ReadOnlySpan<byte> body = data.Slice(AudioTagHeaderSize);
@@ -35,12 +45,15 @@ internal sealed class AacAdtsConverter : IFlvTagConverter
 			case PacketTypeSequenceHeader:
 			{
 				_configuration = ParseAudioSpecificConfig(body);
-				break;
+				return _configuration is null ? FlvTagConversion.Unsupported : FlvTagConversion.NonFrame;
 			}
 			case PacketTypeRaw when _configuration is { } configuration:
 			{
-				WriteFrame(configuration, body, output);
-				break;
+				return WriteFrame(configuration, body, output) ? FlvTagConversion.Frame : FlvTagConversion.NonFrame;
+			}
+			default:
+			{
+				return FlvTagConversion.Unsupported;
 			}
 		}
 	}
@@ -77,13 +90,13 @@ internal sealed class AacAdtsConverter : IFlvTagConverter
 		return new AdtsConfiguration(objectType - 1, sampleRateIndex, channelConfiguration);
 	}
 
-	private static void WriteFrame(AdtsConfiguration configuration, ReadOnlySpan<byte> frame, IBufferWriter<byte> output)
+	private static bool WriteFrame(AdtsConfiguration configuration, ReadOnlySpan<byte> frame, IBufferWriter<byte> output)
 	{
 		int frameLength = AdtsHeaderSize + frame.Length;
 
 		if (frame.IsEmpty || frameLength > MaxAdtsFrameLength)
 		{
-			return;
+			return false;
 		}
 
 		(int profile, int sampleRateIndex, int channelConfiguration) = configuration;
@@ -101,6 +114,7 @@ internal sealed class AacAdtsConverter : IFlvTagConverter
 
 		frame.CopyTo(destination.Slice(AdtsHeaderSize));
 		output.Advance(frameLength);
+		return true;
 	}
 
 	internal readonly record struct AdtsConfiguration(int Profile, int SampleRateIndex, int ChannelConfiguration);

@@ -9,6 +9,7 @@ internal sealed class AvcAnnexBConverter : IFlvTagConverter
 	private const int CodecIdAvc = 7;
 	private const byte PacketTypeSequenceHeader = 0;
 	private const byte PacketTypeNalu = 1;
+	private const byte PacketTypeEndOfSequence = 2;
 
 	// FrameType + CodecID、AVCPacketType、CompositionTime（3 字节）
 	private const int VideoTagHeaderSize = 5;
@@ -17,12 +18,29 @@ internal sealed class AvcAnnexBConverter : IFlvTagConverter
 
 	private int _nalLengthSize = 4;
 
-	public void Convert(ReadOnlySpan<byte> data, IBufferWriter<byte> output)
+	public FlvTagConversion Convert(ReadOnlySpan<byte> data, IBufferWriter<byte> output)
 	{
-		// FrameType 5 是视频信息/命令帧，后面不是 AVC 包
-		if (data is not [var flags, var packetType, _, _, _, ..] || (flags & 0x0F) is not CodecIdAvc || flags >> 4 is not (>= 1 and <= 4))
+		if (data is not [var flags, ..])
 		{
-			return;
+			return FlvTagConversion.NonFrame;
+		}
+
+		// FrameType 5 是视频信息/命令帧，后面不是 AVC 包
+		if (flags >> 4 is 5)
+		{
+			return FlvTagConversion.NonFrame;
+		}
+
+		// 最高位置 1 的是扩展头，承载 HEVC、AV1 等编码
+		if ((flags & 0x0F) is not CodecIdAvc || flags >> 4 is not (>= 1 and <= 4))
+		{
+			return FlvTagConversion.Unsupported;
+		}
+
+		// 头不足 5 字节是个别损坏的 tag，不说明编码变了
+		if (data is not [_, var packetType, _, _, _, ..])
+		{
+			return FlvTagConversion.NonFrame;
 		}
 
 		ReadOnlySpan<byte> body = data.Slice(VideoTagHeaderSize);
@@ -31,24 +49,30 @@ internal sealed class AvcAnnexBConverter : IFlvTagConverter
 		{
 			case PacketTypeSequenceHeader:
 			{
-				WriteDecoderConfiguration(body, output);
-				break;
+				return TryWriteDecoderConfiguration(body, output) ? FlvTagConversion.NonFrame : FlvTagConversion.Unsupported;
 			}
 			case PacketTypeNalu:
 			{
-				WriteNalUnits(body, output);
-				break;
+				return WriteNalUnits(body, output) ? FlvTagConversion.Frame : FlvTagConversion.NonFrame;
+			}
+			case PacketTypeEndOfSequence:
+			{
+				return FlvTagConversion.NonFrame;
+			}
+			default:
+			{
+				return FlvTagConversion.Unsupported;
 			}
 		}
 	}
 
-	private void WriteDecoderConfiguration(ReadOnlySpan<byte> record, IBufferWriter<byte> output)
+	private bool TryWriteDecoderConfiguration(ReadOnlySpan<byte> record, IBufferWriter<byte> output)
 	{
 		const int spsOffset = 6;
 
 		if (record is not [1, _, _, _, var lengthSizeMinusOne, var spsCount, ..])
 		{
-			return;
+			return false;
 		}
 
 		_nalLengthSize = (lengthSizeMinusOne & 0x03) + 1;
@@ -57,12 +81,12 @@ internal sealed class AvcAnnexBConverter : IFlvTagConverter
 
 		if (!TryWriteParameterSets(ref remaining, spsCount & 0x1F, output) || remaining.IsEmpty)
 		{
-			return;
+			return false;
 		}
 
 		int ppsCount = remaining[0];
 		remaining = remaining.Slice(1);
-		TryWriteParameterSets(ref remaining, ppsCount, output);
+		return TryWriteParameterSets(ref remaining, ppsCount, output);
 	}
 
 	private static bool TryWriteParameterSets(ref ReadOnlySpan<byte> buffer, int count, IBufferWriter<byte> output)
@@ -89,8 +113,10 @@ internal sealed class AvcAnnexBConverter : IFlvTagConverter
 		return true;
 	}
 
-	private void WriteNalUnits(ReadOnlySpan<byte> buffer, IBufferWriter<byte> output)
+	private bool WriteNalUnits(ReadOnlySpan<byte> buffer, IBufferWriter<byte> output)
 	{
+		bool written = false;
+
 		while (buffer.Length >= _nalLengthSize)
 		{
 			uint length = ReadLength(buffer.Slice(0, _nalLengthSize));
@@ -98,12 +124,14 @@ internal sealed class AvcAnnexBConverter : IFlvTagConverter
 
 			if (length > (uint)buffer.Length)
 			{
-				return;
+				break;
 			}
 
-			WriteNalUnit(buffer.Slice(0, (int)length), output);
+			written |= WriteNalUnit(buffer.Slice(0, (int)length), output);
 			buffer = buffer.Slice((int)length);
 		}
+
+		return written;
 	}
 
 	private static uint ReadLength(ReadOnlySpan<byte> buffer)
@@ -118,11 +146,11 @@ internal sealed class AvcAnnexBConverter : IFlvTagConverter
 		return length;
 	}
 
-	private static void WriteNalUnit(ReadOnlySpan<byte> nalUnit, IBufferWriter<byte> output)
+	private static bool WriteNalUnit(ReadOnlySpan<byte> nalUnit, IBufferWriter<byte> output)
 	{
 		if (nalUnit.IsEmpty)
 		{
-			return;
+			return false;
 		}
 
 		int size = StartCode.Length + nalUnit.Length;
@@ -130,5 +158,6 @@ internal sealed class AvcAnnexBConverter : IFlvTagConverter
 		StartCode.CopyTo(destination);
 		nalUnit.CopyTo(destination.Slice(StartCode.Length));
 		output.Advance(size);
+		return true;
 	}
 }

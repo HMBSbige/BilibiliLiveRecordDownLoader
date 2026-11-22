@@ -9,10 +9,33 @@ public class FFmpegRunnerTest
 	private const int TestTimeout = 60_000;
 
 	[Test]
+	public async Task ProxyFromTheEnvironmentIsDroppedWithoutTheProxyArgumentAsync()
+	{
+		ProcessStartInfo startInfo = new(@"ffmpeg", [@"-i", @"https://example.com/live.flv"]);
+		startInfo.Environment[@"http_proxy"] = @"http://127.0.0.1:7890/";
+
+		FFmpegRunner.RemoveUnrequestedProxy(startInfo);
+
+		await Assert.That(startInfo.Environment.ContainsKey(@"http_proxy")).IsFalse();
+	}
+
+	[Test]
+	public async Task UpperCaseProxyVariableIsDroppedOnWindowsAsync()
+	{
+		ProcessStartInfo startInfo = new(@"ffmpeg", [@"-i", @"https://example.com/live.flv"]);
+		startInfo.Environment[@"HTTP_PROXY"] = @"http://127.0.0.1:7890/";
+
+		FFmpegRunner.RemoveUnrequestedProxy(startInfo);
+
+		// 其他系统上环境变量名区分大小写，FFmpeg 也不读大写的
+		await Assert.That(startInfo.Environment.ContainsKey(@"HTTP_PROXY")).IsEqualTo(!OperatingSystem.IsWindows());
+	}
+
+	[Test]
 	[Timeout(TestTimeout)]
 	public async Task CancellationSendsQuitAndWaitsForGracefulExitAsync(CancellationToken cancellationToken)
 	{
-		// 等待时间足够长，如果走的是强杀路径，测试会明显超时而不是碰巧通过
+		// 比下面断言的 20 秒长，走了强杀路径就会失败
 		FFmpegRunner runner = new(FakeProcess.Executable) { GracefulExitTimeout = TimeSpan.FromSeconds(30) };
 		IReadOnlyList<string> arguments = FakeProcess.Arguments(
 			"""
@@ -199,7 +222,94 @@ public class FFmpegRunnerTest
 		FFmpegException? exception = await Assert.That(async () => await runner.RunAsync(arguments, null, cancellationToken)).Throws<FFmpegException>();
 
 		await Assert.That(exception?.ExitCode).IsEqualTo(3);
-		await Assert.That(exception?.Message).EndsWith(@": boom");
+		await Assert.That(exception?.LastMessage).IsEqualTo(@"first | boom");
+		await Assert.That(exception?.Message).EndsWith(@": first | boom");
+	}
+
+	[Test]
+	[Timeout(TestTimeout)]
+	public async Task FailureMessageKeepsTheReasonBeforeClosingNoticesAsync(CancellationToken cancellationToken)
+	{
+		FFmpegRunner runner = new(FakeProcess.Executable);
+		// 和真实 FFmpeg 一样：原因之后还有一条 time=N/A 的统计行和固定的收尾提示
+		IReadOnlyList<string> arguments = FakeProcess.Arguments(
+			"""
+			[Console]::Error.WriteLine('  Stream #0:0 -> #0:0 (copy)')
+			[Console]::Error.WriteLine('[wav @ 0001] wav muxer does not support any stream of type video')
+			[Console]::Error.WriteLine('[out#0/wav @ 0002] Could not write header: Invalid argument')
+			[Console]::Error.Write("frame=    0 fps=0.0 q=-1.0 Lsize=N/A time=N/A bitrate=N/A speed=N/A`r")
+			[Console]::Error.WriteLine('')
+			[Console]::Error.WriteLine('Conversion failed!')
+			exit 1
+			""",
+			"""
+			printf '  Stream #0:0 -> #0:0 (copy)\n[wav @ 0001] wav muxer does not support any stream of type video\n[out#0/wav @ 0002] Could not write header: Invalid argument\nframe=    0 fps=0.0 q=-1.0 Lsize=N/A time=N/A bitrate=N/A speed=N/A\r\nConversion failed!\n' >&2
+			exit 1
+			""");
+
+		FFmpegException? exception = await Assert.That(async () => await runner.RunAsync(arguments, null, cancellationToken)).Throws<FFmpegException>();
+
+		await Assert.That(exception?.LastMessage).IsEqualTo(@"Stream #0:0 -> #0:0 (copy) | [wav @ 0001] wav muxer does not support any stream of type video | [out#0/wav @ 0002] Could not write header: Invalid argument");
+	}
+
+	[Test]
+	[Timeout(TestTimeout)]
+	public async Task SignedUrlQueriesAreRedactedFromFailuresAndProgressAsync(CancellationToken cancellationToken)
+	{
+		FFmpegRunner runner = new(FakeProcess.Executable);
+		IReadOnlyList<string> arguments = FakeProcess.Arguments(
+			"""
+			[Console]::Error.WriteLine("[hls @ 0001] Opening 'https://cdn.test/live/1.m4s?sign=abc&uid=42' for reading")
+			[Console]::Error.WriteLine('Error opening input file https://cdn.test/live/a.flv?expires=1&sign=abc&uid=42.')
+			exit 1
+			""",
+			"""
+			echo "[hls @ 0001] Opening 'https://cdn.test/live/1.m4s?sign=abc&uid=42' for reading" >&2
+			echo 'Error opening input file https://cdn.test/live/a.flv?expires=1&sign=abc&uid=42.' >&2
+			exit 1
+			""");
+		List<string> messages = [];
+
+		FFmpegException? exception = await Assert.That(async () => await runner.RunAsync(arguments, new SyncProgress<FFmpegProgress>(p => messages.Add(p.Message)), cancellationToken)).Throws<FFmpegException>();
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(exception?.Message).DoesNotContain(@"sign=");
+			await Assert.That(exception?.Message).DoesNotContain(@"uid=");
+			await Assert.That(exception?.Message).Contains(@"https://cdn.test/live/a.flv?…");
+			await Assert.That(exception?.Message).Contains(@"'https://cdn.test/live/1.m4s?…' for reading");
+			await Assert.That(messages).IsNotEmpty();
+			await Assert.That(messages.Any(static message => message.Contains(@"sign=", StringComparison.Ordinal))).IsFalse();
+		}
+	}
+
+	[Test]
+	[Timeout(TestTimeout)]
+	public async Task ProgressFailureStopsTheProcessAndSurfacesAsync(CancellationToken cancellationToken)
+	{
+		FFmpegRunner runner = new(FakeProcess.Executable) { GracefulExitTimeout = TimeSpan.FromMilliseconds(500) };
+		// 写满 stderr 管道后，没人读就会一直卡住
+		IReadOnlyList<string> arguments = FakeProcess.Arguments(
+			"""
+			[Console]::Error.WriteLine("pid=$PID")
+			while ($true) { [Console]::Error.WriteLine('x' * 1024) }
+			""",
+			"""
+			echo "pid=$$" >&2
+			exec yes >&2
+			""");
+		int processId = 0;
+		SyncProgress<FFmpegProgress> progress = new(p =>
+		{
+			processId = int.Parse(p.Message.AsSpan(4));
+			throw new InvalidOperationException(@"progress failed");
+		});
+
+		InvalidOperationException? exception = await Assert.That(async () => await runner.RunAsync(arguments, progress, cancellationToken)).Throws<InvalidOperationException>();
+
+		await Assert.That(exception?.Message).IsEqualTo(@"progress failed");
+		await Assert.That(processId).IsNotEqualTo(0);
+		await Assert.That(FakeProcess.IsRunning(processId)).IsFalse();
 	}
 
 	[Test]

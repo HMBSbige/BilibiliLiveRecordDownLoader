@@ -13,6 +13,9 @@ public class FFmpegMetadataTest
 	[Arguments("a\r\nb", "a\\\nb")]
 	[Arguments("a\rb", "a\\\nb")]
 	[Arguments("高能：草", "高能：草")]
+	[Arguments("orz\\", "orz\\\\ ")]
+	[Arguments("a\\\0", "a\\\\ ")]
+	[Arguments("a\\\n", "a\\\\\\\n")]
 	public async Task EscapesSpecialCharactersAsync(string value, string expected)
 	{
 		await Assert.That(FFmpegMetadata.Escape(value)).IsEqualTo(expected);

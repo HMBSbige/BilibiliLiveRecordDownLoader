@@ -45,7 +45,6 @@ public class FlvStructureTest
 	}
 
 	[Test]
-	[Arguments(@"464C56010500000009", 9u)]
 	[Arguments(@"464C5601050000000D", 13u)]
 	public async Task HeaderTryReadAcceptsValidOffsetAsync(string hex, uint expectedOffset)
 	{

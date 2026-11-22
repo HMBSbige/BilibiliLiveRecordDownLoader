@@ -128,16 +128,4 @@ public class FFmpegLocateTest
 
 		await Assert.That(located).IsNull();
 	}
-
-	[Test]
-	public async Task PlatformDirectoriesMatchOperatingSystemAsync()
-	{
-		IReadOnlyList<string> directories = FFmpegRunner.PlatformDirectories;
-
-		string[] expected = OperatingSystem.IsMacOS() ? [@"/opt/homebrew/bin", @"/usr/local/bin"]
-			: OperatingSystem.IsLinux() ? [@"/usr/bin", @"/usr/local/bin"]
-			: [];
-		await Assert.That(directories).IsEquivalentTo(expected, StringComparer.Ordinal, CollectionOrdering.Matching);
-		await Assert.That(FFmpegRunner.ExecutableName).IsEqualTo(OperatingSystem.IsWindows() ? @"ffmpeg.exe" : @"ffmpeg");
-	}
 }

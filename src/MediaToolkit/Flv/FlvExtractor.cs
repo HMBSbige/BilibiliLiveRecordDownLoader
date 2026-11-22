@@ -8,6 +8,8 @@ public static class FlvExtractor
 	private const int TagPrefixLength = PreviousTagSizeLength + FlvTagHeader.Size;
 	private const int ProgressSteps = 1000;
 
+	private const long MaxFrameIntervalMilliseconds = 1000;
+
 	private static readonly FileStreamOptions ReadOptions = new()
 	{
 		Mode = FileMode.Open,
@@ -74,9 +76,9 @@ public static class FlvExtractor
 		input.Seek(header.DataOffset, SeekOrigin.Begin);
 
 		int reportedStep = -1;
-		long frameCount = 0;
-		uint firstFrameTimestamp = 0;
-		uint lastFrameTimestamp = 0;
+		uint? previousFrameTimestamp = null;
+		long frameIntervalCount = 0;
+		long frameIntervalSum = 0;
 		byte[] data = ArrayPool<byte>.Shared.Rent(1 << 16);
 
 		try
@@ -105,12 +107,15 @@ public static class FlvExtractor
 				{
 					case FlvTagType.Video:
 					{
-						await video.WriteAsync(tagData, cancellationToken);
-
-						if (IsAvcFrame(tagData.Span))
+						if (await video.WriteAsync(tagData, cancellationToken))
 						{
-							firstFrameTimestamp = frameCount++ is 0 ? tag.Timestamp : firstFrameTimestamp;
-							lastFrameTimestamp = tag.Timestamp;
+							AddFrame(tag.Timestamp);
+						}
+
+						// 不能静默返回残缺结果，调用方删除源文件后就找不回来了
+						if (video.HasUnsupportedInput)
+						{
+							throw UnsupportedVideo();
 						}
 
 						break;
@@ -118,6 +123,12 @@ public static class FlvExtractor
 					case FlvTagType.Audio:
 					{
 						await audio.WriteAsync(tagData, cancellationToken);
+
+						if (audio.HasUnsupportedInput)
+						{
+							throw UnsupportedAudio();
+						}
+
 						break;
 					}
 				}
@@ -133,7 +144,19 @@ public static class FlvExtractor
 		ReportProgress();
 
 		// 平均帧率让合并后的视频总时长与音频一致
-		return frameCount > 1 && lastFrameTimestamp > firstFrameTimestamp ? (frameCount - 1) * 1000.0 / (lastFrameTimestamp - firstFrameTimestamp) : null;
+		return frameIntervalCount > 0 ? frameIntervalCount * 1000.0 / frameIntervalSum : null;
+
+		// 要修复的正是时间戳错乱的文件，首尾时间戳的跨度不可信
+		void AddFrame(uint timestamp)
+		{
+			if (previousFrameTimestamp is { } previous && (long)timestamp - previous is var interval and > 0 and <= MaxFrameIntervalMilliseconds)
+			{
+				++frameIntervalCount;
+				frameIntervalSum += interval;
+			}
+
+			previousFrameTimestamp = timestamp;
+		}
 
 		void ReportProgress()
 		{
@@ -155,10 +178,14 @@ public static class FlvExtractor
 		}
 	}
 
-	// AVC 编码帧：CodecID 7，AVCPacketType 1
-	private static bool IsAvcFrame(ReadOnlySpan<byte> tagData)
+	private static NotSupportedException UnsupportedVideo()
 	{
-		return tagData is [var flags, 1, ..] && (flags & 0x0F) is 7;
+		return new NotSupportedException(@"The video stream is not H.264 throughout or cannot be parsed.");
+	}
+
+	private static NotSupportedException UnsupportedAudio()
+	{
+		return new NotSupportedException(@"The audio stream is not AAC throughout or cannot be parsed.");
 	}
 
 	private static async ValueTask<bool> TryReadExactlyAsync(Stream stream, Memory<byte> buffer, CancellationToken cancellationToken)

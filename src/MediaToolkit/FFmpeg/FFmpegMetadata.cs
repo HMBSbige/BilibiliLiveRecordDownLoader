@@ -3,10 +3,9 @@ using System.Text;
 
 namespace MediaToolkit.FFmpeg;
 
-// FFmpeg 的 ffmetadata 格式，给 -map_chapters 用的章节输入
 public static class FFmpegMetadata
 {
-	// BOM 会让 FFmpeg 认不出开头的 ;FFMETADATA1
+	// 带 BOM 时 FFmpeg 探测不出格式
 	private static readonly UTF8Encoding Utf8 = new(false);
 
 	public static async Task WriteChaptersFileAsync(string path, IReadOnlyList<FFmpegChapter> chapters, CancellationToken cancellationToken)
@@ -14,8 +13,8 @@ public static class FFmpegMetadata
 		await File.WriteAllTextAsync(path, FormatChapters(chapters), Utf8, cancellationToken);
 	}
 
-	// TIMEBASE、START、END 必须按这个顺序各占一行，FFmpeg 是逐行按顺序读的
-	public static string FormatChapters(IReadOnlyList<FFmpegChapter> chapters)
+	// FFmpeg 按顺序逐行读 TIMEBASE、START、END
+	internal static string FormatChapters(IReadOnlyList<FFmpegChapter> chapters)
 	{
 		StringBuilder builder = new(";FFMETADATA1\n");
 
@@ -33,8 +32,8 @@ public static class FFmpegMetadata
 		return builder.ToString();
 	}
 
-	// = ; # \ 和换行分别是键值分隔符、注释、转义和行尾，前面加反斜杠才按字面读；回车先并成换行，单独的回车也会被当成行尾
-	public static string Escape(string value)
+	// FFmpeg 读值时把回车也当行尾
+	internal static string Escape(string value)
 	{
 		StringBuilder builder = new(value.Length);
 		string normalized = value.ReplaceLineEndings("\n");
@@ -52,6 +51,12 @@ public static class FFmpegMetadata
 			}
 
 			builder.Append(c);
+		}
+
+		// FFmpeg 只看换行前一个字节是不是反斜杠，不管它是否已被转义，以 \\ 结尾的值会吞掉行尾
+		if (builder.Length > 0 && builder[^1] is '\\')
+		{
+			builder.Append(' ');
 		}
 
 		return builder.ToString();

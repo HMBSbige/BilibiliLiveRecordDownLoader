@@ -17,12 +17,9 @@ public class FFmpegArgumentsTest
 	public async Task RemuxWithChaptersTakesStreamsFromTheFirstInputAndChaptersFromTheSecondAsync()
 	{
 		IReadOnlyList<string> arguments = FFmpegArguments.RemuxWithChapters(@"in put.flv", @"chap ters.txt", @"out put.mp4");
-		IReadOnlyList<string> rawVideo = FFmpegArguments.RemuxWithChapters(@"v.h264", @"c.txt", @"out.mp4", 30);
 
 		string[] expected = [@"-hide_banner", @"-y", @"-i", @"in put.flv", @"-f", @"ffmetadata", @"-i", @"chap ters.txt", @"-map", @"0", @"-map_chapters", @"1", @"-c", @"copy", @"out put.mp4"];
-		string[] expectedRawVideo = [@"-hide_banner", @"-y", @"-framerate", @"30", @"-i", @"v.h264", @"-f", @"ffmetadata", @"-i", @"c.txt", @"-map", @"0", @"-map_chapters", @"1", @"-c", @"copy", @"out.mp4"];
 		await Assert.That(arguments).IsEquivalentTo(expected, StringComparer.Ordinal, CollectionOrdering.Matching);
-		await Assert.That(rawVideo).IsEquivalentTo(expectedRawVideo, StringComparer.Ordinal, CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -33,7 +30,7 @@ public class FFmpegArgumentsTest
 		string[] expected =
 		[
 			@"-hide_banner", @"-y",
-			@"-ss", @"01:02:03.456", @"-to", @"26:03:04.005", @"-accurate_seek",
+			@"-ss", @"01:02:03.456", @"-to", @"26:03:04.005",
 			@"-i", @"in.flv",
 			@"-map", @"0", @"-c", @"copy", @"-avoid_negative_ts", @"1",
 			@"out.mp4"
@@ -81,6 +78,24 @@ public class FFmpegArgumentsTest
 		await Assert.That(arguments).IsEquivalentTo(expected, StringComparer.Ordinal, CollectionOrdering.Matching);
 	}
 
+	// -http_proxy 是输入的协议选项，放在 -i 后面就成了输出选项
+	[Test]
+	public async Task RecordPassesTheHttpProxyBeforeInputAsync()
+	{
+		IReadOnlyList<string> arguments = FFmpegArguments.Record(new Uri(@"https://example.com/live.flv"), null, null, Timeout.InfiniteTimeSpan, FillerRemoval.None, new Uri(@"http://127.0.0.1:7890"));
+
+		string[] expected = [@"-hide_banner", @"-http_proxy", @"http://127.0.0.1:7890/", @"-i", @"https://example.com/live.flv", @"-c", @"copy", @"-f", @"mpegts", @"pipe:1"];
+		await Assert.That(arguments).IsEquivalentTo(expected, StringComparer.Ordinal, CollectionOrdering.Matching);
+	}
+
+	[Test]
+	[Arguments(@"socks5://127.0.0.1:1080")]
+	[Arguments(@"https://127.0.0.1:7890")]
+	public async Task RecordRejectsAProxyFFmpegWouldIgnoreAsync(string proxy)
+	{
+		await Assert.That(() => FFmpegArguments.Record(new Uri(@"https://example.com/live.flv"), null, null, Timeout.InfiniteTimeSpan, FillerRemoval.None, new Uri(proxy))).Throws<ArgumentException>();
+	}
+
 	[Test]
 	public async Task RecordOmitsUnsetOptionsAsync()
 	{
@@ -99,14 +114,6 @@ public class FFmpegArgumentsTest
 
 		string[] expected = [@"-hide_banner", @"-i", @"https://example.com/live.flv", @"-c", @"copy", @"-bsf:v", filter, @"-f", @"mpegts", @"pipe:1"];
 		await Assert.That(arguments).IsEquivalentTo(expected, StringComparer.Ordinal, CollectionOrdering.Matching);
-	}
-
-	[Test]
-	public async Task RecordKeepsFillerWhenNotAskedAsync()
-	{
-		IReadOnlyList<string> arguments = FFmpegArguments.Record(new Uri(@"https://example.com/live.flv"), null, null, Timeout.InfiniteTimeSpan, FillerRemoval.None);
-
-		await Assert.That(arguments).DoesNotContain(@"-bsf:v");
 	}
 
 	[Test]

@@ -2,7 +2,6 @@ using System.Buffers;
 
 namespace MediaToolkit.Flv;
 
-// 第一次有内容要写时才创建文件，这样缺失或不支持的流不会留下空文件
 internal sealed class FlvTrack(string path, IFlvTagConverter converter) : IAsyncDisposable
 {
 	private static readonly FileStreamOptions WriteOptions = new()
@@ -18,18 +17,33 @@ internal sealed class FlvTrack(string path, IFlvTagConverter converter) : IAsync
 
 	public string? OutputPath => _output is null ? null : path;
 
-	public async ValueTask WriteAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
+	public bool HasUnsupportedInput { get; private set; }
+
+	/// <returns>写出了一个编码帧</returns>
+	public async ValueTask<bool> WriteAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
 	{
+		if (data.IsEmpty)
+		{
+			return false;
+		}
+
 		_buffer.ResetWrittenCount();
-		converter.Convert(data.Span, _buffer);
+		FlvTagConversion conversion = converter.Convert(data.Span, _buffer);
+
+		if (conversion is FlvTagConversion.Unsupported)
+		{
+			HasUnsupportedInput = true;
+			return false;
+		}
 
 		if (_buffer.WrittenCount is 0)
 		{
-			return;
+			return false;
 		}
 
 		_output ??= new FileStream(path, WriteOptions);
 		await _output.WriteAsync(_buffer.WrittenMemory, cancellationToken);
+		return conversion is FlvTagConversion.Frame;
 	}
 
 	public async ValueTask DiscardAsync()
