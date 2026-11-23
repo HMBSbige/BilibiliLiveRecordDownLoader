@@ -1,4 +1,5 @@
 using BilibiliLive.Danmu;
+using BilibiliLiveRecordDownLoader.Application.Contracts.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Recording;
 using System.Diagnostics;

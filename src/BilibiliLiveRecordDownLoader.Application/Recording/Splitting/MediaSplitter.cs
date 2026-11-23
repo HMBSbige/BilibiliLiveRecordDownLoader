@@ -41,7 +41,7 @@ internal abstract class MediaSplitter
 			if (isSplit && !_isAtReportedSplit)
 			{
 				// 头取的是这个元素之前的状态，元素本身可能就是新的序列头
-				Header = CaptureHeader(rest);
+				Header = CaptureHeader();
 				_isAtReportedSplit = true;
 				return true;
 			}
@@ -90,7 +90,7 @@ internal abstract class MediaSplitter
 
 	protected abstract void Accept(ReadOnlySpan<byte> element);
 
-	protected abstract ReadOnlyMemory<byte> CaptureHeader(ReadOnlySpan<byte> element);
+	protected abstract ReadOnlyMemory<byte> CaptureHeader();
 
 	// 在 Accept 里调用，粒度和 Rebase 推进时间的相同，一个元素里可以有好几条；只报告源时间轴上的原值
 	protected void ReportMediaTime(MediaSpan span)

@@ -1,6 +1,6 @@
-using BilibiliLiveRecordDownLoader.Application.Contracts.Platform;
 using BilibiliLiveRecordDownLoader.Application.Contracts.Storage;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
+using BilibiliLiveRecordDownLoader.ViewModels.Platform;
 using BilibiliLiveRecordDownLoader.ViewModels.Settings;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;

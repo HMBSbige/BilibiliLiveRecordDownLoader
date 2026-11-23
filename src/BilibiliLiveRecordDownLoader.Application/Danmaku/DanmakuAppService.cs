@@ -101,9 +101,11 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 			throw new IOException(AppLanguage.Current.DanmakuFileInUse.ToString(path));
 		}
 
+		IReadOnlyList<DanmakuRecord> records;
+
 		try
 		{
-			await DanmakuOffsetRewriter.RewriteAsync(path, DanmakuDefaults.ClampOffset(offset), cancellationToken);
+			records = await DanmakuOffsetRewriter.RewriteAsync(path, DanmakuDefaults.ClampOffset(offset), cancellationToken);
 		}
 		catch (InvalidDataException exception)
 		{
@@ -117,13 +119,12 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 
 		// 弹幕文件已经替换，中途取消会留下偏移和弹幕文件对不上的字幕
 		string subtitle = RecordingFileLayout.GetStem(path) + RecordingFileLayout.SubtitleExtension;
-		DanmakuFile file = await DanmakuXmlReader.ReadFileAsync(path, CancellationToken.None);
 		VideoResolution? resolution = await ReadResolutionAsync(path, CancellationToken.None);
 		DanmakuAssLabels? labels = (await configManager.GetAsync(CancellationToken.None)).ShowPaidMessagesInSubtitle ? DanmakuTexts.SubtitleLabels : null;
 
 		try
 		{
-			await DanmakuAssGenerator.WriteFileAsync(subtitle, file.Records, resolution, labels, CancellationToken.None);
+			await DanmakuAssGenerator.WriteFileAsync(subtitle, records, resolution, labels, CancellationToken.None);
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{

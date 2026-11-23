@@ -68,34 +68,18 @@ public sealed class LogViewModelTest
 
 	private sealed class FakeLogStore : ILogStore
 	{
-		private readonly Lock _lock = new();
 		private readonly List<LogEntry> _entries = [];
 
-		public long Version
-		{
-			get
-			{
-				lock (_lock)
-				{
-					return _entries.Count;
-				}
-			}
-		}
+		public long Version => _entries.Count;
 
 		public IReadOnlyList<LogEntry> GetEntries()
 		{
-			lock (_lock)
-			{
-				return [.. _entries];
-			}
+			return [.. _entries];
 		}
 
 		public void Add(DateTimeOffset timestamp, LogLevel level, long? roomId, string message)
 		{
-			lock (_lock)
-			{
-				_entries.Add(new LogEntry(_entries.Count + 1, timestamp, level, roomId, message));
-			}
+			_entries.Add(new LogEntry(_entries.Count + 1, timestamp, level, roomId, message));
 		}
 	}
 }

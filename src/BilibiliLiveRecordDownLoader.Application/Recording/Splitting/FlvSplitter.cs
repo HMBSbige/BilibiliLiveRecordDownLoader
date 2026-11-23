@@ -70,11 +70,11 @@ internal sealed class FlvSplitter : MediaSplitter
 
 		while (MeasureTag(elements.Slice(read, end - read)) is > 0 and var length)
 		{
-			write += elements[read] is VideoTag ? FilterVideoTag(elements, read, write, length, isEnabled) : Keep(elements, read, write, length);
+			write += elements[read] is VideoTag ? FilterVideoTag(elements, read, write, length, isEnabled) : FillerNalUnits.Keep(elements, read, write, length);
 			read += length;
 		}
 
-		write += Keep(elements, read, write, elements.Length - read);
+		write += FillerNalUnits.Keep(elements, read, write, elements.Length - read);
 		_removed += elements.Length - write;
 		return write;
 	}
@@ -165,7 +165,7 @@ internal sealed class FlvSplitter : MediaSplitter
 	}
 
 	// 版本 1、DataOffset 为 9 的文件头和 PreviousTagSize0，后面是存下的流头 tag
-	protected override ReadOnlyMemory<byte> CaptureHeader(ReadOnlySpan<byte> element)
+	protected override ReadOnlyMemory<byte> CaptureHeader()
 	{
 		if (_header.IsEmpty)
 		{
@@ -197,16 +197,6 @@ internal sealed class FlvSplitter : MediaSplitter
 	private static int MeasureTag(ReadOnlySpan<byte> data)
 	{
 		return data.Length >= TagHeaderSize && IsTagType(data[0]) && TagHeaderSize + ReadDataSize(data) + PreviousTagSizeLength is var length && length <= data.Length ? length : 0;
-	}
-
-	private static int Keep(Span<byte> elements, int read, int write, int length)
-	{
-		if (read != write)
-		{
-			elements.Slice(read, length).CopyTo(elements.Slice(write));
-		}
-
-		return length;
 	}
 
 	// 传统格式按编码 ID，Enhanced FLV 按 FourCC；body 至少 5 字节
@@ -342,11 +332,11 @@ internal sealed class FlvSplitter : MediaSplitter
 
 		if (kept < 0 || kept == nalLength)
 		{
-			return Keep(elements, read, write, length);
+			return FillerNalUnits.Keep(elements, read, write, length);
 		}
 
 		int prefix = TagHeaderSize + nalStart;
-		Keep(elements, read, write, prefix);
+		FillerNalUnits.Keep(elements, read, write, prefix);
 		FillerNalUnits.Move(elements, read + prefix, nalLength, write + prefix, kept, _nalLengthSize, _sequenceSyntax);
 
 		Span<byte> tag = elements.Slice(write);

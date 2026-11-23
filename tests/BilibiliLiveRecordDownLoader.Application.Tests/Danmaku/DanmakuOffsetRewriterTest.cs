@@ -13,13 +13,12 @@ public sealed class DanmakuOffsetRewriterTest
 		DanmakuRecord[] records = DanmakuSamples.AllKinds();
 		await File.WriteAllBytesAsync(path, await DanmakuSamples.WriteAsync(records, DanmakuSamples.Header with { Offset = TimeSpan.FromSeconds(1) }), cancellationToken);
 
-		DanmakuFileHeader header = await DanmakuOffsetRewriter.RewriteAsync(path, TimeSpan.FromMilliseconds(3500), cancellationToken);
+		await DanmakuOffsetRewriter.RewriteAsync(path, TimeSpan.FromMilliseconds(3500), cancellationToken);
 		DanmakuFile file = await DanmakuXmlReader.ReadFileAsync(path, cancellationToken);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(header).IsEqualTo(DanmakuSamples.Header with { Offset = TimeSpan.FromMilliseconds(3500) });
-			await Assert.That(file.Source).IsEqualTo(new DanmakuFileSource.Native(header));
+			await Assert.That(file.Source).IsEqualTo(new DanmakuFileSource.Native(DanmakuSamples.Header with { Offset = TimeSpan.FromMilliseconds(3500) }));
 			await Assert.That(file.Records).IsEquivalentTo(records.Select(static record => record.Shift(TimeSpan.FromMilliseconds(3500))), EqualityComparer<DanmakuRecord>.Default, CollectionOrdering.Matching);
 			await Assert.That(Directory.GetFiles(directory.Root)).IsEquivalentTo([path]);
 		}
@@ -36,6 +35,22 @@ public sealed class DanmakuOffsetRewriterTest
 		DanmakuFile file = await DanmakuXmlReader.ReadFileAsync(path, cancellationToken);
 
 		await Assert.That(file.Records.Select(static record => record.Time)).IsEquivalentTo([TimeSpan.Zero, TimeSpan.FromSeconds(8)], CollectionOrdering.Matching);
+	}
+
+	// 字幕用返回的记录生成，要和改写后的文件一致：推到 0 之前的写成 0，偏移不是整毫秒时截到毫秒
+	[Test]
+	[Arguments(-20_000_000L)]
+	[Arguments(35_009_999L)]
+	public async Task ReturnsTheRecordsAsTheRewrittenFileHoldsThemAsync(long offsetTicks, CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string path = directory.Combine(@"弹幕.xml");
+		await File.WriteAllBytesAsync(path, await DanmakuSamples.WriteAsync([.. DanmakuSamples.AllKinds(), new DanmakuRecord.Gap(TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(1500))]), cancellationToken);
+
+		IReadOnlyList<DanmakuRecord> records = await DanmakuOffsetRewriter.RewriteAsync(path, TimeSpan.FromTicks(offsetTicks), cancellationToken);
+		DanmakuFile file = await DanmakuXmlReader.ReadFileAsync(path, cancellationToken);
+
+		await Assert.That(records).IsEquivalentTo(file.Records, EqualityComparer<DanmakuRecord>.Default, CollectionOrdering.Matching);
 	}
 
 	[Test]

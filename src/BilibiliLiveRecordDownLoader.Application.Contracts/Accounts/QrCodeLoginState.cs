@@ -1,4 +1,4 @@
-namespace BilibiliLive.Enums;
+namespace BilibiliLiveRecordDownLoader.Application.Contracts.Accounts;
 
 public enum QrCodeLoginState
 {

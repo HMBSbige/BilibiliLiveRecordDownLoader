@@ -1,4 +1,5 @@
 using BilibiliLive.Api;
+using BilibiliLive.Danmu;
 using BilibiliLive.Http;
 using BilibiliLive.Wbi;
 using System.Globalization;
@@ -148,18 +149,8 @@ public sealed class BilibiliApiClient
 		}
 	}
 
-	internal Task<DanmuServerInfo> GetDanmuServerInfoAsync(long roomId, CancellationToken cancellationToken)
-	{
-		return GetDanmuServerInfoCoreAsync(roomId, false, cancellationToken);
-	}
-
 	// The token of an anonymous request only authenticates uid 0
-	internal Task<DanmuServerInfo> GetAnonymousDanmuServerInfoAsync(long roomId, CancellationToken cancellationToken)
-	{
-		return GetDanmuServerInfoCoreAsync(roomId, true, cancellationToken);
-	}
-
-	private async Task<DanmuServerInfo> GetDanmuServerInfoCoreAsync(long roomId, bool anonymous, CancellationToken cancellationToken)
+	internal async Task<DanmuServerInfo> GetDanmuServerInfoAsync(long roomId, bool anonymous, CancellationToken cancellationToken)
 	{
 		Uri uri = await CreateSignedUriAsync($"{LiveApi}xlive/web-room/v1/index/getDanmuInfo", [new("id", roomId.ToString(CultureInfo.InvariantCulture)), new("type", "0"), new("web_location", "444.8")], cancellationToken);
 		using HttpRequestMessage request = new(HttpMethod.Get, uri);

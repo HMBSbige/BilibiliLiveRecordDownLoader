@@ -1,8 +1,8 @@
 using BilibiliLiveRecordDownLoader.Application.Contracts.Lifecycle;
-using BilibiliLiveRecordDownLoader.Application.Contracts.Platform;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
+using BilibiliLiveRecordDownLoader.ViewModels.Platform;
 using ReactiveUI.Primitives;
 using System.Collections.Concurrent;
 using System.Windows.Input;

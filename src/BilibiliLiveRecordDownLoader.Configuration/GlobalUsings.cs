@@ -1,4 +1,3 @@
-global using BilibiliLiveRecordDownLoader.Domain;
 global using BilibiliLiveRecordDownLoader.Domain.Configuration;
 global using BilibiliLiveRecordDownLoader.Domain.Shared.Configuration;
 global using Microsoft.Extensions.DependencyInjection;

@@ -1,3 +1,4 @@
+using BilibiliLive.Danmu;
 using BilibiliLive.Http;
 using BilibiliLive.Tests.Fakes;
 using System.Net;
@@ -284,7 +285,7 @@ public class BilibiliApiClientTest
 			[ApiPaths.DanmuInfo] = () => Responses.Fixture("danmu_info.json")
 		});
 
-		DanmuServerInfo info = await api.Client.GetDanmuServerInfoAsync(732, cancellationToken);
+		DanmuServerInfo info = await api.Client.GetDanmuServerInfoAsync(732, anonymous: false, cancellationToken);
 
 		await Assert.That(info).IsEquivalentTo(new DanmuServerInfo("danmu-token", [new DanmuHost("zj-cn-live-comet.chat.bilibili.com", 2245), new DanmuHost("broadcastlv.chat.bilibili.com", 443)]));
 	}

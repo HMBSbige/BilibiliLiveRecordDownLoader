@@ -47,7 +47,7 @@ internal abstract class HlsSplitter : MediaSplitter, IHlsSegmentObserver
 		}
 	}
 
-	protected override ReadOnlyMemory<byte> CaptureHeader(ReadOnlySpan<byte> element)
+	protected override ReadOnlyMemory<byte> CaptureHeader()
 	{
 		return _elements.Peek().Header;
 	}

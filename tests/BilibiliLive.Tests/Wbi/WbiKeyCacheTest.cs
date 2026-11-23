@@ -1,3 +1,4 @@
+using BilibiliLive.Danmu;
 using BilibiliLive.Tests.Fakes;
 using BilibiliLive.Wbi;
 
@@ -25,7 +26,7 @@ public class WbiKeyCacheTest
 		ManualTimeProvider time = new();
 		using ApiClient api = Create(time);
 
-		await api.Client.GetDanmuServerInfoAsync(732, cancellationToken);
+		await api.Client.GetDanmuServerInfoAsync(732, anonymous: false, cancellationToken);
 		RecordedRequest request = await Assert.That(api.Handler.RequestsTo(ApiPaths.DanmuInfo)).HasSingleItem();
 
 		await Assert.That(request.Uri.Query).IsEqualTo(SignedDanmuInfoQuery(WbiSignerTest.ImgKey, WbiSignerTest.SubKey, time));
@@ -37,13 +38,13 @@ public class WbiKeyCacheTest
 		ManualTimeProvider time = new();
 		using ApiClient api = Create(time);
 
-		await api.Client.GetDanmuServerInfoAsync(732, cancellationToken);
+		await api.Client.GetDanmuServerInfoAsync(732, anonymous: false, cancellationToken);
 		time.Advance(WbiKeyCache.RefreshInterval - TimeSpan.FromSeconds(1));
-		await api.Client.GetDanmuServerInfoAsync(732, cancellationToken);
+		await api.Client.GetDanmuServerInfoAsync(732, anonymous: false, cancellationToken);
 		int navBeforeExpiry = api.Handler.RequestsTo(ApiPaths.Nav).Count();
 
 		time.Advance(TimeSpan.FromSeconds(1));
-		await api.Client.GetDanmuServerInfoAsync(732, cancellationToken);
+		await api.Client.GetDanmuServerInfoAsync(732, anonymous: false, cancellationToken);
 
 		using (Assert.Multiple())
 		{
@@ -58,9 +59,9 @@ public class WbiKeyCacheTest
 		ManualTimeProvider time = new();
 		using ApiClient api = Create(time);
 
-		await api.Client.GetDanmuServerInfoAsync(732, cancellationToken);
+		await api.Client.GetDanmuServerInfoAsync(732, anonymous: false, cancellationToken);
 		time.Advance(-TimeSpan.FromDays(1));
-		await api.Client.GetDanmuServerInfoAsync(732, cancellationToken);
+		await api.Client.GetDanmuServerInfoAsync(732, anonymous: false, cancellationToken);
 
 		await Assert.That(api.Handler.RequestsTo(ApiPaths.Nav)).Count().IsEqualTo(2);
 	}
@@ -72,9 +73,9 @@ public class WbiKeyCacheTest
 		int navCalls = 0;
 		using ApiClient api = Create(time, () => ++navCalls is 1 ? Responses.Fixture("nav_anonymous.json") : Nav(WbiSignerTest.SubKey, WbiSignerTest.ImgKey));
 
-		await api.Client.GetDanmuServerInfoAsync(732, cancellationToken);
+		await api.Client.GetDanmuServerInfoAsync(732, anonymous: false, cancellationToken);
 		await api.Client.GetCurrentUserIdAsync(cancellationToken);
-		await api.Client.GetDanmuServerInfoAsync(732, cancellationToken);
+		await api.Client.GetDanmuServerInfoAsync(732, anonymous: false, cancellationToken);
 
 		using (Assert.Multiple())
 		{
@@ -99,7 +100,7 @@ public class WbiKeyCacheTest
 			return Responses.Fixture("danmu_info.json");
 		}, new ManualTimeProvider());
 
-		Task[] calls = [.. Enumerable.Range(0, 8).Select(_ => api.Client.GetDanmuServerInfoAsync(732, cancellationToken))];
+		Task[] calls = [.. Enumerable.Range(0, 8).Select(_ => api.Client.GetDanmuServerInfoAsync(732, anonymous: false, cancellationToken))];
 
 		while (api.Handler.Requests.IsEmpty)
 		{
@@ -122,8 +123,8 @@ public class WbiKeyCacheTest
 		int navCalls = 0;
 		using ApiClient api = Create(new ManualTimeProvider(), () => ++navCalls is 1 ? Responses.Json("""{"code":-412,"message":"请求被拦截"}""") : Responses.Fixture("nav_anonymous.json"));
 
-		await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetDanmuServerInfoAsync(732, cancellationToken)).And.Member(static e => e.Code, static code => code.IsEqualTo(-412));
-		DanmuServerInfo info = await api.Client.GetDanmuServerInfoAsync(732, cancellationToken);
+		await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetDanmuServerInfoAsync(732, anonymous: false, cancellationToken)).And.Member(static e => e.Code, static code => code.IsEqualTo(-412));
+		DanmuServerInfo info = await api.Client.GetDanmuServerInfoAsync(732, anonymous: false, cancellationToken);
 
 		await Assert.That((info.Token, navCalls)).IsEqualTo(("danmu-token", 2));
 	}

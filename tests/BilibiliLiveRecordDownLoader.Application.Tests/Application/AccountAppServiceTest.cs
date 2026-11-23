@@ -1,5 +1,6 @@
 using BilibiliLive;
 using BilibiliLiveRecordDownLoader.Application.Accounts;
+using BilibiliLiveRecordDownLoader.Application.Contracts.Accounts;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using System.Diagnostics;

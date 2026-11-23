@@ -12,7 +12,7 @@ public closed record DanmakuFileSourceDto
 	public sealed record Standard : DanmakuFileSourceDto;
 }
 
-// Counts[i] 是 [BinWidth × i, BinWidth × (i + 1)) 里的弹幕条数，覆盖到最后一条记录
+// Counts[i] 是 [BinWidth × i, BinWidth × (i + 1)) 里的弹幕条数，覆盖到最后一条弹幕
 public sealed record DanmakuDensityDto(TimeSpan BinWidth, IReadOnlyList<int> Counts);
 
 // 文件内时间；Phrase 是代表短语，事件里只有抽奖口令或复读时为空

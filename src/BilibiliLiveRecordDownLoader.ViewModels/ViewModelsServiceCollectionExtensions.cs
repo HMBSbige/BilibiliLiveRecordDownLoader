@@ -4,8 +4,7 @@ public static class ViewModelsServiceCollectionExtensions
 {
 	public static IServiceCollection AddViewModels(this IServiceCollection services)
 	{
-		services.AddApplicationContracts();
-		services.AddDomain();
+		services.TryAddSingleton(TimeProvider.System);
 
 		services.TryAddSingleton<DialogHostViewModel>();
 		services.TryAddSingleton<MainWindowViewModel>();

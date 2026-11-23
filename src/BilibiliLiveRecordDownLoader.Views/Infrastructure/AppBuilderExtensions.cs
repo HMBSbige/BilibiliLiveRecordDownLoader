@@ -11,7 +11,6 @@ public static class AppBuilderExtensions
 			{
 				ArgumentNullException.ThrowIfNull(provider);
 				provider.GetRequiredService<GlobalExceptionHandler>().Install();
-				provider.GetRequiredService<LogStoreSink>().Attach(provider.GetRequiredService<ILogStore>());
 				provider.GetRequiredService<NotificationExceptionHandler>().Install();
 			},
 			withReactiveUIBuilder: static rxBuilder => rxBuilder.WithExceptionHandler(NotificationExceptionHandler.ExceptionSignal)

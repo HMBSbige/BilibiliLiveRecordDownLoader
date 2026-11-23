@@ -1,3 +1,6 @@
+using BilibiliLiveRecordDownLoader.Application;
+using BilibiliLiveRecordDownLoader.Configuration;
+
 namespace BilibiliLiveRecordDownLoader.Views;
 
 public static class ViewsServiceCollectionExtensions
@@ -64,6 +67,6 @@ public static class ViewsServiceCollectionExtensions
 		AppLocator.CurrentMutable.UseSerilogFullLogger(Log.Logger);
 		// 不传实例时容器释放走 Log.CloseAndFlush，与崩溃、关闭超时时的刷新合起来只释放一次
 		services.AddLogging(static logging => logging.AddSerilog(dispose: true));
-		services.TryAddSingleton(logStoreSink);
+		services.TryAddSingleton<ILogStore>(logStoreSink);
 	}
 }

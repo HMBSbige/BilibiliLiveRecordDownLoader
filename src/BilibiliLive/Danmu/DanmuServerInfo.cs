@@ -1,4 +1,4 @@
-namespace BilibiliLive.Models;
+namespace BilibiliLive.Danmu;
 
 internal sealed record DanmuServerInfo(string Token, IReadOnlyList<DanmuHost> Hosts);
 

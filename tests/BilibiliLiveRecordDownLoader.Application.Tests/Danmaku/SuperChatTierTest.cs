@@ -1,4 +1,6 @@
-namespace BilibiliLiveRecordDownLoader.Application.Tests.Domain;
+using BilibiliLiveRecordDownLoader.Application.Contracts.Danmaku;
+
+namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
 public sealed class SuperChatTierTest
 {

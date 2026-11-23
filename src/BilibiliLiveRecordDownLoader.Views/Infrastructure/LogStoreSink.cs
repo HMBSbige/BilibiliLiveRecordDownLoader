@@ -1,42 +1,25 @@
-using System.Collections.Concurrent;
-
 namespace BilibiliLiveRecordDownLoader.Views.Infrastructure;
 
-// 日志管道在依赖注入容器之前创建，容器就绪前的日志先暂存
-internal sealed class LogStoreSink : ILogEventSink
+// 日志管道在依赖注入容器之前创建，所以由 sink 自己保存最近的日志，容器建好之前的也不会丢
+internal sealed class LogStoreSink : ILogEventSink, ILogStore
 {
-	private const int PendingCapacity = 256;
+	private const int Capacity = 1000;
 
-	private readonly ConcurrentQueue<LogEvent> _pending = new();
-	private volatile ILogStore? _store;
+	private readonly Lock _lock = new();
+	private readonly Queue<LogEntry> _entries = new(Capacity);
+	private long _sequence;
 
-	public void Attach(ILogStore store)
+	public long Version => Interlocked.Read(ref _sequence);
+
+	public IReadOnlyList<LogEntry> GetEntries()
 	{
-		_store = store;
-
-		while (_pending.TryDequeue(out LogEvent? logEvent))
+		lock (_lock)
 		{
-			Write(store, logEvent);
+			return [.. _entries];
 		}
 	}
 
 	public void Emit(LogEvent logEvent)
-	{
-		if (_store is { } store)
-		{
-			Write(store, logEvent);
-			return;
-		}
-
-		_pending.Enqueue(logEvent);
-
-		while (_pending.Count > PendingCapacity)
-		{
-			_pending.TryDequeue(out _);
-		}
-	}
-
-	private static void Write(ILogStore store, LogEvent logEvent)
 	{
 		long? roomId = logEvent.Properties.GetValueOrDefault(LogProperties.RoomId) is ScalarValue { Value: long id } ? id : null;
 		string message = logEvent.RenderMessage(CultureInfo.CurrentCulture);
@@ -56,6 +39,14 @@ internal sealed class LogStoreSink : ILogEventSink
 			LogEventLevel.Fatal => LogLevel.Critical
 		};
 
-		store.Add(logEvent.Timestamp, level, roomId, message);
+		lock (_lock)
+		{
+			if (_entries.Count is Capacity)
+			{
+				_entries.Dequeue();
+			}
+
+			_entries.Enqueue(new LogEntry(++_sequence, logEvent.Timestamp, level, roomId, message));
+		}
 	}
 }

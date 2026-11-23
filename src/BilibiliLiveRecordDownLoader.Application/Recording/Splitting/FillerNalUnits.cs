@@ -47,6 +47,17 @@ internal static class FillerNalUnits
 		return kept > 0 ? kept : sample.Length;
 	}
 
+	// 原地去掉填充时原样保留的一段，返回 length
+	public static int Keep(Span<byte> buffer, int source, int destination, int length)
+	{
+		if (source != destination)
+		{
+			buffer.Slice(source, length).CopyTo(buffer.Slice(destination));
+		}
+
+		return length;
+	}
+
 	// keptLength 是 Measure 的结果；destination 不能在 source 之后，否则写出会覆盖还没读的数据
 	public static void Move(Span<byte> buffer, int source, int length, int destination, int keptLength, int lengthSize, NalSyntax syntax)
 	{

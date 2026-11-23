@@ -546,7 +546,7 @@ internal sealed class FakeSplitter(bool holdsFirstUnit = false) : MediaSplitter
 		}
 	}
 
-	protected override ReadOnlyMemory<byte> CaptureHeader(ReadOnlySpan<byte> element)
+	protected override ReadOnlyMemory<byte> CaptureHeader()
 	{
 		return Encoding.ASCII.GetBytes($"H{_sequences}:");
 	}

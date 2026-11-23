@@ -182,7 +182,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 
 		try
 		{
-			return ToServer(roomId, await apiClient.GetDanmuServerInfoAsync(roomId, cancellationToken), userId, identityHash);
+			return ToServer(roomId, await apiClient.GetDanmuServerInfoAsync(roomId, anonymous: false, cancellationToken), userId, identityHash);
 		}
 		// Only risk control of the account is worth an anonymous retry; -412 and HTTP 412 block the IP, which an anonymous request shares
 		catch (BilibiliApiException ex) when (ex.Code is BilibiliApiException.RiskControlCode)
@@ -201,7 +201,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 	{
 		try
 		{
-			return ToServer(roomId, await apiClient.GetAnonymousDanmuServerInfoAsync(roomId, cancellationToken), 0, identityHash);
+			return ToServer(roomId, await apiClient.GetDanmuServerInfoAsync(roomId, anonymous: true, cancellationToken), 0, identityHash);
 		}
 		catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 		{

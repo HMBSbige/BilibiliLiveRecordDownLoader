@@ -49,22 +49,12 @@ internal sealed class Fmp4FillerRemover
 				continue;
 			}
 
-			write += Keep(elements, read, write, length);
+			write += FillerNalUnits.Keep(elements, read, write, length);
 			read = end;
 		}
 
-		write += Keep(elements, read, write, elements.Length - read);
+		write += FillerNalUnits.Keep(elements, read, write, elements.Length - read);
 		return write;
-	}
-
-	private static int Keep(Span<byte> elements, int read, int write, int length)
-	{
-		if (read != write)
-		{
-			elements.Slice(read, length).CopyTo(elements.Slice(write));
-		}
-
-		return length;
 	}
 
 	// 有多个样本项时分片可能换着用，长度字段宽度不一定相同
@@ -152,7 +142,7 @@ internal sealed class Fmp4FillerRemover
 		}
 
 		// moof 只改字段的值、长度不变，前面删掉的数据让它整体前移
-		Keep(elements, read, write, payloadStart);
+		FillerNalUnits.Keep(elements, read, write, payloadStart);
 		Span<byte> output = elements.Slice(write);
 
 		foreach (Sample sample in _samples)
@@ -182,13 +172,13 @@ internal sealed class Fmp4FillerRemover
 
 		foreach (Sample sample in _samples)
 		{
-			destination += Keep(elements, read + cursor, write + destination, sample.Offset - cursor);
+			destination += FillerNalUnits.Keep(elements, read + cursor, write + destination, sample.Offset - cursor);
 			FillerNalUnits.Move(elements, read + sample.Offset, sample.Length, write + destination, sample.KeptLength, _nalLengthSize, _syntax);
 			destination += sample.KeptLength;
 			cursor = sample.Offset + sample.Length;
 		}
 
-		destination += Keep(elements, read + cursor, write + destination, fragment.Length - cursor);
+		destination += FillerNalUnits.Keep(elements, read + cursor, write + destination, fragment.Length - cursor);
 		consumed = fragment.Length;
 		written = destination;
 		return true;

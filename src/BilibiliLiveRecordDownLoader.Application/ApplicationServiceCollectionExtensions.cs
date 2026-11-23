@@ -4,12 +4,10 @@ public static class ApplicationServiceCollectionExtensions
 {
 	public static IServiceCollection AddApplication(this IServiceCollection services)
 	{
-		services.AddApplicationContracts();
-		services.AddDomain();
+		services.TryAddSingleton(TimeProvider.System);
 
 		services.AddBilibiliHttpClients();
 
-		services.TryAddSingleton<ILogStore, LogStore>();
 		services.TryAddSingleton<IDiskSpaceService, DiskSpaceService>();
 		services.TryAddSingleton<LowDiskSpaceMonitor>();
 		services.TryAddSingleton<IUpdateAppService, UpdateAppService>();

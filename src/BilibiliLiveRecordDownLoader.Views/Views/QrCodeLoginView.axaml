@@ -3,7 +3,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ic="using:FluentIcons.Avalonia"
     xmlns:dialogs="using:BilibiliLiveRecordDownLoader.ViewModels.Dialogs"
-    xmlns:bl="using:BilibiliLive.Enums"
+    xmlns:accounts="using:BilibiliLiveRecordDownLoader.Application.Contracts.Accounts"
     xmlns:c="using:BilibiliLiveRecordDownLoader.Views.Converters"
     xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.QrCodeLoginView"
@@ -11,7 +11,7 @@
     <DockPanel>
         <StackPanel Classes="toolbar dialogFooter" HorizontalAlignment="Right">
             <Button Command="{Binding RefreshCommand}"
-                    IsVisible="{Binding State, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static bl:QrCodeLoginState.Expired}}">
+                    IsVisible="{Binding State, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static accounts:QrCodeLoginState.Expired}}">
                 <StackPanel Classes="iconText">
                     <ic:FluentIcon Icon="ArrowSync" />
                     <TextBlock Text="{Binding Refresh, Source={x:Static l:AppLanguage.Current}}" />

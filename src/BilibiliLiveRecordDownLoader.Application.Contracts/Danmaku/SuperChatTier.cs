@@ -1,4 +1,4 @@
-namespace BilibiliLiveRecordDownLoader.Domain.Shared.Recording;
+namespace BilibiliLiveRecordDownLoader.Application.Contracts.Danmaku;
 
 // 沿用 B 站 SC 按价格分档的配色；MinPrice 是千分之一元，颜色是 RGB
 // B 站原样的价格色在浅色底上几乎看不清，PriceColor 沿它的色相加深到对比度 4.5:1

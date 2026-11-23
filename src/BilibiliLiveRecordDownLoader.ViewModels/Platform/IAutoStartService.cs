@@ -1,4 +1,4 @@
-namespace BilibiliLiveRecordDownLoader.Application.Contracts.Platform;
+namespace BilibiliLiveRecordDownLoader.ViewModels.Platform;
 
 public interface IAutoStartService
 {
