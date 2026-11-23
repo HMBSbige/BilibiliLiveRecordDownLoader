@@ -5,12 +5,10 @@ namespace MediaToolkit.FFmpeg;
 
 public static class FFmpegMetadata
 {
-	// 带 BOM 时 FFmpeg 探测不出格式
-	private static readonly UTF8Encoding Utf8 = new(false);
-
-	public static async Task WriteChaptersFileAsync(string path, IReadOnlyList<FFmpegChapter> chapters, CancellationToken cancellationToken)
+	// 带 BOM 时 FFmpeg 探测不出格式，WriteAllTextAsync 默认写的 UTF-8 正好不带 BOM
+	public static Task WriteChaptersFileAsync(string path, IReadOnlyList<FFmpegChapter> chapters, CancellationToken cancellationToken)
 	{
-		await File.WriteAllTextAsync(path, FormatChapters(chapters), Utf8, cancellationToken);
+		return File.WriteAllTextAsync(path, FormatChapters(chapters), cancellationToken);
 	}
 
 	// FFmpeg 按顺序逐行读 TIMEBASE、START、END

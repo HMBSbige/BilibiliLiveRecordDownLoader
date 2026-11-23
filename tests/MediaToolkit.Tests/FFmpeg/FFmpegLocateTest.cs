@@ -109,6 +109,20 @@ public class FFmpegLocateTest
 	}
 
 	[Test]
+	public async Task RelativePathEntriesAreIgnoredAsync()
+	{
+		using TestDirectory directory = new();
+		string expected = directory.CreateFile(Path.Combine(@"platform", ExecutableName));
+		directory.CreateFile(Path.Combine(@"bin", ExecutableName));
+		string relative = Path.GetRelativePath(Environment.CurrentDirectory, directory.Combine(@"bin"));
+		Skip.When(Path.IsPathRooted(relative), @"The temporary directory is on another drive.");
+
+		string? located = FFmpegRunner.Locate(null, directory.Combine(@"app"), relative, [directory.Combine(@"platform")]);
+
+		await Assert.That(located).IsEqualTo(expected);
+	}
+
+	[Test]
 	public async Task PlatformDirectoriesAreTheLastResortAsync()
 	{
 		using TestDirectory directory = new();

@@ -18,7 +18,7 @@ public partial class FFmpegIntegrationTest
 	private static readonly TimeSpan Tolerance = TimeSpan.FromMilliseconds(300);
 
 	[GeneratedRegex(@"frame=\s*(?<count>\d+)")]
-	private static partial Regex FrameCountRegex();
+	private static partial Regex FrameCountRegex { get; }
 
 	private static FFmpegRunner CreateRunner()
 	{
@@ -67,7 +67,7 @@ public partial class FFmpegIntegrationTest
 		{
 			last = progress;
 
-			if (FrameCountRegex().Match(progress.Message) is { Success: true } match)
+			if (FrameCountRegex.Match(progress.Message) is { Success: true } match)
 			{
 				frames = int.Parse(match.Groups[@"count"].ValueSpan, CultureInfo.InvariantCulture);
 			}

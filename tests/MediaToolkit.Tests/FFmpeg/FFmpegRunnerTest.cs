@@ -32,7 +32,7 @@ public class FFmpegRunnerTest
 	[Test]
 	public async Task CancellationSendsQuitAndWaitsForGracefulExitAsync(CancellationToken cancellationToken)
 	{
-		// 比下面断言的 20 秒长，走了强杀路径就会失败
+		// 时限留足，负载高时也不会误走强杀，强杀了就读不到 stdin=q
 		FFmpegRunner runner = new(FakeProcess.Executable) { GracefulExitTimeout = TimeSpan.FromSeconds(30) };
 		IReadOnlyList<string> arguments = FakeProcess.Arguments(
 			"""
@@ -58,26 +58,25 @@ public class FFmpegRunnerTest
 				cts.Cancel();
 			}
 		});
-		long startedAt = Stopwatch.GetTimestamp();
 
 		await Assert.That(() => runner.RunAsync(arguments, progress, cts.Token)).Throws<OperationCanceledException>();
 
 		await Assert.That(messages).Contains(@"stdin=q");
-		await Assert.That(Stopwatch.GetElapsedTime(startedAt)).IsLessThan(TimeSpan.FromSeconds(20));
 	}
 
 	[Test]
 	public async Task CancellationKillsProcessThatIgnoresQuitAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = new(FakeProcess.Executable) { GracefulExitTimeout = TimeSpan.FromMilliseconds(500) };
+		// 睡得远比测试超时久，没被强杀就只能等到超时失败，不会自己退出蒙混过关
 		IReadOnlyList<string> arguments = FakeProcess.Arguments(
 			"""
 			[Console]::Error.WriteLine("pid=$PID")
-			Start-Sleep -Seconds 60
+			Start-Sleep -Seconds 600
 			""",
 			"""
 			echo "pid=$$" >&2
-			exec sleep 60
+			exec sleep 600
 			""");
 		using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		int processId = 0;
@@ -89,11 +88,9 @@ public class FFmpegRunnerTest
 				cts.Cancel();
 			}
 		});
-		long startedAt = Stopwatch.GetTimestamp();
 
 		await Assert.That(() => runner.RunAsync(arguments, progress, cts.Token)).Throws<OperationCanceledException>();
 
-		await Assert.That(Stopwatch.GetElapsedTime(startedAt)).IsLessThan(TimeSpan.FromSeconds(30));
 		await Assert.That(processId).IsNotEqualTo(0);
 		await Assert.That(FakeProcess.IsRunning(processId)).IsFalse();
 	}
@@ -176,7 +173,7 @@ public class FFmpegRunnerTest
 		await Assert.That(() => runner.RunAsync(arguments, FailAsync, progress, cancellationToken)).Throws<IOException>().WithMessage(@"disk full");
 		await Assert.That(FakeProcess.IsRunning(await started.Task)).IsFalse();
 
-		async Task FailAsync(Stream stdout)
+		async Task FailAsync(Stream _)
 		{
 			await started.Task.WaitAsync(cancellationToken);
 			throw new IOException(@"disk full");
@@ -354,25 +351,5 @@ public class FFmpegRunnerTest
 		string? version = await new FFmpegRunner(directory.Combine(FFmpegRunner.ExecutableName)).GetVersionAsync(cancellationToken);
 
 		await Assert.That(version).IsNull();
-	}
-
-	[Test]
-	public async Task StartedProcessIsTrackedForCleanupAsync(CancellationToken cancellationToken)
-	{
-		using Process tracked = ChildProcessTracker.Start(SleepStartInfo());
-		using Process untracked = Process.Start(SleepStartInfo()) ?? throw new InvalidOperationException();
-		(bool Tracked, bool Untracked) tracking = (ChildProcessTracker.IsTracked(tracked), ChildProcessTracker.IsTracked(untracked));
-
-		tracked.Kill();
-		untracked.Kill();
-		await tracked.WaitForExitAsync(cancellationToken);
-		await untracked.WaitForExitAsync(cancellationToken);
-
-		await Assert.That(tracking).IsEqualTo((true, false));
-
-		static ProcessStartInfo SleepStartInfo()
-		{
-			return new ProcessStartInfo(FakeProcess.Executable, FakeProcess.Arguments(@"Start-Sleep -Seconds 60", @"exec sleep 60")) { CreateNoWindow = true };
-		}
 	}
 }

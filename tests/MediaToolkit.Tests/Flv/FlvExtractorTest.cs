@@ -1,11 +1,22 @@
 using MediaToolkit.Flv;
 using System.Buffers.Binary;
+using OS = TUnit.Core.Enums.OS;
 
 namespace MediaToolkit.Tests.Flv;
 
 public class FlvExtractorTest
 {
 	private static readonly byte[] AacPayload = FlvSamples.AacFrame.AsSpan(2).ToArray();
+
+	// 比读写两端的文件缓冲都大
+	private static readonly byte[] LargeSlice = [0x65, .. Enumerable.Range(0, 100_000).Select(static i => (byte)(i * 7 + 1))];
+
+	private static byte[] KeyFrame(byte[] nalUnit)
+	{
+		byte[] tag = [.. Convert.FromHexString(@"1701000000"), 0, 0, 0, 0, .. nalUnit];
+		BinaryPrimitives.WriteInt32BigEndian(tag.AsSpan(5), nalUnit.Length);
+		return tag;
+	}
 
 	private static byte[] BuildAudioVideoFlv()
 	{
@@ -151,7 +162,7 @@ public class FlvExtractorTest
 	public async Task MissingAudioYieldsNullPathWithoutFileAsync()
 	{
 		using TestDirectory directory = new();
-		byte[] flv = new FlvBuilder(FlvHeaderFlags.Video)
+		byte[] flv = new FlvBuilder()
 			.Tag(FlvTagType.Video, 0, FlvSamples.AvcSequenceHeader)
 			.Tag(FlvTagType.Video, 0, FlvSamples.AvcKeyFrame)
 			.ToArray();
@@ -240,13 +251,10 @@ public class FlvExtractorTest
 	public async Task CopiesTagsLargerThanTheInitialBufferAsync()
 	{
 		using TestDirectory directory = new();
-		// 超过一开始租的 64 KiB 缓冲区
-		byte[] largeSlice = [0x65, .. Enumerable.Range(0, 100_000).Select(static i => (byte)(i * 7 + 1))];
-		byte[] largeFrame = [.. Convert.FromHexString(@"1701000000"), .. BigEndian(largeSlice.Length), .. largeSlice];
 		byte[] flv = new FlvBuilder()
 			.Tag(FlvTagType.Video, 0, FlvSamples.AvcSequenceHeader)
 			.Tag(FlvTagType.Video, 0, FlvSamples.AvcKeyFrame)
-			.Tag(FlvTagType.Video, 33, largeFrame)
+			.Tag(FlvTagType.Video, 33, KeyFrame(LargeSlice))
 			.Tag(FlvTagType.Video, 66, FlvSamples.AvcKeyFrame)
 			.ToArray();
 		string input = directory.CreateFile(@"large.flv", flv);
@@ -255,15 +263,8 @@ public class FlvExtractorTest
 
 		string video = await Assert.That(result.VideoPath).IsNotNull();
 		byte[] actual = await File.ReadAllBytesAsync(video);
-		byte[] expected = FlvSamples.AnnexB(FlvSamples.Sps, FlvSamples.Pps, FlvSamples.IdrSlice, FlvSamples.Sei, largeSlice, FlvSamples.IdrSlice, FlvSamples.Sei);
+		byte[] expected = FlvSamples.AnnexB(FlvSamples.Sps, FlvSamples.Pps, FlvSamples.IdrSlice, FlvSamples.Sei, LargeSlice, FlvSamples.IdrSlice, FlvSamples.Sei);
 		await Assert.That((actual.Length, actual.AsSpan().CommonPrefixLength(expected))).IsEqualTo((expected.Length, expected.Length));
-
-		static byte[] BigEndian(int value)
-		{
-			byte[] bytes = new byte[sizeof(int)];
-			BinaryPrimitives.WriteInt32BigEndian(bytes, value);
-			return bytes;
-		}
 	}
 
 	[Test]
@@ -319,6 +320,26 @@ public class FlvExtractorTest
 
 		await Assert.That(async () => await FlvExtractor.ExtractAsync(input, directory.Root)).Throws<ArgumentException>();
 		await Assert.That(Convert.ToHexString(await File.ReadAllBytesAsync(input))).IsEqualTo(Convert.ToHexString(flv));
+	}
+
+	[Test]
+	[RunOn(OS.Linux)]
+	public async Task DiskFullDeletesPartialOutputAsync()
+	{
+		using TestDirectory directory = new();
+		byte[] flv = new FlvBuilder()
+			.Tag(FlvTagType.Audio, 0, FlvSamples.AacSequenceHeader)
+			.Tag(FlvTagType.Audio, 0, FlvSamples.AacFrame)
+			.Tag(FlvTagType.Video, 0, FlvSamples.AvcSequenceHeader)
+			.Tag(FlvTagType.Video, 0, KeyFrame(LargeSlice))
+			.ToArray();
+		string input = directory.CreateFile(@"live.flv", flv);
+		// 写到 /dev/full 都报磁盘已满：大帧直接写盘失败，音频帧还在写缓冲里，丢弃时刷写也会失败
+		File.CreateSymbolicLink(directory.Combine(@"live.h264"), @"/dev/full");
+		File.CreateSymbolicLink(directory.Combine(@"live.aac"), @"/dev/full");
+
+		await Assert.That(async () => await FlvExtractor.ExtractAsync(input, directory.Root)).Throws<IOException>();
+		await Assert.That(Directory.EnumerateFiles(directory.Root)).IsEquivalentTo([input]);
 	}
 
 	[Test]

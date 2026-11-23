@@ -9,7 +9,8 @@ internal sealed class FlvTrack(string path, IFlvTagConverter converter) : IAsync
 		Mode = FileMode.Create,
 		Access = FileAccess.Write,
 		Share = FileShare.Read,
-		Options = FileOptions.Asynchronous
+		Options = FileOptions.Asynchronous,
+		BufferSize = 1 << 16
 	};
 
 	private readonly ArrayBufferWriter<byte> _buffer = new();
@@ -41,8 +42,15 @@ internal sealed class FlvTrack(string path, IFlvTagConverter converter) : IAsync
 
 		try
 		{
-			await _output.DisposeAsync();
-			File.Delete(path);
+			try
+			{
+				await _output.DisposeAsync();
+			}
+			finally
+			{
+				// 磁盘写满时刷写缓冲会失败，但句柄照样关闭，文件仍要删
+				File.Delete(path);
+			}
 		}
 		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
 		{

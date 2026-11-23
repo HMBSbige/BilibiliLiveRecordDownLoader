@@ -5,31 +5,32 @@ namespace MediaToolkit.FFmpeg;
 
 internal static partial class FFmpegOutputParser
 {
-	// 章节标题和元数据会原样打印出来，只能认 ASCII 数字：\d 还匹配全角数字，解析时会抛异常；小时最多 8 位，换算成 tick 不会溢出
+	// \d 还匹配全角数字，解析时会抛异常；无效时间戳可能打成 -2562047788:00:54.77，小时限 8 位，换算成 tick 才不会溢出
 	private const string TimePattern = @"(?<negative>-)?(?<hours>[0-9]{1,8}):(?<minutes>[0-9]{2}):(?<seconds>[0-9]{2})(?:\.(?<fraction>[0-9]+))?";
 
 	[GeneratedRegex(@"^ffmpeg version (?<version>\S+)")]
-	private static partial Regex VersionRegex();
+	private static partial Regex VersionRegex { get; }
 
-	[GeneratedRegex(@"Duration:\s*" + TimePattern)]
-	private static partial Regex DurationRegex();
+	// 章节标题和元数据会原样打印在 Duration 行之后，只认行首的 Duration 和统计行里的 time
+	[GeneratedRegex(@"^\s*Duration:\s*" + TimePattern)]
+	private static partial Regex DurationRegex { get; }
 
-	[GeneratedRegex(@"time=\s*" + TimePattern)]
-	private static partial Regex PositionRegex();
+	[GeneratedRegex(@"^\s*(?:frame|size)=.*?\btime=\s*" + TimePattern)]
+	private static partial Regex PositionRegex { get; }
 
 	// HLS 的 Opening '<url>' 用单引号括住地址，打开失败时地址后面紧跟句号
 	[GeneratedRegex(@"(?<url>[A-Za-z][A-Za-z0-9+.\-]*://[^\s'""?]*)\?[^\s'""]*?(?=[.,:;]?(?:[\s'""]|$))")]
-	private static partial Regex UrlQueryRegex();
+	private static partial Regex UrlQueryRegex { get; }
 
 	public static string? ParseVersion(string output)
 	{
-		return VersionRegex().Match(output) is { Success: true } match ? match.Groups[@"version"].Value : null;
+		return VersionRegex.Match(output) is { Success: true } match ? match.Groups[@"version"].Value : null;
 	}
 
 	// 直播地址的查询串里有 uid 和签名
 	public static string RedactUrlQueries(string line)
 	{
-		return UrlQueryRegex().Replace(line, @"${url}?…");
+		return UrlQueryRegex.Replace(line, @"${url}?…");
 	}
 
 	// 统计行可能是 time=N/A，只能按开头判断
@@ -46,7 +47,7 @@ internal static partial class FFmpegOutputParser
 	// Duration 只在开头列出输入信息时打印
 	public static FFmpegProgress ParseProgress(string line, FFmpegProgress previous)
 	{
-		return new FFmpegProgress(ParseTime(DurationRegex().Match(line)) ?? previous.Duration, ParseTime(PositionRegex().Match(line)) ?? previous.Position, line);
+		return new FFmpegProgress(ParseTime(DurationRegex.Match(line)) ?? previous.Duration, ParseTime(PositionRegex.Match(line)) ?? previous.Position, line);
 	}
 
 	private static TimeSpan? ParseTime(Match match)

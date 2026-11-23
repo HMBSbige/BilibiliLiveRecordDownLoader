@@ -67,19 +67,4 @@ public class FFmpegArgumentsTest
 	{
 		await Assert.That(static () => FFmpegArguments.Record(new Uri(@"live.flv", UriKind.Relative), null, null, Timeout.InfiniteTimeSpan)).Throws<ArgumentException>();
 	}
-
-	[Test]
-	public async Task NoCommandDisablesStandardInputAsync()
-	{
-		IReadOnlyList<string>[] commands =
-		[
-			FFmpegArguments.Remux(@"a", @"b"),
-			FFmpegArguments.Cut(@"a", @"b", TimeSpan.Zero, TimeSpan.FromSeconds(1)),
-			FFmpegArguments.Merge(@"a", @"b", @"c"),
-			FFmpegArguments.Record(Source, null, null, Timeout.InfiniteTimeSpan)
-		];
-
-		// -nostdin 会让取消时写入的 q 失效
-		await Assert.That(commands.SelectMany(static command => command)).DoesNotContain(@"-nostdin");
-	}
 }

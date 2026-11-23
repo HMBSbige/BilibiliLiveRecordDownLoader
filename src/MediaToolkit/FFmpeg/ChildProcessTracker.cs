@@ -45,19 +45,6 @@ internal static class ChildProcessTracker
 		return process;
 	}
 
-	public static bool IsTracked(Process process)
-	{
-		if (IsEndedBySystem)
-		{
-			return process.StartInfo.KillOnParentExit;
-		}
-
-		lock (Gate)
-		{
-			return Running.Contains(process);
-		}
-	}
-
 	private static void StartTracked(Process process)
 	{
 		process.EnableRaisingEvents = true;
@@ -101,6 +88,7 @@ internal static class ChildProcessTracker
 			}
 			catch (InvalidOperationException)
 			{
+				// 进程已经退出并被释放
 			}
 		}
 	}

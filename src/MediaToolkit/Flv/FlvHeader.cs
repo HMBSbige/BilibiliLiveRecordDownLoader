@@ -2,41 +2,21 @@ using System.Buffers.Binary;
 
 namespace MediaToolkit.Flv;
 
-internal readonly record struct FlvHeader(FlvHeaderFlags Flags, uint DataOffset)
+internal static class FlvHeader
 {
 	public const int Size = 9;
 
 	private const byte Version = 1;
 
-	private static ReadOnlySpan<byte> Signature => "FLV"u8;
-
-	public static bool TryRead(ReadOnlySpan<byte> buffer, out FlvHeader header)
+	// 头里的音视频标志不可靠，有没有这条流以实际转换出的帧为准
+	public static uint? ReadDataOffset(ReadOnlySpan<byte> buffer)
 	{
-		header = default;
-
-		if (buffer.Length < Size || !buffer.Slice(0, Signature.Length).SequenceEqual(Signature) || buffer[3] is not Version)
+		if (buffer.Length < Size || buffer is not [(byte)'F', (byte)'L', (byte)'V', Version, ..])
 		{
-			return false;
+			return null;
 		}
 
 		uint dataOffset = BinaryPrimitives.ReadUInt32BigEndian(buffer.Slice(5));
-
-		if (dataOffset < Size)
-		{
-			return false;
-		}
-
-		header = new FlvHeader((FlvHeaderFlags)buffer[4] & (FlvHeaderFlags.Video | FlvHeaderFlags.Audio), dataOffset);
-		return true;
-	}
-
-	public void WriteTo(Span<byte> buffer)
-	{
-		ArgumentOutOfRangeException.ThrowIfLessThan(buffer.Length, Size, nameof(buffer));
-
-		Signature.CopyTo(buffer);
-		buffer[3] = Version;
-		buffer[4] = (byte)Flags;
-		BinaryPrimitives.WriteUInt32BigEndian(buffer.Slice(5), DataOffset);
+		return dataOffset >= Size ? dataOffset : null;
 	}
 }

@@ -17,6 +17,7 @@ public sealed class FFmpegRunner(string executablePath)
 
 	public string ExecutablePath { get; } = executablePath;
 
+	// 取消后等 FFmpeg 收尾退出的时限，超时就强杀
 	internal TimeSpan GracefulExitTimeout { get; init; } = TimeSpan.FromSeconds(5);
 
 	public static string? Locate(string? preferredPath)
@@ -48,41 +49,25 @@ public sealed class FFmpegRunner(string executablePath)
 		return FindInDirectories(command, [.. pathDirectories, .. platformDirectories]);
 	}
 
+	// 不到一秒就退出，不用交给 ChildProcessTracker
 	public async Task<string?> GetVersionAsync(CancellationToken cancellationToken = default)
 	{
-		Process process;
+		ProcessStartInfo startInfo = new(ExecutablePath, [@"-version"])
+		{
+			CreateNoWindow = true,
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			StandardOutputEncoding = Encoding.UTF8
+		};
 
 		try
 		{
-			process = ChildProcessTracker.Start
-			(
-				new ProcessStartInfo(ExecutablePath, [@"-version"])
-				{
-					CreateNoWindow = true,
-					RedirectStandardOutput = true,
-					StandardOutputEncoding = Encoding.UTF8
-				}
-			);
+			ProcessTextOutput result = await Process.RunAndCaptureTextAsync(startInfo, cancellationToken);
+			return result.ExitStatus.ExitCode is 0 ? FFmpegOutputParser.ParseVersion(result.StandardOutput) : null;
 		}
 		catch (Win32Exception)
 		{
 			return null;
-		}
-
-		using (process)
-		{
-			try
-			{
-				string output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
-				await process.WaitForExitAsync(cancellationToken);
-
-				return process.ExitCode is 0 ? FFmpegOutputParser.ParseVersion(output) : null;
-			}
-			catch (OperationCanceledException)
-			{
-				process.Kill(true);
-				throw;
-			}
 		}
 	}
 
@@ -130,13 +115,15 @@ public sealed class FFmpegRunner(string executablePath)
 		catch (OperationCanceledException)
 		{
 			await StopAsync(process);
-			await Task.WhenAll(readError, readingOutput).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 			cancellationToken.ThrowIfCancellationRequested();
-			await readingOutput;
-			await readError;
-			throw;
+		}
+		finally
+		{
+			// 两边读取都用着 process 和 stopping，一边失败时另一边可能还没读完，等都结束才能释放
+			await Task.WhenAll(readError, readingOutput).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 		}
 
+		// 不是调用方取消时，stopping 只会由读取失败触发，这里重新抛出那个异常
 		await readingOutput;
 		string? failureMessage = await readError;
 
@@ -160,10 +147,11 @@ public sealed class FFmpegRunner(string executablePath)
 		return pathVariable?.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(static directory => directory.Trim('"')) ?? [];
 	}
 
+	// PATH 里的相对目录按当前目录解析，可能拾取到工作目录里伪造的 ffmpeg
 	private static string? FindInDirectories(string fileName, IEnumerable<string> directories)
 	{
 		return directories
-			.Where(static directory => !string.IsNullOrEmpty(directory))
+			.Where(Path.IsPathFullyQualified)
 			.Select(directory => Path.Combine(directory, fileName))
 			.Where(File.Exists)
 			.Select(Path.GetFullPath)
@@ -179,7 +167,7 @@ public sealed class FFmpegRunner(string executablePath)
 		try
 		{
 			// 统计行以 \r 结尾，ReadLine 会把它当作一行
-			while (await reader.ReadLineAsync() is { } rawLine)
+			while (await reader.ReadLineAsync(CancellationToken.None) is { } rawLine)
 			{
 				if (string.IsNullOrWhiteSpace(rawLine))
 				{
@@ -205,7 +193,7 @@ public sealed class FFmpegRunner(string executablePath)
 		catch
 		{
 			await stopping.CancelAsync();
-			await reader.BaseStream.CopyToAsync(Stream.Null);
+			await reader.BaseStream.CopyToAsync(Stream.Null, CancellationToken.None);
 			throw;
 		}
 
@@ -222,7 +210,7 @@ public sealed class FFmpegRunner(string executablePath)
 		catch
 		{
 			await stopping.CancelAsync();
-			await output.CopyToAsync(Stream.Null);
+			await output.CopyToAsync(Stream.Null, CancellationToken.None);
 			throw;
 		}
 	}
@@ -237,6 +225,7 @@ public sealed class FFmpegRunner(string executablePath)
 		}
 		catch (IOException)
 		{
+			// FFmpeg 已经退出，stdin 管道断开了
 		}
 
 		using CancellationTokenSource timeout = new(GracefulExitTimeout);
@@ -247,6 +236,7 @@ public sealed class FFmpegRunner(string executablePath)
 		}
 		catch (OperationCanceledException)
 		{
+			// 配置的可能是包装脚本或 shim，真正的 FFmpeg 是它的子进程，只结束这一个进程管道不会关闭
 			process.Kill(true);
 			await process.WaitForExitAsync(CancellationToken.None);
 		}

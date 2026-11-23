@@ -2,6 +2,7 @@ using System.Globalization;
 
 namespace MediaToolkit.FFmpeg;
 
+// 都不能带 -nostdin：取消时 FFmpegRunner 往 stdin 写 q 让 FFmpeg 收尾
 public static class FFmpegArguments
 {
 	public static IReadOnlyList<string> Remux(string input, string output, double? inputFrameRate = null)

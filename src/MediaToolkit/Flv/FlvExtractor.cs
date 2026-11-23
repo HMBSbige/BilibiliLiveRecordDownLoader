@@ -65,12 +65,12 @@ public static class FlvExtractor
 		long length = input.Length;
 		byte[] prefix = new byte[TagPrefixLength];
 
-		if (!await TryReadExactlyAsync(input, prefix.AsMemory(0, FlvHeader.Size), cancellationToken) || !FlvHeader.TryRead(prefix, out FlvHeader header))
+		if (!await TryReadExactlyAsync(input, prefix.AsMemory(0, FlvHeader.Size), cancellationToken) || FlvHeader.ReadDataOffset(prefix) is not { } dataOffset)
 		{
 			throw new InvalidDataException(@"The input is not an FLV file.");
 		}
 
-		input.Seek(header.DataOffset, SeekOrigin.Begin);
+		input.Seek(dataOffset, SeekOrigin.Begin);
 
 		int reportedStep = -1;
 		uint? previousFrameTimestamp = null;

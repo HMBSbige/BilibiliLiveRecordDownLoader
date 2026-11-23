@@ -42,11 +42,11 @@ public class FFmpegOutputParserTest
 	}
 
 	[Test]
-	[Arguments(@"time=100:00:00.00", 3_600_000_000_000L)]
-	[Arguments(@"time=00:00:01.5", 15_000_000L)]
-	[Arguments(@"time=00:00:01.123456789", 11_234_567L)]
-	[Arguments(@"time=00:00:07", 70_000_000L)]
-	[Arguments(@"time=-00:00:00.02", -200_000L)]
+	[Arguments(@"size=N/A time=100:00:00.00", 3_600_000_000_000L)]
+	[Arguments(@"size=N/A time=00:00:01.5", 15_000_000L)]
+	[Arguments(@"size=N/A time=00:00:01.123456789", 11_234_567L)]
+	[Arguments(@"size=N/A time=00:00:07", 70_000_000L)]
+	[Arguments(@"size=N/A time=-00:00:00.02", -200_000L)]
 	public async Task ParseProgressHandlesTimeFormatsAsync(string line, long expectedTicks)
 	{
 		FFmpegProgress progress = FFmpegOutputParser.ParseProgress(line, default);
@@ -58,10 +58,10 @@ public class FFmpegOutputParserTest
 	[Arguments(@"  Duration: N/A, start: 0.000000, bitrate: N/A")]
 	[Arguments(@"frame=    0 fps=0.0 q=0.0 size=       0KiB time=N/A bitrate=N/A speed=N/A")]
 	[Arguments(@"[flv @ 000001] Packet mismatch")]
-	// FFmpeg 会原样打印章节标题和元数据，里面的时间写法可能解析不了
-	[Arguments(@"        title           : Duration: ０1:00:00")]
-	[Arguments(@"        title           : time=００:００:０１")]
-	[Arguments(@"        title           : time=99999999999999999999:00:00")]
+	[Arguments(@"frame=    0 fps=0.0 q=0.0 size=       0KiB time=-2562047788:00:54.77 bitrate=N/A speed=N/A")]
+	// FFmpeg 会原样打印章节标题和元数据
+	[Arguments(@"        title           : Duration: 10:00:00.00")]
+	[Arguments(@"        title           : frame=1 time=00:00:01.00")]
 	public async Task ParseProgressKeepsPreviousValuesWhenUnavailableAsync(string line)
 	{
 		FFmpegProgress previous = new(TimeSpan.FromMinutes(1), TimeSpan.FromSeconds(2), @"previous");
