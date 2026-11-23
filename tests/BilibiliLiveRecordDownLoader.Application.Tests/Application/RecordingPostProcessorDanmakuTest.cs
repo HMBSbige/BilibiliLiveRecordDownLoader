@@ -4,6 +4,7 @@ using BilibiliLiveRecordDownLoader.Application.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
+using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -49,7 +50,7 @@ public sealed class RecordingPostProcessorDanmakuTest
 		{
 			await Assert.That(await File.ReadAllTextAsync(directory.Combine(Stem + ".ass"))).Contains("PlayResY: 720");
 			await Assert.That(chapters).Contains("START=0\nEND=100000\ntitle=测试标题\n");
-			await Assert.That(chapters).Contains("START=100000\nEND=200000\ntitle=标题：新标题\n");
+			await Assert.That(chapters).Contains($"START=100000\nEND=200000\ntitle={AppLanguage.Current.ChapterTitleChange.ToString("新标题")}\n");
 			await Assert.That(remux.Mode is RemuxMode.WithChapters { Path: var chaptersPath } && !File.Exists(chaptersPath)).IsTrue();
 		}
 	}

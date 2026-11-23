@@ -163,7 +163,7 @@ public sealed class MediaToolAppServiceTest
 			await Assert.That(Path.GetFileName(output)).IsEqualTo("out.mp4");
 			await Assert.That(Path.GetDirectoryName(Path.GetDirectoryName(output))).IsEqualTo(directory.Root);
 			await Assert.That(Path.GetFileName(Path.GetDirectoryName(output))).StartsWith(".");
-			await Assert.That(workDirectoryAttributes.HasFlag(FileAttributes.Hidden)).IsEqualTo(OperatingSystem.IsWindows());
+			await Assert.That(workDirectoryAttributes.HasFlag(FileAttributes.Hidden)).IsTrue();
 			await Assert.That(snapshot.Status).IsEqualTo(BackgroundTaskStatus.Canceled);
 			await Assert.That(File.Exists(destination)).IsFalse();
 			await Assert.That(File.Exists(source)).IsTrue();
