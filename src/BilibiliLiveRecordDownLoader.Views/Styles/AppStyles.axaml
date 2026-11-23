@@ -6,6 +6,8 @@
         <Thickness x:Key="PageMargin">16</Thickness>
         <Thickness x:Key="CardPadding">16</Thickness>
         <x:Double x:Key="PageSpacing">24</x:Double>
+        <!-- 表单页放在限宽的靠左列里：宽屏下行不会太长，左边线也和列表页一致 -->
+        <x:Double x:Key="PageMaxWidth">1000</x:Double>
         <x:Double x:Key="FormSpacing">12</x:Double>
         <x:Double x:Key="FieldSpacing">4</x:Double>
         <x:Double x:Key="ToolbarSpacing">8</x:Double>
@@ -112,6 +114,45 @@
                 </ControlTemplate>
             </Setter>
         </ControlTheme>
+
+        <ControlTheme x:Key="{x:Type ctl:SettingRow}" TargetType="ctl:SettingRow">
+            <Setter Property="Padding" Value="16,12" />
+            <Setter Property="BorderBrush" Value="{DynamicResource DividerStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="0,1,0,0" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Padding="{TemplateBinding Padding}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+                        <!-- 最小高度取输入框的高度，开关行和下拉框行一样高 -->
+                        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="24" MinHeight="32">
+                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="{TemplateBinding Header}" TextWrapping="Wrap"
+                                           IsVisible="{TemplateBinding Header, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                <TextBlock Classes="caption" Text="{TemplateBinding Description}" TextWrapping="Wrap"
+                                           IsVisible="{TemplateBinding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+                            <ContentPresenter x:Name="PART_ContentPresenter" Grid.Column="1" VerticalAlignment="Center"
+                                              Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" />
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+            <Style Selector="^.stacked /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Grid.Row" Value="1" />
+                <Setter Property="Grid.Column" Value="0" />
+                <Setter Property="Grid.ColumnSpan" Value="2" />
+            </Style>
+            <Style Selector="^.stacked:labeled /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Margin" Value="0,8,0,0" />
+            </Style>
+            <!-- 标题和说明不在控件里，不会随控件一起变淡 -->
+            <Style Selector="^:disabled /template/ TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
+            </Style>
+            <!-- 依赖上一行开关的子设置 -->
+            <Style Selector="^.nested">
+                <Setter Property="Padding" Value="40,12,16,12" />
+            </Style>
+        </ControlTheme>
     </Styles.Resources>
 
     <Style Selector=":is(Panel).page">
@@ -119,7 +160,6 @@
     </Style>
     <Style Selector="StackPanel.page">
         <Setter Property="Spacing" Value="{StaticResource PageSpacing}" />
-        <Setter Property="MaxWidth" Value="900" />
     </Style>
     <Style Selector="DockPanel.page">
         <Setter Property="VerticalSpacing" Value="{StaticResource FormSpacing}" />
@@ -177,6 +217,38 @@
         <Setter Property="OffContent" Value="{Binding $self.OnContent}" />
         <Setter Property="AutomationProperties.Name" Value="{Binding $self.OnContent}" />
     </Style>
+    <!-- 设置卡片由一行行设置组成，分隔线贯穿卡片 -->
+    <Style Selector="Border.card.settings">
+        <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="Border.card.settings > StackPanel > TextBlock.section">
+        <Setter Property="Margin" Value="16,14,16,10" />
+    </Style>
+    <Style Selector="ctl|SettingRow">
+        <Style.Resources>
+            <!-- 开关的文字就是行标题，不必给开关文字留出宽度和上下的空白 -->
+            <x:Double x:Key="ToggleSwitchThemeMinWidth">0</x:Double>
+            <GridLength x:Key="ToggleSwitchPreContentMargin">0</GridLength>
+            <GridLength x:Key="ToggleSwitchPostContentMargin">0</GridLength>
+        </Style.Resources>
+    </Style>
+    <!-- 模板在开关和文字之间固定留 12 像素，没有文字时用负边距让开关贴齐右边 -->
+    <Style Selector="ctl|SettingRow ToggleSwitch">
+        <Setter Property="OnContent" Value="{x:Null}" />
+        <Setter Property="OffContent" Value="{x:Null}" />
+        <Setter Property="Margin" Value="0,0,-12,0" />
+    </Style>
+    <Style Selector="ctl|SettingRow ComboBox">
+        <Setter Property="MinWidth" Value="200" />
+    </Style>
+    <Style Selector="ctl|SettingRow NumericUpDown">
+        <Setter Property="Width" Value="200" />
+    </Style>
+    <!-- 行里的控件没有自己的标签，读屏时念行标题和说明；要排在上面的 ToggleSwitch 样式之后 -->
+    <Style Selector="ctl|SettingRow ToggleSwitch, ctl|SettingRow ComboBox, ctl|SettingRow NumericUpDown, ctl|SettingRow TextBox">
+        <Setter Property="AutomationProperties.Name" Value="{Binding $parent[ctl:SettingRow].Header}" />
+        <Setter Property="AutomationProperties.HelpText" Value="{Binding $parent[ctl:SettingRow].Description}" />
+    </Style>
     <Style Selector="TextBox.search">
         <Setter Property="InnerLeftContent">
             <Template>
@@ -200,6 +272,10 @@
         <Setter Property="FontSize" Value="{DynamicResource CaptionFontSize}" />
         <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
         <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <!-- 等宽数字，时间、速度这类逐秒变化的数字不再左右抖动，列也对得齐 -->
+    <Style Selector="TextBlock.numeric">
+        <Setter Property="FontFeatures" Value="+tnum" />
     </Style>
     <!-- 去掉 Fluent2 的卡片外观，融进表单；负边距让文字与表单对齐，同时悬停背景伸出两侧 -->
     <Style Selector="Expander.inline">
@@ -241,6 +317,12 @@
         <Setter Property="FontSize" Value="18" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+    </Style>
+    <Style Selector="Border.successBanner > Grid > ic|FluentIcon">
+        <Setter Property="IconVariant" Value="Filled" />
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
     </Style>
     <!-- 错误可能有好几行，图标对齐第一行 -->
     <Style Selector="Border.errorBanner > Grid > ic|FluentIcon">

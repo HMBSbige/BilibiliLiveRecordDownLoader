@@ -59,7 +59,8 @@ public partial class DialogHostView : UserControl
 			?? Array.Find(candidates, static control => control is ComboBox or ToggleButton or NumericUpDown)
 			?? Array.Find(candidates, static control => control is Button);
 
-		target?.Focus(NavigationMethod.Tab);
+		// 按 Tab 聚焦会全选文本框里已有的内容；其他控件按默认方式聚焦，刚打开时不显示键盘焦点框
+		target?.Focus(target is TextBox ? NavigationMethod.Tab : NavigationMethod.Unspecified);
 	}
 
 	// 忙碌时不关闭，但按键也不再传给下面的页面

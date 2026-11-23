@@ -6,6 +6,12 @@
     xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.PriorityListView"
     x:DataType="common:PriorityListViewModel">
+    <UserControl.Styles>
+        <Style Selector="TextBlock:disabled">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
+        </Style>
+    </UserControl.Styles>
+
     <Border Classes="table" Padding="4">
         <!-- 行本身没有自动化节点，按钮的说明里带上所属的项，读屏才分得清在移动哪一项 -->
         <ItemsControl x:Name="Items" ItemsSource="{Binding Items}">

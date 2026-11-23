@@ -87,13 +87,14 @@ public partial class LogsView : UserControl
 	// 剪贴板可能被其他程序占用
 	private async Task CopySelectionAsync()
 	{
-		if (_viewModel is null || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard || LogList.SelectedItems is not { Count: > 0 } selection)
+		if (_viewModel is not { Entries: var entries } || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard || LogList.Selection.SelectedIndexes is not { Count: > 0 } indexes)
 		{
 			return;
 		}
 
-		IEnumerable<string> lines = _viewModel.Entries
-			.Where(selection.Contains)
+		// 选中的索引按升序排列，正是显示顺序
+		IEnumerable<string> lines = indexes
+			.Select(index => entries[index])
 			.Select(static entry => string.Create(CultureInfo.CurrentCulture, $"{entry.Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{entry.Level}] [{entry.RoomId}] {entry.Message}"));
 
 		try

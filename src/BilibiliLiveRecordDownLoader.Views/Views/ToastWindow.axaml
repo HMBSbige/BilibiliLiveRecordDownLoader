@@ -12,6 +12,7 @@
     WindowStartupLocation="Manual"
     WindowDecorations="None"
     TransparencyLevelHint="Transparent"
+    TransparencyBackgroundFallback="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
     Background="Transparent"
     Opacity="0"
     Cursor="Hand">

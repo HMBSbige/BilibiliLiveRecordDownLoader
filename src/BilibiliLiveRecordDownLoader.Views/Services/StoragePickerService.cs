@@ -2,6 +2,8 @@ namespace BilibiliLiveRecordDownLoader.Views.Services;
 
 internal sealed class StoragePickerService(ApplicationShell shell) : IStoragePickerService
 {
+	private static readonly string[] VideoPatterns = ["*.flv", "*.mp4", "*.ts", "*.mkv", "*.m4s"];
+
 	private IStorageProvider StorageProvider => shell.Window.StorageProvider;
 
 	public async Task<string?> PickFolderAsync(string? initialDirectory = null)
@@ -32,25 +34,33 @@ internal sealed class StoragePickerService(ApplicationShell shell) : IStoragePic
 		return PickOpenFileAsync(initialDirectory, [DanmakuFileType, AllFileType]);
 	}
 
+	// Linux 的对话框给没写扩展名的文件名补上所选类型里第一个具体的模式，所以目标扩展名要排在最前；
+	// “所有文件”写成 *.*，补扩展名时会跳过它，改用默认扩展名
 	public async Task<string?> PickSaveVideoFileAsync(string? suggestedPath = null)
 	{
-		bool hasSuggestion = !string.IsNullOrWhiteSpace(suggestedPath);
+		string extension = Path.GetExtension(suggestedPath) is { Length: > 0 } suggested ? suggested : ".mp4";
+		string pattern = $"*{extension}";
 
 		IStorageFile? file = await StorageProvider.SaveFilePickerAsync
 		(
 			new FilePickerSaveOptions
 			{
 				SuggestedStartLocation = await TryGetFolderAsync(Path.GetDirectoryName(suggestedPath)),
-				SuggestedFileName = hasSuggestion ? Path.GetFileName(suggestedPath) : null,
-				DefaultExtension = hasSuggestion ? Path.GetExtension(suggestedPath) : ".mp4",
-				FileTypeChoices = [VideoFileType, AllFileType]
+				SuggestedFileName = string.IsNullOrWhiteSpace(suggestedPath) ? null : Path.GetFileName(suggestedPath),
+				// Windows 的 IFileDialog.SetDefaultExtension 要求不带点
+				DefaultExtension = extension.TrimStart('.'),
+				FileTypeChoices =
+				[
+					new FilePickerFileType(AppLanguage.Current.VideoFiles) { Patterns = [pattern, .. VideoPatterns.Where(p => !p.Equals(pattern, StringComparison.OrdinalIgnoreCase))] },
+					new FilePickerFileType(AppLanguage.Current.AllFiles) { Patterns = ["*.*"] }
+				]
 			}
 		);
 
 		return file?.TryGetLocalPath();
 	}
 
-	private static FilePickerFileType VideoFileType => new(AppLanguage.Current.VideoFiles) { Patterns = ["*.flv", "*.mp4", "*.ts", "*.mkv", "*.m4s"] };
+	private static FilePickerFileType VideoFileType => new(AppLanguage.Current.VideoFiles) { Patterns = VideoPatterns };
 
 	private static FilePickerFileType DanmakuFileType => new(AppLanguage.Current.DanmakuFiles) { Patterns = ["*.xml"] };
 

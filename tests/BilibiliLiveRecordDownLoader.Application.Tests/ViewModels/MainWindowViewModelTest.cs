@@ -88,8 +88,6 @@ public sealed class MainWindowViewModelTest
 
 	private sealed class FakeShell(Events events) : IApplicationShell
 	{
-		public CancellationToken ShuttingDown => CancellationToken.None;
-
 		public bool StartMinimized => false;
 
 		public void ShowMainWindow()

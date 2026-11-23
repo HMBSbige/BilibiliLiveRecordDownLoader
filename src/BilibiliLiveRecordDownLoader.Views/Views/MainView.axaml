@@ -20,28 +20,41 @@
         <Style Selector="ListBox.nav > ListBoxItem:selected TextBlock">
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
-        <Style Selector="ListBox.nav ic|FluentIcon">
-            <Setter Property="FontSize" Value="20" />
-        </Style>
         <Style Selector="ListBox.nav > ListBoxItem:selected ic|FluentIcon">
             <Setter Property="IconVariant" Value="Filled" />
         </Style>
-        <Style Selector="ListBox.nav StackPanel.iconText">
+        <Style Selector="Button.nav">
+            <Setter Property="Theme" Value="{DynamicResource SubtleButton}" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Margin" Value="0,2" />
+        </Style>
+        <Style Selector="Border.navPane ic|FluentIcon">
+            <Setter Property="FontSize" Value="20" />
+        </Style>
+        <Style Selector="Border.navPane StackPanel.iconText">
             <Setter Property="Spacing" Value="12" />
         </Style>
     </UserControl.Styles>
 
     <Panel>
         <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding IsInitialized}">
-            <Border Grid.Column="0" Width="188" Padding="8,12"
+            <Border Grid.Column="0" Classes="navPane" Width="188" Padding="8,12"
                     BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,1,0">
                 <DockPanel>
+                    <!-- 托盘不一定可用（如没有 StatusNotifier 宿主的 GNOME），关窗口只是隐藏，窗口里要有退出入口 -->
+                    <Button DockPanel.Dock="Bottom" Classes="nav" Command="{Binding ExitCommand}">
+                        <StackPanel Classes="iconText">
+                            <ic:FluentIcon Icon="Power" />
+                            <TextBlock Text="{Binding Exit, Source={x:Static l:AppLanguage.Current}}" />
+                        </StackPanel>
+                    </Button>
                     <Grid DockPanel.Dock="Bottom" ColumnDefinitions="20,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="2" Margin="12,8"
                           IsVisible="{Binding Rooms.RecordingSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                         <Ellipse Grid.Row="0" Grid.Column="0" Width="8" Height="8" Fill="{DynamicResource SystemFillColorCriticalBrush}" />
                         <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Rooms.RecordingSummary}" TextTrimming="CharacterEllipsis"
                                    FontSize="{DynamicResource CaptionFontSize}" />
-                        <TextBlock Grid.Row="1" Grid.Column="1" Classes="caption" Text="{Binding Rooms.RecordingSpeed}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Classes="caption numeric" Text="{Binding Rooms.RecordingSpeed}" TextTrimming="CharacterEllipsis" />
                     </Grid>
                     <ListBox x:Name="Navigation" Classes="nav" SelectedIndex="{Binding SelectedPageIndex, Mode=TwoWay}" SelectionChanged="OnNavigationSelectionChanged">
                         <ListBoxItem>

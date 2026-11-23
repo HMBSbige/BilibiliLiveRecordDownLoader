@@ -45,6 +45,17 @@
         <Style Selector="Border.dragHandle:pointerover > ic|FluentIcon">
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         </Style>
+        <!-- 实心的圆点和方块就是通用的录制、停止符号 -->
+        <Style Selector="ic|FluentIcon.startRecording, ic|FluentIcon.stopRecording">
+            <Setter Property="IconVariant" Value="Filled" />
+            <Setter Property="FontSize" Value="14" />
+        </Style>
+        <Style Selector="ic|FluentIcon.startRecording">
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+        </Style>
+        <Style Selector="ic|FluentIcon.startRecording:disabled">
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
+        </Style>
         <Style Selector="TextBlock.restricted">
             <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
         </Style>
@@ -53,10 +64,28 @@
             <Setter Property="CornerRadius" Value="1" />
             <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
         </Style>
+        <Style Selector="TextBlock.roomError">
+            <Setter Property="FontSize" Value="{DynamicResource CaptionFontSize}" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <!-- 弹幕面板挤窄列表时，名称比编码、格式这些技术参数要紧 -->
+        <ContainerQuery Name="roomList" Query="max-width:520">
+            <Style Selector="TextBlock.streamInfo">
+                <Setter Property="IsVisible" Value="False" />
+            </Style>
+        </ContainerQuery>
+        <!-- 最小窗口宽度下选中房间时，工具栏仍能排成一行 -->
+        <ContainerQuery Name="toolbar" Query="max-width:760">
+            <Style Selector="Button.collapsible TextBlock">
+                <Setter Property="IsVisible" Value="False" />
+            </Style>
+        </ContainerQuery>
     </UserControl.Styles>
 
     <DockPanel Classes="page">
-        <DockPanel Classes="toolbar">
+        <DockPanel Classes="toolbar" Container.Name="toolbar" Container.Sizing="Width">
             <StackPanel DockPanel.Dock="Right" Classes="toolbar" VerticalAlignment="Top" IsVisible="{Binding HasRooms}">
                 <DropDownButton ToolTip.Tip="{Binding SortBy, Source={x:Static l:AppLanguage.Current}}"
                                 AutomationProperties.Name="{Binding SortBy, Source={x:Static l:AppLanguage.Current}}">
@@ -121,7 +150,9 @@
                         <TextBlock Text="{Binding AddRoom, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                 </Button>
-                <Button Command="{Binding ImportFollowedRoomsCommand}" IsVisible="{Binding HasRooms}">
+                <Button Classes="collapsible" Command="{Binding ImportFollowedRoomsCommand}" IsVisible="{Binding HasRooms}"
+                        ToolTip.Tip="{Binding ImportFollowedRooms, Source={x:Static l:AppLanguage.Current}}"
+                        AutomationProperties.Name="{Binding ImportFollowedRooms, Source={x:Static l:AppLanguage.Current}}">
                     <StackPanel Classes="iconText">
                         <ic:FluentIcon Icon="PeopleAdd" />
                         <TextBlock Text="{Binding ImportFollowedRooms, Source={x:Static l:AppLanguage.Current}}" />
@@ -131,12 +162,12 @@
                     <Button Command="{Binding StartRecordingCommand}"
                             ToolTip.Tip="{Binding StartRecording, Source={x:Static l:AppLanguage.Current}}"
                             AutomationProperties.Name="{Binding StartRecording, Source={x:Static l:AppLanguage.Current}}">
-                        <ic:FluentIcon Icon="Record" />
+                        <ic:FluentIcon Classes="startRecording" Icon="Circle" />
                     </Button>
                     <Button Command="{Binding StopRecordingCommand}"
                             ToolTip.Tip="{Binding StopRecording, Source={x:Static l:AppLanguage.Current}}"
                             AutomationProperties.Name="{Binding StopRecording, Source={x:Static l:AppLanguage.Current}}">
-                        <ic:FluentIcon Icon="RecordStop" />
+                        <ic:FluentIcon Classes="stopRecording" Icon="Stop" />
                     </Button>
                     <Button Classes="danger" Command="{Binding RemoveRoomsCommand}"
                             ToolTip.Tip="{Binding RemoveRooms, Source={x:Static l:AppLanguage.Current}}"
@@ -168,6 +199,7 @@
                 <Panel>
                     <ListBox x:Name="RoomList"
                              Classes="table"
+                             Container.Name="roomList" Container.Sizing="Width"
                              ItemsSource="{Binding Rooms}"
                              SelectedItems="{Binding SelectedRooms}"
                              SelectionMode="Multiple"
@@ -229,12 +261,12 @@
                                 <Separator />
                                 <MenuItem Header="{Binding StartRecording, Source={x:Static l:AppLanguage.Current}}" Command="{Binding StartRecordingCommand}">
                                     <MenuItem.Icon>
-                                        <ic:FluentIcon Icon="Record" />
+                                        <ic:FluentIcon Classes="startRecording" Icon="Circle" />
                                     </MenuItem.Icon>
                                 </MenuItem>
                                 <MenuItem Header="{Binding StopRecording, Source={x:Static l:AppLanguage.Current}}" Command="{Binding StopRecordingCommand}">
                                     <MenuItem.Icon>
-                                        <ic:FluentIcon Icon="RecordStop" />
+                                        <ic:FluentIcon Classes="stopRecording" Icon="Stop" />
                                     </MenuItem.Icon>
                                 </MenuItem>
                                 <MenuItem Header="{Binding RefreshRooms, Source={x:Static l:AppLanguage.Current}}" Command="{Binding RefreshRoomsCommand}">
@@ -268,8 +300,8 @@
                                         <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                         <StackPanel Grid.Row="0" Grid.Column="2" Classes="toolbar" HorizontalAlignment="Right">
                                             <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding IsRecording}">
-                                                <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding StreamInfo}" />
-                                                <TextBlock Classes="caption" VerticalAlignment="Center" Text="·" />
+                                                <TextBlock Classes="caption streamInfo" VerticalAlignment="Center" Text="{Binding StreamInfo}" />
+                                                <TextBlock Classes="caption streamInfo" VerticalAlignment="Center" Text="·" />
                                                 <StackPanel Orientation="Horizontal" Spacing="2" Background="Transparent"
                                                             ToolTip.Tip="{Binding QualityRestrictionTip}">
                                                     <ic:FluentIcon Icon="Warning" IconVariant="Filled" FontSize="12" VerticalAlignment="Center"
@@ -284,21 +316,27 @@
                                                                Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
                                                 <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding RecordingDanmaku, Source={x:Static l:AppLanguage.Current}}" />
                                             </StackPanel>
-                                            <StackPanel Orientation="Horizontal" Spacing="2" Background="Transparent"
-                                                        ToolTip.Tip="{Binding StatusTip}">
-                                                <ic:FluentIcon Icon="ErrorCircle" IconVariant="Filled" FontSize="12" VerticalAlignment="Center"
-                                                               Foreground="{DynamicResource SystemFillColorCriticalBrush}"
-                                                               IsVisible="{Binding HasError}" />
-                                                <ContentControl Content="{Binding Status}" ContentTemplate="{StaticResource LocalizedLabel}" VerticalAlignment="Center"
-                                                                FontSize="{DynamicResource CaptionFontSize}" ctl:StatusColor.Value="{Binding Status}" />
-                                            </StackPanel>
+                                            <ContentControl Content="{Binding Status}" ContentTemplate="{StaticResource LocalizedLabel}" VerticalAlignment="Center"
+                                                            FontSize="{DynamicResource CaptionFontSize}" ctl:StatusColor.Value="{Binding Status}" />
                                         </StackPanel>
 
                                         <TextBlock Grid.Row="1" Grid.Column="1" Classes="caption" VerticalAlignment="Center"
-                                                   Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}"
-                                                   IsVisible="{Binding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                                   Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}">
+                                            <TextBlock.IsVisible>
+                                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                                    <Binding Path="Subtitle" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
+                                                    <Binding Path="!HasError" />
+                                                </MultiBinding>
+                                            </TextBlock.IsVisible>
+                                        </TextBlock>
+                                        <DockPanel Grid.Row="1" Grid.Column="1" HorizontalSpacing="4" Background="Transparent"
+                                                   ToolTip.Tip="{Binding StatusTip}" IsVisible="{Binding HasError}">
+                                            <ic:FluentIcon Icon="ErrorCircle" IconVariant="Filled" FontSize="12" VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                                            <TextBlock Classes="roomError" Text="{Binding StatusTip}" />
+                                        </DockPanel>
                                         <Panel Grid.Row="1" Grid.Column="2" MinHeight="22" HorizontalAlignment="Right">
-                                            <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding RecordingInfo}" IsVisible="{Binding IsRecording}" />
+                                            <TextBlock Classes="caption numeric" VerticalAlignment="Center" Text="{Binding RecordingInfo}" IsVisible="{Binding IsRecording}" />
                                             <StackPanel Orientation="Horizontal" Spacing="2" IsVisible="{Binding !IsRecording}">
                                                 <ToggleButton Classes="flag" IsChecked="{Binding IsRecordingEnabled}"
                                                               ToolTip.Tip="{Binding RecordingEnabled, Source={x:Static l:AppLanguage.Current}}"

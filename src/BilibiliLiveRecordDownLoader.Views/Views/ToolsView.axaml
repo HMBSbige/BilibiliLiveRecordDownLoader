@@ -7,108 +7,117 @@
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.ToolsView"
     x:DataType="tools:MediaToolsViewModel">
     <ScrollViewer>
-        <StackPanel Classes="page">
-            <Border Classes="warningBanner" IsVisible="{Binding IsFFmpegAvailable, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}">
-                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                    <ic:FluentIcon Grid.Column="0" Icon="Warning" />
-                    <TextBlock Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap"
-                               Text="{Binding FFmpegNotFound, Source={x:Static l:AppLanguage.Current}}" />
-                    <StackPanel Grid.Column="2" Classes="toolbar">
-                        <Button Command="{Binding CheckFFmpegCommand}" Content="{Binding CheckAgain, Source={x:Static l:AppLanguage.Current}}" />
-                        <Button Classes="accent" Command="{Binding DownloadFFmpegCommand}">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition MaxWidth="{StaticResource PageMaxWidth}" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Classes="page">
+                <Border Classes="warningBanner" IsVisible="{Binding IsFFmpegAvailable, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                        <ic:FluentIcon Grid.Column="0" Icon="Warning" />
+                        <TextBlock Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap"
+                                   Text="{Binding FFmpegNotFound, Source={x:Static l:AppLanguage.Current}}" />
+                        <StackPanel Grid.Column="2" Classes="toolbar">
+                            <Button Command="{Binding CheckFFmpegCommand}" Content="{Binding CheckAgain, Source={x:Static l:AppLanguage.Current}}" />
+                            <Button Classes="accent" Command="{Binding DownloadFFmpegCommand}">
+                                <StackPanel Classes="iconText">
+                                    <ic:FluentIcon Icon="ArrowDownload" />
+                                    <TextBlock Text="{Binding DownloadFFmpeg, Source={x:Static l:AppLanguage.Current}}" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <Border Classes="successBanner" IsVisible="{Binding IsFFmpegAvailable, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:True}}">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                        <ic:FluentIcon Grid.Column="0" Icon="CheckmarkCircle" />
+                        <TextBlock Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Text="{Binding FFmpegVersion}" />
+                        <Button Grid.Column="2" Classes="icon" Command="{Binding CheckFFmpegCommand}"
+                                ToolTip.Tip="{Binding CheckAgain, Source={x:Static l:AppLanguage.Current}}"
+                                AutomationProperties.Name="{Binding CheckAgain, Source={x:Static l:AppLanguage.Current}}">
+                            <ic:FluentIcon Icon="ArrowSync" />
+                        </Button>
+                    </Grid>
+                </Border>
+                <Border Classes="messageBanner" IsVisible="{Binding IsFFmpegAvailable, Converter={x:Static ObjectConverters.IsNull}}">
+                    <StackPanel Classes="iconText">
+                        <ProgressBar Theme="{DynamicResource ProgressRing}" IsIndeterminate="True" Width="16" Height="16" />
+                        <TextBlock Text="{Binding Checking, Source={x:Static l:AppLanguage.Current}}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="card">
+                    <StackPanel Classes="form">
+                        <TextBlock Classes="section" Text="{Binding Remux, Source={x:Static l:AppLanguage.Current}}" />
+                        <StackPanel Classes="field">
+                            <TextBlock Text="{Binding InputFile, Source={x:Static l:AppLanguage.Current}}" />
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Command="{Binding BrowseRemuxInputCommand}"
+                                        Content="{Binding Browse, Source={x:Static l:AppLanguage.Current}}" />
+                                <TextBox Text="{Binding RemuxInput}" />
+                            </DockPanel>
+                        </StackPanel>
+                        <StackPanel Classes="field">
+                            <TextBlock Text="{Binding OutputFile, Source={x:Static l:AppLanguage.Current}}" />
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Command="{Binding BrowseRemuxOutputCommand}"
+                                        Content="{Binding Browse, Source={x:Static l:AppLanguage.Current}}" />
+                                <TextBox Text="{Binding RemuxOutput}" />
+                            </DockPanel>
+                        </StackPanel>
+                        <CheckBox IsChecked="{Binding RepairFlv}" Content="{Binding RepairFlv, Source={x:Static l:AppLanguage.Current}}" />
+                        <CheckBox IsChecked="{Binding DeleteRemuxSource}" Content="{Binding DeleteSource, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock Classes="error" Text="{Binding RemuxError}"
+                                   IsVisible="{Binding RemuxError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        <Button HorizontalAlignment="Left" Classes="accent" Command="{Binding QueueRemuxCommand}">
                             <StackPanel Classes="iconText">
-                                <ic:FluentIcon Icon="ArrowDownload" />
-                                <TextBlock Text="{Binding DownloadFFmpeg, Source={x:Static l:AppLanguage.Current}}" />
+                                <ic:FluentIcon Icon="ArrowRepeatAll" />
+                                <TextBlock Text="{Binding AddToQueue, Source={x:Static l:AppLanguage.Current}}" />
                             </StackPanel>
                         </Button>
                     </StackPanel>
-                </Grid>
-            </Border>
-            <StackPanel Classes="iconText" IsVisible="{Binding IsFFmpegAvailable, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:True}}">
-                <ic:FluentIcon Icon="CheckmarkCircle" IconVariant="Filled" FontSize="14" Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
-                <TextBlock Classes="caption" Text="{Binding FFmpegVersion}" />
-                <Button Classes="icon" Padding="2" Command="{Binding CheckFFmpegCommand}"
-                        ToolTip.Tip="{Binding CheckAgain, Source={x:Static l:AppLanguage.Current}}"
-                        AutomationProperties.Name="{Binding CheckAgain, Source={x:Static l:AppLanguage.Current}}">
-                    <ic:FluentIcon Icon="ArrowSync" FontSize="14" />
-                </Button>
-            </StackPanel>
-            <StackPanel Classes="iconText" IsVisible="{Binding IsFFmpegAvailable, Converter={x:Static ObjectConverters.IsNull}}">
-                <ProgressBar Theme="{DynamicResource ProgressRing}" IsIndeterminate="True" Width="14" Height="14" />
-                <TextBlock Classes="caption" Text="{Binding Checking, Source={x:Static l:AppLanguage.Current}}" />
-            </StackPanel>
+                </Border>
 
-            <Border Classes="card">
-                <StackPanel Classes="form">
-                    <TextBlock Classes="section" Text="{Binding Remux, Source={x:Static l:AppLanguage.Current}}" />
-                    <StackPanel Classes="field">
-                        <TextBlock Text="{Binding InputFile, Source={x:Static l:AppLanguage.Current}}" />
-                        <DockPanel>
-                            <Button DockPanel.Dock="Right" Command="{Binding BrowseRemuxInputCommand}"
-                                    Content="{Binding Browse, Source={x:Static l:AppLanguage.Current}}" />
-                            <TextBox Text="{Binding RemuxInput}" />
-                        </DockPanel>
-                    </StackPanel>
-                    <StackPanel Classes="field">
-                        <TextBlock Text="{Binding OutputFile, Source={x:Static l:AppLanguage.Current}}" />
-                        <DockPanel>
-                            <Button DockPanel.Dock="Right" Command="{Binding BrowseRemuxOutputCommand}"
-                                    Content="{Binding Browse, Source={x:Static l:AppLanguage.Current}}" />
-                            <TextBox Text="{Binding RemuxOutput}" />
-                        </DockPanel>
-                    </StackPanel>
-                    <CheckBox IsChecked="{Binding RepairFlv}" Content="{Binding RepairFlv, Source={x:Static l:AppLanguage.Current}}" />
-                    <CheckBox IsChecked="{Binding DeleteRemuxSource}" Content="{Binding DeleteSource, Source={x:Static l:AppLanguage.Current}}" />
-                    <TextBlock Classes="error" Text="{Binding RemuxError}"
-                               IsVisible="{Binding RemuxError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                    <Button HorizontalAlignment="Left" Classes="accent" Command="{Binding QueueRemuxCommand}">
-                        <StackPanel Classes="iconText">
-                            <ic:FluentIcon Icon="ArrowRepeatAll" />
-                            <TextBlock Text="{Binding AddToQueue, Source={x:Static l:AppLanguage.Current}}" />
+                <Border Classes="card">
+                    <StackPanel Classes="form">
+                        <TextBlock Classes="section" Text="{Binding Cut, Source={x:Static l:AppLanguage.Current}}" />
+                        <StackPanel Classes="field">
+                            <TextBlock Text="{Binding InputFile, Source={x:Static l:AppLanguage.Current}}" />
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Command="{Binding BrowseCutInputCommand}"
+                                        Content="{Binding Browse, Source={x:Static l:AppLanguage.Current}}" />
+                                <TextBox Text="{Binding CutInput}" />
+                            </DockPanel>
                         </StackPanel>
-                    </Button>
-                </StackPanel>
-            </Border>
-
-            <Border Classes="card">
-                <StackPanel Classes="form">
-                    <TextBlock Classes="section" Text="{Binding Cut, Source={x:Static l:AppLanguage.Current}}" />
-                    <StackPanel Classes="field">
-                        <TextBlock Text="{Binding InputFile, Source={x:Static l:AppLanguage.Current}}" />
-                        <DockPanel>
-                            <Button DockPanel.Dock="Right" Command="{Binding BrowseCutInputCommand}"
-                                    Content="{Binding Browse, Source={x:Static l:AppLanguage.Current}}" />
-                            <TextBox Text="{Binding CutInput}" />
-                        </DockPanel>
+                        <StackPanel Classes="field">
+                            <TextBlock Text="{Binding OutputFile, Source={x:Static l:AppLanguage.Current}}" />
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Command="{Binding BrowseCutOutputCommand}"
+                                        Content="{Binding Browse, Source={x:Static l:AppLanguage.Current}}" />
+                                <TextBox Text="{Binding CutOutput}" />
+                            </DockPanel>
+                        </StackPanel>
+                        <Grid Classes="form" ColumnDefinitions="*,*">
+                            <StackPanel Grid.Column="0" Classes="field">
+                                <TextBlock Text="{Binding StartTime, Source={x:Static l:AppLanguage.Current}}" />
+                                <TextBox Text="{Binding CutStart}" PlaceholderText="hh:mm:ss.fff" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Classes="field">
+                                <TextBlock Text="{Binding EndTime, Source={x:Static l:AppLanguage.Current}}" />
+                                <TextBox Text="{Binding CutEnd}" PlaceholderText="hh:mm:ss.fff" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Classes="error" Text="{Binding CutError}"
+                                   IsVisible="{Binding CutError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        <Button HorizontalAlignment="Left" Classes="accent" Command="{Binding QueueCutCommand}">
+                            <StackPanel Classes="iconText">
+                                <ic:FluentIcon Icon="Cut" />
+                                <TextBlock Text="{Binding AddToQueue, Source={x:Static l:AppLanguage.Current}}" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
-                    <StackPanel Classes="field">
-                        <TextBlock Text="{Binding OutputFile, Source={x:Static l:AppLanguage.Current}}" />
-                        <DockPanel>
-                            <Button DockPanel.Dock="Right" Command="{Binding BrowseCutOutputCommand}"
-                                    Content="{Binding Browse, Source={x:Static l:AppLanguage.Current}}" />
-                            <TextBox Text="{Binding CutOutput}" />
-                        </DockPanel>
-                    </StackPanel>
-                    <Grid Classes="form" ColumnDefinitions="*,*">
-                        <StackPanel Grid.Column="0" Classes="field">
-                            <TextBlock Text="{Binding StartTime, Source={x:Static l:AppLanguage.Current}}" />
-                            <TextBox Text="{Binding CutStart}" PlaceholderText="hh:mm:ss.fff" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Classes="field">
-                            <TextBlock Text="{Binding EndTime, Source={x:Static l:AppLanguage.Current}}" />
-                            <TextBox Text="{Binding CutEnd}" PlaceholderText="hh:mm:ss.fff" />
-                        </StackPanel>
-                    </Grid>
-                    <TextBlock Classes="error" Text="{Binding CutError}"
-                               IsVisible="{Binding CutError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                    <Button HorizontalAlignment="Left" Classes="accent" Command="{Binding QueueCutCommand}">
-                        <StackPanel Classes="iconText">
-                            <ic:FluentIcon Icon="Cut" />
-                            <TextBlock Text="{Binding AddToQueue, Source={x:Static l:AppLanguage.Current}}" />
-                        </StackPanel>
-                    </Button>
-                </StackPanel>
-            </Border>
-        </StackPanel>
+                </Border>
+            </StackPanel>
+        </Grid>
     </ScrollViewer>
 </UserControl>

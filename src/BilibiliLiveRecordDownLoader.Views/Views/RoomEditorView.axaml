@@ -74,30 +74,30 @@
                     <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,8,0,0" Text="{Binding RecordingSplit, Source={x:Static l:AppLanguage.Current}}" />
                     <ComboBox Grid.Row="5" Grid.Column="0" ItemsSource="{Binding SplitModeOptions}" SelectedItem="{Binding SplitMode}"
                               AutomationProperties.Name="{Binding RecordingSplit, Source={x:Static l:AppLanguage.Current}}" />
-                    <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,8,0,0" IsVisible="{Binding IsSplitByDuration}"
+                    <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,8,0,0" Text="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}" />
+                    <ComboBox Grid.Row="5" Grid.Column="1" ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding SplitOnTitleChange}"
+                              AutomationProperties.Name="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}" />
+                    <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,8,0,0" Text="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}" />
+                    <NumericUpDown Grid.Row="7" Grid.Column="0" Value="{Binding DanmakuOffsetSeconds}" Increment="0.1" FormatString="0.###"
+                                   Minimum="{x:Static cfg:DanmakuDefaults.MinOffsetSeconds}" Maximum="{x:Static cfg:DanmakuDefaults.MaxOffsetSeconds}"
+                                   PlaceholderText="{Binding DanmakuOffsetPlaceholder}"
+                                   AutomationProperties.Name="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}" />
+                    <TextBlock Grid.Row="6" Grid.Column="1" Margin="0,8,0,0" IsVisible="{Binding IsSplitByDuration}"
                                Text="{Binding SplitDuration, Source={x:Static l:AppLanguage.Current}}" />
-                    <DockPanel Grid.Row="5" Grid.Column="1" IsVisible="{Binding IsSplitByDuration}">
+                    <DockPanel Grid.Row="7" Grid.Column="1" IsVisible="{Binding IsSplitByDuration}">
                         <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Text="{Binding Minutes, Source={x:Static l:AppLanguage.Current}}" />
                         <NumericUpDown Value="{Binding SplitDurationMinutes}" FormatString="0"
                                        Minimum="{x:Static cfg:RecordingSplitDefaults.MinDurationMinutes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxDurationMinutes}"
                                        AutomationProperties.Name="{Binding SplitDuration, Source={x:Static l:AppLanguage.Current}}" />
                     </DockPanel>
-                    <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,8,0,0" IsVisible="{Binding IsSplitBySize}"
+                    <TextBlock Grid.Row="6" Grid.Column="1" Margin="0,8,0,0" IsVisible="{Binding IsSplitBySize}"
                                Text="{Binding SplitSize, Source={x:Static l:AppLanguage.Current}}" />
-                    <DockPanel Grid.Row="5" Grid.Column="1" IsVisible="{Binding IsSplitBySize}">
+                    <DockPanel Grid.Row="7" Grid.Column="1" IsVisible="{Binding IsSplitBySize}">
                         <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Text="{Binding Megabytes, Source={x:Static l:AppLanguage.Current}}" />
                         <NumericUpDown Value="{Binding SplitSizeMegabytes}" Increment="100" FormatString="0"
                                        Minimum="{x:Static cfg:RecordingSplitDefaults.MinSizeMegabytes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxSizeMegabytes}"
                                        AutomationProperties.Name="{Binding SplitSize, Source={x:Static l:AppLanguage.Current}}" />
                     </DockPanel>
-                    <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,8,0,0" Text="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}" />
-                    <ComboBox Grid.Row="7" Grid.Column="0" ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding SplitOnTitleChange}"
-                              AutomationProperties.Name="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}" />
-                    <TextBlock Grid.Row="6" Grid.Column="1" Margin="0,8,0,0" Text="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}" />
-                    <NumericUpDown Grid.Row="7" Grid.Column="1" Value="{Binding DanmakuOffsetSeconds}" Increment="0.1" FormatString="0.###"
-                                   Minimum="{x:Static cfg:DanmakuDefaults.MinOffsetSeconds}" Maximum="{x:Static cfg:DanmakuDefaults.MaxOffsetSeconds}"
-                                   PlaceholderText="{Binding DanmakuOffsetPlaceholder}"
-                                   AutomationProperties.Name="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}" />
                 </Grid>
                 <Grid Classes="form" ColumnDefinitions="*,*">
                     <StackPanel Grid.Column="0" Classes="field">

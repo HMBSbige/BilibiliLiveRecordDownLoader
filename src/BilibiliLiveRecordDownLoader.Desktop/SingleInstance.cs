@@ -130,11 +130,13 @@ internal sealed partial class SingleInstance : IDisposable
 	}
 
 	[LibraryImport("kernel32.dll")]
+	[DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
 	[return: MarshalAs(UnmanagedType.Bool)]
 	[SupportedOSPlatform("windows")]
 	private static partial bool GetNamedPipeServerProcessId(SafePipeHandle pipe, out uint processId);
 
 	[LibraryImport("user32.dll")]
+	[DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
 	[return: MarshalAs(UnmanagedType.Bool)]
 	[SupportedOSPlatform("windows")]
 	private static partial bool AllowSetForegroundWindow(uint processId);

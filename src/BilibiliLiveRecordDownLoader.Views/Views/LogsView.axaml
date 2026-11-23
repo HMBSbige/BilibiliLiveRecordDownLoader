@@ -43,6 +43,10 @@
         <Style Selector="ListBox.table > ListBoxItem">
             <Setter Property="MinHeight" Value="0" />
         </Style>
+        <!-- 列表项模板四周还有 4 像素外边距，表头多缩进这么多才和各行的列对齐 -->
+        <Style Selector="Border.tableHeader">
+            <Setter Property="Padding" Value="16,8" />
+        </Style>
     </UserControl.Styles>
 
     <DockPanel Classes="page">
@@ -138,13 +142,13 @@
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="Room" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Width="{Binding #TimeColumn.Width}" TextTrimming="CharacterEllipsis"
+                                    <TextBlock Grid.Column="0" Classes="numeric" Width="{Binding #TimeColumn.Width}" TextTrimming="CharacterEllipsis"
                                                Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}"
                                                ToolTip.Tip="{Binding Timestamp, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss.fff zzz}'}" />
                                     <ContentControl Grid.Column="1" Width="{Binding #LevelColumn.Width}"
                                                     Content="{Binding Level}" ContentTemplate="{StaticResource LocalizedLabel}"
                                                     ctl:StatusColor.Value="{Binding Level}" />
-                                    <TextBlock Grid.Column="2" Width="{Binding #RoomColumn.Width}" TextTrimming="CharacterEllipsis"
+                                    <TextBlock Grid.Column="2" Classes="numeric" Width="{Binding #RoomColumn.Width}" TextTrimming="CharacterEllipsis"
                                                Text="{Binding RoomId}" />
                                     <TextBlock Grid.Column="3" Text="{Binding Message}" MaxLines="1" TextTrimming="CharacterEllipsis"
                                                ToolTip.Tip="{Binding Message}" />

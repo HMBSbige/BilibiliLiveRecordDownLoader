@@ -16,7 +16,7 @@
     </UserControl.Styles>
 
     <DockPanel Classes="page">
-        <StackPanel DockPanel.Dock="Top" Classes="toolbar" HorizontalAlignment="Right">
+        <StackPanel DockPanel.Dock="Top" Classes="toolbar" HorizontalAlignment="Right" IsVisible="{Binding HasTasks}">
             <Button Command="{Binding ClearFinishedTasksCommand}">
                 <StackPanel Classes="iconText">
                     <ic:FluentIcon Icon="Broom" />

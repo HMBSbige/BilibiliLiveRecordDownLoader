@@ -14,10 +14,7 @@ public sealed class QrCodeImageConverter : IValueConverter
 			return null;
 		}
 
-		using QRCodeGenerator generator = new();
-		using QRCodeData data = generator.CreateQrCode(content, QRCodeGenerator.ECCLevel.M);
-		using MemoryStream stream = new(new PngByteQRCode(data).GetGraphic(8));
-
+		using MemoryStream stream = new(PngByteQRCodeHelper.GetQRCode(content, QRCodeGenerator.ECCLevel.M, 8));
 		return new Bitmap(stream);
 	}
 
