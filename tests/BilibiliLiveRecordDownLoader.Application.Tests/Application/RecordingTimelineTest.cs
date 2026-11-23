@@ -546,6 +546,67 @@ public sealed class RecordingTimelineTest
 		}
 	}
 
+	// 攒着的单元中间卡流，卡得比保留时长还久，空闲超时还没到
+	[Test]
+	[Timeout(10_000)]
+	public async Task StallLongerThanTheRetentionKeepsTheRecordsItsDanmakuAreWaitingForAsync(CancellationToken cancellationToken)
+	{
+		FakeTimeProvider time = new();
+		RecordingTimeline timeline = new("0", time, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(1), 4);
+		long inHeldUnit = 0;
+
+		for (int frame = 0; frame < 25; ++frame)
+		{
+			AddFrame(frame);
+
+			// 最后 5 帧攒着，等下一个关键帧才提交
+			if (frame < 20)
+			{
+				timeline.Commit(frame + 1);
+			}
+
+			time.Advance(TimeSpan.FromMilliseconds(50));
+
+			if (frame is 22)
+			{
+				inHeldUnit = time.GetTimestamp();
+			}
+
+			time.Advance(TimeSpan.FromMilliseconds(50));
+		}
+
+		time.Advance(TimeSpan.FromMilliseconds(2500));
+		long earlyInStall = time.GetTimestamp();
+		time.Advance(TimeSpan.FromMilliseconds(2500));
+		long lateInStall = time.GetTimestamp();
+		Task<TimelinePosition?> placingInHeldUnit = timeline.PlaceAsync(inHeldUnit, cancellationToken).AsTask();
+		Task<TimelinePosition?> placingLateInStall = timeline.PlaceAsync(lateInStall, cancellationToken).AsTask();
+		bool waited = !placingInHeldUnit.IsCompleted && !placingLateInStall.IsCompleted;
+
+		// 恢复后先到的是同一个单元剩下的帧
+		time.Advance(TimeSpan.FromSeconds(1));
+		AddFrame(25);
+		timeline.Commit(26);
+		TimelinePosition?[] woken = [await placingInHeldUnit, await placingLateInStall];
+
+		// 之后的提交再剪除时，还在排队的卡流期间的弹幕仍然从卡流前最后一帧往后推
+		time.Advance(TimeSpan.FromMilliseconds(100));
+		AddFrame(26);
+		timeline.Commit(27);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(waited).IsTrue();
+			await Assert.That(Describe(woken)).IsEqualTo(Describe(Positions(0, 2250, 7500)));
+			await Assert.That(Describe(Place(timeline, [earlyInStall, lateInStall]))).IsEqualTo(Describe(Positions(0, 5000, 7500)));
+		}
+
+		void AddFrame(int frame)
+		{
+			timeline.AddMedia([new MediaMark(frame + 1, MediaSpan.At(TimeSpan.FromMilliseconds(10_000 + frame * 100)), null)], time.GetTimestamp());
+		}
+	}
+
 	private static async Task WriteFramesAsync(SessionWriter session, int first, int last, List<long> times)
 	{
 		for (int frame = first; frame <= last; ++frame)

@@ -24,7 +24,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 	// 要大于正常录制时最长的到达间隔：TS HLS 实测分片 3–5 秒，加上半个目标时长的刷新间隔和下载，约 8 秒
 	private static readonly TimeSpan MinExtrapolationLimit = TimeSpan.FromSeconds(10);
 
-	// 弹幕放置前要排队，前面的可能在等单元提交，最长到卡流后的空闲超时；远超过这个时长的记录不再保留
+	// 正常录制时弹幕排队放置不过几秒，远早于这个时长的记录不再保留；卡流后最新确定的记录会一下跳过整个卡流，卡流前后要用的记录由 Prune 另外留下
 	internal static readonly TimeSpan Retention = TimeSpan.FromMinutes(2);
 
 	private const int DefaultPruneThreshold = 1024;
@@ -289,7 +289,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 
 		if (_resolvedCount != resolved)
 		{
-			Prune();
+			Prune(resolved);
 			Signal();
 		}
 	}
@@ -320,10 +320,12 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		record.BaseArrival = segment.BaseArrival;
 	}
 
-	// 至少留下最后一条已经确定的记录；早于留下的记录太久的弹幕按最早的一条放
-	private void Prune()
+	// 早于留下的记录太久的弹幕按最早的一条放
+	// 保留范围起点上的查询要用的那条也留下：卡流比保留时长还久时，卡流期间收到的弹幕都从卡流前最后一条往后推
+	// 这次才确定的记录可能正有弹幕在等，留到之后的提交再剪
+	private void Prune(int resolvedBefore)
 	{
-		int count = Math.Min(FindLatest(_records[_resolvedCount - 1].Arrival - _retention - 1) + 1, _resolvedCount - 1);
+		int count = Math.Min(FindLatest(_records[_resolvedCount - 1].Arrival - _retention), resolvedBefore);
 
 		if (count >= _pruneThreshold)
 		{
