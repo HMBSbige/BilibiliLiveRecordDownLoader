@@ -2,7 +2,7 @@ namespace BilibiliLive.Streams;
 
 public static class LiveStreamReader
 {
-	/// <param name="connectTimeout">Applies to each host on its own; opening an HLS host includes downloading its first segment. Every later HLS request gets it until its response headers arrive.</param>
+	/// <param name="connectTimeout">Applies to each host on its own; opening an HLS host includes downloading its first segment. Every later HLS playlist refresh must complete within it, and every segment download must receive its response headers within it.</param>
 	/// <param name="hostFailed">Invoked for every host that fails to open, including hosts skipped before another one succeeds.</param>
 	public static Task<LiveStreamSession> OpenAsync(HttpClient httpClient, LiveStreamCandidate candidate, StreamHostSelection selection, TimeSpan connectTimeout, Action<Uri, Exception>? hostFailed = null, TimeProvider? timeProvider = null, CancellationToken cancellationToken = default)
 	{

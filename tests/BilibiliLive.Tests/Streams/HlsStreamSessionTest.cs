@@ -294,6 +294,31 @@ public class HlsStreamSessionTest
 		}
 	}
 
+	// A lagging node lists an older era the opening playlist had already dropped, ahead of the segments queued since
+	[Test]
+	[Timeout(10_000)]
+	[Arguments("#EXT-X-MEDIA-SEQUENCE:7\n#EXT-X-MAP:URI=\"h2.m4s\"\n7.m4s\n8.m4s\n", "#EXT-X-MEDIA-SEQUENCE:6\n#EXT-X-MAP:URI=\"h1.m4s\"\n6.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n7.m4s\n8.m4s\n9.m4s\n", "[h2][7][8][9]", "6.m4s")]
+	[Arguments("#EXT-X-DISCONTINUITY-SEQUENCE:1\n#EXT-X-MEDIA-SEQUENCE:7\n7.ts\n8.ts\n", "#EXT-X-MEDIA-SEQUENCE:6\n6.ts\n#EXT-X-DISCONTINUITY\n7.ts\n8.ts\n9.ts\n", "[7][8][9]", "6.ts")]
+	public async Task OlderEraFirstListedByALaggingNodeIsNotANewTimelineAsync(string opened, string refreshed, string expected, string older, CancellationToken cancellationToken)
+	{
+		const string head = "#EXTM3U\n#EXT-X-TARGETDURATION:2\n";
+		string[] playlists = [head + opened, head + refreshed + "#EXT-X-ENDLIST\n"];
+		int playlistIndex = 0;
+		FakeHttpMessageHandler handler = new(request => request.RequestUri == PlaylistUri
+			? Responses.Text(playlists[Math.Min(playlistIndex++, playlists.Length - 1)])
+			: Segment(request));
+		using HttpClient client = new(handler);
+
+		(string output, _, StreamEndReason reason) = await CopyAsync(client, NewTime(), cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(output).IsEqualTo(expected);
+			await Assert.That(reason).IsEqualTo(StreamEndReason.EndOfStream);
+			await Assert.That(handler.RequestsTo($"/live-bvc/1/live_2500/{older}").Count()).IsEqualTo(0);
+		}
+	}
+
 	[Test]
 	[Timeout(10_000)]
 	public async Task HungSegmentRequestTimesOutAndIsRetriedAsync(CancellationToken cancellationToken)
@@ -707,6 +732,58 @@ public class HlsStreamSessionTest
 		(string output, _, _) = await CopyAsync(client, NewTime(), cancellationToken);
 
 		await Assert.That(output).IsEqualTo("[1][2][3]");
+	}
+
+	[Test]
+	[Timeout(10_000)]
+	public async Task SegmentsQueuedFromAnUnnumberedRefreshAreNotCountedAsMissedAsync(CancellationToken cancellationToken)
+	{
+		string[] playlists =
+		[
+			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n",
+			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n2.ts\n3.ts\n4.ts\n5.ts\n",
+			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n6.ts\n7.ts\n#EXT-X-ENDLIST\n"
+		];
+		int playlistIndex = 0;
+		using HttpClient client = new(new FakeHttpMessageHandler(request => request.RequestUri == PlaylistUri
+			? Responses.Text(playlists[Math.Min(playlistIndex++, playlists.Length - 1)])
+			: Segment(request)));
+		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken);
+		using MemoryStream output = new();
+
+		await session.CopyToAsync(output, null, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(MediaSamples.Markers(output.ToArray())).IsEqualTo("[1][2][3][4][5][6][7]");
+			await Assert.That(session.MissedSegments).IsEqualTo(0);
+		}
+	}
+
+	// The lagging window starts below the segments an unnumbered refresh queued
+	[Test]
+	[Timeout(10_000)]
+	public async Task LaggingRefreshAfterAnUnnumberedOneDoesNotAppendOlderSegmentsAsync(CancellationToken cancellationToken)
+	{
+		string[] playlists =
+		[
+			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n",
+			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n8.ts\n9.ts\n",
+			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:6\n6.ts\n7.ts\n8.ts\n9.ts\n10.ts\n#EXT-X-ENDLIST\n"
+		];
+		int playlistIndex = 0;
+		FakeHttpMessageHandler handler = new(request => request.RequestUri == PlaylistUri
+			? Responses.Text(playlists[Math.Min(playlistIndex++, playlists.Length - 1)])
+			: Segment(request));
+		using HttpClient client = new(handler);
+
+		(string output, _, _) = await CopyAsync(client, NewTime(), cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(output).IsEqualTo("[1][2][8][9][10]");
+			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/6.ts").Count()).IsEqualTo(0);
+		}
 	}
 
 	[Test]

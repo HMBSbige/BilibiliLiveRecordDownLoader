@@ -51,7 +51,7 @@ internal sealed class HlsStreamSession : LiveStreamSession
 
 	public override long MissedSegments => Interlocked.Read(ref _missedSegments);
 
-	/// <param name="requestTimeout">Limits the time to the response headers of every later playlist refresh and segment download, because the stream client itself never times out; a segment body gets at least two target durations.</param>
+	/// <param name="requestTimeout">Bounds every later playlist refresh as a whole and every segment download until its response headers arrive, because the stream client itself never times out; a segment body then gets at least two target durations.</param>
 	public static async Task<LiveStreamSession> OpenAsync(HttpClient httpClient, Uri uri, TimeSpan requestTimeout, TimeProvider timeProvider, CancellationToken cancellationToken)
 	{
 		PlaylistSnapshot snapshot = await FetchPlaylistAsync(httpClient, uri, cancellationToken).ConfigureAwait(false);
@@ -212,17 +212,30 @@ internal sealed class HlsStreamSession : LiveStreamSession
 		while (true)
 		{
 			HlsPlaylist playlist = snapshot.Playlist;
+			IReadOnlyList<HlsSegment> segments = playlist.Segments;
+			int lastQueued = -1;
+
+			for (int i = 0; i < segments.Count; ++i)
+			{
+				if (IsSameEra(segments[i], first) && tracker.HasSeen(segments[i]))
+				{
+					tracker.Advance(segments[i]);
+					lastQueued = i;
+				}
+			}
 
 			// A window that starts in another era may follow a restart that renumbered the segments
-			if (playlist.Segments is [var head, ..] && IsSameEra(head, first))
+			if (segments is [var head, ..] && IsSameEra(head, first))
 			{
 				Interlocked.Add(ref _missedSegments, tracker.CountMissed(playlist));
 			}
 
 			TimeSpan bodyTimeout = GetBodyTimeout(playlist);
 
-			foreach (HlsSegment segment in playlist.Segments)
+			for (int i = 0; i < segments.Count; ++i)
 			{
+				HlsSegment segment = segments[i];
+
 				if (tracker.HasSeen(segment))
 				{
 					continue;
@@ -231,6 +244,13 @@ internal sealed class HlsStreamSession : LiveStreamSession
 				// An encoder restart or resolution change cannot continue the current file; its era is checked before the sequence number, which a restart may reset
 				if (!IsSameEra(segment, first))
 				{
+					// A playlist lists its segments in order, so another era listed before a queued segment is older and comes from a node whose window lags behind
+					if (i < lastQueued)
+					{
+						tracker.Skip(segment);
+						continue;
+					}
+
 					return StreamEndReason.Discontinuity;
 				}
 

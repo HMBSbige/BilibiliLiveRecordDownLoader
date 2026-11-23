@@ -35,6 +35,15 @@ internal sealed class HlsSegmentTracker(int historyCapacity)
 		}
 	}
 
+	// Segments queued from a refresh without a media sequence leave the cursor behind until a numbered refresh lists them again
+	public void Advance(HlsSegment segment)
+	{
+		if (segment.Sequence is { } sequence && (_last is not { } last || sequence > last))
+		{
+			_last = sequence;
+		}
+	}
+
 	public long CountMissed(HlsPlaylist playlist)
 	{
 		return playlist.Segments is [{ Sequence: { } first }, ..] && _last is { } last && first > last + 1 ? first - last - 1 : 0;
