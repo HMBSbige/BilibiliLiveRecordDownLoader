@@ -221,8 +221,7 @@ public sealed class RoomSplitRecordingTest
 		await loop.WaitUntilAsync(() => Directory.GetFiles(loop.RoomDirectory, "*.flv").Length >= 2, "2 recordings exist");
 		loop.Config.ConvertToMp4 = true;
 		await stream.EndAsync();
-		await WaitForRemuxAsync(loop, mediaTools, 1);
-		await Task.Delay(200, cancellationToken);
+		await loop.StopAsync();
 		RemuxInput converted = await Assert.That(mediaTools.Remuxes).HasSingleItem();
 
 		await Assert.That(Path.GetFileNameWithoutExtension(converted.Source)).IsEqualTo("20260101_000101");

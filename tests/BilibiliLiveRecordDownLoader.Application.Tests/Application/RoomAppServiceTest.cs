@@ -163,6 +163,20 @@ public sealed class RoomAppServiceTest
 		}
 	}
 
+	// 输入的短号按解析出的房间号判断是否已经添加
+	[Test]
+	public async Task AddingAnExistingRoomByItsShortIdFailsWithoutWritingConfigAsync(CancellationToken cancellationToken)
+	{
+		await using Harness harness = await Harness.CreateWithRoomsAsync(cancellationToken);
+		int updates = harness.Config.UpdateCount;
+
+		using (Assert.Multiple())
+		{
+			await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Rooms.AddAsync(Room(732), cancellationToken)).WithMessage(AppLanguage.Current.RoomAlreadyExists.ToString(FirstRoomId));
+			await Assert.That(harness.Config.UpdateCount).IsEqualTo(updates);
+		}
+	}
+
 	[Test]
 	public async Task AddingARoomWhileBlockedFailsWithAReadableMessageAsync(CancellationToken cancellationToken)
 	{
@@ -183,6 +197,34 @@ public sealed class RoomAppServiceTest
 			await Assert.ThrowsAsync<TimeoutException>(() => harness.Rooms.AddAsync(Room(732), cancellationToken)).WithMessage(AppLanguage.Current.RequestTimedOut);
 			await Assert.That(harness.Config.UpdateCount).IsEqualTo(0);
 		}
+	}
+
+	[Test]
+	public async Task RefreshAppliesOneBatchedAnswerToEachRoomAsync(CancellationToken cancellationToken)
+	{
+		await using Harness harness = await Harness.CreateAsync();
+		harness.Handler.TitlesBatchAnswers = true;
+		await harness.Rooms.AddRangeAsync([Room(FirstRoomId), Room(SecondRoomId)], cancellationToken);
+
+		// 各房间启动时自己查到的标题为空，等这些应答都用上，免得晚到的覆盖刷新的结果
+		await TestWait.UntilAsync(() => harness.Rooms.GetRooms().All(static room => room.Title is ""), "every room applied its own status check", cancellationToken);
+		await harness.Rooms.RefreshAsync([ExistingRoomId, FirstRoomId], cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(harness.RoomInfoQueries).Contains("22907643,6154037");
+			// 房间顺序：已有、第一、第二
+			await Assert.That(harness.Rooms.GetRooms().Select(static room => room.Title)).IsEquivalentTo((string?[])["22907643", "6154037", ""], CollectionOrdering.Matching);
+		}
+	}
+
+	[Test]
+	public async Task BlockedRefreshFailsWithAReadableMessageAsync(CancellationToken cancellationToken)
+	{
+		await using Harness harness = await Harness.CreateAsync();
+		harness.Handler.RoomInfoStatus = HttpStatusCode.PreconditionFailed;
+
+		await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Rooms.RefreshAsync([ExistingRoomId], cancellationToken)).WithMessage(AppLanguage.Current.RequestRateLimited);
 	}
 
 	// 退出前的确认也要算上删除后还在收尾的房间
@@ -397,6 +439,9 @@ public sealed class RoomAppServiceTest
 
 		public bool RejectBatch { get; init; }
 
+		// 为真时合并查询的应答以房间号作标题，和单个房间查到的空标题区分开
+		public bool TitlesBatchAnswers { get; set; }
+
 		public HttpStatusCode RoomInfoStatus { get; set; } = HttpStatusCode.OK;
 
 		public string Following { get; set; } = """{"code":0,"data":{"totalPage":0,"list":[]}}""";
@@ -457,10 +502,11 @@ public sealed class RoomAppServiceTest
 			}
 
 			long[] requested = [.. roomIds.Select(static id => long.Parse(id, CultureInfo.InvariantCulture))];
+			bool titled = TitlesBatchAnswers && roomIds.Length > 1;
 			IEnumerable<string> rooms = KnownRooms
 				.Where(room => Array.Exists(requested, id => id == room.RoomId || id == room.ShortId))
-				.Select(static room => $$"""
-					"{{room.RoomId}}":{"room_id":{{room.RoomId}},"short_id":{{room.ShortId}},"uid":1,"uname":"{{room.UserName}}","title":"","live_status":0}
+				.Select(room => $$"""
+					"{{room.RoomId}}":{"room_id":{{room.RoomId}},"short_id":{{room.ShortId}},"uid":1,"uname":"{{room.UserName}}","title":"{{(titled ? room.RoomId : null)}}","live_status":0}
 					""");
 
 			return Json("""{"code":0,"message":"OK","data":{"by_uids":{},"by_room_ids":{""" + string.Join(',', rooms) + "}}}");

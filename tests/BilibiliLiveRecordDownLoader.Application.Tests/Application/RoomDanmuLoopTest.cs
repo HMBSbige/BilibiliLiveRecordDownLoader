@@ -5,6 +5,7 @@ using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Net;
+using System.Text;
 using System.Threading.Channels;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
@@ -12,6 +13,8 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 public sealed class RoomDanmuLoopTest
 {
 	private const long RoomId = 22907643;
+
+	private const string OfflineRoomInfo = """{"code":0,"data":{"by_room_ids":{"22907643":{"room_id":22907643,"uid":1,"uname":"streamer","title":"title","live_status":0}}}}""";
 
 	private static readonly DanmuSender Viewer = new(42, "观众昵称", GuardLevel.None, null);
 
@@ -38,7 +41,6 @@ public sealed class RoomDanmuLoopTest
 
 		while (delays.Count < 4)
 		{
-			// 定时器可能还没注册，没等到下一次失败就再推进一次
 			time.Advance(delays[^1]);
 
 			using CancellationTokenSource wait = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -50,6 +52,7 @@ public sealed class RoomDanmuLoopTest
 			}
 			catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
 			{
+				// 推进时重连定时器可能还没注册，等不到下一次失败就再推进一次
 			}
 		}
 
@@ -147,12 +150,68 @@ public sealed class RoomDanmuLoopTest
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
 		TaskCompletionSource<Task> stopping = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		loop.RoomInfo = _ => new HttpResponseMessage(HttpStatusCode.PreconditionFailed) { Content = new StoppingContent(() => stopping.TrySetResult(loop.Session.DisposeAsync().AsTask())) };
+
+		// 等这次请求也被取消之后照常读完，取消就落在收到应答和校验之间
+		loop.RoomInfo = _ => new HttpResponseMessage(HttpStatusCode.PreconditionFailed)
+		{
+			Content = new DeferredContent("{}", async ct =>
+			{
+				stopping.TrySetResult(loop.Session.DisposeAsync().AsTask());
+				await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+			})
+		};
 
 		loop.Session.Start();
 		Task stopped = await stopping.Task.WaitAsync(cancellationToken);
 
 		await Assert.That(async () => await stopped).ThrowsNothing();
+	}
+
+	// 未开播时发出的状态查询，应答晚于弹幕的开播消息到达
+	[Test]
+	public async Task StatusAnsweredAfterTheDanmuLiveStartDoesNotEndTheLiveAsync(CancellationToken cancellationToken)
+	{
+		await using RecordingLoopHarness loop = new(cancellationToken);
+		loop.Settings = loop.Settings with { IsDanmakuEnabled = true, IsRecordingEnabled = false };
+		loop.GoOffline();
+		FakeDanmuConnection danmu = await ConnectAsync(loop);
+		await loop.WaitUntilAsync(static snapshot => snapshot.LiveStatus is LiveStatus.Idle);
+		TaskCompletionSource answered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		loop.RoomInfo = _ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new DeferredContent(OfflineRoomInfo, answered.Task.WaitAsync) };
+
+		Task refresh = loop.Session.RefreshAsync(cancellationToken);
+		await danmu.SendAsync(new DanmuMessage.LiveStarted());
+		answered.SetResult();
+		await refresh;
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(loop.Snapshot.LiveStatus).IsEqualTo(LiveStatus.Live);
+			await Assert.That(loop.Session.IsRecording).IsTrue();
+		}
+	}
+
+	// 改标题之前发出的状态查询，应答晚于弹幕的改标题消息到达
+	[Test]
+	public async Task StatusAnsweredAfterTheDanmuTitleChangeKeepsTheNewTitleAsync(CancellationToken cancellationToken)
+	{
+		await using RecordingLoopHarness loop = new(cancellationToken, isNotificationEnabled: true);
+		loop.Config.NotifyOnTitleChange = true;
+		loop.GoOffline();
+		await loop.Session.RefreshAsync(cancellationToken);
+		TaskCompletionSource answered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		loop.RoomInfo = _ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new DeferredContent(OfflineRoomInfo, answered.Task.WaitAsync) };
+
+		Task refresh = loop.Session.RefreshAsync(cancellationToken);
+		loop.Session.Handle(new DanmuMessage.RoomChanged("danmu title", null, null));
+		answered.SetResult();
+		await refresh;
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(loop.Snapshot.Title).IsEqualTo("danmu title");
+			await Assert.That(loop.Notifications.Shown.Select(static shown => shown.Message)).IsEquivalentTo(["danmu title"]);
+		}
 	}
 
 	[Test]
@@ -214,14 +273,13 @@ public sealed class RoomDanmuLoopTest
 		}
 	}
 
-	// 缓冲应答时停下房间，等这次请求也被取消之后照常读完，取消就落在收到应答和校验之间
-	private sealed class StoppingContent(Action stop) : HttpContent
+	// 缓冲应答时先等 wait 结束，再写出 body
+	private sealed class DeferredContent(string body, Func<CancellationToken, Task> wait) : HttpContent
 	{
 		protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken cancellationToken)
 		{
-			stop();
-			await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-			await stream.WriteAsync("{}"u8.ToArray(), CancellationToken.None);
+			await wait(cancellationToken);
+			await stream.WriteAsync(Encoding.UTF8.GetBytes(body), CancellationToken.None);
 		}
 
 		protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context)

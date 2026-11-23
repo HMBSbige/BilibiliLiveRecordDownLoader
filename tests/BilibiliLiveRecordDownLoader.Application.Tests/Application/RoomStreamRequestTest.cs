@@ -1,5 +1,9 @@
+using BilibiliLive.Models;
+using BilibiliLiveRecordDownLoader.Application.Http;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
+using Microsoft.Extensions.DependencyInjection;
+using System.Net;
 using System.Web;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
@@ -83,8 +87,46 @@ public sealed class RoomStreamRequestTest
 		}
 	}
 
+	// 请求候选流超时或被风控拦截时，异常原文是 HttpClient 的英文说明
+	[Test]
+	[Arguments(false)]
+	[Arguments(true)]
+	public async Task FailedCandidateRequestIsShownInTheAppLanguageAsync(bool isBlocked, CancellationToken cancellationToken)
+	{
+		await using ServiceProvider services = new ServiceCollection()
+			.AddLogging()
+			.AddSingleton<TimeProvider>(new FakeTimeProvider())
+			.AddSingleton<IAppConfigManager, FakeConfigManager>()
+			.AddSingleton<INotificationService, RecordingNotifications>()
+			.AddApplication()
+			.AddHttpClient(HttpClientNames.BilibiliApi)
+			.ConfigurePrimaryHttpMessageHandler(() => new FailingHandler(isBlocked))
+			.Services
+			.BuildServiceProvider();
+		await using RoomSession session = services.GetRequiredService<RoomSessionFactory>().Create(new RoomConfig { RoomId = RecordingLoopHarness.RoomId }, static () => { });
+
+		session.Apply(new LiveRoomInfo(RecordingLoopHarness.RoomId, 0, 1, "streamer", "title", LiveStatus.Live));
+		await TestWait.UntilAsync(() => session.GetSnapshot().LastError is not null, "the failure is shown", cancellationToken);
+
+		await Assert.That(session.GetSnapshot().LastError).IsEqualTo(isBlocked ? AppLanguage.Current.RequestRateLimited : AppLanguage.Current.RequestTimedOut);
+	}
+
 	private static string? RequestedQuality(RecordingLoopHarness loop)
 	{
 		return HttpUtility.ParseQueryString(loop.PlayInfoQuery ?? string.Empty)["qn"];
+	}
+
+	// HttpClient 超时抛的是带着 TimeoutException 的 TaskCanceledException
+	private sealed class FailingHandler(bool isBlocked) : HttpMessageHandler
+	{
+		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+		{
+			if (!isBlocked)
+			{
+				return Task.FromException<HttpResponseMessage>(new TaskCanceledException(null, new TimeoutException()));
+			}
+
+			return Task.FromResult(new HttpResponseMessage(HttpStatusCode.PreconditionFailed));
+		}
 	}
 }

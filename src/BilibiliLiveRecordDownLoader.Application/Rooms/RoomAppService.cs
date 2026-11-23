@@ -71,10 +71,7 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 
 	public async Task<RoomSnapshot> AddAsync(RoomSettingsDto settings, CancellationToken cancellationToken = default)
 	{
-		if (settings.RoomId <= 0)
-		{
-			throw new ArgumentException(AppLanguage.Current.InvalidRoomId);
-		}
+		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(settings.RoomId);
 
 		// 用户可能输入短号，以接口返回的真实房间号为准
 		LiveRoomInfo info;
@@ -124,58 +121,27 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 		Dictionary<long, LiveRoomInfo> resolved = await ResolveAsync(pending, errors, cancellationToken);
 
 		RoomAddResult[] results = new RoomAddResult[settings.Count];
-		List<(int Index, RoomSession Session, LiveRoomInfo Info)> created = [];
-		List<RoomConfig> rooms = [];
+		List<(RoomSession Session, RoomConfig Room, LiveRoomInfo Info)> created = [];
 
 		lock (_lock)
 		{
 			for (int index = 0; index < settings.Count; ++index)
 			{
-				RoomSettingsDto item = settings[index];
-				long requested = item.RoomId;
-
-				if (requested <= 0)
-				{
-					results[index] = new RoomAddResult.Failed(requested, AppLanguage.Current.InvalidRoomId);
-				}
-				else if (resolved.TryGetValue(requested, out LiveRoomInfo? info))
-				{
-					// 同一批里的短号和长号可能指向同一个房间
-					if (Find(info.RoomId) is not null)
-					{
-						results[index] = new RoomAddResult.Skipped(requested);
-						continue;
-					}
-
-					RoomConfig room = (item with { RoomId = info.RoomId }).ToConfig();
-					RoomSession session = sessionFactory.Create(room, Touch);
-					_sessions.Add(session);
-					rooms.Add(room);
-					created.Add((index, session, info));
-				}
-				else if (FindByAnyId(requested) is not null)
-				{
-					results[index] = new RoomAddResult.Skipped(requested);
-				}
-				else
-				{
-					results[index] = new RoomAddResult.Failed(requested, errors.GetValueOrDefault(requested, AppLanguage.Current.InvalidRoomId));
-				}
+				results[index] = AddResolved(settings[index], resolved, errors, created);
 			}
 		}
 
-		foreach ((int index, RoomSession session, LiveRoomInfo info) in created)
+		foreach ((RoomSession session, _, LiveRoomInfo info) in created)
 		{
 			session.Apply(info);
 			session.Start();
-			results[index] = new RoomAddResult.Added(settings[index].RoomId);
 		}
 
 		Touch();
 
-		if (rooms.Count > 0)
+		if (created.Count > 0)
 		{
-			await UpdateConfiguredRoomsAsync(configured => configured.Concat(rooms));
+			await UpdateConfiguredRoomsAsync(configured => configured.Concat(created.Select(static added => added.Room)));
 		}
 
 		return results;
@@ -228,8 +194,6 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 		session.UpdateSettings(room);
 
 		await UpdateConfiguredRoomsAsync(rooms => rooms.Select(existing => existing.RoomId == room.RoomId ? room : existing));
-
-		Touch();
 	}
 
 	public async Task MoveAsync(IReadOnlyCollection<long> roomIds, long? before, CancellationToken cancellationToken = default)
@@ -289,16 +253,31 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 		}
 	}
 
+	// 和添加房间一样分批查询：刷新全部房间时逐个并发请求更容易被风控拦截，拦截之后录制也拿不到候选流
 	public async Task RefreshAsync(IReadOnlyCollection<long> roomIds, CancellationToken cancellationToken = default)
 	{
-		RoomSession[] targets;
+		(RoomSession Session, long DanmuVersion)[] targets;
 
 		lock (_lock)
 		{
-			targets = [.. _sessions.Where(session => roomIds.Contains(session.RoomId))];
+			targets = [.. _sessions.Where(session => roomIds.Contains(session.RoomId)).Select(static session => (session, session.DanmuVersion))];
 		}
 
-		await Task.WhenAll(targets.Select(session => session.RefreshAsync(cancellationToken)));
+		Dictionary<long, string> errors = [];
+		Dictionary<long, LiveRoomInfo> infos = await ResolveAsync([.. targets.Select(static target => target.Session.RoomId)], errors, cancellationToken);
+
+		foreach ((RoomSession session, long danmuVersion) in targets)
+		{
+			if (infos.GetValueOrDefault(session.RoomId) is { } info)
+			{
+				session.Apply(info, danmuVersion);
+			}
+		}
+
+		if (errors.Count > 0)
+		{
+			throw new InvalidOperationException(string.Join(Environment.NewLine, errors.Values.Distinct(StringComparer.Ordinal)));
+		}
 	}
 
 	public async Task<string> GetDirectoryAsync(long roomId, CancellationToken cancellationToken = default)
@@ -332,6 +311,34 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 	private RoomSession? FindByAnyId(long roomId)
 	{
 		return roomId > 0 ? _sessions.Find(session => session.RoomId == roomId || session.ShortId == roomId) : null;
+	}
+
+	// 在锁内调用；新会话先加进列表，由调用方到锁外应用房间信息并启动
+	private RoomAddResult AddResolved(RoomSettingsDto settings, Dictionary<long, LiveRoomInfo> resolved, Dictionary<long, string> errors, List<(RoomSession Session, RoomConfig Room, LiveRoomInfo Info)> created)
+	{
+		long requested = settings.RoomId;
+
+		if (requested <= 0)
+		{
+			return new RoomAddResult.Failed(requested, AppLanguage.Current.InvalidRoomId);
+		}
+
+		if (!resolved.TryGetValue(requested, out LiveRoomInfo? info))
+		{
+			return FindByAnyId(requested) is not null ? new RoomAddResult.Skipped(requested) : new RoomAddResult.Failed(requested, errors.GetValueOrDefault(requested, AppLanguage.Current.InvalidRoomId));
+		}
+
+		// 同一批里的短号和长号可能指向同一个房间
+		if (Find(info.RoomId) is not null)
+		{
+			return new RoomAddResult.Skipped(requested);
+		}
+
+		RoomConfig room = (settings with { RoomId = info.RoomId }).ToConfig();
+		RoomSession session = sessionFactory.Create(room, Touch);
+		_sessions.Add(session);
+		created.Add((session, room, info));
+		return new RoomAddResult.Added(requested);
 	}
 
 	private async Task<Dictionary<long, LiveRoomInfo>> ResolveAsync(IReadOnlyList<long> roomIds, Dictionary<long, string> errors, CancellationToken cancellationToken)

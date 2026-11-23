@@ -24,6 +24,11 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	private DateTimeOffset? _liveStartTime;
 	private bool _isTextOnlyActive;
 	private LiveStatus _liveStatus = LiveStatus.Unknown;
+	// 弹幕每推送一次直播状态或标题就加一
+	private long _danmuVersion;
+	// 弹幕最后一次推送直播状态、标题时的版本：比查询前取得的版本新，说明查询在这条消息之前发出，应答里的对应部分已经过时
+	private long _liveStatusVersion;
+	private long _titleVersion;
 	private RecordStatus _recordStatus;
 	private double _bytesPerSecond;
 	private string? _recordingPath;
@@ -68,6 +73,18 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 	}
 
+	// 查询房间信息之前取得，和应答一起交给 Apply
+	public long DanmuVersion
+	{
+		get
+		{
+			lock (_lock)
+			{
+				return _danmuVersion;
+			}
+		}
+	}
+
 	private RoomConfig Settings
 	{
 		get
@@ -101,7 +118,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 	}
 
-	private Uri LiveRoomUri => new(AppConsts.LiveRoomUrlPrefix + RoomId.ToString(CultureInfo.InvariantCulture));
+	private Uri LiveRoomUri { get; } = new(AppConsts.LiveRoomUrlPrefix + settings.RoomId.ToString(CultureInfo.InvariantCulture));
 
 	public void Start()
 	{
@@ -166,24 +183,34 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 
 	public async Task RefreshAsync(CancellationToken cancellationToken = default)
 	{
-		Apply(await services.ApiClient.GetRoomInfoAsync(RoomId, cancellationToken));
+		long danmuVersion = DanmuVersion;
+		Apply(await services.ApiClient.GetRoomInfoAsync(RoomId, cancellationToken), danmuVersion);
 	}
 
-	public void Apply(LiveRoomInfo info)
+	// 查询之后弹幕推送过的部分不用应答覆盖：直播状态连同本场信息，标题连同分区
+	public void Apply(LiveRoomInfo info, long? danmuVersion = null)
 	{
 		lock (_lock)
 		{
 			_shortId = info.ShortId;
 			_userId = info.UserId;
 			_userName = info.UserName;
-			_area = info.AreaName;
-			_parentArea = info.ParentAreaName;
-			_liveId = info.LiveId;
-			_liveStartTime = info.LiveStartTime;
+
+			if (IsCurrent(_titleVersion, danmuVersion))
+			{
+				_area = info.AreaName;
+				_parentArea = info.ParentAreaName;
+			}
+
+			if (IsCurrent(_liveStatusVersion, danmuVersion))
+			{
+				_liveId = info.LiveId;
+				_liveStartTime = info.LiveStartTime;
+			}
 		}
 
-		SetTitle(info.Title);
-		SetLiveStatus(info.LiveStatus);
+		SetTitle(info.Title, danmuVersion);
+		SetLiveStatus(info.LiveStatus, danmuVersion);
 		onChanged();
 	}
 
@@ -207,18 +234,25 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 
 		await _lifetime.CancelAsync();
-		await Task.WhenAll(danmu, status, recording);
 
-		UpdateDanmaku();
-		await Danmaku.DisposeAsync();
-
-		lock (_lock)
+		// 循环意外出错时最后一段弹幕也要写完关闭
+		try
 		{
-			_statusCancellation?.Dispose();
-			_statusCancellation = null;
+			await Task.WhenAll(danmu, status, recording);
 		}
+		finally
+		{
+			UpdateDanmaku();
+			await Danmaku.DisposeAsync();
 
-		_lifetime.Dispose();
+			lock (_lock)
+			{
+				_statusCancellation?.Dispose();
+				_statusCancellation = null;
+			}
+
+			_lifetime.Dispose();
+		}
 	}
 
 	void IRecordingObserver.OnRecordingStarted(string path, RecordingStream stream, IRecordingTimeline timeline, Task closed)
@@ -335,14 +369,8 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 
 			Danmaku.OnDisconnected();
 
-			try
-			{
-				await Task.Delay(delay, services.TimeProvider, cancellationToken);
-			}
-			catch (OperationCanceledException)
-			{
-				return;
-			}
+			// 房间停止时由循环条件退出
+			await Task.Delay(delay, services.TimeProvider, cancellationToken).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 		}
 	}
 
@@ -362,6 +390,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
+			// 房间停止，或者改了检查间隔，由新的轮询接替
 		}
 	}
 
@@ -378,51 +407,57 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		// 标题分段会立刻用分区写新文件的文件头，先更新分区
 		if (message is DanmuMessage.RoomChanged changed)
 		{
-			UpdateArea(changed);
+			UpdateAreaFromDanmu(changed);
 			SetTitle(changed.Title);
-		}
-
-		if (message is DanmuMessage.LiveStarted)
-		{
-			ClearLiveInfo();
 		}
 
 		if (status is { } value)
 		{
-			SetLiveStatus(value);
+			SetLiveStatusFromDanmu(value);
 		}
 	}
 
-	private void UpdateArea(DanmuMessage.RoomChanged changed)
+	private void UpdateAreaFromDanmu(DanmuMessage.RoomChanged changed)
 	{
 		lock (_lock)
 		{
+			_titleVersion = ++_danmuVersion;
 			_area = changed.AreaName ?? _area;
 			_parentArea = changed.ParentAreaName ?? _parentArea;
 		}
 	}
 
-	// 开播消息不带本场的 live_id 和开播时间，留着的是上一场的值
-	private void ClearLiveInfo()
+	private void SetLiveStatusFromDanmu(LiveStatus status)
 	{
 		lock (_lock)
 		{
-			if (_liveStatus is not LiveStatus.Live)
+			_liveStatusVersion = ++_danmuVersion;
+
+			// 开播消息不带本场的 live_id 和开播时间，留着的是上一场的值
+			if (status is LiveStatus.Live && _liveStatus is not LiveStatus.Live)
 			{
 				_liveId = string.Empty;
 				_liveStartTime = null;
 			}
 		}
+
+		SetLiveStatus(status);
 	}
 
-	private void SetTitle(string title)
+	// 调用方在写入的同一把锁里比较，Apply 更新房间信息之后才到的弹幕消息也能让旧应答作废
+	private static bool IsCurrent(long pushedVersion, long? danmuVersion)
+	{
+		return danmuVersion is not { } version || pushedVersion <= version;
+	}
+
+	private void SetTitle(string title, long? danmuVersion = null)
 	{
 		bool notify;
 		SplitControl? split;
 
 		lock (_lock)
 		{
-			if (_title == title)
+			if (_title == title || !IsCurrent(_titleVersion, danmuVersion))
 			{
 				return;
 			}
@@ -460,14 +495,14 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 	}
 
-	private void SetLiveStatus(LiveStatus status)
+	private void SetLiveStatus(LiveStatus status, long? danmuVersion = null)
 	{
 		string? title;
 		bool notify;
 
 		lock (_lock)
 		{
-			if (_liveStatus == status)
+			if (_liveStatus == status || !IsCurrent(_liveStatusVersion, danmuVersion))
 			{
 				return;
 			}
@@ -488,7 +523,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 
 		if (notify)
 		{
-			services.Notifications.Show(AppLanguage.Current.LiveStarted.ToString(StreamerName), title ?? string.Empty);
+			services.Notifications.Show(AppLanguage.Current.LiveStarted.ToString(StreamerName), title ?? string.Empty, link: LiveRoomUri);
 		}
 
 		TryStartRecording();
@@ -591,80 +626,11 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 				SetConnecting();
 				AppConfig config = await services.ConfigManager.GetAsync(cancellationToken);
 				RecordingProfile profile = RecordingProfile.Create(config, Settings);
-				SplitControl split = SetSplitControl(new SplitControl(() => RecordingSplitPolicy.Create(config, Settings), () => config.RemoveFillerData));
 
 				try
 				{
-					RecordingAttempt attempt;
-
-					try
-					{
-						attempt = await services.Recorder.RecordAsync(RoomId, Volatile.Read(ref _userId), profile, liveSession, this, split, () => config.IncludeTitleInFileName ? Title : null, cancellationToken);
-					}
-					finally
-					{
-						// 之后的刷新和重连等待都不算在录制，最后一段的后处理和弹幕收尾也不等它们
-						SetConnecting();
-
-						if (TakeRecording() is (var path, var closed))
-						{
-							services.PostProcessor.Track(PostProcessAsync(path, closed, Danmaku.CompleteSegment(path)));
-						}
-
-						Danmaku.OnVideoEnded();
-					}
-
-					// 流结束时尽快确认是否已下播，下播造成的断流不算线路故障
-					bool isRefreshed = await TryRefreshAsync(cancellationToken);
-
-					if (attempt.IsQuickFailure)
-					{
-						faults.OnQuickFailure(attempt.ActiveDuration);
-					}
-					else
-					{
-						faults.OnRecorded();
-
-						SetLastError(null);
-					}
-
-					if (ShouldKeepRecording(cancellationToken) && attempt.End is RecordingEnd.WriteFailed { Exception: var writeFailure })
-					{
-						// 写盘失败不怪线路，不标记失败也不换线
-						if (!attempt.IsQuickFailure)
-						{
-							liveSession.Reset();
-						}
-
-						ReportWriteFailure(faults, config, writeFailure);
-						await WaitAfterFailureAsync(writeFailure, profile.StreamReconnectDelay, cancellationToken);
-					}
-					else if (ShouldKeepRecording(cancellationToken) && attempt.IsQuickFailure)
-					{
-						liveSession.MarkFailed(attempt.Candidate, attempt.Endpoint);
-						LogAttemptFailed(attempt);
-						SetLastError(AppLanguage.Current.RecordingEndpointFailed.ToString(attempt.Candidate.Name, attempt.Endpoint.Host, attempt.End.DisplayText));
-
-						// 连上之后等不到数据，而接口照常访问得到、仍是直播中：主播端停了推流
-						if (isRefreshed && attempt.End is RecordingEnd.Idle)
-						{
-							faults.OnStreamerSilent();
-						}
-
-						if (!liveSession.HasUntriedEndpoint)
-						{
-							liveSession.Reset();
-							LogAllEndpointsFailed(_logger, profile.StreamReconnectDelay);
-							ReportStall(faults, config);
-							await Task.Delay(profile.StreamReconnectDelay, services.TimeProvider, cancellationToken);
-						}
-					}
-					else
-					{
-						// 之前失败的线路可能已经恢复，从首选流重新请求签名地址
-						liveSession.Reset();
-						LogRecordingEnded(_logger, attempt.End.Description);
-					}
+					RecordingAttempt attempt = await RecordAttemptAsync(config, profile, liveSession, cancellationToken);
+					await HandleAttemptEndAsync(attempt, liveSession, faults, config, profile, cancellationToken);
 				}
 				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 				{
@@ -678,30 +644,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 				}
 				catch (Exception exception)
 				{
-					// 拉不到流也可能是已经下播，确认之后不再当作失败重试
-					await TryRefreshAsync(cancellationToken);
-
-					if (!ShouldKeepRecording(cancellationToken))
-					{
-						LogRecordingEnded(_logger, exception.Message);
-						continue;
-					}
-
-					// 这里的失败都在开始录制之前，除了写盘失败都是拿不到能用的线路
-					switch (exception)
-					{
-						case RecordingWriteException writeFailure:
-							ReportWriteFailure(faults, config, writeFailure);
-							break;
-						case StreamUnavailableException { IsStreamerSilent: true }:
-							faults.OnStreamerSilent();
-							break;
-						default:
-							ReportStall(faults, config);
-							break;
-					}
-
-					await WaitAfterFailureAsync(exception, profile.StreamReconnectDelay, cancellationToken);
+					await HandleAttemptFailureAsync(exception, faults, config, profile, cancellationToken);
 				}
 			}
 		}
@@ -715,23 +658,132 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 		finally
 		{
-			lock (_lock)
+			OnRecordingLoopEnded();
+		}
+	}
+
+	private void OnRecordingLoopEnded()
+	{
+		lock (_lock)
+		{
+			_isRecordingLoopActive = false;
+			_recordStatus = RecordStatus.Idle;
+			_activeRecording = null;
+			_bytesPerSecond = 0;
+			_recordingCancellation?.Dispose();
+			_recordingCancellation = null;
+			Danmaku.EndSession();
+		}
+
+		UpdateDanmaku();
+		onChanged();
+
+		// 循环退出的同时可能又收到了开播消息
+		TryStartRecording();
+	}
+
+	private async Task<RecordingAttempt> RecordAttemptAsync(AppConfig config, RecordingProfile profile, LiveRecordingSession liveSession, CancellationToken cancellationToken)
+	{
+		SplitControl split = SetSplitControl(new SplitControl(() => RecordingSplitPolicy.Create(config, Settings), () => config.RemoveFillerData));
+
+		try
+		{
+			return await services.Recorder.RecordAsync(RoomId, Volatile.Read(ref _userId), profile, liveSession, this, split, () => config.IncludeTitleInFileName ? Title : null, cancellationToken);
+		}
+		finally
+		{
+			// 之后的刷新和重连等待都不算在录制，最后一段的后处理和弹幕收尾也不等它们
+			SetConnecting();
+
+			if (TakeRecording() is (var path, var closed))
 			{
-				_isRecordingLoopActive = false;
-				_recordStatus = RecordStatus.Idle;
-				_activeRecording = null;
-				_bytesPerSecond = 0;
-				_recordingCancellation?.Dispose();
-				_recordingCancellation = null;
-				Danmaku.EndSession();
+				services.PostProcessor.Track(PostProcessAsync(path, closed, Danmaku.CompleteSegment(path)));
 			}
 
-			UpdateDanmaku();
-			onChanged();
-
-			// 循环退出的同时可能又收到了开播消息
-			TryStartRecording();
+			Danmaku.OnVideoEnded();
 		}
+	}
+
+	private async Task HandleAttemptEndAsync(RecordingAttempt attempt, LiveRecordingSession liveSession, RecordingFaultTracker faults, AppConfig config, RecordingProfile profile, CancellationToken cancellationToken)
+	{
+		// 流结束时尽快确认是否已下播，下播造成的断流不算线路故障
+		bool isRefreshed = await TryRefreshAsync(cancellationToken);
+
+		if (attempt.IsQuickFailure)
+		{
+			faults.OnQuickFailure(attempt.ActiveDuration);
+		}
+		else
+		{
+			faults.OnRecorded();
+			SetLastError(null);
+		}
+
+		if (ShouldKeepRecording(cancellationToken) && attempt.End is RecordingEnd.WriteFailed { Exception: var writeFailure })
+		{
+			// 写盘失败不怪线路，不标记失败也不换线
+			if (!attempt.IsQuickFailure)
+			{
+				liveSession.Reset();
+			}
+
+			ReportWriteFailure(faults, config, writeFailure);
+			await WaitAfterFailureAsync(writeFailure, profile.StreamReconnectDelay, cancellationToken);
+		}
+		else if (ShouldKeepRecording(cancellationToken) && attempt.IsQuickFailure)
+		{
+			liveSession.MarkFailed(attempt.Candidate, attempt.Endpoint);
+			LogAttemptFailed(attempt);
+			SetLastError(AppLanguage.Current.RecordingEndpointFailed.ToString(attempt.Candidate.Name, attempt.Endpoint.Host, attempt.End.DisplayText));
+
+			// 连上之后等不到数据，而接口照常访问得到、仍是直播中：主播端停了推流
+			if (isRefreshed && attempt.End is RecordingEnd.Idle)
+			{
+				faults.OnStreamerSilent();
+			}
+
+			if (!liveSession.HasUntriedEndpoint)
+			{
+				liveSession.Reset();
+				LogAllEndpointsFailed(_logger, profile.StreamReconnectDelay);
+				ReportStall(faults, config);
+				await Task.Delay(profile.StreamReconnectDelay, services.TimeProvider, cancellationToken);
+			}
+		}
+		else
+		{
+			// 之前失败的线路可能已经恢复，从首选流重新请求签名地址
+			liveSession.Reset();
+			LogRecordingEnded(_logger, attempt.End.Description);
+		}
+	}
+
+	// 这里的失败都在开始录制之前，除了写盘失败都是拿不到能用的线路
+	private async Task HandleAttemptFailureAsync(Exception exception, RecordingFaultTracker faults, AppConfig config, RecordingProfile profile, CancellationToken cancellationToken)
+	{
+		// 拉不到流也可能是已经下播，确认之后不再当作失败重试
+		await TryRefreshAsync(cancellationToken);
+
+		if (!ShouldKeepRecording(cancellationToken))
+		{
+			LogRecordingEnded(_logger, exception.Message);
+			return;
+		}
+
+		switch (exception)
+		{
+			case RecordingWriteException writeFailure:
+				ReportWriteFailure(faults, config, writeFailure);
+				break;
+			case StreamUnavailableException { IsStreamerSilent: true }:
+				faults.OnStreamerSilent();
+				break;
+			default:
+				ReportStall(faults, config);
+				break;
+		}
+
+		await WaitAfterFailureAsync(exception, profile.StreamReconnectDelay, cancellationToken);
 	}
 
 	private void ReportStall(RecordingFaultTracker faults, AppConfig config)
@@ -757,7 +809,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		{
 			RecordingWriteException writeFailure => writeFailure.DisplayText,
 			StreamUnavailableException unavailable => unavailable.DisplayText,
-			_ => exception.Message
+			_ => BilibiliErrors.Describe(exception)
 		});
 		await Task.Delay(delay, services.TimeProvider, cancellationToken);
 	}
@@ -818,8 +870,9 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		try
 		{
 			AppConfig config = await services.ConfigManager.GetAsync();
-			RecordingProfile profile = RecordingProfile.Create(config, Settings);
-			DanmakuProfile danmakuProfile = DanmakuProfile.Create(config, Settings);
+			RoomConfig room = Settings;
+			RecordingProfile profile = RecordingProfile.Create(config, room);
+			DanmakuProfile danmakuProfile = DanmakuProfile.Create(config, room);
 			DanmakuSegment? segment;
 
 			// 写盘端还开着它时，转封装读不到还没写出的末尾，按大小判断要不要删也不准

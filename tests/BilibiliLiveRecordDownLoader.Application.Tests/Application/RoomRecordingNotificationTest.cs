@@ -269,19 +269,11 @@ public sealed class RoomRecordingNotificationTest
 
 	private static async Task SendOnlyTheHeaderAsync(RecordingLoopHarness loop, StreamRequest first)
 	{
-		StreamRequest next = first;
-
-		for (int line = 0; ; ++line)
+		for (int line = 0; line < 3; ++line)
 		{
+			StreamRequest next = line is 0 ? first : await loop.NextStreamAsync();
 			await next.AcceptAsync();
 			await next.EndAsync();
-
-			if (line is 2)
-			{
-				return;
-			}
-
-			next = await loop.NextStreamAsync();
 		}
 	}
 
