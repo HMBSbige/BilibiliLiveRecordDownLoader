@@ -1,6 +1,7 @@
+using CryptoBase.Hashes;
+using CryptoBase.Hashes.MD5;
 using System.Buffers;
 using System.Globalization;
-using System.Security.Cryptography;
 using System.Text;
 
 namespace BilibiliLive.Wbi;
@@ -43,9 +44,21 @@ internal static class WbiSigner
 
 		string query = string.Join('&', all.Select(static p => $"{Uri.EscapeDataString(p.Key)}={Uri.EscapeDataString(RemoveReservedChars(p.Value))}"));
 
-		string wRid = Convert.ToHexStringLower(MD5.HashData(Encoding.UTF8.GetBytes(query + mixinKey)));
+		Span<byte> hash = stackalloc byte[HashAlgorithm<MD5Core>.HashLength];
+		byte[] buffer = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(query.Length + mixinKey.Length));
 
-		return $"{query}&w_rid={wRid}";
+		try
+		{
+			int length = Encoding.UTF8.GetBytes(query, buffer);
+			length += Encoding.UTF8.GetBytes(mixinKey, buffer.AsSpan(length));
+			HashAlgorithm<MD5Core>.HashData(buffer.AsSpan(0, length), hash);
+		}
+		finally
+		{
+			ArrayPool<byte>.Shared.Return(buffer);
+		}
+
+		return $"{query}&w_rid={Convert.ToHexStringLower(hash)}";
 	}
 
 	private static string RemoveReservedChars(string value)

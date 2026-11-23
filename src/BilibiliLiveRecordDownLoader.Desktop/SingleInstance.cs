@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Diagnostics;
 
 namespace BilibiliLiveRecordDownLoader.Desktop;
@@ -17,7 +18,28 @@ internal sealed partial class SingleInstance : IDisposable
 		// 用哈希缩短名称，Unix 域套接字路径有长度限制
 		// Windows 上互斥量按会话隔离，命名管道却不分会话；名称不带会话时，后启动的会话建不了管道
 		string scope = OperatingSystem.IsWindows() ? $"{id}\0{Environment.UserName}\0{GetSessionId()}" : $"{id}\0{Environment.UserName}";
-		_name = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(scope)).AsSpan(0, 12));
+		byte[] buffer = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(scope.Length));
+		Span<byte> hash = stackalloc byte[PlatformSha256.HashLength];
+
+		try
+		{
+			ReadOnlySpan<byte> utf8 = buffer.AsSpan(0, Encoding.UTF8.GetBytes(scope, buffer));
+
+			if (PlatformSha256.IsPreferredFor(utf8.Length))
+			{
+				PlatformSha256.HashData(utf8, hash);
+			}
+			else
+			{
+				HashAlgorithm<Sha256Core>.HashData(utf8, hash);
+			}
+		}
+		finally
+		{
+			ArrayPool<byte>.Shared.Return(buffer);
+		}
+
+		_name = Convert.ToHexStringLower(hash.Slice(0, 12));
 
 		// Unix 上的“会话”是进程会话，不同终端启动的进程互不相同
 		_mutex = new Mutex(false, _name, new NamedWaitHandleOptions { CurrentUserOnly = true, CurrentSessionOnly = OperatingSystem.IsWindows() });

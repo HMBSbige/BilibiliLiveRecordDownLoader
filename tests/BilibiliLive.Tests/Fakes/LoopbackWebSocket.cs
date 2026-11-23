@@ -1,15 +1,16 @@
+using CryptoBase.Hashes;
+using CryptoBase.Hashes.Sha1;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Sockets;
 using System.Net.WebSockets;
-using System.Security.Cryptography;
 using System.Text;
 
 namespace BilibiliLive.Tests.Fakes;
 
 internal static class LoopbackWebSocket
 {
-	private const string AcceptGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+	private static ReadOnlySpan<byte> AcceptGuid => "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"u8;
 
 	public static async Task<(HttpResponseMessage Response, WebSocket Server)> AcceptAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 	{
@@ -23,7 +24,12 @@ internal static class LoopbackWebSocket
 		await connect;
 
 		string key = request.Headers.GetValues("Sec-WebSocket-Key").Single();
-		string accept = Convert.ToBase64String(SHA1.HashData(Encoding.ASCII.GetBytes(key + AcceptGuid)));
+		Span<byte> input = stackalloc byte[key.Length + AcceptGuid.Length];
+		int length = Encoding.ASCII.GetBytes(key, input);
+		AcceptGuid.CopyTo(input.Slice(length));
+		Span<byte> hash = stackalloc byte[HashAlgorithm<Sha1Core>.HashLength];
+		HashAlgorithm<Sha1Core>.HashData(input, hash);
+		string accept = Convert.ToBase64String(hash);
 
 		HttpResponseMessage response = new(HttpStatusCode.SwitchingProtocols) { Content = new DuplexContent(new NetworkStream(client, true)) };
 		response.Headers.Connection.Add("Upgrade");

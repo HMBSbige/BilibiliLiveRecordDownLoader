@@ -1,10 +1,12 @@
 using BilibiliLive.Api;
 using BilibiliLive.Http;
+using CryptoBase.Hashes;
+using CryptoBase.Hashes.Sha2;
+using CryptoBase.Platform;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
@@ -162,7 +164,28 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 	private async ValueTask<string> GetIdentityHashAsync(CancellationToken cancellationToken)
 	{
 		(_, string cookie) = await identity.ResolveAsync(false, cancellationToken);
-		return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(cookie)));
+		byte[] buffer = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(cookie.Length));
+
+		try
+		{
+			ReadOnlySpan<byte> utf8 = buffer.AsSpan(0, Encoding.UTF8.GetBytes(cookie, buffer));
+			Span<byte> hash = stackalloc byte[PlatformSha256.HashLength];
+
+			if (PlatformSha256.IsPreferredFor(utf8.Length))
+			{
+				PlatformSha256.HashData(utf8, hash);
+			}
+			else
+			{
+				HashAlgorithm<Sha256Core>.HashData(utf8, hash);
+			}
+
+			return Convert.ToHexString(hash);
+		}
+		finally
+		{
+			ArrayPool<byte>.Shared.Return(buffer, true);
+		}
 	}
 
 	private async Task<DanmuServer?> FetchServerAsync(long roomId, string identityHash, CancellationToken cancellationToken)

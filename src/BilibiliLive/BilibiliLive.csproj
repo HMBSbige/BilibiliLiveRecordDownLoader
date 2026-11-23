@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="CryptoBase" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="BilibiliLive.Tests" />
   </ItemGroup>
 

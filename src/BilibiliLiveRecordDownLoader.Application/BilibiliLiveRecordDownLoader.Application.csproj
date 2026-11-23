@@ -3,6 +3,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="CryptoBase" />
     <PackageReference Include="HMBSbige.UpdateChecker" />
     <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="NuGet.Versioning" />
