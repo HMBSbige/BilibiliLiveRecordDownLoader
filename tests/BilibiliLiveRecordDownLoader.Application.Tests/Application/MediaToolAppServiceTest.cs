@@ -126,7 +126,7 @@ public sealed class MediaToolAppServiceTest
 	public async Task CutRejectsInvalidTimeRangeAsync(int startMilliseconds, int endMilliseconds, CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
-		MediaToolAppService service = new(new FFmpegProvider(new FakeConfigManager()), CreateTasks(), NullLogger<MediaToolAppService>.Instance);
+		MediaToolAppService service = CreateServiceWithoutFFmpeg(CreateTasks());
 		CutInput input = new(directory.Combine("in.mp4"), directory.Combine("out.mp4"), TimeSpan.FromMilliseconds(startMilliseconds), TimeSpan.FromMilliseconds(endMilliseconds));
 
 		await Assert.That(() => service.QueueCutAsync(input, cancellationToken)).ThrowsExactly<ArgumentException>().WithMessage(AppLanguage.Current.InvalidTimeRange);

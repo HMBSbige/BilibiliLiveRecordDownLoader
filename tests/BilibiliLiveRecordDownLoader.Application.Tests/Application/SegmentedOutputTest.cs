@@ -30,7 +30,7 @@ public sealed class SegmentedOutputTest
 	{
 		SplitRecording recording = new() { FailOpeningFile = 1 };
 
-		await Assert.ThrowsAsync<RecordingWriteException>(() => recording.RunAsync(new FakeSplitter(), ThreeUnits, static session => WriteUnitsAsync(session, int.MaxValue), cancellationToken)).WithInnerException().WithMessage("cannot create");
+		await Assert.ThrowsAsync<RecordingWriteException>(() => recording.RunAsync(new FakeSplitter(), ThreeUnits, static session => WriteUnitsAsync(session, int.MaxValue), cancellationToken)).WithInnerException().WithMessage("cannot create", StringComparison.Ordinal);
 
 		using (Assert.Multiple())
 		{
@@ -44,7 +44,7 @@ public sealed class SegmentedOutputTest
 	{
 		SplitRecording recording = new() { FailClosingFile = 0 };
 
-		await Assert.ThrowsAsync<RecordingWriteException>(() => recording.RunAsync(new FakeSplitter(), ThreeUnits, static session => WriteUnitsAsync(session, int.MaxValue), cancellationToken)).WithInnerException().WithMessage("cannot flush");
+		await Assert.ThrowsAsync<RecordingWriteException>(() => recording.RunAsync(new FakeSplitter(), ThreeUnits, static session => WriteUnitsAsync(session, int.MaxValue), cancellationToken)).WithInnerException().WithMessage("cannot flush", StringComparison.Ordinal);
 
 		// 没有交出去的一段由录制循环最后处理
 		using (Assert.Multiple())

@@ -5,7 +5,7 @@ internal sealed partial class MediaToolAppService(FFmpegProvider ffmpegProvider,
 	private const string WorkDirectoryPrefix = ".remux-";
 
 	// .mp4 只有本程序录的 fMP4 需要转换，由 GetMp4ConversionPath 识别
-	private static readonly string[] RemuxableExtensions = [".flv", ".ts", ".mkv", ".m4s", ".mp4"];
+	private static readonly HashSet<string> RemuxableExtensions = [with(StringComparer.OrdinalIgnoreCase), ".flv", ".ts", ".mkv", ".m4s", ".mp4"];
 
 	// 目录的修改时间只在增删条目时更新，阈值要远长于一次转封装
 	private static readonly TimeSpan StaleWorkDirectoryAge = TimeSpan.FromDays(1);
@@ -79,7 +79,7 @@ internal sealed partial class MediaToolAppService(FFmpegProvider ffmpegProvider,
 
 	public string? SuggestRemuxDestination(string source)
 	{
-		if (!RemuxableExtensions.Contains(Path.GetExtension(source), StringComparer.OrdinalIgnoreCase) || RecordingFileLayout.GetMp4ConversionPath(source) is not { } destination)
+		if (!RemuxableExtensions.Contains(Path.GetExtension(source)) || RecordingFileLayout.GetMp4ConversionPath(source) is not { } destination)
 		{
 			return null;
 		}
@@ -106,36 +106,23 @@ internal sealed partial class MediaToolAppService(FFmpegProvider ffmpegProvider,
 		string withoutExtension = Path.ChangeExtension(path, null);
 		string extension = Path.GetExtension(path);
 
-		for (int index = 1; ; ++index)
-		{
-			yield return string.Create(CultureInfo.InvariantCulture, $"{withoutExtension}_{index}{extension}");
-		}
-		// ReSharper disable once IteratorNeverReturns
+		return Enumerable.InfiniteSequence(1, 1).Select(index => string.Create(CultureInfo.InvariantCulture, $"{withoutExtension}_{index}{extension}"));
 	}
 
-	// 拆出的裸流和输出分开放，裸流的文件名才不会和输出撞上
-	private async Task RepairAndRemuxAsync(FFmpegRunner runner, string source, string output, BackgroundTaskContext context, CancellationToken cancellationToken)
+	// 拆出的裸流放在输出旁的子目录，文件名才不会和输出撞上；output 在工作目录里，子目录随它一起删除
+	private static async Task RepairAndRemuxAsync(FFmpegRunner runner, string source, string output, BackgroundTaskContext context, CancellationToken cancellationToken)
 	{
-		string workDirectory = CreateWorkDirectory(output);
+		FlvExtractResult extracted = await ExtractFlvAsync(source, output + ".streams", context.CreateProgress(weight: 0.5), cancellationToken);
 
-		try
+		IReadOnlyList<string> arguments = extracted switch
 		{
-			FlvExtractResult extracted = await ExtractFlvAsync(source, workDirectory, context.CreateProgress(weight: 0.5), cancellationToken);
+			{ VideoPath: { } video, AudioPath: { } audio } => FFmpegArguments.Merge(video, audio, output, extracted.VideoFrameRate),
+			{ VideoPath: { } video } => FFmpegArguments.Remux(video, output, extracted.VideoFrameRate),
+			{ AudioPath: { } audio } => FFmpegArguments.Remux(audio, output),
+			{ VideoPath: null, AudioPath: null } => throw new InvalidDataException(AppLanguage.Current.FlvNoSupportedTracks.ToString(Path.GetFileName(source)))
+		};
 
-			IReadOnlyList<string> arguments = extracted switch
-			{
-				{ VideoPath: { } video, AudioPath: { } audio } => FFmpegArguments.Merge(video, audio, output, extracted.VideoFrameRate),
-				{ VideoPath: { } video } => FFmpegArguments.Remux(video, output, extracted.VideoFrameRate),
-				{ AudioPath: { } audio } => FFmpegArguments.Remux(audio, output),
-				{ VideoPath: null, AudioPath: null } => throw new InvalidDataException(AppLanguage.Current.FlvNoSupportedTracks.ToString(Path.GetFileName(source)))
-			};
-
-			await runner.RunAsync(arguments, context.CreateFFmpegProgress(start: 0.5, weight: 0.5), cancellationToken);
-		}
-		finally
-		{
-			FileOperations.TryDeleteDirectory(workDirectory, logger);
-		}
+		await runner.RunAsync(arguments, context.CreateFFmpegProgress(start: 0.5, weight: 0.5), cancellationToken);
 	}
 
 	// MediaToolkit 的异常文案是英文，任务列表直接显示异常消息

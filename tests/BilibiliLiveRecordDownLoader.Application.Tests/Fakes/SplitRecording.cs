@@ -61,7 +61,7 @@ internal sealed class SplitRecording
 	public async Task<StreamEndReason> RunAsync(MediaSplitter splitter, SplitControl control, Func<SessionWriter, Task> script, CancellationToken cancellationToken)
 	{
 		MemoryFile first = Create(0);
-		SegmentedOutput output = new(first, "0", (writer, starts) => new RecordingSegmenter(writer, splitter, control, starts, Time, NullLogger.Instance, Timeline) { MaxPendingLength = MaxPendingLength }, OpenNext, path =>
+		SegmentedOutput output = new(first, "0", writer => new RecordingSegmenter(writer, splitter, control, Time, NullLogger.Instance, Timeline) { MaxPendingLength = MaxPendingLength }, OpenNext, path =>
 		{
 			_completed.Enqueue(path);
 			SegmentCompleted?.Invoke(path);

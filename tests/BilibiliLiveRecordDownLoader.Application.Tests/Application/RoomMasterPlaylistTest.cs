@@ -187,6 +187,8 @@ public sealed class RoomMasterPlaylistTest
 			await Assert.That(Playlists(loop)).IsEquivalentTo([AvcPlaylist], CollectionOrdering.Matching);
 			await Assert.That(loop.Snapshot.Recording?.Restriction).IsEqualTo(new QualityRestriction.NotLoggedIn(10000));
 			await Assert.That(LogsStartingWith(loop, "The master playlist offers no stream of quality 10000: ")).Count().IsEqualTo(1);
+			// 这些都是常见的回退，不该带堆栈
+			await Assert.That(loop.Logs).DoesNotContain(static log => log.Exception is not null && log.Message.Contains("master playlist", StringComparison.Ordinal));
 			await Assert.That(LogsStartingWith(loop, "Failed to open")).IsEmpty();
 			await Assert.That(loop.PlayInfoRequests).IsEqualTo(1);
 		}

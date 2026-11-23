@@ -1,13 +1,12 @@
 using System.Buffers;
-using System.Collections.Concurrent;
 using System.IO.Pipelines;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
 // 换文件在写盘端照着标记做，关闭旧文件时网络端照常收进缓冲；openNext 建不了文件时抛 RecordingWriteException
-internal sealed class SegmentedOutput(Stream firstFile, string firstPath, Func<PipeWriter, ConcurrentQueue<SegmentStart>, RecordingSegmenter> createSegmenter, Func<SegmentStart, (string Path, Stream File)> openNext, Action<string> completed) : RecordingOutput
+internal sealed class SegmentedOutput(Stream firstFile, string firstPath, Func<SegmentStarts.Writer, RecordingSegmenter> createSegmenter, Func<SegmentStart, (string Path, Stream File)> openNext, Action<string> completed) : RecordingOutput
 {
-	private readonly ConcurrentQueue<SegmentStart> _starts = new();
+	private readonly SegmentStarts _starts = new();
 	private readonly TaskCompletionSource _closed = new(TaskCreationOptions.RunContinuationsAsynchronously);
 	private Stream? _file = firstFile;
 	private string _path = firstPath;
@@ -17,7 +16,7 @@ internal sealed class SegmentedOutput(Stream firstFile, string firstPath, Func<P
 
 	public override async Task<StreamEndReason> ReceiveAsync(LiveStreamSession session, PipeWriter writer, IProgress<long> progress, CancellationToken cancellationToken)
 	{
-		await using RecordingSegmenter segmenter = createSegmenter(writer, _starts);
+		await using RecordingSegmenter segmenter = createSegmenter(_starts.CreateWriter(writer));
 
 		try
 		{
@@ -40,15 +39,13 @@ internal sealed class SegmentedOutput(Stream firstFile, string firstPath, Func<P
 			ReadResult result = await reader.ReadAsync(cancellationToken);
 			ReadOnlySequence<byte> buffer = result.Buffer;
 
-			// 标记总是先于它之后的数据放进队列，这里看到数据时一定也看得到标记
-			while (_starts.TryPeek(out SegmentStart start) && start.Offset < position + buffer.Length)
+			while (_starts.TryTake(position + buffer.Length, out SegmentStart start))
 			{
 				ReadOnlySequence<byte> previous = buffer.Slice(0, start.Offset - position);
 				await WriteAsync(previous, cancellationToken);
 				buffer = buffer.Slice(previous.End);
 				position = start.Offset;
 				await SwitchAsync(start, cancellationToken);
-				_starts.TryDequeue(out _);
 			}
 
 			await WriteAsync(buffer, cancellationToken);

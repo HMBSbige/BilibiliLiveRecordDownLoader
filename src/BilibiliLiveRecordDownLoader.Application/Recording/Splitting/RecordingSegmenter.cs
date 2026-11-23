@@ -1,11 +1,7 @@
-using System.Buffers;
-using System.Collections.Concurrent;
-using System.IO.Pipelines;
-
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
 // 网络端：数据按单元（相邻两个切分点之间）攒着，写出前决定要不要换文件；换文件的位置记成标记，由写盘端照着换
-internal sealed partial class RecordingSegmenter(PipeWriter output, MediaSplitter splitter, SplitControl control, ConcurrentQueue<SegmentStart> starts, TimeProvider timeProvider, ILogger logger, RecordingTimeline timeline) : Stream
+internal sealed partial class RecordingSegmenter(SegmentStarts.Writer output, MediaSplitter splitter, SplitControl control, TimeProvider timeProvider, ILogger logger, RecordingTimeline timeline) : Stream
 {
 	internal const int DefaultMaxPendingLength = 64 << 20;
 
@@ -18,7 +14,6 @@ internal sealed partial class RecordingSegmenter(PipeWriter output, MediaSplitte
 	private long _pendingTimestamp;
 	private int _pendingTitleChange;
 	private int _seenTitleChange = control.TitleChanges;
-	private long _written;
 	private long _committed;
 	private long _arrival;
 	private long _segmentLength;
@@ -164,7 +159,7 @@ internal sealed partial class RecordingSegmenter(PipeWriter output, MediaSplitte
 		}
 
 		Splitter.Rebase(unit);
-		Emit(unit);
+		output.Write(unit);
 		_segmentLength += unit.Length;
 		_pending.Discard(received.Length);
 		_committed += received.Length;
@@ -205,18 +200,12 @@ internal sealed partial class RecordingSegmenter(PipeWriter output, MediaSplitte
 
 	private void StartSegment(SplitReason reason)
 	{
-		starts.Enqueue(new SegmentStart(_written, _pendingTime, reason, timeline.StartSegment()));
+		output.Start(_pendingTime, reason, timeline.StartSegment());
 		Splitter.StartSegment();
-		Emit(_pendingHeader.Span);
+		output.Write(_pendingHeader.Span);
 		_segmentLength = _pendingHeader.Length;
 		_segmentHasMedia = false;
 		_segmentStart = _pendingTimestamp;
-	}
-
-	private void Emit(ReadOnlySpan<byte> data)
-	{
-		output.Write(data);
-		_written += data.Length;
 	}
 
 	private enum UnitEnd

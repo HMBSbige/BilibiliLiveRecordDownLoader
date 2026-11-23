@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace BilibiliLiveRecordDownLoader.Application.Recording;
 
 internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpClientFactory httpClientFactory, SwitchableWebProxy proxy, FFmpegProvider ffmpegProvider, IAppConfigManager configManager, TimeProvider timeProvider, ILogger<LiveRecorder> logger)
@@ -210,8 +212,22 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		}
 		catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
 		{
-			LogMasterPlaylistUnavailable(logger, wanted, exception.Message);
+			// 请求失败或应答不是播放列表都是常事，只记原因；兜底也会接住程序错误，那种要留下堆栈
+			if (IsRemoteFailure(exception))
+			{
+				LogMasterPlaylistUnavailable(logger, wanted, exception.Message);
+			}
+			else
+			{
+				LogMasterPlaylistFailed(logger, exception, wanted);
+			}
+
 			return [];
+		}
+
+		static bool IsRemoteFailure(Exception exception)
+		{
+			return exception is BilibiliApiException or HttpRequestException or IOException or FormatException or JsonException || RequestTimeout.IsTimedOut(exception);
 		}
 	}
 
@@ -229,21 +245,20 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 	// 设置的空闲超时是下限；HLS 按段到达，两段之间本来就没有数据
 	internal static TimeSpan GetIdleTimeout(TimeSpan configured, TimeSpan? maxSilence)
 	{
-		return maxSilence is { } silence && silence + SampleInterval > configured ? silence + SampleInterval : configured;
+		return maxSilence + SampleInterval is { } silence && silence > configured ? silence : configured;
 	}
 
 	private async Task<(RecordingEnd End, TimeSpan ActiveDuration)> RecordToFileAsync(LiveStreamSession session, LiveStreamCandidate candidate, RecordingStream stream, RecorderType recorderType, string path, Func<DateTimeOffset, string> reservePath, TimeSpan idleTimeout, IRecordingObserver observer, SplitControl split, CancellationToken cancellationToken)
 	{
-		// 文件由写缓冲关闭
-		Stream file = CreateOnDisk(() => CreateFile(path));
-
-		RecordingTimeline timeline = new(path, timeProvider, idleTimeout);
+		// 录制中途也可能打开分段，所以不分段时同样按容器解析
+		MediaSplitter splitter = CreateSplitter(candidate, recorderType);
 		TransferMeter meter = new();
 		AttemptGate gate = new();
 
-		// 录制中途也可能打开分段，所以不分段时同样按容器解析
-		MediaSplitter splitter = CreateSplitter(candidate, recorderType);
-		SegmentedOutput output = new(file, path, (writer, starts) => new RecordingSegmenter(writer, splitter, split, starts, timeProvider, logger, timeline), OpenNext, completed => gate.TryRun(() => observer.OnSegmentCompleted(completed)));
+		// 文件由写缓冲关闭，建好之后到交给写缓冲之前不能再有会出错的步骤
+		Stream file = CreateOnDisk(() => CreateFile(path));
+		RecordingTimeline timeline = new(path, timeProvider, idleTimeout);
+		SegmentedOutput output = new(file, path, writer => new RecordingSegmenter(writer, splitter, split, timeProvider, logger, timeline), OpenNext, completed => gate.TryRun(() => observer.OnSegmentCompleted(completed)));
 		observer.OnRecordingStarted(path, stream, timeline, output.Closed);
 
 		return await TransferAsync(CopyAsync, meter, idleTimeout, observer, cancellationToken);
@@ -396,6 +411,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		}
 		catch (OperationCanceledException)
 		{
+			// 传输结束时取消，是看门狗正常的退出
 		}
 		finally
 		{
@@ -475,6 +491,9 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 	[LoggerMessage(Level = LogLevel.Information, Message = "The master playlist offers no stream of quality {Qualities}: {Error}")]
 	private static partial void LogMasterPlaylistUnavailable(ILogger logger, string qualities, string error);
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to read the master playlist for quality {Qualities}")]
+	private static partial void LogMasterPlaylistFailed(ILogger logger, Exception exception, string qualities);
 
 	[LoggerMessage(Level = LogLevel.Information, Message = "{Stream} is not available from {Host}: {Error}")]
 	private static partial void LogVariantUnavailable(ILogger logger, string stream, string host, string error);

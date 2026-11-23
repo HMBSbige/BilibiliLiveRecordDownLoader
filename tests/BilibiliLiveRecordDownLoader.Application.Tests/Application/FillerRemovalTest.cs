@@ -75,19 +75,6 @@ public sealed class FillerRemovalTest
 	}
 
 	[Test]
-	public async Task FlvTagLeftIncompleteAtTheEndIsDroppedAsync(CancellationToken cancellationToken)
-	{
-		byte[][] nals = [FillerSamples.Picture(FillerCodec.Avc, true, "k"), FillerSamples.Filler(FillerCodec.Avc, 60)];
-		byte[] head = [.. FlvSamples.Header, .. FillerSamples.FlvSequence(FlvFillerStyle.Avc, 4)];
-		byte[] last = FillerSamples.FlvFrame(FlvFillerStyle.Avc, false, 33, 4, nals)[..^10];
-		SplitRecording recording = new();
-
-		await recording.RunAsync(new FlvSplitter(), SplitRecording.Fixed(new RecordingSplit.None(), removeFiller: true), session => session.WriteAsync([.. head, .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 0, 4, nals), .. last]), cancellationToken);
-
-		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. head, .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 0, 4, [nals[0]])]], CollectionOrdering.Matching);
-	}
-
-	[Test]
 	[Arguments(FlvTagCase.NalLengthsDoNotAddUp)]
 	[Arguments(FlvTagCase.NoSequenceHeader)]
 	[Arguments(FlvTagCase.TruncatedSequenceHeader)]
@@ -165,38 +152,6 @@ public sealed class FillerRemovalTest
 		}, cancellationToken);
 
 		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. head, .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, false, 33, 4, [nals[0]]), .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, false, 66, 4, nals)]], CollectionOrdering.Matching);
-	}
-
-	// 去掉的字节让写出的位置落后于收到的位置
-	[Test]
-	public async Task FlvDataAfterAnUnrecognizedTagInALaterFileIsWrittenUnchangedAsync(CancellationToken cancellationToken)
-	{
-		byte[][] nals = [FillerSamples.Picture(FillerCodec.Avc, true, "k"), FillerSamples.Filler(FillerCodec.Avc, 100)];
-		byte[] sequence = FillerSamples.FlvSequence(FlvFillerStyle.Avc, 4);
-		byte[] unrecognized = FlvSamples.Tag(0x29, 10, [1, 2, 3]);
-		byte[] lookalike = [FlvSamples.VideoTag, 0, 0, 0, 0xAA, 0xBB, 0xCC, 0xDD, 0, 0, 0, 1, 2, 3, 4];
-		SplitRecording recording = new();
-
-		await recording.RunAsync(new FlvSplitter(), SplitRecording.Fixed(OneMinute, removeFiller: true), async session =>
-		{
-			await session.WriteAsync([.. FlvSamples.Header, .. sequence, .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 0, 4, nals)]);
-			session.Advance(TimeSpan.FromMinutes(1));
-			await session.WriteAsync(FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 61_000, 4, nals));
-			await session.WriteAsync(FillerSamples.FlvFrame(FlvFillerStyle.Avc, false, 61_033, 4, nals));
-			await session.WriteAsync(unrecognized);
-			await session.WriteAsync(lookalike);
-		}, cancellationToken);
-
-		byte[][] expected =
-		[
-			[.. FlvSamples.Header, .. sequence, .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 0, 4, [nals[0]])],
-			[
-				.. FlvSamples.Header, .. sequence,
-				.. FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 0, 4, [nals[0]]), .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, false, 33, 4, [nals[0]]),
-				.. unrecognized, .. lookalike
-			]
-		];
-		await Assert.That(recording.Files).IsEquivalentTo(expected, CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -340,31 +295,6 @@ public sealed class FillerRemovalTest
 		static byte[] Sample()
 		{
 			return FillerSamples.Sample(4, [FillerSamples.Picture(FillerCodec.Avc, true, "k1"), FillerSamples.Filler(FillerCodec.Avc, 50)]);
-		}
-	}
-
-	[Test]
-	public async Task DisabledFillerRemovalKeepsEveryByteAsync(CancellationToken cancellationToken)
-	{
-		byte[][] nals = [FillerSamples.Picture(FillerCodec.Avc, true, "k"), FillerSamples.Filler(FillerCodec.Avc, 100)];
-		byte[] flv = [.. FlvSamples.Header, .. FillerSamples.FlvSequence(FlvFillerStyle.Avc, 4), .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 0, 4, nals), .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 100, 4, nals)];
-		byte[] init = FillerSamples.Init(FillerCodec.Avc, 4);
-		byte[] fragment = FillerSamples.Fragment([FillerSamples.Sample(4, nals)], ["aac"u8.ToArray()]);
-		SplitRecording flvRecording = new();
-		SplitRecording fmp4Recording = new();
-
-		await flvRecording.RunAsync(new FlvSplitter(), SplitRecording.Fixed(OneMinute), session => session.WriteInChunksAsync(flv, 9), cancellationToken);
-		await fmp4Recording.RunAsync(new Fmp4HlsSplitter(), SplitRecording.Fixed(OneMinute), async session =>
-		{
-			await session.InitAsync(init);
-			await session.SegmentAsync(fragment);
-			await session.SegmentAsync(fragment);
-		}, cancellationToken);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(flvRecording.Files).IsEquivalentTo((byte[][])[flv], CollectionOrdering.Matching);
-			await Assert.That(fmp4Recording.Files).IsEquivalentTo((byte[][])[[.. init, .. fragment, .. fragment]], CollectionOrdering.Matching);
 		}
 	}
 

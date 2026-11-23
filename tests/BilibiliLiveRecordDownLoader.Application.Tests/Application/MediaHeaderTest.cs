@@ -236,6 +236,7 @@ public sealed class MediaHeaderTest
 
 		while (splitter.TryFindSplit(data, ref position))
 		{
+			// 切分点只停一下，接着往后看
 		}
 	}
 }

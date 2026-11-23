@@ -131,6 +131,7 @@ internal sealed class TsHlsSplitter : HlsSplitter
 	}
 
 	// 分片开头自带 PAT 和 PMT 时不再补，补的是这个分片之前最近的一份；开头有杂字节的分片不在它前面切
+	// FFmpeg 把 SDT 写在 PAT 和 PMT 前面，排在它们之前的 PSI、SI 表（PID 0x1F 以内）和空包不影响判断
 	public override void OnMediaSegment(ReadOnlySpan<byte> data)
 	{
 		int start = FindFirstPacket(data);
@@ -158,7 +159,7 @@ internal sealed class TsHlsSplitter : HlsSplitter
 				hasLeadingPat |= isLeading && isPat;
 				hasLeadingPmt |= isLeading && !isPat;
 			}
-			else
+			else if (TransportStream.GetPid(packet) is not (<= 0x1F or TransportStream.NullPid))
 			{
 				isLeading = false;
 			}

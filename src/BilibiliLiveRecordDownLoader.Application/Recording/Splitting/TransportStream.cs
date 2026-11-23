@@ -2,19 +2,13 @@ using System.Buffers.Binary;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-internal enum TransportVideoCodec
-{
-	None,
-	Avc,
-	Hevc,
-	Other
-}
-
 internal static class TransportStream
 {
 	public const int PacketSize = 188;
 
 	public const byte SyncByte = 0x47;
+
+	public const int NullPid = 0x1FFF;
 
 	// SPS 一般紧跟在访问单元分隔符后面，SEI 再长也不会把它推到 PES 的这么多字节以外
 	public const int ParameterSetCapacity = 4096;
@@ -98,11 +92,11 @@ internal static class TransportStream
 		return -1;
 	}
 
-	// 只认放得进一个包的 PMT；节目里没有视频时 videoPid 为 -1
-	public static bool TryReadVideoStream(ReadOnlySpan<byte> packet, out int videoPid, out TransportVideoCodec codec)
+	// 只认放得进一个包的 PMT；节目里没有视频时 videoPid 为 -1，视频不是 AVC 或 HEVC 时 syntax 为 null
+	public static bool TryReadVideoStream(ReadOnlySpan<byte> packet, out int videoPid, out NalSyntax? syntax)
 	{
 		videoPid = -1;
-		codec = TransportVideoCodec.None;
+		syntax = null;
 
 		if (!TryGetSection(packet, PmtTableId, out ReadOnlySpan<byte> section) || section.Length < 12 + CrcSize)
 		{
@@ -120,12 +114,9 @@ internal static class TransportStream
 				return false;
 			}
 
-			TransportVideoCodec streamCodec = GetVideoCodec(section[offset], section.Slice(offset + 5, infoLength));
-
-			if (streamCodec is not TransportVideoCodec.None)
+			if (IsVideo(section[offset], section.Slice(offset + 5, infoLength), out syntax))
 			{
 				videoPid = (section[offset + 1] & 0x1F) << 8 | section[offset + 2];
-				codec = streamCodec;
 				return true;
 			}
 
@@ -318,18 +309,17 @@ internal static class TransportStream
 		return true;
 	}
 
-	private static TransportVideoCodec GetVideoCodec(byte streamType, ReadOnlySpan<byte> descriptors)
+	// MPEG-1/2、MPEG-4 Part 2、VVC、AVS、Dirac、VC-1 和 AV1 也算视频，只是不解析码流；AV1 用私有流类型加 AV01 注册描述符
+	private static bool IsVideo(byte streamType, ReadOnlySpan<byte> descriptors, out NalSyntax? syntax)
 	{
-		return streamType switch
+		syntax = streamType switch
 		{
-			0x1B => TransportVideoCodec.Avc,
-			0x24 => TransportVideoCodec.Hevc,
-			// MPEG-1/2、MPEG-4 Part 2、VVC、AVS
-			0x01 or 0x02 or 0x10 or 0x33 or 0x42 or 0xD2 => TransportVideoCodec.Other,
-			// AV1 用私有流类型加 AV01 注册描述符
-			0x06 when HasRegistration(descriptors, "AV01"u8) => TransportVideoCodec.Other,
-			_ => TransportVideoCodec.None
+			0x1B => NalSyntax.Avc,
+			0x24 => NalSyntax.Hevc,
+			_ => null
 		};
+
+		return syntax is not null || streamType is 0x01 or 0x02 or 0x10 or 0x33 or 0x42 or 0xD1 or 0xD2 or 0xD4 or 0xEA || streamType is 0x06 && HasRegistration(descriptors, "AV01"u8);
 
 		static bool HasRegistration(ReadOnlySpan<byte> descriptors, ReadOnlySpan<byte> format)
 		{

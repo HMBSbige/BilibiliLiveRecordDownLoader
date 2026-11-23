@@ -658,10 +658,9 @@ public sealed class RecordingTimelineTest
 		return [.. milliseconds.Select(value => At(segment, value))];
 	}
 
-	// 按整毫秒构造：浮点秒数换成 tick 时会截掉 1
 	private static TimelinePosition? At(int segment, long milliseconds)
 	{
-		return new TimelinePosition(segment, segment.ToString(CultureInfo.InvariantCulture), TimeSpan.FromTicks(milliseconds * TimeSpan.TicksPerMillisecond));
+		return new TimelinePosition(segment, segment.ToString(CultureInfo.InvariantCulture), TimeSpan.FromMilliseconds(milliseconds));
 	}
 }
 

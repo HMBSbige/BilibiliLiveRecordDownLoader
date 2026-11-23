@@ -6,6 +6,7 @@ using BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using System.Collections.Concurrent;
+using OS = TUnit.Core.Enums.OS;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -17,62 +18,49 @@ public sealed class RecordingPostProcessorTest
 	private static readonly DanmakuProfile NoDanmaku = DanmakuProfile.Create(AppConfig.CreateDefault(), new RoomConfig { RoomId = 1 });
 
 	[Test]
-	public async Task RecordingWithoutUsableContentIsDeletedInsteadOfConvertedAsync()
-	{
-		using TestDirectory directory = new();
-		string path = CreateRecording(directory, RecordingPostProcessor.MinimumLength - 1);
-		QueuedRemuxes mediaTools = new(BackgroundTaskStatus.Completed);
-		RecordingNotifications notifications = new();
-
-		await Create(mediaTools, notifications).ProcessAsync(path, CreateProfile(directory), Streamer, null, NoDanmaku);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(File.Exists(path)).IsFalse();
-			await Assert.That(mediaTools.Inputs).IsEmpty();
-			await Assert.That(notifications.Shown).IsEmpty();
-		}
-	}
-
-	[Test]
-	public async Task TooSmallRecordingTakesItsDanmakuAndSubtitleAlongAsync()
-	{
-		using TestDirectory directory = new();
-		string path = CreateRecording(directory, RecordingPostProcessor.MinimumLength - 1);
-		await File.WriteAllTextAsync(directory.Combine(Stem + ".xml"), "x");
-		await File.WriteAllTextAsync(directory.Combine(Stem + ".ass"), "x");
-		await File.WriteAllTextAsync(directory.Combine(Stem + ".danmaku.jsonl"), "x");
-
-		await Create(new RecordingMediaTools()).ProcessAsync(path, CreateProfile(directory), Streamer, new DanmakuSegment(directory.Combine(Stem + ".xml"), null, null), CreateDanmakuProfile());
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(File.Exists(path)).IsFalse();
-			await Assert.That(File.Exists(directory.Combine(Stem + ".xml"))).IsFalse();
-			await Assert.That(File.Exists(directory.Combine(Stem + ".ass"))).IsFalse();
-			// 原始消息属于整场直播
-			await Assert.That(File.Exists(directory.Combine(Stem + ".danmaku.jsonl"))).IsTrue();
-		}
-	}
-
-	// 录像被别的程序开着时 Windows 上删不掉它，留下的录像不能没了弹幕和字幕
-	[Test]
-	public async Task TooSmallRecordingThatCannotBeDeletedKeepsItsDanmakuAndSubtitleAsync()
+	public async Task TooSmallRecordingIsDeletedWithItsDanmakuAndSubtitleInsteadOfConvertedAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
 		string path = CreateRecording(directory, RecordingPostProcessor.MinimumLength - 1);
 		string danmaku = directory.Combine(Stem + ".xml");
 		string subtitle = directory.Combine(Stem + ".ass");
-		await File.WriteAllTextAsync(danmaku, "x");
-		await File.WriteAllTextAsync(subtitle, "x");
+		string rawMessages = directory.Combine(Stem + ".danmaku.jsonl");
+		await File.WriteAllTextAsync(danmaku, "x", cancellationToken);
+		await File.WriteAllTextAsync(subtitle, "x", cancellationToken);
+		await File.WriteAllTextAsync(rawMessages, "x", cancellationToken);
+		RecordingMediaTools mediaTools = new();
+		RecordingNotifications notifications = new();
+
+		await Create(mediaTools, notifications).ProcessAsync(path, CreateProfile(directory), Streamer, new DanmakuSegment(danmaku, null, null), CreateDanmakuProfile());
+
+		using (Assert.Multiple())
+		{
+			await Assert.That((File.Exists(path), File.Exists(danmaku), File.Exists(subtitle))).IsEqualTo((false, false, false));
+			// 原始消息属于整场直播
+			await Assert.That(File.Exists(rawMessages)).IsTrue();
+			await Assert.That(mediaTools.Remuxes).IsEmpty();
+			await Assert.That(notifications.Shown).IsEmpty();
+		}
+	}
+
+	// 只有 Windows 上开着的文件删不掉；留下的录像不能没了弹幕和字幕
+	[Test]
+	[RunOn(OS.Windows)]
+	public async Task TooSmallRecordingThatCannotBeDeletedKeepsItsDanmakuAndSubtitleAsync(CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string path = CreateRecording(directory, RecordingPostProcessor.MinimumLength - 1);
+		string danmaku = directory.Combine(Stem + ".xml");
+		string subtitle = directory.Combine(Stem + ".ass");
+		await File.WriteAllTextAsync(danmaku, "x", cancellationToken);
+		await File.WriteAllTextAsync(subtitle, "x", cancellationToken);
 
 		await using (new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.Read))
 		{
 			await Create(new RecordingMediaTools()).ProcessAsync(path, CreateProfile(directory), Streamer, new DanmakuSegment(danmaku, null, null), CreateDanmakuProfile());
 		}
 
-		bool isRecordingKept = File.Exists(path);
-		await Assert.That((File.Exists(danmaku), File.Exists(subtitle))).IsEqualTo((isRecordingKept, isRecordingKept));
+		await Assert.That((File.Exists(path), File.Exists(danmaku), File.Exists(subtitle))).IsEqualTo((true, true, true));
 	}
 
 	[Test]

@@ -26,7 +26,7 @@ internal static class RecordingWriteBuffer
 
 		try
 		{
-			Task writing = WriteAsync(pipe.Reader, output, receiving, draining.Token);
+			Task writing = WriteToDiskAsync(pipe.Reader, output, receiving, draining.Token);
 			StreamEndReason reason = default;
 			ExceptionDispatchInfo? receiveError = null;
 
@@ -82,7 +82,7 @@ internal static class RecordingWriteBuffer
 		draining.Dispose();
 	}
 
-	private static async Task WriteAsync(PipeReader reader, RecordingOutput output, CancellationTokenSource receiving, CancellationToken cancellationToken)
+	private static async Task WriteToDiskAsync(PipeReader reader, RecordingOutput output, CancellationTokenSource receiving, CancellationToken cancellationToken)
 	{
 		try
 		{

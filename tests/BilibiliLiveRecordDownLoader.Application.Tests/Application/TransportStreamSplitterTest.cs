@@ -1,7 +1,6 @@
 using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
-using System.Collections.Concurrent;
 using System.IO.Pipelines;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
@@ -72,6 +71,43 @@ public sealed class TransportStreamSplitterTest
 		await Assert.That(recording.Files).Count().IsEqualTo(1);
 	}
 
+	// 和 HLS 一样，没有视频时任何带时间的 PES 开头都能解码
+	[Test]
+	public async Task AudioOnlyProgramSplitsBeforeATimedPesAsync(CancellationToken cancellationToken)
+	{
+		byte[] tables = [.. TsSamples.Pat(), .. TsSamples.Pmt(hasVideo: false)];
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new TransportStreamSplitter(), OneMinute, async session =>
+		{
+			await session.WriteAsync([.. tables, .. TsSamples.TimedPes(TsSamples.AudioPid, 90_000), .. TsSamples.TimedPes(TsSamples.AudioPid, 91_920)]);
+			session.Advance(TimeSpan.FromMinutes(1));
+			await session.WriteAsync(TsSamples.TimedPes(TsSamples.AudioPid, 5_490_000));
+			await session.WriteAsync(TsSamples.TimedPes(TsSamples.AudioPid, 5_491_920));
+		}, cancellationToken);
+
+		byte[] rebased = [.. tables, .. TsSamples.TimedPes(TsSamples.AudioPid, 0), .. TsSamples.TimedPes(TsSamples.AudioPid, 1920)];
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[rebased, rebased], CollectionOrdering.Matching);
+	}
+
+	// 流类型认不出的视频仍是按 GOP 编码的，在它旁边的音频 PES 前切，新段会从 GOP 中间开始
+	[Test]
+	public async Task UnrecognizedVideoStreamTypeIsNotSplitBeforeAudioAsync(CancellationToken cancellationToken)
+	{
+		const byte privateStreamType = 0x80;
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new TransportStreamSplitter(), OneMinute, static async session =>
+		{
+			await session.WriteAsync([.. TsSamples.Pat(), .. TsSamples.Pmt(privateStreamType), .. TsSamples.TimedPes(TsSamples.VideoPid, 90_000), .. TsSamples.TimedPes(TsSamples.AudioPid, 90_000)]);
+			session.Advance(TimeSpan.FromMinutes(1));
+			await session.WriteAsync(TsSamples.TimedPes(TsSamples.AudioPid, 5_490_000));
+			await session.WriteAsync(TsSamples.TimedPes(TsSamples.VideoPid, 5_490_000));
+		}, cancellationToken);
+
+		await Assert.That(recording.Files).Count().IsEqualTo(1);
+	}
+
 	[Test]
 	public async Task LostPacketSyncStopsSplittingWithoutLosingDataAsync(CancellationToken cancellationToken)
 	{
@@ -134,7 +170,7 @@ public sealed class TransportStreamSplitterTest
 	{
 		byte[] stream = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k1"), 0x00, .. Inter("p1")];
 		Pipe pipe = new();
-		await using RecordingSegmenter segmenter = new(pipe.Writer, new TransportStreamSplitter(), SplitRecording.Fixed(OneMinute), new ConcurrentQueue<SegmentStart>(), TimeProvider.System, NullLogger.Instance, new RecordingTimeline(string.Empty, TimeProvider.System, RoomDefaults.StreamIdleTimeout));
+		await using RecordingSegmenter segmenter = new(new SegmentStarts().CreateWriter(pipe.Writer), new TransportStreamSplitter(), SplitRecording.Fixed(OneMinute), TimeProvider.System, NullLogger.Instance, new RecordingTimeline(string.Empty, TimeProvider.System, RoomDefaults.StreamIdleTimeout));
 
 		await segmenter.WriteAsync(stream, cancellationToken);
 

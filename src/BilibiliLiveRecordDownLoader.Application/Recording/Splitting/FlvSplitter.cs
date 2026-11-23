@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Numerics;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
@@ -7,6 +8,7 @@ internal sealed class FlvSplitter : MediaSplitter
 	private const int FileHeaderSize = 9;
 	private const int TagHeaderSize = 11;
 	private const int PreviousTagSizeLength = 4;
+	private const uint MaxDataSize = 0xFF_FFFF;
 	private const byte AudioTag = 8;
 	private const byte VideoTag = 9;
 	private const byte ScriptTag = 18;
@@ -277,28 +279,23 @@ internal sealed class FlvSplitter : MediaSplitter
 
 	private static int ReadDataSize(ReadOnlySpan<byte> tag)
 	{
-		return tag[1] << 16 | tag[2] << 8 | tag[3];
+		return (int)(BinaryPrimitives.ReadUInt32BigEndian(tag) & MaxDataSize);
 	}
 
 	private static void WriteDataSize(Span<byte> tag, int size)
 	{
-		tag[1] = (byte)(size >> 16);
-		tag[2] = (byte)(size >> 8);
-		tag[3] = (byte)size;
+		BinaryPrimitives.WriteUInt32BigEndian(tag, (uint)tag[0] << 24 | (uint)size);
 	}
 
 	// 低 24 位在前，扩展的高 8 位在后
 	private static uint ReadTimestamp(ReadOnlySpan<byte> tag)
 	{
-		return (uint)(tag[7] << 24 | tag[4] << 16 | tag[5] << 8 | tag[6]);
+		return BitOperations.RotateRight(BinaryPrimitives.ReadUInt32BigEndian(tag.Slice(4)), 8);
 	}
 
 	private static void WriteTimestamp(Span<byte> tag, uint timestamp)
 	{
-		tag[4] = (byte)(timestamp >> 16);
-		tag[5] = (byte)(timestamp >> 8);
-		tag[6] = (byte)timestamp;
-		tag[7] = (byte)(timestamp >> 24);
+		BinaryPrimitives.WriteUInt32BigEndian(tag.Slice(4), BitOperations.RotateLeft(timestamp, 8));
 	}
 
 	// 和 Accept 一样只按音视频帧推进，否则和时间轴放弹幕的位置对不上

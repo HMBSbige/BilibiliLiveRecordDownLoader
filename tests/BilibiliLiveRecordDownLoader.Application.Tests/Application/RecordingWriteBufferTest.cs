@@ -15,10 +15,10 @@ public sealed class RecordingWriteBufferTest
 	{
 		ChunkSession session = new(10, false);
 		GatedStream output = new();
-		Progress progress = new();
+		Progress progress = new(session.Length);
 
 		Task<StreamEndReason> copy = CopyAsync(session, output, progress, DrainTimeout, cancellationToken);
-		await progress.WaitForAsync(session.Length, cancellationToken);
+		await progress.Reached.WaitAsync(TestWait.DefaultTimeout, cancellationToken);
 		(int WrittenLength, bool IsFinished) whileStalled = (output.Written.Length, copy.IsCompleted);
 		output.Open();
 		StreamEndReason reason = await copy;
@@ -37,11 +37,11 @@ public sealed class RecordingWriteBufferTest
 	{
 		ChunkSession session = new(3, true);
 		GatedStream output = new();
-		Progress progress = new();
+		Progress progress = new(session.Length);
 		using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
 		Task<StreamEndReason> copy = CopyAsync(session, output, progress, DrainTimeout, stop.Token);
-		await progress.WaitForAsync(session.Length, cancellationToken);
+		await progress.Reached.WaitAsync(TestWait.DefaultTimeout, cancellationToken);
 		await stop.CancelAsync();
 		output.Open();
 
@@ -103,11 +103,11 @@ public sealed class RecordingWriteBufferTest
 	{
 		ChunkSession session = new(1, true);
 		GatedStream output = new();
-		Progress progress = new();
+		Progress progress = new(session.Length);
 		using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
 		Task<StreamEndReason> copy = CopyAsync(session, output, progress, TimeSpan.FromMilliseconds(100), stop.Token);
-		await progress.WaitForAsync(session.Length, cancellationToken);
+		await progress.Reached.WaitAsync(TestWait.DefaultTimeout, cancellationToken);
 		await stop.CancelAsync();
 
 		await Assert.ThrowsExactlyAsync<RecordingWriteException>(() => copy);
@@ -120,11 +120,11 @@ public sealed class RecordingWriteBufferTest
 	{
 		ChunkSession session = new(1, true);
 		GatedStream output = new(new IOException("the network name is no longer available"));
-		Progress progress = new();
+		Progress progress = new(session.Length);
 		using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
 		Task<StreamEndReason> copy = CopyAsync(session, output, progress, TimeSpan.FromMilliseconds(100), stop.Token);
-		await progress.WaitForAsync(session.Length, cancellationToken);
+		await progress.Reached.WaitAsync(TestWait.DefaultTimeout, cancellationToken);
 		await stop.CancelAsync();
 		await Assert.ThrowsExactlyAsync<RecordingWriteException>(() => copy);
 		output.Open();
@@ -221,6 +221,7 @@ public sealed class RecordingWriteBufferTest
 	{
 		private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		private readonly TaskCompletionSource _closed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		private readonly Lock _lock = new();
 		private readonly MemoryStream _written = new();
 
 		public Task Closed => _closed.Task;
@@ -229,7 +230,7 @@ public sealed class RecordingWriteBufferTest
 		{
 			get
 			{
-				lock (_written)
+				lock (_lock)
 				{
 					return _written.ToArray();
 				}
@@ -260,7 +261,7 @@ public sealed class RecordingWriteBufferTest
 				throw failure;
 			}
 
-			lock (_written)
+			lock (_lock)
 			{
 				_written.Write(buffer.Span);
 			}
@@ -298,18 +299,19 @@ public sealed class RecordingWriteBufferTest
 		}
 	}
 
-	private sealed class Progress : IProgress<long>
+	private sealed class Progress(long expected = long.MaxValue) : IProgress<long>
 	{
+		private readonly TaskCompletionSource _reached = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		private long _total;
+
+		public Task Reached => _reached.Task;
 
 		public void Report(long value)
 		{
-			Interlocked.Add(ref _total, value);
-		}
-
-		public Task WaitForAsync(long total, CancellationToken cancellationToken)
-		{
-			return TestWait.UntilAsync(() => Interlocked.Read(ref _total) >= total, $"{total} bytes are reported", cancellationToken);
+			if (Interlocked.Add(ref _total, value) >= expected)
+			{
+				_reached.TrySetResult();
+			}
 		}
 	}
 }

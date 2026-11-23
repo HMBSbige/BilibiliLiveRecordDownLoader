@@ -104,7 +104,7 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 				if (writeChapters)
 				{
 					// 进程被强行结束时，录播目录里不会留下这个文件
-					chaptersFile = Path.Combine(Path.GetTempPath(), $@"{Guid.CreateVersion7():N}.ffmetadata");
+					chaptersFile = Path.Combine(Path.GetTempPath(), $"{Guid.CreateVersion7():N}.ffmetadata");
 					string liveTitle = records.Source is DanmakuFileSource.Native { Header.Title: { Length: > 0 } title } ? title : Path.GetFileNameWithoutExtension(stem);
 					chapters = await TryWriteChaptersAsync(chaptersFile, liveTitle, records, segment.Duration) ? chaptersFile : null;
 				}
@@ -116,13 +116,7 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 			}
 
 			Task<BackgroundTaskSnapshot> remux = await mediaTools.QueueRemuxAsync(new RemuxInput(path, destination, profile.DeleteAfterConvert, chapters is null ? new RemuxMode.Plain() : new RemuxMode.WithChapters(chapters)));
-
-			if (await remux is { Status: BackgroundTaskStatus.Failed } failed)
-			{
-				return failed.Message ?? string.Empty;
-			}
-
-			return null;
+			return await remux is { Status: BackgroundTaskStatus.Failed } failed ? failed.Message ?? string.Empty : null;
 		}
 		catch (Exception exception)
 		{

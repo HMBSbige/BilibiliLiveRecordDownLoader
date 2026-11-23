@@ -47,10 +47,14 @@ public sealed class HlsSplitterTest
 		await Assert.That(recording.Files).Count().IsEqualTo(2);
 	}
 
+	// FFmpeg 把 SDT 写在 PAT 和 PMT 前面
 	[Test]
-	public async Task TsSegmentsThatCarryTheirOwnTablesAreNotGivenMoreAsync(CancellationToken cancellationToken)
+	[Arguments(false)]
+	[Arguments(true)]
+	public async Task TsSegmentsThatCarryTheirOwnTablesAreNotGivenMoreAsync(bool startsWithSdt, CancellationToken cancellationToken)
 	{
-		byte[][] segments = [TsSegment("1", true, TsSamples.AvcIdr), TsSegment("2", true, TsSamples.AvcSlice), TsSegment("3", true, TsSamples.AvcIdr), TsSegment("4", true, TsSamples.AvcIdr)];
+		byte[] sdt = startsWithSdt ? TsSamples.Packet(0x11, true, [0, 0x42]) : [];
+		byte[][] segments = [[.. sdt, .. TsSegment("1", true, TsSamples.AvcIdr)], [.. sdt, .. TsSegment("2", true, TsSamples.AvcSlice)], [.. sdt, .. TsSegment("3", true, TsSamples.AvcIdr)], [.. sdt, .. TsSegment("4", true, TsSamples.AvcIdr)]];
 		SplitRecording recording = new();
 
 		await recording.RunAsync(new TsHlsSplitter(), EverySegment, session => SendAsync(session, null, segments), cancellationToken);

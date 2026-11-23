@@ -1,7 +1,6 @@
 using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
-using System.Collections.Concurrent;
 using System.IO.Pipelines;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
@@ -124,6 +123,24 @@ public sealed class FlvSplitterTest
 		await Assert.That(FlvSamples.Describe(file)).IsEquivalentTo(["S0", "V0[vseq]", "A0", "V0[k1]", "A10[a1]"], CollectionOrdering.Matching);
 	}
 
+	// 时间戳的高 8 位在扩展字节里：音频帧读进来时跨过 2²⁴，最后一帧写出去的值超过 2²⁴
+	[Test]
+	public async Task TimestampsBeyondTwentyFourBitsUseTheExtendedByteAsync(CancellationToken cancellationToken)
+	{
+		const uint start = 0xFF_FFF0;
+		byte[] stream =
+		[
+			.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, start, "vseq"), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, start, "k1"),
+			.. FlvSamples.Audio(start + 30, "a1"), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, start + 0x100_0000 + 500, "k2")
+		];
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new FlvSplitter(), new RecordingSplit.None(), session => session.WriteAsync(stream), cancellationToken);
+
+		byte[] file = await Assert.That(recording.Files).HasSingleItem();
+		await Assert.That(FlvSamples.Describe(file)).IsEquivalentTo(["V0[vseq]", "V0[k1]", "A30[a1]", "V16777716[k2]"], CollectionOrdering.Matching);
+	}
+
 	[Test]
 	public async Task TagsSlightlyEarlierThanTheSegmentSoFarKeepTheTimelineAsync(CancellationToken cancellationToken)
 	{
@@ -237,25 +254,40 @@ public sealed class FlvSplitterTest
 		await Assert.That(file).IsEquivalentTo(stream, CollectionOrdering.Matching);
 	}
 
+	// 去掉填充之后写出的位置落后于收到的位置，放弃解析的位置要换算过去
 	[Test]
-	public async Task DataAfterAnUnrecognizedTagInALaterFileIsWrittenUnchangedAsync(CancellationToken cancellationToken)
+	[Arguments(false)]
+	[Arguments(true)]
+	public async Task DataAfterAnUnrecognizedTagInALaterFileIsWrittenUnchangedAsync(bool removeFiller, CancellationToken cancellationToken)
 	{
+		byte[][] nals = [FillerSamples.Picture(FillerCodec.Avc, true, "k"), FillerSamples.Filler(FillerCodec.Avc, 100)];
+		byte[][] written = removeFiller ? [nals[0]] : nals;
+		byte[] sequence = FillerSamples.FlvSequence(FlvFillerStyle.Avc, 4);
 		byte[] unrecognized = FlvSamples.Tag(0x29, 10, [1, 2, 3]);
 		byte[] lookalike = [FlvSamples.VideoTag, 0, 0, 0, 0xAA, 0xBB, 0xCC, 0xDD, 0, 0, 0, 1, 2, 3, 4];
 		SplitRecording recording = new();
 
-		await recording.RunAsync(new FlvSplitter(), OneMinute, async session =>
+		await recording.RunAsync(new FlvSplitter(), SplitRecording.Fixed(OneMinute, removeFiller: removeFiller), async session =>
 		{
-			await session.WriteAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 0)]);
+			await session.WriteAsync([.. FlvSamples.Header, .. sequence, .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 0, 4, nals)]);
 			session.Advance(TimeSpan.FromMinutes(1));
-			await session.WriteAsync(FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 61_000));
+			await session.WriteAsync(FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 61_000, 4, nals));
+			await session.WriteAsync(FillerSamples.FlvFrame(FlvFillerStyle.Avc, false, 61_033, 4, nals));
 			await session.WriteAsync(unrecognized);
 			await session.WriteAsync(lookalike);
 		}, cancellationToken);
 
-		// 放弃解析之前的关键帧照样从 0 开始
-		byte[] expected = [.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 0), .. unrecognized, .. lookalike];
-		await Assert.That(recording.Files[1]).IsEquivalentTo(expected, CollectionOrdering.Matching);
+		// 放弃解析之前的帧照样从 0 开始
+		byte[][] expected =
+		[
+			[.. FlvSamples.Header, .. sequence, .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 0, 4, written)],
+			[
+				.. FlvSamples.Header, .. sequence,
+				.. FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 0, 4, written), .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, false, 33, 4, written),
+				.. unrecognized, .. lookalike
+			]
+		];
+		await Assert.That(recording.Files).IsEquivalentTo(expected, CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -263,7 +295,7 @@ public sealed class FlvSplitterTest
 	{
 		byte[] stream = [.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 0), .. FlvSamples.Tag(0x29, 10, [1, 2, 3])];
 		Pipe pipe = new();
-		await using RecordingSegmenter segmenter = new(pipe.Writer, new FlvSplitter(), SplitRecording.Fixed(OneMinute), new ConcurrentQueue<SegmentStart>(), TimeProvider.System, NullLogger.Instance, new RecordingTimeline(string.Empty, TimeProvider.System, RoomDefaults.StreamIdleTimeout));
+		await using RecordingSegmenter segmenter = new(new SegmentStarts().CreateWriter(pipe.Writer), new FlvSplitter(), SplitRecording.Fixed(OneMinute), TimeProvider.System, NullLogger.Instance, new RecordingTimeline(string.Empty, TimeProvider.System, RoomDefaults.StreamIdleTimeout));
 
 		await segmenter.WriteAsync(stream, cancellationToken);
 

@@ -1,6 +1,5 @@
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-// FFmpeg 只给关键帧设随机访问标志，在带这个标志的视频 PES 前切
 internal sealed class TransportStreamSplitter : MediaSplitter
 {
 	private readonly ProgramTables _tables = new();
@@ -9,6 +8,9 @@ internal sealed class TransportStreamSplitter : MediaSplitter
 	private long _unalignedAt = long.MaxValue;
 	private long _rebased;
 	private PtsClock _clock;
+
+	// 节目表里没认出视频流，数据里却有视频 PES：流类型不在 IsVideo 认识的范围内，找不到关键帧
+	private bool _hasUnrecognizedVideo;
 
 	// 正在收集的 PES 开头已经存下的字节数，不在收集时为 -1
 	private int _parameterSetLength = -1;
@@ -56,7 +58,8 @@ internal sealed class TransportStreamSplitter : MediaSplitter
 			return 0;
 		}
 
-		isSplit = _tables.IsComplete && TransportStream.GetPid(data) == _tables.VideoPid && TransportStream.IsPayloadStart(data) && TransportStream.IsRandomAccess(data);
+		ReadOnlySpan<byte> packet = data.Slice(0, TransportStream.PacketSize);
+		isSplit = _tables.IsComplete && TransportStream.IsPayloadStart(packet) && StartsRandomAccess(packet);
 		return TransportStream.PacketSize;
 	}
 
@@ -97,6 +100,20 @@ internal sealed class TransportStreamSplitter : MediaSplitter
 	protected override ReadOnlyMemory<byte> CaptureHeader()
 	{
 		return _tables.Header;
+	}
+
+	// 视频在带随机访问标志的 PES 前切，FFmpeg 只给关键帧设这个标志；节目里没有视频时和 HLS 一样，任何带时间的 PES 开头都能解码
+	// 有认不出的视频时在哪个 PES 前切，新段都可能从 GOP 中间开始，只能不切
+	private bool StartsRandomAccess(ReadOnlySpan<byte> packet)
+	{
+		if (_tables.VideoPid >= 0)
+		{
+			return TransportStream.GetPid(packet) == _tables.VideoPid && TransportStream.IsRandomAccess(packet);
+		}
+
+		ReadOnlySpan<byte> payload = TransportStream.GetPayload(packet);
+		_hasUnrecognizedVideo |= payload is [0, 0, 1, >= 0xE0 and <= 0xEF, ..];
+		return !_hasUnrecognizedVideo && TransportStream.TryReadDecodeTime(payload, out _);
 	}
 
 	private void CollectParameterSets(ReadOnlySpan<byte> payload)

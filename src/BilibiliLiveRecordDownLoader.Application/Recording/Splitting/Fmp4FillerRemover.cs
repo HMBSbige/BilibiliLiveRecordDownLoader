@@ -276,9 +276,8 @@ internal sealed class Fmp4FillerRemover
 		}
 
 		uint flags = IsoBmff.ReadFlags(trun);
-		bool hasSampleSizes = (flags & TrackRunFlags.SampleSizePresent) is not 0;
 
-		if ((flags & TrackRunFlags.DataOffsetPresent) is 0 || isVideo && !hasSampleSizes || !hasSampleSizes && defaultSampleSize is null)
+		if ((flags & TrackRunFlags.DataOffsetPresent) is 0)
 		{
 			return false;
 		}
@@ -286,17 +285,15 @@ internal sealed class Fmp4FillerRemover
 		uint sampleCount = BinaryPrimitives.ReadUInt32BigEndian(trun.Slice(4));
 		int dataOffset = BinaryPrimitives.ReadInt32BigEndian(trun.Slice(8));
 
-		// 样本都是默认大小时 sample_count 不受 trun 长度约束，数据损坏时可能大得离谱，不能逐个数
-		if (!hasSampleSizes)
+		// 视频要逐个样本拆，必须带各自的大小；样本都是默认大小时 sample_count 不受 trun 长度约束，数据损坏时可能大得离谱，不能逐个数
+		if ((flags & TrackRunFlags.SampleSizePresent) is 0)
 		{
-			ulong runLength = (ulong)sampleCount * defaultSampleSize.GetValueOrDefault();
-
-			if (runLength > int.MaxValue)
+			if (isVideo || defaultSampleSize is not { } size || (ulong)sampleCount * size > int.MaxValue)
 			{
 				return false;
 			}
 
-			_runs.Add(new Run(trunStart + 8, dataOffset, (long)runLength));
+			_runs.Add(new Run(trunStart + 8, dataOffset, (long)sampleCount * size));
 			return true;
 		}
 

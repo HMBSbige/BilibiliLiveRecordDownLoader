@@ -12,7 +12,7 @@ public sealed class FFmpegStreamSessionTest
 	{
 		using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		CapturingStream destination = new(written => written is "ready" ? stop.CancelAsync() : Task.CompletedTask);
-		FFmpegStreamSession session = new(new FFmpegRunner(Executable), QuitEchoingArguments(), Source);
+		await using FFmpegStreamSession session = new(new FFmpegRunner(Executable), QuitEchoingArguments(), Source);
 
 		await Assert.That(() => session.CopyToAsync(destination, null, stop.Token)).Throws<OperationCanceledException>();
 
@@ -29,7 +29,7 @@ public sealed class FFmpegStreamSessionTest
 			writeStarted.TrySetResult();
 			await Task.Delay(Timeout.Infinite, cancellationToken);
 		});
-		FFmpegStreamSession session = new(new FFmpegRunner(Executable), QuitEchoingArguments(), Source) { FlushTimeout = TimeSpan.FromMilliseconds(200) };
+		await using FFmpegStreamSession session = new(new FFmpegRunner(Executable), QuitEchoingArguments(), Source) { FlushTimeout = TimeSpan.FromMilliseconds(200) };
 
 		Task copy = session.CopyToAsync(destination, null, stop.Token);
 		await writeStarted.Task.WaitAsync(cancellationToken);
@@ -63,13 +63,14 @@ public sealed class FFmpegStreamSessionTest
 
 	private sealed class CapturingStream(Func<string, Task> onWrite) : Stream
 	{
+		private readonly Lock _lock = new();
 		private readonly StringBuilder _text = new();
 
 		public string Text
 		{
 			get
 			{
-				lock (_text)
+				lock (_lock)
 				{
 					return _text.ToString();
 				}
@@ -92,7 +93,7 @@ public sealed class FFmpegStreamSessionTest
 			cancellationToken.ThrowIfCancellationRequested();
 			string text;
 
-			lock (_text)
+			lock (_lock)
 			{
 				text = _text.Append(Encoding.ASCII.GetString(buffer.Span)).ToString();
 			}

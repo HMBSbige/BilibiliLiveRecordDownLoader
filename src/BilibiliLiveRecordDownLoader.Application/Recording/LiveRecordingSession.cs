@@ -69,7 +69,7 @@ internal sealed class LiveRecordingSession
 	}
 
 	// 重新请求后签名会变，只用主机区分线路；变体和接口给的流、不同档位的变体都在同一主机上，要分开记
-	private readonly record struct StreamEndpoint(StreamProtocol Protocol, StreamFormat Format, StreamCodec Codec, long? VariantQn, string Host)
+	private readonly record struct StreamEndpoint(StreamProtocol Protocol, StreamFormat Format, StreamCodec Codec, long? VariantQn, string Authority)
 	{
 		public static StreamEndpoint From(LiveStreamCandidate candidate, Uri uri)
 		{

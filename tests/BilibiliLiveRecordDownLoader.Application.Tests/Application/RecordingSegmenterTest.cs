@@ -2,7 +2,6 @@ using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Buffers;
-using System.Collections.Concurrent;
 using System.IO.Pipelines;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
@@ -111,9 +110,9 @@ public sealed class RecordingSegmenterTest
 	public async Task DurationIsMeasuredWithTheMonotonicClockAsync(int clockJumpHours, CancellationToken cancellationToken)
 	{
 		ShiftedWallClock time = new();
-		ConcurrentQueue<SegmentStart> starts = new();
+		SegmentStarts starts = new();
 		Pipe pipe = new();
-		await using RecordingSegmenter segmenter = new(pipe.Writer, new FakeSplitter(), SplitRecording.Fixed(OneMinute), starts, time, NullLogger.Instance, new RecordingTimeline(string.Empty, time, RoomDefaults.StreamIdleTimeout));
+		await using RecordingSegmenter segmenter = new(starts.CreateWriter(pipe.Writer), new FakeSplitter(), SplitRecording.Fixed(OneMinute), time, NullLogger.Instance, new RecordingTimeline(string.Empty, time, RoomDefaults.StreamIdleTimeout));
 
 		await segmenter.WriteAsync(FakeSplitter.Unit("a", 10), cancellationToken);
 		time.Monotonic.Advance(TimeSpan.FromSeconds(30));
@@ -123,7 +122,7 @@ public sealed class RecordingSegmenterTest
 		await segmenter.WriteAsync(FakeSplitter.Unit("c", 10), cancellationToken);
 		await segmenter.WriteAsync(FakeSplitter.Unit("d", 10), cancellationToken);
 
-		await Assert.That(starts.Select(static start => start.Offset)).IsEquivalentTo([20L], CollectionOrdering.Matching);
+		await Assert.That(Taken(starts).Select(static start => start.Offset)).IsEquivalentTo([20L], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -179,9 +178,9 @@ public sealed class RecordingSegmenterTest
 	public async Task DataThatNeverReachesASplitPointIsWrittenOutWithoutStartingAFileAsync(CancellationToken cancellationToken)
 	{
 		FakeTimeProvider time = new();
-		ConcurrentQueue<SegmentStart> starts = new();
+		SegmentStarts starts = new();
 		Pipe pipe = new();
-		await using RecordingSegmenter segmenter = new(pipe.Writer, new FakeSplitter(), SplitRecording.Fixed(OneMinute), starts, time, NullLogger.Instance, new RecordingTimeline(string.Empty, time, RoomDefaults.StreamIdleTimeout)) { MaxPendingLength = 50 };
+		await using RecordingSegmenter segmenter = new(starts.CreateWriter(pipe.Writer), new FakeSplitter(), SplitRecording.Fixed(OneMinute), time, NullLogger.Instance, new RecordingTimeline(string.Empty, time, RoomDefaults.StreamIdleTimeout)) { MaxPendingLength = 50 };
 		List<string> written = [];
 
 		await segmenter.WriteAsync(FakeSplitter.Unit("a", 20), cancellationToken);
@@ -202,7 +201,7 @@ public sealed class RecordingSegmenterTest
 		{
 			await Assert.That(written).IsEquivalentTo(["", "awx", "awxy", "awxyz"], CollectionOrdering.Matching);
 			await Assert.That(Written(pipe.Reader)).IsEqualTo("awxyzH0:bc");
-			await Assert.That(starts.Select(static start => (start.Offset, start.Reason))).IsEquivalentTo([(100L, SplitReason.Duration)], CollectionOrdering.Matching);
+			await Assert.That(Taken(starts).Select(static start => (start.Offset, start.Reason))).IsEquivalentTo([(100L, SplitReason.Duration)], CollectionOrdering.Matching);
 		}
 	}
 
@@ -295,7 +294,7 @@ public sealed class RecordingSegmenterTest
 	public async Task OnlyUnitsThatMayStartANewFileOrSetTheStartAreHeldBackAsync(bool isSplitting, bool holdsFirstUnit, string[] expected, CancellationToken cancellationToken)
 	{
 		Pipe pipe = new();
-		await using RecordingSegmenter segmenter = new(pipe.Writer, new FakeSplitter(holdsFirstUnit), SplitRecording.Fixed(isSplitting ? OneMinute : new RecordingSplit.None()), new ConcurrentQueue<SegmentStart>(), TimeProvider.System, NullLogger.Instance, new RecordingTimeline(string.Empty, TimeProvider.System, RoomDefaults.StreamIdleTimeout));
+		await using RecordingSegmenter segmenter = new(new SegmentStarts().CreateWriter(pipe.Writer), new FakeSplitter(holdsFirstUnit), SplitRecording.Fixed(isSplitting ? OneMinute : new RecordingSplit.None()), TimeProvider.System, NullLogger.Instance, new RecordingTimeline(string.Empty, TimeProvider.System, RoomDefaults.StreamIdleTimeout));
 		List<string> written = [];
 
 		foreach (byte[] element in (byte[][])[FakeSplitter.Data("x", 10), FakeSplitter.Unit("a", 10), FakeSplitter.Unit("b", 10), FakeSplitter.Data("y", 10)])
@@ -428,5 +427,17 @@ public sealed class RecordingSegmenterTest
 		string written = FakeSplitter.Describe(result.Buffer.ToArray());
 		reader.AdvanceTo(result.Buffer.Start);
 		return written;
+	}
+
+	private static List<SegmentStart> Taken(SegmentStarts starts)
+	{
+		List<SegmentStart> taken = [];
+
+		while (starts.TryTake(long.MaxValue, out SegmentStart start))
+		{
+			taken.Add(start);
+		}
+
+		return taken;
 	}
 }

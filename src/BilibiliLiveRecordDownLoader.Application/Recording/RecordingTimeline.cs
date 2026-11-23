@@ -110,7 +110,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 	{
 		lock (_lock)
 		{
-			return _segments.Find(segment => string.Equals(segment.Path, path, StringComparison.Ordinal))?.Resolution;
+			return FindSegment(path)?.Resolution;
 		}
 	}
 
@@ -118,7 +118,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 	{
 		lock (_lock)
 		{
-			return _segments.Find(candidate => string.Equals(candidate.Path, path, StringComparison.Ordinal)) is { Clock.Offset: not null } segment ? TimeSpan.FromTicks(segment.Clock.Last) : null;
+			return FindSegment(path) is { Clock.Offset: not null } segment ? TimeSpan.FromTicks(segment.Clock.Last) : null;
 		}
 	}
 
@@ -237,8 +237,13 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 
 		TimeSpan limit = _timeProvider.GetElapsedTime(record.BaseArrival, record.Arrival) + _extrapolationLimit;
 		TimeSpan elapsed = _timeProvider.GetElapsedTime(record.BaseArrival, timestamp);
-		position = new TimelinePosition(record.SegmentIndex, path, record.BaseTime + (elapsed < TimeSpan.Zero ? TimeSpan.Zero : elapsed > limit ? limit : elapsed));
+		position = new TimelinePosition(record.SegmentIndex, path, record.BaseTime + TimeSpan.FromTicks(Math.Clamp(elapsed.Ticks, 0, limit.Ticks)));
 		return true;
+	}
+
+	private Segment? FindSegment(string path)
+	{
+		return _segments.Find(segment => string.Equals(segment.Path, path, StringComparison.Ordinal));
 	}
 
 	// 到达时刻不晚于 timestamp 的最后一条记录，没有时返回 -1；同一次写入的记录到达时刻相同，取最后一条
