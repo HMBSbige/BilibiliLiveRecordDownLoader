@@ -44,7 +44,7 @@ public sealed record AppSettingsDto
 
 	public required TimeSpan SplitDuration { get; init; }
 
-	public required long SplitSizeMegabytes { get; init; }
+	public required long SplitSizeMebibytes { get; init; }
 
 	public required bool SplitOnTitleChange { get; init; }
 

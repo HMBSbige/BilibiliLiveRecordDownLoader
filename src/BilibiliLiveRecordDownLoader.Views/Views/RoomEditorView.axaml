@@ -93,9 +93,9 @@
                     <TextBlock Grid.Row="6" Grid.Column="1" Margin="0,8,0,0" IsVisible="{Binding IsSplitBySize}"
                                Text="{Binding SplitSize, Source={x:Static l:AppLanguage.Current}}" />
                     <DockPanel Grid.Row="7" Grid.Column="1" IsVisible="{Binding IsSplitBySize}">
-                        <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Text="{Binding Megabytes, Source={x:Static l:AppLanguage.Current}}" />
-                        <NumericUpDown Value="{Binding SplitSizeMegabytes}" Increment="100" FormatString="0"
-                                       Minimum="{x:Static cfg:RecordingSplitDefaults.MinSizeMegabytes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxSizeMegabytes}"
+                        <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Text="{Binding Mebibytes, Source={x:Static l:AppLanguage.Current}}" />
+                        <NumericUpDown Value="{Binding SplitSizeMebibytes}" Increment="100" FormatString="0"
+                                       Minimum="{x:Static cfg:RecordingSplitDefaults.MinSizeMebibytes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxSizeMebibytes}"
                                        AutomationProperties.Name="{Binding SplitSize, Source={x:Static l:AppLanguage.Current}}" />
                     </DockPanel>
                 </Grid>

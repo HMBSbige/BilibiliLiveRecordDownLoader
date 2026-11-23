@@ -42,7 +42,7 @@ public sealed record AppConfig
 
 	public TimeSpan SplitDuration { get; set; } = RecordingSplitDefaults.Duration;
 
-	public long SplitSizeMegabytes { get; set; } = RecordingSplitDefaults.SizeMegabytes;
+	public long SplitSizeMebibytes { get; set; } = RecordingSplitDefaults.SizeMebibytes;
 
 	public bool SplitOnTitleChange { get; set; }
 
@@ -101,7 +101,7 @@ public sealed record AppConfig
 		CodecPriority = StreamPriority.Normalize(CodecPriority, StreamPriority.DefaultCodecs);
 		FormatPriority = StreamPriority.Normalize(FormatPriority, StreamPriority.DefaultFormats);
 		SplitDuration = ConfigValues.ClampSplitDuration(SplitDuration);
-		SplitSizeMegabytes = ConfigValues.ClampSplitSize(SplitSizeMegabytes);
+		SplitSizeMebibytes = ConfigValues.ClampSplitSize(SplitSizeMebibytes);
 		DanmakuOffset = ConfigValues.ClampDanmakuOffset(DanmakuOffset);
 		// 手改的配置里 Rooms 或其中的元素可能是 null
 		// ReSharper disable once NullCoalescingConditionIsAlwaysNotNullAccordingToAPIContract

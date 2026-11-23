@@ -8,9 +8,9 @@ public static class ConfigValues
 		return Clamp(duration, RecordingSplitDefaults.MinDuration, RecordingSplitDefaults.MaxDuration);
 	}
 
-	public static long ClampSplitSize(long sizeMegabytes)
+	public static long ClampSplitSize(long sizeMebibytes)
 	{
-		return Math.Clamp(sizeMegabytes, (long)RecordingSplitDefaults.MinSizeMegabytes, (long)RecordingSplitDefaults.MaxSizeMegabytes);
+		return Math.Clamp(sizeMebibytes, (long)RecordingSplitDefaults.MinSizeMebibytes, (long)RecordingSplitDefaults.MaxSizeMebibytes);
 	}
 
 	// 弹幕文件头的偏移按毫秒截断写入，偏移不是整毫秒时会和记录实际平移的量差 1 毫秒

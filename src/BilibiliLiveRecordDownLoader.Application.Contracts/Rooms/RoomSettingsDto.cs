@@ -29,7 +29,7 @@ public sealed record RoomSettingsDto
 
 	public TimeSpan? SplitDuration { get; init; }
 
-	public long? SplitSizeMegabytes { get; init; }
+	public long? SplitSizeMebibytes { get; init; }
 
 	public bool? SplitOnTitleChange { get; init; }
 

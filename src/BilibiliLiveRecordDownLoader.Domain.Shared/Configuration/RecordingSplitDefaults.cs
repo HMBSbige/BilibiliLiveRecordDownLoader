@@ -6,11 +6,11 @@ public static class RecordingSplitDefaults
 
 	public const decimal MaxDurationMinutes = 24 * 60;
 
-	public const decimal MinSizeMegabytes = 64;
+	public const decimal MinSizeMebibytes = 64;
 
-	public const decimal MaxSizeMegabytes = 1 << 20;
+	public const decimal MaxSizeMebibytes = 1 << 20;
 
-	public const long SizeMegabytes = 4000;
+	public const long SizeMebibytes = 4000;
 
 	public static TimeSpan Duration { get; } = TimeSpan.FromMinutes(60);
 

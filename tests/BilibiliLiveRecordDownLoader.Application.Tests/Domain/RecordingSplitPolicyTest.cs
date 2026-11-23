@@ -2,7 +2,7 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Domain;
 
 public sealed class RecordingSplitPolicyTest
 {
-	public static IEnumerable<Func<(RecordingSplitMode Mode, TimeSpan? Duration, long? SizeMegabytes, RecordingSplit Expected)>> RoomSplitOverrides()
+	public static IEnumerable<Func<(RecordingSplitMode Mode, TimeSpan? Duration, long? SizeMebibytes, RecordingSplit Expected)>> RoomSplitOverrides()
 	{
 		yield return static () => (RecordingSplitMode.None, null, null, new RecordingSplit.None());
 		yield return static () => (RecordingSplitMode.Duration, TimeSpan.FromMinutes(20), null, new RecordingSplit.ByDuration(TimeSpan.FromMinutes(20)));
@@ -23,10 +23,10 @@ public sealed class RecordingSplitPolicyTest
 
 	[Test]
 	[MethodDataSource(nameof(RoomSplitOverrides))]
-	public async Task RoomSplitOverrideTakesMissingValuesFromTheGlobalSettingsAsync(RecordingSplitMode mode, TimeSpan? duration, long? sizeMegabytes, RecordingSplit expected)
+	public async Task RoomSplitOverrideTakesMissingValuesFromTheGlobalSettingsAsync(RecordingSplitMode mode, TimeSpan? duration, long? sizeMebibytes, RecordingSplit expected)
 	{
-		AppConfig global = new() { SplitMode = RecordingSplitMode.Size, SplitDuration = TimeSpan.FromMinutes(45), SplitSizeMegabytes = 2000 };
-		RoomConfig room = new() { RoomId = 1, SplitMode = mode, SplitDuration = duration, SplitSizeMegabytes = sizeMegabytes };
+		AppConfig global = new() { SplitMode = RecordingSplitMode.Size, SplitDuration = TimeSpan.FromMinutes(45), SplitSizeMebibytes = 2000 };
+		RoomConfig room = new() { RoomId = 1, SplitMode = mode, SplitDuration = duration, SplitSizeMebibytes = sizeMebibytes };
 
 		await Assert.That(RecordingSplitPolicy.Create(global, room).Split).IsEqualTo(expected);
 	}

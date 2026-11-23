@@ -88,9 +88,9 @@
                         </ctl:SettingRow>
                         <ctl:SettingRow Classes="nested" Header="{Binding SplitSize, Source={x:Static l:AppLanguage.Current}}" IsVisible="{Binding IsSplitBySize}">
                             <StackPanel Classes="iconText">
-                                <NumericUpDown Value="{Binding SplitSizeMegabytes}" Increment="100" FormatString="0"
-                                               Minimum="{x:Static cfg:RecordingSplitDefaults.MinSizeMegabytes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxSizeMegabytes}" />
-                                <TextBlock Text="{Binding Megabytes, Source={x:Static l:AppLanguage.Current}}" />
+                                <NumericUpDown Value="{Binding SplitSizeMebibytes}" Increment="100" FormatString="0"
+                                               Minimum="{x:Static cfg:RecordingSplitDefaults.MinSizeMebibytes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxSizeMebibytes}" />
+                                <TextBlock Text="{Binding Mebibytes, Source={x:Static l:AppLanguage.Current}}" />
                             </StackPanel>
                         </ctl:SettingRow>
                         <ctl:SettingRow Header="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}">

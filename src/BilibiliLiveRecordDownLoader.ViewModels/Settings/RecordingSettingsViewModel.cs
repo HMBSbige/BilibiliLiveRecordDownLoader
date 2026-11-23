@@ -34,7 +34,7 @@ public sealed partial class RecordingSettingsViewModel(ISettingsAppService setti
 	public partial decimal SplitDurationMinutes { get; set; }
 
 	[Reactive]
-	public partial decimal SplitSizeMegabytes { get; set; }
+	public partial decimal SplitSizeMebibytes { get; set; }
 
 	[Reactive]
 	public partial bool SplitOnTitleChange { get; set; }
@@ -56,7 +56,7 @@ public sealed partial class RecordingSettingsViewModel(ISettingsAppService setti
 		DeleteAfterConvert = settings.DeleteAfterConvert;
 		SplitMode = settings.SplitMode;
 		SplitDurationMinutes = (decimal)settings.SplitDuration.TotalMinutes;
-		SplitSizeMegabytes = settings.SplitSizeMegabytes;
+		SplitSizeMebibytes = settings.SplitSizeMebibytes;
 		SplitOnTitleChange = settings.SplitOnTitleChange;
 		IncludeTitleInFileName = settings.IncludeTitleInFileName;
 		CodecPriority.Reset(settings.CodecPriority);
@@ -78,7 +78,7 @@ public sealed partial class RecordingSettingsViewModel(ISettingsAppService setti
 		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.DeleteAfterConvert), static (current, value) => current with { DeleteAfterConvert = value });
 		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.SplitMode), static (current, value) => current with { SplitMode = value });
 		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.SplitDurationMinutes), static (current, value) => current with { SplitDuration = TimeSpan.FromMinutes((double)value) }, NumberInputQuietPeriod);
-		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.SplitSizeMegabytes), static (current, value) => current with { SplitSizeMegabytes = (long)value }, NumberInputQuietPeriod);
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.SplitSizeMebibytes), static (current, value) => current with { SplitSizeMebibytes = (long)value }, NumberInputQuietPeriod);
 		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.SplitOnTitleChange), static (current, value) => current with { SplitOnTitleChange = value });
 		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.IncludeTitleInFileName), static (current, value) => current with { IncludeTitleInFileName = value });
 		// 保存可能在线程池上执行，用发出的快照，不去读界面正在改的列表

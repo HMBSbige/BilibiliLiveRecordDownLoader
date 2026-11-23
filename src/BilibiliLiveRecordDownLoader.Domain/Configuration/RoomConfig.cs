@@ -29,7 +29,7 @@ public sealed record RoomConfig
 
 	public TimeSpan? SplitDuration { get; init; }
 
-	public long? SplitSizeMegabytes { get; init; }
+	public long? SplitSizeMebibytes { get; init; }
 
 	public bool? SplitOnTitleChange { get; init; }
 
@@ -55,7 +55,7 @@ public sealed record RoomConfig
 			CodecPriority = NormalizeOverride(CodecPriority),
 			FormatPriority = NormalizeOverride(FormatPriority),
 			SplitDuration = SplitDuration is { } duration ? ConfigValues.ClampSplitDuration(duration) : null,
-			SplitSizeMegabytes = SplitSizeMegabytes is { } size ? ConfigValues.ClampSplitSize(size) : null,
+			SplitSizeMebibytes = SplitSizeMebibytes is { } size ? ConfigValues.ClampSplitSize(size) : null,
 			DanmakuOffset = DanmakuOffset is { } offset ? ConfigValues.ClampDanmakuOffset(offset) : null,
 			// 枚举在配置里也能写成数字；覆盖值无效时和没覆盖一样继承全局设置
 			RecorderType = DefinedOrInherit(RecorderType),

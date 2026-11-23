@@ -34,7 +34,7 @@ public sealed class SettingsAppServiceTest
 			DeleteAfterConvert = true,
 			SplitMode = RecordingSplitMode.Size,
 			SplitDuration = TimeSpan.FromMinutes(30),
-			SplitSizeMegabytes = 1024,
+			SplitSizeMebibytes = 1024,
 			SplitOnTitleChange = true,
 			IncludeTitleInFileName = false,
 			NotifyOnRecordingError = false,

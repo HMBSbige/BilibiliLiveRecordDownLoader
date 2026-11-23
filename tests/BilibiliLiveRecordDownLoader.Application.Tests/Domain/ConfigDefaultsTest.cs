@@ -149,8 +149,8 @@ public sealed class ConfigDefaultsTest
 		AppConfig config = new()
 		{
 			SplitDuration = TimeSpan.FromSeconds(10),
-			SplitSizeMegabytes = 1,
-			Rooms = [new RoomConfig { RoomId = 1, SplitDuration = TimeSpan.FromDays(3), SplitSizeMegabytes = long.MaxValue }]
+			SplitSizeMebibytes = 1,
+			Rooms = [new RoomConfig { RoomId = 1, SplitDuration = TimeSpan.FromDays(3), SplitSizeMebibytes = long.MaxValue }]
 		};
 
 		config.ApplyDefaults();
@@ -158,9 +158,9 @@ public sealed class ConfigDefaultsTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(config.SplitDuration).IsEqualTo(TimeSpan.FromMinutes(1));
-			await Assert.That(config.SplitSizeMegabytes).IsEqualTo(64);
+			await Assert.That(config.SplitSizeMebibytes).IsEqualTo(64);
 			await Assert.That(config.Rooms[0].SplitDuration).IsEqualTo(TimeSpan.FromHours(24));
-			await Assert.That(config.Rooms[0].SplitSizeMegabytes).IsEqualTo(1 << 20);
+			await Assert.That(config.Rooms[0].SplitSizeMebibytes).IsEqualTo(1 << 20);
 		}
 	}
 

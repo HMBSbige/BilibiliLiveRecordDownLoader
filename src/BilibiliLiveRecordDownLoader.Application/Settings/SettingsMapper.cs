@@ -27,7 +27,7 @@ internal static class SettingsMapper
 				DeleteAfterConvert = config.DeleteAfterConvert,
 				SplitMode = config.SplitMode,
 				SplitDuration = config.SplitDuration,
-				SplitSizeMegabytes = config.SplitSizeMegabytes,
+				SplitSizeMebibytes = config.SplitSizeMebibytes,
 				SplitOnTitleChange = config.SplitOnTitleChange,
 				IncludeTitleInFileName = config.IncludeTitleInFileName,
 				NotifyOnRecordingError = config.NotifyOnRecordingError,
@@ -68,7 +68,7 @@ internal static class SettingsMapper
 			config.DeleteAfterConvert = settings.DeleteAfterConvert;
 			config.SplitMode = settings.SplitMode;
 			config.SplitDuration = settings.SplitDuration;
-			config.SplitSizeMegabytes = settings.SplitSizeMegabytes;
+			config.SplitSizeMebibytes = settings.SplitSizeMebibytes;
 			config.SplitOnTitleChange = settings.SplitOnTitleChange;
 			config.IncludeTitleInFileName = settings.IncludeTitleInFileName;
 			config.NotifyOnRecordingError = settings.NotifyOnRecordingError;

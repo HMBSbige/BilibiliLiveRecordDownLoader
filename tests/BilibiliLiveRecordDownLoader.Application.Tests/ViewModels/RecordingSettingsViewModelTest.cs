@@ -12,18 +12,18 @@ public sealed class RecordingSettingsViewModelTest
 		AppConfig config = AppConfig.CreateDefault();
 		config.SplitMode = RecordingSplitMode.Size;
 		config.SplitDuration = TimeSpan.FromMinutes(30);
-		config.SplitSizeMegabytes = 2000;
+		config.SplitSizeMebibytes = 2000;
 		config.SplitOnTitleChange = true;
 		config.IncludeTitleInFileName = false;
 		FakeConfigManager configManager = new(config);
 		using RecordingSettingsViewModel viewModel = new(new SettingsAppService(configManager));
 
 		viewModel.ApplySettings(config.ToSettingsDto());
-		(RecordingSplitMode mode, decimal minutes, decimal megabytes, bool onTitle, bool titleInName, bool isBySize, bool isByDuration) = (viewModel.SplitMode, viewModel.SplitDurationMinutes, viewModel.SplitSizeMegabytes, viewModel.SplitOnTitleChange, viewModel.IncludeTitleInFileName, viewModel.IsSplitBySize, viewModel.IsSplitByDuration);
+		(RecordingSplitMode mode, decimal minutes, decimal mebibytes, bool onTitle, bool titleInName, bool isBySize, bool isByDuration) = (viewModel.SplitMode, viewModel.SplitDurationMinutes, viewModel.SplitSizeMebibytes, viewModel.SplitOnTitleChange, viewModel.IncludeTitleInFileName, viewModel.IsSplitBySize, viewModel.IsSplitByDuration);
 		int updates = configManager.UpdateCount;
 		viewModel.SplitMode = RecordingSplitMode.Duration;
 		viewModel.SplitDurationMinutes = 90;
-		viewModel.SplitSizeMegabytes = 512;
+		viewModel.SplitSizeMebibytes = 512;
 		viewModel.SplitOnTitleChange = false;
 		viewModel.IncludeTitleInFileName = true;
 
@@ -32,13 +32,13 @@ public sealed class RecordingSettingsViewModelTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(mode).IsEqualTo(RecordingSplitMode.Size);
-			await Assert.That((minutes, megabytes, onTitle, titleInName)).IsEqualTo((30m, 2000m, true, false));
+			await Assert.That((minutes, mebibytes, onTitle, titleInName)).IsEqualTo((30m, 2000m, true, false));
 			await Assert.That((isBySize, isByDuration)).IsEqualTo((true, false));
 			await Assert.That(updates).IsEqualTo(0);
 			await Assert.That((viewModel.IsSplitBySize, viewModel.IsSplitByDuration)).IsEqualTo((false, true));
 			await Assert.That(config.SplitMode).IsEqualTo(RecordingSplitMode.Duration);
 			await Assert.That(config.SplitDuration).IsEqualTo(TimeSpan.FromMinutes(90));
-			await Assert.That(config.SplitSizeMegabytes).IsEqualTo(512);
+			await Assert.That(config.SplitSizeMebibytes).IsEqualTo(512);
 			await Assert.That((config.SplitOnTitleChange, config.IncludeTitleInFileName)).IsEqualTo((false, true));
 		}
 	}

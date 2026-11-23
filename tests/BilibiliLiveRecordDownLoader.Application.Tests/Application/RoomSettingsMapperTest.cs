@@ -20,7 +20,7 @@ public sealed class RoomSettingsMapperTest
 			DeleteAfterConvert = false,
 			SplitMode = RecordingSplitMode.Size,
 			SplitDuration = TimeSpan.FromMinutes(30),
-			SplitSizeMegabytes = 1024,
+			SplitSizeMebibytes = 1024,
 			SplitOnTitleChange = true,
 			StatusCheckInterval = TimeSpan.FromMinutes(1),
 			DanmuReconnectDelay = TimeSpan.FromSeconds(3),

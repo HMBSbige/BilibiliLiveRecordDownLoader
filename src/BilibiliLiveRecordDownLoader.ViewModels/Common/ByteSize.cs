@@ -2,7 +2,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.Common;
 
 public static class ByteSize
 {
-	private static readonly string[] Units = ["B", "KB", "MB", "GB", "TB", "PB"];
+	private static readonly string[] Units = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
 
 	public static string Format(double bytes)
 	{

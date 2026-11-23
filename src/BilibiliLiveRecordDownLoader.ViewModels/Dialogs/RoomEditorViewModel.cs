@@ -25,7 +25,7 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 		SplitOnTitleChange = new ChoiceOption(_original.SplitOnTitleChange);
 
 		SplitDurationMinutes = (decimal)(_original.SplitDuration ?? globalSettings.SplitDuration).TotalMinutes;
-		SplitSizeMegabytes = _original.SplitSizeMegabytes ?? globalSettings.SplitSizeMegabytes;
+		SplitSizeMebibytes = _original.SplitSizeMebibytes ?? globalSettings.SplitSizeMebibytes;
 		OverrideCodecPriority = _original.CodecPriority is not null;
 		OverrideFormatPriority = _original.FormatPriority is not null;
 		CodecPriority = PriorityListViewModel.Create(_original.CodecPriority ?? globalSettings.CodecPriority).DisposeWith(Disposables);
@@ -116,7 +116,7 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 	public partial decimal SplitDurationMinutes { get; set; }
 
 	[Reactive]
-	public partial decimal SplitSizeMegabytes { get; set; }
+	public partial decimal SplitSizeMebibytes { get; set; }
 
 	[Reactive]
 	public partial ChoiceOption SplitOnTitleChange { get; set; }
@@ -171,7 +171,7 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 			DeleteAfterConvert = DeleteAfterConvert.As<bool>(),
 			SplitMode = SplitMode.As<RecordingSplitMode>(),
 			SplitDuration = IsSplitByDuration ? TimeSpan.FromMinutes((double)SplitDurationMinutes) : null,
-			SplitSizeMegabytes = IsSplitBySize ? (long)SplitSizeMegabytes : null,
+			SplitSizeMebibytes = IsSplitBySize ? (long)SplitSizeMebibytes : null,
 			SplitOnTitleChange = SplitOnTitleChange.As<bool>(),
 			StatusCheckInterval = TimeSpan.FromSeconds((double)StatusCheckIntervalSeconds),
 			DanmuReconnectDelay = TimeSpan.FromSeconds((double)DanmuReconnectDelaySeconds),
