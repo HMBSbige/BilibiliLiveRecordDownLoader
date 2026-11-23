@@ -124,7 +124,7 @@ public sealed partial class DanmakuFileViewModel : ViewModelBase
 
 		try
 		{
-			DanmakuOffsetResult result = await _danmaku.ChangeOffsetAsync(Path, TimeSpan.FromSeconds((double)OffsetSeconds), cancellationToken);
+			DanmakuOffsetResult result = await _danmaku.ChangeOffsetAsync(Path, ConfigValues.DanmakuOffsetFromSeconds(OffsetSeconds), cancellationToken);
 			Load(await _danmaku.OpenFileAsync(Path, cancellationToken));
 
 			(Message, MessageType) = result switch

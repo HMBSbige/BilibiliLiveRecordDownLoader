@@ -571,6 +571,11 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 			LogLateDanmaku(logger, video.LateCount);
 		}
 
+		if (video.NoNextFileCount > 0)
+		{
+			LogNoNextFile(logger, video.NoNextFileCount);
+		}
+
 		if (video.Spill.Count > 0)
 		{
 			LogBeyondEnd(logger, video.Spill.Count);
@@ -662,6 +667,7 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 		}
 		else
 		{
+			video.NoNextFileCount += video.Spill.Count;
 			video.Spill.Clear();
 		}
 	}
@@ -1070,6 +1076,9 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 
 		// 到达时所在段的文件已经关闭的弹幕数
 		public long LateCount { get; set; }
+
+		// 超出段末尾、紧接着的一段又没有弹幕文件而丢掉的弹幕数
+		public long NoNextFileCount { get; set; }
 	}
 
 	private sealed class TextRun(DanmakuRun run)
@@ -1099,6 +1108,9 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 
 	[LoggerMessage(Level = LogLevel.Information, Message = "{Count} danmaku arrived after the last frame of the recording and were left out")]
 	private static partial void LogBeyondEnd(ILogger logger, long count);
+
+	[LoggerMessage(Level = LogLevel.Information, Message = "{Count} danmaku past the end of a segment were left out because the next segment has no danmaku file")]
+	private static partial void LogNoNextFile(ILogger logger, long count);
 
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to handle {Work}")]
 	private static partial void LogWorkFailed(ILogger logger, Exception exception, string work);

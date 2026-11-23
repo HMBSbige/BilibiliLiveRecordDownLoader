@@ -42,7 +42,7 @@ public sealed partial class DanmakuSettingsViewModel(IAppConfigManager configMan
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.RecordSuperChats), static (appConfig, value) => appConfig.RecordSuperChats = value);
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.GiftMode), static (appConfig, value) => appConfig.GiftMode = value);
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.RecordGuards), static (appConfig, value) => appConfig.RecordGuards = value);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.OffsetSeconds), static (appConfig, value) => appConfig.DanmakuOffset = TimeSpan.FromSeconds((double)value), RecordingSettingsViewModel.NumberInputQuietPeriod);
+		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.OffsetSeconds), static (appConfig, value) => appConfig.DanmakuOffset = ConfigValues.DanmakuOffsetFromSeconds(value), RecordingSettingsViewModel.NumberInputQuietPeriod);
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.GenerateSubtitle), static (appConfig, value) => appConfig.GenerateDanmakuSubtitle = value);
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.ShowPaidMessagesInSubtitle), static (appConfig, value) => appConfig.ShowPaidMessagesInSubtitle = value);
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.SaveRawMessages), static (appConfig, value) => appConfig.SaveRawDanmaku = value);

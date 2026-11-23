@@ -162,7 +162,7 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 			IsRecordingEnabled = IsRecordingEnabled,
 			IsNotificationEnabled = IsNotificationEnabled,
 			IsDanmakuEnabled = IsDanmakuEnabled,
-			DanmakuOffset = DanmakuOffsetSeconds is { } seconds ? TimeSpan.FromSeconds((double)seconds) : null,
+			DanmakuOffset = DanmakuOffsetSeconds is { } seconds ? ConfigValues.DanmakuOffsetFromSeconds(seconds) : null,
 			Quality = Quality,
 			RecorderType = RecorderType.As<RecorderType>(),
 			CodecPriority = OverrideCodecPriority ? CodecPriority.ToList<StreamCodec>() : null,

@@ -13,9 +13,16 @@ public static class ConfigValues
 		return Math.Clamp(sizeMegabytes, (long)RecordingSplitDefaults.MinSizeMegabytes, (long)RecordingSplitDefaults.MaxSizeMegabytes);
 	}
 
+	// 弹幕文件头的偏移按毫秒截断写入，偏移不是整毫秒时会和记录实际平移的量差 1 毫秒
 	public static TimeSpan ClampDanmakuOffset(TimeSpan offset)
 	{
-		return Clamp(offset, DanmakuDefaults.MinOffset, DanmakuDefaults.MaxOffset);
+		return FromMilliseconds((decimal)Clamp(offset, DanmakuDefaults.MinOffset, DanmakuDefaults.MaxOffset).Ticks / TimeSpan.TicksPerMillisecond);
+	}
+
+	// 不经过 double：53.669 这类值转成 double 后略小，换算结果会落在整毫秒之下
+	public static TimeSpan DanmakuOffsetFromSeconds(decimal seconds)
+	{
+		return FromMilliseconds(seconds * 1000);
 	}
 
 	internal static TimeSpan ClampRoomInterval(TimeSpan interval, decimal minimumSeconds)
@@ -36,5 +43,11 @@ public static class ConfigValues
 	private static TimeSpan Clamp(TimeSpan value, TimeSpan min, TimeSpan max)
 	{
 		return TimeSpan.FromTicks(Math.Clamp(value.Ticks, min.Ticks, max.Ticks));
+	}
+
+	// 和界面 "0.###" 显示时的舍入一致
+	private static TimeSpan FromMilliseconds(decimal milliseconds)
+	{
+		return TimeSpan.FromMilliseconds((long)decimal.Round(milliseconds, MidpointRounding.AwayFromZero));
 	}
 }

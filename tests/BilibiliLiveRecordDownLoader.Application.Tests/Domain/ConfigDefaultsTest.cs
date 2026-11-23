@@ -179,4 +179,19 @@ public sealed class ConfigDefaultsTest
 			await Assert.That(config.Rooms[1].DanmakuOffset).IsEqualTo(TimeSpan.FromSeconds(-1.5));
 		}
 	}
+
+	// 旧版本把 53.669 秒存成了 53.6689999 秒
+	[Test]
+	public async Task DanmakuOffsetsAreRoundedToWholeMillisecondsAsync()
+	{
+		AppConfig config = new()
+		{
+			DanmakuOffset = TimeSpan.FromTicks(536_689_999),
+			Rooms = [new RoomConfig { RoomId = 1, DanmakuOffset = TimeSpan.FromTicks(-536_689_999) }]
+		};
+
+		config.ApplyDefaults();
+
+		await Assert.That((config.DanmakuOffset, config.Rooms[0].DanmakuOffset)).IsEqualTo((TimeSpan.FromMilliseconds(53_669), TimeSpan.FromMilliseconds(-53_669)));
+	}
 }

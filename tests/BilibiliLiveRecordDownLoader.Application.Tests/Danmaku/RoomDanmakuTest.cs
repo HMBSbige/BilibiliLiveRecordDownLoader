@@ -158,9 +158,10 @@ public sealed class RoomDanmakuTest : IDisposable
 	[Test]
 	public async Task DanmakuPastTheEndOfASegmentAreLeftOutWhenTheNextSegmentHasNoFileAsync(CancellationToken cancellationToken)
 	{
+		ListLogger logger = new();
 		bool isEnabled = true;
 		ControlledTimeline timeline = new() { Duration = static _ => TimeSpan.FromSeconds(10) };
-		await using RoomDanmaku danmaku = Create();
+		await using RoomDanmaku danmaku = new(1, _time, logger, static () => { });
 		string first = _directory.Combine("a.flv");
 		string second = _directory.Combine("b.flv");
 		string third = _directory.Combine("c.flv");
@@ -185,8 +186,13 @@ public sealed class RoomDanmakuTest : IDisposable
 		Task<DanmakuSegment?> last = danmaku.CompleteSegment(third);
 		danmaku.OnVideoEnded();
 		await last.WaitAsync(cancellationToken);
+		await danmaku.DisposeAsync();
 
-		await Assert.That(await CommentsAsync("c.xml", cancellationToken)).IsEquivalentTo([("第三段", 1.0)], CollectionOrdering.Matching);
+		using (Assert.Multiple())
+		{
+			await Assert.That(await CommentsAsync("c.xml", cancellationToken)).IsEquivalentTo([("第三段", 1.0)], CollectionOrdering.Matching);
+			await Assert.That(logger.Entries).Contains((LogLevel.Information, "1 danmaku past the end of a segment were left out because the next segment has no danmaku file"));
+		}
 	}
 
 	// 从没连上时断开的区间就是整段画面
