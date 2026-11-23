@@ -1,6 +1,7 @@
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
+using ReactiveUI.Primitives;
 using System.ComponentModel;
 using System.Windows.Input;
 
@@ -22,6 +23,7 @@ public partial class RoomsView : UserControl
 
 	private readonly DispatcherTimer _autoScrollTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
 	private RoomListViewModel? _viewModel;
+	private IDisposable? _roomsMoved;
 	private RoomDrag? _drag;
 	private RoomItemViewModel? _focusAfterMove;
 
@@ -38,10 +40,10 @@ public partial class RoomsView : UserControl
 
 	protected override void OnDataContextChanged(EventArgs e)
 	{
-		_viewModel?.RoomsMoved -= OnRoomsMoved;
+		_roomsMoved?.Dispose();
 		_viewModel?.Danmaku.PropertyChanged -= OnDanmakuPropertyChanged;
 		_viewModel = DataContext as RoomListViewModel;
-		_viewModel?.RoomsMoved += OnRoomsMoved;
+		_roomsMoved = _viewModel?.RoomsMoved.Subscribe(OnRoomsMoved);
 		_viewModel?.Danmaku.PropertyChanged += OnDanmakuPropertyChanged;
 		UpdateDanmakuPanel();
 
@@ -170,7 +172,7 @@ public partial class RoomsView : UserControl
 	}
 
 	// 移动的行会重新生成而丢失焦点；不用方向键导航的方式设焦点，否则列表会把多选收成单选
-	private void OnRoomsMoved(object? sender, IReadOnlyList<RoomItemViewModel> rooms)
+	private void OnRoomsMoved(IReadOnlyList<RoomItemViewModel> rooms)
 	{
 		if (rooms is not [var first, ..])
 		{

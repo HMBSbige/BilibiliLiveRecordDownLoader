@@ -51,10 +51,12 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		MoveDownCommand.DisposeWith(Disposables);
 		MoveSelectionToCommand.DisposeWith(Disposables);
 		LoginCommand.DisposeWith(Disposables);
+
+		RoomsMoved = Signal.Merge<IReadOnlyList<RoomItemViewModel>>(MoveToTopCommand, MoveToBottomCommand, MoveUpCommand, MoveDownCommand, MoveSelectionToCommand);
 	}
 
-	// 刷新列表后触发，参数按显示顺序排列
-	public event EventHandler<IReadOnlyList<RoomItemViewModel>>? RoomsMoved;
+	// 列表刷新之后发出，按显示顺序
+	public IObservable<IReadOnlyList<RoomItemViewModel>> RoomsMoved { get; }
 
 	public ObservableCollection<RoomItemViewModel> Rooms { get; } = [];
 
@@ -130,7 +132,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		}
 	}
 
-	// 导入可能部分失败，无论结果如何都要同步
+	// 导入可能部分成功
 	[ReactiveCommand]
 	private async Task ImportFollowedRoomsAsync()
 	{
@@ -263,32 +265,32 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	}
 
 	[ReactiveCommand(CanExecute = nameof(CanMoveSelection))]
-	private Task MoveToTopAsync(CancellationToken cancellationToken)
+	private Task<IReadOnlyList<RoomItemViewModel>> MoveToTopAsync(CancellationToken cancellationToken)
 	{
 		return MoveSelectionAsync(RoomReorder.Top, cancellationToken);
 	}
 
 	[ReactiveCommand(CanExecute = nameof(CanMoveSelection))]
-	private Task MoveToBottomAsync(CancellationToken cancellationToken)
+	private Task<IReadOnlyList<RoomItemViewModel>> MoveToBottomAsync(CancellationToken cancellationToken)
 	{
 		return MoveSelectionAsync(static (_, _) => null, cancellationToken);
 	}
 
 	[ReactiveCommand(CanExecute = nameof(CanMoveSelection))]
-	private Task MoveUpAsync(CancellationToken cancellationToken)
+	private Task<IReadOnlyList<RoomItemViewModel>> MoveUpAsync(CancellationToken cancellationToken)
 	{
 		return MoveSelectionAsync(RoomReorder.Up, cancellationToken);
 	}
 
 	[ReactiveCommand(CanExecute = nameof(CanMoveSelection))]
-	private Task MoveDownAsync(CancellationToken cancellationToken)
+	private Task<IReadOnlyList<RoomItemViewModel>> MoveDownAsync(CancellationToken cancellationToken)
 	{
 		return MoveSelectionAsync(RoomReorder.Down, cancellationToken);
 	}
 
 	// 参数是在 Rooms 中的插入位置，取值 0 到 Rooms.Count
 	[ReactiveCommand(CanExecute = nameof(CanMoveSelection))]
-	private Task MoveSelectionToAsync(int index, CancellationToken cancellationToken)
+	private Task<IReadOnlyList<RoomItemViewModel>> MoveSelectionToAsync(int index, CancellationToken cancellationToken)
 	{
 		return MoveSelectionAsync((order, moving) => RoomReorder.At(order, moving, index), cancellationToken);
 	}
@@ -322,14 +324,14 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		SelectionText = SelectedCount is 0 ? null : AppLanguage.Current.SelectedCount.ToString(SelectedCount.ToString(CultureInfo.CurrentCulture));
 	}
 
-	private async Task MoveSelectionAsync(Func<IReadOnlyList<long>, IReadOnlySet<long>, long?> getBefore, CancellationToken cancellationToken)
+	private async Task<IReadOnlyList<RoomItemViewModel>> MoveSelectionAsync(Func<IReadOnlyList<long>, IReadOnlySet<long>, long?> getBefore, CancellationToken cancellationToken)
 	{
 		HashSet<RoomItemViewModel> selected = [.. SelectedRooms];
 		RoomItemViewModel[] moving = [.. Rooms.Where(selected.Contains)];
 
 		if (!CanReorder || moving.Length is 0)
 		{
-			return;
+			return [];
 		}
 
 		long[] order = [.. Rooms.Select(static room => room.RoomId)];
@@ -337,7 +339,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 
 		await _roomAppService.MoveAsync(roomIds, getBefore(order, roomIds), cancellationToken);
 		Sync();
-		RoomsMoved?.Invoke(this, moving);
+		return moving;
 	}
 
 	internal void Sync()

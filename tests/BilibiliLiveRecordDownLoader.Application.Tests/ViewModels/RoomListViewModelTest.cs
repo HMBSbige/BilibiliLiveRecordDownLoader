@@ -1,6 +1,7 @@
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels.Rooms;
+using ReactiveUI.Primitives;
 using Splat;
 using System.Collections.Concurrent;
 using System.Windows.Input;
@@ -315,7 +316,7 @@ public sealed class RoomListViewModelTest
 	private static async Task<IReadOnlyList<RoomItemViewModel>> ExecuteAsync(RoomListViewModel viewModel, Action execute, CancellationToken cancellationToken)
 	{
 		TaskCompletionSource<IReadOnlyList<RoomItemViewModel>> moved = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		viewModel.RoomsMoved += (_, rooms) => moved.TrySetResult(rooms);
+		using IDisposable subscription = viewModel.RoomsMoved.Subscribe(rooms => moved.TrySetResult(rooms));
 
 		execute();
 		return await moved.Task.WaitAsync(cancellationToken);
