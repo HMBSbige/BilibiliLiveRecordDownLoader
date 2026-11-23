@@ -27,8 +27,7 @@ public sealed class RoomDanmakuRecordingTest
 		loop.Time.Advance(TimeSpan.FromMilliseconds(500));
 		await danmu.SendAsync(Comment("半秒之后"));
 
-		// 弹幕稀少时空闲的写入者也按时落盘，录制中途的文件是完整的 XML
-		// 写盘端和写入者都在别的线程上，可能落后于推进的时钟；时钟停下之后计时器不再到期，所以按帧推进直到落盘
+		// 写盘端和写入者在别的线程上，可能落后于时钟；时钟停下后计时器不再到期，所以按帧推进直到落盘
 		string first = Path.Combine(loop.RoomDirectory, "20260101_000000.xml");
 		int second = 4;
 
@@ -40,7 +39,6 @@ public sealed class RoomDanmakuRecordingTest
 		await loop.WaitUntilAsync(() => ContainsText(first, "半秒之后"), "the first file is flushed before the segment ends");
 		await SendSecondsAsync(loop, stream, second, 61);
 
-		// 第 60 秒开始的一段要等下一个关键帧才提交，这条到那时才确定放进第二段
 		await danmu.SendAsync(Comment("第二段"));
 		await SendSecondsAsync(loop, stream, 62, 64);
 		await stream.EndAsync();
@@ -64,13 +62,11 @@ public sealed class RoomDanmakuRecordingTest
 			await Assert.That(Describe(firstFile)).IsEquivalentTo(["connection@0.000(anonymous,masked)", "第一段@3.000", "半秒之后@3.500"], CollectionOrdering.Matching);
 			await Assert.That(Describe(secondFile)).IsEquivalentTo(["connection@0.000(anonymous,masked)", "第二段@1.000"], CollectionOrdering.Matching);
 			await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.ass").Select(static file => Path.GetFileName(file))).IsEquivalentTo(["20260101_000000.ass", "20260101_000100.ass"]);
-			// 时长来自时间轴：第一段最后一帧在 59 秒
 			await Assert.That(chapters).Contains("title=title").And.Contains("END=59000");
 			await Assert.That(mediaTools.Remuxes).All(static remux => remux.Mode is RemuxMode.WithChapters { Path: var path } && !File.Exists(path));
 		}
 	}
 
-	// 文件开头的连接状态是画面开头的状态，不加偏移
 	[Test]
 	public async Task DanmakuFollowingTheVideoIsShiftedByTheOffsetAsync(CancellationToken cancellationToken)
 	{
@@ -84,7 +80,6 @@ public sealed class RoomDanmakuRecordingTest
 		await SendSecondsAsync(loop, stream, 1, 3);
 		await danmu.SendAsync(Comment("第一段"));
 
-		// 加上偏移在第 5 秒，画面要录到那里，否则就在最后一帧之后了
 		await SendSecondsAsync(loop, stream, 4, 6);
 		await stream.EndAsync();
 		await WaitForRemuxAsync(loop, mediaTools, 1);
@@ -112,7 +107,6 @@ public sealed class RoomDanmakuRecordingTest
 		await danmu.SendAsync(Comment("第一次"));
 		await stream.EndAsync();
 
-		// 重连还没连上，这时没有打开的视频文件
 		StreamRequest next = await loop.NextStreamAsync();
 		loop.Time.Advance(TimeSpan.FromSeconds(1));
 		await danmu.SendAsync(Comment("重连中"));
@@ -194,7 +188,6 @@ public sealed class RoomDanmakuRecordingTest
 
 		using (Assert.Multiple())
 		{
-			// 仅弹幕不加偏移
 			await Assert.That((firstHeader.Title, firstHeader.Offset)).IsEqualTo(("title", TimeSpan.Zero));
 			await Assert.That(secondHeader.Title).IsEqualTo("new title");
 			await Assert.That(Describe(first)).IsEquivalentTo(["connection@0.000(anonymous,masked)", "开播四秒@4.000"], CollectionOrdering.Matching);
@@ -231,7 +224,6 @@ public sealed class RoomDanmakuRecordingTest
 		loop.Config.SaveRawDanmaku = true;
 		loop.Config.SplitOnTitleChange = true;
 
-		// 开播之后才开始记录，文件开头补记之前的连接
 		loop.GoOffline();
 		FakeDanmuConnection danmu = await ConnectAsync(loop, masked: true);
 
@@ -438,7 +430,6 @@ public sealed class RoomDanmakuRecordingTest
 		}
 	}
 
-	// 文件不完整时 XmlException 让测试失败
 	private static bool ContainsText(string path, string text)
 	{
 		if (!File.Exists(path))
@@ -446,7 +437,6 @@ public sealed class RoomDanmakuRecordingTest
 			return false;
 		}
 
-		// 写入者以 FileShare.Read 打开，读的一方要允许写共享
 		using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
 		using XmlReader reader = XmlReader.Create(stream);
 		bool found = false;

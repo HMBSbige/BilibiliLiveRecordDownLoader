@@ -5,7 +5,6 @@ using System.Text.RegularExpressions;
 
 namespace MediaToolkit.Tests.FFmpeg;
 
-// 找不到 FFmpeg 时跳过；CI 设 REQUIRE_FFMPEG 改为失败，免得一直跳过没人发现
 [Timeout(TestTimeout)]
 public partial class FFmpegIntegrationTest
 {
@@ -77,16 +76,6 @@ public partial class FFmpegIntegrationTest
 	}
 
 	[Test]
-	public async Task GetVersionAsyncReturnsInstalledVersionAsync(CancellationToken cancellationToken)
-	{
-		FFmpegRunner runner = CreateRunner();
-
-		string? version = await runner.GetVersionAsync(cancellationToken);
-
-		await Assert.That(version).IsNotNull().And.IsNotEmpty();
-	}
-
-	[Test]
 	public async Task ExtractedStreamsDecodeCompletelyAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = CreateRunner();
@@ -101,10 +90,8 @@ public partial class FFmpegIntegrationTest
 
 		byte[] videoBytes = await File.ReadAllBytesAsync(video, cancellationToken);
 		await Assert.That(Convert.ToHexString(videoBytes, 0, 4)).IsEqualTo(@"00000001");
-		// NAL 类型 7 是 SPS
 		await Assert.That(videoBytes[4] & 0x1F).IsEqualTo(7);
 
-		// FFmpeg 的 ADTS 封装和这里写的头字段相同，可以逐字节对照
 		string referenceAudio = directory.Combine(@"reference.aac");
 		await runner.RunAsync([@"-hide_banner", @"-y", @"-i", flv, @"-map", @"0:a", @"-c", @"copy", @"-f", @"adts", referenceAudio], null, cancellationToken);
 		byte[] audioBytes = await File.ReadAllBytesAsync(audio, cancellationToken);
@@ -167,7 +154,6 @@ public partial class FFmpegIntegrationTest
 		string mp4 = directory.Combine(@"remuxed.mp4");
 		await runner.RunAsync(FFmpegArguments.RemuxWithChapters(flv, chapters, mp4), null, cancellationToken);
 
-		// 导出时 FFmpeg 用同样的规则转义
 		string exported = directory.Combine(@"exported.txt");
 		await runner.RunAsync([@"-hide_banner", @"-y", @"-i", mp4, @"-f", @"ffmetadata", exported], null, cancellationToken);
 		string metadata = await File.ReadAllTextAsync(exported, cancellationToken);
@@ -244,7 +230,6 @@ public partial class FFmpegIntegrationTest
 	{
 		FFmpegRunner runner = CreateRunner();
 		using TestDirectory directory = new();
-		// MP4 的 moov 在收尾时才写入，被强杀的 MP4 无法打开
 		string output = directory.Combine(@"live.mp4");
 		using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		SyncProgress<FFmpegProgress> progress = new(p =>

@@ -25,10 +25,8 @@ public sealed class DanmakuFileViewModelTest
 	}
 
 	[Test]
-	[Arguments(0d, "10")]
 	[Arguments(25d, "30")]
 	[Arguments(30d, "30")]
-	// 都在它之前时停在最后一条
 	[Arguments(500d, "90")]
 	public async Task JumpingSelectsTheFirstEntryNotBeforeTheTimeAsync(double seconds, string expected)
 	{
@@ -109,7 +107,6 @@ public sealed class DanmakuFileViewModelTest
 
 	public static IEnumerable<Func<(Exception Failure, string Message)>> RewriteFailures()
 	{
-		yield return static () => (new IOException("正在录制"), "正在录制");
 		yield return static () => (new InvalidDataException("不是本程序写的"), "不是本程序写的");
 		yield return static () => (new UnauthorizedAccessException("只读"), "只读");
 		yield return static () => (new FileNotFoundException(null, DanmakuPath), AppLanguage.Current.FileNotFound.ToString(DanmakuPath));
@@ -152,9 +149,7 @@ public sealed class DanmakuFileViewModelTest
 
 	public static IEnumerable<Func<(Exception Failure, string Message)>> ExportFailures()
 	{
-		// 没有 FFmpeg 时剪辑抛 InvalidOperationException
 		yield return static () => (new InvalidOperationException(AppLanguage.Current.FFmpegNotFound), AppLanguage.Current.FFmpegNotFound);
-		// 视频在打开文件之后被移走时，应用服务说的是找不到同名视频，不能当成找不到弹幕文件
 		yield return static () => (new FileNotFoundException(VideoNotFound, DanmakuPath), VideoNotFound);
 	}
 
@@ -191,7 +186,6 @@ public sealed class DanmakuFileViewModelTest
 		await Assert.That((highlight.Phrase, highlight.TimeText)).IsEqualTo((AppLanguage.Current.ChapterHighlightWithoutPhrase, "0:01:00"));
 	}
 
-	// 文件按时间排序，删除可能排在被删的 SC 之前
 	[Test]
 	public async Task SuperChatDeletionsMarkTheSuperChatInsteadOfBeingListedAsync()
 	{

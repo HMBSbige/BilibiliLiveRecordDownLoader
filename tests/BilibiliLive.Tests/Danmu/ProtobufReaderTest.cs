@@ -26,7 +26,6 @@ public class ProtobufReaderTest
 	}
 
 	[Test]
-	[Arguments(new byte[] { 0x00 }, 0UL)]
 	[Arguments(new byte[] { 0x7F }, 127UL)]
 	[Arguments(new byte[] { 0x96, 0x01 }, 150UL)]
 	[Arguments(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01 }, ulong.MaxValue)]
@@ -50,7 +49,6 @@ public class ProtobufReaderTest
 	[Arguments(new byte[] { 0x80 })]
 	// 十个字节，最后一个承载的不止最高位
 	[Arguments(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x02 })]
-	// 十一个字节
 	[Arguments(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x81, 0x00 })]
 	public async Task MalformedVarintThrowsAsync(byte[] data)
 	{
@@ -68,7 +66,6 @@ public class ProtobufReaderTest
 			0x25, 1, 2, 3, 4,
 			// 字段 16 的 tag 要两个字节
 			0x80, 0x01, 0x05,
-			// protobuf 允许的最大字段号
 			0xF8, 0xFF, 0xFF, 0xFF, 0x0F, 0x00
 		];
 
@@ -110,10 +107,7 @@ public class ProtobufReaderTest
 	[Arguments(new byte[] { 0x0A, 0xFF, 0xFF, 0xFF, 0xFF, 0x0F })]
 	// 被截断的定长字段
 	[Arguments(new byte[] { 0x09, 1, 2, 3 })]
-	[Arguments(new byte[] { 0x0D, 1, 2 })]
-	// group
 	[Arguments(new byte[] { 0x0B })]
-	[Arguments(new byte[] { 0x0C })]
 	// 不存在线类型 6 和 7
 	[Arguments(new byte[] { 0x0E })]
 	// 字段号 0

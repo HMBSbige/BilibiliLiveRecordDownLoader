@@ -63,7 +63,6 @@ public sealed class LowDiskSpaceMonitorTest
 		second.Dispose();
 		int checks = disk.Checks;
 
-		// 新一轮要等上一轮停下才开始，上一轮还在的话等不到这次检查
 		using (monitor.Watch())
 		{
 			await disk.WaitForCheckAsync(cancellationToken).WaitAsync(TestWait.DefaultTimeout, TimeProvider.System, cancellationToken);
@@ -123,7 +122,6 @@ public sealed class LowDiskSpaceMonitorTest
 		}
 	}
 
-	// 作用域和 Microsoft.Extensions.Logging 一样随 ExecutionContext 流动
 	private sealed class ScopeCapturingLogger : ILogger<LowDiskSpaceMonitor>
 	{
 		private readonly LoggerExternalScopeProvider _scopes = new();

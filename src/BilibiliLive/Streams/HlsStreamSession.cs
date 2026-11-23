@@ -8,10 +8,9 @@ internal sealed class HlsStreamSession : LiveStreamSession
 {
 	internal const int MaxAttempts = 3;
 
-	// 足以在慢分片之后追上进度，又不至于压垮本就吃力的节点
 	internal const int MaxConcurrentDownloads = 3;
 
-	internal static readonly TimeSpan DefaultPollInterval = TimeSpan.FromSeconds(1);
+	private static readonly TimeSpan DefaultPollInterval = TimeSpan.FromSeconds(1);
 	internal static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(1);
 
 	private const int SegmentHistoryCapacity = 1024;
@@ -39,7 +38,7 @@ internal sealed class HlsStreamSession : LiveStreamSession
 
 	public override Uri Source { get; }
 
-	// 列表间隔（一个目标时长加一个轮询间隔）再加一次完整的故障：失败的一次尝试、重试间隔和同样长的重试，因为空闲看门狗只是会话自身超时的后备
+	// 目标时长加轮询间隔，再加一次完整的故障（失败的尝试、重试间隔和重试）：空闲看门狗只是会话自身超时的后备
 	// 一次尝试至少有两个请求超时那么长，所以刷新出一次故障也盖得住
 	public override TimeSpan? MaxSilence
 	{
@@ -53,7 +52,7 @@ internal sealed class HlsStreamSession : LiveStreamSession
 
 	public override long MissedSegments => Interlocked.Read(ref _missedSegments);
 
-	/// <param name="requestTimeout">限制之后每次刷新播放列表的全程，以及每次下载分片直到收到响应头的时长，因为流客户端自身从不超时</param>
+	/// <param name="requestTimeout">限制之后每次刷新播放列表的全程，以及每次下载分片直到收到响应头的时长</param>
 	public static async Task<LiveStreamSession> OpenAsync(HttpClient httpClient, Uri uri, TimeSpan requestTimeout, TimeProvider timeProvider, CancellationToken cancellationToken)
 	{
 		PlaylistSnapshot snapshot = await FetchPlaylistAsync(httpClient, uri, cancellationToken).ConfigureAwait(false);
@@ -83,7 +82,7 @@ internal sealed class HlsStreamSession : LiveStreamSession
 		return GetSegmentDuration(playlist) / 2;
 	}
 
-	// HLS 的目标时长是整秒数，不足一秒的值只会来自不合规的播放列表，照用会让刷新几乎不停；夹到一秒而不是回退默认值，声明的分片越短刷新才不会反而越慢
+	// HLS 目标时长是整秒，不足一秒只会来自不合规的播放列表；夹到一秒而不是回退默认值，声明的分片越短刷新才不会反而越慢
 	private static TimeSpan GetSegmentDuration(HlsPlaylist playlist)
 	{
 		return playlist.TargetDuration switch
@@ -255,7 +254,7 @@ internal sealed class HlsStreamSession : LiveStreamSession
 					continue;
 				}
 
-				// 播放列表按顺序列出分片，排在见过的分片之前的一定更早，来自窗口落后的节点；没有序号或属于旧时代的分片只能靠位置认出
+				// 播放列表按顺序列出分片，排在见过的分片之前的来自窗口落后的节点；没有序号或属于旧时代的分片只能靠位置认出
 				if (i < lastSeen)
 				{
 					tracker.Skip(segment);
@@ -307,7 +306,6 @@ internal sealed class HlsStreamSession : LiveStreamSession
 		}
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
-			// 写入端在同一个令牌上停止
 		}
 		finally
 		{

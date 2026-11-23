@@ -18,7 +18,6 @@ public sealed class FFmpegProxyTest
 
 		using (Assert.Multiple())
 		{
-			// 代理是输入选项，要写在 -i 之前
 			await Assert.That(proxy).IsGreaterThanOrEqualTo(0).And.IsLessThan(Array.IndexOf(arguments, "-i"));
 			await Assert.That(arguments[proxy + 1]).IsEqualTo(HttpProxy);
 		}
@@ -34,7 +33,6 @@ public sealed class FFmpegProxyTest
 		await Assert.That(arguments).DoesNotContain("-http_proxy");
 	}
 
-	// 假接口给的第一条线路在 a.test
 	[Test]
 	public async Task FFmpegConnectsDirectlyToABypassedHostAsync(CancellationToken cancellationToken)
 	{
@@ -46,7 +44,6 @@ public sealed class FFmpegProxyTest
 		await Assert.That(arguments).DoesNotContain("-http_proxy");
 	}
 
-	// FFmpeg 只认 http:// 的代理，传别的会被它忽略
 	[Test]
 	public async Task FFmpegConnectsDirectlyAndSaysSoWhenTheSystemProxyIsNotHttpAsync(CancellationToken cancellationToken)
 	{

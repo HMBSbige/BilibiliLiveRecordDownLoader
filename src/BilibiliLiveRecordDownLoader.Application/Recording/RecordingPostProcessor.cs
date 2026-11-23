@@ -10,7 +10,6 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 
 	internal Func<string, IReadOnlyList<FFmpegChapter>, CancellationToken, Task> WriteChaptersFile { get; init; } = FFmpegMetadata.WriteChaptersFileAsync;
 
-	// 后处理没有人等待，退出时要等它们写完字幕、删掉章节文件
 	internal void Track(Task task)
 	{
 		if (task.IsCompleted)
@@ -32,7 +31,6 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 		}, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
 	}
 
-	// 后处理失败不能打断退出
 	internal async Task WhenIdleAsync()
 	{
 		Task[] pending;
@@ -45,7 +43,6 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 		await Task.WhenAll(pending).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 	}
 
-	// danmaku 已经写完关闭，这一段没录弹幕时为 null
 	public async Task ProcessAsync(string path, RecordingProfile profile, string streamer, DanmakuSegment? danmaku, DanmakuProfile danmakuProfile)
 	{
 		if (await ProcessCoreAsync(path, profile, danmaku, danmakuProfile) is not { } failure)
@@ -78,7 +75,6 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 
 			if (file.Length < MinimumLength)
 			{
-				// 录像删不掉时（比如正被别的程序打开）弹幕和字幕跟着留下
 				if (FileOperations.TryDelete(path, logger))
 				{
 					FileOperations.TryDelete(stem + RecordingFileLayout.DanmakuExtension, logger);
@@ -90,7 +86,6 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 
 			string? destination = profile.ConvertToMp4 ? RecordingFileLayout.GetMp4ConversionPath(path) : null;
 
-			// 章节只能在转封装时写进 MP4
 			bool writeChapters = danmakuProfile.WriteChapters && destination is not null;
 			string? chapters = null;
 
@@ -103,7 +98,6 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 
 				if (writeChapters)
 				{
-					// 进程被强行结束时，录播目录里不会留下这个文件
 					chaptersFile = Path.Combine(Path.GetTempPath(), $"{Guid.CreateVersion7():N}.ffmetadata");
 					string liveTitle = records.Source is DanmakuFileSource.Native { Header.Title: { Length: > 0 } title } ? title : Path.GetFileNameWithoutExtension(stem);
 					chapters = await TryWriteChaptersAsync(chaptersFile, liveTitle, records, segment.Duration) ? chaptersFile : null;

@@ -46,7 +46,6 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 		RecordDirectory = settings.RecordDirectory;
 		FFmpegPath = settings.FFmpegPath;
 
-		// 输入框显示的就是实际保存的目录
 		this.WhenChanged(static viewModel => viewModel.RecordDirectory)
 			.Skip(1)
 			.Subscribe(directory => RecordDirectory = ConfigValues.NormalizeRecordDirectory(directory))

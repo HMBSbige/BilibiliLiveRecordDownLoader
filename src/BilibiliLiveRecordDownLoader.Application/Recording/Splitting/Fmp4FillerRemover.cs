@@ -364,7 +364,6 @@ internal sealed class Fmp4FillerRemover
 		return true;
 	}
 
-	// 样本按位置排好且不重叠，起点在 offset 之前的样本整个都在它之前
 	private int RemovedBefore(int offset)
 	{
 		int removed = 0;

@@ -11,10 +11,9 @@ public static class RecordingFileLayout
 
 	public const string SubtitleExtension = ".ass";
 
-	// 一次录制或仅录弹幕从开始到停止共用一个，不随分段换，以第一个文件的主干命名
 	public const string RawDanmakuExtension = ".danmaku.jsonl";
 
-	// 内置录制的 fMP4 本身就是 MP4，用后缀区分转封装前后的文件
+	// fMP4 录制文件本身就是 MP4，靠后缀和转封装后的文件区分
 	private const string Fmp4Suffix = "_fmp4";
 
 	// ext4 的文件名最多 255 字节，资源管理器只认 260 个字符以内的完整路径；截短后时间、序号和扩展名都还放得下
@@ -22,9 +21,9 @@ public static class RecordingFileLayout
 
 	private static readonly string[] RecordingSuffixes = [".flv", ".ts", Fmp4Suffix + Mp4Extension];
 
-	// 同一主干的录制文件转封装后都会落到同一个 .mp4，主干上已有任意一种文件就不能再用
+	// 同一主干的录制文件转封装后都会落到同一个 .mp4
 	// 标题可能以 _fmp4 结尾，主干加上 _fmp4 的录制文件转封装后会落到本主干的 fMP4 文件上
-	// 已有弹幕文件的主干再分给视频会把两次录制的弹幕混在一起
+	// 已有弹幕文件的主干再分给视频会混入两次录制的弹幕
 	private static readonly string[] StemSuffixes = [.. RecordingSuffixes, Mp4Extension, .. RecordingSuffixes.Select(static suffix => Fmp4Suffix + suffix), DanmakuExtension, SubtitleExtension, RawDanmakuExtension];
 
 	// 顺序就是找同主干视频时的优先顺序
@@ -38,7 +37,6 @@ public static class RecordingFileLayout
 		return Path.Combine(recordDirectory, roomId.ToString(CultureInfo.InvariantCulture));
 	}
 
-	// 时间在最前面，按名称排序就是录制的先后
 	public static string GetRecordingStem(string recordDirectory, long roomId, DateTimeOffset startTime, string? title, int sequence = 0)
 	{
 		StringBuilder fileName = new(startTime.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture));
@@ -116,7 +114,6 @@ public static class RecordingFileLayout
 
 		string cleaned = string.Concat(title.Trim().EnumerateRunes().Select(static rune => Rune.IsControl(rune) || rune.IsBmp && InvalidFileNameChars.Contains((char)rune.Value) ? "_" : rune.ToString()));
 
-		// 按完整的字符截断，不把 emoji 拆开
 		int length = 0;
 		int bytes = 0;
 

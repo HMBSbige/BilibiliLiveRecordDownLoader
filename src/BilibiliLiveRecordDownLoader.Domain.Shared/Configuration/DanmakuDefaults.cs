@@ -4,7 +4,6 @@ public static class DanmakuDefaults
 {
 	public const bool IsEnabled = false;
 
-	// 只用来挡住输错的值，不是常见偏移的范围
 	public const decimal MinOffsetSeconds = -60;
 
 	public const decimal MaxOffsetSeconds = 60;

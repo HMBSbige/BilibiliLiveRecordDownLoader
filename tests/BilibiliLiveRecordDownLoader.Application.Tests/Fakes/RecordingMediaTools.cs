@@ -7,7 +7,7 @@ internal sealed class RecordingMediaTools : MediaToolAppServiceStub
 {
 	public ConcurrentQueue<RemuxInput> Remuxes { get; } = new();
 
-	// 排队时读出的章节内容，键是转封装的目标路径
+	// 键是转封装的目标路径
 	public ConcurrentDictionary<string, string> Chapters { get; } = new();
 
 	public override async Task<Task<BackgroundTaskSnapshot>> QueueRemuxAsync(RemuxInput input, CancellationToken cancellationToken = default)

@@ -4,7 +4,6 @@ using System.Text;
 namespace BilibiliLiveRecordDownLoader.Application.Danmaku;
 
 // 每次刷新连同 </i> 一起写，下次从 </i> 之前接着写，文件在任何一次刷新之后都是完整的 XML
-// 不是线程安全的
 internal sealed class DanmakuXmlWriter : IAsyncDisposable
 {
 	private const string ClosingTag = "</i>\n";
@@ -48,7 +47,6 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 		return writer;
 	}
 
-	// 主干是否可用由调用方先判断
 	public static async Task<DanmakuXmlWriter> CreateFileAsync(string path, DanmakuFileHeader header, DanmakuFlushPolicy policy, TimeProvider timeProvider, CancellationToken cancellationToken)
 	{
 		FileStream stream = new(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read, 0, FileOptions.Asynchronous);
@@ -68,14 +66,13 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 			}
 			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 			{
-				// 删不掉也要报出原来的错误
 			}
 
 			throw;
 		}
 	}
 
-	// 没有待写内容时为 null；调用方空闲时要在到期后调用 FlushIfDueAsync
+	// 调用方空闲时要在到期后调用 FlushIfDueAsync
 	public TimeSpan? FlushDueIn => PendingCount is 0 ? null : _policy.GetFlushDueIn(_timeProvider.GetElapsedTime(_firstPendingTimestamp));
 
 	public async ValueTask WriteAsync(DanmakuRecord record, CancellationToken cancellationToken)

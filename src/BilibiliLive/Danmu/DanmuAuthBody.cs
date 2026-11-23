@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace BilibiliLive.Danmu;
 
-// 字段顺序与网页端的认证包一致，buvid、key 排在固定字段之后
+// 字段顺序与网页端的认证包一致
 internal sealed record DanmuAuthBody(
 	[property: JsonPropertyName("uid")] long UserId,
 	[property: JsonPropertyName("roomid")] long RoomId,

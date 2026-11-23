@@ -61,7 +61,6 @@ internal sealed partial class DiskSpaceService : IDiskSpaceService
 			}
 			catch (DriveNotFoundException)
 			{
-				// statfs 报 ENOENT，看上一级
 			}
 		}
 

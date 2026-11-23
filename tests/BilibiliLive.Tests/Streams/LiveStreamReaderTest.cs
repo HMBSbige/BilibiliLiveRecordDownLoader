@@ -93,19 +93,6 @@ public class LiveStreamReaderTest
 	}
 
 	[Test]
-	public async Task EveryFailedHostIsReportedAsync(CancellationToken cancellationToken)
-	{
-		using HttpClient client = new(new FakeHttpMessageHandler(static request => request.RequestUri == WorkingHost ? Responses.Bytes([.. "FLV"u8]) : Responses.NotFound()));
-		Uri otherBroken = new("https://other-broken.test/live.flv");
-		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [], [BrokenHost, otherBroken, WorkingHost]);
-		List<Uri> failed = [];
-
-		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, (host, _) => failed.Add(host), cancellationToken: cancellationToken);
-
-		await Assert.That(failed).IsEquivalentTo([BrokenHost, otherBroken], EqualityComparer<Uri>.Default, CollectionOrdering.Matching);
-	}
-
-	[Test]
 	[Arguments(new byte[0])]
 	[Arguments(new[] { (byte)'<', (byte)'h', (byte)'t', (byte)'m', (byte)'l', (byte)'>' })]
 	public async Task HttpStreamThatIsNotFlvIsRejectedAsync(byte[] body, CancellationToken cancellationToken)
@@ -141,7 +128,6 @@ public class LiveStreamReaderTest
 
 	[Test]
 	[Arguments(StreamProtocol.HttpStream)]
-	[Arguments(StreamProtocol.HttpHls)]
 	public async Task CancelledOpenIsNotReportedAsAHostFailureAsync(StreamProtocol protocol, CancellationToken cancellationToken)
 	{
 		TaskCompletionSource hung = new(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -93,7 +93,6 @@ public static class Labels
 				QrCodeLoginState.Succeeded => AppLanguage.Current.LoginSucceeded,
 				QrCodeLoginState.WaitingForScan => AppLanguage.Current.QrCodeScanHint
 			},
-			// ChoiceOption 等选项类型的 ToString 本身就是标签
 			_ => value.ToString() ?? string.Empty
 		};
 	}

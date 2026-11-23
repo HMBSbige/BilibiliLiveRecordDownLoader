@@ -72,7 +72,6 @@ public sealed class ReconnectBackoffTest
 		ReconnectBackoff backoff = new([SuppressMessage("ReSharper", "AccessToModifiedClosure")] () => initial, new FakeTimeProvider(), new FixedRandom(0.5));
 		_ = Fail(backoff, 6).ToArray();
 
-		// 已经退避到 2 分钟的上限
 		initial = TimeSpan.FromMinutes(5);
 		TimeSpan raised = Fail(backoff, 1).Single();
 		initial = InitialDelay;

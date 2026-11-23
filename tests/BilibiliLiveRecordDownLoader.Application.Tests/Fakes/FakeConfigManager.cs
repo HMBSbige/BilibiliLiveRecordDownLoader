@@ -16,7 +16,7 @@ internal sealed class FakeConfigManager(AppConfig? config = null) : IAppConfigMa
 		return ValueTask.FromResult(_config);
 	}
 
-	// 和真实的实现一样逐个执行 update 并在之后规范取值：设置服务整体读出再写回，同时执行会丢掉别处的修改
+	// 逐个执行：设置服务整体读出再写回，同时执行会丢掉别处的修改
 	public ValueTask UpdateAsync(Action<AppConfig> update, CancellationToken cancellationToken = default)
 	{
 		lock (_lock)

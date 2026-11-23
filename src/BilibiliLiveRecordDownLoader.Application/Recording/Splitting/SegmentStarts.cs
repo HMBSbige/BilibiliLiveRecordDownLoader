@@ -8,7 +8,6 @@ internal sealed class SegmentStarts
 {
 	private readonly ConcurrentQueue<SegmentStart> _queue = new();
 
-	// 写盘端在收流开始前就在读，所以由写盘端持有这个实例，网络端开始收流时再接上管道
 	public Writer CreateWriter(PipeWriter output)
 	{
 		return new Writer(this, output);

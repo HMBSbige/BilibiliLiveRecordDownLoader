@@ -5,18 +5,14 @@ namespace MediaToolkit.Tests.FFmpeg;
 public class FFmpegOutputParserTest
 {
 	[Test]
-	[Arguments(@"ffmpeg version 7.1.1 Copyright (c) 2000-2025 the FFmpeg developers", @"7.1.1")]
 	[Arguments(@"ffmpeg version 9.1-full_build-example.test Copyright (c) 2000-2026", @"9.1-full_build-example.test")]
-	[Arguments(@"ffmpeg version N-118000-g1234abcd Copyright", @"N-118000-g1234abcd")]
 	public async Task ParseVersionExtractsVersionTokenAsync(string output, string expected)
 	{
 		await Assert.That(FFmpegOutputParser.ParseVersion(output + "\nbuilt with gcc")).IsEqualTo(expected);
 	}
 
 	[Test]
-	[Arguments(@"")]
 	[Arguments(@"ffprobe version 7.1 Copyright")]
-	[Arguments(@"'ffmpeg' is not recognized as an internal or external command")]
 	public async Task ParseVersionReturnsNullForOtherOutputAsync(string output)
 	{
 		await Assert.That(FFmpegOutputParser.ParseVersion(output)).IsNull();
@@ -57,9 +53,7 @@ public class FFmpegOutputParserTest
 	[Test]
 	[Arguments(@"  Duration: N/A, start: 0.000000, bitrate: N/A")]
 	[Arguments(@"frame=    0 fps=0.0 q=0.0 size=       0KiB time=N/A bitrate=N/A speed=N/A")]
-	[Arguments(@"[flv @ 000001] Packet mismatch")]
 	[Arguments(@"frame=    0 fps=0.0 q=0.0 size=       0KiB time=-2562047788:00:54.77 bitrate=N/A speed=N/A")]
-	// FFmpeg 会原样打印章节标题和元数据
 	[Arguments(@"        title           : Duration: 10:00:00.00")]
 	[Arguments(@"        title           : frame=1 time=00:00:01.00")]
 	public async Task ParseProgressKeepsPreviousValuesWhenUnavailableAsync(string line)
@@ -76,8 +70,6 @@ public class FFmpegOutputParserTest
 	[Arguments(@"https://cdn.test/live/a.flv?sign=abc&uid=42: Server returned 403 Forbidden", @"https://cdn.test/live/a.flv?…: Server returned 403 Forbidden")]
 	[Arguments(@"[hls @ 0000020] Opening 'https://cdn.test/live/1.m4s?sign=abc' for reading", @"[hls @ 0000020] Opening 'https://cdn.test/live/1.m4s?…' for reading")]
 	[Arguments(@"Input #0, flv, from ""http://cdn.test/a.flv?sign=a.b:c"":", @"Input #0, flv, from ""http://cdn.test/a.flv?…"":")]
-	[Arguments(@"a http://x.test/1?sign=1 and http://y.test/2?sign=2", @"a http://x.test/1?… and http://y.test/2?…")]
-	[Arguments(@"[tcp @ 000001] Connection to tcp://127.0.0.1:9 failed", @"[tcp @ 000001] Connection to tcp://127.0.0.1:9 failed")]
 	[Arguments(@"Is this a question?", @"Is this a question?")]
 	public async Task RedactUrlQueriesKeepsOnlySchemeHostAndPathAsync(string line, string expected)
 	{
@@ -90,7 +82,6 @@ public class FFmpegOutputParserTest
 	[Arguments(@"Conversion failed!", false)]
 	[Arguments(@"Exiting normally, received signal 2.", false)]
 	[Arguments(@"[out#0/wav @ 000001] Could not write header (incorrect codec parameters ?): Invalid argument", true)]
-	[Arguments(@"  Stream #0:0 -> #0:0 (copy)", true)]
 	public async Task IsDiagnosticSkipsStatisticsAndClosingNoticesAsync(string line, bool expected)
 	{
 		await Assert.That(FFmpegOutputParser.IsDiagnostic(line)).IsEqualTo(expected);

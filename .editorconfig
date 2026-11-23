@@ -1,15 +1,11 @@
-# 如果要从更高级别的目录继承 .editorconfig 设置，请删除以下行
 root = true
 
 [*]
-# 字符集
 charset = utf-8
 
-# 新行首选项
 end_of_line = lf
 insert_final_newline = true
 
-# ReSharper properties
 resharper_blank_lines_around_single_line_auto_property = 1
 resharper_blank_lines_before_block_statements = 1
 resharper_braces_redundant = false
@@ -38,41 +34,30 @@ indent_size = 2
 [*.props]
 indent_size = 2
 
-# c# 文件
 [*.cs]
-
-# 缩进和间距
 indent_size = 4
 indent_style = tab
 tab_width = 4
 
-#### .NET 编码约定 ####
-
-# 组织 Using
 dotnet_separate_import_directive_groups = false
 dotnet_sort_system_directives_first = false
 file_header_template = unset
 
-# this. 和 Me. 首选项
 dotnet_style_qualification_for_event = false:suggestion
 dotnet_style_qualification_for_field = false
 dotnet_style_qualification_for_method = false:suggestion
 dotnet_style_qualification_for_property = false:suggestion
 
-# 语言关键字与 bcl 类型首选项
 dotnet_style_predefined_type_for_locals_parameters_members = true:warning
 dotnet_style_predefined_type_for_member_access = true:warning
 
-# 括号首选项
 dotnet_style_parentheses_in_arithmetic_binary_operators = never_if_unnecessary
 dotnet_style_parentheses_in_other_binary_operators = never_if_unnecessary
 dotnet_style_parentheses_in_other_operators = never_if_unnecessary:warning
 dotnet_style_parentheses_in_relational_binary_operators = never_if_unnecessary
 
-# 修饰符首选项
 dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
 
-# 表达式级首选项
 dotnet_style_coalesce_expression = true:warning
 dotnet_style_collection_initializer = true
 dotnet_style_explicit_tuple_names = true:warning
@@ -91,27 +76,19 @@ dotnet_style_prefer_is_null_check_over_reference_equality_method = true:warning
 dotnet_style_prefer_simplified_boolean_expressions = true:warning
 dotnet_style_prefer_simplified_interpolation = true:warning
 
-# 字段首选项
 dotnet_style_readonly_field = true
 
-# 参数首选项
 dotnet_code_quality_unused_parameters = all:warning
 
-# 禁止显示首选项
 dotnet_remove_unnecessary_suppression_exclusions = 0
 
-# 新行首选项
 dotnet_style_allow_multiple_blank_lines_experimental = false:warning
 dotnet_style_allow_statement_immediately_after_block_experimental = true
 
-#### c# 编码约定 ####
-
-# var 首选项
 csharp_style_var_elsewhere = false:warning
 csharp_style_var_for_built_in_types = false:warning
 csharp_style_var_when_type_is_apparent = false:warning
 
-# Expression-bodied 成员
 csharp_style_expression_bodied_accessors = true:warning
 csharp_style_expression_bodied_constructors = false:warning
 csharp_style_expression_bodied_indexers = true:warning
@@ -121,7 +98,6 @@ csharp_style_expression_bodied_methods = false:warning
 csharp_style_expression_bodied_operators = false:warning
 csharp_style_expression_bodied_properties = true:warning
 
-# 模式匹配首选项
 csharp_style_pattern_matching_over_as_with_null_check = true:warning
 csharp_style_pattern_matching_over_is_with_cast_check = true:warning
 csharp_style_prefer_extended_property_pattern = true:warning
@@ -129,23 +105,19 @@ csharp_style_prefer_not_pattern = true:warning
 csharp_style_prefer_pattern_matching = true:warning
 csharp_style_prefer_switch_expression = true:warning
 
-# Null 检查首选项
 csharp_style_conditional_delegate_call = true:warning
 
-# 修饰符首选项
 csharp_prefer_static_local_function = true:warning
 csharp_preferred_modifier_order = public, private, protected, internal, file, static, extern, new, virtual, abstract, sealed, override, readonly, unsafe, required, volatile, async:warning
 csharp_style_prefer_readonly_struct = true:warning
 csharp_style_prefer_readonly_struct_member = true:warning
 
-# 代码块首选项
 csharp_prefer_braces = true:warning
 csharp_prefer_simple_using_statement = true:warning
 csharp_prefer_system_threading_lock = true:warning
 csharp_style_namespace_declarations = file_scoped:warning
 csharp_style_prefer_primary_constructors = true:warning
 
-# 表达式级首选项
 csharp_prefer_simple_default_expression = true:warning
 csharp_style_deconstructed_variable_declaration = true
 csharp_style_implicit_object_creation_when_type_is_apparent = true:warning
@@ -160,17 +132,12 @@ csharp_style_throw_expression = true
 csharp_style_unused_value_assignment_preference = discard_variable
 csharp_style_unused_value_expression_statement_preference = discard_variable
 
-# "using" 指令首选项
 csharp_using_directive_placement = outside_namespace:warning
 
-# 新行首选项
 csharp_style_allow_blank_line_after_colon_in_constructor_initializer_experimental = true
 csharp_style_allow_blank_lines_between_consecutive_braces_experimental = false:warning
 csharp_style_allow_embedded_statements_on_same_line_experimental = true
 
-#### C# 格式规则 ####
-
-# 新行首选项
 csharp_new_line_before_catch = true
 csharp_new_line_before_else = true
 csharp_new_line_before_finally = true
@@ -179,7 +146,6 @@ csharp_new_line_before_members_in_object_initializers = true
 csharp_new_line_before_open_brace = all
 csharp_new_line_between_query_expression_clauses = true
 
-# 缩进首选项
 csharp_indent_block_contents = true
 csharp_indent_braces = false
 csharp_indent_case_contents = true
@@ -187,7 +153,6 @@ csharp_indent_case_contents_when_block = false
 csharp_indent_labels = one_less_than_current
 csharp_indent_switch_labels = true
 
-# 空格键首选项
 csharp_space_after_cast = false
 csharp_space_after_colon_in_inheritance_clause = true
 csharp_space_after_comma = true
@@ -211,47 +176,29 @@ csharp_space_between_method_declaration_parameter_list_parentheses = false
 csharp_space_between_parentheses = false
 csharp_space_between_square_brackets = false
 
-# 包装首选项
 csharp_preserve_single_line_blocks = true
 csharp_preserve_single_line_statements = false
 
-#### 没有选项的规则 ####
-
-# 不需要的强制转换
 dotnet_diagnostic.IDE0004.severity = warning
-# 未使用的私有成员
 dotnet_diagnostic.IDE0051.severity = warning
-# 只写不读的私有成员
 dotnet_diagnostic.IDE0052.severity = warning
-# x !is T 中不起作用的 ! 运算符
 dotnet_diagnostic.IDE0080.severity = warning
-# 多余的相等比较，如 b == true
 dotnet_diagnostic.IDE0100.severity = warning
-# 不需要的弃元，如 x is T _
 dotnet_diagnostic.IDE0110.severity = warning
-# 可以简化的 LINQ 调用，如 Where(p).Any()
 dotnet_diagnostic.IDE0120.severity = warning
-# 多余的 #nullable 指令
 dotnet_diagnostic.IDE0240.severity = warning
-# 写成字符串的参数名，如 [NotNullIfNotNull("value")]，应改用 nameof
 dotnet_diagnostic.IDE0280.severity = warning
-# 不需要的 ! 可空抑制
 dotnet_diagnostic.IDE0370.severity = warning
-# 异步方法中使用了有异步版本的同步成员，如 Task.Result
 dotnet_diagnostic.CA1849.severity = warning
-# 可释放类型没有释放它创建的可释放字段
 dotnet_diagnostic.CA2213.severity = warning
+
 # 枚举 switch 已列全成员，仍提示没处理其他整数值
 dotnet_diagnostic.CS8524.severity = none
 # 名称撞上其他 .NET 语言的关键字，只写 C# 时无需避开
 dotnet_diagnostic.CA1716.severity = none
 
-#### 命名样式 ####
-
 # 命令行构建不看下面各条命名规则的 severity，要有这一行才会报
 dotnet_diagnostic.IDE1006.severity = warning
-
-# 命名规则
 
 dotnet_naming_rule.interface_should_be_begins_with_i.severity = warning
 dotnet_naming_rule.interface_should_be_begins_with_i.symbols = interface
@@ -297,8 +244,6 @@ dotnet_naming_rule.local_functions_should_be_pascal_case.severity = warning
 dotnet_naming_rule.local_functions_should_be_pascal_case.symbols = local_functions
 dotnet_naming_rule.local_functions_should_be_pascal_case.style = pascal_case
 
-# 符号规范
-
 dotnet_naming_symbols.interface.applicable_kinds = interface
 dotnet_naming_symbols.interface.applicable_accessibilities = public, internal, private, protected, protected_internal, private_protected
 dotnet_naming_symbols.interface.required_modifiers =
@@ -343,8 +288,6 @@ dotnet_naming_symbols.local_functions.applicable_kinds = local_function
 dotnet_naming_symbols.local_functions.applicable_accessibilities = local
 dotnet_naming_symbols.local_functions.required_modifiers =
 
-# 命名样式
-
 dotnet_naming_style.pascal_case.required_prefix =
 dotnet_naming_style.pascal_case.required_suffix =
 dotnet_naming_style.pascal_case.word_separator =
@@ -369,8 +312,6 @@ dotnet_naming_style.underscore_camel_case.required_prefix = _
 dotnet_naming_style.underscore_camel_case.required_suffix =
 dotnet_naming_style.underscore_camel_case.word_separator =
 dotnet_naming_style.underscore_camel_case.capitalization = camel_case
-
-#### ReSharper 检查 ####
 
 # 命名由 IDE1006 检查，ReSharper 更严，会误报
 resharper_inconsistent_naming_highlighting = none

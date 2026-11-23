@@ -37,7 +37,6 @@ public sealed partial class PriorityListViewModel : ViewModelBase
 	{
 		Items.Clear();
 
-		// 未列出的选项排在最后，界面上仍可调整
 		foreach (T value in priority.Concat(Enum.GetValues<T>()).Distinct())
 		{
 			Items.Add(new PriorityItemViewModel(value, StreamLabels.Of(value)));

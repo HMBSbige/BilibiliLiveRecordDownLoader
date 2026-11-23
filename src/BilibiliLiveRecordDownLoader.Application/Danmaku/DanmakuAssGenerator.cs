@@ -24,7 +24,7 @@ internal static class DanmakuAssGenerator
 	private static readonly TimeSpan FixedDuration = TimeSpan.FromSeconds(5);
 	private static readonly UTF8Encoding Utf8WithBom = new(true);
 
-	// 很多播放器只在有 BOM 时把 ASS 当 UTF-8；messageLabels 为 null 时不画消息栏
+	// 很多播放器只在有 BOM 时把 ASS 当 UTF-8
 	// 不接受取消，写到一半停下会留下残缺的字幕
 	public static async Task WriteFileAsync(string path, IEnumerable<DanmakuRecord> records, VideoResolution? videoSize, DanmakuAssLabels? messageLabels)
 	{
@@ -39,7 +39,7 @@ internal static class DanmakuAssGenerator
 		int laneHeight = Math.Max(1, (int)Math.Round(ReferenceFontSize * scale));
 		int laneCount = Math.Max(1, height / laneHeight);
 		ScrollLane?[] scrollLanes = new ScrollLane?[laneCount];
-		// 记的是轨道空出来的时刻，弹幕的开始时间不早于 0，初值 0 就是空闲
+		// 记的是轨道空出来的时刻，初值 0 即空闲
 		TimeSpan[] topLanes = new TimeSpan[laneCount];
 		TimeSpan[] bottomLanes = new TimeSpan[laneCount];
 		DanmakuRecord[] sorted = [.. records.OrderBy(static record => record.Time)];
@@ -198,7 +198,6 @@ internal static class DanmakuAssGenerator
 				return false;
 			}
 
-			// 新弹幕在上一条离开屏幕时走过的距离不能超过屏幕宽度
 			double remaining = ScrollDuration.TotalSeconds - elapsed;
 			return remaining <= 0 || remaining * speed <= screenWidth;
 		}

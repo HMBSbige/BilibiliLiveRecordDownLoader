@@ -4,7 +4,6 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
 public sealed class DanmakuXmlTextTest
 {
-	// 改写偏移时不能丢一毫秒；范围外的值换算时也不能溢出
 	[Test]
 	[Arguments("12.345", true, 123_450_000L)]
 	[Arguments("922337203685.4775807", true, long.MaxValue)]

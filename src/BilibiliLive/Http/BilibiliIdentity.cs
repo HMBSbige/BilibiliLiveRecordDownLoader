@@ -27,7 +27,6 @@ public sealed class BilibiliIdentity(Func<CancellationToken, ValueTask<BilibiliR
 		return GetBuvid3(await optionsProvider(cancellationToken));
 	}
 
-	// 和 EnsureCookie 一样，选项里已有的 buvid3 优先于生成的
 	private string GetBuvid3(BilibiliRequestOptions options)
 	{
 		return CookieHeader.GetValue(options.Cookie, Buvid3CookieName) ?? GeneratedBuvid3;

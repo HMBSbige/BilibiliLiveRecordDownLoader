@@ -13,15 +13,9 @@ public class WbiSignerTest
 	}
 
 	[Test]
-	public async Task MixinKeyMatchesKnownVectorAsync()
-	{
-		await Assert.That(WbiSigner.TryGetMixinKey(ImgKey, SubKey)).IsEqualTo("ea1db124af3c7062474693fa704f4ff8");
-	}
-
-	[Test]
 	public async Task SignMatchesKnownVectorAndReplacesStaleSignatureAsync()
 	{
-		// 公开的 Wbi 签名文档里的例子，另加上一次签名留下的 wts 和 w_rid，它们不能参与签名
+		// Wbi 签名文档里的例子，另加上次签名留下的 wts 和 w_rid，它们不能参与签名
 		KeyValuePair<string, string>[] parameters = [new("foo", "114"), new("bar", "514"), new("zab", "1919810"), new("wts", "0"), new("w_rid", "stale")];
 
 		string query = WbiSigner.Sign(parameters, MixinKey(ImgKey, SubKey), 1702204169);

@@ -19,7 +19,6 @@ internal abstract class RecordingOutput
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
-			// 关闭时还会再写一次缓冲，失败已由最初的错误报告过
 		}
 	}
 }

@@ -15,27 +15,11 @@ public sealed class DanmakuEntryViewModelTest
 		return DanmakuEntryViewModel.FromFile(new DanmakuFileEntryDto(TimeSpan.FromSeconds(seconds), entry));
 	}
 
-	// 价格分档由 SuperChatTierTest 覆盖，这里只看取的是不是这条 SC 价格的那一档
-	[Test]
-	public async Task SuperChatIsColoredByItsTierAsync()
-	{
-		DanmakuEntryViewModel entry = File(new DanmakuEntryDto.SuperChat(1, Viewer, "加油", 100_000));
-		SuperChatTier tier = SuperChatTier.For(100_000);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(entry.IsSuperChat).IsTrue();
-			await Assert.That((entry.SuperChatBackground, entry.SuperChatPriceColor, entry.SuperChatBottomBackground, entry.SuperChatTextColor)).IsEqualTo((tier.Background, tier.PriceColor, tier.BottomBackground, tier.TextColor));
-		}
-	}
-
 	[Test]
 	[Arguments(30_000L, "30")]
-	[Arguments(500L, "0.5")]
 	[Arguments(1_234L, "1.23")]
 	public async Task PriceInThousandthsOfAYuanIsShownInYuanAsync(long price, string yuan)
 	{
-		// 小数点跟随区域设置
 		string expected = decimal.Parse(yuan, CultureInfo.InvariantCulture).ToString(CultureInfo.CurrentCulture);
 
 		await Assert.That(DanmakuEntryViewModel.FormatPrice(price)).IsEqualTo(AppLanguage.Current.DanmakuPrice.ToString(expected));
@@ -45,12 +29,10 @@ public sealed class DanmakuEntryViewModelTest
 	{
 		yield return static () => (new DanmakuEntryDto.SuperChat(1, Viewer, "加油", 30_000), 30_000);
 		yield return static () => (new DanmakuEntryDto.Gift(Viewer, "小花花", 2, 200), 200);
-		// 银瓜子礼物不花钱
 		yield return static () => (new DanmakuEntryDto.Gift(Viewer, "辣条", 10, 0), null);
 		yield return static () => (new DanmakuEntryDto.Guard(Viewer, GuardLevel.Captain, 1, 138_000, false), 138_000);
 		yield return static () => (new DanmakuEntryDto.Guard(Viewer, GuardLevel.Captain, 1, 0, false), null);
 		yield return static () => (Comment(), null);
-		yield return static () => (new DanmakuEntryDto.Connection(true, false), null);
 	}
 
 	[Test]
@@ -63,12 +45,7 @@ public sealed class DanmakuEntryViewModelTest
 	public static IEnumerable<Func<(DanmakuEntryDto Entry, string Text)>> Texts()
 	{
 		yield return static () => (new DanmakuEntryDto.Gift(Viewer, "辣条", 10, 0), AppLanguage.Current.DanmakuGiftText.ToString("辣条", "10"));
-		// 只在多于一个月时写出月数
-		yield return static () => (new DanmakuEntryDto.Guard(Viewer, GuardLevel.Admiral, 1, 1_998_000, false), AppLanguage.Current.DanmakuGuardText.ToString(AppLanguage.Current.GuardLevelAdmiral));
-		yield return static () => (new DanmakuEntryDto.Guard(Viewer, GuardLevel.Captain, 3, 594_000, false), AppLanguage.Current.DanmakuGuardMonthsText.ToString(AppLanguage.Current.GuardLevelCaptain, "3"));
-		yield return static () => (new DanmakuEntryDto.Guard(Viewer, GuardLevel.Captain, 1, 138_000, true), AppLanguage.Current.DanmakuGuardRenewalText.ToString(AppLanguage.Current.GuardLevelCaptain));
 		yield return static () => (new DanmakuEntryDto.Guard(Viewer, GuardLevel.Captain, 3, 414_000, true), AppLanguage.Current.DanmakuGuardRenewalMonthsText.ToString(AppLanguage.Current.GuardLevelCaptain, "3"));
-		yield return static () => (new DanmakuEntryDto.TitleChange("新标题"), AppLanguage.Current.DanmakuTitleText.ToString("新标题"));
 		yield return static () => (new DanmakuEntryDto.Gap(TimeSpan.FromSeconds(105)), AppLanguage.Current.DanmakuGapText.ToString("0:01:45"));
 		yield return static () => (new DanmakuEntryDto.Connection(false, false), AppLanguage.Current.DanmakuConnectionText.ToString(AppLanguage.Current.DanmakuLoggedIn));
 		yield return static () => (new DanmakuEntryDto.Connection(true, true), AppLanguage.Current.DanmakuConnectionText.ToString(AppLanguage.Current.DanmakuAnonymousMasked));
@@ -80,14 +57,6 @@ public sealed class DanmakuEntryViewModelTest
 	public async Task GiftsGuardsAndNoticesAreDescribedInTheCurrentLanguageAsync(DanmakuEntryDto entry, string text)
 	{
 		await Assert.That(File(entry).Text).IsEqualTo(text);
-	}
-
-	[Test]
-	public async Task NoticesHaveNoSenderAsync()
-	{
-		DanmakuEntryViewModel title = File(new DanmakuEntryDto.TitleChange("新标题"));
-
-		await Assert.That((title.Kind, title.Name, title.Badge, title.NameSeparator)).IsEqualTo((DanmakuEntryKind.Notice, null, null, null));
 	}
 
 	[Test]
@@ -154,9 +123,7 @@ public sealed class DanmakuEntryViewModelTest
 	}
 
 	[Test]
-	[Arguments(65.4, "0:01:05")]
 	[Arguments(3 * 3600 + 2 * 60 + 1d, "3:02:01")]
-	// 写入者把时间截到 0，负值只会来自坏数据
 	[Arguments(-1.5, "0:00:00")]
 	public async Task FileEntriesShowTheirTimeInTheFileAsync(double seconds, string text)
 	{

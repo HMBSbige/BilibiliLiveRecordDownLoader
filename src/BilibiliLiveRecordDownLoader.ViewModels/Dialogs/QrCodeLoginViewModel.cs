@@ -85,7 +85,6 @@ public sealed partial class QrCodeLoginViewModel : DialogViewModel<bool>
 			}
 			catch (Exception exception) when (exception is HttpRequestException or TimeoutException && ++failures < MaxConsecutivePollFailures)
 			{
-				// 偶发的网络错误不影响扫码，下次继续轮询
 				continue;
 			}
 

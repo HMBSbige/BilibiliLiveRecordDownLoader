@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 
 namespace BilibiliLive.Tests.Fakes;
 
-// FakeTimeProvider 的时钟不能往回调，测时钟被调回的用例需要；计时器立即触发，只记下本该等待多久
+// FakeTimeProvider 的时钟不能往回调；计时器立即触发，只记下本该等待多久
 internal sealed class ManualTimeProvider : TimeProvider
 {
 	private DateTimeOffset _now = DateTimeOffset.FromUnixTimeSeconds(1702204169);

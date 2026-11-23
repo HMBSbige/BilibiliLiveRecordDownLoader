@@ -1,11 +1,11 @@
 namespace BilibiliLiveRecordDownLoader.Application.Rooms;
 
-// 抖动错开同时断线的房间；初始间隔每次都重新读取，改设置不必断开连接
+// 初始间隔每次都重新读取，改设置不必断开连接
 internal sealed class ReconnectBackoff(Func<TimeSpan> initialDelay, TimeProvider timeProvider, Random random)
 {
 	public const double MinJitter = 0.8;
 
-	public const double MaxJitter = 1.2;
+	private const double MaxJitter = 1.2;
 
 	public static readonly TimeSpan MaxDelay = TimeSpan.FromMinutes(2);
 

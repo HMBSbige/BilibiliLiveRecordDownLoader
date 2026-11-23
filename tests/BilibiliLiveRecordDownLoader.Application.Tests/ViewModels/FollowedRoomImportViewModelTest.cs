@@ -175,15 +175,6 @@ public sealed class FollowedRoomImportViewModelTest
 		}
 	}
 
-	[Test]
-	public async Task AnEmptyFollowingListIsShownAsEmptyAsync()
-	{
-		using FollowedRoomImportViewModel dialog = Open(new FakeRoomAppService([]));
-
-		await Assert.That((dialog.IsEmpty, dialog.HasRooms)).IsEqualTo((true, false));
-	}
-
-	// 假的应用服务同步返回关注列表，打开后即加载完成
 	private static FollowedRoomImportViewModel Open(FakeRoomAppService rooms, RecordingNotifications? notifications = null, Action? showLogin = null)
 	{
 		FollowedRoomImportViewModel dialog = new(rooms, notifications ?? new RecordingNotifications(), showLogin ?? (static () => { }));

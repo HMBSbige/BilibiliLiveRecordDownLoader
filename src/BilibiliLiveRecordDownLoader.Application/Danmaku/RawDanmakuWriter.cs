@@ -5,7 +5,6 @@ using System.Text.Json;
 namespace BilibiliLiveRecordDownLoader.Application.Danmaku;
 
 // 每行 {"t":接收时刻 Unix 毫秒,"cmd":命令,"raw":原始消息}；连接建立和断开用 @ 开头的命令，B 站的命令都是大写字母，不会重名
-// 不是线程安全的
 internal sealed class RawDanmakuWriter : IAsyncDisposable
 {
 	private const string ConnectedCommand = @"@connected";
@@ -31,7 +30,6 @@ internal sealed class RawDanmakuWriter : IAsyncDisposable
 		_json = new Utf8JsonWriter(_pending, WriterOptions);
 	}
 
-	// 同一次录制里重新打开时接着写
 	public static RawDanmakuWriter Open(string path, DanmakuFlushPolicy policy, TimeProvider timeProvider)
 	{
 		return new RawDanmakuWriter(new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read, 0, FileOptions.Asynchronous), policy, timeProvider);
@@ -59,7 +57,7 @@ internal sealed class RawDanmakuWriter : IAsyncDisposable
 		return EndLineAsync(cancellationToken);
 	}
 
-	// 不记连接所用账号的 uid：文件会和录像一起整理或分享；masked 为 null 时还不知道是否打码
+	// 不记连接所用账号的 uid：文件会和录像一起整理或分享
 	public ValueTask WriteConnectedAsync(DateTimeOffset time, bool anonymous, bool? masked, CancellationToken cancellationToken)
 	{
 		BeginLine(time, ConnectedCommand);
@@ -135,7 +133,6 @@ internal sealed class RawDanmakuWriter : IAsyncDisposable
 		return _pendingCount >= _policy.MaxPending ? FlushAsync(cancellationToken) : FlushIfDueAsync(cancellationToken);
 	}
 
-	// Utf8JsonWriter 只写进内存缓冲区，同步刷新不会阻塞
 	private void CommitLine()
 	{
 		_json.WriteEndObject();

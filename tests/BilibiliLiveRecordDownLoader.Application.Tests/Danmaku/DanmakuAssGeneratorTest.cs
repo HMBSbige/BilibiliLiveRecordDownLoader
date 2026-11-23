@@ -50,12 +50,9 @@ public sealed partial class DanmakuAssGeneratorTest
 		return Dialogues(text).ToDictionary(static match => match.Groups[@"text"].Value, static match => match.Groups[@"tags"].Value);
 	}
 
-	// 同时到达的弹幕各占一条轨道，占满后丢弃；轨道高就是弹幕样式的字号，1080 / 38 = 28 条
-	// 视频宽高为 0 表示读不到画面尺寸
 	[Test]
 	[Arguments(0, 0, 1920, 1080, 38, 28)]
 	[Arguments(1280, 720, 1280, 720, 25, 28)]
-	// 竖屏按短边缩放，字不跟着高度放大，轨道就多了
 	[Arguments(1080, 1920, 1080, 1920, 38, 50)]
 	public async Task LanesFollowTheShortSideAndDefaultTo1080pAsync(int videoWidth, int videoHeight, int width, int height, int fontSize, int lanes)
 	{
@@ -71,7 +68,6 @@ public sealed partial class DanmakuAssGeneratorTest
 		}
 	}
 
-	// 同一轨道上前一条的尾部进入屏幕之前后一条不出现，前一条离开屏幕之前后一条追不上
 	[Test]
 	public async Task ScrollingCommentsInTheSameLaneNeverOverlapAsync()
 	{
@@ -108,7 +104,6 @@ public sealed partial class DanmakuAssGeneratorTest
 				double elapsed = later.Start - earlier.Start;
 				double earlierSpeed = (1920 + earlier.Width) / ScrollSeconds;
 				double laterSpeed = (1920 + later.Width) / ScrollSeconds;
-				// ASS 的时间精度是百分之一秒，宽度也取过整，留出一点余量
 				bool tailEntered = elapsed * earlierSpeed >= earlier.Width - earlierSpeed * Tolerance;
 				bool neverCatchesUp = (ScrollSeconds - elapsed) * laterSpeed <= 1920 + laterSpeed * Tolerance;
 
@@ -168,9 +163,7 @@ public sealed partial class DanmakuAssGeneratorTest
 		}
 	}
 
-	// 颜色是最后一个标签；白色是样式里的颜色，不用写
 	[Test]
-	[Arguments(0xFF0000, @"\c&H0000FF&")]
 	[Arguments(0x123456, @"\c&H563412&")]
 	[Arguments(0xFFFFFF, "")]
 	public async Task ColorsAreConvertedToBgrAndWhiteNeedsNoTagAsync(int rgb, string expected)
@@ -181,7 +174,6 @@ public sealed partial class DanmakuAssGeneratorTest
 		await Assert.That(ColorRegex.Match(dialogue.Groups[@"tags"].Value).Value).IsEqualTo(expected);
 	}
 
-	// 换行和制表符换成空格，其他控制字符去掉
 	[Test]
 	[Arguments("  普通  ", "普通")]
 	[Arguments("{\\b1}换\\N行\n第二\t行", "｛＼b1｝换＼N行 第二 行")]

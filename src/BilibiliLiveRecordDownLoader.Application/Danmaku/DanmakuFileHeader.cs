@@ -10,7 +10,6 @@ internal sealed record DanmakuFileHeader
 
 	public string Streamer { get; init; } = string.Empty;
 
-	// 文件开始时的直播标题
 	public string Title { get; init; } = string.Empty;
 
 	public string Area { get; init; } = string.Empty;

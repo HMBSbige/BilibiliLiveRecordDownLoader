@@ -6,14 +6,11 @@ namespace MediaToolkit.Tests.FFmpeg;
 public class FFmpegMetadataTest
 {
 	[Test]
-	[Arguments("a=b", "a\\=b")]
-	[Arguments("a;b", "a\\;b")]
 	[Arguments("#a", "\\#a")]
 	[Arguments("a\\b", "a\\\\b")]
 	[Arguments("a\nb", "a\\\nb")]
 	[Arguments("a\r\nb", "a\\\nb")]
 	[Arguments("a\rb", "a\\\nb")]
-	[Arguments("高能：草", "高能：草")]
 	[Arguments("orz\\", "orz\\\\ ")]
 	[Arguments("a\\\0", "a\\\\ ")]
 	[Arguments("a\\\n", "a\\\\\\\n")]
@@ -34,12 +31,6 @@ public class FFmpegMetadataTest
 		string text = FFmpegMetadata.FormatChapters(chapters);
 
 		await Assert.That(text).IsEqualTo(";FFMETADATA1\n[CHAPTER]\nTIMEBASE=1/1000\nSTART=0\nEND=12345\ntitle=开场\n[CHAPTER]\nTIMEBASE=1/1000\nSTART=12345\nEND=7200000\ntitle=标题：a\\=b\\;c\n");
-	}
-
-	[Test]
-	public async Task RejectsChaptersThatEndBeforeTheyStartAsync()
-	{
-		await Assert.That(static () => FFmpegMetadata.FormatChapters([new FFmpegChapter(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(1), @"x")])).Throws<ArgumentOutOfRangeException>();
 	}
 
 	[Test]

@@ -8,7 +8,6 @@ public sealed class DanmakuSettingsViewModelTest
 	[Test]
 	public async Task SettingsAreRestoredFromAndSavedToTheConfigAsync(CancellationToken cancellationToken)
 	{
-		// 和默认值都相反，才看得出读了配置
 		AppConfig config = AppConfig.CreateDefault();
 		config.RecordSuperChats = false;
 		config.GiftMode = DanmakuGiftMode.Paid;

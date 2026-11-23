@@ -36,7 +36,6 @@ internal sealed partial class RoomDanmaku : IAsyncDisposable
 		_writer = Task.Run(() => _recorder.RunAsync(_queue.Reader, OnDequeued, _lifetime.Token));
 	}
 
-	// 弹幕连接每收完一帧读一次，改了立即生效
 	public DanmuReceiveOptions Options { get; } = new();
 
 	public DanmakuLiveFeed Feed { get; }
@@ -122,7 +121,6 @@ internal sealed partial class RoomDanmaku : IAsyncDisposable
 
 				break;
 			}
-			// 直播状态和房间信息由房间循环处理
 			case DanmuMessage.LiveStarted or DanmuMessage.LiveStopped or DanmuMessage.RoomChanged:
 			{
 				break;

@@ -7,7 +7,6 @@ public sealed class SwitchableWebProxyTest
 {
 	private static readonly Uri Destination = new("https://api.live.bilibili.com/");
 
-	// 设置页只保存配置，运行中切换开关要立即对之后的请求生效
 	[Test]
 	public async Task ProxyFollowsTheSettingWhileRunningAsync()
 	{

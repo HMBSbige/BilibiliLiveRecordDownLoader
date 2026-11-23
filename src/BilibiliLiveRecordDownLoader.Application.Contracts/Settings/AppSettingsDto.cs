@@ -2,10 +2,8 @@ using BilibiliLiveRecordDownLoader.Domain.Shared;
 
 namespace BilibiliLiveRecordDownLoader.Application.Contracts.Settings;
 
-// 不含 Cookie 和直播间列表：它们分别由 IAccountAppService 和 IRoomAppService 维护
 public sealed record AppSettingsDto
 {
-	// 为 null 时跟随系统
 	public required string? Language { get; init; }
 
 	public required AppTheme Theme { get; init; }

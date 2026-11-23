@@ -195,7 +195,6 @@ internal sealed class FlvSplitter : MediaSplitter
 		return start is 0 && end >= FileHeaderSize ? (int)BinaryPrimitives.ReadUInt32BigEndian(elements.Slice(5)) + PreviousTagSizeLength : 0;
 	}
 
-	// 不是完整的 tag 时返回 0
 	private static int MeasureTag(ReadOnlySpan<byte> data)
 	{
 		return data.Length >= TagHeaderSize && IsTagType(data[0]) && TagHeaderSize + ReadDataSize(data) + PreviousTagSizeLength is var length && length <= data.Length ? length : 0;

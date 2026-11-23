@@ -75,7 +75,6 @@ internal sealed partial class LowDiskSpaceMonitor(IDiskSpaceService diskSpace, I
 		{
 			string directory = (await configManager.GetAsync(cancellationToken)).RecordDirectory;
 
-			// 网络位置可能暂时不可达
 			if (diskSpace.GetDiskSpace(directory) is not { AvailableBytes: var available })
 			{
 				return;

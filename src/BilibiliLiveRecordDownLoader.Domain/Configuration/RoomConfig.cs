@@ -1,6 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.Domain.Configuration;
 
-// 同一个实例既在 AppConfig.Rooms 里也在房间会话里，会话读取时不持配置锁，所以不可变，规范化也返回新实例
+// 同一实例也被房间会话不持锁读取，所以不可变，规范化也返回新实例
 public sealed record RoomConfig
 {
 	public long RoomId { get; init; }
@@ -57,7 +57,6 @@ public sealed record RoomConfig
 			SplitDuration = SplitDuration is { } duration ? ConfigValues.ClampSplitDuration(duration) : null,
 			SplitSizeMebibytes = SplitSizeMebibytes is { } size ? ConfigValues.ClampSplitSize(size) : null,
 			DanmakuOffset = DanmakuOffset is { } offset ? ConfigValues.ClampDanmakuOffset(offset) : null,
-			// 枚举在配置里也能写成数字；覆盖值无效时和没覆盖一样继承全局设置
 			RecorderType = DefinedOrInherit(RecorderType),
 			SplitMode = DefinedOrInherit(SplitMode)
 		};

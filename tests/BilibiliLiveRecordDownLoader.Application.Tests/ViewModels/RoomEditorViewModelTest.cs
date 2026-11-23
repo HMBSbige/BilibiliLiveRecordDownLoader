@@ -93,7 +93,6 @@ public sealed class RoomEditorViewModelTest
 		}
 	}
 
-	// 检查交给保存的设置，而不是对话框的结果
 	private static RoomEditorViewModel Open(RoomSettingsDto existing, out Task<RoomSettingsDto> submitted, AppSettingsDto? global = null)
 	{
 		TaskCompletionSource<RoomSettingsDto> submission = new(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -45,7 +45,6 @@
         <Style Selector="Border.dragHandle:pointerover > ic|FluentIcon">
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         </Style>
-        <!-- 实心的圆点和方块就是通用的录制、停止符号 -->
         <Style Selector="ic|FluentIcon.startRecording, ic|FluentIcon.stopRecording">
             <Setter Property="IconVariant" Value="Filled" />
             <Setter Property="FontSize" Value="14" />
@@ -70,7 +69,6 @@
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
-        <!-- 弹幕面板挤窄列表时，名称比编码、格式这些技术参数要紧 -->
         <ContainerQuery Name="roomList" Query="max-width:520">
             <Style Selector="TextBlock.streamInfo">
                 <Setter Property="IsVisible" Value="False" />
@@ -142,7 +140,6 @@
                 </ToggleButton>
             </StackPanel>
 
-            <!-- 窄窗口里放不下时换行，免得画到右边那组上面 -->
             <WrapPanel ItemSpacing="{StaticResource ToolbarSpacing}" LineSpacing="{StaticResource ToolbarSpacing}">
                 <Button Classes="accent" Command="{Binding AddRoomCommand}" IsVisible="{Binding HasRooms}">
                     <StackPanel Classes="iconText">
@@ -206,7 +203,6 @@
                              IsVisible="{Binding HasVisibleRooms}"
                              DoubleTapped="OnRoomDoubleTapped">
                         <ListBox.Styles>
-                            <!-- 读屏停在列表项上，行里的面板没有自动化节点 -->
                             <Style Selector="ListBoxItem" x:DataType="rooms:RoomItemViewModel">
                                 <Setter Property="AutomationProperties.Name" Value="{Binding DisplayName}" />
                                 <Setter Property="AutomationProperties.HelpText" Value="{Binding HelpText}" />

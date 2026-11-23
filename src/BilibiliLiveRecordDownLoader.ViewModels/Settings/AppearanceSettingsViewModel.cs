@@ -4,7 +4,6 @@ public sealed partial class AppearanceSettingsViewModel(ISettingsAppService sett
 {
 	public IReadOnlyList<ChoiceOption> ThemeOptions { get; } = ChoiceOption.Of<AppTheme>();
 
-	// 语言名为空的一项表示跟随系统
 	public IReadOnlyList<LanguageOptionViewModel> Languages { get; } =
 	[
 		new(string.Empty, string.Empty),
@@ -34,7 +33,6 @@ public sealed partial class AppearanceSettingsViewModel(ISettingsAppService sett
 			.DisposeWith(Disposables);
 	}
 
-	// 语言标签不区分大小写，手改配置写成 EN 或 zh-hans 也要认出来；认不出的退回跟随系统
 	internal LanguageOptionViewModel FindLanguage(string? cultureName)
 	{
 		return Languages.FirstOrDefault(language => string.Equals(language.CultureName, cultureName, StringComparison.OrdinalIgnoreCase)) ?? Languages[0];
@@ -62,7 +60,6 @@ public sealed partial class AppearanceSettingsViewModel(ISettingsAppService sett
 			}
 			catch (CultureNotFoundException)
 			{
-				// .NET 不认识系统给的标签时退回区域格式
 			}
 		}
 

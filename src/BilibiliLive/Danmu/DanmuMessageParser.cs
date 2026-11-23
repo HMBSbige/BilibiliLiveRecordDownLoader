@@ -12,7 +12,6 @@ internal static class DanmuMessageParser
 	// 远超最长的档位，也让离谱的值不超出 TimeSpan 的范围
 	private const long MaxSuperChatSeconds = 24 * 60 * 60;
 
-	// 换算成千分之一元后仍能放进 long 的最大整元价格
 	private const long MaxSuperChatPrice = long.MaxValue / 1000;
 
 	/// <summary>抛出异常时，<paramref name="output"/> 里最多只多了原始消息</summary>
@@ -36,7 +35,6 @@ internal static class DanmuMessageParser
 		}
 		else
 		{
-			// 大部分流量是没人要的聊天消息，只读 cmd 就能丢掉
 			command = GetCommand(json.Span);
 		}
 
@@ -72,7 +70,7 @@ internal static class DanmuMessageParser
 				output.Add(changed with { ReceivedAt = receivedAt });
 				break;
 			}
-			// 只在认证后到一次，所以不管解不解析聊天都产出，后来开始看聊天的订阅者也能知道昵称是否打码
+			// 只在认证后到一次，所以不管是否解析聊天都产出
 			case "LOG_IN_NOTICE":
 			{
 				output.Add(new DanmuMessage.LoginNotice { ReceivedAt = receivedAt });
@@ -156,13 +154,12 @@ internal static class DanmuMessageParser
 
 	private static string? ValidateAndGetCommand(ReadOnlySpan<byte> json)
 	{
-		// 读取器要到 GetString 才检查属性名和字符串里的 UTF-8，而原文会被原样写进 JSON Lines 文件
+		// 读取器要到 GetString 才检查属性名和字符串里的 UTF-8
 		if (!Utf8.IsValid(json))
 		{
 			throw new JsonException("Danmu message is not valid UTF-8.");
 		}
 
-		// 读取器本身就会拒绝空输入、格式错误的 JSON 和多余的尾随内容
 		Utf8JsonReader reader = new(json);
 
 		while (reader.Read())
@@ -368,7 +365,6 @@ internal static class DanmuMessageParser
 		return unitPrice > 0 && count > 0 ? long.CreateSaturating(Math.BigMul(unitPrice, count)) : 0;
 	}
 
-	// 时间缺失或离谱时退回到达时间，两者最多差几秒
 	private static DateTimeOffset FromUnixSeconds(long seconds, DanmuReceiveTime receivedAt)
 	{
 		return seconds > 0 && seconds <= MaxUnixSeconds ? DateTimeOffset.FromUnixTimeSeconds(seconds) : receivedAt.UtcTime;

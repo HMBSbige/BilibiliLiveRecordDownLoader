@@ -22,13 +22,11 @@ internal closed record DanmakuRecord(TimeSpan Time)
 	// Price 是千分之一元
 	public sealed record SuperChat(TimeSpan Time, long Uid, string User, long Price, TimeSpan Duration, string Text) : DanmakuRecord(Time)
 	{
-		// 缺少 id 时为 0
 		public long Id { get; init; }
 	}
 
 	public sealed record SuperChatDeletion(TimeSpan Time, IReadOnlyList<long> Ids) : DanmakuRecord(Time)
 	{
-		// 按内容比较，读回的记录才和写入的相等
 		public bool Equals(SuperChatDeletion? other)
 		{
 			return other is not null && base.Equals(other) && Ids.SequenceEqual(other.Ids);
@@ -51,7 +49,6 @@ internal closed record DanmakuRecord(TimeSpan Time)
 
 	public sealed record TitleChange(TimeSpan Time, string Title) : DanmakuRecord(Time);
 
-	// 弹幕连接断开的区间，Time 是开始
 	public sealed record Gap(TimeSpan Time, TimeSpan End) : DanmakuRecord(Time);
 
 	// Masked 表示收到了未登录看不到昵称的通知

@@ -29,7 +29,6 @@ internal static class LoopbackWebSocket
 		Socket client = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 		Socket server;
 
-		// 连接在监听队列里就已建立，不必等 Accept
 		try
 		{
 			await client.ConnectAsync(listener.LocalEndPoint ?? throw new InvalidOperationException("The listener is not bound."), cancellationToken);

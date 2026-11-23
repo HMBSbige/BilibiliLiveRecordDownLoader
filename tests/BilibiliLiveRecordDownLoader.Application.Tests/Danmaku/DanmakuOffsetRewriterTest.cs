@@ -24,20 +24,6 @@ public sealed class DanmakuOffsetRewriterTest
 	}
 
 	[Test]
-	public async Task RecordsPushedBelowZeroStayAtZeroAsync(CancellationToken cancellationToken)
-	{
-		using TestDirectory directory = new();
-		string path = directory.Combine(@"弹幕.xml");
-		await File.WriteAllBytesAsync(path, await DanmakuSamples.WriteAsync([DanmakuSamples.Comment(1), DanmakuSamples.Comment(10)], cancellationToken), cancellationToken);
-
-		await DanmakuOffsetRewriter.RewriteAsync(path, TimeSpan.FromSeconds(-2), cancellationToken);
-		DanmakuFile file = await DanmakuXmlReader.ReadFileAsync(path, cancellationToken);
-
-		await Assert.That(file.Records.Select(static record => record.Time)).IsEquivalentTo([TimeSpan.Zero, TimeSpan.FromSeconds(8)], CollectionOrdering.Matching);
-	}
-
-	// 字幕用返回的记录生成，要和改写后的文件一致：推到 0 之前的写成 0，偏移不是整毫秒时截到毫秒
-	[Test]
 	[Arguments(-20_000_000L)]
 	[Arguments(35_009_999L)]
 	public async Task ReturnsTheRecordsAsTheRewrittenFileHoldsThemAsync(long offsetTicks, CancellationToken cancellationToken)

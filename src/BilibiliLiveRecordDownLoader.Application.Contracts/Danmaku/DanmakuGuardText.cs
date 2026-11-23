@@ -17,7 +17,6 @@ public static class DanmakuGuardText
 		};
 	}
 
-	// 等级可能是没定义的值，按最低的舰长显示
 	public static string FormatLevel(GuardLevel level)
 	{
 		return level switch

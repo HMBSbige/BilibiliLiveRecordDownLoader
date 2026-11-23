@@ -34,7 +34,6 @@ public sealed class DanmakuChapterBuilderTest
 		await Assert.That(chapters).IsEquivalentTo(expected, CollectionOrdering.Matching);
 	}
 
-	// 分段的弹幕文件里时间会倒退零点几秒；倒序处理会把 200 秒改回原标题当成没变
 	[Test]
 	public async Task TitleChangesAreFollowedInTimeOrderAsync()
 	{

@@ -1,6 +1,5 @@
 namespace BilibiliLiveRecordDownLoader.Application.Recording;
 
-// 一次开播期间的录制状态，下播后丢弃
 internal sealed class LiveRecordingSession
 {
 	private readonly Lock _lock = new();
@@ -8,7 +7,7 @@ internal sealed class LiveRecordingSession
 	private readonly HashSet<StreamEndpoint> _failedEndpoints = [];
 	private QualityRestriction? _restriction;
 
-	// 快速失败后沿用同一批换线路；长时间正常录制后要重新请求，签名地址可能已过期
+	// 长时间正常录制后签名地址可能已过期，要重新请求
 	public CandidateBatch? Candidates { get; set; }
 
 	public bool HasUntriedEndpoint => Candidates is not { } batch || GetUntriedCandidates(batch.Candidates).Count > 0;
@@ -35,7 +34,6 @@ internal sealed class LiveRecordingSession
 		}
 	}
 
-	// 换线路和重新请求候选流都不清除：同一场直播重连后受限情况没变就不再提醒
 	public bool TryUpdateRestriction(QualityRestriction? restriction)
 	{
 		lock (_lock)

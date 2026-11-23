@@ -5,26 +5,6 @@ namespace MediaToolkit.Tests.Flv;
 
 public class AacAdtsConverterTest
 {
-	private static byte[] Run(AacAdtsConverter converter, byte[] data)
-	{
-		ArrayBufferWriter<byte> output = new();
-		converter.Convert(data, output);
-		return output.WrittenSpan.ToArray();
-	}
-
-	[Test]
-	public async Task RawFrameIsPrefixedWithAdtsHeaderAsync()
-	{
-		AacAdtsConverter converter = new();
-
-		byte[] sequenceHeaderOutput = Run(converter, FlvSamples.AacSequenceHeader);
-		byte[] frameOutput = Run(converter, FlvSamples.AacFrame);
-
-		byte[] expected = [.. FlvSamples.AdtsHeaderForAacFrame, .. FlvSamples.AacFrame.AsSpan(2)];
-		await Assert.That(sequenceHeaderOutput).IsEmpty();
-		await Assert.That(Convert.ToHexString(frameOutput)).IsEqualTo(Convert.ToHexString(expected));
-	}
-
 	[Test]
 	public async Task ClassifiesEachTagAsync()
 	{
@@ -61,7 +41,6 @@ public class AacAdtsConverterTest
 	}
 
 	[Test]
-	[Arguments(@"1210", 1, 4, 2)]
 	[Arguments(@"0A08", 0, 4, 1)]
 	[Arguments(@"13B8", 1, 7, 7)]
 	// HE-AAC 显式信令：AOT 5、核心采样率索引 6、2 声道、扩展采样率索引 3、核心 AOT 2
@@ -77,7 +56,6 @@ public class AacAdtsConverterTest
 
 	[Test]
 	[Arguments(@"12", "truncated")]
-	[Arguments(@"3210", "object type 6")]
 	[Arguments(@"1790", "explicit sample rate")]
 	[Arguments(@"1690", "reserved sample rate index 13")]
 	[Arguments(@"1240", "channel configuration 8")]

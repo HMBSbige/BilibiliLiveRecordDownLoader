@@ -227,7 +227,6 @@ public sealed class DanmakuPanelViewModelTest
 		await Assert.That(directories).IsEquivalentTo(expected, CollectionOrdering.Matching);
 	}
 
-	// 失败的类别由 DanmakuFileViewModelTest 逐一覆盖，面板和它共用同一套判断
 	public static IEnumerable<Func<(Exception Failure, string Message)>> OpenFailures()
 	{
 		yield return static () => (new FileNotFoundException(null, "a.xml"), AppLanguage.Current.FileNotFound.ToString("a.xml"));

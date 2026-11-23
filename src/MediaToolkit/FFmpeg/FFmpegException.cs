@@ -6,7 +6,6 @@ public sealed class FFmpegException(int exitCode, string? lastMessage) : Excepti
 {
 	public int ExitCode { get; } = exitCode;
 
-	// 已去掉地址里的查询串，可以直接展示
 	public string? LastMessage { get; } = lastMessage;
 
 	// Windows 上崩溃的退出码是负数，有的区域设置会把负号写成 U+2212

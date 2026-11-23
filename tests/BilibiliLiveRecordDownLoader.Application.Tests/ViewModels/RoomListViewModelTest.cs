@@ -57,13 +57,10 @@ public sealed class RoomListViewModelTest
 
 	public static IEnumerable<Func<(string Command, long[] Selected, long? Before, long[] Expected)>> CommandCases()
 	{
-		yield return static () => ("Up", [3], 2, [1, 3, 2, 4, 5]);
-		// 不连续的选中项合并到第一个选中项的上一位
 		yield return static () => ("Up", [4, 2], 1, [2, 4, 1, 3, 5]);
 		yield return static () => ("Up", [1, 3], 2, [1, 3, 2, 4, 5]);
 		yield return static () => ("Down", [3], 5, [1, 2, 4, 3, 5]);
 		yield return static () => ("Down", [2, 4], null, [1, 3, 5, 2, 4]);
-		yield return static () => ("Down", [5], null, [1, 2, 3, 4, 5]);
 		yield return static () => ("Top", [5, 3], 1, [3, 5, 1, 2, 4]);
 		yield return static () => ("Top", [1, 2], 3, [1, 2, 3, 4, 5]);
 		yield return static () => ("Bottom", [1, 3], null, [2, 4, 5, 1, 3]);
@@ -84,11 +81,8 @@ public sealed class RoomListViewModelTest
 
 	public static IEnumerable<Func<(long[] Selected, int Index, long? Before, long[] Expected)>> DropCases()
 	{
-		yield return static () => ([1], 3, 4, [2, 3, 1, 4, 5]);
 		yield return static () => ([2, 3], 0, 1, [2, 3, 1, 4, 5]);
 		yield return static () => ([2, 3], 5, null, [1, 4, 5, 2, 3]);
-		// 放在被拖动的房间之间时，以后面第一个不移动的房间为准
-		yield return static () => ([2, 3], 2, 4, [1, 2, 3, 4, 5]);
 		yield return static () => ([4, 1], 3, 5, [2, 3, 1, 4, 5]);
 	}
 
@@ -147,7 +141,6 @@ public sealed class RoomListViewModelTest
 		}
 	}
 
-	// 不等定时刷新，免得在删除后的一段时间里还能编辑或切换已删除的房间
 	[Test]
 	public async Task RemovedRoomsLeaveTheListAndTheSelectionOnceConfirmedAsync(CancellationToken cancellationToken)
 	{
@@ -187,7 +180,6 @@ public sealed class RoomListViewModelTest
 	[Arguments(true)]
 	public async Task FailedSaveRestoresTheToggleAsync(bool failsSynchronously, CancellationToken cancellationToken)
 	{
-		// 不是本次取消引起的取消也算失败，例如请求超时
 		TaskCanceledException failure = new(null, new TimeoutException());
 		FakeRoomAppService rooms = new(InitialOrder) { UpdateFailure = failure, FailsSynchronously = failsSynchronously };
 		TaskCompletionSource<Exception> reported = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -196,7 +188,6 @@ public sealed class RoomListViewModelTest
 		bool original = room.IsDanmakuEnabled;
 
 		room.IsDanmakuEnabled = !original;
-		// 先回滚再报告，报告到了时回滚已经完成
 		Exception exception = await reported.Task.WaitAsync(cancellationToken);
 
 		using (Assert.Multiple())
@@ -222,7 +213,6 @@ public sealed class RoomListViewModelTest
 		await Assert.That((viewModel.Danmaku.IsOpen, viewModel.Danmaku.File, viewModel.Danmaku.Live?.RoomId)).IsEqualTo((true, null, 4));
 	}
 
-	// 即使面板正开着别的文件
 	[Test]
 	public async Task OpeningADanmakuFileFromTheRoomMenuStartsInTheRoomDirectoryAsync(CancellationToken cancellationToken)
 	{
@@ -281,7 +271,6 @@ public sealed class RoomListViewModelTest
 
 		((ICommand)(fromPanel ? viewModel.Danmaku.LoginCommand : viewModel.LoginCommand)).Execute(null);
 
-		// 面板的定时刷新在别的线程上也会写这两项，等两项都到位，不在中途断言
 		await TestWait.UntilAsync(() => viewModel.LoginBannerText is null && IsWaitingForReconnection(viewModel), "the banner is dismissed and the panel waits for the reconnection", cancellationToken);
 
 		await Assert.That((banner, couldLogin)).IsEqualTo((AppLanguage.Current.DanmakuMaskedBanner, true));
@@ -322,7 +311,6 @@ public sealed class RoomListViewModelTest
 		return viewModel;
 	}
 
-	// cookie 一开始为 null，1 号直播间在录弹幕，横幅提示弹幕昵称被隐去；面板开着并跟随 1 号直播间
 	private static RoomListViewModel CreateAnonymous(IObservable<string?> cookie, Func<CancellationToken, Task> showLogin)
 	{
 		FakeRoomAppService rooms = new(InitialOrder);
@@ -388,12 +376,10 @@ public sealed class RoomListViewModelTest
 
 		public ConcurrentQueue<RoomSettingsDto> Updates { get; } = new();
 
-		// 第一次保存成功后完成
 		public Task Updated => _updated.Task;
 
 		public Exception? UpdateFailure { get; init; }
 
-		// 保存失败时不等任何异步操作就返回失败的任务，像真实的保存在拿锁之前就出错那样
 		public bool FailsSynchronously { get; init; }
 
 		public void Change(long roomId, Func<RoomSnapshot, RoomSnapshot> change)

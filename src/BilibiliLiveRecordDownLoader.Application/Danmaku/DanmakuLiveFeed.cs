@@ -75,7 +75,6 @@ internal sealed class DanmakuLiveFeed(TimeProvider timeProvider)
 		}
 	}
 
-	// 不再解析弹幕时清空，之后再查看不会接上一段过时的内容
 	public void Clear()
 	{
 		lock (_lock)

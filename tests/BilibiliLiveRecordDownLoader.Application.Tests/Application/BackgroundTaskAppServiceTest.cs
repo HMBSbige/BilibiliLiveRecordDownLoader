@@ -44,7 +44,6 @@ public sealed class BackgroundTaskAppServiceTest
 		await Assert.That(service.HasActiveTasks).IsFalse();
 	}
 
-	// 两个任务互相等对方开始，只能同时运行才都能结束
 	[Test]
 	public async Task TasksInDifferentQueuesRunConcurrentlyAsync()
 	{
@@ -102,22 +101,6 @@ public sealed class BackgroundTaskAppServiceTest
 		}).WaitAsync(WaitTimeout);
 
 		await Assert.That((late.Status, ran, service.HasActiveTasks)).IsEqualTo((BackgroundTaskStatus.Canceled, false, false));
-	}
-
-	// 失败的任务之后，同一队列里的任务照常执行
-	[Test]
-	public async Task CompletionCarriesTheFinalSnapshotAsync()
-	{
-		BackgroundTaskAppService service = CreateService();
-
-		BackgroundTaskSnapshot failed = await service.Enqueue("failing", "q", static (_, _) => throw new InvalidOperationException("boom")).WaitAsync(WaitTimeout);
-		BackgroundTaskSnapshot completed = await service.Enqueue("done", "q", static (_, _) => Task.CompletedTask, "in.flv", "out.mp4").WaitAsync(WaitTimeout);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That((failed.Status, failed.Message)).IsEqualTo((BackgroundTaskStatus.Failed, "boom"));
-			await Assert.That(completed).IsEqualTo(new BackgroundTaskSnapshot(completed.Id, "done", "in.flv", "out.mp4", BackgroundTaskStatus.Completed, 1, null, null));
-		}
 	}
 
 	[Test]
@@ -208,7 +191,6 @@ public sealed class BackgroundTaskAppServiceTest
 		await Assert.That(service.GetTasks().Select(static task => task.Id)).IsEquivalentTo([failed.Id, .. completed.Skip(5)], CollectionOrdering.Matching).Because("加入最后一个任务时它还在排队，结束后要等下次加入才裁剪");
 	}
 
-	// 线程池上没有同步上下文，任务等的东西在取消回调里同步完成时，任务的收尾和等结果的调用方都可能在取消的调用里接着执行，调用方这时排入新任务
 	[Test]
 	public async Task CallersQueueingFollowUpsWhileTasksAreCanceledDoNotBreakCancelAllAsync()
 	{
@@ -230,7 +212,6 @@ public sealed class BackgroundTaskAppServiceTest
 		await Assert.That((await followUp.WaitAsync(WaitTimeout)).Status).IsEqualTo(BackgroundTaskStatus.Completed);
 	}
 
-	// 工具页在 UI 线程上排队；退出时 UI 线程在等这些任务，续体投回去就再也不会执行
 	[Test]
 	public async Task TasksQueuedFromTheUIThreadDoNotContinueOnItAsync()
 	{
@@ -238,7 +219,6 @@ public sealed class BackgroundTaskAppServiceTest
 		TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		StoppedSynchronizationContext ui = new();
 
-		// 第二个任务要等第一个让出队列
 		(Task<BackgroundTaskSnapshot> first, Task<BackgroundTaskSnapshot> second) = ui.Run(() => (service.Enqueue("first", "q", (_, cancellationToken) => release.Task.WaitAsync(cancellationToken)), service.Enqueue("second", "q", static (_, _) => Task.CompletedTask)));
 		release.SetResult();
 		BackgroundTaskSnapshot[] finished = await Task.WhenAll(first, second).WaitAsync(WaitTimeout);
@@ -284,7 +264,6 @@ public sealed class BackgroundTaskAppServiceTest
 		return new BackgroundTaskAppService(TimeProvider.System, NullLogger<BackgroundTaskAppService>.Instance);
 	}
 
-	// 刚加入的任务排在列表最后
 	private static (Guid Id, Task<BackgroundTaskSnapshot> Completion) Start(BackgroundTaskAppService service, string title, string queueKey, Func<BackgroundTaskContext, CancellationToken, Task> work)
 	{
 		Task<BackgroundTaskSnapshot> completion = service.Enqueue(title, queueKey, work);

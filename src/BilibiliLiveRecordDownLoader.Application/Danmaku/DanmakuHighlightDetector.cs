@@ -78,7 +78,6 @@ internal static class DanmakuHighlightDetector
 		return [.. selected.OrderBy(static highlight => highlight.Start)];
 	}
 
-	// 连续的热格合成一个候选
 	private static IEnumerable<DanmakuHighlight> FindCandidates(List<Message>?[] bins, int[] scores, string?[] dominantPhrases, double[] baselines, TimeSpan total)
 	{
 		for (int i = 0; i < scores.Length;)
@@ -111,7 +110,6 @@ internal static class DanmakuHighlightDetector
 		}
 	}
 
-	// 按不同用户计数，一个人刷屏只算一次
 	private static (int Score, string? Dominant) Score(List<Message> messages)
 	{
 		HashSet<string> users = [.. messages.Select(static message => message.User)];
@@ -150,7 +148,6 @@ internal static class DanmakuHighlightDetector
 		return baselines;
 	}
 
-	// 判为抽奖口令或复读的话不用，否则章节名会是抽奖口令
 	private static string FindPhrase(IEnumerable<List<Message>?> bins, HashSet<string> excluded)
 	{
 		string? text = bins
@@ -206,7 +203,6 @@ internal static class DanmakuHighlightDetector
 		return builder.ToString();
 	}
 
-	// 选代表短语时把“哈哈哈哈哈”和“哈哈哈”算作一句
 	private static string CollapseRepeats(string phrase)
 	{
 		StringBuilder builder = new(phrase.Length);

@@ -5,7 +5,7 @@ namespace MediaToolkit.FFmpeg;
 
 public static class FFmpegMetadata
 {
-	// 带 BOM 时 FFmpeg 探测不出格式，WriteAllTextAsync 默认写的 UTF-8 正好不带 BOM
+	// 带 BOM 时 FFmpeg 探测不出格式，WriteAllTextAsync 默认不写 BOM
 	public static Task WriteChaptersFileAsync(string path, IReadOnlyList<FFmpegChapter> chapters, CancellationToken cancellationToken)
 	{
 		return File.WriteAllTextAsync(path, FormatChapters(chapters), cancellationToken);

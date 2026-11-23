@@ -8,6 +8,6 @@ public interface IAutoStartService
 
 	void SetEnabled(bool enabled);
 
-	// 已经登记过时改成启动当前程序，没有登记时不新建；旧版登记用的也是同一个名字
+	// 只改写已有的登记（旧版也用这个名字），没有登记时不新建
 	void TakeOverExisting();
 }

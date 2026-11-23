@@ -4,7 +4,6 @@ internal sealed record DanmakuRun(Func<DanmakuFileHeader> CreateHeader, Func<Can
 
 internal sealed record DanmakuRunSettings(DanmakuProfile Profile, string RecordDirectory, bool IncludeTitleInFileName, bool SplitOnTitleChange);
 
-// Resolution 和 Duration 来自时间轴，读不到时为 null
 internal sealed record DanmakuSegment(string Path, VideoResolution? Resolution, TimeSpan? Duration);
 
 internal closed record DanmakuWork
@@ -30,6 +29,5 @@ internal closed record DanmakuWork
 
 	public sealed record SettingsChanged : DanmakuWork;
 
-	// 一场录制结束，原始消息文件随之结束
 	public sealed record SessionEnded : DanmakuWork;
 }

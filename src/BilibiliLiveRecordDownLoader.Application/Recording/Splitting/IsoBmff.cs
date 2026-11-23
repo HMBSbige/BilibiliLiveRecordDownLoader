@@ -59,7 +59,6 @@ internal static class IsoBmff
 		return false;
 	}
 
-	// 不是视频轨的 traf 和读不全的返回 null
 	private static uint? ReadFirstSampleFlags(ReadOnlySpan<byte> traf, uint videoTrackId, uint trexSampleFlags)
 	{
 		uint defaultFlags = trexSampleFlags;
@@ -350,13 +349,12 @@ internal readonly record struct Fmp4VideoTrack(uint TrackId, uint DefaultSampleF
 // Timescale 不为 0
 internal readonly record struct Fmp4Track(uint TrackId, uint Timescale, uint DefaultSampleDuration)
 {
-	// 向下取整
 	public long ToTicks(ulong value)
 	{
 		return (long)UInt128.Min((UInt128)value * TimeSpan.TicksPerSecond / Timescale, long.MaxValue);
 	}
 
-	// 不小于 ticks 的最小轨道时间，ticks 为负时是负的；按它减去起点不会减出负数
+	// 向上取整，按它减去起点不会减出负数
 	public long FromTicksCeiling(long ticks)
 	{
 		(Int128 quotient, Int128 remainder) = Int128.DivRem((Int128)ticks * Timescale, TimeSpan.TicksPerSecond);
@@ -373,7 +371,7 @@ internal readonly record struct TrackExtends(uint TrackId, uint DefaultSampleDur
 internal static class TrackFragmentFlags
 {
 	public const uint BaseDataOffsetPresent = 0x00_0001;
-	public const uint SampleDescriptionIndexPresent = 0x00_0002;
+	private const uint SampleDescriptionIndexPresent = 0x00_0002;
 	public const uint DefaultSampleDurationPresent = 0x00_0008;
 	public const uint DefaultSampleSizePresent = 0x00_0010;
 	public const uint DefaultSampleFlagsPresent = 0x00_0020;
@@ -397,7 +395,7 @@ internal static class TrackRunFlags
 	public const uint SampleDurationPresent = 0x00_0100;
 	public const uint SampleSizePresent = 0x00_0200;
 	public const uint SampleFlagsPresent = 0x00_0400;
-	public const uint SampleCompositionTimeOffsetPresent = 0x00_0800;
+	private const uint SampleCompositionTimeOffsetPresent = 0x00_0800;
 
 	private const uint SampleFields = SampleDurationPresent | SampleSizePresent | SampleFlagsPresent | SampleCompositionTimeOffsetPresent;
 

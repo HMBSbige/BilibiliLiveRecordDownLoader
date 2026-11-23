@@ -253,7 +253,7 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 		}
 	}
 
-	// 和添加房间一样分批查询：刷新全部房间时逐个并发请求更容易被风控拦截，拦截之后录制也拿不到候选流
+	// 分批查询：逐个并发请求更容易被风控拦截，之后录制也拿不到候选流
 	public async Task RefreshAsync(IReadOnlyCollection<long> roomIds, CancellationToken cancellationToken = default)
 	{
 		(RoomSession Session, long DanmuVersion)[] targets;
@@ -307,7 +307,6 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 		return _sessions.Find(session => session.RoomId == roomId);
 	}
 
-	// 关注列表等来源给出的房间号可能是短号
 	private RoomSession? FindByAnyId(long roomId)
 	{
 		return roomId > 0 ? _sessions.Find(session => session.RoomId == roomId || session.ShortId == roomId) : null;

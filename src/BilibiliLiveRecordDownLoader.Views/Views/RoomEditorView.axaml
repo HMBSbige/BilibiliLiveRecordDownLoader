@@ -18,7 +18,6 @@
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="ItemTemplate" Value="{StaticResource LocalizedLabel}" />
         </Style>
-        <!-- 标签和输入框分行，同一行的两个标签有一个换行时，下面的输入框仍然对齐 -->
         <Style Selector="Grid.form > TextBlock">
             <Setter Property="VerticalAlignment" Value="Bottom" />
             <Setter Property="TextWrapping" Value="Wrap" />

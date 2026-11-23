@@ -56,7 +56,7 @@ internal static class Program
 		DesktopHost host = DesktopHost.Create(singleInstance.StopListening);
 		singleInstance.StartListening(host.ShowMainWindow);
 
-		// 平台初始化前在信号处理线程上首次访问 Dispatcher.UIThread 会把它定成 UI 线程，平台初始化随即失败，所以到这里才接管；此前还没有要收尾的东西
+		// 平台初始化前在信号处理线程上首次访问 Dispatcher.UIThread 会把它定成 UI 线程，导致平台初始化失败
 		return OperatingSystem.IsWindows() ? [] : [.. TerminationSignals.Select(signal => PosixSignalRegistration.Create(signal, OnTerminationSignal))];
 
 		void OnTerminationSignal(PosixSignalContext context)

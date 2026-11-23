@@ -16,9 +16,6 @@ using System.Threading.Channels;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 
-/// <summary>
-/// 不传 streams 时，候选流依次是 FLV/AVC（a.test、b.test）和 FLV/AV1（c.test）
-/// </summary>
 internal sealed class RecordingLoopHarness : IAsyncDisposable
 {
 	public const long RoomId = 22907643;
@@ -46,8 +43,6 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	private RoomConfig _settings;
 
 	/// <param name="streams">其中的 $SIGN 换成第几次请求候选流</param>
-	/// <param name="respondStream">给出时直接应答全部拉流请求，NextStreamAsync 收不到</param>
-	/// <param name="systemProxy">Config.UseSystemProxy 打开时才用；只影响交给 FFmpeg 的参数，假的拉流不经代理</param>
 	public RecordingLoopHarness(CancellationToken cancellationToken, Func<string, Stream>? createFile = null, RecorderType recorderType = RecorderType.BuiltIn, bool isNotificationEnabled = false, IMediaToolAppService? mediaTools = null, string streams = DefaultStreams, Func<HttpRequestMessage, HttpResponseMessage>? respondStream = null, IWebProxy? systemProxy = null)
 	{
 		SwitchableWebProxy proxy = new(systemProxy ?? new WebProxy());
@@ -74,7 +69,6 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 				FFmpegRuns.Enqueue(arguments);
 				return new FFmpegStreamSession(ffmpeg, arguments, source);
 			},
-			// 磁盘卡住的用例不必等满默认的排空时限
 			DrainTimeout = TimeSpan.FromSeconds(1)
 		};
 
@@ -99,22 +93,18 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 	public FakeTimeProvider Time { get; } = new();
 
-	// 录制循环每次重连都会重新读取
 	public AppConfig Config { get; } = AppConfig.CreateDefault();
 
-	// 替换规则和构造函数的 streams 参数相同
 	public string Streams { get => Volatile.Read(ref field); set => Volatile.Write(ref field, value); }
 
 	public string Title { get => Volatile.Read(ref field); set => Volatile.Write(ref field, value); } = "title";
 
 	public RecordingNotifications Notifications { get; } = new();
 
-	// 只在 Session.Start() 之后连接
 	public FakeDanmuSource Danmu { get; }
 
 	public string RoomDirectory => RecordingFileLayout.GetRoomDirectory(Config.RecordDirectory, RoomId);
 
-	// 和界面上改房间设置一样整个换掉，经过 RoomSession.UpdateSettings 生效
 	public RoomConfig Settings
 	{
 		get => _settings;
@@ -133,10 +123,8 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 	public string? PlayInfoQuery { get => Volatile.Read(ref field); private set => Volatile.Write(ref field, value); }
 
-	// 没给时按 404 应答
 	public Func<HttpRequestMessage, HttpResponseMessage>? MasterPlaylist { get; set; }
 
-	// 没给时按房间当前的状态应答
 	public Func<HttpRequestMessage, HttpResponseMessage>? RoomInfo { get; set; }
 
 	public ConcurrentQueue<string> MasterPlaylistQueries { get; } = new();
@@ -149,20 +137,17 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 	public ConcurrentQueue<Uri> StreamRequests { get; } = new();
 
-	// 主播的 uid 是 1
 	public void GoLive()
 	{
 		_isLive = true;
 		Session.Apply(new LiveRoomInfo(RoomId, 0, 1, "streamer", Title, LiveStatus.Live));
 	}
 
-	// 只影响之后的状态查询，不通知房间
 	public void GoOffline()
 	{
 		_isLive = false;
 	}
 
-	// 只影响之后的接口，不通知房间
 	public void StartStreaming()
 	{
 		_isLive = true;
@@ -225,7 +210,6 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		throw new TimeoutException("No stream was requested.");
 	}
 
-	// 重连等待带随机抖动，按秒推进直到弹幕重新连接；断开的那次连接要收到过连接成功
 	public async Task<(FakeDanmuConnection Connection, TimeSpan Advanced)> AdvanceUntilDanmuReconnectedAsync()
 	{
 		// 先等房间察觉断开再推进，推进的时长才都算在重连等待里
@@ -262,12 +246,11 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		RoomSnapshot recording = Snapshot;
 		Time.Advance(duration);
 
-		// 时钟一次跨过多个采样周期时，后几次采样的间隔为零，速度会是 NaN，所以不等正数
+		// 时钟一次跨过多个采样周期时速度会是 NaN，所以不等正数
 		await WaitUntilAsync(static snapshot => snapshot.BytesPerSecond is not 0);
 		return recording;
 	}
 
-	// 和程序退出一样，先停房间再等后处理
 	public async Task StopAsync()
 	{
 		await Session.DisposeAsync();
@@ -406,7 +389,6 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	private sealed class UnusedMediaTools : MediaToolAppServiceStub;
 }
 
-// 日志输出会连同异常消息一起写出，检查敏感信息时两者都要看
 internal sealed record HarnessLog(LogLevel Level, string Message, Exception? Exception);
 
 internal sealed class StreamRequest(string host)
@@ -437,7 +419,6 @@ internal sealed class StreamRequest(string host)
 		Respond();
 	}
 
-	// 等会话把数据交给录制器之后才返回
 	public async Task AcceptAsync(byte[] body)
 	{
 		await _body.Writer.WriteAsync(body);
@@ -447,7 +428,7 @@ internal sealed class StreamRequest(string host)
 		await WaitForReadsAsync(3);
 	}
 
-	// 会话处理完这块数据、开始读下一块时返回，之后推进的时钟不会算到这块数据上
+	// 会话开始读下一块时才返回，之后推进的时钟不会算到这块数据上
 	public async Task SendAndWaitAsync(byte[] data)
 	{
 		int reads = Volatile.Read(ref _reads);

@@ -85,7 +85,7 @@ public sealed partial class LogViewModel : ViewModelBase
 
 			if (matches(entry))
 			{
-				// 比较器最后按序号比，新条目不会和已有的相等，插在第一个排在它后面的条目前
+				// 比较器最后按序号比，新条目不会和已有的相等
 				Entries.Insert(Entries.LowerBound(shown => _comparer.Compare(shown, entry) < 0), entry);
 			}
 		}
@@ -129,7 +129,7 @@ public sealed partial class LogViewModel : ViewModelBase
 		string? room = string.IsNullOrWhiteSpace(RoomFilter) ? null : RoomFilter.Trim();
 		string? search = string.IsNullOrWhiteSpace(SearchText) ? null : SearchText.Trim();
 
-		// 和弹幕搜索一样不按区域性比较：过滤在界面线程上逐条进行，按区域性比较中文会慢很多
+		// 过滤在界面线程上逐条进行，按区域性比较中文会慢很多
 		return entry => entry.Level >= minimum
 			&& (room is null || entry.RoomId is { } roomId && roomId.ToString(CultureInfo.InvariantCulture).Contains(room, StringComparison.Ordinal))
 			&& (search is null || entry.Message.Contains(search, StringComparison.OrdinalIgnoreCase));

@@ -91,7 +91,6 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 	[Reactive]
 	public partial bool IsDanmakuEnabled { get; set; }
 
-	// 留空时用全局的偏移
 	[Reactive]
 	public partial decimal? DanmakuOffsetSeconds { get; set; }
 

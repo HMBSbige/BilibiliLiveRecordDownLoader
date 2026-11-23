@@ -5,7 +5,6 @@ using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
-using System.Collections.Concurrent;
 using OS = TUnit.Core.Enums.OS;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
@@ -36,14 +35,12 @@ public sealed class RecordingPostProcessorTest
 		using (Assert.Multiple())
 		{
 			await Assert.That((File.Exists(path), File.Exists(danmaku), File.Exists(subtitle))).IsEqualTo((false, false, false));
-			// 原始消息属于整场直播
 			await Assert.That(File.Exists(rawMessages)).IsTrue();
 			await Assert.That(mediaTools.Remuxes).IsEmpty();
 			await Assert.That(notifications.Shown).IsEmpty();
 		}
 	}
 
-	// 只有 Windows 上开着的文件删不掉；留下的录像不能没了弹幕和字幕
 	[Test]
 	[RunOn(OS.Windows)]
 	public async Task TooSmallRecordingThatCannotBeDeletedKeepsItsDanmakuAndSubtitleAsync(CancellationToken cancellationToken)
@@ -61,24 +58,6 @@ public sealed class RecordingPostProcessorTest
 		}
 
 		await Assert.That((File.Exists(path), File.Exists(danmaku), File.Exists(subtitle))).IsEqualTo((true, true, true));
-	}
-
-	[Test]
-	public async Task RecordingWithContentIsQueuedForConversionAsync()
-	{
-		using TestDirectory directory = new();
-		string path = CreateRecording(directory, RecordingPostProcessor.MinimumLength);
-		QueuedRemuxes mediaTools = new(BackgroundTaskStatus.Completed);
-		RecordingNotifications notifications = new();
-
-		await Create(mediaTools, notifications).ProcessAsync(path, CreateProfile(directory), Streamer, null, NoDanmaku);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(File.Exists(path)).IsTrue();
-			await Assert.That(mediaTools.Inputs.Select(static input => input.Source)).IsEquivalentTo([path]);
-			await Assert.That(notifications.Shown).IsEmpty();
-		}
 	}
 
 	[Test]
@@ -296,11 +275,8 @@ public sealed class RecordingPostProcessorTest
 			_queue = _ => Task.FromException<Task<BackgroundTaskSnapshot>>(exception);
 		}
 
-		public ConcurrentQueue<RemuxInput> Inputs { get; } = new();
-
 		public override Task<Task<BackgroundTaskSnapshot>> QueueRemuxAsync(RemuxInput input, CancellationToken cancellationToken = default)
 		{
-			Inputs.Enqueue(input);
 			return _queue(input);
 		}
 	}

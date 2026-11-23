@@ -14,7 +14,6 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	private readonly ILogger _logger = services.Logger.WithRoomScope(settings.RoomId);
 	private RoomConfig _settings = settings;
 	private long _shortId;
-	// 房间信息还没拿到时为 0
 	private long _userId;
 	private string? _userName;
 	private string? _title;
@@ -24,9 +23,8 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	private DateTimeOffset? _liveStartTime;
 	private bool _isTextOnlyActive;
 	private LiveStatus _liveStatus = LiveStatus.Unknown;
-	// 弹幕每推送一次直播状态或标题就加一
 	private long _danmuVersion;
-	// 弹幕最后一次推送直播状态、标题时的版本：比查询前取得的版本新，说明查询在这条消息之前发出，应答里的对应部分已经过时
+	// 弹幕最后一次推送直播状态、标题时的版本：比查询前取得的版本新时，应答里的对应部分已经过时
 	private long _liveStatusVersion;
 	private long _titleVersion;
 	private RecordStatus _recordStatus;
@@ -67,7 +65,6 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		{
 			lock (_lock)
 			{
-				// 仅录弹幕时录制状态一直是 Idle，退出前也要确认
 				return _recordStatus is not RecordStatus.Idle || _isTextOnlyActive;
 			}
 		}
@@ -235,7 +232,6 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 
 		await _lifetime.CancelAsync();
 
-		// 循环意外出错时最后一段弹幕也要写完关闭
 		try
 		{
 			await Task.WhenAll(danmu, status, recording);
@@ -348,7 +344,6 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 					Handle(message);
 				}
 
-				// 房间停止时枚举正常结束，不算断线
 				if (cancellationToken.IsCancellationRequested)
 				{
 					return;
@@ -369,7 +364,6 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 
 			Danmaku.OnDisconnected();
 
-			// 房间停止时由循环条件退出
 			await Task.Delay(delay, services.TimeProvider, cancellationToken).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 		}
 	}
@@ -390,7 +384,6 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
-			// 房间停止，或者改了检查间隔，由新的轮询接替
 		}
 	}
 
@@ -462,7 +455,6 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 				return;
 			}
 
-			// 启动或添加房间时第一次拿到的标题不算更改
 			notify = _title is not null && _settings.IsNotificationEnabled;
 			split = _title is not null && _recordStatus is RecordStatus.Recording ? _split : null;
 
@@ -758,10 +750,9 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 	}
 
-	// 这里的失败都在开始录制之前，除了写盘失败都是拿不到能用的线路
 	private async Task HandleAttemptFailureAsync(Exception exception, RecordingFaultTracker faults, AppConfig config, RecordingProfile profile, CancellationToken cancellationToken)
 	{
-		// 拉不到流也可能是已经下播，确认之后不再当作失败重试
+		// 拉不到流也可能是已经下播
 		await TryRefreshAsync(cancellationToken);
 
 		if (!ShouldKeepRecording(cancellationToken))
@@ -823,7 +814,6 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 		catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
 		{
-			// HttpClient 超时也是 OperationCanceledException，只有自身被取消时才向上传递
 			LogRefreshFailed(_logger, exception);
 			return false;
 		}

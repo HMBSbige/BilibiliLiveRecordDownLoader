@@ -43,7 +43,7 @@ public sealed partial class AccountViewModel : ViewModelBase
 		Forget(CheckLoginAsync);
 	}
 
-	// 启动时、手动检查、改 Cookie 和扫码登录都会发起检查，可能同时在查；以最后发起的为准
+	// 多处可能同时发起检查，以最后发起的为准
 	[ReactiveCommand]
 	private async Task CheckLoginAsync(CancellationToken cancellationToken)
 	{
@@ -90,14 +90,12 @@ public sealed partial class AccountViewModel : ViewModelBase
 		IsLoggedIn = false;
 	}
 
-	// 要等保存完再查，查的请求才会带上新的 Cookie
 	private async Task SaveCookieAsync(string? cookie, CancellationToken cancellationToken)
 	{
 		await _accountAppService.SetCookieAsync(cookie, cancellationToken);
 		await CheckLoginAsync(cancellationToken);
 	}
 
-	// 服务里已经保存好，读回时不再保存和检查
 	private async Task ReloadCookieAsync(CancellationToken cancellationToken)
 	{
 		string? cookie = await _accountAppService.GetCookieAsync(cancellationToken);

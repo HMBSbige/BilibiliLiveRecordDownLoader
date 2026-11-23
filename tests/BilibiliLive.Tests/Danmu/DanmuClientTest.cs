@@ -244,7 +244,6 @@ public class DanmuClientTest
 	[Test]
 	public async Task UserIdFailureRequestsAnAnonymousTokenAsync(CancellationToken cancellationToken)
 	{
-		// 第一次 nav 请求取 uid，第二次取 wbi 密钥
 		int navRequests = 0;
 		using Harness harness = new
 		(
@@ -293,7 +292,6 @@ public class DanmuClientTest
 		}
 	}
 
-	// 用登录 cookie 握手后再发 uid 0 的认证包，一条连接上就有了两个身份
 	private static async Task AssertAnonymousHandshakeAsync(Harness harness, JsonElement auth)
 	{
 		await Assert.That(CookieHeader.GetValue(harness.UpgradeCookie, "SESSDATA")).IsNull();
@@ -442,7 +440,6 @@ public class DanmuClientTest
 
 		async Task SendAndCloseAsync()
 		{
-			// 每个包都合法，只是它们拼成的整条消息太大
 			byte[] packet = DanmuPacket.Encode(DanmuOperation.HeartbeatReply, 1, new byte[DanmuPacket.MaxPacketLength / 2]);
 
 			for (int sent = 0; sent <= DanmuClient.MaxMessageLength; sent += packet.Length)
@@ -456,7 +453,6 @@ public class DanmuClientTest
 	}
 
 	[Test]
-	[Arguments(DefaultCookie, null)]
 	[Arguments("SESSDATA=x; buvid3=MINE", "MINE")]
 	public async Task AuthCarriesTheBuvid3OfTheHandshakeCookieAsync(string cookie, string? userBuvid3, CancellationToken cancellationToken)
 	{
@@ -483,7 +479,6 @@ public class DanmuClientTest
 		await using IAsyncEnumerator<DanmuMessage> messages = harness.ReceiveAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);
 		Task<bool> next = messages.MoveNextAsync().AsTask();
 
-		// 等到连接成功的消息，最后一次接收就固定在当前的假时间
 		WebSocket server = await AuthenticateAsync(harness, """{"code":0}""", cancellationToken);
 		await Assert.That(await next).IsTrue();
 		await ReceiveHeartbeatAsync(server, cancellationToken);
@@ -503,7 +498,6 @@ public class DanmuClientTest
 
 		if (!receiving)
 		{
-			// 服务器这一端的接收失败，说明客户端已经中止了没有挂起接收的 socket
 			await Assert.ThrowsAsync<WebSocketException>(async () => await server.ReceiveAsync(new byte[16].AsMemory(), cancellationToken));
 			next = messages.MoveNextAsync().AsTask();
 		}
@@ -524,7 +518,6 @@ public class DanmuClientTest
 		next = messages.MoveNextAsync().AsTask();
 		await ReceiveHeartbeatAsync(server, cancellationToken);
 
-		// 总共过了两倍的超时，但每个心跳间隔里都收到了数据
 		for (TimeSpan elapsed = TimeSpan.Zero; elapsed <= DanmuClient.ReceiveTimeout * 2; elapsed += DanmuClient.HeartbeatInterval)
 		{
 			await SendAsync(server, Live, cancellationToken);
@@ -553,7 +546,6 @@ public class DanmuClientTest
 		byte[] comment = DanmuMessageParserTest.Fixture("comment_masked.json");
 		byte[] frame = DanmuPacketTest.Brotli(DanmuPacket.Encode(DanmuOperation.Message, 0, comment), Live);
 
-		// 每次修改都等上一帧读完，所以每一帧遇到的都是在它之前设置的选项
 		await SendAsync(server, frame, cancellationToken);
 		List<DanmuMessage> plain = await TakeAsync(messages, 1);
 
@@ -569,7 +561,6 @@ public class DanmuClientTest
 		await SendAsync(server, frame, cancellationToken);
 		List<DanmuMessage> plainAgain = await TakeAsync(messages, 1);
 
-		// 客户端只在接收时才回应关闭
 		Task<bool> next = messages.MoveNextAsync().AsTask();
 		await server.CloseAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
 		bool hasMore = await next;

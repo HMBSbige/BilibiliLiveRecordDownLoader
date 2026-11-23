@@ -19,7 +19,7 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 	private static readonly JsonObject DefaultNode = SerializeToJsonObject(AppConfig.CreateDefault(), AppConfigJsonContext.Default.AppConfig);
 	private static readonly JsonObject DefaultRoomNode = SerializeToJsonObject(new RoomConfig(), AppConfigJsonContext.Default.RoomConfig);
 
-	// 配置允许手改，中文路径等原样写出，不转义成 \uXXXX；文件不会嵌进网页，用不着 HTML 转义
+	// 配置允许手改，非 ASCII 字符原样写出；文件不会嵌进网页，不需要 HTML 转义
 	private static readonly JsonWriterOptions WriterOptions = new() { Indented = true, IndentCharacter = '\t', IndentSize = 1, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
 	private readonly string _configPath = storageOptions.Value.FilePath;
@@ -56,7 +56,6 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 		}
 	}
 
-	// 写盘延迟合并，调用方取消不会丢掉已做的修改
 	public async ValueTask UpdateAsync(Action<AppConfig> update, CancellationToken cancellationToken = default)
 	{
 		await _lock.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -111,7 +110,6 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 		}
 	}
 
-	// 杀毒或同步软件可能短暂占用文件，写失败时稍后重试；一直写不进去就留给下一次修改或 Dispose
 	private async Task SaveAfterDelayAsync(CancellationToken cancellationToken)
 	{
 		try
@@ -142,7 +140,6 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 		}
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
-			// Dispose 会负责写盘
 		}
 		catch (Exception exception)
 		{
@@ -154,7 +151,6 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 	{
 		if (_config is null)
 		{
-			// 恢复或导入的内容要立即写回
 			(_config, _isDirty) = await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
 
 			if (!SaveCore())
@@ -236,7 +232,6 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 			}
 			catch (IOException) when (attempt < ReadAttempts)
 			{
-				// 杀毒或同步软件可能短暂占用文件
 				await Task.Delay(ReadRetryDelay, timeProvider, cancellationToken).ConfigureAwait(false);
 			}
 		}
@@ -255,7 +250,6 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 			?? throw new JsonException("The config is not a JSON object.");
 	}
 
-	// 新版本可能新增了枚举名，手改也可能写错一个值；只让读不出来的值回到默认值，不让整份配置作废
 	private async ValueTask<AppConfig?> TryReadSkippingInvalidValuesAsync(CancellationToken cancellationToken)
 	{
 		try
@@ -323,7 +317,6 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 	{
 		foreach ((string key, JsonNode? value) in node.ToArray())
 		{
-			// 未知的属性读取时本来就会忽略
 			if (typeInfo.Properties.FirstOrDefault(candidate => string.Equals(candidate.Name, key, StringComparison.OrdinalIgnoreCase)) is not { } property
 				|| AppConfigJsonContext.Default.GetTypeInfo(property.PropertyType) is not { } propertyTypeInfo)
 			{
@@ -332,7 +325,7 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 
 			string name = prefix + property.Name;
 
-			// 列表里读不出的项只丢这一项：房间逐个清理，编码和格式的优先级保留用户排好的其余顺序
+			// 列表里读不出的项只丢这一项，保留其余项和用户排好的顺序
 			if (value is JsonArray items && propertyTypeInfo is { Kind: JsonTypeInfoKind.Enumerable, ElementType: { } elementType } && AppConfigJsonContext.Default.GetTypeInfo(elementType) is { } elementTypeInfo)
 			{
 				for (int i = items.Count - 1; i >= 0; i--)
@@ -390,7 +383,7 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 		}
 	}
 
-	// 只有内容损坏才退回备份；暂时读不到时按配置读不到处理，退回备份再写盘会先删掉这份唯一的最新内容
+	// 只有内容损坏才退回备份：暂时读不到时退回备份再写盘会删掉这份唯一的最新内容
 	private async ValueTask<AppConfig?> TryRestoreTempFileAsync(CancellationToken cancellationToken)
 	{
 		try
@@ -425,8 +418,8 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 		}
 	}
 
-	// 恢复出配置时只复制，写回前损坏的文件留在原处：取消或写回失败时下次照样从备份恢复，移走的话只剩备份会被当成用户删了配置
-	// 没有可恢复的就移走：这时不立即写盘，留在原处每次启动都会再当成损坏处理一遍
+	// 恢复出配置时只复制：取消或写回失败时下次照样从备份恢复，移走的话只剩备份会被当成用户删了配置
+	// 没有可恢复的就移走，否则每次启动都会再当成损坏处理一遍
 	private void PreserveCorruptedFile(bool isRestored)
 	{
 		string target = $"{_configPath}.corrupt-{timeProvider.GetLocalNow().ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture)}";
@@ -450,15 +443,14 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 			return;
 		}
 
-		// 损坏的文件可能是旧版本写的或手动放进来的，权限没收紧过，里面同样有 Cookie
+		// 损坏的文件可能是旧版本写的，权限没收紧过，里面同样有 Cookie
 		if (!OperatingSystem.IsWindows())
 		{
 			RestrictPermissions(target);
 		}
 	}
 
-	// 写盘失败时返回 false；没有要写的也算成功
-	// Dispose 已经做过最后一次写盘，之后才第一次加载时恢复或导入的内容也不再写，下次启动会重新来过
+	// Dispose 之后才第一次加载时，恢复或导入的内容不再写，下次启动会重新来过
 	private bool SaveCore()
 	{
 		if (_config is null || _isReadOnly || !_isDirty || _disposed)

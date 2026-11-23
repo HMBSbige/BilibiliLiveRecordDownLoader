@@ -58,7 +58,7 @@ public class MediaProbeTest
 	[Test]
 	public async Task IsoBmffRejectsBoxesSmallerThanTheirHeaderAsync()
 	{
-		// 大盒子声明只有 12 字节，比它 16 字节的头还短；如果允许头部与后面重叠，后 12 字节会被读成一个 free 盒子
+		// 大盒子声明的 12 字节比它 16 字节的头还短；允许重叠的话后 12 字节会被读成 free 盒子
 		byte[] data = [0, 0, 0, 1, .. "moof"u8, 0, 0, 0, 0, 0, 0, 0, 12, .. "free"u8, 1, 2, 3, 4];
 
 		await Assert.That(MediaProbe.IsIsoBmff(data, false)).IsFalse();

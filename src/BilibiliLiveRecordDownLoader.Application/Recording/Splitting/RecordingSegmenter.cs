@@ -1,6 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-// 网络端：数据按单元（相邻两个切分点之间）攒着，写出前决定要不要换文件；换文件的位置记成标记，由写盘端照着换
+// 单元指相邻两个切分点之间的数据
 internal sealed partial class RecordingSegmenter(SegmentStarts.Writer output, MediaSplitter splitter, SplitControl control, TimeProvider timeProvider, ILogger logger, RecordingTimeline timeline) : Stream
 {
 	internal const int DefaultMaxPendingLength = 64 << 20;
@@ -22,7 +22,6 @@ internal sealed partial class RecordingSegmenter(SegmentStarts.Writer output, Me
 
 	public MediaSplitter Splitter { get; } = splitter;
 
-	// 等不到下一个切分点时（纯音频、认不出的编码）攒到这么多就先写出去
 	internal int MaxPendingLength { get; init; } = DefaultMaxPendingLength;
 
 	public override bool CanRead => false;
@@ -55,7 +54,7 @@ internal sealed partial class RecordingSegmenter(SegmentStarts.Writer output, Me
 		throw new NotSupportedException();
 	}
 
-	// 末尾不完整的元素丢掉，分割器放弃解析之后的数据照样全部写出；不刷新，缓冲写满时也不能卡在这里
+	// 末尾不完整的元素丢掉；不刷新，缓冲写满时也不能卡在这里
 	public void Complete()
 	{
 		if (_scanned > 0)
@@ -111,7 +110,7 @@ internal sealed partial class RecordingSegmenter(SegmentStarts.Writer output, Me
 
 			_isPendingUnit = true;
 			_pendingHeader = Splitter.Header;
-			// 墙钟给文件命名，按时长分段用单调时钟，改系统时间不影响
+			// 墙钟给文件命名，按时长分段用单调时钟
 			_pendingTime = timeProvider.GetUtcNow();
 			_pendingTimestamp = timeProvider.GetTimestamp();
 

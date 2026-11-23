@@ -6,7 +6,6 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
 public sealed class DanmakuXmlWriterTest
 {
-	// 文件建好就是完整的 XML；文件头的时间带时区，缺少的值写空
 	[Test]
 	public async Task NewFileIsCompleteXmlWithTheHeaderBeforeAnyRecordAsync(CancellationToken cancellationToken)
 	{
@@ -133,7 +132,6 @@ public sealed class DanmakuXmlWriterTest
 		await Assert.That(writer.WrittenCount).IsEqualTo(2);
 	}
 
-	// 毫秒部分截掉，uid 为 0 时哈希写 0，没有 dmid 写 0
 	[Test]
 	public async Task CommentFieldsFollowTheBilibiliLayoutAsync(CancellationToken cancellationToken)
 	{
@@ -267,7 +265,6 @@ public sealed class DanmakuXmlWriterTest
 		await Assert.That(await File.ReadAllTextAsync(path, cancellationToken)).IsEqualTo(@"keep");
 	}
 
-	// 房间停止时的取消可能正好落在建好文件之后、写完文件头之前
 	[Test]
 	public async Task AFileWhoseHeaderCannotBeWrittenIsRemovedAsync()
 	{

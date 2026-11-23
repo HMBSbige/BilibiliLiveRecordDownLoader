@@ -114,7 +114,6 @@ public sealed class RecordingWriteBufferTest
 		output.Open();
 	}
 
-	// 网络盘断开时卡住的写入常常等到会话超时才以 IO 错误结束，文件仍要关掉，后处理才删得了它
 	[Test]
 	public async Task WriteFailingAfterTheDrainTimeoutStillClosesTheFileAsync(CancellationToken cancellationToken)
 	{
@@ -176,7 +175,6 @@ public sealed class RecordingWriteBufferTest
 			{
 				for (int chunk = 0; chunk < chunks; ++chunk)
 				{
-					// 真实的会话在读网络时响应取消
 					await Task.Yield();
 					cancellationToken.ThrowIfCancellationRequested();
 
@@ -216,7 +214,6 @@ public sealed class RecordingWriteBufferTest
 		}
 	}
 
-	// 写入不理会取消，模拟一个不再响应的网络共享
 	private sealed class GatedStream(Exception? failure = null, Exception? closeFailure = null) : Stream
 	{
 		private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -291,7 +288,6 @@ public sealed class RecordingWriteBufferTest
 			throw new NotSupportedException();
 		}
 
-		// 和文件流一样，关闭时才写出自己缓冲的数据
 		public override ValueTask DisposeAsync()
 		{
 			_closed.TrySetResult();

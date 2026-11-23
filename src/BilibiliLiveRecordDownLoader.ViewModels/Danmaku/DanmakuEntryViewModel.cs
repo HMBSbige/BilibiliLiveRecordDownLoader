@@ -45,10 +45,8 @@ public sealed partial class DanmakuEntryViewModel : ReactiveObject
 		return new DanmakuEntryViewModel(0, entry.Time, FormatTime(entry.Time), entry.Entry);
 	}
 
-	// 实时弹幕的推送序号，文件里的条目为 0
 	public long Sequence { get; }
 
-	// 实时弹幕为 null
 	public TimeSpan? Time { get; }
 
 	public string TimeText { get; }
@@ -57,7 +55,6 @@ public sealed partial class DanmakuEntryViewModel : ReactiveObject
 
 	public bool IsSuperChat => Kind is DanmakuEntryKind.SuperChat;
 
-	// 删除可能在 SC 显示之后才到
 	[Reactive]
 	public partial bool IsDeleted { get; private set; }
 
@@ -67,7 +64,6 @@ public sealed partial class DanmakuEntryViewModel : ReactiveObject
 
 	public string? Name => Sender?.Name;
 
-	// 礼物和上舰的文字和昵称连成一句
 	public string? NameSeparator => Kind switch
 	{
 		DanmakuEntryKind.Comment or DanmakuEntryKind.SuperChat => AppLanguage.Current.DanmakuNameSeparator,
@@ -84,10 +80,8 @@ public sealed partial class DanmakuEntryViewModel : ReactiveObject
 
 	public bool IsGuardBadge => Sender is { GuardLevel: not GuardLevel.None };
 
-	// null 时用主题色
 	public int? MedalColor => Sender is { GuardLevel: GuardLevel.None, Medal: { IsLit: true, Color: var color } } ? color : null;
 
-	// 没点亮的粉丝牌只画边框，灰底白字看不清
 	public bool IsUnlitMedal => Sender is { GuardLevel: GuardLevel.None, Medal.IsLit: false };
 
 	public string Text => _entry switch
@@ -111,10 +105,8 @@ public sealed partial class DanmakuEntryViewModel : ReactiveObject
 		DanmakuEntryDto.SuperChatDeletion => throw new UnreachableException()
 	};
 
-	// 列表项的内容是视图模型，读屏要单独给出整行的文字
 	public string AccessibleText => string.Join(' ', ((string?[])[TimeText, Badge, Name is null ? Text : $"{Name}{NameSeparator}{Text}", PriceText, IsDeleted ? AppLanguage.Current.DanmakuSuperChatDeleted : null]).Where(static part => !string.IsNullOrEmpty(part)));
 
-	// RGB；不是 SC 时为 0
 	public int SuperChatBackground => _tier.Background;
 
 	public int SuperChatPriceColor => _tier.PriceColor;
@@ -133,7 +125,6 @@ public sealed partial class DanmakuEntryViewModel : ReactiveObject
 		DanmakuEntryDto.SuperChatDeletion => throw new UnreachableException()
 	};
 
-	// id 为 0 是文件里没记 id
 	public static void MarkDeleted(IEnumerable<DanmakuEntryViewModel> entries, IReadOnlyCollection<long> ids)
 	{
 		foreach (DanmakuEntryViewModel entry in entries)
@@ -158,7 +149,6 @@ public sealed partial class DanmakuEntryViewModel : ReactiveObject
 		return string.Create(CultureInfo.InvariantCulture, $"{(int)time.TotalHours}:{time:mm\\:ss}");
 	}
 
-	// 价格单位是千分之一元
 	public static string FormatPrice(long price)
 	{
 		return AppLanguage.Current.DanmakuPrice.ToString((price / 1000m).ToString("0.##", CultureInfo.CurrentCulture));

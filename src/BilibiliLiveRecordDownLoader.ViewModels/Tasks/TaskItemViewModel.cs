@@ -7,7 +7,6 @@ public sealed partial class TaskItemViewModel : ReactiveObject
 		Id = snapshot.Id;
 		Title = snapshot.Title;
 		TargetPath = snapshot.TargetPath;
-		// 标题已包含源文件名
 		Paths = snapshot.TargetPath is { } target ? $"→ {Path.GetFileName(target)}" : null;
 		PathsTip = string.Join(Environment.NewLine, new[] { snapshot.SourcePath, snapshot.TargetPath }.OfType<string>());
 		Apply(snapshot);

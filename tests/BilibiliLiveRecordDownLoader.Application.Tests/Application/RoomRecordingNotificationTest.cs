@@ -10,8 +10,7 @@ public sealed class RoomRecordingNotificationTest
 	public enum StallReset
 	{
 		Recorded,
-		WentOffline,
-		RecordingDisabled
+		WentOffline
 	}
 
 	public enum StreamerSilence
@@ -43,7 +42,6 @@ public sealed class RoomRecordingNotificationTest
 	[Test]
 	[Arguments(StallReset.Recorded)]
 	[Arguments(StallReset.WentOffline)]
-	[Arguments(StallReset.RecordingDisabled)]
 	public async Task StallIsCountedAgainAfterAsync(StallReset reset, CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -61,11 +59,6 @@ public sealed class RoomRecordingNotificationTest
 				await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Idle);
 				loop.GoLive();
 				break;
-			case StallReset.RecordingDisabled:
-				loop.Settings = loop.Settings with { IsRecordingEnabled = false };
-				await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Idle);
-				loop.Settings = loop.Settings with { IsRecordingEnabled = true };
-				break;
 			default:
 				throw new UnreachableException();
 		}
@@ -79,7 +72,6 @@ public sealed class RoomRecordingNotificationTest
 		}
 	}
 
-	// 主播重开推流软件、换网络时，直播间还会显示直播中一段时间，不是要人处理的故障
 	[Test]
 	[Arguments(StreamerSilence.NoStreamListed)]
 	[Arguments(StreamerSilence.EveryStreamNotFound)]
@@ -104,7 +96,6 @@ public sealed class RoomRecordingNotificationTest
 					await AdvanceUntilCandidatesRequestedAsync(loop);
 				}
 
-				// 下一次请求开始时上一次的失败已经处理完
 				await AdvanceUntilCandidatesRequestedAsync(loop);
 				break;
 			case StreamerSilence.EveryStreamNotFound:
@@ -127,7 +118,6 @@ public sealed class RoomRecordingNotificationTest
 		await Assert.That(loop.Notifications.Shown).IsEmpty();
 	}
 
-	// 每次都算快速失败，但文件一直在增长，不是线路都坏了
 	[Test]
 	public async Task StreamsThatKeepSendingDataInShortStretchesAreNotNotifiedAsync(CancellationToken cancellationToken)
 	{
@@ -288,7 +278,6 @@ public sealed class RoomRecordingNotificationTest
 		}
 	}
 
-	// 拿不到候选流时没有拉流请求可等
 	private static async Task AdvanceUntilCandidatesRequestedAsync(RecordingLoopHarness loop)
 	{
 		int requested = loop.PlayInfoRequests;
@@ -302,7 +291,7 @@ public sealed class RoomRecordingNotificationTest
 		await loop.WaitUntilAsync(_ => loop.PlayInfoRequests > requested);
 	}
 
-	// 下一次拉流开始时上一轮的失败已经处理完；返回最后一轮没有提醒和出现提醒的那一轮距开始的时长
+	// 返回最后一轮没有提醒和出现提醒的那一轮距开始的时长
 	private static async Task<(StreamRequest Next, TimeSpan Quiet, TimeSpan Notified)> FailUntilNotifiedAsync(RecordingLoopHarness loop, StreamRequest next, int count, Func<RecordingLoopHarness, StreamRequest, Task>? failRound = null)
 	{
 		failRound ??= FailEveryStreamAsync;

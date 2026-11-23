@@ -88,7 +88,6 @@ internal static class ChildProcessTracker
 			}
 			catch (InvalidOperationException)
 			{
-				// 进程已经退出并被释放
 			}
 		}
 	}

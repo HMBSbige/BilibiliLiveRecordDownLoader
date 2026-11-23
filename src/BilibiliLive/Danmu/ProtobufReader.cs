@@ -7,12 +7,9 @@ internal enum ProtobufWireType
 	Varint = 0,
 	Fixed64 = 1,
 	LengthDelimited = 2,
-	StartGroup = 3,
-	EndGroup = 4,
 	Fixed32 = 5
 }
 
-// 只读弹幕服务器以 protobuf 下发的少数几种消息，为几个字段引入基于 schema 的库不值得
 internal ref struct ProtobufReader(ReadOnlySpan<byte> data)
 {
 	private const int MaxVarintLength = 10;
@@ -131,7 +128,6 @@ internal ref struct ProtobufReader(ReadOnlySpan<byte> data)
 			}
 			default:
 			{
-				// group 从 proto2 起就已弃用，服务器下发的消息也不用
 				throw new InvalidDataException($"Unsupported protobuf wire type {(int)wireType}.");
 			}
 		}

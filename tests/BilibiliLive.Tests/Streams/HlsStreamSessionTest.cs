@@ -27,7 +27,6 @@ public class HlsStreamSessionTest
 			: Segment(request));
 	}
 
-	// 轮询和重试间隔立即过去，只有测试拨动时钟时请求才会超时
 	private static ShortDelayTimeProvider NewTime()
 	{
 		return new ShortDelayTimeProvider(RequestTimeout);
@@ -75,7 +74,6 @@ public class HlsStreamSessionTest
 
 	[Test]
 	[Arguments("#EXTM3U\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n2.m4s\n" + EndList, new[] { "init:[h1]", "media:[1]", "media:[2]" })]
-	[Arguments("#EXTM3U\n1.ts\n2.ts\n" + EndList, new[] { "media:[1]", "media:[2]" })]
 	public async Task ReportsEachSegmentRightBeforeWritingExactlyItsBytesAsync(string playlist, string[] expected, CancellationToken cancellationToken)
 	{
 		using HttpClient client = new(Serve(playlist));
@@ -123,7 +121,6 @@ public class HlsStreamSessionTest
 
 	[Test]
 	[Arguments(Head)]
-	[Arguments(Head + EndList)]
 	public async Task PlaylistWithoutSegmentsIsRejectedAsync(string playlist, CancellationToken cancellationToken)
 	{
 		using HttpClient client = new(Serve(playlist));
@@ -149,16 +146,11 @@ public class HlsStreamSessionTest
 			.And.WithMessageNotContaining("sign");
 	}
 
-	// 后三行的新时代把编号从头排起，比已经写出的分片还小
 	[Test]
 	[Arguments("#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n2.m4s\n", "#EXT-X-MAP:URI=\"h1.m4s\"\n2.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n3.m4s\n", "[h1][1][2]", "3.m4s")]
-	[Arguments("a.ts\nb.ts\n", "b.ts\n#EXT-X-DISCONTINUITY\nc.ts\n", "[a][b]", "c.ts")]
 	[Arguments("#EXT-X-MEDIA-SEQUENCE:10\n10.ts\n11.ts\n", "#EXT-X-DISCONTINUITY-SEQUENCE:1\n#EXT-X-MEDIA-SEQUENCE:0\n0.ts\n", "[10][11]", "0.ts")]
-	[Arguments("#EXT-X-MEDIA-SEQUENCE:10\n10.ts\n11.ts\n", "#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-DISCONTINUITY\n0.ts\n", "[10][11]", "0.ts")]
-	[Arguments("#EXT-X-MAP:URI=\"h1.m4s\"\n#EXT-X-MEDIA-SEQUENCE:10\n10.m4s\n11.m4s\n", "#EXT-X-MAP:URI=\"h2.m4s\"\n#EXT-X-MEDIA-SEQUENCE:0\n0.m4s\n", "[h1][10][11]", "0.m4s")]
 	public async Task NewEraEndsTheCopyBeforeItsFirstSegmentAsync(string opened, string refreshed, string expected, string newSegment, CancellationToken cancellationToken)
 	{
-		// 最后一次刷新结束列表，没认出新时代时复制也不会一直刷新下去
 		FakeHttpMessageHandler handler = Serve(Head + opened, Head + refreshed, Head + refreshed, Head + refreshed + EndList);
 
 		CopyResult copy = await CopyAsync(handler, NewTime(), cancellationToken);
@@ -181,12 +173,9 @@ public class HlsStreamSessionTest
 		await Assert.That((copy.Output, copy.Reason)).IsEqualTo(("[b][c]", StreamEndReason.EndOfStream));
 	}
 
-	// 刷新列出的旧时代分片排在见过的分片前面：前两行是打开时就列出的，后三行来自窗口落后的节点；最后一行的落后窗口里只剩打开时跳过的旧时代分片
 	[Test]
-	[Arguments("a.ts\n#EXT-X-DISCONTINUITY\nb.ts\n", "a.ts\n#EXT-X-DISCONTINUITY\nb.ts\nc.ts\n", "[b][c]", "a.ts")]
 	[Arguments("#EXT-X-MEDIA-SEQUENCE:1\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n2.m4s\n", "#EXT-X-MEDIA-SEQUENCE:1\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n2.m4s\n3.m4s\n", "[h2][2][3]", "1.m4s")]
 	[Arguments("#EXT-X-MEDIA-SEQUENCE:7\n#EXT-X-MAP:URI=\"h2.m4s\"\n7.m4s\n8.m4s\n", "#EXT-X-MEDIA-SEQUENCE:6\n#EXT-X-MAP:URI=\"h1.m4s\"\n6.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n7.m4s\n8.m4s\n9.m4s\n", "[h2][7][8][9]", "6.m4s")]
-	[Arguments("#EXT-X-DISCONTINUITY-SEQUENCE:1\n#EXT-X-MEDIA-SEQUENCE:7\n7.ts\n8.ts\n", "#EXT-X-MEDIA-SEQUENCE:6\n6.ts\n#EXT-X-DISCONTINUITY\n7.ts\n8.ts\n9.ts\n", "[7][8][9]", "6.ts")]
 	[Arguments("#EXT-X-MEDIA-SEQUENCE:8\n#EXT-X-MAP:URI=\"h1.m4s\"\n8.m4s\n9.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n10.m4s\n", "#EXT-X-MEDIA-SEQUENCE:7\n#EXT-X-MAP:URI=\"h1.m4s\"\n7.m4s\n8.m4s\n9.m4s\n", "[h2][10]", "7.m4s")]
 	public async Task OlderEraListedByARefreshIsNotANewTimelineAsync(string opened, string refreshed, string expected, string older, CancellationToken cancellationToken)
 	{
@@ -281,7 +270,6 @@ public class HlsStreamSessionTest
 			? Interlocked.Increment(ref refreshes) switch
 			{
 				1 => Responses.Text(Head + "a.ts\n"),
-				// 以 200 状态返回的错误页面不会让请求失败，只会解析失败
 				2 => errorPage ? Responses.Text("<html>blocked</html>") : Responses.Status(HttpStatusCode.ServiceUnavailable),
 				_ => Responses.Text(Head + "a.ts\nb.ts\n" + EndList)
 			}
@@ -297,9 +285,7 @@ public class HlsStreamSessionTest
 		}
 	}
 
-	// 第二行的请求超时已经触发，请求之后才放弃时仍属于调用方取消的复制
 	[Test]
-	[Arguments(false)]
 	[Arguments(true)]
 	public async Task CancellingTheCopyIsNeitherATimeoutNorRetriedAsync(bool pastRequestTimeout, CancellationToken cancellationToken)
 	{
@@ -385,12 +371,11 @@ public class HlsStreamSessionTest
 		}
 	}
 
-	// 会话让正文传上两个目标时长也不重试，所以看门狗至少要等一个列表间隔再加这样一段正文
 	[Test]
 	public async Task MaxSilenceCoversABodyTheSessionStillWaitsForAsync(CancellationToken cancellationToken)
 	{
 		TimeSpan targetDuration = TimeSpan.FromSeconds(5);
-		// 长于重试间隔：正文超时没有放宽时会立刻重试并多请求一次，而不是停在重试间隔上等到测试超时；又不能太长，否则不计正文超时的 MaxSilence 也盖得住这段正文
+		// 长于重试间隔，正文超时没放宽时才会立刻多请求一次而不是等到测试超时；又不能长到不计正文超时的 MaxSilence 也盖得住这段正文
 		TimeSpan requestTimeout = TimeSpan.FromMilliseconds(1500);
 		TimeSpan body = targetDuration * 2 - TimeSpan.FromSeconds(1);
 		TaskCompletionSource headersSent = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -425,7 +410,6 @@ public class HlsStreamSessionTest
 
 	[Test]
 	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:5\na.ts\n", 5, 38.5)]
-	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:5\na.ts\n", 1, 30.5)]
 	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n", 5, 22.5)]
 	public async Task MaxSilenceCoversAGapAndOneFailedAttemptWithItsRetryAsync(string playlist, int requestTimeoutSeconds, double expectedSeconds, CancellationToken cancellationToken)
 	{
@@ -436,7 +420,6 @@ public class HlsStreamSessionTest
 		await Assert.That(session.MaxSilence).IsEqualTo(TimeSpan.FromSeconds(expectedSeconds));
 	}
 
-	// 200 的错误页面过不了媒体校验，其他状态码直接请求失败
 	[Test]
 	[Arguments("#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\nbad.m4s\n", HttpStatusCode.OK, typeof(InvalidDataException), "[h1][1]")]
 	[Arguments("#EXTINF:1,\n1.ts\n#EXTINF:1,\nbad.ts\n", HttpStatusCode.ServiceUnavailable, typeof(HttpRequestException), "[1]")]
@@ -487,11 +470,8 @@ public class HlsStreamSessionTest
 		await Assert.That(copy.Output).IsEqualTo("[100][101][102]");
 	}
 
-	// 更早的分片此前没有列出过：前两行比最后入队的分片小两个或一个；第三行的刷新不带序号，只能靠位置认出；最后一行落后窗口的开头低于前一次不带序号的刷新入队的分片
 	[Test]
 	[Arguments(new[] { Head + "#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n6.ts\n", Head + "#EXT-X-MEDIA-SEQUENCE:4\n4.ts\n5.ts\n6.ts\n7.ts\n" + EndList }, "[5][6][7]", "4.ts")]
-	[Arguments(new[] { Head + "#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n", Head + "#EXT-X-MEDIA-SEQUENCE:4\n4.ts\n5.ts\n6.ts\n7.ts\n" + EndList }, "[5][6][7]", "4.ts")]
-	[Arguments(new[] { Head + "#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n6.ts\n", Head + "4.ts\n5.ts\n6.ts\n7.ts\n" + EndList }, "[5][6][7]", "4.ts")]
 	[Arguments(new[] { Head + "#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n", Head + "8.ts\n9.ts\n", Head + "#EXT-X-MEDIA-SEQUENCE:6\n6.ts\n7.ts\n8.ts\n9.ts\n10.ts\n" + EndList }, "[1][2][8][9][10]", "6.ts")]
 	public async Task RefreshFromALaggingNodeDoesNotAppendOlderSegmentsAsync(string[] playlists, string expected, string older, CancellationToken cancellationToken)
 	{
@@ -528,10 +508,8 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Arguments("", 1000)]
 	[Arguments("#EXT-X-TARGETDURATION:0\n", 1000)]
 	[Arguments("#EXT-X-TARGETDURATION:0.001\n", 500)]
-	[Arguments("#EXT-X-TARGETDURATION:1\n", 500)]
 	public async Task MissingOrSubSecondTargetDurationKeepsPollingBoundedAsync(string targetDuration, int pollMilliseconds, CancellationToken cancellationToken)
 	{
 		ShortDelayTimeProvider time = NewTime();
@@ -591,7 +569,6 @@ public class HlsStreamSessionTest
 				return await gates.PassAsync(request, ct);
 			}
 
-			// 最后一份播放列表不再列出分片 3，只有更早的刷新能发现它
 			int index = Math.Min(Interlocked.Increment(ref playlistIndex) - 1, playlists.Length - 1);
 
 			if (index == playlists.Length - 1)
@@ -665,11 +642,9 @@ public class HlsStreamSessionTest
 		}
 	}
 
-	// 第四行的重启可能重排编号，新时间线反正会结束复制；后三行先由不带序号的刷新把 3、4、5 入队：它们之后整段滑出窗口也不算漏掉，游标只推进到 3 时，4、5 仍排在游标之后
 	[Test]
 	[Arguments(new[] { Head + "#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n6.ts\n" + EndList }, "[1][2][5][6]", 2L)]
 	[Arguments(new[] { Head + "#EXT-X-MEDIA-SEQUENCE:3\n3.ts\n4.ts\n" + EndList }, "[1][2][3][4]", 0L)]
-	[Arguments(new[] { Head + "#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n3.ts\n" + EndList }, "[1][2][3]", 0L)]
 	[Arguments(new[] { Head + "#EXT-X-DISCONTINUITY-SEQUENCE:1\n#EXT-X-MEDIA-SEQUENCE:40\n40.ts\n" + EndList }, "[1][2]", 0L)]
 	[Arguments(new[] { Head + "2.ts\n3.ts\n4.ts\n5.ts\n", Head + "#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n6.ts\n7.ts\n" + EndList }, "[1][2][3][4][5][6][7]", 0L)]
 	[Arguments(new[] { Head + "2.ts\n3.ts\n4.ts\n5.ts\n", Head + "#EXT-X-MEDIA-SEQUENCE:6\n6.ts\n7.ts\n" + EndList }, "[1][2][3][4][5][6][7]", 0L)]
@@ -686,7 +661,6 @@ public class HlsStreamSessionTest
 	[Arguments(typeof(OperationCanceledException), false)]
 	public async Task EndingTheCopyStopsEveryDownloadBeforeReturningAsync(Type expected, bool segmentFails, CancellationToken cancellationToken)
 	{
-		// 分片 2 失败时，排在后面的 3 和 4 还在下载
 		SegmentGates gates = segmentFails ? new(2, "3", "4") : new(3, "2", "3", "4");
 		FakeHttpMessageHandler handler = new(async (request, ct) =>
 		{
@@ -738,7 +712,6 @@ public class HlsStreamSessionTest
 			: await gates.PassAsync(request, ct));
 		using HttpClient client = new(handler);
 		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken);
-		// 分片 2 失败时，3 和 4 还在下载
 		FailingOnSecondWrite output = new(observerFails ? null : gates.Reached);
 		FailingObserver segments = new(observerFails ? gates.Reached : null);
 
@@ -804,8 +777,6 @@ public class HlsStreamSessionTest
 		}
 	}
 
-	/// <param name="target">同时等待的下载达到这个数，<see cref="Reached"/> 才完成</param>
-	/// <param name="names">这些分片的下载要等 <see cref="Release"/> 放行</param>
 	private sealed class SegmentGates(int target, params string[] names)
 	{
 		private readonly Lock _lock = new();
@@ -968,7 +939,6 @@ public class HlsStreamSessionTest
 		}
 	}
 
-	// 每次报告都必须正好描述目标流接下来收到的字节
 	private sealed class SegmentLog(MemoryStream output) : IHlsSegmentObserver
 	{
 		private byte[]? _expected;

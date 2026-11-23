@@ -58,7 +58,6 @@ public sealed class SettingsAppServiceTest
 
 		using (Assert.Multiple())
 		{
-			// 每一项都和原来的不同，漏写了哪一项，往返后才会露出来
 			await Assert.That(SameProperties(original, changed)).IsEmpty();
 			await Assert.That(saved).IsEquivalentTo(changed);
 			await Assert.That(config.Cookie).IsEqualTo("SESSDATA=a");

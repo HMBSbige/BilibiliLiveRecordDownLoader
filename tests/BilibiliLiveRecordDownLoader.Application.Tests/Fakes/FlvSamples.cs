@@ -3,12 +3,11 @@ using System.Text;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 
-// 按 FLV 规范拼出的 tag，只关心切分要看的头几个字节
 internal static class FlvSamples
 {
 	public const byte AudioTag = 8;
 	public const byte VideoTag = 9;
-	public const byte ScriptTag = 18;
+	private const byte ScriptTag = 18;
 
 	private const int TagHeaderSize = 11;
 	private const int PreviousTagSizeLength = 4;
@@ -77,7 +76,6 @@ internal static class FlvSamples
 		return Tag(VideoTag, timestamp, VideoBody(style, packet, marker));
 	}
 
-	// 补零让文件超过后处理删除的下限
 	public static byte[] PaddedVideo(VideoPacket packet, uint timestamp, int padding)
 	{
 		return Tag(VideoTag, timestamp, [.. VideoBody(VideoStyle.Avc, packet, string.Empty), .. new byte[padding]]);

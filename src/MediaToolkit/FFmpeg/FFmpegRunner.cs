@@ -5,7 +5,6 @@ namespace MediaToolkit.FFmpeg;
 
 public sealed class FFmpegRunner(string executablePath)
 {
-	// 失败原因常在倒数几行，最后一行往往只是收尾提示
 	private const int FailureLineCount = 3;
 
 	internal static string ExecutableName { get; } = OperatingSystem.IsWindows() ? @"ffmpeg.exe" : @"ffmpeg";
@@ -15,9 +14,6 @@ public sealed class FFmpegRunner(string executablePath)
 		: OperatingSystem.IsLinux() ? [@"/usr/bin", @"/usr/local/bin"]
 		: [];
 
-	public string ExecutablePath { get; } = executablePath;
-
-	// 取消后等 FFmpeg 收尾退出的时限，超时就强杀
 	internal TimeSpan GracefulExitTimeout { get; init; } = TimeSpan.FromSeconds(5);
 
 	public static string? Locate(string? preferredPath)
@@ -51,7 +47,7 @@ public sealed class FFmpegRunner(string executablePath)
 
 	public async Task<string?> GetVersionAsync(CancellationToken cancellationToken = default)
 	{
-		ProcessStartInfo startInfo = new(ExecutablePath, [@"-version"])
+		ProcessStartInfo startInfo = new(executablePath, [@"-version"])
 		{
 			CreateNoWindow = true,
 			RedirectStandardOutput = true,
@@ -80,7 +76,6 @@ public sealed class FFmpegRunner(string executablePath)
 			}
 			catch (OperationCanceledException)
 			{
-				// 与 StopAsync 同理：配置的可能是包装脚本，只结束它本身，子进程和管道会留下
 				process.Kill(true);
 				throw;
 			}
@@ -106,7 +101,7 @@ public sealed class FFmpegRunner(string executablePath)
 		cancellationToken.ThrowIfCancellationRequested();
 
 		using CancellationTokenSource stopping = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		ProcessStartInfo startInfo = new(ExecutablePath, arguments)
+		ProcessStartInfo startInfo = new(executablePath, arguments)
 		{
 			CreateNoWindow = true,
 			RedirectStandardInput = true,
@@ -241,7 +236,6 @@ public sealed class FFmpegRunner(string executablePath)
 		}
 		catch (IOException)
 		{
-			// FFmpeg 已经退出，stdin 管道断开了
 		}
 
 		using CancellationTokenSource timeout = new(GracefulExitTimeout);

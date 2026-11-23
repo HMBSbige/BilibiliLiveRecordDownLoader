@@ -49,7 +49,6 @@ internal static class DanmakuXmlReader
 					continue;
 				}
 
-				// 自己的文件头写在所有记录之前
 				bool isNative = source is DanmakuFileSource.Native;
 
 				switch (reader.LocalName)

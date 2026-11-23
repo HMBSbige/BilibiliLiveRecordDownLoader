@@ -1,13 +1,11 @@
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-// 元素开头比已经到达的时间早出超过容差，视为源时间线重新开始，接着已经到达的时间往后排，文件里的时间不倒退
 // 分割器改写时间戳、时间轴放弹幕各用一个实例，要按同样的元素、同样的顺序推进才对得上；容差和时间用同一个单位
 internal struct SegmentClock(long tolerance)
 {
-	// 源时间减去它就是文件时间；还没有带媒体时间的元素时为 null
+	// 源时间减去它就是文件时间
 	public long? Offset { get; private set; }
 
-	// 到目前为止最晚的文件时间
 	public long Last { get; private set; }
 
 	public void Begin(long origin)

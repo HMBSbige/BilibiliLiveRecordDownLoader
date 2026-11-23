@@ -63,7 +63,6 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		RoomsMoved = Signal.Merge(MoveToTopCommand, MoveToBottomCommand, MoveUpCommand, MoveDownCommand, MoveSelectionToCommand);
 	}
 
-	// 列表刷新之后发出，按显示顺序
 	public IObservable<IReadOnlyList<RoomItemViewModel>> RoomsMoved { get; }
 
 	public ObservableCollection<RoomItemViewModel> Rooms { get; } = [];
@@ -109,13 +108,10 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	[Reactive]
 	public partial string? LoginBannerText { get; private set; }
 
-	// 为 null 时交给全局处理
 	internal Action<Exception>? ReportSaveFailure { get; init; }
 
-	// 账号页和导入后跳转用的主窗口在用到时才解析，构造房间列表时不必先建好它们
 	internal Func<CancellationToken, Task> ShowLogin { get; init; } = static cancellationToken => AppLocator.Current.GetRequiredService<AccountViewModel>().QrCodeLoginAsync(cancellationToken);
 
-	// cookie 是账号页的 Cookie：扫码登录、退出和手动编辑都会改它，房间的版本不变
 	internal void ApplySettings(AppSettingsDto settings, IObservable<string?> cookie)
 	{
 		SortOrder = settings.RoomSortOrder;
@@ -162,7 +158,6 @@ public sealed partial class RoomListViewModel : ViewModelBase
 
 		AppSettingsDto settings = await _settingsAppService.GetAsync(cancellationToken);
 
-		// 行内开关要基于最新设置修改
 		if (await _dialogs.ShowAsync(new RoomEditorViewModel(room.Settings, settings, _roomAppService.UpdateAsync)) is not null)
 		{
 			Sync();
@@ -245,14 +240,12 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		await Danmaku.PickFileAsync(room, cancellationToken);
 	}
 
-	// 登录成功时账号页的 Cookie 跟着变，横幅和面板由 OnCookieChanged 更新
 	[ReactiveCommand]
 	private Task LoginAsync(CancellationToken cancellationToken)
 	{
 		return ShowLogin(cancellationToken);
 	}
 
-	// 在录的直播间和弹幕连接都要等重连才用上登录身份，横幅按 Cookie 立即收起，面板先显示等重连
 	private void OnCookieChanged(string? cookie)
 	{
 		_hasCookie = cookie is not null;
@@ -307,7 +300,6 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		return MoveSelectionAsync((order, moving) => RoomReorder.At(order, moving, index), cancellationToken);
 	}
 
-	// 每行自己保存开关，失败时各自回滚
 	private void SetRecordingEnabled(bool enabled)
 	{
 		foreach (RoomItemViewModel room in SelectedRooms.ToArray())

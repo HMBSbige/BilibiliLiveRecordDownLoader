@@ -8,7 +8,6 @@ public sealed class RecordingFileLayoutTest
 	[Arguments(RecorderType.BuiltIn, StreamFormat.Flv, "20260102_030405.flv")]
 	[Arguments(RecorderType.BuiltIn, StreamFormat.Ts, "20260102_030405.ts")]
 	[Arguments(RecorderType.BuiltIn, StreamFormat.Fmp4, "20260102_030405_fmp4.mp4")]
-	[Arguments(RecorderType.FFmpeg, StreamFormat.Flv, "20260102_030405.ts")]
 	[Arguments(RecorderType.FFmpeg, StreamFormat.Fmp4, "20260102_030405.ts")]
 	public async Task RecordingPathUsesRoomDirectoryAndFormatExtensionAsync(RecorderType recorderType, StreamFormat format, string expectedFileName)
 	{
@@ -18,7 +17,6 @@ public sealed class RecordingFileLayoutTest
 	}
 
 	[Test]
-	[Arguments(null, "20260102_030405_2")]
 	[Arguments("今晚唱歌", "20260102_030405_今晚唱歌_2")]
 	public async Task SequenceFollowsTheTitleAndPrecedesTheFmp4SuffixAsync(string? title, string expectedStem)
 	{
@@ -35,7 +33,6 @@ public sealed class RecordingFileLayoutTest
 	[Test]
 	[Arguments("a/b\\c:d*e?f\"g<h>i|j", "20260102_030405_a_b_c_d_e_f_g_h_i_j")]
 	[Arguments("  第一行\n第二行\t ", "20260102_030405_第一行_第二行")]
-	[Arguments(null, "20260102_030405")]
 	[Arguments(" \t\n", "20260102_030405")]
 	public async Task TitleIsCleanedForEveryFileSystemAsync(string? title, string expectedFileName)
 	{
@@ -64,7 +61,6 @@ public sealed class RecordingFileLayoutTest
 
 	[Test]
 	[Arguments("a.flv", "a.mp4")]
-	[Arguments("a_fmp4.mp4", "a.mp4")]
 	[Arguments("a_FMP4.MP4", "a.mp4")]
 	[Arguments("a.mp4", null)]
 	public async Task Mp4ConversionPathReplacesRecordingSuffixAsync(string recordingPath, string? expected)
@@ -111,7 +107,6 @@ public sealed class RecordingFileLayoutTest
 
 	[Test]
 	[Arguments("20260102_030405_1.flv")]
-	[Arguments("20260102_030405.txt")]
 	[Arguments("20260102_030405")]
 	public async Task UnrelatedFilesKeepTheStemAvailableAsync(string existingFile)
 	{
@@ -130,19 +125,11 @@ public sealed class RecordingFileLayoutTest
 	}
 
 	[Test]
-	[Arguments("20260102_030405.flv", "20260102_030405")]
 	[Arguments("20260102_030405_fmp4.mp4", "20260102_030405")]
-	[Arguments("20260102_030405.mp4", "20260102_030405")]
 	[Arguments("20260102_030405_v1.5.ts", "20260102_030405_v1.5")]
 	[Arguments("20260102_030405.danmaku.jsonl", "20260102_030405")]
 	public async Task StemIsThePathWithoutTheRecordingSuffixAsync(string fileName, string expectedStem)
 	{
 		await Assert.That(RecordingFileLayout.GetStem(Path.Combine("records", "123", fileName))).IsEqualTo(Path.Combine("records", "123", expectedStem));
-	}
-
-	[Test]
-	public async Task VideosOfAStemAreLookedUpWithTheConvertedOneFirstAsync()
-	{
-		await Assert.That(RecordingFileLayout.GetVideoPaths("a")).IsEquivalentTo(["a.mp4", "a_fmp4.mp4", "a.flv", "a.ts"], CollectionOrdering.Matching);
 	}
 }

@@ -114,7 +114,6 @@ internal sealed partial class AutoStartService(ILogger<AutoStartService> logger)
 
 		if (OperatingSystem.IsLinux())
 		{
-			// ApplicationData 在 Linux 上是 XDG_CONFIG_HOME 或 ~/.config；目录可能还没建，写入时再创建
 			return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.DoNotVerify), "autostart", $"{AppConsts.Name}.desktop");
 		}
 

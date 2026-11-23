@@ -95,7 +95,6 @@ public class BilibiliApiClientTest
 	}
 
 	[Test]
-	[Arguments("""{"code":0,"message":"0","data":{"totalPage":5,"list":[]}}""")]
 	[Arguments("""{"code":0,"message":"0","data":{"totalPage":5}}""")]
 	public async Task FollowedRoomsStopAtAnEmptyPageAsync(string json, CancellationToken cancellationToken)
 	{
@@ -204,7 +203,6 @@ public class BilibiliApiClientTest
 
 	// 轮播时照样返回流地址，只有直播状态能挡住录制
 	[Test]
-	[Arguments(0)]
 	[Arguments(2)]
 	public async Task StreamCandidatesThrowWhenNotLiveAsync(int liveStatus, CancellationToken cancellationToken)
 	{

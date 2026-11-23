@@ -92,7 +92,6 @@ internal sealed partial class MediaToolAppService(FFmpegProvider ffmpegProvider,
 		return string.IsNullOrWhiteSpace(source) ? null : FirstAvailable(Numbered(source));
 	}
 
-	// 排队的任务还没写出文件，建议的输出也要跳过它们
 	private string FirstAvailable(IEnumerable<string> candidates)
 	{
 		IEnumerable<string> pending = backgroundTasks.GetTasks().Where(static task => task.IsActive).Select(static task => task.TargetPath).OfType<string>();

@@ -17,7 +17,6 @@ internal sealed class RecordingFaultTracker(TimeProvider timeProvider)
 		_isWriteFailureReported = false;
 	}
 
-	// 断续送数据的线路累计满 QuickFailureThreshold 就当作正常录制过，只给流头就断开的攒不下时长，照样会提醒
 	// 不重置已提醒的状态，等一次正常录制之后再计
 	public void OnQuickFailure(TimeSpan activeDuration)
 	{
@@ -35,7 +34,6 @@ internal sealed class RecordingFaultTracker(TimeProvider timeProvider)
 		_streamWorkedAt = timeProvider.GetTimestamp();
 	}
 
-	// 所有线路都试过一遍仍然失败时调用
 	public bool TryReportStall()
 	{
 		if (_isStallReported || timeProvider.GetElapsedTime(_streamWorkedAt) < StallThreshold)

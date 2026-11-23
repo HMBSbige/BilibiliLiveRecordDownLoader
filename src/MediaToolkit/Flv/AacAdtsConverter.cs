@@ -2,7 +2,7 @@ using System.Buffers;
 
 namespace MediaToolkit.Flv;
 
-// FLV 里的 AAC 是裸帧，参数只在 AudioSpecificConfig 中出现一次，裸流播放需要给每帧加上 ADTS 头
+// FLV 里的 AAC 是裸帧，参数只在 AudioSpecificConfig 中出现一次
 internal sealed class AacAdtsConverter : IFlvTagConverter
 {
 	private const int SoundFormatAac = 10;

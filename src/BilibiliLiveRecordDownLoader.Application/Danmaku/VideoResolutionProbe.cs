@@ -2,7 +2,6 @@ using System.Buffers.Binary;
 
 namespace BilibiliLiveRecordDownLoader.Application.Danmaku;
 
-// 重新生成字幕时没有录制时的时间轴，只能从视频文件里读画面尺寸
 internal static class VideoResolutionProbe
 {
 	// 流头在开头几个 tag 或几个 PAT/PMT/SPS 包里

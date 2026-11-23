@@ -48,7 +48,6 @@ internal abstract class RoomAppServiceStub : IRoomAppService
 		throw new NotSupportedException();
 	}
 
-	// 不是真实的录制目录，测试只比较界面拿到的是不是这个目录
 	public virtual Task<string> GetDirectoryAsync(long roomId, CancellationToken cancellationToken = default)
 	{
 		return Task.FromResult(Path.Combine("rooms", roomId.ToString(CultureInfo.InvariantCulture)));

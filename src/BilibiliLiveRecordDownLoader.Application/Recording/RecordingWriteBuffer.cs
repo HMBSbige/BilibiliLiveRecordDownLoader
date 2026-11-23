@@ -3,7 +3,6 @@ using System.Runtime.ExceptionServices;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording;
 
-// 网络盘短暂卡住（SMB 抖动、NAS 唤醒磁盘）时照常收流；本地盘写得快，缓冲始终很小
 internal static class RecordingWriteBuffer
 {
 	private const long PauseThreshold = 64L << 20;
@@ -12,8 +11,7 @@ internal static class RecordingWriteBuffer
 
 	private static readonly PipeOptions Options = new(pauseWriterThreshold: PauseThreshold, resumeWriterThreshold: PauseThreshold / 2, minimumSegmentSize: 64 << 10, useSynchronizationContext: false);
 
-	// 进度按收到的字节计，反映的是网络；缓冲写满后会话停在写入上，这时被停下算作写盘失败
-	// 文件由写盘端关闭，磁盘卡住时调用方不必等在关闭文件上
+	// 缓冲写满后会话停在写入上，这时被停下算作写盘失败
 	public static async Task<StreamEndReason> CopyAsync(LiveStreamSession session, RecordingOutput output, IProgress<long> progress, TimeSpan drainTimeout, CancellationToken cancellationToken)
 	{
 		Pipe pipe = new(Options);
@@ -39,7 +37,6 @@ internal static class RecordingWriteBuffer
 				receiveError = ExceptionDispatchInfo.Capture(exception);
 			}
 
-			// 先把已收到的数据写完，但磁盘一直不动也不能让停止卡住
 			await pipe.Writer.CompleteAsync();
 
 			try
@@ -95,7 +92,6 @@ internal static class RecordingWriteBuffer
 		}
 		catch (Exception exception)
 		{
-			// 立即停止收流，让写入错误浮出；取消时回调出错也要关掉文件
 			try
 			{
 				await receiving.CancelAsync();
@@ -122,7 +118,6 @@ internal static class RecordingWriteBuffer
 	{
 		private volatile bool _isStalled;
 
-		// 等待缓冲腾出空间时被取消，标记会一直保留
 		public bool IsStalled => _isStalled;
 
 		public override void Advance(int bytes)

@@ -119,7 +119,6 @@
                     <ListBox x:Name="LogList" Classes="table" ItemsSource="{Binding Entries}" SelectionMode="Multiple"
                              KeyDown="OnLogListKeyDown" IsVisible="{Binding HasVisibleEntries}">
                         <ListBox.Styles>
-                            <!-- 列表项的内容是日志记录，不设名称时读屏念的是记录的 ToString -->
                             <Style Selector="ListBoxItem" x:DataType="logs:LogEntry">
                                 <Setter Property="AutomationProperties.Name" Value="{Binding Message}" />
                             </Style>

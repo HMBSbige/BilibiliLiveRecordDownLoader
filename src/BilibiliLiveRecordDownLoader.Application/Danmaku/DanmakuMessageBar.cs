@@ -136,7 +136,7 @@ internal static class DanmakuMessageBar
 		return null;
 	}
 
-	// 挤走之后确实放得下才挤；空栏总能放下，太高的条目也照样显示
+	// 空栏总能放下，太高的条目也照样显示
 	private static bool TryMakeRoom(List<Entry> column, DanmakuMessageRequest request, TimeSpan now, double maxHeight, double gap, List<DanmakuMessagePlacement> placements)
 	{
 		double used = column.Sum(entry => entry.Height + gap);
@@ -212,7 +212,6 @@ internal static class DanmakuMessageBar
 				return;
 			}
 
-			// 偏移是逐条累加出来的，比较时容忍浮点误差
 			bool moved = Math.Abs(target - _to) > 0.01;
 
 			if (!moved && !_countChanged)

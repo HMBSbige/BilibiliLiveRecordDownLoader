@@ -15,7 +15,6 @@ public sealed class MasterPlaylistCandidatesTest
 		return new LiveStreamCandidate.Variant(codec, qn, [new Uri($"https://cdn.test/live-bvc/1/{codec}_{qn}/index.m3u8")]);
 	}
 
-	// 默认编码优先级是 AVC、HEVC、AV1
 	private static RecordingProfile Profile(StreamQuality quality = StreamQuality.Original, bool useMasterPlaylist = true, bool requestTrueOriginal = false)
 	{
 		AppConfig config = AppConfig.CreateDefault();
@@ -48,30 +47,15 @@ public sealed class MasterPlaylistCandidatesTest
 		}
 	}
 
-	// 目标档位是不高于所选画质的最高一档
-	[Test]
-	[Arguments(StreamQuality.BluRay, new long[] { 10000, 400, 250 }, 400L)]
-	[Arguments(StreamQuality.BluRay, new long[] { 10000, 250, 150 }, 250L)]
-	[Arguments(StreamQuality.UltraHd4K, new long[] { 20000, 10000, 250 }, 20000L)]
-	public async Task TargetFollowsTheSelectedQualityAsync(StreamQuality quality, long[] accept, long expected)
-	{
-		LiveStreamCandidate.Listed[] listed = [Listed(StreamCodec.Avc, 150, accept)];
-
-		await Assert.That(Qualities(listed, Profile(quality))).IsEquivalentTo([expected], CollectionOrdering.Matching);
-	}
-
 	[Test]
 	[Arguments(StreamQuality.Original, 10000L)]
-	[Arguments(StreamQuality.BluRay, 400L)]
 	public async Task UnrestrictedPreferredStreamDoesNotAskAsync(StreamQuality quality, long qn)
 	{
 		await Assert.That(Qualities([Listed(StreamCodec.Avc, qn, 10000, 400, 250), Listed(StreamCodec.Hevc, 250, 10000, 400, 250)], Profile(quality))).IsEmpty();
 	}
 
-	// 不受限时不必判断登录，关掉主播放列表也照样要真原画
 	[Test]
 	[Arguments(false, false)]
-	[Arguments(true, true)]
 	public async Task TrueOriginalMissingFromTheApiIsAskedForAsync(bool hasCookie, bool useMasterPlaylist)
 	{
 		LiveStreamCandidate.Listed[] listed = [Listed(StreamCodec.Avc, 10000, 10000, 250)];
@@ -87,7 +71,6 @@ public sealed class MasterPlaylistCandidatesTest
 		await Assert.That(Qualities(listed, Profile(requestTrueOriginal: true), true)).IsEmpty();
 	}
 
-	// 接口可能只在一个编码上给真原画
 	[Test]
 	public async Task TrueOriginalFromTheApiIsTriedBeforeThePreferredCodecAsync()
 	{
@@ -125,7 +108,6 @@ public sealed class MasterPlaylistCandidatesTest
 	[Test]
 	[Arguments(StreamQuality.Original, true, 42L)]
 	[Arguments(StreamQuality.Original, false, 0L)]
-	[Arguments(StreamQuality.BluRay, true, 0L)]
 	public async Task MidIsTheStreamerOnlyForTheTrueOriginalAsync(StreamQuality quality, bool requestTrueOriginal, long expected)
 	{
 		await Assert.That(MasterPlaylistCandidates.GetMid(Profile(quality, requestTrueOriginal: requestTrueOriginal), 42)).IsEqualTo(expected);

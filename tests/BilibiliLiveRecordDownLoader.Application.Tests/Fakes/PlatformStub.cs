@@ -3,10 +3,8 @@ using System.Collections.Concurrent;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 
-// 选择文件默认当作用户取消了，打开链接和目录只记下打开了什么
 internal sealed class PlatformStub : ILauncherService, IStoragePickerService
 {
-	// 参数是起始目录
 	public Func<string?, string?> PickDanmakuFile { get; init; } = static _ => null;
 
 	public ConcurrentQueue<Uri> LaunchedUris { get; } = new();

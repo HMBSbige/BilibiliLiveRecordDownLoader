@@ -8,8 +8,7 @@ internal static class MasterPlaylistVariants
 	private const string Header = "#EXTM3U";
 	private const string StreamInfTag = "#EXT-X-STREAM-INF:";
 
-	/// <summary>每种画质和编码在每条 pathway（提供同一路流的另一个 CDN 主机）下各列一次，这些条目合并成一个变体</summary>
-	/// <exception cref="FormatException">内容不是 HLS 播放列表</exception>
+	/// <summary>每种画质和编码在每条 pathway（同一路流的另一个 CDN 主机）下各列一次，合并成一个变体</summary>
 	public static LiveStreamCandidate.Variant[] Parse(string content, Uri playlistUri)
 	{
 		bool hasHeader = false;

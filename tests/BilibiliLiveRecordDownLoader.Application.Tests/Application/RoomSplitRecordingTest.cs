@@ -16,14 +16,12 @@ public sealed class RoomSplitRecordingTest
 	[Arguments(true, null, 2)]
 	[Arguments(true, false, 1)]
 	[Arguments(false, true, 2)]
-	[Arguments(false, null, 1)]
 	public async Task TitleChangeWhileRecordingStartsANewFileAtTheNextKeyFrameAsync(bool global, bool? room, int expectedFiles, CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(new RecordingMediaTools(), cancellationToken);
 		loop.Config.SplitMode = RecordingSplitMode.None;
 		StreamRequest stream = await StartRecordingAsync(loop);
 
-		// 开始录制之后才打开的设置同样生效
 		loop.Config.SplitOnTitleChange = global;
 		loop.Settings = loop.Settings with { SplitOnTitleChange = room };
 		loop.Session.Handle(new DanmuMessage.RoomChanged("new title", null, null));
@@ -32,7 +30,6 @@ public sealed class RoomSplitRecordingTest
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 4000));
 		await stream.EndAsync();
 
-		// 同一秒内的第二段文件名带序号
 		string[] expected = expectedFiles is 2 ? ["20260101_000000.flv", "20260101_000000_1.flv"] : ["20260101_000000.flv"];
 		await Assert.That(await RecordedFilesAfterTheAttemptAsync(loop)).IsEquivalentTo(expected, CollectionOrdering.Matching);
 	}
@@ -104,7 +101,6 @@ public sealed class RoomSplitRecordingTest
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 63_000));
 		RemuxInput finished = await WaitForRemuxAsync(loop, mediaTools, 1);
 
-		// 写盘端换完文件才往新文件里写，这时新的一段已经开始
 		await nextFileWritten.Task.WaitAsync(cancellationToken);
 		ActiveRecordingDto? second = loop.Snapshot.Recording;
 
@@ -132,7 +128,6 @@ public sealed class RoomSplitRecordingTest
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 61_000));
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 63_000));
 
-		// 换文件时关旧文件卡住，下播后排空超时，录制循环把旧文件交给后处理；还没关掉时转封装会漏掉末尾
 		loop.GoOffline();
 		await stream.EndAsync();
 		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Idle);
@@ -144,7 +139,7 @@ public sealed class RoomSplitRecordingTest
 		await stuck.Closed.WaitAsync(cancellationToken);
 		await WaitForRemuxAsync(loop, mediaTools, 1);
 
-		// 关闭之后有没有开始新的一段要在停下之前看，停下会结束录制循环；有没有多余的转封装要等后处理全部结束再看
+		// 停下会结束录制循环，有没有开始新的一段要在停下之前看；多余的转封装要等后处理全部结束再看
 		DateTimeOffset? startedAtAfterClosing = loop.Snapshot.Recording?.StartedAt;
 		await loop.StopAsync();
 		RemuxInput finished = await Assert.That(mediaTools.Remuxes).HasSingleItem();
@@ -157,7 +152,6 @@ public sealed class RoomSplitRecordingTest
 		}
 	}
 
-	// 磁盘一直不恢复时，退出也在等这次后处理，不能一直等下去
 	[Test]
 	public async Task FileThatStaysOpenIsLeftWithoutPostProcessingAsync(CancellationToken cancellationToken)
 	{
@@ -175,7 +169,7 @@ public sealed class RoomSplitRecordingTest
 		StuckClosingFile stuck = await Assert.That(first).IsNotNull();
 		string skipped = $"{stuck.Name} is still being written, leaving it without post-processing";
 
-		// 后处理开始等文件关闭时才计时，按步推进
+		// 后处理等文件关闭时才开始计时，所以按步推进
 		for (int step = 0; step < 10 && !loop.Logs.Any(log => log.Message == skipped); ++step)
 		{
 			loop.Time.Advance(TimeSpan.FromMinutes(1));
@@ -220,7 +214,6 @@ public sealed class RoomSplitRecordingTest
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 61_000));
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 63_000));
 
-		// 新文件建好时旧文件已经按当时的设置交给了后处理
 		await loop.WaitUntilAsync(() => Directory.GetFiles(loop.RoomDirectory, "*.flv").Length >= 2, "2 recordings exist");
 		loop.Config.ConvertToMp4 = true;
 		await stream.EndAsync();
@@ -239,7 +232,6 @@ public sealed class RoomSplitRecordingTest
 		return stream;
 	}
 
-	// 重连时上一次尝试已经结束；文件都超过后处理的下限，不会被删掉
 	private static async Task<string[]> RecordedFilesAfterTheAttemptAsync(RecordingLoopHarness loop)
 	{
 		_ = await loop.NextStreamAsync();

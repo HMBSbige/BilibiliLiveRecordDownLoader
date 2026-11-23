@@ -89,7 +89,7 @@ public sealed class FFmpegStreamSessionTest
 
 		public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
 		{
-			// 真实的文件流和管道在令牌取消后拒绝写入，要在记下内容之前检查
+			// 真实的流在令牌取消后拒绝写入，要在记下内容之前检查
 			cancellationToken.ThrowIfCancellationRequested();
 			string text;
 

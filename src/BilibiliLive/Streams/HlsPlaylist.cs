@@ -39,7 +39,6 @@ internal sealed record HlsPlaylist(TimeSpan? TargetDuration, IReadOnlyList<HlsSe
 
 			if (!hasHeader)
 			{
-				// 播放列表可能以 BOM 开头
 				if (line.TrimStart('\uFEFF') is not Header)
 				{
 					throw new FormatException("The playlist does not start with #EXTM3U.");
@@ -119,7 +118,6 @@ internal sealed record HlsPlaylist(TimeSpan? TargetDuration, IReadOnlyList<HlsSe
 		return null;
 	}
 
-	/// <returns>没有这个属性和值为空对调用方是一回事，都返回空切片</returns>
 	internal static ReadOnlySpan<char> GetAttribute(ReadOnlySpan<char> attributes, ReadOnlySpan<char> name)
 	{
 		while (!attributes.IsEmpty)

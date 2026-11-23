@@ -20,7 +20,6 @@ public sealed class ExperimentalSettingsViewModelTest
 	{
 		(Func<AppConfig, bool> readConfig, Action<AppConfig, bool> writeConfig, Func<ExperimentalSettingsViewModel, bool> readViewModel, Action<ExperimentalSettingsViewModel, bool> writeViewModel) = Accessors(setting);
 		AppConfig config = AppConfig.CreateDefault();
-		// 和默认值相反，才看得出读了配置
 		bool configured = !readConfig(config);
 		writeConfig(config, configured);
 		FakeConfigManager configManager = new(config);

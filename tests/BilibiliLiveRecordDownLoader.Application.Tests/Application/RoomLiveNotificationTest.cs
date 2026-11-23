@@ -17,7 +17,6 @@ public sealed class RoomLiveNotificationTest
 		loop.Settings = loop.Settings with { IsRecordingEnabled = false };
 
 		loop.GoLive();
-		// 仍在直播中，不再提醒
 		loop.GoLive();
 
 		ShownNotification[] expected = isNotificationEnabled ? [new(AppLanguage.Current.LiveStarted.ToString("streamer"), "title", AppNotificationType.Information, LiveRoomUri)] : [];
@@ -85,7 +84,6 @@ public sealed class RoomLiveNotificationTest
 		}
 	}
 
-	// 未开播，刷新时不会开始录制
 	private static RecordingLoopHarness CreateOffline(CancellationToken cancellationToken, bool isRoomNotificationEnabled = true, bool isTitleNotificationEnabled = true)
 	{
 		RecordingLoopHarness loop = new(cancellationToken, isNotificationEnabled: isRoomNotificationEnabled);

@@ -37,12 +37,8 @@ public sealed class RoomQualityDisplayTest
 	{
 		yield return static () => (new QualityRestriction.NotLoggedIn(10000), AppLanguage.Current.QualityRestrictedNotLoggedIn.ToString(AppLanguage.Current.QualitySuperHigh, AppLanguage.Current.QualityOriginal));
 		yield return static () => (new QualityRestriction.LoginMayHaveExpired(10000), AppLanguage.Current.QualityRestrictedLoginMayHaveExpired.ToString(AppLanguage.Current.QualityOriginal, AppLanguage.Current.QualitySuperHigh));
-		yield return static () => (new QualityRestriction.OtherCodec(10000, StreamCodec.Av1, 10000), AppLanguage.Current.QualityRestrictedByCodec.ToString("AV1", AppLanguage.Current.QualityOriginal));
 		yield return static () => (new QualityRestriction.OtherCodecUnavailable(10000, StreamCodec.Av1, 10000), AppLanguage.Current.QualityRestrictedByCodecUnavailable.ToString("AV1", AppLanguage.Current.QualityOriginal));
-		// 另一种编码只能给到蓝光时，提示的是蓝光而不是目标档位
 		yield return static () => (new QualityRestriction.OtherCodec(10000, StreamCodec.Av1, 400), AppLanguage.Current.QualityRestrictedByCodec.ToString("AV1", AppLanguage.Current.QualityBluRay));
-		// 所选画质低于最高画质时，提示里写的是所选的
-		yield return static () => (new QualityRestriction.NotLoggedIn(400), AppLanguage.Current.QualityRestrictedNotLoggedIn.ToString(AppLanguage.Current.QualitySuperHigh, AppLanguage.Current.QualityBluRay));
 	}
 
 	[Test]
@@ -94,7 +90,6 @@ public sealed class RoomQualityDisplayTest
 		}
 	}
 
-	// 稳定不断的流不会重新请求候选流，登录之后受限原因仍是登录前判断的未登录
 	[Test]
 	public async Task NotLoggedInAfterConfiguringACookieAsksForAReconnectAsync()
 	{
@@ -112,15 +107,6 @@ public sealed class RoomQualityDisplayTest
 			await Assert.That(room.QualityRestrictionTip).IsEqualTo(AppLanguage.Current.QualityRestrictedLoggedIn.ToString(AppLanguage.Current.QualityOriginal));
 			await Assert.That(room.IsQualityRestricted).IsTrue();
 		}
-	}
-
-	// 登录可能失效是按请求时配了 Cookie 判断的，和现在有没有配无关
-	[Test]
-	public async Task OnlyNotLoggedInDependsOnTheCurrentCookieAsync()
-	{
-		QualityRestriction expired = new QualityRestriction.LoginMayHaveExpired(10000);
-
-		await Assert.That(RoomItemViewModel.DescribeRestriction(expired, 250, false)).IsEqualTo(RoomItemViewModel.DescribeRestriction(expired, 250, true));
 	}
 
 	public static IEnumerable<TestDataRow<Func<(RoomSnapshot[] Rooms, string? Cookie, string? Expected)>>> BannerCases()

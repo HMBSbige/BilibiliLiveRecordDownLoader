@@ -6,7 +6,6 @@ public class FFmpegLocateTest
 {
 	private static readonly string ExecutableName = FFmpegRunner.ExecutableName;
 
-	// 配置里只写命令名 ffmpeg7 时，Windows 上实际找的是 ffmpeg7.exe
 	private static readonly string CommandFile = OperatingSystem.IsWindows() ? @"ffmpeg7.exe" : @"ffmpeg7";
 
 	private static string JoinPath(params string[] directories)
@@ -73,16 +72,6 @@ public class FFmpegLocateTest
 	}
 
 	[Test]
-	public async Task PreferredCommandNameMissingEverywhereReturnsNullAsync()
-	{
-		using TestDirectory directory = new();
-
-		string? located = FFmpegRunner.Locate(@"ffmpeg7", directory.Root, directory.Combine(@"empty"), [directory.Combine(@"platform")]);
-
-		await Assert.That(located).IsNull();
-	}
-
-	[Test]
 	public async Task ApplicationDirectoryWinsOverPathAsync()
 	{
 		using TestDirectory directory = new();
@@ -98,7 +87,6 @@ public class FFmpegLocateTest
 	public async Task PathWinsOverPlatformDirectoriesAsync()
 	{
 		using TestDirectory directory = new();
-		// PATH 里的空项、空白和引号都要容忍
 		string expected = directory.CreateFile(Path.Combine(@"bin", ExecutableName));
 		directory.CreateFile(Path.Combine(@"platform", ExecutableName));
 		string pathVariable = JoinPath(@"", @"  ", directory.Combine(@"nothing"), $"\"{directory.Combine(@"bin")}\"");

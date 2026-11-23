@@ -8,7 +8,6 @@ internal static class DanmakuXmlText
 	private const long MaxWholeSeconds = long.MaxValue / TimeSpan.TicksPerSecond;
 
 	// 换行和制表符也写成字符引用，保证每个元素占一行，属性值里的空白读回时也不会被规范化成空格
-	// XML 不允许的字符（控制字符、落单的代理项等）丢掉
 	public static void AppendEscaped(StringBuilder builder, string value)
 	{
 		for (int i = 0; i < value.Length; ++i)

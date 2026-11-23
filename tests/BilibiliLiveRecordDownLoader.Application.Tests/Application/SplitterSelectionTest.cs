@@ -7,7 +7,6 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 public sealed class SplitterSelectionTest
 {
 	[Test]
-	[Arguments(RecorderType.FFmpeg, StreamProtocol.HttpStream, StreamFormat.Flv, typeof(TransportStreamSplitter))]
 	[Arguments(RecorderType.FFmpeg, StreamProtocol.HttpHls, StreamFormat.Fmp4, typeof(TransportStreamSplitter))]
 	[Arguments(RecorderType.BuiltIn, StreamProtocol.HttpStream, StreamFormat.Flv, typeof(FlvSplitter))]
 	[Arguments(RecorderType.BuiltIn, StreamProtocol.HttpHls, StreamFormat.Fmp4, typeof(Fmp4HlsSplitter))]

@@ -94,14 +94,12 @@ internal sealed class ApplicationShell(IServiceProvider serviceProvider, AppStar
 		e.Cancel = true;
 		ICommand exit = viewModel.ExitCommand;
 
-		// 确认框打开时再按一次退出不重复进入
 		if (exit.CanExecute(null))
 		{
 			exit.Execute(null);
 		}
 	}
 
-	// macOS 上窗口隐藏后点 Dock 图标
 	private void OnActivated(object? sender, ActivatedEventArgs e)
 	{
 		if (e.Kind is ActivationKind.Reopen)

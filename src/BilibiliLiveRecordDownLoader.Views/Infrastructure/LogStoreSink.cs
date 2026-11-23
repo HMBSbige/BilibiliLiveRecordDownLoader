@@ -1,6 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.Views.Infrastructure;
 
-// 日志管道在依赖注入容器之前创建，所以由 sink 自己保存最近的日志，容器建好之前的也不会丢
+// 日志管道早于容器创建，由 sink 自己保存最近的日志，容器建好之前的也不会丢
 internal sealed class LogStoreSink : ILogEventSink, ILogStore
 {
 	private const int Capacity = 1000;

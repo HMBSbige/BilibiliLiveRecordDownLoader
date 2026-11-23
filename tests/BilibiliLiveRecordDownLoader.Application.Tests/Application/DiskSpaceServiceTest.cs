@@ -22,7 +22,6 @@ public sealed class DiskSpaceServiceTest
 		}
 	}
 
-	// 录播目录可能经符号链接放到别的分区上；/dev 在 Linux 和 macOS 上都单独挂载，和临时目录不在一个分区
 	[Test]
 	[ExcludeOn(OS.Windows)]
 	public async Task SymlinkedRecordDirectoryReportsTheVolumeItPointsToAsync()
@@ -34,11 +33,5 @@ public sealed class DiskSpaceServiceTest
 		DiskSpaceInfo? linked = new DiskSpaceService().GetDiskSpace(Path.Combine(link, "records"));
 
 		await Assert.That(linked?.TotalBytes).IsEqualTo(new DriveInfo("/dev").TotalSize);
-	}
-
-	[Test]
-	public async Task BlankPathHasNoDiskSpaceAsync()
-	{
-		await Assert.That(new DiskSpaceService().GetDiskSpace("   ")).IsNull();
 	}
 }

@@ -1,6 +1,5 @@
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 
-// 主循环已经停止的 UI 线程
 internal sealed class StoppedSynchronizationContext : SynchronizationContext
 {
 	private int _posted;

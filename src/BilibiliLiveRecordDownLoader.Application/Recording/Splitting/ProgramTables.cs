@@ -1,6 +1,5 @@
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-// 新段开头要补 PAT 和 PMT，否则播放器不知道各个 PID 是什么
 internal sealed class ProgramTables
 {
 	private byte[]? _pat;

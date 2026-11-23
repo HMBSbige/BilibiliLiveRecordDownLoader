@@ -7,7 +7,6 @@ internal sealed class AccountAppService(BilibiliApiClient apiClient, IAppConfigM
 		return (await configManager.GetAsync(cancellationToken)).Cookie;
 	}
 
-	// 规范化由 UpdateAsync 执行的 ApplyDefaults 负责
 	public async Task SetCookieAsync(string? cookie, CancellationToken cancellationToken = default)
 	{
 		await configManager.UpdateAsync(config => config.Cookie = cookie, cancellationToken);

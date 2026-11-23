@@ -49,7 +49,6 @@ public partial class DialogHostView : UserControl
 		}
 	}
 
-	// 没有输入控件时聚焦第一个按钮，确认框里是“取消”
 	private void FocusFirstInput()
 	{
 		Control[] candidates = [.. DialogContent.GetVisualDescendants().OfType<Control>().Where(static control => control is { Focusable: true, IsEffectivelyEnabled: true, IsEffectivelyVisible: true })];

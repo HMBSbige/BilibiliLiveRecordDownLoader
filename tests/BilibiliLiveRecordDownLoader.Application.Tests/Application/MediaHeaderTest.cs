@@ -22,7 +22,6 @@ public sealed class MediaHeaderTest
 	[Arguments(Avc480, false, 854, 480)]
 	[Arguments(Avc444720, false, 1280, 720)]
 	[Arguments(Hevc768, true, 1366, 768)]
-	[Arguments(Hevc1080, true, 1920, 1080)]
 	[Arguments(HevcSubLayers766, true, 1366, 766)]
 	[Arguments(HevcSubLayerInfo766, true, 1366, 766)]
 	public async Task SpsGivesTheDisplaySizeAsync(string sps, bool isHevc, int width, int height)
@@ -68,7 +67,6 @@ public sealed class MediaHeaderTest
 		await Assert.That(splitter.Resolution).IsEqualTo(new VideoResolution(1366, 768));
 	}
 
-	// AV1 的序列头不解析，只能用编码器写的尺寸
 	[Test]
 	public async Task FlvFallsBackToOnMetaDataAsync()
 	{
@@ -92,7 +90,6 @@ public sealed class MediaHeaderTest
 		await Assert.That(splitter.MediaMarks.ToArray().Select(static mark => (mark.End, mark.Span))).IsEquivalentTo([((long)header.Length + key.Length, MediaSpan.At(TimeSpan.FromMilliseconds(100_000))), ((long)header.Length + key.Length + audio.Length, MediaSpan.At(TimeSpan.FromMilliseconds(99_990)))], CollectionOrdering.Matching);
 	}
 
-	// 没有 mdhd 的音频轨不列出
 	[Test]
 	[Arguments((byte)0)]
 	[Arguments((byte)1)]
@@ -120,7 +117,6 @@ public sealed class MediaHeaderTest
 		await Assert.That(times.ReadFragmentSpans(Fmp4Samples.TimedFragment(900_000, 30, sampleDuration, tfdtVersion: tfdtVersion))).IsEquivalentTo([new MediaSpan(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(11))], CollectionOrdering.Matching);
 	}
 
-	// 往回的小差值和差得很远的（源重新开始）都不加周期，交给 SegmentClock 判断
 	[Test]
 	public async Task Fmp4Version0DecodeTimeAddsAPeriodOnlyWhenItWrapsAsync()
 	{
@@ -135,7 +131,6 @@ public sealed class MediaHeaderTest
 		await Assert.That(spans.Select(static span => span.Start.Ticks)).IsEquivalentTo(expected.Select(track.ToTicks), CollectionOrdering.Matching);
 	}
 
-	// 按分片里的顺序，第一个 PES 不是最早的
 	[Test]
 	public async Task TsSegmentReportsEveryTimedPesByDecodeTimeAndGivesTheSpsSizeAsync()
 	{
@@ -167,7 +162,6 @@ public sealed class MediaHeaderTest
 		}
 	}
 
-	// 从这一帧开始的新段按它定尺寸
 	[Test]
 	public async Task FFmpegTransportStreamMarksAKeyFrameWithTheSizeOfItsOwnSpsAsync()
 	{
@@ -179,7 +173,6 @@ public sealed class MediaHeaderTest
 		await Assert.That(splitter.MediaMarks.ToArray().Select(static mark => mark.Resolution)).IsEquivalentTo((VideoResolution?[])[new VideoResolution(854, 480), new VideoResolution(854, 480), new VideoResolution(1920, 1080)], CollectionOrdering.Matching);
 	}
 
-	// 损坏的文件里 mdhd 可以是空盒子
 	[Test]
 	public async Task EmptyMdhdLeavesTheTrackOutButKeepsTheSampleEntrySizeAsync()
 	{

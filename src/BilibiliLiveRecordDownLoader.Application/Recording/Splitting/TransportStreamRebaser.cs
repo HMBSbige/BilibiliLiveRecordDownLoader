@@ -10,7 +10,6 @@ internal sealed class TransportStreamRebaser
 	private SegmentClock _clock = new(Tolerance);
 	private long? _origin;
 
-	// PCR 按它展开
 	private long? _lastDecode;
 
 	public TimeSpan? Origin => _origin is { } origin ? PtsClock.ToTime(origin) : null;
@@ -21,7 +20,7 @@ internal sealed class TransportStreamRebaser
 		_origin = null;
 	}
 
-	// packets 从包边界开始；失去同步之后找不到边界，不再往后改
+	// packets 从包边界开始
 	public void Rebase(Span<byte> packets)
 	{
 		if (_clock.Offset is null && FindOrigin(packets) is { } origin)
@@ -49,7 +48,7 @@ internal sealed class TransportStreamRebaser
 		return Math.Max(value, 0) & PtsClock.Period - 1;
 	}
 
-	// 关键帧后面的音频 PES 常早几十毫秒，按第一个 PES 定起点的话它们夹到 0、和下一个 PES 的帧重叠，所以取这一段第一次改写的数据（见 MediaSplitter.HoldsFirstUnit）里最早的解码时间
+	// 关键帧后面的音频 PES 常早几十毫秒，按第一个 PES 定起点会把它们夹到 0、和下一个 PES 的帧重叠，所以取这一段第一次改写的数据里最早的解码时间
 	// 比第一个 PES 早出容差以上的属于重新开始的时间线，不算
 	private long? FindOrigin(ReadOnlySpan<byte> packets)
 	{
@@ -114,8 +113,7 @@ internal sealed class TransportStreamRebaser
 	}
 
 	// PCR 比 DTS 早一个复用延迟（FFmpeg 的 -muxdelay，命令行默认 0.7 秒），超过判断重新开始的容差，所以不拿它判断，只减去当前的起点
-	// 代价是每个文件开头这段 PCR 夹成 0；为了第一帧在 0、和 FLV、fMP4 一致而接受，FFmpeg 系的播放器和转封装不靠 PCR 计时；加 -muxdelay 0 会让 PCR 全程没有余量，更糟
-	// 第一个 PES 之前的 PCR 按刚定下的起点展开
+	// 代价是每个文件开头这段 PCR 夹成 0，FFmpeg 系的播放器和转封装不靠 PCR 计时；加 -muxdelay 0 会让 PCR 全程没有余量，更糟
 	private void RebasePcr(Span<byte> packet)
 	{
 		if (!TransportStream.HasPcr(packet))

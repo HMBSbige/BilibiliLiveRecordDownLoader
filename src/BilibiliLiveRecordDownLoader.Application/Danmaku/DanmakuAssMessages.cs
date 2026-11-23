@@ -59,7 +59,6 @@ internal static class DanmakuAssMessages
 		public sealed record Capsule(double Height, int Color, Func<int, string> Text) : Card(Height);
 	}
 
-	// Lines 按开始时间排好；合进连击的礼物也算在 Shown 里
 	internal sealed record Rendering(IReadOnlyList<string> Lines, int Shown, int Dropped, Occupancy Occupancy);
 
 	// sorted 要按时间排好；要先于普通弹幕算，普通弹幕排位置时要知道消息栏占着哪里
@@ -68,7 +67,6 @@ internal static class DanmakuAssMessages
 		List<Card> cards = [];
 		List<DanmakuMessageRequest> requests = [];
 		double textWidth = bar.BarWidth - 2 * bar.CapsulePadding;
-		// 回放时已经知道哪些 SC 后来被删掉了，整条不画
 		HashSet<long> deleted = [.. sorted.OfType<DanmakuRecord.SuperChatDeletion>().SelectMany(static deletion => deletion.Ids)];
 
 		foreach (DanmakuRecord record in sorted)
@@ -98,7 +96,7 @@ internal static class DanmakuAssMessages
 				{
 					string user = DanmakuAssText.Escape(gift.User);
 					string giftName = DanmakuAssText.Escape(gift.Name);
-					// 昵称打码时 uid 为 0，只能按昵称区分送礼的人
+					// 昵称打码时 uid 为 0
 					string comboKey = gift.Uid is not 0 ? string.Create(CultureInfo.InvariantCulture, $"{gift.Uid}\n{gift.Name}") : $"\n{gift.User}\n{gift.Name}";
 					cards.Add(new Card.Capsule(bar.CapsuleHeight, GiftBackground, count => FitName(name => labels.Gift(name, giftName, count), user, bar.FontSize, textWidth)));
 					requests.Add(new DanmakuMessageRequest(time, DanmakuMessageKind.Gift, bar.CapsuleHeight, DanmakuMessageBar.ComboWindow, Math.Max(1, gift.Count), comboKey));
@@ -118,7 +116,6 @@ internal static class DanmakuAssMessages
 			foreach (DanmakuMessageSpan span in placement.Spans)
 			{
 				Render(lines, bar, card, placement, span);
-				// 移动途中按两端里高的算，宁可多让一点
 				extents.Add((span.Start, span.End, Math.Max(span.From, span.To) + card.Height));
 			}
 		}
@@ -177,7 +174,6 @@ internal static class DanmakuAssMessages
 		// [from, to) 期间消息栏顶端的纵坐标；这段时间里消息栏是空的时为 null
 		public double? TopDuring(TimeSpan from, TimeSpan to)
 		{
-			// 从包含 from 的那一格开始
 			int index = Array.BinarySearch(_times, from);
 			index = index >= 0 ? index : Math.Max(0, ~index - 1);
 			double height = 0;
@@ -201,7 +197,6 @@ internal static class DanmakuAssMessages
 		return new Card.SuperChat(height, name, yuan, body, SuperChatTier.For(price));
 	}
 
-	// pinned 是 SC 在直播间里置顶的时长，消息栏里不比它留得久
 	private static TimeSpan SuperChatDuration(string text, TimeSpan pinned)
 	{
 		TimeSpan duration = SuperChatMinimum + SuperChatPerCharacter * text.EnumerateRunes().Count();
@@ -209,7 +204,6 @@ internal static class DanmakuAssMessages
 		return pinned > TimeSpan.Zero && pinned < duration ? Quantize(pinned) : duration;
 	}
 
-	// 自定的颜色，和 SC 的档位色区分开
 	private static int GuardColor(GuardLevel level)
 	{
 		return level switch
@@ -367,7 +361,6 @@ internal static class DanmakuAssMessages
 		}
 	}
 
-	// 超过 maxLines 行时最后一行以省略号结尾
 	internal static IReadOnlyList<string> Wrap(string text, double fontSize, double maxWidth, int maxLines)
 	{
 		List<string> lines = [];

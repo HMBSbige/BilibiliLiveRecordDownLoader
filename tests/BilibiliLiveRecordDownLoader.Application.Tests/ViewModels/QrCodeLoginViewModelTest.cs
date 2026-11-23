@@ -29,7 +29,6 @@ public sealed class QrCodeLoginViewModelTest
 		}
 	}
 
-	// 偶发的失败不打断扫码；成功轮询一次后重新计数
 	[Test]
 	public async Task PollFailuresBelowTheLimitAreRetriedUntilTheLoginSucceedsAsync(CancellationToken cancellationToken)
 	{
@@ -75,12 +74,10 @@ public sealed class QrCodeLoginViewModelTest
 		private readonly Channel<int> _polled = Channel.CreateUnbounded<int>();
 		private int _next;
 
-		// 二维码同步给出，打开对话框后轮询的定时器就已建好，之后推进时间不会落空
 		public ScriptedAccountAppService(IReadOnlyList<Func<QrCodeLoginState>> polls) : this(Task.FromResult(new QrCodeLoginTicket("https://example.com/qr", "key")), polls)
 		{
 		}
 
-		// 定时器在没人等待时触发的那一下会留给下一次等待，所以不必等对话框回到等待处再推进；对话框提前停止轮询时尽快失败
 		public async Task PollAllAsync(FakeTimeProvider time, CancellationToken cancellationToken)
 		{
 			for (int index = 0; index < polls.Count; ++index)

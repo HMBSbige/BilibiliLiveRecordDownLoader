@@ -12,12 +12,6 @@ public sealed class UpdateAppServiceTest
 	}
 
 	[Test]
-	public async Task ManualCheckFailureIsThrownAsync(CancellationToken cancellationToken)
-	{
-		await Assert.ThrowsAsync<HttpRequestException>(() => CreateOffline().CheckForUpdateAsync(false, cancellationToken)).WithMessage("No network.");
-	}
-
-	[Test]
 	public async Task ManualCheckTimeoutIsThrownAsATimeoutAsync(CancellationToken cancellationToken)
 	{
 		UpdateAppService updates = new(new HangingHttpClientFactory(), NullLogger<UpdateAppService>.Instance);

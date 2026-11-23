@@ -38,13 +38,11 @@ public sealed class RoomDanmakuTest : IDisposable
 		danmaku.OnReceived(Comment("还在等"));
 		Task<DanmakuSegment?> closed = danmaku.CompleteSegment(video);
 
-		// 写入者卡在这一条的归属上
 		await timeline.Placing.Task.WaitAsync(cancellationToken);
 		bool closedEarly = closed.IsCompleted;
 		pending.SetResult(new TimelinePosition(0, video, TimeSpan.FromSeconds(3)));
 		DanmakuSegment? segment = await closed.WaitAsync(cancellationToken);
 
-		// 关闭之后才到、按时间却属于这一段的弹幕不再写入
 		timeline.Next().SetResult(new TimelinePosition(0, video, TimeSpan.FromSeconds(4)));
 		danmaku.OnReceived(Comment("晚到"));
 		danmaku.OnVideoEnded();
@@ -59,7 +57,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		}
 	}
 
-	// 段关闭之后它的弹幕文件可能已经随画面一起删掉
 	[Test]
 	public async Task DanmakuArrivingAfterTheirSegmentClosedDoNotRecreateItsFileAsync(CancellationToken cancellationToken)
 	{
@@ -97,13 +94,9 @@ public sealed class RoomDanmakuTest : IDisposable
 		await Assert.That(await CommentsAsync("b.xml", cancellationToken)).IsEquivalentTo([("第二段", 1.0)], CollectionOrdering.Matching);
 	}
 
-	// 一、二放在第一段，三放在第二段，Positions 是放置的位置；第二段是最后一段，之后没有画面，推过它末尾的丢弃
 	public static IEnumerable<Func<(int OffsetSeconds, double[] Positions, (string Text, double Seconds)[] InFirst, (string Text, double Seconds)[] InSecond)>> SegmentEndCases()
 	{
-		yield return static () => (0, [9.5, 10.5, 6], [("一", 9.5)], [("二", 0.5)]);
-		// 段的边界按加上偏移、写进文件的时间分
 		yield return static () => (2, [7.5, 8.5, 3.5], [("一", 9.5)], [("二", 0.5)]);
-		// 落到段开头之前的写成 0
 		yield return static () => (-2, [11, 12.5, 1], [("一", 9)], [("二", 0.5), ("三", 0)]);
 	}
 
@@ -140,7 +133,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		}
 	}
 
-	// 上一段还开着时下一段的弹幕先压着
 	[Test]
 	public async Task DanmakuHandedOverFromTheEndOfASegmentComeBeforeTheNextOnesOwnAsync(CancellationToken cancellationToken)
 	{
@@ -160,7 +152,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		await Assert.That(await CommentsAsync("b.xml", cancellationToken)).IsEquivalentTo([("推过末尾", 0.5), ("第二段", 1.0)], CollectionOrdering.Matching);
 	}
 
-	// 不能顺延到再后面的一段
 	[Test]
 	public async Task DanmakuPastTheEndOfASegmentAreLeftOutWhenTheNextSegmentHasNoFileAsync(CancellationToken cancellationToken)
 	{
@@ -201,7 +192,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		}
 	}
 
-	// 从没连上时断开的区间就是整段画面
 	[Test]
 	[Arguments(2)]
 	[Arguments(-2)]
@@ -218,7 +208,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		await Assert.That(await RecordsAsync("a.xml", cancellationToken)).IsEquivalentTo([new DanmakuRecord.Gap(TimeSpan.Zero, TimeSpan.FromSeconds(30))], EqualityComparer<DanmakuRecord>.Default, CollectionOrdering.Matching);
 	}
 
-	// 断开的起点是弹幕的位置，和弹幕一样加偏移；终点是这一段画面的结尾
 	[Test]
 	[Arguments(2)]
 	[Arguments(-2)]
@@ -241,7 +230,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		await Assert.That((await RecordsAsync("a.xml", cancellationToken)).OfType<DanmakuRecord.Gap>()).IsEquivalentTo([new DanmakuRecord.Gap(TimeSpan.FromSeconds(10) + offset, TimeSpan.FromSeconds(30))], EqualityComparer<DanmakuRecord.Gap>.Default, CollectionOrdering.Matching);
 	}
 
-	// 文件开头的连接状态是画面开头的状态
 	[Test]
 	[MatrixDataSource]
 	public async Task TheConnectionAtTheStartOfAFileIsAtZeroWhateverTheOffsetAsync([Matrix(3, -3)] int offsetSeconds, [Matrix] bool isSettledBeforeTheFile, CancellationToken cancellationToken)
@@ -270,7 +258,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		await Assert.That((await RecordsAsync("a.xml", cancellationToken)).OfType<DanmakuRecord.Connection>()).IsEquivalentTo([new DanmakuRecord.Connection(TimeSpan.Zero, true, true)], EqualityComparer<DanmakuRecord.Connection>.Default, CollectionOrdering.Matching);
 	}
 
-	// 录制结束时还没等到通知的文件，开头按未打码记下连接
 	[Test]
 	[Arguments(3)]
 	[Arguments(-3)]
@@ -285,7 +272,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		await Assert.That((await RecordsAsync("a.xml", cancellationToken)).OfType<DanmakuRecord.Connection>()).IsEquivalentTo([new DanmakuRecord.Connection(TimeSpan.Zero, true, false)], EqualityComparer<DanmakuRecord.Connection>.Default, CollectionOrdering.Matching);
 	}
 
-	// 改写偏移靠它避开正在写的文件
 	[Test]
 	public async Task OpenFileIsReportedAsWritingUntilTheSegmentClosesAsync(CancellationToken cancellationToken)
 	{
@@ -303,7 +289,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		await Assert.That((whileOpen, segment?.Path, danmaku.IsWriting(xml))).IsEqualTo((true, xml, false));
 	}
 
-	// 开着保存原始消息也一样，不建原始消息文件，也不解析原始消息
 	[Test]
 	public async Task SegmentWithoutDanmakuRecordingHasNoFileAsync(CancellationToken cancellationToken)
 	{
@@ -330,7 +315,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		danmaku.SetRecording(true);
 		danmaku.OnVideoStarted(timeline, video, Run());
 
-		// 写入者卡在第一条的归属上
 		TaskCompletionSource<TimelinePosition?> stuck = timeline.Next();
 		danmaku.OnReceived(Comment("第一条"));
 		await timeline.Placing.Task.WaitAsync(cancellationToken);
@@ -348,7 +332,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		await Assert.That(dropped).IsEqualTo(5);
 	}
 
-	// 开播时房间开始记录常常落在认证和未登录通知之间；没等到通知就有弹幕时按未打码记下连接
 	[Test]
 	[Arguments(true)]
 	[Arguments(false)]
@@ -372,7 +355,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		await Assert.That(file.Records).IsEquivalentTo([new DanmakuRecord.Connection(TimeSpan.Zero, true, isNoticed), RecordedComment(TimeSpan.Zero, "弹幕")], EqualityComparer<DanmakuRecord>.Default, CollectionOrdering.Matching);
 	}
 
-	// 队列的可读通知是异步送达的，通知排进队列时等待可能已经先到期
 	[Test]
 	public async Task ALoginNoticeQueuedBeforeTheDeadlineCountsEvenIfTheWaitEndsFirstAsync(CancellationToken cancellationToken)
 	{
@@ -382,7 +364,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		reader.Add(new DanmakuWork.Received(Connected()));
 		Task running = recorder.RunAsync(reader, static _ => { }, cancellationToken);
 
-		// 写入者开始等通知：可读通知不会来，只有到期能把它叫醒
 		await _time.TimerCreated.Task.WaitAsync(cancellationToken);
 		reader.Add(new DanmakuWork.Received(LoginNotice()));
 		_time.Advance(DanmakuRecorder.LoginNoticeWait * 2);
@@ -419,7 +400,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		queue.Writer.TryWrite(new DanmakuWork.Received(Comment("写不进去")));
 		Task running = Task.Run(() => recorder.RunAsync(queue.Reader, static _ => { }, cancellationToken), cancellationToken);
 
-		// 写入者开始等按时刷新，到期后写失败；处理完失败、回去等待之后再过一个间隔也不该重试
 		await _time.TimerCreated.Task.WaitAsync(cancellationToken);
 		_time.Advance(DanmakuFlushPolicy.Default.Interval);
 		await failed.Task.WaitAsync(cancellationToken);
@@ -442,7 +422,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		}
 	}
 
-	// 写入者停下的话队列不会完成，之后关闭段的请求只能等到超时
 	[Test]
 	public async Task AScheduledFlushThatThrowsDoesNotStopTheWriterAsync(CancellationToken cancellationToken)
 	{
@@ -454,7 +433,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		danmaku.OnVideoStarted(timeline, video, Run());
 		danmaku.OnReceived(Connected());
 
-		// 等不到未登录通知，到期时放置连接记录出错
 		await _time.TimerCreated.Task.WaitAsync(cancellationToken);
 		timeline.Next().SetException(new InvalidOperationException());
 		_time.Advance(DanmakuRecorder.LoginNoticeWait);
@@ -468,7 +446,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		}
 	}
 
-	// 关闭时从原位置重写，盖掉半条记录
 	[Test]
 	public async Task AFileThatFailedHalfwayIsCompletedWhenClosedAsync(CancellationToken cancellationToken)
 	{
@@ -545,7 +522,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		}
 	}
 
-	// 弹幕连接每收完一帧才读一次解析开关，最后一个查看的人离开时这一帧剩下的消息还会交过来
 	[Test]
 	public async Task MessagesLeftInAFrameAfterTheLastViewerLeavesDoNotReachTheFeedAsync()
 	{
@@ -559,7 +535,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		await Assert.That(danmaku.Feed.GetEntries(0)).IsEmpty();
 	}
 
-	// 重连落在下一段、段开始的通知还没到时，当场建出的下一段文件开头是断开的；前一段断开到它的末尾
 	[Test]
 	public async Task AReconnectionThatOpensTheNextSegmentStartsItDisconnectedAsync(CancellationToken cancellationToken)
 	{
@@ -587,7 +562,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		}
 	}
 
-	// 断开落在下一段、段开始的通知还没到时，当场建出的下一段文件开头是连着的，从断开的位置起算断开
 	[Test]
 	public async Task ADisconnectionThatOpensTheNextSegmentStartsItConnectedAsync(CancellationToken cancellationToken)
 	{
@@ -623,7 +597,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		await Assert.That(file.Records).IsEquivalentTo([new DanmakuRecord.Connection(TimeSpan.Zero, true, false), RecordedComment(TimeSpan.Zero, "通知之前"), new DanmakuRecord.Connection(TimeSpan.FromSeconds(1), true, true)], EqualityComparer<DanmakuRecord>.Default, CollectionOrdering.Matching);
 	}
 
-	// 后处理拿到的是整段的时长
 	[Test]
 	public async Task TurningDanmakuOffAndOnWithinASegmentKeepsWritingTheSameFileAsync(CancellationToken cancellationToken)
 	{
@@ -663,7 +636,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		}
 	}
 
-	// 段中途才打开录弹幕时文件才建，文件里的时间仍从画面开头算
 	[Test]
 	public async Task AFileOpenedMidwayRecordsWhenItsVideoStartedAsync(CancellationToken cancellationToken)
 	{
@@ -687,7 +659,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		await Assert.That(file.Source).IsTypeOf<DanmakuFileSource.Native>().And.Member(static source => source.Header.RecordStartTime, start => start.IsEqualTo(videoStart));
 	}
 
-	// 写入者卡在放置前面的弹幕上时，新一段的开头仍是换文件的时刻
 	[Test]
 	public async Task ASegmentStartedWhileTheWriterIsBusyRecordsWhenItStartedAsync(CancellationToken cancellationToken)
 	{
@@ -713,7 +684,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		await Assert.That(file.Source).IsTypeOf<DanmakuFileSource.Native>().And.Member(static source => source.Header.RecordStartTime, start => start.IsEqualTo(secondStart));
 	}
 
-	// 又打开时开头补记当前的连接
 	[Test]
 	public async Task RawMessagesStopWhileDanmakuIsOffAndContinueInTheSameFileAsync(CancellationToken cancellationToken)
 	{
@@ -761,7 +731,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		}
 	}
 
-	// 补记的时刻是连接建立的时刻
 	[Test]
 	public async Task RawMessagesStartedBeforeTheConnectionIsSettledRecordItOnceSettledAsync(CancellationToken cancellationToken)
 	{
@@ -780,7 +749,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		await Assert.That(await File.ReadAllLinesAsync(raw, cancellationToken)).IsEquivalentTo(["{\"t\":" + connectedAt + ",\"cmd\":\"@connected\",\"raw\":{\"anonymous\":true,\"masked\":true}}"], CollectionOrdering.Matching);
 	}
 
-	// 写不进去时停到下一个文件
 	[Test]
 	public async Task RawMessagesContinueInTheSameFileAfterAWriteFailureAsync(CancellationToken cancellationToken)
 	{
@@ -826,7 +794,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		return TimeSpan.FromSeconds(path.EndsWith("a.flv", StringComparison.Ordinal) ? 10 : 5);
 	}
 
-	// Comment 写进文件再读回的样子
 	private static DanmakuRecord.Comment RecordedComment(TimeSpan time, string text)
 	{
 		return new DanmakuRecord.Comment(time, 1, 25, 0xFFFFFF, DateTimeOffset.UnixEpoch, 0, "观众", text, 0);
@@ -837,13 +804,11 @@ public sealed class RoomDanmakuTest : IDisposable
 		return new RoomDanmaku(1, _time, NullLogger.Instance, static () => { });
 	}
 
-	// 每次开文件或设置变化时读一次 isEnabled
 	private DanmakuRun Run(Func<bool>? isEnabled = null, bool saveRaw = false, bool splitOnTitleChange = false, TimeSpan offset = default)
 	{
 		return new DanmakuRun(static () => new DanmakuFileHeader { RoomId = 1, Title = "title" }, _ => ValueTask.FromResult(new DanmakuRunSettings(new DanmakuProfile(isEnabled?.Invoke() ?? true, true, DanmakuGiftMode.None, true, offset, true, true, saveRaw, false), _directory.Root, false, splitOnTitleChange)));
 	}
 
-	// 写入者按顺序处理，这个关闭请求有了结果就说明之前的工作都已处理完
 	private async Task BarrierAsync(RoomDanmaku danmaku, CancellationToken cancellationToken)
 	{
 		await danmaku.CompleteSegment(_directory.Combine("barrier.flv")).WaitAsync(cancellationToken);
@@ -876,7 +841,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		return [.. (await RecordsAsync(name, cancellationToken)).OfType<DanmakuRecord.Comment>().Select(static comment => (comment.Text, comment.Time.TotalSeconds))];
 	}
 
-	// 仅弹幕的文件按开始时间命名，放在房间目录里
 	private async Task<DanmakuFile> ReadTextOnlyFileAsync(CancellationToken cancellationToken)
 	{
 		string path = await Assert.That(Directory.GetFiles(_directory.Root, "*" + RecordingFileLayout.DanmakuExtension, SearchOption.AllDirectories)).HasSingleItem();
@@ -926,7 +890,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		return new DanmuMessage.Comment(new DanmuSender(0, "观众", GuardLevel.None, null), text, 1, 25, 0xFFFFFF, DateTimeOffset.UnixEpoch, "0", false) { ReceivedAt = ReceivedNow() };
 	}
 
-	// 加入工作不送可读通知，只在完成时送达
 	private sealed class ManualReader : ChannelReader<DanmakuWork>
 	{
 		private readonly Queue<DanmakuWork> _items = new();

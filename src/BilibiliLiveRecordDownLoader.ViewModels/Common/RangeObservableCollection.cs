@@ -3,7 +3,6 @@ using System.ComponentModel;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels.Common;
 
-// 热门房间每次刷新几十条弹幕，改筛选条件要重排上千条日志，逐条通知会让列表逐条重新布局
 public sealed class RangeObservableCollection<T> : ObservableCollection<T>
 {
 	private List<T> ItemList => (List<T>)Items;

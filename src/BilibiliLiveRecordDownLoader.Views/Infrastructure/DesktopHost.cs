@@ -5,7 +5,6 @@ using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace BilibiliLiveRecordDownLoader.Views.Infrastructure;
 
-// 入口程序只管单实例、信号和 Avalonia 的启动，用到的容器服务都经这里访问
 public sealed partial class DesktopHost
 {
 	private readonly ApplicationShell _shell;
@@ -15,7 +14,6 @@ public sealed partial class DesktopHost
 		_shell = shell;
 	}
 
-	// 容器在平台初始化时才建好；用户确认退出时调用 onShuttingDown
 	public static DesktopHost Create(Action onShuttingDown)
 	{
 		ApplicationShell shell = AppLocator.Current.GetRequiredService<ApplicationShell>();
@@ -33,7 +31,7 @@ public sealed partial class DesktopHost
 		Dispatcher.UIThread.Post(_shell.Shutdown);
 	}
 
-	// 主循环结束后调用，兜底注销、信号等不经过 ExitCommand 结束的情况
+	// 主循环结束后调用，兜底注销、信号等不经过 ExitCommand 的退出
 	public static void FinishShutdown(TimeSpan timeout)
 	{
 		// 超时后容器可能正在后台释放，那时已无法再解析服务
@@ -42,11 +40,10 @@ public sealed partial class DesktopHost
 
 		if (!TryStop(logger, timeout))
 		{
-			// 重复释放是安全的
 			(configManager as IDisposable)?.Dispose();
 		}
 
-		// 平台初始化失败时容器还没建好，没有日志提供程序来关闭 Serilog，异步缓冲里的平台告警要在这里刷出；重复调用是安全的
+		// 平台初始化失败时容器还没建好，要在这里刷出 Serilog 异步缓冲里的平台告警
 		Log.CloseAndFlush();
 	}
 
@@ -64,7 +61,6 @@ public sealed partial class DesktopHost
 		}
 		catch (AggregateException exception)
 		{
-			// 只有释放容器本身出错会到这里，日志可能已经关闭
 			LogDisposeFailed(logger, exception);
 		}
 

@@ -16,7 +16,7 @@ internal sealed partial class SingleInstance : IDisposable
 	public SingleInstance(string id)
 	{
 		// 用哈希缩短名称，Unix 域套接字路径有长度限制
-		// Windows 上互斥量按会话隔离，命名管道却不分会话；名称不带会话时，后启动的会话建不了管道
+		// 命名管道不按会话隔离，名称不带会话时后启动的会话建不了管道
 		string scope = OperatingSystem.IsWindows() ? $"{id}\0{Environment.UserName}\0{GetSessionId()}" : $"{id}\0{Environment.UserName}";
 		byte[] buffer = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(scope.Length));
 		Span<byte> hash = stackalloc byte[PlatformSha256.HashLength];
@@ -53,7 +53,6 @@ internal sealed partial class SingleInstance : IDisposable
 		}
 		catch (AbandonedMutexException)
 		{
-			// 上一个实例异常退出，所有权已转给当前线程
 			_isOwned = true;
 		}
 
@@ -67,7 +66,6 @@ internal sealed partial class SingleInstance : IDisposable
 			using NamedPipeClientStream client = new(".", _name, PipeDirection.Out, PipeOptions.CurrentUserOnly);
 			client.Connect(ConnectTimeout);
 
-			// 后台进程不能把自己的窗口带到前台；新实例刚由用户启动，可以把这个权限让给首个实例
 			if (OperatingSystem.IsWindows() && GetNamedPipeServerProcessId(client.SafePipeHandle, out uint processId))
 			{
 				AllowSetForegroundWindow(processId);
@@ -88,7 +86,6 @@ internal sealed partial class SingleInstance : IDisposable
 		_ = Task.Run(() => ListenAsync(onActivated, cancellationToken), cancellationToken);
 	}
 
-	// 退出过程中不再接受激活，新实例会等待互斥量释放后自行启动
 	public void StopListening()
 	{
 		_cancellation.Cancel();
@@ -115,7 +112,6 @@ internal sealed partial class SingleInstance : IDisposable
 			{
 				return;
 			}
-			// 同名管道被别的进程占着时创建会被拒绝，等它释放再建，不让监听就此结束
 			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 			{
 				await Task.Delay(RetryDelay, cancellationToken).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);

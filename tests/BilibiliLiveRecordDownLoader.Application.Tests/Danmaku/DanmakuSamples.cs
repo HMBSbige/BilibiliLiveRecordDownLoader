@@ -94,7 +94,6 @@ internal static class DanmakuSamples
 		return Encoding.UTF8.GetString(content).Split('\n', StringSplitOptions.RemoveEmptyEntries);
 	}
 
-	// 测试要在写入者关闭后读 MemoryStream 的内容
 	private sealed class NonClosingStream(Stream inner) : Stream
 	{
 		public override bool CanRead => inner.CanRead;

@@ -27,7 +27,6 @@
             <Setter Property="MinHeight" Value="0" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         </Style>
-        <!-- 列表项的内容是视图模型，读屏念整行的文字 -->
         <Style Selector="ListBox.danmaku > ListBoxItem" x:DataType="danmaku:DanmakuEntryViewModel">
             <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleText}" />
         </Style>
@@ -59,7 +58,6 @@
         <Style Selector="TextBlock.storm">
             <Setter Property="Opacity" Value="0.5" />
         </Style>
-        <!-- 被直播间删掉的 SC 留着可查 -->
         <Style Selector="Border.superChat.deleted">
             <Setter Property="Opacity" Value="0.5" />
         </Style>
@@ -118,7 +116,6 @@
     </UserControl.Resources>
 
     <UserControl.DataTemplates>
-        <!-- 类别筛选收进搜索框旁的菜单，给弹幕列表让出高度 -->
         <DataTemplate DataType="danmaku:DanmakuFilterViewModel">
             <DockPanel HorizontalSpacing="8">
                 <DropDownButton DockPanel.Dock="Right"
@@ -161,7 +158,6 @@
             <Border DockPanel.Dock="Top" Classes="panelHeader">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2">
-                        <!-- 偏移只在少数时候调整，收进菜单给弹幕列表让出高度 -->
                         <Button Classes="icon" IsVisible="{Binding File.CanAdjustOffset, FallbackValue={x:False}}"
                                 ToolTip.Tip="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}"
                                 AutomationProperties.Name="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}">

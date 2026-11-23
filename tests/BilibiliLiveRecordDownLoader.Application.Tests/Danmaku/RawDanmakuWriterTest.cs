@@ -4,7 +4,6 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
 public sealed class RawDanmakuWriterTest
 {
-	// 重写成紧凑形式的行和原样写出的行一样保留中文
 	[Test]
 	public async Task EachMessageStaysOnOneLineAsync(CancellationToken cancellationToken)
 	{
@@ -20,7 +19,6 @@ public sealed class RawDanmakuWriterTest
 		await Assert.That(await File.ReadAllLinesAsync(path, cancellationToken)).IsEquivalentTo(["""{"t":0,"cmd":"X","raw":{"cmd":"X","data":[1,"a\nb","弹幕"]}}""", """{"t":0,"cmd":"Y","raw":{"cmd":"Y", "data":1}}"""], CollectionOrdering.Matching);
 	}
 
-	// 不记连接所用账号的 uid；还不知道是否打码时不写 masked
 	[Test]
 	public async Task ConnectionChangesUseTheirOwnCommandsAsync(CancellationToken cancellationToken)
 	{

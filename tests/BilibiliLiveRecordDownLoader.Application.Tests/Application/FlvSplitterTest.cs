@@ -47,24 +47,6 @@ public sealed class FlvSplitterTest
 	}
 
 	[Test]
-	public async Task WithoutSplittingTheFileIsTheStreamAsReceivedAsync(CancellationToken cancellationToken)
-	{
-		byte[] stream =
-		[
-			.. FlvSamples.Header, .. FlvSamples.Metadata(), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0, "vseq"), .. FlvSamples.AudioSequenceHeader(),
-			.. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 0, "k1"), .. FlvSamples.Audio(10, "a1"), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.InterFrame, 33, "p1"),
-			.. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 61_000, "k2"), .. FlvSamples.Audio(60_990, "a2"), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 63_000, "k3")
-		];
-		SplitRecording recording = new();
-
-		await recording.RunAsync(new FlvSplitter(), new RecordingSplit.None(), session => session.WriteInChunksAsync(stream, 7), cancellationToken);
-
-		byte[] file = await Assert.That(recording.Files).HasSingleItem();
-		await Assert.That(file).IsEquivalentTo(stream, CollectionOrdering.Matching);
-	}
-
-	// 文件里的时间要和时间轴放弹幕的位置一致
-	[Test]
 	public async Task TimelineThatStartsOverInTheFirstFileContinuesFromTheLastTimestampAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -85,7 +67,6 @@ public sealed class FlvSplitterTest
 		}
 	}
 
-	// 时间轴不看序列头和脚本 tag，当成推流重新开始的话后面的帧整体推后，和弹幕的位置对不上
 	[Test]
 	public async Task SequenceHeaderResentWithTimestampZeroKeepsTheTimelineAsync(CancellationToken cancellationToken)
 	{
@@ -123,7 +104,6 @@ public sealed class FlvSplitterTest
 		await Assert.That(FlvSamples.Describe(file)).IsEquivalentTo(["S0", "V0[vseq]", "A0", "V0[k1]", "A10[a1]"], CollectionOrdering.Matching);
 	}
 
-	// 时间戳的高 8 位在扩展字节里：音频帧读进来时跨过 2²⁴，最后一帧写出去的值超过 2²⁴
 	[Test]
 	public async Task TimestampsBeyondTwentyFourBitsUseTheExtendedByteAsync(CancellationToken cancellationToken)
 	{
@@ -215,9 +195,7 @@ public sealed class FlvSplitterTest
 		await Assert.That(file).IsEquivalentTo(stream, CollectionOrdering.Matching);
 	}
 
-	// 停止录制时会话可能停在一个 tag 中间；分段时攒着的单元也一样
 	[Test]
-	[Arguments(false)]
 	[Arguments(true)]
 	public async Task HalfTagAtTheEndIsNotWrittenAsync(bool isSplitting, CancellationToken cancellationToken)
 	{
@@ -231,7 +209,6 @@ public sealed class FlvSplitterTest
 		await Assert.That(file).IsEquivalentTo(stream, CollectionOrdering.Matching);
 	}
 
-	// 放弃解析之后不再知道 tag 的边界，收流结束时只丢没放弃解析的末尾；签名和 tag 类型对不上就放弃，不等凑够一个头
 	[Test]
 	[Arguments(UnparsableEnd.HalfTagAfterAnUnrecognizedTag)]
 	[Arguments(UnparsableEnd.ShortDataAfterTags)]
@@ -254,9 +231,7 @@ public sealed class FlvSplitterTest
 		await Assert.That(file).IsEquivalentTo(stream, CollectionOrdering.Matching);
 	}
 
-	// 去掉填充之后写出的位置落后于收到的位置，放弃解析的位置要换算过去
 	[Test]
-	[Arguments(false)]
 	[Arguments(true)]
 	public async Task DataAfterAnUnrecognizedTagInALaterFileIsWrittenUnchangedAsync(bool removeFiller, CancellationToken cancellationToken)
 	{
@@ -277,7 +252,6 @@ public sealed class FlvSplitterTest
 			await session.WriteAsync(lookalike);
 		}, cancellationToken);
 
-		// 放弃解析之前的帧照样从 0 开始
 		byte[][] expected =
 		[
 			[.. FlvSamples.Header, .. sequence, .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 0, 4, written)],

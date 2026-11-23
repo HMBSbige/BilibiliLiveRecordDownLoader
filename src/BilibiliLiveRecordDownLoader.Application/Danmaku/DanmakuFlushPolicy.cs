@@ -1,6 +1,5 @@
 namespace BilibiliLiveRecordDownLoader.Application.Danmaku;
 
-// 待写的条数到 MaxPending，或者最早的一条等了 Interval，就刷新
 internal sealed record DanmakuFlushPolicy
 {
 	public DanmakuFlushPolicy(TimeSpan interval, int maxPending)

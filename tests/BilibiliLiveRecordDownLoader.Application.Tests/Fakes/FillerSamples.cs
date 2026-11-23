@@ -3,7 +3,6 @@ using System.Text;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 
-// 同一组样本去掉填充之后再拼一遍，就是去填充应得的结果
 internal static class FillerSamples
 {
 	public static byte[] Picture(FillerCodec codec, bool isKey, string marker)
@@ -30,7 +29,7 @@ internal static class FillerSamples
 		return [.. header, .. Encoding.ASCII.GetBytes(marker)];
 	}
 
-	public static bool IsFiller(FillerCodec codec, byte[] nal)
+	private static bool IsFiller(FillerCodec codec, byte[] nal)
 	{
 		return codec is FillerCodec.Avc ? (nal[0] & 0x1F) is 12 : (nal[0] >> 1 & 0x3F) is 38;
 	}
@@ -52,7 +51,6 @@ internal static class FillerSamples
 		return [.. sample];
 	}
 
-	// 去掉填充之后还剩下 NAL 才去
 	public static byte[][] WithoutFiller(FillerCodec codec, byte[][] nals)
 	{
 		byte[][] kept = [.. nals.Where(nal => !IsFiller(codec, nal))];
@@ -82,7 +80,7 @@ internal static class FillerSamples
 		return FlvSamples.Tag(FlvSamples.VideoTag, timestamp, [.. FlvVideoPrefix(style, isKey, false), .. Sample(lengthSize, nals)]);
 	}
 
-	public static byte[] FlvVideoPrefix(FlvFillerStyle style, bool isKey, bool isSequence)
+	private static byte[] FlvVideoPrefix(FlvFillerStyle style, bool isKey, bool isSequence)
 	{
 		byte frameType = (byte)(isKey ? 1 : 2);
 		byte packetType = isSequence ? (byte)0 : (byte)1;

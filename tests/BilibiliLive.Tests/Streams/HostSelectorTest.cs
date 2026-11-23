@@ -122,7 +122,6 @@ public class HostSelectorTest
 				allStarted.SetResult();
 			}
 
-			// 所有尝试同时在进行时每个尝试才会结束，依次打开永远走不到这一步
 			await allStarted.Task.WaitAsync(ct);
 			return uri == Hosts[1] ? new FakeSession(uri) : throw new HttpRequestException("failed");
 		});

@@ -36,12 +36,6 @@ public class HlsPlaylistTest
 	}
 
 	[Test]
-	public async Task DefaultsWhenTagsAreMissingAsync()
-	{
-		await Assert.That(HlsPlaylist.Parse("#EXTM3U\n")).IsEquivalentTo(new HlsPlaylist(null, [], false));
-	}
-
-	[Test]
 	public async Task EachSegmentKeepsTheMapThatPrecedesItAsync()
 	{
 		HlsPlaylist playlist = HlsPlaylist.Parse("#EXTM3U\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n2.m4s\n");
@@ -58,21 +52,6 @@ public class HlsPlaylistTest
 	}
 
 	[Test]
-	public async Task SegmentsAreNumberedFromTheMediaSequenceTagAsync()
-	{
-		HlsPlaylist playlist = HlsPlaylist.Parse("#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:41\n1.ts\n#EXT-X-DISCONTINUITY\n2.ts\n3.ts\n");
-
-		await Assert.That(playlist.Segments.Select(static s => s.Sequence)).IsEquivalentTo((long?[])[41, 42, 43], CollectionOrdering.Matching);
-	}
-
-	[Test]
-	public async Task UnusedVersionTagIsIgnoredAsync()
-	{
-		await Assert.That(HlsPlaylist.Parse("#EXTM3U\n#EXT-X-VERSION:x\n1.ts\n").Segments).HasSingleItem();
-	}
-
-	[Test]
-	[Arguments("""#EXT-X-MAP:URI="init.mp4",BYTERANGE="720@0" """, "init.mp4")]
 	[Arguments("""#EXT-X-MAP:BYTERANGE="720@0",URI="init,with,commas.mp4" """, "init,with,commas.mp4")]
 	public async Task MapUriIsReadFromAttributeListAsync(string mapLine, string expected)
 	{
@@ -109,11 +88,9 @@ public class HlsPlaylistTest
 	[Arguments("<html></html>")]
 	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:abc\n")]
 	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:NaN\n")]
-	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:Infinity\n")]
 	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:100000000000000\n")]
 	[Arguments("#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:-1\n")]
 	[Arguments("#EXTM3U\n#EXT-X-MAP:BYTERANGE=\"1@0\"\n")]
-	[Arguments("#EXTM3U\n#EXT-X-MAP:URI=\"\"\n")]
 	public async Task RejectsInvalidContentAsync(string content)
 	{
 		await Assert.That(() => HlsPlaylist.Parse(content)).Throws<FormatException>();

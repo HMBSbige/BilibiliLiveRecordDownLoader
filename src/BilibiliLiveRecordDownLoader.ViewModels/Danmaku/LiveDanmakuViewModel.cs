@@ -2,7 +2,6 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels.Danmaku;
 
-// 释放时退订，房间不录弹幕时就不再为它解析
 public sealed partial class LiveDanmakuViewModel : ViewModelBase
 {
 	// 再快滚动跟不上，再慢看起来一顿一顿的
@@ -18,7 +17,7 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 	// 不跟随时 Entries 不动：虚拟化列表不做滚动锚定，从头部删条目会让正在读的行滑走
 	private bool _isStale;
 
-	// 登录时的连接，要等重连才换成登录身份
+	// 登录时的连接序号，换成新连接才用上登录身份
 	private long? _loginConnection;
 
 	public LiveDanmakuViewModel(IDanmakuFeed feed, DanmakuFilterViewModel filter, bool autoRefresh = true)
@@ -71,11 +70,9 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 	[Reactive]
 	public partial string StateText { get; private set; } = string.Empty;
 
-	// 还没连上过时为 null
 	[Reactive]
 	public partial string? IdentityText { get; private set; }
 
-	// 匿名连接看不到昵称，登录后重连才能看到
 	[Reactive]
 	public partial bool CanLogin { get; private set; }
 
@@ -91,7 +88,6 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 	[Reactive]
 	public partial bool HasVisibleEntries { get; private set; }
 
-	// 视图在用户往上翻时设为 false，回到底部时设为 true
 	[Reactive]
 	public partial bool IsFollowing { get; set; } = true;
 
@@ -117,7 +113,6 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 		UpdateStatus();
 	}
 
-	// 连接换掉之前状态里还是匿名，先显示正在等重连
 	internal void OnLoggedIn()
 	{
 		_loginConnection = _status.Connection;
@@ -190,7 +185,6 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 		Entries.RemoveFirst(Entries.LowerBound(entry => entry.Sequence <= lastRemoved));
 	}
 
-	// 重建后原来的滚动位置没有意义
 	private void Rebuild()
 	{
 		Reset();

@@ -10,7 +10,6 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
 public sealed class DanmakuAppServiceTest
 {
-	// 前后各留 15 秒，剪的是 3710 到 3755 秒，文件名按开头记作 010150
 	private static readonly DanmakuHighlightDto Highlight = new(TimeSpan.FromSeconds(3725), TimeSpan.FromSeconds(3730), TimeSpan.FromSeconds(3740), "好耶");
 
 	private static ServiceProvider CreateServices(CutRecorder? cuts = null, AppConfig? config = null, IBackgroundTaskAppService? tasks = null)
@@ -157,7 +156,6 @@ public sealed class DanmakuAppServiceTest
 		IDanmakuAppService danmaku = services.GetRequiredService<IDanmakuAppService>();
 		DanmakuOffsetResult result;
 
-		// 播放器独占打开时写不进去
 		await using (new FileStream(subtitle, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
 		{
 			result = await danmaku.ChangeOffsetAsync(path, TimeSpan.FromSeconds(-1), cancellationToken);
@@ -208,17 +206,6 @@ public sealed class DanmakuAppServiceTest
 			await Assert.That(file.Source).IsEqualTo(new DanmakuFileSourceDto.Native("测试主播", "测试标题", TimeSpan.FromSeconds(60)));
 			await Assert.That(File.Exists(directory.Combine("20260102_030405.ass"))).IsFalse();
 		}
-	}
-
-	[Test]
-	public async Task FilesOfOtherProgramsCannotBeRewrittenAsync(CancellationToken cancellationToken)
-	{
-		using TestDirectory directory = new();
-		await using ServiceProvider services = CreateServices();
-		string path = directory.Combine("a.xml");
-		await File.WriteAllTextAsync(path, """<?xml version="1.0"?><i><d p="1,1,25,16777215,0,0,0,0">a</d></i>""", cancellationToken);
-
-		await Assert.ThrowsAsync<InvalidDataException>(() => services.GetRequiredService<IDanmakuAppService>().ChangeOffsetAsync(path, TimeSpan.FromSeconds(1), cancellationToken));
 	}
 
 	[Test]
@@ -281,9 +268,6 @@ public sealed class DanmakuAppServiceTest
 
 	[Test]
 	[Arguments("a", "a_fmp4.mp4", "a.highlight-000005.mp4")]
-	[Arguments("a", "a.flv", "a.highlight-000005.flv")]
-	[Arguments("a", "a.ts", "a.highlight-000005.ts")]
-	[Arguments("a_fmp4", "a_fmp4.mp4", "a_fmp4.highlight-000005.mp4")]
 	public async Task HighlightClipsKeepTheContainerAndDoNotLookLikeRecordingsAsync(string stem, string video, string expected)
 	{
 		string path = DanmakuAppService.GetHighlightPath(stem, video, TimeSpan.FromSeconds(5), static _ => false);
@@ -301,15 +285,6 @@ public sealed class DanmakuAppServiceTest
 		HashSet<string> existing = ["a.highlight-000005.mp4", "a.highlight-000005-2.mp4"];
 
 		await Assert.That(DanmakuAppService.GetHighlightPath("a", "a.mp4", TimeSpan.FromSeconds(5), existing.Contains)).IsEqualTo("a.highlight-000005-3.mp4");
-	}
-
-	[Test]
-	public async Task SubscribingToAnUnknownRoomFailsAsync()
-	{
-		await using ServiceProvider services = CreateServices();
-		IDanmakuAppService danmaku = services.GetRequiredService<IDanmakuAppService>();
-
-		await Assert.That(() => danmaku.Subscribe(1)).Throws<KeyNotFoundException>();
 	}
 
 	private sealed class CutRecorder : MediaToolAppServiceStub

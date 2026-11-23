@@ -41,7 +41,6 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 			if (ffmpeg is not null)
 			{
-				// 只用内置连接验证线路，录制交给 FFmpeg 重新拉流
 				string userAgent = BilibiliRequestHandler.ResolveUserAgent(config.UserAgent);
 				await session.DisposeAsync();
 				session = CreateFFmpegSession(ffmpeg, FFmpegArguments.Record(endpoint, userAgent, Referrer, profile.StreamConnectTimeout, GetFillerRemoval(config, stream.Codec), GetFFmpegProxy(endpoint)), endpoint);
@@ -49,7 +48,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 			_ = CreateOnDisk(() => Directory.CreateDirectory(RecordingFileLayout.GetRoomDirectory(profile.RecordDirectory, roomId)));
 			string path = Reserve(timeProvider.GetLocalNow());
-			// 查询参数里有用户的 uid 和签名，只记路径；流名里的 _bluray、_prohevc 等后缀能看出是不是 B 站重新压过的流
+			// 查询参数里有用户的 uid 和签名，只记路径
 			LogStreamSelected(logger, stream.Format, stream.Codec, stream.Quality, endpoint.Host, endpoint.AbsolutePath, path);
 
 			if (liveSession.TryUpdateRestriction(stream.Restriction) && stream.Restriction is { } restriction)
@@ -104,7 +103,6 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		);
 	}
 
-	// 目录和文件建不了时和写入失败一样，换线路也没用
 	private static T CreateOnDisk<T>(Func<T> create)
 	{
 		try
@@ -123,11 +121,10 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		Lock failureLock = new();
 		(string Log, string Display)? lastFailure = null;
 
-		// 主播没在推流时 CDN 返回 404；其他状态码和连不上都可能要人处理
+		// 主播没在推流时 CDN 返回 404
 		bool isEveryFailureNotFound = true;
 		CandidateRequest request = CandidateRequest.Create(profile, hasCookie);
 
-		// 条件变了要重新请求；失败的线路按主机记，仍然有用，不清
 		if (liveSession.Candidates is not { } batch || batch.Request != request)
 		{
 			batch = liveSession.Candidates = await GetCandidatesAsync(roomId, streamerUid, profile, request, cancellationToken);
@@ -143,7 +140,6 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 			}
 			catch (AggregateException) when (!cancellationToken.IsCancellationRequested)
 			{
-				// 每条线路的失败都已在回调里记录
 			}
 		}
 
@@ -160,7 +156,6 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		{
 			liveSession.MarkFailed(candidate, uri);
 
-			// 主播放列表的变体只是试试，不当作线路故障
 			if (candidate is LiveStreamCandidate.Variant)
 			{
 				LogVariantUnavailable(logger, candidate.Name, uri.Host, exception.Message);
@@ -194,7 +189,6 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		return new CandidateBatch([.. await GetVariantsAsync(roomId, MasterPlaylistCandidates.GetMid(profile, streamerUid), qualities, profile.CodecPriority, cancellationToken), .. listed], request);
 	}
 
-	// 主播放列表拿不到时照常用接口给的流，不当作故障
 	private async Task<IReadOnlyList<LiveStreamCandidate.Variant>> GetVariantsAsync(long roomId, long mid, long[] qualities, IReadOnlyList<StreamCodec> codecPriority, CancellationToken cancellationToken)
 	{
 		string wanted = string.Join(", ", qualities);
@@ -212,7 +206,6 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		}
 		catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
 		{
-			// 请求失败或应答不是播放列表都是常事，只记原因；兜底也会接住程序错误，那种要留下堆栈
 			if (IsRemoteFailure(exception))
 			{
 				LogMasterPlaylistUnavailable(logger, wanted, exception.Message);
@@ -242,7 +235,6 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		};
 	}
 
-	// 设置的空闲超时是下限；HLS 按段到达，两段之间本来就没有数据
 	internal static TimeSpan GetIdleTimeout(TimeSpan configured, TimeSpan? maxSilence)
 	{
 		return maxSilence + SampleInterval is { } silence && silence > configured ? silence : configured;
@@ -298,14 +290,12 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 				return (next, nextFile);
 			}
 
-			// 检查之后尝试才结束，新文件还是空的
 			nextFile.Dispose();
 			FileOperations.TryDelete(next, logger);
 			throw new OperationCanceledException(AttemptGate.ClosedMessage);
 		}
 	}
 
-	// FFmpeg 不读系统代理，按内置连接同样的规则把代理交给它
 	private Uri? GetFFmpegProxy(Uri endpoint)
 	{
 		if (proxy.IsBypassed(endpoint) || proxy.GetProxy(endpoint) is not { } address)
@@ -322,7 +312,6 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		return null;
 	}
 
-	// FFmpeg 启动之后改不了参数，录制中途改的设置等下次启动
 	internal static FillerRemoval GetFillerRemoval(AppConfig config, StreamCodec codec)
 	{
 		return (config.RemoveFillerData, codec) switch
@@ -411,7 +400,6 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		}
 		catch (OperationCanceledException)
 		{
-			// 传输结束时取消，是看门狗正常的退出
 		}
 		finally
 		{

@@ -5,7 +5,6 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 
 public sealed class DialogViewModelTest
 {
-	// 宿主只知道非泛型的对话框
 	[Test]
 	public async Task DialogCannotBeDismissedWhileBusyAsync()
 	{

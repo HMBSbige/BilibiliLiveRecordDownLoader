@@ -1,6 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-// 分片边界由会话报告；GOP 可以跨分片，要逐个检查分片开头能否独立解码
+// GOP 可以跨分片，要逐个检查分片开头能否独立解码
 internal abstract class HlsSplitter : MediaSplitter, IHlsSegmentObserver
 {
 	private readonly Queue<Element> _elements = new();
@@ -73,7 +73,6 @@ internal sealed class Fmp4HlsSplitter : HlsSplitter
 		Add(data.Length, false, default, []);
 	}
 
-	// 没有视频轨时任何分片开头都能解码
 	public override void OnMediaSegment(ReadOnlySpan<byte> data)
 	{
 		bool isSplit = _hasMovie && (_video is not { } video || IsoBmff.StartsWithSyncSample(data, video));
@@ -197,7 +196,6 @@ internal sealed class TsHlsSplitter : HlsSplitter
 		return 0;
 	}
 
-	// 分片第一个视频 PES 开头一般带着 SPS
 	private void ReadResolution(ReadOnlySpan<byte> packets)
 	{
 		if (_tables is not { VideoPid: >= 0 and var videoPid, VideoSyntax: { } syntax })
@@ -210,7 +208,6 @@ internal sealed class TsHlsSplitter : HlsSplitter
 		Resolution = ParameterSets.ReadAnnexB(TransportStream.SkipPesHeader(pes.Slice(0, length)), syntax) ?? Resolution;
 	}
 
-	// 节目里没有视频时任何分片开头都能解码
 	private bool StartsWithRandomAccess(ReadOnlySpan<byte> packets)
 	{
 		return _tables.VideoPid < 0 || TransportStream.StartsWithRandomAccessPicture(packets, _tables.VideoPid, _tables.VideoSyntax);

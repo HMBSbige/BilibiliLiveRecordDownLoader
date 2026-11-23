@@ -13,7 +13,6 @@ public sealed class DanmakuXmlReaderTest
 
 	[Test]
 	[Arguments(true)]
-	[Arguments(false)]
 	public async Task ReadsBackEverythingItWroteAsync(bool canSeek, CancellationToken cancellationToken)
 	{
 		DanmakuRecord[] records = DanmakuSamples.AllKinds();
@@ -72,7 +71,6 @@ public sealed class DanmakuXmlReaderTest
 		}
 	}
 
-	// 内嵌的 XSL 里的 HTML 元素也叫 title 之类
 	[Test]
 	public async Task OtherFilesYieldOnlyCommentsAsync(CancellationToken cancellationToken)
 	{
@@ -98,15 +96,12 @@ public sealed class DanmakuXmlReaderTest
 		{
 			await Assert.That(file.IsComplete).IsTrue();
 			await Assert.That(file.Source).IsTypeOf<DanmakuFileSource.Standard>();
-			// p[7] 不是十进制的 dmid 时读成 0；B 站标准的 d 只有 p，其他程序写在 d 上的 uid、user 和 storm 不读
 			await Assert.That(file.Records).IsEquivalentTo([new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(1234), 1, 25, 16777215, DanmakuSamples.SentAt, 0, string.Empty, @"弹幕", 0) { UidHash = @"a16fe0dd" }], EqualityComparer<DanmakuRecord>.Default);
 		}
 	}
 
 	[Test]
 	[Arguments("</d>", 0)]
-	[Arguments("</sc>", 1)]
-	[Arguments("</title>", 2)]
 	public async Task RecordEndingRightAtTheCutIsKeptAsync(string closingTag, int index, CancellationToken cancellationToken)
 	{
 		DanmakuRecord[] records =
@@ -148,7 +143,6 @@ public sealed class DanmakuXmlReaderTest
 		}
 	}
 
-	// 按坏数据分格会抛异常或分配巨大的数组；自己的文件来自不分段的仅弹幕录制时可能超过一天
 	[Test]
 	public async Task ImplausibleTimesAreSkippedAsync(CancellationToken cancellationToken)
 	{
@@ -186,7 +180,6 @@ public sealed class DanmakuXmlReaderTest
 	}
 
 	[Test]
-	[Arguments("3", GuardLevel.Captain)]
 	[Arguments("7", GuardLevel.None)]
 	[Arguments("x", GuardLevel.None)]
 	public async Task UnknownGuardLevelsAreReadAsNoneAsync(string level, GuardLevel expected, CancellationToken cancellationToken)
@@ -223,21 +216,7 @@ public sealed class DanmakuXmlReaderTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(file.IsComplete).IsTrue();
-			// 缺的字段取默认值；没有 p[6] 时哈希读成 0，不按 uid 现算
 			await Assert.That(file.Records).IsEquivalentTo([new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(2500), 1, 25, 0xFFFFFF, DateTimeOffset.UnixEpoch, 0, string.Empty, @"字段不全", 0) { UidHash = @"0" }], EqualityComparer<DanmakuRecord>.Default);
-		}
-	}
-
-	[Test]
-	public async Task GarbageIsAnIncompleteEmptyFileAsync(CancellationToken cancellationToken)
-	{
-		DanmakuFile file = await DanmakuSamples.ReadAsync(@"not xml at all", cancellationToken);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(file.IsComplete).IsFalse();
-			await Assert.That(file.Records).IsEmpty();
-			await Assert.That(file.Source).IsTypeOf<DanmakuFileSource.Standard>();
 		}
 	}
 

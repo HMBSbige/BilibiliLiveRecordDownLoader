@@ -55,7 +55,6 @@ public sealed class RoomRecordingLoopTest
 		}
 	}
 
-	// 重连间隔最长可以设到一天，最后一个文件的转封装和弹幕收尾不能跟着等
 	[Test]
 	public async Task LastFileIsPostProcessedWithoutWaitingForTheReconnectDelayAsync(CancellationToken cancellationToken)
 	{
@@ -67,7 +66,6 @@ public sealed class RoomRecordingLoopTest
 			await EndImmediatelyAsync(await loop.NextStreamAsync());
 		}
 
-		// 所有线路都失败之后在等重连间隔，时钟不推进就一直停在这里；文件都只有几 KB，后处理会删掉它们
 		await loop.WaitUntilAsync(static snapshot => snapshot.LastError?.Contains("c.test", StringComparison.Ordinal) is true);
 		await loop.WaitUntilAsync(() => Directory.GetFiles(loop.RoomDirectory, "*.flv").Length is 0, "every recording is post-processed");
 
@@ -275,7 +273,6 @@ public sealed class RoomRecordingLoopTest
 			await EndImmediatelyAsync(await loop.NextStreamAsync());
 		}
 
-		// 所有线路都失败之后在等重连间隔，时钟不推进就一直停在这里
 		await loop.WaitUntilAsync(static snapshot => snapshot.LastError?.Contains("c.test", StringComparison.Ordinal) is true);
 
 		using (Assert.Multiple())
@@ -313,7 +310,6 @@ public sealed class RoomRecordingLoopTest
 		await stuck.CopyStarted;
 		Task streaming = stuck.StreamUntilClosedAsync();
 
-		// 收到的数据在排空时限内写不完，收尾抛出写盘失败
 		loop.Settings = loop.Settings with { IsRecordingEnabled = false };
 		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Idle);
 		await streaming;
@@ -358,7 +354,6 @@ public sealed class RoomRecordingLoopTest
 		ui.Run(() => loop.Settings = loop.Settings with { IsRecordingEnabled = false });
 		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Idle);
 
-		// 循环的续体投回已经停止的 UI 线程时，释放会一直等下去
 		await loop.Session.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
 
 		await Assert.That(ui.Posted).IsEqualTo(0);

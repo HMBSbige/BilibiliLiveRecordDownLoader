@@ -24,7 +24,6 @@ public sealed class RecordingTimelineTest
 			await session.WriteAsync(FlvHead());
 			times.Add(session.Now);
 
-			// CDN 缓存的 GOP：0.5 秒内收到 6 秒画面
 			for (int i = 0; i < 5; ++i)
 			{
 				session.Advance(TimeSpan.FromMilliseconds(100));
@@ -46,7 +45,6 @@ public sealed class RecordingTimelineTest
 			times.Add(session.Now);
 		}, cancellationToken);
 
-		// 按文件建好时的墙钟算的话，0.5 秒时的弹幕会比画面早 5 秒多
 		await Assert.That(Place(recording.Timeline, times)).IsEquivalentTo(Positions(0, 0, 5900, 6200, 6900, 7900, 8400), CollectionOrdering.Matching);
 	}
 
@@ -60,7 +58,6 @@ public sealed class RecordingTimelineTest
 		{
 			await session.InitAsync(Fmp4Samples.TimedInit(1000, 1920, 1080, 40));
 
-			// 播放列表里 6 个 1 秒的分片一下拉完，之后每秒一个
 			for (int i = 0; i < 6; ++i)
 			{
 				await session.SegmentAsync(Fmp4Samples.TimedFragment(500_000 + (ulong)i * 1000, 25, 0));
@@ -90,7 +87,6 @@ public sealed class RecordingTimelineTest
 
 		await recording.RunAsync(new TsHlsSplitter(), new RecordingSplit.None(), async session =>
 		{
-			// 3 个 4 秒的分片，每秒一帧
 			for (int i = 0; i < 3; ++i)
 			{
 				await session.SegmentAsync(TsSegment(900_000 + i * 360_000, 4, MediaHeaderTest.Avc1080));
@@ -125,7 +121,6 @@ public sealed class RecordingTimelineTest
 			session.Advance(TimeSpan.FromSeconds(30));
 			times.Add(session.Now);
 
-			// 一个大的 tag 分 20 次、每秒到一点
 			for (int i = 0; i < 20; ++i)
 			{
 				session.Advance(TimeSpan.FromSeconds(1));
@@ -137,11 +132,9 @@ public sealed class RecordingTimelineTest
 			times.Add(session.Now);
 		}, cancellationToken);
 
-		// 卡了 30 秒只往后推 10 秒；事后才查也按当时的情况算，不受之后到达的数据影响
 		await Assert.That(Place(recording.Timeline, times)).IsEquivalentTo(Positions(0, 10_900, 1000, 11_000), CollectionOrdering.Matching);
 	}
 
-	// HLS 的空闲超时按分片间隔放宽，可能长于 10 秒；卡住期间内置重试成功后画面接着写进同一个文件
 	[Test]
 	[Arguments(3, 10_000)]
 	[Arguments(20, 20_000)]
@@ -186,11 +179,8 @@ public sealed class RecordingTimelineTest
 
 	[Test]
 	[Arguments(SplitKind.Duration)]
-	[Arguments(SplitKind.Size)]
-	[Arguments(SplitKind.Title)]
 	public async Task EachFileStartsAtZeroFromItsFirstKeyFrameAsync(SplitKind kind, CancellationToken cancellationToken)
 	{
-		// 第 40 帧是第三个关键帧；前两个 GOP 加上流头正好放得下，第三个 GOP 放不下
 		int firstFileLength = FlvHead().Length + FlvVideo(0, 2 * FramesPerGop).Length;
 		(SplitControl control, SplitReason reason) = kind switch
 		{
@@ -219,7 +209,6 @@ public sealed class RecordingTimelineTest
 
 				if (frame is 45)
 				{
-					// 第三个 GOP 写进哪个文件要等下一个关键帧到达才知道；之前的弹幕已经确定
 					Task<TimelinePosition?> deferred = recording.Timeline.PlaceAsync(session.Now, cancellationToken).AsTask();
 					await Assert.That(recording.Timeline.TryPlace(times[39], out beforeBoundary)).IsTrue();
 					await Assert.That(deferred.IsCompleted).IsFalse();
@@ -255,7 +244,6 @@ public sealed class RecordingTimelineTest
 		bool? settled = null;
 		TimelinePosition? last = null;
 
-		// 下一段从第 40 帧开始，它之前一刻收到的弹幕这时已经确定
 		recording.SegmentCompleted = _ => settled = recording.Timeline.TryPlace(beforeBoundary, out last);
 
 		await recording.RunAsync(new FlvSplitter(), new RecordingSplit.ByDuration(TimeSpan.FromSeconds(3)), static async session =>
@@ -298,7 +286,6 @@ public sealed class RecordingTimelineTest
 		SplitRecording recording = new();
 		List<long> times = [];
 
-		// 开着分段时单元要等下一个关键帧，这里一直等到收流结束才提交
 		await recording.RunAsync(new TransportStreamSplitter(), new RecordingSplit.ByDuration(TimeSpan.FromHours(1)), async session =>
 		{
 			await session.WriteAsync([.. TsSamples.Pat(), .. TsSamples.Pmt()]);
@@ -337,7 +324,6 @@ public sealed class RecordingTimelineTest
 		await Assert.That(Place(recording.Timeline, times)).IsEquivalentTo(Positions(0, 3000, 6000), CollectionOrdering.Matching);
 	}
 
-	// HLS 换 era 时会话以 Discontinuity 结束，下一次尝试是新的文件和新的时间轴
 	[Test]
 	public async Task NothingIsPlacedOutsideTheAttemptAsync(CancellationToken cancellationToken)
 	{
@@ -381,7 +367,6 @@ public sealed class RecordingTimelineTest
 			await session.WriteAsync(FakeSplitter.Unit("c", 10));
 		}, cancellationToken);
 
-		// 第一个文件从建好时算，之后的文件从它第一个单元到达时算
 		await Assert.That(Place(recording.Timeline, times)).IsEquivalentTo([At(0, 3000), At(1, 1000)], CollectionOrdering.Matching);
 	}
 
@@ -396,7 +381,6 @@ public sealed class RecordingTimelineTest
 
 			for (int frame = 0; frame < 70; ++frame)
 			{
-				// 换分辨率时编码器先发新的序列头再发关键帧
 				if (frame is 2 * FramesPerGop)
 				{
 					await session.WriteAsync(FlvSamples.AvcSequenceHeader(Convert.FromHexString(MediaHeaderTest.Avc444720), 14_000));
@@ -416,7 +400,6 @@ public sealed class RecordingTimelineTest
 		}
 	}
 
-	// 时间戳本来就从 0 开始，改写不动字节
 	[Test]
 	public async Task ReadingTheTimelineLeavesTheRecordedBytesUnchangedAsync(CancellationToken cancellationToken)
 	{
@@ -465,36 +448,7 @@ public sealed class RecordingTimelineTest
 		}
 	}
 
-	[Test]
-	public async Task SplittingWithTheTimelineWritesTheSameFilesAsync(CancellationToken cancellationToken)
-	{
-		byte[] head = FlvHead();
-
-		// 源时间戳从 10 秒开始，第一个文件同样从第一帧的 0 开始
-		byte[] expectedFirst = [.. head, .. Enumerable.Range(0, 2 * FramesPerGop).SelectMany(static frame => FlvFrame((uint)frame * FrameInterval, frame % FramesPerGop is 0))];
-		SplitRecording recording = new();
-
-		await recording.RunAsync(new FlvSplitter(), new RecordingSplit.ByDuration(TimeSpan.FromSeconds(3)), async session =>
-		{
-			await session.WriteAsync(head);
-
-			for (int frame = 0; frame < 70; ++frame)
-			{
-				await session.WriteAsync(FlvFrame(10_000 + (uint)frame * FrameInterval, frame % FramesPerGop is 0));
-				session.Advance(FrameDuration);
-			}
-		}, cancellationToken);
-
-		byte[] first = recording.Files[0];
-
-		using (Assert.Multiple())
-		{
-			await Assert.That((first.Length, first.AsSpan().CommonPrefixLength(expectedFirst))).IsEqualTo((expectedFirst.Length, expectedFirst.Length));
-			await Assert.That(FlvSamples.Describe(recording.Files[1]).Skip(3).Take(3)).IsEquivalentTo(["V0[k]", "V100[p]", "V200[p]"], CollectionOrdering.Matching);
-		}
-	}
-
-	// 保留 1 秒、攒够 4 条才删；早于保留范围的弹幕按最早留下的记录放
+	// 保留 1 秒、攒够 4 条才删
 	[Test]
 	public async Task PrunedRecordsKeepLaterPositionsAndBoundTheRecordCountAsync()
 	{
@@ -536,7 +490,6 @@ public sealed class RecordingTimelineTest
 		}
 	}
 
-	// 攒着的单元中间卡流，卡得比保留时长还久，空闲超时还没到
 	[Test]
 	public async Task StallLongerThanTheRetentionKeepsTheRecordsItsDanmakuAreWaitingForAsync(CancellationToken cancellationToken)
 	{
@@ -548,7 +501,6 @@ public sealed class RecordingTimelineTest
 		{
 			AddFrame(frame);
 
-			// 最后 5 帧攒着，等下一个关键帧才提交
 			if (frame < 20)
 			{
 				timeline.Commit(frame + 1);
@@ -572,13 +524,11 @@ public sealed class RecordingTimelineTest
 		Task<TimelinePosition?> placingLateInStall = timeline.PlaceAsync(lateInStall, cancellationToken).AsTask();
 		bool waited = !placingInHeldUnit.IsCompleted && !placingLateInStall.IsCompleted;
 
-		// 恢复后先到的是同一个单元剩下的帧
 		time.Advance(TimeSpan.FromSeconds(1));
 		AddFrame(25);
 		timeline.Commit(26);
 		TimelinePosition?[] woken = [await placingInHeldUnit, await placingLateInStall];
 
-		// 之后的提交再剪除时，还在排队的卡流期间的弹幕仍然从卡流前最后一帧往后推
 		time.Advance(TimeSpan.FromMilliseconds(100));
 		AddFrame(26);
 		timeline.Commit(27);

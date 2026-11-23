@@ -11,7 +11,6 @@ public class SegmentHistoryTest
 
 		history.Add("a");
 		history.Add("b");
-		// 已有的不再入队，否则容量满时会把 a 自己挤掉
 		history.Add("a");
 
 		await Assert.That(history)

@@ -133,11 +133,10 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 		}
 		catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
 		{
-			// 超时按不可用处理
 		}
 		finally
 		{
-			// 切换页面和点“重新检查”都会发起检查，以最后一次为准
+			// 多处可能同时发起检查，以最后一次为准
 			if (generation == _ffmpegCheckGeneration)
 			{
 				_ffmpegVersion = version;
@@ -248,7 +247,6 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 		return isFFmpegAvailable is true && !string.IsNullOrWhiteSpace(input) && !string.IsNullOrWhiteSpace(output);
 	}
 
-	// 应用服务对输入问题抛出这两类异常
 	private static bool IsInputError(Exception exception)
 	{
 		return exception is ArgumentException or FileNotFoundException;
@@ -280,7 +278,7 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 		return true;
 	}
 
-	// TimeSpan 的 h、m 格式只认 0–23 时、0–59 分，而不分段的录像可能超过一天；只有一个数时分不清单位，至少要写出分和秒；位数上限只为换算时不溢出
+	// TimeSpan 的 h、m 格式只认 0–23 时、0–59 分，录像可能超过一天；只有一个数时分不清单位，至少写出分和秒；位数上限防止换算溢出
 	[GeneratedRegex(@"^(?:(?<hours>[0-9]{1,6}):(?<minutes>[0-5][0-9])|(?<minutes>[0-9]{1,8})):(?<seconds>[0-5][0-9])(?:\.(?<fraction>[0-9]{1,3}))?$", RegexOptions.CultureInvariant)]
 	private static partial Regex TimePattern { get; }
 

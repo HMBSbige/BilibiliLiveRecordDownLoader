@@ -11,7 +11,6 @@ internal static class LegacyConfig
 		return Path.ChangeExtension(path, ".backup.json");
 	}
 
-	// 类型不对的值留给读取时丢掉
 	public static JsonObject ToCurrent(JsonObject legacy)
 	{
 		JsonObject config = [];
@@ -73,7 +72,6 @@ internal static class LegacyConfig
 		Set(to, toName, from[fromName]?.DeepClone());
 	}
 
-	// 写 null 会被当成无效值丢掉并记警告
 	private static void Set(JsonObject to, string name, JsonNode? value)
 	{
 		if (value is not null)
@@ -86,7 +84,6 @@ internal static class LegacyConfig
 	{
 		if (from[fromName] is JsonValue value && value.TryGetValue(out double seconds) && double.IsFinite(seconds))
 		{
-			// 加载时还会按设置的范围限制，这里只防转换溢出
 			to[toName] = JsonValue.Create(TimeSpan.FromSeconds(Math.Clamp(seconds, 0, RoomDefaults.MaxInterval.TotalSeconds)).ToString("c", CultureInfo.InvariantCulture));
 		}
 	}
@@ -107,7 +104,6 @@ internal static class LegacyConfig
 		};
 	}
 
-	// 分号分隔、排在前面的优先；认不出的名字跳过，一个都认不出时和没写一样
 	private static JsonArray? GetPriority<T>(JsonObject legacy, string name) where T : struct, Enum
 	{
 		if (legacy[name] is not JsonValue value || !value.TryGetValue(out string? order))

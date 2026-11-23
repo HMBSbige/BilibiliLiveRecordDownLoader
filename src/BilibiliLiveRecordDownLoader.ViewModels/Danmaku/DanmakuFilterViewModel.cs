@@ -35,7 +35,6 @@ public sealed partial class DanmakuFilterViewModel : ViewModelBase
 	[Reactive]
 	public partial string? SearchText { get; set; }
 
-	// 标题变化、断开这类提示条数很少，不受类别开关影响
 	public Func<DanmakuEntryViewModel, bool> CreatePredicate()
 	{
 		(bool comments, bool superChats, bool gifts, bool guards) = (ShowComments, ShowSuperChats, ShowGifts, ShowGuards);

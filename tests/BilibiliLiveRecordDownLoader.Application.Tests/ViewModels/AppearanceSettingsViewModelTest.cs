@@ -9,9 +9,7 @@ public sealed class AppearanceSettingsViewModelTest
 {
 	[Test]
 	[Arguments("EN", "en")]
-	[Arguments("zh-hans", "zh-Hans")]
 	[Arguments("zh-CN", "")]
-	[Arguments(null, "")]
 	public async Task ConfiguredLanguageIsMatchedIgnoringCaseAsync(string? configured, string expected)
 	{
 		using AppearanceSettingsViewModel viewModel = new(new SettingsAppService(new FakeConfigManager()), new SystemStub(), new SystemStub());

@@ -9,7 +9,6 @@ using System.Text;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
-// 所有主机名都连到本机回环服务器
 public sealed class BilibiliHttpClientsTest
 {
 	private const string LoginCookie = "SESSDATA=secret";

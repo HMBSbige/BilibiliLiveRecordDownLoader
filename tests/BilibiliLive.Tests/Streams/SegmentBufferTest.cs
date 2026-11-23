@@ -9,7 +9,6 @@ public class SegmentBufferTest
 		return [.. Enumerable.Range(0, length).Select(static i => (byte)(i * 31))];
 	}
 
-	// 第二行的正文比声明的长度还长
 	[Test]
 	[Arguments(SegmentBuffer.MinimumCapacity * 5 + 7, 0, null)]
 	[Arguments(SegmentBuffer.MinimumCapacity * 2 + 3, SegmentBuffer.MinimumCapacity, SegmentBuffer.MinimumCapacity)]

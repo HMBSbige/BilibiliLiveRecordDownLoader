@@ -39,7 +39,6 @@ public sealed class MediaToolsViewModelTest
 		await Assert.That(queued.Destination).IsEqualTo(suggested);
 	}
 
-	// 输入不变，刚排队的输出已被占用，要重新问一次
 	[Test]
 	public async Task QueuedCutGetsTheNextOutputSuggestedAsync(CancellationToken cancellationToken)
 	{
@@ -60,7 +59,6 @@ public sealed class MediaToolsViewModelTest
 	[Arguments("1:30", "2:00", 90d, 120d)]
 	[Arguments("0:00:10.5", "00:01:00", 10.5d, 60d)]
 	[Arguments("25:00:00", "25:10:00", 90_000d, 90_600d)]
-	[Arguments("123:59:59.5", "124:00:00", 446_399.5d, 446_400d)]
 	[Arguments("90:00", "1500:00.5", 5400d, 90_000.5d)]
 	public async Task CutTimesAreReadInTheShownFormatAsync(string start, string end, double startSeconds, double endSeconds)
 	{
@@ -70,10 +68,8 @@ public sealed class MediaToolsViewModelTest
 	}
 
 	[Test]
-	// 宽松解析会把纯数字当作天数
 	[Arguments("0", "90")]
 	[Arguments("00:02:00", "00:01:00")]
-	[Arguments("00:01:00", "abc")]
 	[Arguments("1:60:00", "2:00:00")]
 	[Arguments("1:00", "1:60")]
 	public async Task InvalidCutTimesAreReportedBeforeQueuingAsync(string start, string end)

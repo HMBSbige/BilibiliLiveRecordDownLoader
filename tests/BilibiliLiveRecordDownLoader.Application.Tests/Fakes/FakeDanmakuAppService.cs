@@ -44,7 +44,6 @@ internal sealed class FakeDanmakuAppService : IDanmakuAppService
 	}
 }
 
-// 和应用服务一样只保留最近的条目
 internal sealed class FakeDanmakuFeed(long roomId) : IDanmakuFeed
 {
 	private readonly List<LiveDanmakuEntryDto> _entries = [];

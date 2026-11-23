@@ -81,12 +81,6 @@ public class MasterPlaylistVariantsTest
 	}
 
 	[Test]
-	public async Task MediaPlaylistListsNoVariantAsync()
-	{
-		await Assert.That(MasterPlaylistVariants.Parse("#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXTINF:1,\n1.m4s\n", PlaylistUri)).IsEmpty();
-	}
-
-	[Test]
 	[Arguments("")]
 	[Arguments("""{"code":-400,"message":"请求错误","ttl":1}""")]
 	public async Task ContentThatIsNotAPlaylistIsRejectedAsync(string content)

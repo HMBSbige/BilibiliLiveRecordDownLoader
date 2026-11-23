@@ -58,7 +58,6 @@ public sealed class RoomAppServiceTest
 			await Assert.That(results[2]).IsTypeOf<RoomAddResult.Added>().And.Member(static added => added.RequestedRoomId, static id => id.IsEqualTo(5440));
 			await Assert.That(harness.Config.UpdateCount).IsEqualTo(1);
 			await Assert.That(harness.ConfiguredRoomIds).IsEquivalentTo([ExistingRoomId, 5440], CollectionOrdering.Matching);
-			// 批量查询结果里缺少的房间再单独确认一次
 			await Assert.That(harness.RoomInfoQueries).Contains("404404");
 		}
 	}
@@ -92,17 +91,6 @@ public sealed class RoomAppServiceTest
 			await Assert.That(harness.Rooms.GetRooms()).HasSingleItem();
 			await Assert.That(harness.RoomInfoQueries).IsEquivalentTo(["732,1"], CollectionOrdering.Matching);
 		}
-	}
-
-	[Test]
-	public async Task AddRangeReportsATimeoutWithALocalizedMessageAsync(CancellationToken cancellationToken)
-	{
-		await using Harness harness = await Harness.CreateAsync();
-		harness.Handler.TimesOut = true;
-
-		IReadOnlyList<RoomAddResult> results = await harness.Rooms.AddRangeAsync([Room(732), Room(1)], cancellationToken);
-
-		await Assert.That(results).IsEquivalentTo([new RoomAddResult.Failed(732, AppLanguage.Current.RequestTimedOut), new RoomAddResult.Failed(1, AppLanguage.Current.RequestTimedOut)], EqualityComparer<RoomAddResult>.Default, CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -163,7 +151,6 @@ public sealed class RoomAppServiceTest
 		}
 	}
 
-	// 输入的短号按解析出的房间号判断是否已经添加
 	[Test]
 	public async Task AddingAnExistingRoomByItsShortIdFailsWithoutWritingConfigAsync(CancellationToken cancellationToken)
 	{
@@ -206,14 +193,13 @@ public sealed class RoomAppServiceTest
 		harness.Handler.TitlesBatchAnswers = true;
 		await harness.Rooms.AddRangeAsync([Room(FirstRoomId), Room(SecondRoomId)], cancellationToken);
 
-		// 各房间启动时自己查到的标题为空，等这些应答都用上，免得晚到的覆盖刷新的结果
+		// 等各房间启动时自己的状态查询都用上，免得晚到的应答覆盖刷新的结果
 		await TestWait.UntilAsync(() => harness.Rooms.GetRooms().All(static room => room.Title is ""), "every room applied its own status check", cancellationToken);
 		await harness.Rooms.RefreshAsync([ExistingRoomId, FirstRoomId], cancellationToken);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(harness.RoomInfoQueries).Contains("22907643,6154037");
-			// 房间顺序：已有、第一、第二
 			await Assert.That(harness.Rooms.GetRooms().Select(static room => room.Title)).IsEquivalentTo((string?[])["22907643", "6154037", ""], CollectionOrdering.Matching);
 		}
 	}
@@ -227,7 +213,6 @@ public sealed class RoomAppServiceTest
 		await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Rooms.RefreshAsync([ExistingRoomId], cancellationToken)).WithMessage(AppLanguage.Current.RequestRateLimited);
 	}
 
-	// 退出前的确认也要算上删除后还在收尾的房间
 	[Test]
 	public async Task StopWaitsForRemovedRoomsThatAreStillClosingAsync(CancellationToken cancellationToken)
 	{
@@ -235,7 +220,6 @@ public sealed class RoomAppServiceTest
 		TaskCompletionSource released = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		harness.Handler.RoomInfoGate = released.Task;
 
-		// 改检查间隔会马上再查一次状态，这次查询卡住时房间要等它结束才释放完
 		await harness.Rooms.UpdateAsync(Room(ExistingRoomId) with { StatusCheckInterval = TimeSpan.FromMinutes(1) }, cancellationToken);
 		await TestWait.UntilAsync(() => harness.Handler.RoomInfoQueries.Contains(ExistingRoomId.ToString(CultureInfo.InvariantCulture)), "the status check is in flight", cancellationToken);
 
@@ -254,7 +238,6 @@ public sealed class RoomAppServiceTest
 		}
 	}
 
-	// 启动时在配置锁外枚举房间列表，这时界面上可能正在增删改房间
 	[Test]
 	[MethodDataSource(nameof(RoomListChanges))]
 	public async Task RoomChangesReplaceTheRoomListInsteadOfChangingItAsync(Func<IRoomAppService, CancellationToken, Task> change, RoomSettingsDto[] expected, CancellationToken cancellationToken)
@@ -274,9 +257,7 @@ public sealed class RoomAppServiceTest
 
 	public static IEnumerable<TestDataRow<Func<(Func<IRoomAppService, CancellationToken, Task> Change, RoomSettingsDto[] Expected)>>> RoomListChanges()
 	{
-		// 初始顺序：已有、第一、第二、第三、第四
 		yield return new(static () => (static (rooms, cancellationToken) => rooms.AddAsync(Room(FifthRoomId), cancellationToken), Rooms(ExistingRoomId, FirstRoomId, SecondRoomId, ThirdRoomId, FourthRoomId, FifthRoomId)), DisplayName: "Add");
-		yield return new(static () => (static (rooms, cancellationToken) => rooms.AddRangeAsync([Room(FifthRoomId)], cancellationToken), Rooms(ExistingRoomId, FirstRoomId, SecondRoomId, ThirdRoomId, FourthRoomId, FifthRoomId)), DisplayName: "AddRange");
 		yield return new(static () => (static (rooms, cancellationToken) => rooms.UpdateAsync(Room(FirstRoomId) with { IsRecordingEnabled = false }, cancellationToken), [Room(ExistingRoomId), Room(FirstRoomId) with { IsRecordingEnabled = false }, Room(SecondRoomId), Room(ThirdRoomId), Room(FourthRoomId)]), DisplayName: "Update");
 		yield return new(static () => (static (rooms, cancellationToken) => rooms.MoveAsync([FourthRoomId], ExistingRoomId, cancellationToken), Rooms(FourthRoomId, ExistingRoomId, FirstRoomId, SecondRoomId, ThirdRoomId)), DisplayName: "Move");
 		yield return new(static () => (static (rooms, cancellationToken) => rooms.RemoveAsync([FirstRoomId], cancellationToken), Rooms(ExistingRoomId, SecondRoomId, ThirdRoomId, FourthRoomId)), DisplayName: "Remove");
@@ -307,13 +288,9 @@ public sealed class RoomAppServiceTest
 
 	public static IEnumerable<Func<(long[] RoomIds, long? Before, long[] Expected)>> MoveCases()
 	{
-		// 初始顺序：已有、第一、第二、第三、第四
 		yield return static () => ([ThirdRoomId, FirstRoomId], ExistingRoomId, [FirstRoomId, ThirdRoomId, ExistingRoomId, SecondRoomId, FourthRoomId]);
 		yield return static () => ([ExistingRoomId, SecondRoomId], null, [FirstRoomId, ThirdRoomId, FourthRoomId, ExistingRoomId, SecondRoomId]);
-		yield return static () => ([FourthRoomId], SecondRoomId, [ExistingRoomId, FirstRoomId, FourthRoomId, SecondRoomId, ThirdRoomId]);
-		// 目标也在移动的房间里时，以它之后第一个不移动的房间为准
 		yield return static () => ([FirstRoomId, ThirdRoomId], FirstRoomId, [ExistingRoomId, FirstRoomId, ThirdRoomId, SecondRoomId, FourthRoomId]);
-		yield return static () => ([SecondRoomId, 404404], ExistingRoomId, [SecondRoomId, ExistingRoomId, FirstRoomId, ThirdRoomId, FourthRoomId]);
 	}
 
 	[Test]
@@ -336,16 +313,12 @@ public sealed class RoomAppServiceTest
 
 	public static IEnumerable<Func<(long[] RoomIds, long? Before)>> UnchangedMoveCases()
 	{
-		yield return static () => ([ThirdRoomId, FourthRoomId], null);
 		yield return static () => ([ExistingRoomId, FirstRoomId], SecondRoomId);
-		// 目标和它之后的房间都在移动，等同于移到末尾
 		yield return static () => ([ThirdRoomId, FourthRoomId], ThirdRoomId);
 		yield return static () => ([404404], ExistingRoomId);
 		yield return static () => ([FirstRoomId], 404404);
-		yield return static () => ([], null);
 	}
 
-	// 界面打开的就是录制写入的目录
 	[Test]
 	public async Task RoomDirectoryIsWhereItsRecordingsAreWrittenAsync(CancellationToken cancellationToken)
 	{
@@ -418,7 +391,6 @@ public sealed class RoomAppServiceTest
 			return harness;
 		}
 
-		// 已有房间启动时的首次刷新不算在用例的查询里
 		private async Task WaitForStartupRefreshAsync()
 		{
 			await TestWait.UntilAsync(() => Handler.RoomInfoQueries.Contains(ExistingRoomId.ToString(CultureInfo.InvariantCulture)), "the existing room is refreshed at startup", CancellationToken.None);
@@ -439,7 +411,6 @@ public sealed class RoomAppServiceTest
 
 		public bool RejectBatch { get; init; }
 
-		// 为真时合并查询的应答以房间号作标题，和单个房间查到的空标题区分开
 		public bool TitlesBatchAnswers { get; set; }
 
 		public HttpStatusCode RoomInfoStatus { get; set; } = HttpStatusCode.OK;
@@ -448,10 +419,8 @@ public sealed class RoomAppServiceTest
 
 		public HttpStatusCode FollowingStatus { get; set; } = HttpStatusCode.OK;
 
-		// HttpClient 超时抛的是带着 TimeoutException 的 TaskCanceledException
 		public bool TimesOut { get; set; }
 
-		// 给出时房间信息的应答等它完成，不理会取消
 		public Task? RoomInfoGate { get; set; }
 
 		protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

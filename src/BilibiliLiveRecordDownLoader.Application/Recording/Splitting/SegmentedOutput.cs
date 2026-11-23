@@ -3,7 +3,7 @@ using System.IO.Pipelines;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-// 换文件在写盘端照着标记做，关闭旧文件时网络端照常收进缓冲；openNext 建不了文件时抛 RecordingWriteException
+// openNext 建不了文件时抛 RecordingWriteException
 internal sealed class SegmentedOutput(Stream firstFile, string firstPath, Func<SegmentStarts.Writer, RecordingSegmenter> createSegmenter, Func<SegmentStart, (string Path, Stream File)> openNext, Action<string> completed) : RecordingOutput
 {
 	private readonly SegmentStarts _starts = new();
@@ -11,7 +11,6 @@ internal sealed class SegmentedOutput(Stream firstFile, string firstPath, Func<S
 	private Stream? _file = firstFile;
 	private string _path = firstPath;
 
-	// 写盘端不再碰文件时完成；排空超时后会晚于这次录制尝试结束
 	public Task Closed => _closed.Task;
 
 	public override async Task<StreamEndReason> ReceiveAsync(LiveStreamSession session, PipeWriter writer, IProgress<long> progress, CancellationToken cancellationToken)

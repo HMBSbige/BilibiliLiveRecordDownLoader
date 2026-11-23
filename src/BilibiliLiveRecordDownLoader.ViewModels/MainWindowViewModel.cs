@@ -33,7 +33,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
 	public DialogHostViewModel Dialogs { get; }
 
-	// 按需解析而不注入，主窗口的构造和测试都不必带上全部页面
 	public RoomListViewModel Rooms => field ??= AppLocator.Current.GetRequiredService<RoomListViewModel>();
 
 	public TaskListViewModel Tasks => field ??= AppLocator.Current.GetRequiredService<TaskListViewModel>();
@@ -152,7 +151,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
 		_shell.BeginShutdown();
 
-		// Program 退出前还会再停止一次
 		try
 		{
 			await _lifecycle.StopAsync();

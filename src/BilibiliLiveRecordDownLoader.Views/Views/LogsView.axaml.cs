@@ -84,7 +84,6 @@ public partial class LogsView : UserControl
 		}
 	}
 
-	// 剪贴板可能被其他程序占用
 	private async Task CopySelectionAsync()
 	{
 		if (_viewModel is not { Entries: var entries } || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard || LogList.Selection.SelectedIndexes is not { Count: > 0 } indexes)

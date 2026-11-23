@@ -17,7 +17,6 @@ public sealed record RecordingProfile
 	TimeSpan StreamIdleTimeout
 )
 {
-	// 真原画是原画这一档没被 B 站重新压过的版本
 	public long RequestQuality => (Quality, RequestTrueOriginal) is (StreamQuality.Original, true) ? StreamQualityConsts.TrueOriginal : (long)Quality;
 
 	public static RecordingProfile Create(AppConfig app, RoomConfig room)

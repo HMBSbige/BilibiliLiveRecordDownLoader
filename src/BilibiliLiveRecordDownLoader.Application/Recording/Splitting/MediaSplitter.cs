@@ -8,10 +8,8 @@ internal abstract class MediaSplitter
 	private readonly List<MediaMark> _mediaMarks = [];
 	private bool _isAtReportedSplit;
 
-	// 从最近一次找到的切分点开始新段时，要先写进新文件的头
 	public ReadOnlyMemory<byte> Header { get; private set; }
 
-	// 解析不下去之后再也不会有切分点
 	public virtual bool CanSplit => true;
 
 	// 一次写入可能只有单元的开头，而 Rebase 要在文件的第一次提交里看到从关键帧起的整个单元才定得准起点
@@ -22,7 +20,6 @@ internal abstract class MediaSplitter
 
 	public ReadOnlySpan<MediaMark> MediaMarks => CollectionsMarshal.AsSpan(_mediaMarks);
 
-	// 流头（onMetaData、序列头、init 段、SPS）里最近读到的画面尺寸
 	public VideoResolution? Resolution { get; protected set; }
 
 	// 遇到切分点时停在它前面并返回 true，下次调用从这个元素接着看；看完所有完整的元素时返回 false
@@ -60,7 +57,6 @@ internal abstract class MediaSplitter
 		return false;
 	}
 
-	// 接下来提交的元素写进新的一段，第一个是切分点元素
 	public virtual void StartSegment()
 	{
 	}

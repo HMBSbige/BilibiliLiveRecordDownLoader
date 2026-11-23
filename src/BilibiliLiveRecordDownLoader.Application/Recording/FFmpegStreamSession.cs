@@ -2,7 +2,6 @@ using System.Buffers;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording;
 
-// FFmpeg 输出到标准输出而不是直接写文件，写盘、背压和空闲判断才能和内置录制共用
 internal sealed class FFmpegStreamSession(FFmpegRunner ffmpeg, IReadOnlyList<string> arguments, Uri source) : LiveStreamSession
 {
 	private const int BufferSize = 64 * 1024;

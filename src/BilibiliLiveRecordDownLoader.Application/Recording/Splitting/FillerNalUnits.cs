@@ -1,6 +1,5 @@
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-// 固定码率编码器为凑码率插入的填充 NAL，里面没有画面，解码器直接丢弃
 internal static class FillerNalUnits
 {
 	private const int AvcFillerType = 12;
@@ -81,7 +80,6 @@ internal static class FillerNalUnits
 		}
 	}
 
-	// 长度为 0 的 NAL 没有类型，当作普通数据留着
 	private static bool IsFiller(ReadOnlySpan<byte> unit, int lengthSize, NalSyntax syntax)
 	{
 		if (unit.Length <= lengthSize)

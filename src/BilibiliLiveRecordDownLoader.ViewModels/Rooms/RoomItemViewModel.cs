@@ -23,12 +23,10 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 
 	public long RoomId { get; }
 
-	// 开关保存失败并回滚后调用；为 null 时交给全局处理
 	internal Action<Exception>? ReportSaveFailure { get; init; }
 
 	public RoomSettingsDto Settings { get; private set; }
 
-	// 在自定义顺序中的位置
 	public int Order { get; internal set; }
 
 	[Reactive]
@@ -77,7 +75,7 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 	[Reactive]
 	public partial string? QualityRestrictionTip { get; private set; }
 
-	// 读屏只读得到列表项上的说明；录不上的原因和画质受限不会同时出现
+	// 录不上的原因和画质受限不会同时出现
 	[Reactive]
 	public partial string? HelpText { get; private set; }
 
@@ -136,7 +134,7 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 		}
 	}
 
-	internal static string DescribeRestriction(QualityRestriction restriction, long quality, bool hasCookie)
+	private static string DescribeRestriction(QualityRestriction restriction, long quality, bool hasCookie)
 	{
 		return restriction switch
 		{

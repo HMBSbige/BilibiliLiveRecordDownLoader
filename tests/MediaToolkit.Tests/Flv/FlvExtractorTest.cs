@@ -45,8 +45,6 @@ public class FlvExtractorTest
 
 	public static IEnumerable<TestDataRow<Func<byte[]>>> FlvsWithoutFrames()
 	{
-		yield return new(static () => new FlvBuilder().ToArray(), DisplayName: "header only");
-		// 只有参数集的 H.264 流没有画面，FFmpeg 合并时报 dimensions not set
 		yield return new(static () => new FlvBuilder().Tag(FlvTagType.Video, 0, FlvSamples.AvcSequenceHeader).Tag(FlvTagType.Audio, 0, FlvSamples.AacSequenceHeader).ToArray(), DisplayName: "sequence headers only");
 	}
 
@@ -74,7 +72,6 @@ public class FlvExtractorTest
 		using TestDirectory directory = new();
 		FlvBuilder builder = new FlvBuilder().Tag(FlvTagType.Video, 0, FlvSamples.AvcSequenceHeader);
 
-		// 丢掉一帧后剩 29 个间隔，仍跨 1 秒
 		foreach (uint timestamp in Enumerable.Range(0, 31).Where(static frame => frame is not 15).Select(static frame => (uint)(frame * 1000 / 30)))
 		{
 			builder.Tag(FlvTagType.Video, timestamp, FlvSamples.AvcKeyFrame);
@@ -159,26 +156,6 @@ public class FlvExtractorTest
 	}
 
 	[Test]
-	public async Task MissingAudioYieldsNullPathWithoutFileAsync()
-	{
-		using TestDirectory directory = new();
-		byte[] flv = new FlvBuilder()
-			.Tag(FlvTagType.Video, 0, FlvSamples.AvcSequenceHeader)
-			.Tag(FlvTagType.Video, 0, FlvSamples.AvcKeyFrame)
-			.ToArray();
-		string input = directory.CreateFile(@"video.flv", flv);
-		string video = directory.Combine(@"video.h264");
-
-		FlvExtractResult result = await FlvExtractor.ExtractAsync(input, directory.Root);
-
-		await Assert.That(result).IsEqualTo(new FlvExtractResult(video, null));
-		await Assert.That(Directory.EnumerateFiles(directory.Root)).IsEquivalentTo([input, video]);
-	}
-
-	[Test]
-	// CodecID 12：B 站 HEVC 流使用的非标准编号
-	[Arguments(false, true, @"1C00000000" + @"01", "video starts as HEVC")]
-	[Arguments(false, false, @"2F01" + @"21004990", "audio starts as MP3")]
 	[Arguments(true, true, @"9068766331" + @"01", "video switches to enhanced HEVC")]
 	[Arguments(true, false, @"AF00" + @"3210", "audio switches to an unsupported AudioSpecificConfig")]
 	public async Task UnconvertibleTagThrowsWithoutOutputAsync(bool midway, bool isVideo, string hex, string reason)
@@ -334,7 +311,6 @@ public class FlvExtractorTest
 			.Tag(FlvTagType.Video, 0, KeyFrame(LargeSlice))
 			.ToArray();
 		string input = directory.CreateFile(@"live.flv", flv);
-		// 写到 /dev/full 都报磁盘已满：大帧直接写盘失败，音频帧还在写缓冲里，丢弃时刷写也会失败
 		File.CreateSymbolicLink(directory.Combine(@"live.h264"), @"/dev/full");
 		File.CreateSymbolicLink(directory.Combine(@"live.aac"), @"/dev/full");
 

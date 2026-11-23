@@ -33,7 +33,7 @@ public static class FlvExtractor
 			throw new ArgumentException(@"The input file would be overwritten by the output.", nameof(inputPath));
 		}
 
-		// 逐 tag 转换是 CPU 工作，不能让 await 回到调用方的 UI 线程上执行
+		// 逐 tag 转换是 CPU 工作，不能在调用方的 UI 线程上执行
 		return Task.Run(() => ExtractCoreAsync(inputPath, outputDirectory, videoPath, audioPath, progress, cancellationToken), cancellationToken);
 	}
 
@@ -80,7 +80,7 @@ public static class FlvExtractor
 
 		try
 		{
-			// 录制中断的文件最后一个 tag 往往不完整，读到哪里算哪里
+			// 录制中断的文件最后一个 tag 往往不完整
 			while (await TryReadExactlyAsync(input, prefix, cancellationToken))
 			{
 				cancellationToken.ThrowIfCancellationRequested();
@@ -143,7 +143,7 @@ public static class FlvExtractor
 		// 平均帧率让合并后的视频总时长与音频一致
 		return frameIntervalCount > 0 ? frameIntervalCount * 1000.0 / frameIntervalSum : null;
 
-		// 要修复的正是时间戳错乱的文件，首尾时间戳的跨度不可信
+		// 要修复的正是时间戳错乱的文件，不能用首尾时间戳的跨度
 		void AddFrame(uint timestamp)
 		{
 			if (previousFrameTimestamp is { } previous && (long)timestamp - previous is var interval and > 0 and <= MaxFrameIntervalMilliseconds)

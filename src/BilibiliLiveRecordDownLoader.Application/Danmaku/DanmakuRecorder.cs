@@ -17,7 +17,6 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 
 	private const int CompletedCapacity = 32;
 
-	// 开着的段按开始的先后排列；没录弹幕或者建不出文件的段为 null
 	private readonly OrderedDictionary<string, Sink.Video?> _videoSinks = new(StringComparer.Ordinal);
 	private readonly HashSet<string> _closedVideoPaths = new(StringComparer.Ordinal);
 	private readonly Dictionary<string, DanmakuSegment?> _completed = new(StringComparer.Ordinal);
@@ -28,7 +27,6 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 	private RawDanmakuWriter? _raw;
 	private string? _rawStem;
 
-	// 原始消息文件还没记当前的连接，等这次工作改完状态后补记
 	private bool _rawAwaitsConnection;
 
 	private DanmuMessage.Connected? _connection;
@@ -37,12 +35,10 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 	private long _pendingSince;
 	private bool _isRecording;
 
-	// 写入失败和写到一半卡住用真实文件造不稳定，测试换成自己的流
 	internal Func<string, DanmakuFileHeader, CancellationToken, Task<DanmakuXmlWriter>> CreateWriterAsync { get; init; } = (path, header, cancellationToken) => DanmakuXmlWriter.CreateFileAsync(path, header, DanmakuFlushPolicy.Default, timeProvider, cancellationToken);
 
 	internal Func<string, RawDanmakuWriter> OpenRawWriter { get; init; } = path => RawDanmakuWriter.Open(path, DanmakuFlushPolicy.Default, timeProvider);
 
-	// 其他线程调用
 	public bool IsWriting(string path)
 	{
 		return _openPaths.ContainsKey(Path.GetFullPath(path));
@@ -182,7 +178,7 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 
 		due = Min(due, _raw?.FlushDueIn);
 
-		// 画面追上压着的记录时没有通知，只能隔一会儿看一次
+		// 画面追上压着的记录时没有通知，只能定时检查
 		if (_videoSinks.Values.Any(static sink => sink is { IsFailed: false, Ahead.Count: > 0 }))
 		{
 			due = Min(due, AheadCheckInterval);
@@ -342,7 +338,6 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 				_pendingConnection = connected;
 				_pendingSince = timeProvider.GetTimestamp();
 
-				// 原始的未登录通知紧随其后，这里不必记是否打码
 				if (_raw is not null)
 				{
 					_rawAwaitsConnection = false;
@@ -389,7 +384,6 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 
 				break;
 			}
-			// 由房间循环处理，不会排进来
 			case DanmuMessage.LiveStarted or DanmuMessage.LiveStopped or DanmuMessage.RoomChanged:
 			{
 				break;
@@ -422,7 +416,6 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 		_rawAwaitsConnection |= !isRawOpen && _raw is not null;
 		await WriteRawConnectionAsync(cancellationToken);
 
-		// 跨了文件时前一个文件断开到它的末尾
 		foreach (Sink sink in OpenSinks.Where(static sink => sink.GapStart is not null).ToArray())
 		{
 			await CloseGapAsync(sink, placed is ({ } target, var time) && ReferenceEquals(target, sink) ? time : null, cancellationToken);
@@ -514,7 +507,7 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 		return sink is { IsFailed: false } ? (sink, position.Time) : null;
 	}
 
-	// timestamp 是录制换到这个文件的时刻，写入者可能正卡在放置前面的弹幕上，处理到时已经过了一会儿
+	// timestamp 是录制换到这个文件的时刻，处理到时可能已经过了一会儿
 	private async Task StartSegmentAsync(string path, long timestamp, CancellationToken cancellationToken)
 	{
 		if (_video is not { } video)
@@ -667,7 +660,6 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 
 		if (_videoSinks.GetAt(0).Value is { } next)
 		{
-			// 比下一段里压着的记录都早，放在最前面
 			next.Ahead.InsertRange(0, video.Spill);
 			video.Spill.Clear();
 			await ReleaseAsync(next, null, CancellationToken.None);
@@ -786,14 +778,12 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 				LogOpenFailed(logger, exception, path);
 			}
 
-			// 弹幕连接通常早于开始记录
 			_rawAwaitsConnection = _raw is not null && (_pendingConnection is not null || _connection is not null);
 		}
 
 		options.IncludeRaw = _raw is not null;
 	}
 
-	// 原始的未登录通知不一定在文件里，补记时写明是否打码
 	private async Task WriteRawConnectionAsync(CancellationToken cancellationToken)
 	{
 		if (!_rawAwaitsConnection || _pendingConnection is not null || _connection is not { } connection)
@@ -1037,10 +1027,8 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 
 		public string Title { get; set; } = string.Empty;
 
-		// 弹幕连接从这个文件内时间起断开
 		public TimeSpan? GapStart { get; set; }
 
-		// 连接记录还在等未登录通知
 		public bool AwaitsConnection { get; set; }
 
 		public TimeSpan LastTime { get; set; }
@@ -1055,7 +1043,6 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 
 			public string VideoPath { get; } = videoPath;
 
-			// 超出这一段已经提交的画面、暂不写出的记录
 			public List<DanmakuRecord> Ahead { get; } = [];
 
 			public TimeSpan? GetDuration()
@@ -1081,10 +1068,8 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 		// 超出上一段末尾的记录，已经换算成下一段的时间
 		public List<DanmakuRecord> Spill { get; } = [];
 
-		// 到达时所在段的文件已经关闭的弹幕数
 		public long LateCount { get; set; }
 
-		// 超出段末尾、紧接着的一段又没有弹幕文件而丢掉的弹幕数
 		public long NoNextFileCount { get; set; }
 	}
 

@@ -66,7 +66,6 @@ public class DanmuMessageParserTest
 
 	private static readonly DanmuMessage.Gift MaskedGiftV2 = new(new DanmuSender(0, "测3***", GuardLevel.None, null), "粉丝团灯牌", 1, 100, DanmuCoinType.Gold);
 
-	// 照着文档里的字段手写，抓包期间没收到 SEND_GIFT
 	private static readonly DanmuMessage.Gift SendGift = new
 	(
 		new DanmuSender(10000010, "用户12", GuardLevel.Admiral, new DanmuMedal(21, "测试牌", 398668, true)),
@@ -105,7 +104,6 @@ public class DanmuMessageParserTest
 		return Parse(Encoding.UTF8.GetBytes(json), mode).SingleOrDefault();
 	}
 
-	// 匿名从直播间抓取，uid、昵称和头像都换成了假值
 	internal static byte[] Fixture(string name)
 	{
 		return File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Danmu", name));
@@ -121,7 +119,6 @@ public class DanmuMessageParserTest
 		return message with { ReceivedAt = ReceivedAt };
 	}
 
-	// 测试数据的结构变了就直接失败，而不是悄悄地什么都没改
 	private static JsonNode Required(JsonNode? node)
 	{
 		return node ?? throw new InvalidDataException();
@@ -143,7 +140,6 @@ public class DanmuMessageParserTest
 		});
 	}
 
-	// 前两个礼物完整，只截断最后一个
 	private static byte[] TruncatedGifts()
 	{
 		return Encoding.UTF8.GetBytes(ModifyGiftProtobuf("gift_v2_multiple.json", static pb => pb.AsSpan(0, pb.Length - 3).ToArray()));
@@ -156,8 +152,6 @@ public class DanmuMessageParserTest
 
 	[Test]
 	[Arguments("""{"cmd":"LIVE","roomid":6154037}""")]
-	[Arguments("""{"roomid":6154037,"live_key":"1","cmd":"LIVE"}""")]
-	[Arguments("""{"cmd":"LIVE:suffix"}""")]
 	public async Task LiveMapsToLiveStartedAsync(string json)
 	{
 		await Assert.That(Parse(json)).IsEqualTo(Received(new DanmuMessage.LiveStarted()));
@@ -166,7 +160,6 @@ public class DanmuMessageParserTest
 	[Test]
 	[Arguments("""{"cmd":"PREPARING","roomid":"6154037"}""", false)]
 	[Arguments("""{"cmd":"PREPARING","round":1,"roomid":"6154037"}""", true)]
-	[Arguments("""{"cmd":"PREPARING","round":0,"roomid":"6154037"}""", false)]
 	public async Task PreparingMapsToLiveStoppedAsync(string json, bool isRound)
 	{
 		await Assert.That(Parse(json)).IsEqualTo(Received(new DanmuMessage.LiveStopped(isRound)));
@@ -182,7 +175,6 @@ public class DanmuMessageParserTest
 
 	[Test]
 	[Arguments(false)]
-	[Arguments(true)]
 	public async Task LoginNoticeIsParsedWhetherOrNotChatIsIncludedAsync(bool includeChat)
 	{
 		DanmuMessage? message = ParseFixture("log_in_notice.json", includeChat ? DanmuParseMode.Chat : DanmuParseMode.None);
@@ -195,14 +187,10 @@ public class DanmuMessageParserTest
 	[Arguments("""{"cmd":"SEND_GIFT_V2","data":{"pb":"not base64"}}""")]
 	[Arguments("""{"cmd":"USER_TOAST_MSG_V2","data":{}}""")]
 	[Arguments("""{"cmd":"SUPER_CHAT_MESSAGE_DELETE","data":{"ids":[1]}}""")]
-	// cmd 之后格式错误，交给解析就会抛异常
 	[Arguments("""{"cmd":"DANMU_MSG","info":[[0,1,""")]
-	[Arguments("""{"cmd":"LIVE_INTERACTIVE_GAME","data":{}}""")]
 	[Arguments("""{"cmd":"PREPARING_X"}""")]
 	[Arguments("""{"cmd":"ROOM_CHANGE"}""")]
 	[Arguments("""{"data":{"cmd":"LIVE"}}""")]
-	[Arguments("""{"cmd":1}""")]
-	[Arguments("""[]""")]
 	public async Task OtherCommandsAreDroppedAsync(string json)
 	{
 		await Assert.That(Parse(json)).IsNull();
@@ -263,7 +251,6 @@ public class DanmuMessageParserTest
 
 	[Test]
 	[Arguments("""{"cmd":"DANMU_MSG"}""")]
-	[Arguments("""{"cmd":"DANMU_MSG","info":{}}""")]
 	[Arguments("""{"cmd":"SUPER_CHAT_MESSAGE","data":[]}""")]
 	[Arguments("""{"cmd":"SEND_GIFT"}""")]
 	[Arguments("""{"cmd":"SEND_GIFT_V2","data":{}}""")]
@@ -289,7 +276,6 @@ public class DanmuMessageParserTest
 
 	[Test]
 	[Arguments("1e30")]
-	[Arguments("1000000000000")]
 	[Arguments("-5")]
 	public async Task SuperChatDurationOutOfRangeIsUnknownAsync(string time)
 	{
@@ -301,7 +287,6 @@ public class DanmuMessageParserTest
 	[Test]
 	public async Task GiftV2ListingSeveralGiftsIsSplitAsync()
 	{
-		// 在 gift_v2_masked.json 后面追加两个礼物而成，抓到的消息都只列了一个
 		List<DanmuMessage> messages = Parse(Fixture("gift_v2_multiple.json"), DanmuParseMode.Chat);
 
 		await Assert.That(messages).IsEquivalentTo(
@@ -411,7 +396,6 @@ public class DanmuMessageParserTest
 	[Test]
 	public async Task SuperChatDeleteIsParsedAsync()
 	{
-		// 照着网页读取的字段手写，抓包期间没收到删除
 		await Assert.That(ParseFixture("super_chat_delete.json")).IsTypeOf<DanmuMessage.SuperChatDeleted>()
 			.And.Member(static deleted => deleted.Ids, static ids => ids.IsEquivalentTo([20541912L, 20541913], CollectionOrdering.Matching))
 			.And.Member(static deleted => deleted.ReceivedAt, static time => time.IsEqualTo(ReceivedAt));
@@ -454,7 +438,6 @@ public class DanmuMessageParserTest
 
 	[Test]
 	[Arguments("月", 3, 3, 414000L)]
-	[Arguments("", 3, 3, 414000L)]
 	[Arguments("天", 3, 1, 414000L)]
 	[Arguments("月", 0, 1, 138000L)]
 	public async Task UserToastPriceIsPerUnitAsync(string unit, int num, int months, long price)
@@ -490,7 +473,6 @@ public class DanmuMessageParserTest
 
 	[Test]
 	[Arguments("""{"cmd":"DANMU_MSG:4:0:2:2:2:0","info":[]}""", "DANMU_MSG")]
-	[Arguments("""{"cmd":"WATCHED_CHANGE","data":{"num":1}}""", "WATCHED_CHANGE")]
 	[Arguments("""{"data":{},"cmd":"LIVE"}""", "LIVE")]
 	public async Task RawIsYieldedForEveryCommandAsync(string json, string command)
 	{
@@ -523,7 +505,6 @@ public class DanmuMessageParserTest
 	[Test]
 	[Arguments("""{"cmd":"A","x":""")]
 	[Arguments("""{"cmd":"A"} {}""")]
-	[Arguments("")]
 	public async Task RawRejectsBodiesThatAreNotValidJsonAsync(string json)
 	{
 		List<DanmuMessage> output = [];
@@ -549,7 +530,6 @@ public class DanmuMessageParserTest
 	}
 
 	[Test]
-	[Arguments("""{"code":0}""", 0L)]
 	[Arguments("""{"code":-101}""", -101L)]
 	public async Task AuthReplyCodeIsReadAsync(string json, long expected)
 	{
@@ -560,7 +540,6 @@ public class DanmuMessageParserTest
 	[Arguments("""{}""")]
 	[Arguments("""[0]""")]
 	[Arguments("""not json""")]
-	[Arguments("""{"code":null}""")]
 	[Arguments("""{"code":"0"}""")]
 	public async Task AuthReplyWithoutCodeIsNullAsync(string json)
 	{

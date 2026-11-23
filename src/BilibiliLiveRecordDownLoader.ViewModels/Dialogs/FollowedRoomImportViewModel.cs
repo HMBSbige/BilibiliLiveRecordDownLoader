@@ -85,7 +85,6 @@ public sealed partial class FollowedRoomImportViewModel : DialogViewModel<bool>
 	[Reactive]
 	public partial string? ErrorMessage { get; private set; }
 
-	// 部分选中时为 null
 	public bool? AreAllVisibleSelected
 	{
 		get => _areAllVisibleSelected;

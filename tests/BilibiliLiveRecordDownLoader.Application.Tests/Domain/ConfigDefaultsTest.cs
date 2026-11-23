@@ -114,7 +114,6 @@ public sealed class ConfigDefaultsTest
 		}
 	}
 
-	// 房间会话不持配置锁读取它拿到的实例，规范化不能改那个实例
 	[Test]
 	public async Task AppDefaultsNormalizeCopiesOfTheRoomsAsync()
 	{
@@ -126,7 +125,6 @@ public sealed class ConfigDefaultsTest
 		await Assert.That((room.StatusCheckInterval, config.Rooms[0].StatusCheckInterval)).IsEqualTo((TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(10)));
 	}
 
-	// 输入框和手改的配置里多出的空白不算数，只有空白时等于没填；读的地方只判断 null
 	[Test]
 	public async Task TextSettingsAreTrimmedAndBlankOnesClearedAsync()
 	{
@@ -183,7 +181,6 @@ public sealed class ConfigDefaultsTest
 		}
 	}
 
-	// 旧版本把 53.669 秒存成了 53.6689999 秒
 	[Test]
 	public async Task DanmakuOffsetsAreRoundedToWholeMillisecondsAsync()
 	{

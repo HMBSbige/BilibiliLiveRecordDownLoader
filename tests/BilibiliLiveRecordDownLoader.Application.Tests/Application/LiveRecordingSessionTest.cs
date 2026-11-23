@@ -88,7 +88,6 @@ public sealed class LiveRecordingSessionTest
 		}
 	}
 
-	// 主播放列表的变体和接口给的 fMP4 在同一个节点上
 	[Test]
 	public async Task FailedVariantLeavesOtherStreamsOfTheSameHostUntriedAsync()
 	{
@@ -118,7 +117,6 @@ public sealed class LiveRecordingSessionTest
 		bool unrestricted = session.TryUpdateRestriction(null);
 		bool first = session.TryUpdateRestriction(new QualityRestriction.NotLoggedIn(10000));
 		bool same = session.TryUpdateRestriction(new QualityRestriction.NotLoggedIn(10000));
-		// 换线路和重新请求候选流时会重置，提醒状态要留到下播
 		session.Reset();
 		bool afterReset = session.TryUpdateRestriction(new QualityRestriction.NotLoggedIn(10000));
 		bool other = session.TryUpdateRestriction(new QualityRestriction.LoginMayHaveExpired(10000));
@@ -133,7 +131,6 @@ public sealed class LiveRecordingSessionTest
 		}
 	}
 
-	// HLS 换时间线是正常分段，刚连上就换也不算线路故障
 	[Test]
 	[Arguments(29, StreamEndReason.EndOfStream, true)]
 	[Arguments(30, StreamEndReason.EndOfStream, false)]

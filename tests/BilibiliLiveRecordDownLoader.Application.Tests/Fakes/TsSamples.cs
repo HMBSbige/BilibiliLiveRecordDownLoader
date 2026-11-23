@@ -2,19 +2,18 @@ using System.Text;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 
-// 结构完整的 MPEG-TS 包：PAT、PMT 和按 NAL 拼出的视频 PES，CRC 不校验
 internal static class TsSamples
 {
 	public const int PacketSize = 188;
-	public const int PmtPid = 0x1000;
+	private const int PmtPid = 0x1000;
 	public const int VideoPid = 0x100;
 	public const int AudioPid = 0x101;
 	public const byte AvcStreamType = 0x1B;
 	public const byte HevcStreamType = 0x24;
-	public const byte AacStreamType = 0x0F;
+	private const byte AacStreamType = 0x0F;
 
-	// 写进每个 PCR 的 9 位扩展，改写时间戳时要原样保留
-	public const int PcrExtension = 0x1AB;
+	// PCR 的 9 位扩展，改写时间戳时要原样保留
+	private const int PcrExtension = 0x1AB;
 
 	private const long TimestampPeriod = 1L << 33;
 
@@ -47,7 +46,7 @@ internal static class TsSamples
 		return Packet(PmtPid, true, [0, .. section], continuity: continuity);
 	}
 
-	// 一个访问单元：AUD、SEI，再加上给出的图像 NAL；不带随机访问标志时，SEI 的长度让图像 NAL 的起始码跨在第一个包和第二个包之间
+	// 不带随机访问标志时，SEI 的长度让图像 NAL 的起始码跨在前两个包之间
 	public static byte[] VideoFrame(byte[] picture, bool randomAccess = false, bool isHevc = false)
 	{
 		List<byte> es = isHevc ? [0, 0, 0, 1, 0x46, 0x01, 0x50, 0, 0, 1, 0x4E, 0x01] : [0, 0, 0, 1, 0x09, 0xF0, 0, 0, 1, 0x06];
@@ -57,7 +56,6 @@ internal static class TsSamples
 		return Pes(VideoPid, pes, randomAccess);
 	}
 
-	// 带 PTS 的视频访问单元：AUD、可选的 SPS，再加上图像 NAL
 	public static byte[] TimedVideoFrame(byte[] picture, long pts, bool randomAccess = false, byte[]? sps = null, bool isHevc = false, long? dts = null)
 	{
 		List<byte> es = isHevc ? [0, 0, 0, 1, 0x46, 0x01, 0x50] : [0, 0, 0, 1, 0x09, 0xF0];

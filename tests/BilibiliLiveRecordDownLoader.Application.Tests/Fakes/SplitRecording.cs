@@ -36,7 +36,7 @@ internal sealed class SplitRecording
 
 	public TimeSpan DrainTimeout { get; init; } = TimeSpan.FromSeconds(5);
 
-	// 写盘端关闭一段之后、建下一段之前调用；回调要读这个实例时在构造之后设置
+	// 写盘端关闭一段之后、建下一段之前调用
 	public Action<string>? SegmentCompleted { get; set; }
 
 	public IReadOnlyList<byte[]> Files => [.. _files.Select(static file => file.Data)];
@@ -45,7 +45,6 @@ internal sealed class SplitRecording
 
 	public IReadOnlyList<SegmentStart> Starts => [.. _starts];
 
-	// 每个实例只录一次；RunAsync 结束时关闭
 	public RecordingTimeline Timeline { get; }
 
 	public static SplitControl Fixed(RecordingSplit split, bool onTitleChange = false, bool removeFiller = false)
@@ -96,7 +95,7 @@ internal sealed class SplitRecording
 		}
 	}
 
-	// 等到写盘端不再碰文件：排空超时后会晚于 RunAsync 结束，之后不会再交出或新建文件
+	// 排空超时后会晚于 RunAsync 结束
 	public Task WaitForClosingAsync(CancellationToken cancellationToken)
 	{
 		return TestWait.ForAsync((_output ?? throw new InvalidOperationException("RunAsync has not started.")).Closed, "the segmented output closes", cancellationToken);
@@ -159,7 +158,6 @@ internal sealed class SessionWriter(Stream destination, IHlsSegmentObserver? seg
 		await destination.WriteAsync(data, CancellationToken);
 	}
 
-	// 和真实会话一样逐块写出，元素会被切在两次写入之间
 	public async Task WriteInChunksAsync(byte[] data, int chunkSize)
 	{
 		for (int offset = 0; offset < data.Length; offset += chunkSize)
@@ -180,7 +178,6 @@ internal sealed class SessionWriter(Stream destination, IHlsSegmentObserver? seg
 		await WriteAsync(data);
 	}
 
-	// 只用来测元素没收齐时收流结束的截断，HlsStreamSession 总是整段报告、整段写出
 	public async Task PartialSegmentAsync(byte[] data, int length)
 	{
 		segments?.OnMediaSegment(data);

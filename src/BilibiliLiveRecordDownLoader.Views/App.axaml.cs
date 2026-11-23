@@ -9,7 +9,6 @@ public class App : Avalonia.Application
 		AppLanguage.CurrentChanged += (_, _) => ApplyThemeStrings();
 	}
 
-	// Fluent2 的内置菜单文字只有英文；Application.Resources 先于主题被查找，同名资源即可覆盖
 	private void ApplyThemeStrings()
 	{
 		IResourceDictionary resources = Resources;

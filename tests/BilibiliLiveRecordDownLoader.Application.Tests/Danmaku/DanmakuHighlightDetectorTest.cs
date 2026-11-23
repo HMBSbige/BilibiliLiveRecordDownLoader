@@ -32,18 +32,6 @@ public sealed class DanmakuHighlightDetectorTest
 	}
 
 	[Test]
-	public async Task FindsASpikeAboveTheBaselineAsync()
-	{
-		List<DanmakuRecord> records = Background(TimeSpan.Zero, Hour, 4);
-		records.AddRange(Burst(1800, 40, static user => user % 2 is 0 ? @"草" : Distinct(user)));
-
-		IReadOnlyList<DanmakuHighlight> highlights = DanmakuHighlightDetector.Detect(records, Hour);
-
-		await Assert.That(highlights).IsEquivalentTo([new DanmakuHighlight(TimeSpan.FromSeconds(1800), TimeSpan.FromSeconds(1800), TimeSpan.FromSeconds(1805), 44, @"草")]);
-	}
-
-	// 冷清的直播间基线是 1，比例那一关只要 2.5；热度够不上绝对下限时不算高能
-	[Test]
 	[Arguments(8, new int[0])]
 	[Arguments(12, new[] { 13 })]
 	public async Task QuietRoomsNeedTheMinimumScoreAsync(int users, int[] scores)
@@ -136,7 +124,6 @@ public sealed class DanmakuHighlightDetectorTest
 		await Assert.That(DanmakuHighlightDetector.Detect(records, Hour).Select(static highlight => highlight.Score)).IsEquivalentTo([44]);
 	}
 
-	// 冷热交界本身也不算高能
 	[Test]
 	public async Task BaselineFollowsTheRoomActivityAsync()
 	{

@@ -146,7 +146,6 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 
 		long last = comments.Max(static comment => comment.Time.Ticks);
 
-		// 按整秒放宽，曲线的刻度好读
 		TimeSpan width = TimeSpan.FromSeconds(Math.Max(MinDensityBinSeconds, last / (TimeSpan.TicksPerSecond * MaxDensityBins) + 1));
 
 		int[] counts = new int[(int)(last / width.Ticks) + 1];
@@ -180,7 +179,6 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 		return null;
 	}
 
-	// 房间移除之后订阅仍然可用，只是不再有新消息
 	private sealed class Feed(long roomId, DanmakuLiveFeed feed, IDisposable subscription) : IDanmakuFeed
 	{
 		public long RoomId { get; } = roomId;

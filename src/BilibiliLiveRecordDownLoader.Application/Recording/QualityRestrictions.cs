@@ -1,6 +1,5 @@
 namespace BilibiliLiveRecordDownLoader.Application.Recording;
 
-// 只看这一次接口返回的内容，不为了判断再发请求
 internal static class QualityRestrictions
 {
 	// 各编码列出的画质可能不同，要合起来；按所选画质而不是请求的画质算，开了真原画时拿到普通原画不算受限
@@ -17,7 +16,6 @@ internal static class QualityRestrictions
 		return offered.Where(qn => qn <= selected).DefaultIfEmpty(offered.Min()).Max();
 	}
 
-	// 档位只看接口给的；主播放列表的变体只取目标档位及以上，录到它们不算受限
 	public static QualityRestriction? Evaluate(LiveStreamCandidate recorded, IEnumerable<LiveStreamCandidate> response, RecordingProfile profile, bool hasCookie)
 	{
 		LiveStreamCandidate.Listed[] candidates = [.. response.OfType<LiveStreamCandidate.Listed>()];

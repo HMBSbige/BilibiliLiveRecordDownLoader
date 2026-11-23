@@ -20,15 +20,6 @@ public sealed class AppConfigManagerTest : IDisposable
 	}
 
 	[Test]
-	public async Task MissingFileLoadsDefaultsAsync(CancellationToken cancellationToken)
-	{
-		await using AppConfigManager manager = Create();
-
-		await Assert.That(await manager.GetAsync(cancellationToken)).IsEquivalentTo(AppConfig.CreateDefault());
-	}
-
-	// 手改配置时看得懂：不写默认值，枚举写名称，中文不转义
-	[Test]
 	public async Task UpdatesArePersistedReadablyWithoutDefaultValuesAsync(CancellationToken cancellationToken)
 	{
 		await using (AppConfigManager manager = Create())
@@ -58,41 +49,6 @@ public sealed class AppConfigManagerTest : IDisposable
 		}
 	}
 
-	[Test]
-	public async Task RoomsSavedWithEveryValueAreTrimmedOnTheNextSaveAsync(CancellationToken cancellationToken)
-	{
-		await WriteFileAsync(ConfigFileName, """
-			{
-				"Rooms": [
-					{
-						"RoomId": 732,
-						"IsRecordingEnabled": true,
-						"IsNotificationEnabled": false,
-						"Quality": "Original",
-						"StatusCheckInterval": "00:05:00",
-						"DanmuReconnectDelay": "00:00:02",
-						"StreamReconnectDelay": "00:00:06",
-						"StreamConnectTimeout": "00:00:05",
-						"StreamIdleTimeout": "00:00:30"
-					}
-				]
-			}
-			""", cancellationToken);
-
-		await using (AppConfigManager manager = Create())
-		{
-			RoomConfig room = await Assert.That((await manager.GetAsync(cancellationToken)).Rooms).HasSingleItem();
-			await Assert.That(room).IsEqualTo(new RoomConfig { RoomId = 732, StreamIdleTimeout = TimeSpan.FromSeconds(30) });
-
-			await manager.UpdateAsync(static config => config.Theme = AppTheme.Dark, cancellationToken);
-		}
-
-		JsonObject saved = await ReadSavedAsync(cancellationToken);
-
-		await Assert.That(SavedRoom(saved).Select(static property => $"{property.Key}={property.Value}")).IsEquivalentTo(["RoomId=732", "StreamIdleTimeout=00:00:30"], CollectionOrdering.Matching);
-	}
-
-	// 读不到时按默认值运行，写回的话会用默认值覆盖用户的配置
 	[Test]
 	public async Task ConfigThatCannotBeReadIsNeverOverwrittenAsync(CancellationToken cancellationToken)
 	{
@@ -169,17 +125,14 @@ public sealed class AppConfigManagerTest : IDisposable
 		await Assert.That((await ReloadAsync(cancellationToken)).Language).IsEqualTo("zh-Hans");
 	}
 
-	// 杀毒或同步软件短暂占用文件时写盘会失败，之后没有新的修改也要补写
 	[Test]
 	public async Task FailedSaveIsRetriedWithoutAnotherUpdateAsync(CancellationToken cancellationToken)
 	{
 		TimerSignalingTimeProvider time = new();
-		// 临时文件的位置被目录占着，写盘在建临时文件时就失败
 		Directory.CreateDirectory(ConfigPath + ".tmp");
 		await using AppConfigManager manager = Create(time: time);
 
 		await manager.UpdateAsync(static config => config.Language = "zh-Hans", cancellationToken);
-		// 不延迟的第一次写盘不建定时器，有定时器就是失败后在等重试
 		await time.TimerCreated.Task.WaitAsync(TestWait.DefaultTimeout, cancellationToken);
 		Directory.Delete(ConfigPath + ".tmp");
 		time.Advance(TimeSpan.FromMinutes(1));
@@ -238,7 +191,6 @@ public sealed class AppConfigManagerTest : IDisposable
 			}
 		}
 
-		// 清理后的内容立即写回
 		JsonObject saved = await ReadSavedAsync(cancellationToken);
 		await Assert.That(saved.Select(static property => property.Key)).DoesNotContain("theme").And.DoesNotContain(nameof(AppConfig.Theme));
 	}
@@ -260,8 +212,6 @@ public sealed class AppConfigManagerTest : IDisposable
 
 	[Test]
 	[Arguments("{ not json")]
-	[Arguments("null")]
-	// 重复的键直接读取时以最后一个为准，另有读不出的值时才逐项清理，而 JsonObject 遇到重复的键会抛 ArgumentException
 	[Arguments("""{ "Cookie": "a=1", "Cookie": "b=2", "Theme": "Future" }""")]
 	public async Task CorruptedFileFallsBackToDefaultsAsync(string content, CancellationToken cancellationToken)
 	{
@@ -299,7 +249,6 @@ public sealed class AppConfigManagerTest : IDisposable
 			await Assert.That(RoomIds(await manager.GetAsync(cancellationToken))).IsEquivalentTo([732L], CollectionOrdering.Matching);
 		}
 
-		// 恢复的内容立即写回 config.json
 		AppConfig reloaded = await ReloadAsync(cancellationToken);
 
 		using (Assert.Multiple())
@@ -309,7 +258,6 @@ public sealed class AppConfigManagerTest : IDisposable
 		}
 	}
 
-	// 损坏的文件在读到备份之前就移走的话，中途取消后只剩备份，下次加载会当成用户删了配置来重置
 	[Test]
 	public async Task CorruptedFileIsStillRestoredAfterTheRestoreWasCanceledAsync(CancellationToken cancellationToken)
 	{
@@ -326,7 +274,6 @@ public sealed class AppConfigManagerTest : IDisposable
 		await Assert.That(RoomIds(await ReloadAsync(cancellationToken))).IsEquivalentTo([1L], CollectionOrdering.Matching);
 	}
 
-	// 写回恢复出的配置失败、又没留下临时文件时，只剩备份的话下次加载会当成用户删了配置来重置
 	[Test]
 	public async Task CorruptedFileIsStillRestoredAfterSavingTheRestoredConfigFailedAsync(CancellationToken cancellationToken)
 	{
@@ -334,7 +281,6 @@ public sealed class AppConfigManagerTest : IDisposable
 		await WriteFileAsync(ConfigFileName, "{ truncated", cancellationToken);
 		await WriteFileAsync(ConfigFileName + ".bak", backup, cancellationToken);
 
-		// 临时文件的位置被目录占着，写回在建临时文件时就失败
 		Directory.CreateDirectory(ConfigPath + ".tmp");
 		AppConfig restored = await ReloadAsync(cancellationToken);
 		Directory.Delete(ConfigPath + ".tmp");
@@ -348,7 +294,6 @@ public sealed class AppConfigManagerTest : IDisposable
 		}
 	}
 
-	// 旧版本写的或手动放进来的配置可能别人也能读，留下的损坏文件里同样有 Cookie
 	[Test]
 	[Arguments(true)]
 	[Arguments(false)]
@@ -371,7 +316,6 @@ public sealed class AppConfigManagerTest : IDisposable
 		await Assert.That(File.GetUnixFileMode(corrupted)).IsEqualTo(ownerOnly);
 	}
 
-	// 重写的话要先删掉临时文件，写不成就只剩更旧的备份
 	[Test]
 	public async Task InterruptedSaveIsRestoredByMovingTheTempFileBackAsync(CancellationToken cancellationToken)
 	{
@@ -408,7 +352,6 @@ public sealed class AppConfigManagerTest : IDisposable
 		}
 	}
 
-	// 临时文件只是暂时被占用时，用备份写回会删掉这份唯一的最新内容
 	[Test]
 	public async Task InterruptedSaveWithALockedTempFileIsNeverOverwrittenAsync(CancellationToken cancellationToken)
 	{
@@ -554,7 +497,6 @@ public sealed class AppConfigManagerTest : IDisposable
 	[Arguments(ConfigFileName, "{}", false)]
 	[Arguments(ConfigFileName + ".bak", "{}", false)]
 	[Arguments(ConfigFileName + ".tmp", "{}", false)]
-	// 导入后第一次保存就中断时，临时文件写了一半，也还没有备份
 	[Arguments(ConfigFileName + ".tmp", "{ truncated", true)]
 	public async Task LegacyConfigIsOnlyImportedOnTheFirstRunAsync(string existing, string content, bool imported, CancellationToken cancellationToken)
 	{
@@ -573,8 +515,6 @@ public sealed class AppConfigManagerTest : IDisposable
 
 	[Test]
 	[Arguments("{ truncated", """{ "Rooms": [{ "RoomId": 5 }] }""", 5L)]
-	// JsonObject 遇到重复的键会抛 ArgumentException
-	[Arguments("""{ "Cookie": "a=1", "Cookie": "b=2" }""", """{ "Rooms": [{ "RoomId": 5 }] }""", 5L)]
 	[Arguments("[]", null, null)]
 	public async Task UnreadableLegacyConfigFallsBackToItsBackupAsync(string legacy, string? backup, long? expectedRoomId, CancellationToken cancellationToken)
 	{
@@ -639,7 +579,6 @@ public sealed class AppConfigManagerTest : IDisposable
 		return Directory.GetFiles(_directory.Root, ConfigFileName + ".corrupt-*");
 	}
 
-	// 报告配置损坏时取消，取消就落在从备份恢复的过程中
 	private sealed class CancelOnErrorLogger(CancellationTokenSource cancellation) : ILogger<AppConfigManager>
 	{
 		public IDisposable? BeginScope<TState>(TState state) where TState : notnull

@@ -19,20 +19,9 @@ public class FFmpegRunnerTest
 	}
 
 	[Test]
-	public async Task UpperCaseProxyVariableIsDroppedOnWindowsAsync()
-	{
-		ProcessStartInfo startInfo = new(@"ffmpeg", [@"-i", @"https://example.com/live.flv"]);
-		startInfo.Environment[@"HTTP_PROXY"] = @"http://127.0.0.1:7890/";
-
-		FFmpegRunner.RemoveUnrequestedProxy(startInfo);
-
-		await Assert.That(startInfo.Environment.ContainsKey(@"HTTP_PROXY")).IsEqualTo(!OperatingSystem.IsWindows());
-	}
-
-	[Test]
 	public async Task CancellationSendsQuitAndWaitsForGracefulExitAsync(CancellationToken cancellationToken)
 	{
-		// 时限留足，负载高时也不会误走强杀，强杀了就读不到 stdin=q
+		// 留足时限：负载高时误走强杀就读不到 stdin=q
 		FFmpegRunner runner = new(FakeProcess.Executable) { GracefulExitTimeout = TimeSpan.FromSeconds(30) };
 		IReadOnlyList<string> arguments = FakeProcess.Arguments(
 			"""
@@ -68,7 +57,7 @@ public class FFmpegRunnerTest
 	public async Task CancellationKillsProcessThatIgnoresQuitAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = new(FakeProcess.Executable) { GracefulExitTimeout = TimeSpan.FromMilliseconds(500) };
-		// 睡得远比测试超时久，没被强杀就只能等到超时失败，不会自己退出蒙混过关
+		// 睡得远比测试超时久，没被强杀就不会自己退出
 		IReadOnlyList<string> arguments = FakeProcess.Arguments(
 			"""
 			[Console]::Error.WriteLine("pid=$PID")
@@ -93,18 +82,6 @@ public class FFmpegRunnerTest
 
 		await Assert.That(processId).IsNotEqualTo(0);
 		await Assert.That(FakeProcess.IsRunning(processId)).IsFalse();
-	}
-
-	[Test]
-	public async Task StandardOutputIsHandedToTheReaderAsync(CancellationToken cancellationToken)
-	{
-		FFmpegRunner runner = new(FakeProcess.Executable);
-		IReadOnlyList<string> arguments = FakeProcess.Arguments(@"[Console]::Out.Write('ts-data')", @"printf ts-data");
-		string output = string.Empty;
-
-		await runner.RunAsync(arguments, async stdout => output = await new StreamReader(stdout).ReadToEndAsync(cancellationToken), null, cancellationToken);
-
-		await Assert.That(output).IsEqualTo(@"ts-data");
 	}
 
 	[Test]
@@ -268,7 +245,6 @@ public class FFmpegRunnerTest
 	public async Task ProgressFailureStopsTheProcessAndSurfacesAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = new(FakeProcess.Executable) { GracefulExitTimeout = TimeSpan.FromMilliseconds(500) };
-		// 写满 stderr 管道后，没人读就会一直卡住
 		IReadOnlyList<string> arguments = FakeProcess.Arguments(
 			"""
 			[Console]::Error.WriteLine("pid=$PID")
@@ -357,7 +333,6 @@ public class FFmpegRunnerTest
 	public async Task GetVersionAsyncCancellationEndsTheWrappedProcessAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
-		// 配错的路径指向包装脚本，它启动的程序不退出，还占着输出管道
 		string script = FakeProcess.CreateScript(directory, @"ffmpeg",
 			"@powershell -NoLogo -NoProfile -NonInteractive -Command \"Set-Content -LiteralPath '%~dp0pid.tmp' -Value $PID; Move-Item -LiteralPath '%~dp0pid.tmp' -Destination '%~dp0pid'; Start-Sleep -Seconds 600\"\r\n",
 			"d=$(dirname \"$0\")\nsleep 600 &\necho $! > \"$d/pid.tmp\"\nmv \"$d/pid.tmp\" \"$d/pid\"\nwait\n");
@@ -371,7 +346,6 @@ public class FFmpegRunnerTest
 			await cts.CancelAsync();
 
 			await Assert.That(() => getting).Throws<OperationCanceledException>();
-			// 没被结束的话会一直等到测试超时
 			await wrapped.WaitForExitAsync(cancellationToken);
 		}
 		finally

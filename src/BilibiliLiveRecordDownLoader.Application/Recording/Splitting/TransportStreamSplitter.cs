@@ -9,7 +9,6 @@ internal sealed class TransportStreamSplitter : MediaSplitter
 	private long _rebased;
 	private PtsClock _clock;
 
-	// 节目表里没认出视频流，数据里却有视频 PES：流类型不在 IsVideo 认识的范围内，找不到关键帧
 	private bool _hasUnrecognizedVideo;
 
 	// 正在收集的 PES 开头已经存下的字节数，不在收集时为 -1

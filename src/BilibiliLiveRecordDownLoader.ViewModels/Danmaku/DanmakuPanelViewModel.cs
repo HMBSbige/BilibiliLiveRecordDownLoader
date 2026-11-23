@@ -10,11 +10,9 @@ public sealed partial class DanmakuPanelViewModel : ViewModelBase
 	private readonly IStoragePickerService _storagePicker;
 	private readonly Func<CancellationToken, Task> _showLogin;
 
-	// 切换直播间时不重置
 	[SuppressMessage("Usage", "CA2213", Justification = "由 Disposables 释放")]
 	private readonly DanmakuFilterViewModel _liveFilter;
 
-	// 读完时编号变了就丢掉结果
 	private int _fileRequest;
 
 	public DanmakuPanelViewModel(IDanmakuAppService danmaku, IRoomAppService roomAppService, ISettingsAppService settingsAppService, IStoragePickerService storagePicker, Func<CancellationToken, Task> showLogin)
@@ -42,7 +40,6 @@ public sealed partial class DanmakuPanelViewModel : ViewModelBase
 	[Reactive]
 	public partial bool IsOpen { get; set; }
 
-	// 没有选过或者已被移除时为 null
 	[Reactive]
 	public partial RoomItemViewModel? Room { get; private set; }
 
@@ -58,7 +55,6 @@ public sealed partial class DanmakuPanelViewModel : ViewModelBase
 	[Reactive]
 	public partial string? ErrorMessage { get; private set; }
 
-	// 只在选中单个直播间时调用，多选或取消选中时保持原来的直播间
 	internal void Follow(RoomItemViewModel room)
 	{
 		if (Room == room)
@@ -127,7 +123,6 @@ public sealed partial class DanmakuPanelViewModel : ViewModelBase
 		}
 	}
 
-	// 房间菜单传入直播间，面板的按钮传 null
 	internal async Task PickFileAsync(RoomItemViewModel? room, CancellationToken cancellationToken)
 	{
 		string directory;
@@ -170,7 +165,7 @@ public sealed partial class DanmakuPanelViewModel : ViewModelBase
 		IsOpen = false;
 	}
 
-	// 账号页的 Cookie 换成新的时由房间列表调用，LoginAsync 不要自己调
+	// Cookie 换成新的时由房间列表调用，LoginAsync 不要自己调
 	internal void OnLoggedIn()
 	{
 		Live?.OnLoggedIn();
@@ -219,7 +214,6 @@ public sealed partial class DanmakuPanelViewModel : ViewModelBase
 		}
 		catch (KeyNotFoundException)
 		{
-			// 房间刚被移除
 			Room = null;
 		}
 	}

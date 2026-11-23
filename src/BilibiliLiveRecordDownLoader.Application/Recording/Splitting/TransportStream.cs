@@ -62,7 +62,6 @@ internal static class TransportStream
 		return (long)packet[6] << 25 | (long)packet[7] << 17 | (long)packet[8] << 9 | (long)packet[9] << 1 | (long)packet[10] >> 7;
 	}
 
-	// 保留位和扩展部分不动
 	public static void WritePcrBase(Span<byte> packet, long value)
 	{
 		packet[6] = (byte)(value >> 25);
@@ -126,7 +125,6 @@ internal static class TransportStream
 		return true;
 	}
 
-	// 访问单元里第一个图像 NAL 是不是随机访问点；SPS、PPS、SEI 都在它前面
 	public static bool StartsWithRandomAccessPicture(ReadOnlySpan<byte> data, int videoPid, NalSyntax? syntax)
 	{
 		NalScanner scanner = default;
@@ -220,7 +218,6 @@ internal static class TransportStream
 		return (long)(field[0] >> 1 & 0x07) << 30 | (long)field[1] << 22 | (long)(field[2] >> 1) << 15 | (long)field[3] << 7 | (long)field[4] >> 1;
 	}
 
-	// 保留前缀的 4 位，标记位都写 1
 	public static void WriteTimestamp(Span<byte> field, long value)
 	{
 		field[0] = (byte)(field[0] & 0xF0 | (int)(value >> 29 & 0x0E) | 1);
@@ -268,7 +265,6 @@ internal static class TransportStream
 		return length;
 	}
 
-	// 不是 PES 头时原样返回
 	public static ReadOnlySpan<byte> SkipPesHeader(ReadOnlySpan<byte> payload)
 	{
 		return GetPesHeaderLength(payload) is var length and >= 0 ? payload.Slice(length) : payload;

@@ -8,7 +8,7 @@ public sealed class BilibiliRequestHandler(BilibiliIdentity identity) : Delegati
 
 	internal const string DefaultAccept = "application/json, text/plain, */*";
 
-	// ClientWebSocket 自己构造握手请求，设置不了 Options，只能用请求头要求匿名；这个请求头不会离开本处理器
+	// ClientWebSocket 的握手请求设置不了 Options，只能用请求头标记匿名；本处理器会移除它
 	internal const string AnonymousHeader = "X-BilibiliLive-Anonymous";
 
 	internal static readonly HttpRequestOptionsKey<bool> AnonymousOption = new("BilibiliLive.Anonymous");
@@ -31,7 +31,6 @@ public sealed class BilibiliRequestHandler(BilibiliIdentity identity) : Delegati
 
 		headers.Remove("Cookie");
 
-		// 直播流管道的每个分片都经过这里，不发送时就不拼 Cookie
 		if (IncludeCookie && IsBilibiliHost(request.RequestUri))
 		{
 			bool anonymous = markedAnonymous || request.Options.TryGetValue(AnonymousOption, out bool value) && value;

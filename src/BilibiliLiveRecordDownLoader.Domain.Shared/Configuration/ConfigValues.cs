@@ -1,6 +1,5 @@
 namespace BilibiliLiveRecordDownLoader.Domain.Shared.Configuration;
 
-// ApplyDefaults 在加载和每次修改之后执行；界面要立即显示规范后的值时也调这里
 public static class ConfigValues
 {
 	public static TimeSpan ClampSplitDuration(TimeSpan duration)
@@ -13,7 +12,7 @@ public static class ConfigValues
 		return Math.Clamp(sizeMebibytes, (long)RecordingSplitDefaults.MinSizeMebibytes, (long)RecordingSplitDefaults.MaxSizeMebibytes);
 	}
 
-	// 弹幕文件头的偏移按毫秒截断写入，偏移不是整毫秒时会和记录实际平移的量差 1 毫秒
+	// 弹幕文件头的偏移按毫秒截断写入，不取整会和实际平移的量差 1 毫秒
 	public static TimeSpan ClampDanmakuOffset(TimeSpan offset)
 	{
 		return FromMilliseconds((decimal)Clamp(offset, DanmakuDefaults.MinOffset, DanmakuDefaults.MaxOffset).Ticks / TimeSpan.TicksPerMillisecond);

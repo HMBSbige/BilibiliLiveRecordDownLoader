@@ -14,7 +14,6 @@ public sealed class AccountViewModelTest
 {
 	public static IEnumerable<Func<Exception>> CheckFailures()
 	{
-		// HttpClient 超时抛的是 TaskCanceledException，调用方并没有取消
 		yield return static () => new TaskCanceledException();
 		yield return static () => new HttpRequestException();
 	}
@@ -25,7 +24,6 @@ public sealed class AccountViewModelTest
 	{
 		FakeAccountAppService accounts = new() { IsLoggedIn = OnThreadPool(_ => throw failure) };
 		using AccountViewModel viewModel = Create(accounts);
-		// 先订阅，否则异常会落到全局处理
 		Task<Exception> reported = viewModel.CheckLoginCommand.ThrownExceptions.FirstAsync(cancellationToken);
 
 		((ICommand)viewModel.CheckLoginCommand).Execute(null);
@@ -60,7 +58,6 @@ public sealed class AccountViewModelTest
 		await Assert.That(checkedCookies).IsEquivalentTo(["new"]);
 	}
 
-	// 启动时的检查还没返回，用户就粘贴了新的 Cookie；用旧 Cookie 的那次后返回，不能盖掉新 Cookie 的结果
 	[Test]
 	public async Task OlderCheckFinishingLastDoesNotOverrideTheNewerResultAsync()
 	{
@@ -118,7 +115,7 @@ public sealed class AccountViewModelTest
 		using AccountViewModel viewModel = new(accounts, dialogs, notifications, time);
 
 		Task login = viewModel.QrCodeLoginCommand.Execute().ToTask(cancellationToken);
-		// 不知道轮询的定时器什么时候建好，一直推进到登录走完
+		// 不知道轮询的定时器何时建好，所以一直推进
 		await TestWait.UntilAsync(() =>
 		{
 			time.Advance(QrCodeLoginViewModel.PollInterval);
@@ -134,13 +131,11 @@ public sealed class AccountViewModelTest
 		return new AccountViewModel(accounts, new DialogHostViewModel(), new RecordingNotifications(), TimeProvider.System);
 	}
 
-	// 结果在别的线程上写入
 	private static Task<bool?> WhenLoggedInAsync(AccountViewModel viewModel, bool isLoggedIn, CancellationToken cancellationToken)
 	{
 		return viewModel.WhenChanged(static viewModel => viewModel.IsLoggedIn).Keep(value => value == isLoggedIn).FirstAsync(cancellationToken);
 	}
 
-	// 和真实的请求一样，结果在别的线程上返回；参数是检查时服务里的 Cookie
 	private static Func<string?, CancellationToken, Task<bool>> OnThreadPool(Func<string?, bool> isLoggedIn)
 	{
 		return (cookie, cancellationToken) => Task.Run(() => isLoggedIn(cookie), cancellationToken);
@@ -177,7 +172,6 @@ public sealed class AccountViewModelTest
 			return IsLoggedIn(Cookie, cancellationToken);
 		}
 
-		// 扫码一轮询就成功
 		public Task<QrCodeLoginTicket> CreateQrCodeLoginAsync(CancellationToken cancellationToken = default)
 		{
 			return Task.FromResult(new QrCodeLoginTicket("https://example.com/qr", "key"));

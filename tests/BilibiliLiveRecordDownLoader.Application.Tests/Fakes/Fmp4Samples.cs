@@ -3,7 +3,6 @@ using System.Text;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 
-// 只带切分需要看的盒子：init 段的轨道和 trex，分片的 tfhd、trun 和样本标志
 internal static class Fmp4Samples
 {
 	public const uint VideoTrack = 1;
@@ -43,7 +42,6 @@ internal static class Fmp4Samples
 		return [.. Box("moof", [.. audio, .. video]), .. Box("mdat", Encoding.ASCII.GetBytes($"[{marker}]"))];
 	}
 
-	// 带时间信息的 init 段：视频轨 mdhd 的 timescale、avc1 样本项的宽高、trex 的默认样本时长，后面跟一条音频轨
 	public static byte[] TimedInit(uint timescale, ushort width, ushort height, uint defaultDuration = 0, byte mdhdVersion = 0)
 	{
 		byte[] mdhd = new byte[mdhdVersion is 1 ? 36 : 24];
@@ -57,7 +55,7 @@ internal static class Fmp4Samples
 		return [.. Box("ftyp", "isom"u8.ToArray()), .. Box("moov", [.. Track(AudioTrack, "soun"), .. video, .. Box("mvex", [.. Trex(AudioTrack, defaultFlags: SyncFlags), .. Trex(VideoTrack, defaultDuration: defaultDuration, defaultFlags: NonSyncFlags)])])];
 	}
 
-	// 音频 traf 在前；视频 traf 的 tfdt 给出第一个样本的解码时间，sampleCount 个样本各 sampleDuration，为 0 时用 trex 的默认值
+	// 音频 traf 在前；sampleDuration 为 0 时用 trex 的默认值
 	public static byte[] TimedFragment(ulong decodeTime, uint sampleCount, uint sampleDuration, bool isKeyFrame = true, byte tfdtVersion = 1)
 	{
 		byte[] tfdt = tfdtVersion is 1 ? new byte[12] : new byte[8];
@@ -121,7 +119,6 @@ internal static class Fmp4Samples
 		return Box("hdlr", hdlr);
 	}
 
-	// default_sample_size 总是 0，分片要在 tfhd 或 trun 里给出样本大小
 	public static byte[] Trex(uint trackId, uint defaultDescriptionIndex = 0, uint defaultDuration = 0, uint defaultFlags = 0)
 	{
 		byte[] trex = new byte[24];

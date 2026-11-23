@@ -8,7 +8,6 @@ public sealed class SegmentedOutputTest
 {
 	private static readonly RecordingSplit ThreeUnits = new RecordingSplit.BySize(100);
 
-	// 交出时记下已经建了哪些文件和它们关闭时的内容：没关闭的文件内容为空，下一段建得太早会多出一个
 	[Test]
 	public async Task FinishedSegmentIsClosedAndHandedOverBeforeTheNextOneOpensAsync(CancellationToken cancellationToken)
 	{
@@ -46,7 +45,6 @@ public sealed class SegmentedOutputTest
 
 		await Assert.ThrowsAsync<RecordingWriteException>(() => recording.RunAsync(new FakeSplitter(), ThreeUnits, static session => WriteUnitsAsync(session, int.MaxValue), cancellationToken)).WithInnerException().WithMessage("cannot flush", StringComparison.Ordinal);
 
-		// 没有交出去的一段由录制循环最后处理
 		using (Assert.Multiple())
 		{
 			await Assert.That(recording.Completed).IsEmpty();

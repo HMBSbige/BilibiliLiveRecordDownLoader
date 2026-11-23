@@ -27,7 +27,6 @@ internal static partial class FFmpegOutputParser
 		return VersionRegex.Match(output) is { Success: true } match ? match.Groups[@"version"].Value : null;
 	}
 
-	// 直播地址的查询串里有 uid 和签名
 	public static string RedactUrlQueries(string line)
 	{
 		return UrlQueryRegex.Replace(line, @"${url}?…");
@@ -44,7 +43,6 @@ internal static partial class FFmpegOutputParser
 			&& !trimmed.StartsWith(@"Exiting normally, received signal", StringComparison.Ordinal);
 	}
 
-	// Duration 只在开头列出输入信息时打印
 	public static FFmpegProgress ParseProgress(string line, FFmpegProgress previous)
 	{
 		return new FFmpegProgress(ParseTime(DurationRegex.Match(line)) ?? previous.Duration, ParseTime(PositionRegex.Match(line)) ?? previous.Position, line);

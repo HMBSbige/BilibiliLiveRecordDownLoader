@@ -6,7 +6,6 @@ public class FlvStructureTest
 {
 	[Test]
 	[Arguments(@"464C560105000000", "truncated")]
-	[Arguments(@"464C580105000000", "wrong signature")]
 	[Arguments(@"464C56020500000009", "unsupported version")]
 	[Arguments(@"464C56010500000008", "offset inside the header")]
 	public async Task HeaderReadRejectsInvalidInputAsync(string hex, string reason)

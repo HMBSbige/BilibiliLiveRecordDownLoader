@@ -5,7 +5,6 @@ namespace BilibiliLiveRecordDownLoader.Application.Danmaku;
 
 internal static class DanmakuAssText
 {
-	// 控制字符都在 U+00A0 之前
 	private static readonly SearchValues<char> Special = SearchValues.Create([.. @"{}\", .. Enumerable.Range(0, 0xA0).Select(static c => (char)c).Where(char.IsControl)]);
 
 	// ASS 里 { } 是样式代码，\N、\n、\h 是换行和硬空格，换成全角字符才能原样显示

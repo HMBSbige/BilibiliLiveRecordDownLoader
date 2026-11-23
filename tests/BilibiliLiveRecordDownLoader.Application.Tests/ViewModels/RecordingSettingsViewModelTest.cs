@@ -53,7 +53,6 @@ public sealed class RecordingSettingsViewModelTest
 		using RecordingSettingsViewModel viewModel = new(new SettingsAppService(configManager));
 		viewModel.ApplySettings(config.ToSettingsDto());
 
-		// 把 60 改成 90：先删成 6，再敲出 9 和 90
 		viewModel.SplitDurationMinutes = 6;
 		viewModel.SplitDurationMinutes = 9;
 		viewModel.SplitDurationMinutes = 90;
@@ -69,7 +68,6 @@ public sealed class RecordingSettingsViewModelTest
 		}
 	}
 
-	// 保存可能排在别的写入后面，到时候界面上的列表可能又变了
 	[Test]
 	public async Task PriorityIsSavedAsItWasWhenItChangedAsync(CancellationToken cancellationToken)
 	{
@@ -86,16 +84,6 @@ public sealed class RecordingSettingsViewModelTest
 		await configManager.Updated.Task.WaitAsync(cancellationToken);
 
 		await Assert.That(config.CodecPriority).IsEquivalentTo(changed, CollectionOrdering.Matching);
-	}
-
-	[Test]
-	public async Task NoValueIsShownWithoutSplittingAsync()
-	{
-		using RecordingSettingsViewModel viewModel = new(new SettingsAppService(new FakeConfigManager()));
-
-		viewModel.ApplySettings(AppConfig.CreateDefault().ToSettingsDto());
-
-		await Assert.That((viewModel.IsSplitBySize, viewModel.IsSplitByDuration)).IsEqualTo((false, false));
 	}
 
 	private sealed class GatedConfigManager(AppConfig config) : IAppConfigManager

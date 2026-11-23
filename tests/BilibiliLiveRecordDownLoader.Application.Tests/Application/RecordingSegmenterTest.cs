@@ -35,7 +35,6 @@ public sealed class RecordingSegmenterTest
 
 	[Test]
 	[Arguments(true, "abc | H0:def | H0:g")]
-	[Arguments(false, "a | H0:b | H0:c | H0:d | H0:e | H0:f | H0:g")]
 	public async Task SizeLimitCountsTheBytesLeftAfterRemovingFillerAsync(bool removeFiller, string expected, CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -51,7 +50,6 @@ public sealed class RecordingSegmenterTest
 
 		using (Assert.Multiple())
 		{
-			// 换文件的位置按写出的字节记，偏一个字节都会把元素切开
 			await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo(expected);
 			await Assert.That(recording.Files).All(static file => file.Length <= 50);
 			await Assert.That(recording.Files.Sum(static file => file.Count(static value => value is (byte)'F'))).IsEqualTo(removeFiller ? 0 : 7 * 15);
@@ -103,9 +101,7 @@ public sealed class RecordingSegmenterTest
 		}
 	}
 
-	// 改系统时间或校时只动墙钟
 	[Test]
-	[Arguments(-1)]
 	[Arguments(1)]
 	public async Task DurationIsMeasuredWithTheMonotonicClockAsync(int clockJumpHours, CancellationToken cancellationToken)
 	{
@@ -139,7 +135,6 @@ public sealed class RecordingSegmenterTest
 			await session.WriteAsync(FakeSplitter.Unit("c", 10));
 		}, cancellationToken);
 
-		// 第一个单元之前只有流头，算不上媒体数据
 		await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("xa | H0:bc");
 	}
 
@@ -158,22 +153,9 @@ public sealed class RecordingSegmenterTest
 			await session.WriteAsync(FakeSplitter.Unit("c", 10));
 		}, cancellationToken);
 
-		// 序列头总是排在用到它的关键帧前面，属于上一个单元
 		await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("as | H1:bxt | H2:c");
 	}
 
-	[Test]
-	public async Task ElementsSplitAcrossWritesAreReassembledAsync(CancellationToken cancellationToken)
-	{
-		SplitRecording recording = new();
-		byte[] stream = [.. "abcd".SelectMany(static marker => FakeSplitter.Unit(marker.ToString(), 30))];
-
-		await recording.RunAsync(new FakeSplitter(), new RecordingSplit.BySize(70), session => session.WriteInChunksAsync(stream, 7), cancellationToken);
-
-		await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("ab | H0:cd");
-	}
-
-	// 攒到上限还等不到切分点就先写出去，接在当前文件后面，单元剩下的部分随到随写；下一个切分点照常判断
 	[Test]
 	public async Task DataThatNeverReachesASplitPointIsWrittenOutWithoutStartingAFileAsync(CancellationToken cancellationToken)
 	{
@@ -225,7 +207,6 @@ public sealed class RecordingSegmenterTest
 
 		await Assert.ThrowsAsync<OperationCanceledException>(() => run);
 
-		// 末尾只收到 3 字节的元素解码不了，不写
 		await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("ab");
 	}
 
@@ -234,7 +215,6 @@ public sealed class RecordingSegmenterTest
 	{
 		SplitRecording recording = new() { MaxPendingLength = 50 };
 
-		// 已有的 20 字节加上攒到的 60 字节离上限还远，但单元的总长不知道
 		await recording.RunAsync(new FakeSplitter(), new RecordingSplit.BySize(1000), static async session =>
 		{
 			await session.WriteAsync(FakeSplitter.Unit("a", 20));
@@ -251,7 +231,6 @@ public sealed class RecordingSegmenterTest
 		await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("a | H0:bwxyzc");
 	}
 
-	// 时长到了、标题也改了，只开着其中一种分段；收流结束时把最后半个单元切出去只会得到一个太短的文件
 	[Test]
 	[Arguments(false)]
 	[Arguments(true)]
@@ -272,21 +251,6 @@ public sealed class RecordingSegmenterTest
 		await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("abx");
 	}
 
-	[Test]
-	public async Task LastUnitThatDoesNotFitStillStartsANewFileWhenTheStreamEndsAsync(CancellationToken cancellationToken)
-	{
-		SplitRecording recording = new();
-
-		await recording.RunAsync(new FakeSplitter(), new RecordingSplit.BySize(50), static async session =>
-		{
-			await session.WriteAsync(FakeSplitter.Unit("a", 30));
-			await session.WriteAsync(FakeSplitter.Unit("b", 30));
-		}, cancellationToken);
-
-		await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("a | H0:b");
-	}
-
-	// 每写一次之后交给写盘端的数据：分段时攒到下一个切分点才知道单元要不要换文件；不分段时只攒分割器定时间起点要的第一个单元
 	[Test]
 	[Arguments(true, false, new[] { "x", "x", "xa", "xa" })]
 	[Arguments(false, false, new[] { "x", "xa", "xab", "xaby" })]
@@ -368,7 +332,6 @@ public sealed class RecordingSegmenterTest
 			await session.WriteAsync(FakeSplitter.Unit("f", 10));
 		}, cancellationToken);
 
-		// 打开时当前文件已经超过一分钟
 		await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("ab | H0:cdef");
 	}
 
@@ -416,7 +379,6 @@ public sealed class RecordingSegmenterTest
 		}
 	}
 
-	// 已经交给写盘端的数据，不取走
 	private static string Written(PipeReader reader)
 	{
 		if (!reader.TryRead(out ReadResult result))

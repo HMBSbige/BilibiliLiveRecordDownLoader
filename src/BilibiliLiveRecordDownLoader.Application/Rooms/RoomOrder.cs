@@ -1,6 +1,5 @@
 namespace BilibiliLiveRecordDownLoader.Application.Rooms;
 
-// 会话列表和配置里的房间列表用同一套规则调整，两者的顺序保持一致
 internal static class RoomOrder
 {
 	public static bool MoveBefore<T>(List<T> items, Func<T, long> getRoomId, IReadOnlySet<long> roomIds, long? before)

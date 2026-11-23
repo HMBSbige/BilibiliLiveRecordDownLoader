@@ -9,10 +9,8 @@ internal static class DanmakuChapterBuilder
 
 	private const string MergedSeparator = @" / ";
 
-	// 高能开始前留一点铺垫，跳过去不会正好错过开头
 	private static readonly TimeSpan HighlightLead = TimeSpan.FromSeconds(10);
 
-	// 播放器的章节列表里不要挤着几个几乎同一时间的条目
 	private static readonly TimeSpan MinimumSpacing = TimeSpan.FromSeconds(15);
 
 	// duration 为空时最后一章结束于最后一条记录之后一秒

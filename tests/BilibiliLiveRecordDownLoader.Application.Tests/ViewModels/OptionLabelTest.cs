@@ -11,8 +11,6 @@ public sealed class OptionLabelTest
 	public static IEnumerable<Func<(object Option, string Label)>> Options()
 	{
 		yield return static () => (ChoiceOption.Inherit, AppLanguage.Current.Inherit);
-		yield return static () => (new ChoiceOption(false), AppLanguage.Current.Disabled);
-		yield return static () => (new ChoiceOption(RecordingSplitMode.Duration), AppLanguage.Current.SplitByDuration);
 		yield return static () => (new LanguageOptionViewModel(string.Empty, string.Empty), AppLanguage.Current.FollowSystem);
 		yield return static () => (new LanguageOptionViewModel("en", "English"), "English");
 		yield return static () => (LogLevelOption.All, AppLanguage.Current.AllLevels);

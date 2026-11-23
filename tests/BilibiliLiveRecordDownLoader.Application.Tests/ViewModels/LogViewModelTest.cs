@@ -57,7 +57,6 @@ public sealed class LogViewModelTest
 		}
 	}
 
-	// 新点的列里房间号按升序排，时间和级别把最新、最严重的排在前面
 	[Test]
 	public async Task ClickingTheSortedColumnAgainReversesItAsync()
 	{
@@ -76,7 +75,6 @@ public sealed class LogViewModelTest
 	public static IEnumerable<Func<(LogLevel? Minimum, string? Room, string? Search, long[] Expected)>> Filters()
 	{
 		yield return static () => (LogLevel.Warning, null, null, [2, 3, 4]);
-		// 房间号按子串匹配，没有房间号的不算
 		yield return static () => (null, " 2 ", null, [1, 4]);
 		yield return static () => (null, null, "RECORDING", [1, 4]);
 		yield return static () => (LogLevel.Warning, "2", "recording", [4]);
@@ -106,7 +104,6 @@ public sealed class LogViewModelTest
 		}
 	}
 
-	// 改房间号和搜索词后列表要等一会儿才重建，直接看筛选条件，不必等
 	private static long[] Matching(FakeLogStore store, LogViewModel viewModel)
 	{
 		return [.. store.GetEntries().Where(viewModel.CreatePredicate()).Select(static entry => entry.Sequence)];

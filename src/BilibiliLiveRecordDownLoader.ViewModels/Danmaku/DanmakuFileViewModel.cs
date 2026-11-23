@@ -7,7 +7,6 @@ public sealed partial class DanmakuFileViewModel : ViewModelBase
 	private readonly IDanmakuAppService _danmaku;
 	private DanmakuEntryViewModel[] _all;
 
-	// 不留整份文件，原始条目在行建好后就不再需要
 	private DanmakuFileSourceDto _source;
 	private bool _isComplete;
 	private IReadOnlyList<DanmakuHighlightDto> _highlights;
@@ -87,7 +86,7 @@ public sealed partial class DanmakuFileViewModel : ViewModelBase
 	[Reactive]
 	public partial AppNotificationType MessageType { get; private set; }
 
-	// 应用服务按文件内时间排好了序，可以二分查找
+	// 应用服务已按文件内时间排好序
 	[ReactiveCommand]
 	private void JumpTo(TimeSpan time)
 	{
@@ -137,14 +136,12 @@ public sealed partial class DanmakuFileViewModel : ViewModelBase
 			string output = await _danmaku.QueueHighlightExportAsync(Path, highlight.Highlight, cancellationToken);
 			(Message, MessageType) = (AppLanguage.Current.HighlightExportQueued.ToString(System.IO.Path.GetFileName(output)), AppNotificationType.Success);
 		}
-		// 找不到的是同名视频，应用服务给的原因已经说清楚了
 		catch (Exception exception) when (IsExpectedFailure(exception))
 		{
 			ShowError(exception.Message);
 		}
 	}
 
-	// 应用服务对这些异常给出了能直接显示的原因
 	internal static bool IsExpectedFailure(Exception exception)
 	{
 		return exception is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or ArgumentException;

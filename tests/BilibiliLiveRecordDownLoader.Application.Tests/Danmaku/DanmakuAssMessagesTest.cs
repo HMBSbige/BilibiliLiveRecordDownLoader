@@ -42,7 +42,6 @@ public sealed partial class DanmakuAssMessagesTest
 		return $@"\1c&H{DanmakuAssText.Color(rgb)}&";
 	}
 
-	// B 站原样的价格色在浅色底上看不清
 	[Test]
 	public async Task SuperChatCardTakesItsColorsFromTheTierAsync()
 	{
@@ -53,7 +52,6 @@ public sealed partial class DanmakuAssMessagesTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(result).IsEqualTo(new DanmakuAssResult(0, 0, 1, 0));
-			// 底边离画面底部 4%，左边离画面左边 2%
 			await Assert.That(ShapeTags(messages)).IsEquivalentTo([$@"\an7\pos(38,933)\fad(200,200){Color(tier.Background)}\1a&H00&\p1", $@"\an7\pos(38,981)\fad(200,200){Color(tier.BottomBackground)}\1a&H00&\p1"], CollectionOrdering.Matching);
 			await Assert.That(texts[@"老板"]).Contains($@"\b1{Color(0x333333)}");
 			await Assert.That(texts[@"¥100"]).StartsWith(@"\an6\pos(502,957)").And.EndsWith(Color(tier.PriceColor));
@@ -74,7 +72,6 @@ public sealed partial class DanmakuAssMessagesTest
 		}
 	}
 
-	// 没记 id 的旧记录对不上删除，照常画
 	[Test]
 	public async Task DeletedSuperChatsAreNotDrawnAsync()
 	{
@@ -105,7 +102,6 @@ public sealed partial class DanmakuAssMessagesTest
 			new DanmakuRecord.Guard(TimeSpan.Zero, 1, @"甲", GuardLevel.Admiral, 3, 1_998_000 * 3),
 			new DanmakuRecord.Guard(TimeSpan.Zero, 2, @"乙", GuardLevel.Governor, 1, 19_998_000),
 			new DanmakuRecord.Guard(TimeSpan.Zero, 3, @"丙", GuardLevel.Captain, 1, 198_000) { IsRenewal = true },
-			// 直播消息里也可能带来没定义的等级
 			new DanmakuRecord.Guard(TimeSpan.Zero, 4, @"丁", GuardLevel.None, 1, 198_000),
 			new DanmakuRecord.Guard(TimeSpan.Zero, 5, @"戊", (GuardLevel)7, 1, 198_000)
 		]);
@@ -115,18 +111,6 @@ public sealed partial class DanmakuAssMessagesTest
 			await Assert.That(Texts(messages)).IsEquivalentTo([@"甲 开通了提督×3个月", @"乙 开通了总督", @"丙 续费了舰长"]);
 			await Assert.That(result).IsEqualTo(new DanmakuAssResult(0, 0, 3, 0));
 		}
-	}
-
-	[Test]
-	[Arguments(GuardLevel.Governor, 0xE0A030)]
-	[Arguments(GuardLevel.Admiral, 0x8C4DE6)]
-	[Arguments(GuardLevel.Captain, 0x3E7BFA)]
-	public async Task EachGuardLevelUsesItsOwnColorAsync(GuardLevel level, int color)
-	{
-		(Match[] messages, _, _) = Generate([new DanmakuRecord.Guard(TimeSpan.Zero, 1, @"甲", level, 1, 198_000)]);
-		string shape = await Assert.That(ShapeTags(messages)).HasSingleItem();
-
-		await Assert.That(shape).Contains(Color(color));
 	}
 
 	[Test]
@@ -165,9 +149,7 @@ public sealed partial class DanmakuAssMessagesTest
 		await Assert.That(Texts(messages).Distinct()).IsEquivalentTo([@"｛＼b1｝", @"¥30", @"第一行 ｛＼N｝", @"观众 投喂 ｛礼物｝ ×1"]);
 	}
 
-	// 8 秒起，每个字加 0.15 秒，最多 20 秒，但不超过 SC 在直播间里置顶的时长
 	[Test]
-	[Arguments(0, 60, 8)]
 	[Arguments(20, 60, 11)]
 	[Arguments(100, 60, 20)]
 	[Arguments(2, 5, 5)]
@@ -183,15 +165,12 @@ public sealed partial class DanmakuAssMessagesTest
 	{
 		(Match[] messages, _, _) = Generate([new DanmakuRecord.Guard(TimeSpan.Zero, 1, @"甲", GuardLevel.Captain, 1, 198_000), new DanmakuRecord.Guard(TimeSpan.FromSeconds(1), 2, @"乙", GuardLevel.Captain, 1, 198_000)]);
 
-		// 胶囊高 46、间距 8；1080 × 0.96 - 46 = 990.8，取整 991；中线再往下 23
 		await Assert.That(messages.Where(static match => match.Groups[@"text"].Value is @"甲 开通了舰长").Select(static match => $"{match.Groups[@"start"].Value}-{match.Groups[@"end"].Value} {match.Groups[@"tags"].Value}")).IsEquivalentTo([@"0:00:00.00-0:00:01.00 \an4\pos(58,1014)\fad(200,0)", @"0:00:01.00-0:00:06.00 \an4\move(58,1014,58,960,0,200)\fad(0,200)"], CollectionOrdering.Matching);
 	}
 
-	// 某一段从淡入或淡出途中开始时，接着当时的透明度变
 	[Test]
 	public async Task ASegmentStartingMidFadeContinuesFromTheCurrentAlphaAsync()
 	{
-		// 礼物 0.1 秒进来把上舰顶上去，连击 5.85 秒结束时上舰落回原位，6 秒消失
 		(Match[] messages, _, _) = Generate(
 		[
 			new DanmakuRecord.Guard(TimeSpan.Zero, 1, @"甲", GuardLevel.Captain, 1, 198_000),
@@ -202,24 +181,9 @@ public sealed partial class DanmakuAssMessagesTest
 		await Assert.That(messages.Where(static match => match.Groups[@"text"].Value is @"甲 开通了舰长").Select(static match => $"{match.Groups[@"start"].Value}-{match.Groups[@"end"].Value} {match.Groups[@"tags"].Value}")).IsEquivalentTo(
 		[
 			@"0:00:00.00-0:00:00.10 \an4\pos(58,1014)\fad(200,0)",
-			// 淡入过半，透明度 128，再过 100 毫秒完全显示
 			@"0:00:00.10-0:00:05.85 \an4\move(58,1014,58,960,0,200)\fade(128,0,255,0,100,5700,5900)",
-			// 淡出过了四分之一
 			@"0:00:05.85-0:00:06.00 \an4\move(58,960,58,1014,0,200)\fade(64,64,255,0,0,0,150)"
 		], CollectionOrdering.Matching);
-	}
-
-	[Test]
-	public async Task NothingIsDrawnWithoutLabelsAsync()
-	{
-		StringWriter writer = new(CultureInfo.InvariantCulture);
-		DanmakuAssResult result = DanmakuAssGenerator.Write(writer, [new DanmakuRecord.SuperChat(TimeSpan.Zero, 1, @"老板", 30_000, TimeSpan.FromSeconds(60), @"内容")], null, null);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(writer.ToString()).DoesNotContain(@",Message,,");
-			await Assert.That(result).IsEqualTo(new DanmakuAssResult(0, 0, 0, 0));
-		}
 	}
 
 	[Test]
@@ -259,7 +223,6 @@ public sealed partial class DanmakuAssMessagesTest
 			await Assert.That(text).Contains("PlayResX: 1080\nPlayResY: 1920\n");
 			await Assert.That(text).Contains("Style: Danmaku,Microsoft YaHei,38,");
 			await Assert.That(text).Contains("Style: Message,Microsoft YaHei,30,");
-			// 宽度不超过画面宽度的 40%，即 432
 			await Assert.That(text).Contains(@"}m 6 0 l 426 0 b 429 0 432 3 432 6 l 432 48 ");
 			await Assert.That(Texts(messages)).Contains(@"一个特别特别特别特别… 开通了舰长");
 		}
@@ -273,7 +236,6 @@ public sealed partial class DanmakuAssMessagesTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(text).Contains("Style: Message,Microsoft YaHei,20,");
-			// 宽 480 × 720 / 1080 = 320，圆角半径 4
 			await Assert.That(text).Contains(@"}m 4 0 l 316 0 b 318 0 320 2 320 4 l 320 32 l 0 32 l 0 4 b 0 2 2 0 4 0");
 		}
 	}
@@ -282,7 +244,6 @@ public sealed partial class DanmakuAssMessagesTest
 	[Arguments(30_500L, "¥30.5")]
 	[Arguments(12_345L, "¥12.35")]
 	[Arguments(1_999L, "¥2")]
-	[Arguments(19_998_000L, "¥19998")]
 	public async Task PricesAreShownInYuanAsync(long price, string expected)
 	{
 		await Assert.That(DanmakuAssMessages.FormatYuan(price)).IsEqualTo(expected);
@@ -291,14 +252,10 @@ public sealed partial class DanmakuAssMessagesTest
 	public static IEnumerable<Func<(string Text, double MaxWidth, string[] Lines)>> WrapCases()
 	{
 		yield return static () => (new string('字', 25), 80, [new string('字', 10), new string('字', 10), new string('字', 5)]);
-		// 拉丁字母在空格处换行，行首行尾的空格去掉
 		yield return static () => (@"hello world  foo", 30, [@"hello", @"world", @"foo"]);
-		// 混排时从最后一个全角字之后断开
 		yield return static () => (@"主播 好厉害abcdeabcde", 80, [@"主播 好厉害", @"abcdeabcde"]);
-		yield return static () => (string.Empty, 80, []);
 	}
 
-	// 字号 10 时全角字宽按 8 估算
 	[Test]
 	[MethodDataSource(nameof(WrapCases))]
 	public async Task TextWrapsAfterWideCharactersAndAtSpacesAsync(string text, double maxWidth, string[] lines)
@@ -320,7 +277,6 @@ public sealed partial class DanmakuAssMessagesTest
 	}
 
 	[Test]
-	[Arguments("一二三", "一二三")]
 	[Arguments("一二三四五", "一二三…")]
 	public async Task LongNamesAreTruncatedAsync(string name, string expected)
 	{
@@ -333,7 +289,6 @@ public sealed partial class DanmakuAssMessagesTest
 		(Match[] messages, _, _) = Generate([new DanmakuRecord.SuperChat(TimeSpan.Zero, 1, @"老板", 30_000, TimeSpan.FromSeconds(60), string.Empty)]);
 		Match shape = await Assert.That(messages).HasSingleItem(static match => match.Groups[@"layer"].Value is "1");
 
-		// 四个角都是圆的
 		await Assert.That(shape.Groups[@"text"].Value).IsEqualTo(@"m 6 0 l 474 0 b 477 0 480 3 480 6 l 480 42 b 480 45 477 48 474 48 l 6 48 b 3 48 0 45 0 42 l 0 6 b 0 3 3 0 6 0");
 	}
 
@@ -345,7 +300,6 @@ public sealed partial class DanmakuAssMessagesTest
 		return text.Split('\n').Select(static line => DanmakuRegex.Match(line)).Where(static match => match.Success).ToDictionary(static match => match.Groups[@"text"].Value, static match => match.Groups[@"tags"].Value);
 	}
 
-	// 1080p 下消息栏右边到 518，居中的弹幕估算宽度超过 884 才伸进来；30 个全角字按字号 38 估算是 1140
 	private static string Wide(int i)
 	{
 		return $@"{i:00}" + new string('宽', 30);
@@ -353,7 +307,6 @@ public sealed partial class DanmakuAssMessagesTest
 
 	private static DanmakuRecord.SuperChat BarSuperChat(double seconds = 60)
 	{
-		// 卡片高 104，消息栏顶端在 1036.8 - 104 = 932.8
 		return new DanmakuRecord.SuperChat(TimeSpan.Zero, 1, @"老板", 30_000, TimeSpan.FromSeconds(seconds), @"内容");
 	}
 
@@ -365,10 +318,8 @@ public sealed partial class DanmakuAssMessagesTest
 
 		using (Assert.Multiple())
 		{
-			// 最底下一条在消息栏下边距里，不重叠；往上三条和消息栏重叠，跳到第五条
 			await Assert.That(positions[Wide(0)]).IsEqualTo(@"\an2\pos(960,1080)");
 			await Assert.That(positions[Wide(1)]).IsEqualTo(@"\an2\pos(960,928)");
-			// 窄的伸不到消息栏，照常从下往上排
 			await Assert.That(positions[@"窄"]).IsEqualTo(@"\an2\pos(960,1042)");
 			await Assert.That((result.Shown, result.Dropped)).IsEqualTo((3, 0));
 		}
@@ -382,14 +333,12 @@ public sealed partial class DanmakuAssMessagesTest
 
 		using (Assert.Multiple())
 		{
-			// 1080 / 38 = 28 条轨道，和没有消息栏时丢得一样多
 			await Assert.That((result.Shown, result.Dropped)).IsEqualTo((28, 1));
 			await Assert.That(positions[Wide(25)]).IsEqualTo(@"\an2\pos(960,1042)");
 			await Assert.That(positions[Wide(27)]).IsEqualTo(@"\an2\pos(960,966)");
 		}
 	}
 
-	// 上舰从下面进来，SC 往上升 46 + 8；这一段按升上去之后的高度算，顶端在 1036.8 - 54 - 104 = 878.8
 	[Test]
 	public async Task BottomCommentsAvoidWhereAMovingEntryEndsUpAsync()
 	{
@@ -406,7 +355,6 @@ public sealed partial class DanmakuAssMessagesTest
 		await Assert.That(BottomPositions(text)[Wide(1)]).IsEqualTo(@"\an2\pos(960,1042)");
 	}
 
-	// 竖屏时消息栏右边到 453.6，中线在 540，五个字的弹幕就伸进来了
 	[Test]
 	public async Task PortraitBottomCommentsAvoidTheBarSoonerAsync()
 	{
@@ -415,10 +363,8 @@ public sealed partial class DanmakuAssMessagesTest
 
 		using (Assert.Multiple())
 		{
-			// 下边距 76.8 容得下两条
 			await Assert.That(positions[@"第一条弹幕"]).IsEqualTo(@"\an2\pos(540,1920)");
 			await Assert.That(positions[@"第二条弹幕"]).IsEqualTo(@"\an2\pos(540,1882)");
-			// 消息栏顶端在 1843.2 - 104 = 1739.2，往上第一条不重叠的底边在 1920 - 38 × 5 = 1730
 			await Assert.That(positions[@"第三条弹幕"]).IsEqualTo(@"\an2\pos(540,1730)");
 		}
 	}

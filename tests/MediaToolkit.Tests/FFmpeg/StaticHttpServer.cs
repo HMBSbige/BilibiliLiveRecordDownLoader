@@ -52,7 +52,6 @@ internal sealed class StaticHttpServer : IAsyncDisposable
 			}
 			catch (IOException)
 			{
-				// 客户端没读完响应就断开时，继续接受下一个连接
 			}
 		}
 	}

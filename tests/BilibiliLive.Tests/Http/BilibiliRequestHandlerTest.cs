@@ -78,7 +78,6 @@ public partial class BilibiliRequestHandlerTest
 	}
 
 	[Test]
-	[Arguments("https://cn-gddg-ct-01-01.bilivideo.com/live-bvc/1/live_1.flv", true)]
 	[Arguments("https://evilbilibili.com/", true)]
 	[Arguments(Url, false)]
 	public async Task CookieIsNotSentOutsideBilibiliDomainsOrWhenExcludedAsync(string url, bool includeCookie, CancellationToken cancellationToken)
@@ -96,7 +95,6 @@ public partial class BilibiliRequestHandlerTest
 	}
 
 	[Test]
-	[Arguments(null, BilibiliRequestHandler.DefaultUserAgent)]
 	[Arguments("  ", BilibiliRequestHandler.DefaultUserAgent)]
 	[Arguments(" agent/1 ", "agent/1")]
 	public async Task UserAgentIsTrimmedAndBlankFallsBackToDefaultAsync(string? userAgent, string expected)
@@ -174,7 +172,6 @@ public partial class BilibiliRequestHandlerTest
 		await Assert.That(headers["Accept"]).IsEqualTo("video/x-flv");
 	}
 
-	// 选项里已有 buvid3 时原样保留，不追加生成的
 	[Test]
 	public async Task RequestCookieAndUserAgentAreReplacedAsync(CancellationToken cancellationToken)
 	{

@@ -18,7 +18,6 @@ public sealed class MainWindowViewModelTest
 		InvalidOperationException failure = new("stop failed");
 		using DialogHostViewModel dialogs = new();
 		using MainWindowViewModel viewModel = Create(events, isRecording: false, new FakeLifecycle(events) { Failure = failure }, dialogs);
-		// 先订阅，否则异常会落到全局处理
 		Task<Exception> thrown = viewModel.ExitCommand.ThrownExceptions.FirstAsync(cancellationToken);
 
 		((ICommand)viewModel.ExitCommand).Execute(null);

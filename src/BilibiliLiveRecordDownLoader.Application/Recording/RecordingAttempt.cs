@@ -37,8 +37,7 @@ internal closed record RecordingEnd
 		WriteFailed writeFailed => writeFailed.Exception.DisplayText
 	};
 
-	// 超时和 FFmpeg 失败的说明是英文，换成本地化文案；FFmpeg 的最后几行输出是唯一的诊断信息，要保留
-	// HTTP 错误的运行时文案已带状态码
+	// FFmpeg 的最后几行输出是唯一的诊断信息，要保留
 	public static string GetDisplayText(Exception exception)
 	{
 		return exception switch

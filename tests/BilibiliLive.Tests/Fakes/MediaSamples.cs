@@ -4,7 +4,6 @@ using System.Text.RegularExpressions;
 
 namespace BilibiliLive.Tests.Fakes;
 
-/// <summary>能通过结构校验的最小媒体，带一个可读的 [marker]，用来在输出里区分各个分片</summary>
 internal static partial class MediaSamples
 {
 	private const int PacketSize = 188;

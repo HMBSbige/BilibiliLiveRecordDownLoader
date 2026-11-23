@@ -9,7 +9,6 @@ internal sealed class FakeDanmuSource(TimeProvider time)
 {
 	private readonly Channel<FakeDanmuConnection> _connections = Channel.CreateUnbounded<FakeDanmuConnection>();
 
-	// 房间的整个生命周期里是同一个对象
 	public DanmuReceiveOptions? Options { get; private set; }
 
 	[SuppressMessage("Style", "IDE0060", Justification = "签名要对上 RoomSessionServices.ReceiveDanmu")]
@@ -37,7 +36,7 @@ internal sealed class FakeDanmuConnection(TimeProvider time)
 	private int _sent;
 	private int _handled;
 
-	// 接收时刻取当前时钟；房间处理完这条、来取下一条时才返回
+	// 房间处理完这条、来取下一条时才返回
 	public async Task SendAsync(DanmuMessage message)
 	{
 		int sent = Interlocked.Increment(ref _sent);

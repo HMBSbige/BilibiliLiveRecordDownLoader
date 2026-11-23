@@ -34,7 +34,6 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 		}
 	}
 
-	// 同一队列中的任务依次执行，避免多个转封装同时读写同一块磁盘
 	public Task<BackgroundTaskSnapshot> Enqueue(string title, string queueKey, Func<BackgroundTaskContext, CancellationToken, Task> work, string? sourcePath = null, string? targetPath = null)
 	{
 		BackgroundTaskSnapshot snapshot = new(Guid.CreateVersion7(), title, sourcePath, targetPath, BackgroundTaskStatus.Queued, null, null, null);
@@ -179,7 +178,6 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 		return snapshot;
 	}
 
-	// 按加入顺序移除已结束的条目，失败的尽量留给用户查看
 	private void TrimFinished()
 	{
 		List<TaskEntry> finished = _entries.FindAll(static entry => !entry.Snapshot.IsActive);

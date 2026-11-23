@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording;
 
-// Segment 从 0 开始；Time 从这个文件的第一帧算起，即播放器显示的时间
+// Segment 从 0 开始；Time 从这个文件的第一帧算起
 internal readonly record struct TimelinePosition(int Segment, string Path, TimeSpan Time);
 
 internal interface IRecordingTimeline
@@ -10,14 +10,11 @@ internal interface IRecordingTimeline
 	// timestamp 取自 TimeProvider.GetTimestamp()；归属还没确定时等到确定，返回 null 表示这一刻没有对应的录制文件
 	ValueTask<TimelinePosition?> PlaceAsync(long timestamp, CancellationToken cancellationToken);
 
-	// 开始时流头里读不到就用这一段里第一次读到的；读不到或者不是这次尝试的文件时为 null
 	VideoResolution? GetResolution(string path);
 
-	// 到目前为止提交的内容的时长，段关闭之后就是文件的时长；整段都读不到媒体时间或者不是这次尝试的文件时为 null
 	TimeSpan? GetDuration(string path);
 }
 
-// 弹幕的位置是收到它之前最后到达的元素的文件时间，加上从那个元素到达起经过的时间；连上时一下收到的 GOP 缓存和 HLS 积压会让媒体时间很快追上，不会把弹幕放早
 // 网络端（分段器）、写盘端（换文件）和弹幕端各在自己的线程上调用
 internal sealed class RecordingTimeline : IRecordingTimeline
 {
@@ -38,12 +35,10 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 	private readonly int _pruneThreshold;
 
 	// 取空闲超时：卡住到空闲超时这次尝试就结束了，再往后推只会把弹幕放到文件最后一帧之后
-	// 在这之前恢复时画面接着写进同一个文件，弹幕跟着往后推才不会挤在一起、放早
 	private readonly TimeSpan _extrapolationLimit;
 	private readonly List<Record> _records = [];
 	private readonly List<Segment> _segments = [];
 
-	// 读不到媒体时间时第一个文件从这里按单调时钟算
 	private readonly long _created;
 	private int _resolvedCount;
 	private long _recordedEnd;
@@ -142,7 +137,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		}
 	}
 
-	// 网络端每次写入之后调用；没有新元素过去时只记下数据还在到达，往后推的上限从这里算
+	// 网络端每次写入之后调用
 	internal void AddArrival(long acceptedEnd, VideoResolution? resolution, long arrival)
 	{
 		lock (_lock)
@@ -151,7 +146,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		}
 	}
 
-	// 网络端：接下来提交的单元写进新的一段
+	// 网络端调用
 	internal int StartSegment()
 	{
 		lock (_lock)
@@ -177,7 +172,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		}
 	}
 
-	// 网络端：攒着的数据都已经提交；之后收到的弹幕不属于这次尝试的任何文件
+	// 网络端在攒着的数据都已经提交之后调用
 	internal void EndReceiving()
 	{
 		long timestamp = _timeProvider.GetTimestamp();
@@ -202,7 +197,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		}
 	}
 
-	// 写盘端不会再建文件；没建出文件的段和没提交的记录都放不进去了
+	// 写盘端不会再建文件时调用
 	internal void Close()
 	{
 		lock (_lock)
@@ -269,7 +264,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		return low - 1;
 	}
 
-	// 只有数据的记录沿用上一条的段和文件时间，只把到达时刻往后挪；不改已有的记录，晚到的查询仍按当时的情况算上限
+	// 只有数据的记录沿用上一条的段和文件时间；不改已有的记录，晚到的查询仍按当时的情况算上限
 	private void AddArrivalCore(long acceptedEnd, VideoResolution? resolution, long arrival)
 	{
 		if (acceptedEnd <= _recordedEnd && (_records.Count is 0 || _timeProvider.GetElapsedTime(_records[^1].Arrival, arrival) < DataRecordInterval))
@@ -299,7 +294,6 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		}
 	}
 
-	// 第一个带媒体时间的元素之前（流头）和整段都读不到媒体时间时，按单调时钟从这一段开始算
 	private void Resolve(ref Record record)
 	{
 		Segment segment = _segments[^1];
@@ -324,7 +318,6 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		record.BaseArrival = segment.BaseArrival;
 	}
 
-	// 早于留下的记录太久的弹幕按最早的一条放
 	// 保留范围起点上的查询要用的那条也留下：卡流比保留时长还久时，卡流期间收到的弹幕都从卡流前最后一条往后推
 	// 这次才确定的记录可能正有弹幕在等，留到之后的提交再剪
 	private void Prune(int resolvedBefore)
@@ -357,7 +350,6 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		// 还没提交时为 -1
 		public int SegmentIndex { get; set; } = -1;
 
-		// 这条记录到达时这一段最新的文件时间和它对应的到达时刻
 		public TimeSpan BaseTime { get; set; }
 
 		public long BaseArrival { get; set; }
@@ -367,12 +359,10 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 	{
 		public int Index { get; } = index;
 
-		// 写盘端建好文件之前为 null
 		public string? Path { get; set; }
 
 		public VideoResolution? Resolution { get; set; }
 
-		// 这一段第一个元素到达的时刻，第一段是文件建好的时刻
 		public long? Start { get; set; } = start;
 
 		// 按 TimeSpan 的刻度计时；可变结构体，用字段才能原地推进

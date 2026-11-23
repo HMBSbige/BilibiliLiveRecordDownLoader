@@ -6,7 +6,7 @@ internal interface IRecordingObserver
 	// closed 在写盘端关掉最后一段时完成，磁盘卡到排空超时的话会晚于 RecordAsync 返回
 	void OnRecordingStarted(string path, RecordingStream stream, IRecordingTimeline timeline, Task closed);
 
-	// 最后一段不调用；调用时这一段的文件已经关闭，下一段的起点已过去至少一个切分单元，接收时刻早于起点的弹幕都已能放置
+	// 最后一段不调用；调用时这一段已关闭，接收时刻早于下一段起点的弹幕都已能放置
 	void OnSegmentCompleted(string path);
 
 	// 返回之后时间轴才把弹幕放进这一段

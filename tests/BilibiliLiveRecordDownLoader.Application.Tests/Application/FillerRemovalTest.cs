@@ -44,7 +44,6 @@ public sealed class FillerRemovalTest
 
 		using (Assert.Multiple())
 		{
-			// 只剩填充的 tag 不动
 			await Assert.That(recording.Files).IsEquivalentTo((byte[][])[expected], CollectionOrdering.Matching);
 			await Assert.That(expected.Length).IsLessThan(stream.Length);
 		}
@@ -105,7 +104,6 @@ public sealed class FillerRemovalTest
 		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[stream], CollectionOrdering.Matching);
 	}
 
-	// 这些序列头和帧在同一个攒着的单元里，提交时不能用已经看到后面序列头的状态
 	[Test]
 	public async Task FlvSequenceHeadersAreFollowedInTheOrderTheyAreWrittenAsync(CancellationToken cancellationToken)
 	{
@@ -133,7 +131,6 @@ public sealed class FillerRemovalTest
 		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[Stream(true)], CollectionOrdering.Matching);
 	}
 
-	// 序列头在关闭时就过去了
 	[Test]
 	public async Task TurningFillerRemovalOnTakesEffectFromTheNextWriteAsync(CancellationToken cancellationToken)
 	{
@@ -187,7 +184,6 @@ public sealed class FillerRemovalTest
 			await session.InitAsync(init);
 			await session.SegmentAsync([.. styp, .. Fragment(firstVideo, false)]);
 
-			// 第二组 moof+mdat 处理时前面已经删掉过数据，要整体前移
 			await session.SegmentAsync([.. Fragment(secondVideo, false), .. Fragment(thirdVideo, false)]);
 		}, cancellationToken);
 
@@ -219,7 +215,6 @@ public sealed class FillerRemovalTest
 		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. init, .. Fragment(true)]], CollectionOrdering.Matching);
 	}
 
-	// init 段在关闭时就过去了
 	[Test]
 	public async Task TurningFillerRemovalOnTakesEffectFromTheNextFmp4FragmentAsync(CancellationToken cancellationToken)
 	{
@@ -258,7 +253,6 @@ public sealed class FillerRemovalTest
 		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. init, .. FillerSamples.Fragment([FillerSamples.Sample(4, [nals[0]])], ["aac"u8.ToArray()])]], CollectionOrdering.Matching);
 	}
 
-	// 后面跟一个能处理的分片，确认原样写的分片不影响后面的解析
 	[Test]
 	[MethodDataSource(nameof(UnchangedFmp4Fragments))]
 	public async Task Fmp4FragmentsThatCannotBeTakenApartAreWrittenUnchangedAsync(byte[] init, byte[] fragment, bool isNextProcessed, CancellationToken cancellationToken)
@@ -288,7 +282,6 @@ public sealed class FillerRemovalTest
 			yield return new(() => (FillerSamples.Init(FillerCodec.Avc, 4), FillerSamples.Fragment([Sample(), Sample()], ["aac"u8.ToArray()], layout), true), DisplayName: $"分片布局 {layout}");
 		}
 
-		// 一个样本对不上时整个分片都不动
 		yield return new(static () => (FillerSamples.Init(FillerCodec.Avc, 4), FillerSamples.Fragment([Sample(), [.. Sample(), 0]], ["aac"u8.ToArray()]), true), DisplayName: "NAL 长度加起来和样本大小对不上");
 		yield return new(static () => (FillerSamples.Init(FillerCodec.Avc, 4, "encv"), FillerSamples.Fragment([Sample()], ["aac"u8.ToArray()]), false), DisplayName: "加密的样本描述");
 

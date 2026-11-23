@@ -4,8 +4,7 @@ using LogEventLevel = Serilog.Events.LogEventLevel;
 
 namespace BilibiliLiveRecordDownLoader.Views.Infrastructure;
 
-// Release 下 Trace 没有监听者，渲染后端回落、托盘不可用这类平台问题要进应用日志才查得到；
-// 绑定告警只对开发有用，不写，免得刷满日志页
+// Release 下 Trace 没有监听者，平台问题要进应用日志才查得到；绑定告警会刷满日志页，不写
 internal sealed class AvaloniaLogSink : ILogSink
 {
 	private const string SourceContext = "Avalonia";

@@ -68,13 +68,11 @@ public class DanmuPacketTest
 			return data;
 		}, DisplayName: "Decode rejects a header shorter than sixteen bytes");
 		yield return new(static () => DanmuPacket.Encode(DanmuOperation.Message, 0, new byte[DanmuPacket.MaxPacketLength - DanmuPacket.HeaderLength + 1]), DisplayName: "Decode rejects a packet longer than the limit");
-		// 每个包和它们的总和都没超出大小限制，只有压缩比能拒绝它
 		yield return new(static () =>
 		{
 			byte[] zeros = DanmuPacket.Encode(DanmuOperation.Message, 0, new byte[DanmuPacket.MaxPacketLength / 2]);
 			return Zlib(zeros, zeros, zeros);
 		}, DisplayName: "Decode rejects a compression bomb");
-		// 随机字节压缩不了，每个包都没超出压缩比，只有总和超出大小限制
 		yield return new(static () =>
 		{
 			Random random = new(42);

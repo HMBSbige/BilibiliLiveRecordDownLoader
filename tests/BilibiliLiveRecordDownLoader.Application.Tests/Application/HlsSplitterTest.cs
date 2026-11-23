@@ -105,7 +105,6 @@ public sealed class HlsSplitterTest
 		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. init, .. segments[0]], [.. init, .. segments[2], .. segments[3]]], CollectionOrdering.Matching);
 	}
 
-	// 收流结束时最后一个单元并入最后一段
 	private static async Task SendAsync(SessionWriter session, byte[]? init, byte[][] segments)
 	{
 		if (init is not null)

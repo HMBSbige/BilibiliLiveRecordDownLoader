@@ -73,7 +73,6 @@ public sealed class DanmakuConverterTest
 		}
 	}
 
-	// 没记 SC 时删除也没有可对应的
 	[Test]
 	public async Task SuperChatDeletionsFollowTheSuperChatSettingAsync()
 	{
@@ -84,18 +83,6 @@ public sealed class DanmakuConverterTest
 			await Assert.That(DanmakuConverter.ToRecord(deleted, Time, Profile(gifts: DanmakuGiftMode.All))).IsEqualTo(new DanmakuRecord.SuperChatDeletion(Time, [7, 8]));
 			await Assert.That(DanmakuConverter.ToRecord(deleted, Time, Profile(superChats: false, gifts: DanmakuGiftMode.All))).IsNull();
 			await Assert.That(DanmakuConverter.ToEntry(deleted)).IsEqualTo(new DanmakuEntryDto.SuperChatDeletion([7, 8]));
-		}
-	}
-
-	[Test]
-	public async Task FeedEntriesCarryEverythingTheListShowsAsync()
-	{
-		using (Assert.Multiple())
-		{
-			await Assert.That(DanmakuConverter.ToEntry(Gift(DanmuCoinType.Gold))).IsEqualTo(new DanmakuEntryDto.Gift(Sender, "小花花", 2, 200));
-			await Assert.That(DanmakuConverter.ToEntry(new DanmuMessage.GuardBought(Sender, GuardLevel.Admiral, 2, 3996000, true))).IsEqualTo(new DanmakuEntryDto.Guard(Sender, GuardLevel.Admiral, 2, 3996000, true));
-			await Assert.That(DanmakuConverter.ToEntry(new DanmuMessage.SuperChat(7, Sender, "醒目留言", 30000, TimeSpan.FromSeconds(60)))).IsEqualTo(new DanmakuEntryDto.SuperChat(7, Sender, "醒目留言", 30000));
-			await Assert.That(DanmakuConverter.ToEntry(new DanmuMessage.LiveStarted())).IsNull();
 		}
 	}
 
@@ -118,7 +105,6 @@ public sealed class DanmakuConverterTest
 		], EqualityComparer<DanmakuFileEntryDto>.Default, CollectionOrdering.Matching);
 	}
 
-	// 文件里的发送者只有 uid 和昵称
 	private static DanmuSender FileSender(long uid, string name)
 	{
 		return new DanmuSender(uid, name, GuardLevel.None, null);

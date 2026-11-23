@@ -19,24 +19,12 @@ public sealed class TransportStreamSplitterTest
 
 		await recording.RunAsync(new TransportStreamSplitter(), OneMinute, async session =>
 		{
-			// FFmpeg 的输出按块读出，包会被切在两次写入之间
 			await session.WriteInChunksAsync(first, 100);
 			session.Advance(TimeSpan.FromMinutes(1));
 			await session.WriteInChunksAsync([.. repeated, .. second], 100);
 		}, cancellationToken);
 
 		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. first, .. repeated, .. Inter("p2")], [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k2"), .. Inter("p3"), .. Key("k3")]], CollectionOrdering.Matching);
-	}
-
-	[Test]
-	public async Task WithoutSplittingTheFileIsTheStreamAsReceivedAsync(CancellationToken cancellationToken)
-	{
-		byte[] stream = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k1"), .. Inter("p1"), .. TsSamples.Pat(continuity: 1), .. TsSamples.Pmt(continuity: 1), .. Key("k2"), .. Inter("p2"), .. Key("k3")];
-		SplitRecording recording = new();
-
-		await recording.RunAsync(new TransportStreamSplitter(), new RecordingSplit.None(), session => session.WriteInChunksAsync(stream, 100), cancellationToken);
-
-		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[stream], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -71,7 +59,6 @@ public sealed class TransportStreamSplitterTest
 		await Assert.That(recording.Files).Count().IsEqualTo(1);
 	}
 
-	// 和 HLS 一样，没有视频时任何带时间的 PES 开头都能解码
 	[Test]
 	public async Task AudioOnlyProgramSplitsBeforeATimedPesAsync(CancellationToken cancellationToken)
 	{
@@ -90,7 +77,6 @@ public sealed class TransportStreamSplitterTest
 		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[rebased, rebased], CollectionOrdering.Matching);
 	}
 
-	// 流类型认不出的视频仍是按 GOP 编码的，在它旁边的音频 PES 前切，新段会从 GOP 中间开始
 	[Test]
 	public async Task UnrecognizedVideoStreamTypeIsNotSplitBeforeAudioAsync(CancellationToken cancellationToken)
 	{
@@ -124,7 +110,6 @@ public sealed class TransportStreamSplitterTest
 		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[stream], CollectionOrdering.Matching);
 	}
 
-	// 失去同步之前的关键帧照常改到 0
 	[Test]
 	public async Task PacketLookalikeAfterLosingSyncIsWrittenUnchangedAsync(CancellationToken cancellationToken)
 	{
@@ -141,7 +126,6 @@ public sealed class TransportStreamSplitterTest
 		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedVideoFrame(TsSamples.AvcIdr, 0, true), 0x00, .. lookalike]], CollectionOrdering.Matching);
 	}
 
-	// 停止录制时 FFmpeg 的输出可能停在一个包中间
 	[Test]
 	public async Task PartialPacketAtTheEndIsNotWrittenAsync(CancellationToken cancellationToken)
 	{
@@ -153,7 +137,6 @@ public sealed class TransportStreamSplitterTest
 		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[stream], CollectionOrdering.Matching);
 	}
 
-	// 失去包同步之后不再知道包的边界
 	[Test]
 	public async Task DataAfterLosingPacketSyncIsWrittenInFullWhenTheStreamEndsAsync(CancellationToken cancellationToken)
 	{

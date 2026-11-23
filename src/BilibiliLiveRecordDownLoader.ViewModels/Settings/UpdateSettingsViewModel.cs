@@ -54,7 +54,6 @@ public sealed partial class UpdateSettingsViewModel : ViewModelBase
 			return;
 		}
 
-		// 开机自启时网络可能还没就绪，失败不打扰用户
 		if (await _updateAppService.TryCheckForUpdateAsync(IncludePreRelease, cancellationToken) is { } result)
 		{
 			ShowResult(result, silentOnLatest: true);

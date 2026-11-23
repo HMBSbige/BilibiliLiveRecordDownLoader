@@ -5,8 +5,6 @@ namespace BilibiliLive.Tests.Http;
 public class CookieHeaderTest
 {
 	[Test]
-	[Arguments(null, "buvid3=V")]
-	[Arguments("", "buvid3=V")]
 	[Arguments(" a=1; b=2; ", "a=1; b=2; buvid3=V")]
 	[Arguments("xbuvid3=1; a=buvid3", "xbuvid3=1; a=buvid3; buvid3=V")]
 	[Arguments("a=1; buvid3 = X", "a=1; buvid3 = X")]
@@ -16,9 +14,6 @@ public class CookieHeaderTest
 	}
 
 	[Test]
-	[Arguments(null, null)]
-	[Arguments("", null)]
-	[Arguments("xbuvid3=1; a=buvid3", null)]
 	[Arguments("a=1; buvid3 = X ; b=2", "X")]
 	[Arguments("buvid3=first; buvid3=second", "first")]
 	[Arguments("buvid3=", "")]

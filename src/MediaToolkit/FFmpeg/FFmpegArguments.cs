@@ -67,7 +67,6 @@ public static class FFmpegArguments
 			arguments.AddRange([@"-rw_timeout", ((long)ioTimeout.TotalMicroseconds).ToString(CultureInfo.InvariantCulture)]);
 		}
 
-		// https 地址也走这个代理
 		if (httpProxy is not null)
 		{
 			arguments.AddRange([@"-http_proxy", httpProxy.AbsoluteUri]);

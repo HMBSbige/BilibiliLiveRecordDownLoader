@@ -1,6 +1,5 @@
 namespace BilibiliLiveRecordDownLoader.Application.Recording;
 
-// 判断受限原因要按请求时的条件
 internal sealed record CandidateBatch(IReadOnlyList<LiveStreamCandidate> Candidates, CandidateRequest Request);
 
 // 影响这批候选流的设置都要放进来，变了才会重新请求

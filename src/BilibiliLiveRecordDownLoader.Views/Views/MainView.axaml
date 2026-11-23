@@ -42,7 +42,7 @@
             <Border Grid.Column="0" Classes="navPane" Width="188" Padding="8,12"
                     BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,1,0">
                 <DockPanel>
-                    <!-- 托盘不一定可用（如没有 StatusNotifier 宿主的 GNOME），关窗口只是隐藏，窗口里要有退出入口 -->
+                    <!-- 托盘不一定可用，关窗口只是隐藏，窗口里要有退出入口 -->
                     <Button DockPanel.Dock="Bottom" Classes="nav" Command="{Binding ExitCommand}">
                         <StackPanel Classes="iconText">
                             <ic:FluentIcon Icon="Power" />

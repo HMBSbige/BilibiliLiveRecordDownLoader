@@ -41,7 +41,6 @@ public sealed class LiveDanmakuViewModelTest
 		{
 			feed.Add(FakeDanmakuFeed.Comment(Text(index)));
 
-			// 像界面那样成批加入
 			if (index % 7 is 0)
 			{
 				viewModel.Refresh();
@@ -122,7 +121,6 @@ public sealed class LiveDanmakuViewModelTest
 
 		using (Assert.Multiple())
 		{
-			// a 和 b 已经被挤出保留的范围，仍留在列表里说明列表没动过
 			await Assert.That(whileReading.Shown).IsEquivalentTo(["a", "b"], CollectionOrdering.Matching);
 			await Assert.That(whileReading.NewEntries).IsEqualTo(DanmakuConsts.MaxFeedEntries);
 			await Assert.That(Texts(viewModel)).IsEquivalentTo(Enumerable.Range(0, DanmakuConsts.MaxFeedEntries).Select(Text), CollectionOrdering.Matching);
@@ -190,7 +188,6 @@ public sealed class LiveDanmakuViewModelTest
 		await Assert.That((viewModel.IdentityText, viewModel.CanLogin)).IsEqualTo((identity, canLogin));
 	}
 
-	// 重连可能快到两次刷新之间看不到连接中
 	[Test]
 	[Arguments(true)]
 	[Arguments(false)]

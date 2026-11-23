@@ -10,7 +10,6 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
 public sealed class RoomStreamRequestTest
 {
-	// 沿用的候选流是按旧画质请求的，按新画质判断受限会误报；失败过的线路仍然跳过
 	[Test]
 	public async Task QualityChangedBetweenAttemptsRequestsTheCandidatesAgainAsync(CancellationToken cancellationToken)
 	{
@@ -26,7 +25,6 @@ public sealed class RoomStreamRequestTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(loop.PlayInfoRequests).IsEqualTo(2);
-			// 没开真原画时按所选的原画请求
 			await Assert.That((original, RequestedQuality(loop))).IsEqualTo(("10000", "400"));
 			await Assert.That(next.Host).IsEqualTo("b.test");
 		}
@@ -43,11 +41,9 @@ public sealed class RoomStreamRequestTest
 		await request.CopyStarted.WaitAsync(cancellationToken);
 		string logged = await Assert.That(loop.RecorderLogs).HasSingleItem(static message => message.StartsWith("Recording ", StringComparison.Ordinal));
 
-		// B 站真实地址的查询参数里有用户的 uid
 		await Assert.That(logged).Contains($"{request.Host}/live/avc.flv ").And.DoesNotContain("sign=");
 	}
 
-	// FFmpeg 的最后几行输出是唯一的诊断信息，要照样展示，但其中地址的查询串里有用户的 uid 和签名
 	[Test]
 	public async Task FFmpegFailureShowsItsLastOutputInTheAppLanguageWithoutTheQueryAsync(CancellationToken cancellationToken)
 	{
@@ -87,7 +83,6 @@ public sealed class RoomStreamRequestTest
 		}
 	}
 
-	// 请求候选流超时或被风控拦截时，异常原文是 HttpClient 的英文说明
 	[Test]
 	[Arguments(false)]
 	[Arguments(true)]
@@ -116,7 +111,6 @@ public sealed class RoomStreamRequestTest
 		return HttpUtility.ParseQueryString(loop.PlayInfoQuery ?? string.Empty)["qn"];
 	}
 
-	// HttpClient 超时抛的是带着 TimeoutException 的 TaskCanceledException
 	private sealed class FailingHandler(bool isBlocked) : HttpMessageHandler
 	{
 		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

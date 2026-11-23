@@ -23,7 +23,6 @@ public sealed class IdleTimeoutTest
 		await Assert.That(LiveRecorder.GetIdleTimeout(TimeSpan.FromSeconds(configuredSeconds), maxSilence)).IsEqualTo(TimeSpan.FromSeconds(expectedSeconds));
 	}
 
-	// FFmpeg 的会话不知道分片间隔，空闲超时要按验证线路时的 HLS 会话算
 	[Test]
 	[Arguments(RecorderType.BuiltIn)]
 	[Arguments(RecorderType.FFmpeg)]

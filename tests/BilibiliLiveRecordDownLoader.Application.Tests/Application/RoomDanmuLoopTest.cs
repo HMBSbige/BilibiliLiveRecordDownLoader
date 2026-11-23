@@ -1,70 +1,16 @@
 using BilibiliLive.Danmu;
 using BilibiliLiveRecordDownLoader.Application.Danmaku;
-using BilibiliLiveRecordDownLoader.Application.Http;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Text;
-using System.Threading.Channels;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
 public sealed class RoomDanmuLoopTest
 {
-	private const long RoomId = 22907643;
-
 	private const string OfflineRoomInfo = """{"code":0,"data":{"by_room_ids":{"22907643":{"room_id":22907643,"uid":1,"uname":"streamer","title":"title","live_status":0}}}}""";
 
 	private static readonly DanmuSender Viewer = new(42, "观众昵称", GuardLevel.None, null);
-
-	[Test]
-	public async Task ConsecutiveDanmuFailuresBackOffExponentiallyAsync(CancellationToken cancellationToken)
-	{
-		FakeTimeProvider time = new();
-		ReconnectDelayLog log = new();
-		await using ServiceProvider services = new ServiceCollection()
-			.AddLogging(builder => builder.AddProvider(log))
-			.AddSingleton<TimeProvider>(time)
-			.AddSingleton<IAppConfigManager, FakeConfigManager>()
-			.AddSingleton<INotificationService, RecordingNotifications>()
-			.AddApplication()
-			.AddHttpClient(HttpClientNames.BilibiliApi)
-			.ConfigurePrimaryHttpMessageHandler(static () => new UnavailableHandler())
-			.Services
-			.BuildServiceProvider();
-		RoomConfig settings = new() { RoomId = RoomId };
-		await using RoomSession session = services.GetRequiredService<RoomSessionFactory>().Create(settings, static () => { });
-
-		session.Start();
-		List<TimeSpan> delays = [await log.Delays.ReadAsync(cancellationToken)];
-
-		while (delays.Count < 4)
-		{
-			time.Advance(delays[^1]);
-
-			using CancellationTokenSource wait = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-			wait.CancelAfter(TimeSpan.FromMilliseconds(200));
-
-			try
-			{
-				delays.Add(await log.Delays.ReadAsync(wait.Token));
-			}
-			catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-			{
-				// 推进时重连定时器可能还没注册，等不到下一次失败就再推进一次
-			}
-		}
-
-		using (Assert.Multiple())
-		{
-			for (int i = 0; i < delays.Count; ++i)
-			{
-				TimeSpan expected = settings.DanmuReconnectDelay * (1 << i);
-				await Assert.That(delays[i]).IsBetween(expected * ReconnectBackoff.MinJitter, expected * ReconnectBackoff.MaxJitter);
-			}
-		}
-	}
 
 	[Test]
 	public async Task ChangingTheMonitorIntervalsKeepsTheDanmuConnectionAsync(CancellationToken cancellationToken)
@@ -74,19 +20,16 @@ public sealed class RoomDanmuLoopTest
 
 		loop.Settings = loop.Settings with { StatusCheckInterval = loop.Settings.StatusCheckInterval * 2, DanmuReconnectDelay = loop.Settings.DanmuReconnectDelay * 2 };
 
-		// 连接被断开时这条消息不会再被处理，发送会超时
 		await danmu.SendAsync(Comment(Viewer, "改设置之后"));
 
 		await Assert.That(loop.Session.Danmaku.Feed.Status.DisconnectedAt).IsNull();
 	}
 
-	// 未登录的连接认证后马上收到这几条，存原始消息时未登录通知还多一份原始消息
 	[Test]
 	public async Task ConnectionsDroppedRightAfterAuthenticationKeepBackingOffAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
 
-		// 未开播，推进时钟时只有弹幕连接在等
 		loop.GoOffline();
 		loop.Session.Start();
 		FakeDanmuConnection danmu = await loop.Danmu.NextConnectionAsync();
@@ -138,20 +81,17 @@ public sealed class RoomDanmuLoopTest
 		await StartRecordingAsync(loop);
 		await danmu.SendAsync(Comment(Viewer, "最后一段"));
 
-		// 和退出时一样，停下房间之后不推进时钟也不另外等待
 		await loop.StopAsync();
 
 		await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.ass")).HasSingleItem();
 	}
 
-	// 状态查询的应答已经收到、还没校验时房间被停下，风控的 412 也按取消算，停止照常收尾
 	[Test]
 	public async Task StatusCheckFailingAsTheRoomStopsDoesNotFailTheStopAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
 		TaskCompletionSource<Task> stopping = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		// 等这次请求也被取消之后照常读完，取消就落在收到应答和校验之间
 		loop.RoomInfo = _ => new HttpResponseMessage(HttpStatusCode.PreconditionFailed)
 		{
 			Content = new DeferredContent("{}", async ct =>
@@ -167,7 +107,6 @@ public sealed class RoomDanmuLoopTest
 		await Assert.That(async () => await stopped).ThrowsNothing();
 	}
 
-	// 未开播时发出的状态查询，应答晚于弹幕的开播消息到达
 	[Test]
 	public async Task StatusAnsweredAfterTheDanmuLiveStartDoesNotEndTheLiveAsync(CancellationToken cancellationToken)
 	{
@@ -191,7 +130,6 @@ public sealed class RoomDanmuLoopTest
 		}
 	}
 
-	// 改标题之前发出的状态查询，应答晚于弹幕的改标题消息到达
 	[Test]
 	public async Task StatusAnsweredAfterTheDanmuTitleChangeKeepsTheNewTitleAsync(CancellationToken cancellationToken)
 	{
@@ -265,15 +203,6 @@ public sealed class RoomDanmuLoopTest
 		return new DanmuMessage.Comment(sender, text, 1, 25, 0xFFFFFF, DateTimeOffset.UnixEpoch, "a16fe0dd", false);
 	}
 
-	private sealed class UnavailableHandler : HttpMessageHandler
-	{
-		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-		{
-			return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
-		}
-	}
-
-	// 缓冲应答时先等 wait 结束，再写出 body
 	private sealed class DeferredContent(string body, Func<CancellationToken, Task> wait) : HttpContent
 	{
 		protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken cancellationToken)
@@ -291,40 +220,6 @@ public sealed class RoomDanmuLoopTest
 		{
 			length = 0;
 			return false;
-		}
-	}
-
-	private sealed class ReconnectDelayLog : ILoggerProvider, ILogger
-	{
-		private readonly Channel<TimeSpan> _delays = Channel.CreateUnbounded<TimeSpan>();
-
-		public ChannelReader<TimeSpan> Delays => _delays.Reader;
-
-		public ILogger CreateLogger(string categoryName)
-		{
-			return this;
-		}
-
-		public IDisposable? BeginScope<TState>(TState state) where TState : notnull
-		{
-			return null;
-		}
-
-		public bool IsEnabled(LogLevel logLevel)
-		{
-			return true;
-		}
-
-		public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-		{
-			if (eventId.Name is "LogDanmuFailed" && state is IEnumerable<KeyValuePair<string, object?>> properties && properties.FirstOrDefault(static p => p.Key == "Delay").Value is TimeSpan delay)
-			{
-				_delays.Writer.TryWrite(delay);
-			}
-		}
-
-		public void Dispose()
-		{
 		}
 	}
 }

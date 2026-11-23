@@ -6,7 +6,6 @@
         <Thickness x:Key="PageMargin">16</Thickness>
         <Thickness x:Key="CardPadding">16</Thickness>
         <x:Double x:Key="PageSpacing">24</x:Double>
-        <!-- 表单页放在限宽的靠左列里：宽屏下行不会太长，左边线也和列表页一致 -->
         <x:Double x:Key="PageMaxWidth">1000</x:Double>
         <x:Double x:Key="FormSpacing">12</x:Double>
         <x:Double x:Key="FieldSpacing">4</x:Double>
@@ -14,7 +13,6 @@
         <x:Double x:Key="CaptionFontSize">12</x:Double>
         <BoxShadows x:Key="ElevatedShadow">0 8 32 0 #3D000000</BoxShadows>
 
-        <!-- Fluent2 只有默认和 accent 两种按钮，透明底的图标、链接类按钮要自己定义 -->
         <ControlTheme x:Key="SubtleButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
@@ -50,7 +48,7 @@
             </Style>
         </ControlTheme>
 
-        <!-- Fluent2 没有环形进度。旋转角和起始角一个周期合计转过 360°，循环衔接处不跳 -->
+        <!-- 旋转角和起始角一个周期合计转过 360°，循环衔接处不跳 -->
         <ControlTheme x:Key="ProgressRing" TargetType="ProgressBar">
             <Setter Property="Foreground" Value="{DynamicResource AccentFillColorDefaultBrush}" />
             <Setter Property="Template">
@@ -122,7 +120,7 @@
             <Setter Property="Template">
                 <ControlTemplate>
                     <Border Padding="{TemplateBinding Padding}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
-                        <!-- 最小高度取输入框的高度，开关行和下拉框行一样高 -->
+                        <!-- 最小高度取输入框的高度 -->
                         <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="24" MinHeight="32">
                             <StackPanel Spacing="2" VerticalAlignment="Center">
                                 <TextBlock Text="{TemplateBinding Header}" TextWrapping="Wrap"
@@ -145,7 +143,6 @@
             <Style Selector="^.stacked:labeled /template/ ContentPresenter#PART_ContentPresenter">
                 <Setter Property="Margin" Value="0,8,0,0" />
             </Style>
-            <!-- 依赖上一行开关的子设置 -->
             <Style Selector="^.nested">
                 <Setter Property="Padding" Value="40,12,16,12" />
             </Style>
@@ -174,7 +171,6 @@
         <Setter Property="Margin" Value="0,24,0,0" />
     </Style>
 
-    <!-- 窗口底色是灰的，卡片和表格铺一层卡片底色才从页面上浮起来 -->
     <Style Selector="Border.card, Border.table">
         <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
@@ -204,12 +200,10 @@
     <Style Selector="StackPanel.field > TextBox, StackPanel.field > ComboBox, StackPanel.field > NumericUpDown, StackPanel.field > DockPanel > TextBox, StackPanel.field > DockPanel > NumericUpDown">
         <Setter Property="AutomationProperties.LabeledBy" Value="{Binding $parent[StackPanel].Children[0]}" />
     </Style>
-    <!-- 数字框获得焦点的是模板里的输入框，名称也要给它 -->
     <Style Selector="NumericUpDown /template/ TextBox#PART_TextBox">
         <Setter Property="AutomationProperties.Name" Value="{Binding $parent[NumericUpDown].(AutomationProperties.Name)}" />
         <Setter Property="AutomationProperties.LabeledBy" Value="{Binding $parent[NumericUpDown].(AutomationProperties.LabeledBy)}" />
     </Style>
-    <!-- 设置卡片由一行行设置组成，分隔线贯穿卡片 -->
     <Style Selector="Border.card.settings">
         <Setter Property="Padding" Value="0" />
     </Style>
@@ -218,7 +212,6 @@
     </Style>
     <Style Selector="ctl|SettingRow">
         <Style.Resources>
-            <!-- 开关的文字就是行标题，不必给开关文字留出宽度和上下的空白 -->
             <x:Double x:Key="ToggleSwitchThemeMinWidth">0</x:Double>
             <GridLength x:Key="ToggleSwitchPreContentMargin">0</GridLength>
             <GridLength x:Key="ToggleSwitchPostContentMargin">0</GridLength>
@@ -236,7 +229,6 @@
     <Style Selector="ctl|SettingRow NumericUpDown">
         <Setter Property="Width" Value="200" />
     </Style>
-    <!-- 行里的控件没有自己的标签，读屏时念行标题和说明 -->
     <Style Selector="ctl|SettingRow ToggleSwitch, ctl|SettingRow ComboBox, ctl|SettingRow NumericUpDown, ctl|SettingRow TextBox">
         <Setter Property="AutomationProperties.Name" Value="{Binding $parent[ctl:SettingRow].Header}" />
         <Setter Property="AutomationProperties.HelpText" Value="{Binding $parent[ctl:SettingRow].Description}" />
@@ -260,9 +252,7 @@
         <Setter Property="FontSize" Value="{DynamicResource CaptionFontSize}" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
     </Style>
-    <!-- 标题和说明不在控件里，不会随控件一起变淡。
-         不能放进 SettingRow 的 ControlTheme：同为触发样式时全局样式优先于主题，说明会一直取 caption 的颜色；
-         两条都是全局样式时按文档顺序后者胜出，所以要排在 caption 之后 -->
+    <!-- 不能放进 SettingRow 的 ControlTheme：同为触发样式时全局样式优先于主题；两条都是全局样式时后者胜出，所以要排在 caption 之后 -->
     <Style Selector="ctl|SettingRow:disabled /template/ TextBlock">
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
     </Style>
@@ -271,11 +261,10 @@
         <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
-    <!-- 等宽数字，时间、速度这类逐秒变化的数字不再左右抖动，列也对得齐 -->
     <Style Selector="TextBlock.numeric">
         <Setter Property="FontFeatures" Value="+tnum" />
     </Style>
-    <!-- 去掉 Fluent2 的卡片外观，融进表单；负边距让文字与表单对齐，同时悬停背景伸出两侧 -->
+    <!-- 负边距让文字与表单对齐，同时悬停背景伸出两侧 -->
     <Style Selector="Expander.inline">
         <Style.Resources>
             <SolidColorBrush x:Key="ExpanderHeaderBackground" Color="Transparent" />
@@ -322,7 +311,6 @@
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="Foreground" Value="{DynamicResource SystemFillColorSuccessBrush}" />
     </Style>
-    <!-- 错误可能有好几行，图标对齐第一行 -->
     <Style Selector="Border.errorBanner > Grid > ic|FluentIcon">
         <Setter Property="IconVariant" Value="Filled" />
         <Setter Property="FontSize" Value="16" />

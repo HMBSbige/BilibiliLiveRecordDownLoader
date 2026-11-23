@@ -1,6 +1,5 @@
 namespace BilibiliLiveRecordDownLoader.Domain.Recording;
 
-// IsEnabled 是房间的“录弹幕”；其余是全局设置，偏移可由房间覆盖
 public sealed record DanmakuProfile
 (
 	bool IsEnabled,
