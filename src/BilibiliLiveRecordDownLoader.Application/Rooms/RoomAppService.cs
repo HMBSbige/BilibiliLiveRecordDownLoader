@@ -9,19 +9,20 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 	private readonly Lock _lock = new();
 	private readonly List<RoomSession> _sessions = [];
 
-	// 已经移除、还在释放的房间，弹幕写入者可能还要写一会儿
-	private readonly List<RoomSession> _closing = [];
+	// 已经移除、还在释放的房间，弹幕写入者可能还要写一会儿；退出时也要等它们，最后一段的后处理才会在退出前登记
+	private readonly List<Removal> _closing = [];
 	private long _version;
 
 	public long Version => Interlocked.Read(ref _version);
 
+	// 删除后还在收尾的房间也算，退出前要确认
 	public bool IsRecording
 	{
 		get
 		{
 			lock (_lock)
 			{
-				return _sessions.Any(static session => session.IsRecording);
+				return _closing.Count > 0 || _sessions.Any(static session => session.IsRecording);
 			}
 		}
 	}
@@ -54,15 +55,17 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 	public async Task StopAsync()
 	{
 		RoomSession[] sessions;
+		Task[] closing;
 
 		lock (_lock)
 		{
 			sessions = [.. _sessions];
+			closing = [.. _closing.Select(static removal => removal.Closed.Task)];
 			_sessions.Clear();
 		}
 
 		Touch();
-		await Task.WhenAll(sessions.Select(static session => session.DisposeAsync().AsTask()));
+		await Task.WhenAll(sessions.Select(static session => session.DisposeAsync().AsTask()).Concat(closing));
 	}
 
 	public async Task<RoomSnapshot> AddAsync(RoomSettingsDto settings, CancellationToken cancellationToken = default)
@@ -258,13 +261,13 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 
 	public async Task RemoveAsync(IReadOnlyCollection<long> roomIds, CancellationToken cancellationToken = default)
 	{
-		RoomSession[] removed;
+		Removal removal;
 
 		lock (_lock)
 		{
-			removed = [.. _sessions.Where(session => roomIds.Contains(session.RoomId))];
+			removal = new Removal([.. _sessions.Where(session => roomIds.Contains(session.RoomId))]);
 			_sessions.RemoveAll(session => roomIds.Contains(session.RoomId));
-			_closing.AddRange(removed);
+			_closing.Add(removal);
 		}
 
 		Touch();
@@ -277,14 +280,16 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 		{
 			try
 			{
-				await Task.WhenAll(removed.Select(static session => session.DisposeAsync().AsTask()));
+				await Task.WhenAll(removal.Sessions.Select(static session => session.DisposeAsync().AsTask()));
 			}
 			finally
 			{
 				lock (_lock)
 				{
-					_closing.RemoveAll(removed.Contains);
+					_closing.Remove(removal);
 				}
+
+				removal.Closed.SetResult();
 			}
 		}
 	}
@@ -313,7 +318,7 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 	{
 		lock (_lock)
 		{
-			return _sessions.Concat(_closing).Any(session => session.Danmaku.IsWriting(path));
+			return _sessions.Concat(_closing.SelectMany(static removal => removal.Sessions)).Any(session => session.Danmaku.IsWriting(path));
 		}
 	}
 
@@ -391,5 +396,13 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 	private void Touch()
 	{
 		Interlocked.Increment(ref _version);
+	}
+
+	// 释放失败由 RemoveAsync 报告，Closed 只表示收尾结束
+	private sealed class Removal(RoomSession[] sessions)
+	{
+		public RoomSession[] Sessions { get; } = sessions;
+
+		public TaskCompletionSource Closed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 	}
 }

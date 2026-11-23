@@ -770,6 +770,11 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 			LogRefreshFailed(_logger, exception);
 			return false;
 		}
+		// 应答已经收到、还在校验时被取消，失败也按取消算；否则状态轮询会以失败结束，房间释放时跳过弹幕收尾
+		catch (Exception exception) when (exception is not OperationCanceledException)
+		{
+			throw new OperationCanceledException(null, exception, cancellationToken);
+		}
 	}
 
 	private void SetConnecting()

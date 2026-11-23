@@ -214,6 +214,34 @@ public sealed class RoomAppServiceTest
 		}
 	}
 
+	// 删除房间后马上退出：房间还在收尾时退出要等它，也要先确认
+	[Test]
+	[Timeout(30_000)]
+	public async Task StopWaitsForRemovedRoomsThatAreStillClosingAsync(CancellationToken cancellationToken)
+	{
+		await using Harness harness = await Harness.CreateAsync();
+		TaskCompletionSource released = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		harness.Handler.RoomInfoGate = released.Task;
+
+		// 改检查间隔会马上再查一次状态，这次查询卡住时房间要等它结束才释放完
+		await harness.Rooms.UpdateAsync(Room(ExistingRoomId) with { StatusCheckInterval = TimeSpan.FromMinutes(1) }, cancellationToken);
+		await TestWait.UntilAsync(() => harness.Handler.RoomInfoQueries.Contains(ExistingRoomId.ToString(CultureInfo.InvariantCulture)), "the status check is in flight", cancellationToken);
+
+		Task removing = harness.Rooms.RemoveAsync([ExistingRoomId], cancellationToken);
+		Task stopping = harness.Rooms.StopAsync();
+		(bool stoppedEarly, bool isRecording) = (stopping.IsCompleted, harness.Rooms.IsRecording);
+
+		released.SetResult();
+		await Task.WhenAll(removing, stopping);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(stoppedEarly).IsFalse();
+			await Assert.That(isRecording).IsTrue();
+			await Assert.That(harness.Rooms.IsRecording).IsFalse();
+		}
+	}
+
 	[Test]
 	[Timeout(30_000)]
 	[MethodDataSource(nameof(MoveCases))]
@@ -364,23 +392,40 @@ public sealed class RoomAppServiceTest
 		// HttpClient 超时抛的是带着 TimeoutException 的 TaskCanceledException
 		public bool TimesOut { get; set; }
 
-		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+		// 给出时房间信息的应答等它完成，不理会取消
+		public Task? RoomInfoGate { get; set; }
+
+		protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 		{
 			if (TimesOut)
 			{
-				return Task.FromException<HttpResponseMessage>(new TaskCanceledException(null, new TimeoutException()));
+				throw new TaskCanceledException(null, new TimeoutException());
 			}
 
 			Uri uri = request.RequestUri ?? throw new InvalidOperationException("The request has no uri.");
 
-			HttpResponseMessage response = uri.AbsolutePath switch
+			switch (uri.AbsolutePath)
 			{
-				"/xlive/web-room/v1/index/getRoomBaseInfo" => RespondRoomInfo(HttpUtility.ParseQueryString(uri.Query).GetValues("room_ids") ?? []),
-				"/xlive/web-ucenter/user/following" => FollowingStatus is HttpStatusCode.OK ? Json(Following) : new HttpResponseMessage(FollowingStatus),
-				_ => new HttpResponseMessage(HttpStatusCode.NotFound)
-			};
+				case "/xlive/web-room/v1/index/getRoomBaseInfo":
+				{
+					HttpResponseMessage response = RespondRoomInfo(HttpUtility.ParseQueryString(uri.Query).GetValues("room_ids") ?? []);
 
-			return Task.FromResult(response);
+					if (RoomInfoGate is { } gate)
+					{
+						await gate;
+					}
+
+					return response;
+				}
+				case "/xlive/web-ucenter/user/following":
+				{
+					return FollowingStatus is HttpStatusCode.OK ? Json(Following) : new HttpResponseMessage(FollowingStatus);
+				}
+				default:
+				{
+					return new HttpResponseMessage(HttpStatusCode.NotFound);
+				}
+			}
 		}
 
 		private HttpResponseMessage RespondRoomInfo(string[] roomIds)

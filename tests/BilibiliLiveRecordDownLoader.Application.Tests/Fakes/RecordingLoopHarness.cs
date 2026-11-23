@@ -141,6 +141,9 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	// 没给时按 404 应答
 	public Func<HttpRequestMessage, HttpResponseMessage>? MasterPlaylist { get; set; }
 
+	// 没给时按房间当前的状态应答
+	public Func<HttpRequestMessage, HttpResponseMessage>? RoomInfo { get; set; }
+
 	public ConcurrentQueue<string> MasterPlaylistQueries { get; } = new();
 
 	public ConcurrentQueue<string> RecorderLogs { get; } = new();
@@ -303,6 +306,11 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		{
 			MasterPlaylistQueries.Enqueue(masterQuery);
 			return Task.FromResult(MasterPlaylist?.Invoke(request) ?? new HttpResponseMessage(HttpStatusCode.NotFound));
+		}
+
+		if (request.RequestUri is { AbsolutePath: "/xlive/web-room/v1/index/getRoomBaseInfo" } && RoomInfo is { } respondRoomInfo)
+		{
+			return Task.FromResult(respondRoomInfo(request));
 		}
 
 		string template = request.RequestUri?.AbsolutePath switch

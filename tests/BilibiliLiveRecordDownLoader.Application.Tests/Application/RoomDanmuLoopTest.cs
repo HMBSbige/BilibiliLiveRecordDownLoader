@@ -119,6 +119,21 @@ public sealed class RoomDanmuLoopTest
 		await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.ass")).HasSingleItem();
 	}
 
+	// 状态查询的应答已经收到、还没校验时房间被停下，风控的 412 也按取消算，停止照常收尾
+	[Test]
+	[Timeout(30_000)]
+	public async Task StatusCheckFailingAsTheRoomStopsDoesNotFailTheStopAsync(CancellationToken cancellationToken)
+	{
+		await using RecordingLoopHarness loop = new(cancellationToken);
+		TaskCompletionSource<Task> stopping = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		loop.RoomInfo = _ => new HttpResponseMessage(HttpStatusCode.PreconditionFailed) { Content = new StoppingContent(() => stopping.TrySetResult(loop.Session.DisposeAsync().AsTask())) };
+
+		loop.Session.Start();
+		Task stopped = await stopping.Task.WaitAsync(cancellationToken);
+
+		await Assert.That(async () => await stopped).ThrowsNothing();
+	}
+
 	[Test]
 	[Timeout(30_000)]
 	public async Task DanmakuContentAndViewersStayOutOfTheLogsAsync(CancellationToken cancellationToken)
@@ -176,6 +191,28 @@ public sealed class RoomDanmuLoopTest
 		protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 		{
 			return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+		}
+	}
+
+	// 缓冲应答时停下房间，等这次请求也被取消之后照常读完，取消就落在收到应答和校验之间
+	private sealed class StoppingContent(Action stop) : HttpContent
+	{
+		protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken cancellationToken)
+		{
+			stop();
+			await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+			await stream.WriteAsync("{}"u8.ToArray(), CancellationToken.None);
+		}
+
+		protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context)
+		{
+			throw new NotSupportedException("The content is only buffered with a cancellation token.");
+		}
+
+		protected override bool TryComputeLength(out long length)
+		{
+			length = 0;
+			return false;
 		}
 	}
 
