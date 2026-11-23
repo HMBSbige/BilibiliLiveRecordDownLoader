@@ -41,15 +41,14 @@ internal static class RecordingWriteBuffer
 
 			// 先把已收到的数据写完，但磁盘一直不动也不能让停止卡住
 			await pipe.Writer.CompleteAsync();
-			draining.CancelAfter(drainTimeout);
 
 			try
 			{
 				await writing.WaitAsync(drainTimeout, CancellationToken.None);
 			}
-			catch (Exception exception) when (exception is TimeoutException || (exception is OperationCanceledException && draining.IsCancellationRequested))
+			catch (TimeoutException exception)
 			{
-				// 超时和取消是两个计时器，谁先到不确定；先取消再抛出，写盘端回来时才一定看得到尝试已经结束
+				// 先取消再抛出，写盘端回来时才一定看得到尝试已经结束
 				await draining.CancelAsync();
 				isDisposalDeferred = true;
 				_ = writing.ContinueWith(task =>

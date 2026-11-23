@@ -2,6 +2,9 @@ namespace BilibiliLiveRecordDownLoader.Application.Common;
 
 internal static partial class FileOperations
 {
+	// Windows 和 macOS 默认的文件系统不区分大小写
+	public static StringComparison PathComparison { get; } = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
 	public static bool TryDelete(string path, ILogger logger)
 	{
 		try
@@ -30,8 +33,7 @@ internal static partial class FileOperations
 
 	public static bool IsSamePath(string path1, string path2)
 	{
-		StringComparison comparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-		return string.Equals(Path.GetFullPath(path1), Path.GetFullPath(path2), comparison);
+		return string.Equals(Path.GetFullPath(path1), Path.GetFullPath(path2), PathComparison);
 	}
 
 	public static string GetQueueKey(string path)

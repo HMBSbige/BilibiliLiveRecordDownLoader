@@ -6,13 +6,15 @@ namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 // 每个 moof 推进一次，和 Fmp4HlsSplitter 报告给时间轴的媒体时间一一对应
 internal sealed class Fmp4Rebaser
 {
+	private const long Tolerance = MediaSpan.TimelineRestartToleranceMilliseconds * TimeSpan.TicksPerMillisecond;
+
 	private readonly List<TrackFragmentTime> _fragment = [];
 	private Fmp4TrackTimes _times = new([]);
-	private SegmentClock _clock = NewClock();
+	private SegmentClock _clock = new(Tolerance);
 
 	public void StartSegment()
 	{
-		_clock = NewClock();
+		_clock = new SegmentClock(Tolerance);
 	}
 
 	// 每次提交都是从分片开头开始的完整分片
@@ -31,11 +33,6 @@ internal sealed class Fmp4Rebaser
 				RebaseMovieFragment(elements.Slice(offset - content.Length, content.Length), _clock.Advance(span.Start.Ticks, span.End.Ticks));
 			}
 		}
-	}
-
-	private static SegmentClock NewClock()
-	{
-		return new SegmentClock(MediaSpan.TimelineRestartTolerance.Ticks);
 	}
 
 	// 比起点略早的轨道夹到 0；版本 0 的字段只有 32 位，超出时和源一样回绕

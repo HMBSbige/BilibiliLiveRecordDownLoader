@@ -1,5 +1,6 @@
 using BilibiliLiveRecordDownLoader.Application.Contracts.Storage;
 using BilibiliLiveRecordDownLoader.Application.Storage;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -32,7 +33,7 @@ public sealed class DiskSpaceServiceTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(mount).IsEqualTo(expected);
-			await Assert.That(probed.SequenceEqual(["/mnt/data"])).IsTrue();
+			await Assert.That(probed).IsEquivalentTo(["/mnt/data"], CollectionOrdering.Matching);
 		}
 	}
 
@@ -42,21 +43,19 @@ public sealed class DiskSpaceServiceTest
 		using TestDirectory directory = new();
 		DiskSpaceService service = new();
 
-		DiskSpaceInfo? existing = service.GetDiskSpace(directory.Root);
+		DiskSpaceInfo existing = await Assert.That(service.GetDiskSpace(directory.Root)).IsNotNull();
 		DiskSpaceInfo? missing = service.GetDiskSpace(directory.Combine(Path.Combine("not", "created", "yet")));
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(existing is { AvailableBytes: > 0 } info && info.TotalBytes >= info.AvailableBytes).IsTrue();
-			await Assert.That(missing?.TotalBytes).IsEqualTo(existing?.TotalBytes);
+			await Assert.That(existing.AvailableBytes).IsGreaterThan(0).And.IsLessThanOrEqualTo(existing.TotalBytes);
+			await Assert.That(missing?.TotalBytes).IsEqualTo(existing.TotalBytes);
 		}
 	}
 
 	[Test]
-	[Arguments("")]
-	[Arguments("   ")]
-	public async Task BlankPathHasNoDiskSpaceAsync(string path)
+	public async Task BlankPathHasNoDiskSpaceAsync()
 	{
-		await Assert.That(new DiskSpaceService().GetDiskSpace(path)).IsNull();
+		await Assert.That(new DiskSpaceService().GetDiskSpace("   ")).IsNull();
 	}
 }

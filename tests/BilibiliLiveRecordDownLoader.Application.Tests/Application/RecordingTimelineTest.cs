@@ -2,6 +2,7 @@ using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Globalization;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -48,7 +49,7 @@ public sealed class RecordingTimelineTest
 		}, cancellationToken);
 
 		// 按文件建好时的墙钟算的话，0.5 秒时的弹幕会比画面早 5 秒多
-		await Assert.That(Describe(Place(recording.Timeline, times))).IsEqualTo(Describe(Positions(0, 0, 5900, 6200, 6900, 7900, 8400)));
+		await Assert.That(Place(recording.Timeline, times)).IsEquivalentTo(Positions(0, 0, 5900, 6200, 6900, 7900, 8400), CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -79,7 +80,7 @@ public sealed class RecordingTimelineTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(Describe(Place(recording.Timeline, times))).IsEqualTo(Describe(Positions(0, 6020, 6520, 7000)));
+			await Assert.That(Place(recording.Timeline, times)).IsEquivalentTo(Positions(0, 6020, 6520, 7000), CollectionOrdering.Matching);
 			await Assert.That(recording.Timeline.GetResolution("0")).IsEqualTo(new VideoResolution(1920, 1080));
 		}
 	}
@@ -110,7 +111,7 @@ public sealed class RecordingTimelineTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(Describe(Place(recording.Timeline, times))).IsEqualTo(Describe(Positions(0, 11_050, 13_050, 15_000)));
+			await Assert.That(Place(recording.Timeline, times)).IsEquivalentTo(Positions(0, 11_050, 13_050, 15_000), CollectionOrdering.Matching);
 			await Assert.That(recording.Timeline.GetResolution("0")).IsEqualTo(new VideoResolution(1920, 1080));
 		}
 	}
@@ -142,7 +143,7 @@ public sealed class RecordingTimelineTest
 		}, cancellationToken);
 
 		// 卡了 30 秒只往后推 10 秒；事后才查也按当时的情况算，不受之后到达的数据影响
-		await Assert.That(Describe(Place(recording.Timeline, times))).IsEqualTo(Describe(Positions(0, 10_900, 1000, 11_000)));
+		await Assert.That(Place(recording.Timeline, times)).IsEquivalentTo(Positions(0, 10_900, 1000, 11_000), CollectionOrdering.Matching);
 	}
 
 	// HLS 的空闲超时按分片间隔放宽，可能长于 10 秒；卡住期间内置重试成功后画面接着写进同一个文件
@@ -160,7 +161,7 @@ public sealed class RecordingTimelineTest
 		timeline.EndReceiving();
 		timeline.Close();
 
-		await Assert.That(Describe(Place(timeline, [stalled]))).IsEqualTo(Describe(Positions(0, expectedMilliseconds)));
+		await Assert.That(Place(timeline, [stalled])).IsEquivalentTo(Positions(0, expectedMilliseconds), CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -186,7 +187,7 @@ public sealed class RecordingTimelineTest
 			times.Add(session.Now);
 		}, cancellationToken);
 
-		await Assert.That(Describe(Place(recording.Timeline, times))).IsEqualTo(Describe(Positions(0, 15_900, 25_900)));
+		await Assert.That(Place(recording.Timeline, times)).IsEquivalentTo(Positions(0, 15_900, 25_900), CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -245,11 +246,11 @@ public sealed class RecordingTimelineTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(recording.Files.Count).IsEqualTo(2);
-			await Assert.That(recording.Starts.Single().Reason).IsEqualTo(reason);
+			await Assert.That(recording.Files).Count().IsEqualTo(2);
+			await Assert.That(recording.Starts.Select(static start => start.Reason)).IsEquivalentTo([reason]);
 			await Assert.That(beforeBoundary).IsEqualTo(At(0, 3950));
 			await Assert.That(FlvSamples.Describe(recording.Files[1]).First(static tag => tag.EndsWith("[k]", StringComparison.Ordinal))).IsEqualTo("V0[k]");
-			await Assert.That(Describe(Place(recording.Timeline, [times[39], times[40], times[^1]]))).IsEqualTo(Describe(Expected(At(0, 3950), At(1, 50), At(1, 2550))));
+			await Assert.That(Place(recording.Timeline, [times[39], times[40], times[^1]])).IsEquivalentTo([At(0, 3950), At(1, 50), At(1, 2550)], CollectionOrdering.Matching);
 		}
 	}
 
@@ -301,7 +302,7 @@ public sealed class RecordingTimelineTest
 			}
 		}, cancellationToken);
 
-		await Assert.That(Describe(Place(recording.Timeline, times))).IsEqualTo(Describe(Positions(0, 0, 500, 1000, 1000, 1500, 3_601_500)));
+		await Assert.That(Place(recording.Timeline, times)).IsEquivalentTo(Positions(0, 0, 500, 1000, 1000, 1500, 3_601_500), CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -327,7 +328,7 @@ public sealed class RecordingTimelineTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(Describe(Place(recording.Timeline, times))).IsEqualTo(Describe(Positions(0, 0, 1000, 2000, 3000)));
+			await Assert.That(Place(recording.Timeline, times)).IsEquivalentTo(Positions(0, 0, 1000, 2000, 3000), CollectionOrdering.Matching);
 			await Assert.That(recording.Timeline.GetResolution("0")).IsEqualTo(new VideoResolution(854, 480));
 		}
 	}
@@ -348,7 +349,7 @@ public sealed class RecordingTimelineTest
 			times.Add(session.Now);
 		}, cancellationToken);
 
-		await Assert.That(Describe(Place(recording.Timeline, times))).IsEqualTo(Describe(Positions(0, 3000, 6000)));
+		await Assert.That(Place(recording.Timeline, times)).IsEquivalentTo(Positions(0, 3000, 6000), CollectionOrdering.Matching);
 	}
 
 	// HLS 换 era 时会话以 Discontinuity 结束，下一次尝试是新的文件和新的时间轴
@@ -372,7 +373,7 @@ public sealed class RecordingTimelineTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(Describe(Place(recording.Timeline, [before, during, recording.Time.GetTimestamp()]))).IsEqualTo(Describe(Expected(null, At(0, 4000), null)));
+			await Assert.That(Place(recording.Timeline, [before, during, recording.Time.GetTimestamp()])).IsEquivalentTo([null, At(0, 4000), null], CollectionOrdering.Matching);
 			await Assert.That(await recording.Timeline.PlaceAsync(recording.Time.GetTimestamp(), cancellationToken)).IsNull();
 		}
 	}
@@ -398,7 +399,7 @@ public sealed class RecordingTimelineTest
 		}, cancellationToken);
 
 		// 第一个文件从建好时算，之后的文件从它第一个单元到达时算
-		await Assert.That(Describe(Place(recording.Timeline, times))).IsEqualTo(Describe(Expected(At(0, 3000), At(1, 1000))));
+		await Assert.That(Place(recording.Timeline, times)).IsEquivalentTo([At(0, 3000), At(1, 1000)], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -426,7 +427,7 @@ public sealed class RecordingTimelineTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(recording.Files.Count).IsEqualTo(2);
+			await Assert.That(recording.Files).Count().IsEqualTo(2);
 			await Assert.That(recording.Timeline.GetResolution("0")).IsEqualTo(new VideoResolution(1920, 1080));
 			await Assert.That(recording.Timeline.GetResolution("1")).IsEqualTo(new VideoResolution(1280, 720));
 			await Assert.That(recording.Timeline.GetResolution("2")).IsNull();
@@ -467,12 +468,19 @@ public sealed class RecordingTimelineTest
 		}, cancellationToken);
 		await tsRecording.RunAsync(new TransportStreamSplitter(), new RecordingSplit.None(), session => session.WriteInChunksAsync(ts, 100), cancellationToken);
 
+		byte[] fmp4 = [.. init, .. fragments.SelectMany(static fragment => fragment)];
+		byte[] tsHls = [.. tsSegments.SelectMany(static segment => segment)];
+		byte[] flvFile = await Assert.That(flvRecording.Files).HasSingleItem();
+		byte[] fmp4File = await Assert.That(fmp4Recording.Files).HasSingleItem();
+		byte[] tsHlsFile = await Assert.That(tsHlsRecording.Files).HasSingleItem();
+		byte[] tsFile = await Assert.That(tsRecording.Files).HasSingleItem();
+
 		using (Assert.Multiple())
 		{
-			await Assert.That(flvRecording.Files.Single().SequenceEqual(flv)).IsTrue();
-			await Assert.That(fmp4Recording.Files.Single().SequenceEqual((byte[])[.. init, .. fragments.SelectMany(static fragment => fragment)])).IsTrue();
-			await Assert.That(tsHlsRecording.Files.Single().SequenceEqual((byte[])[.. tsSegments.SelectMany(static segment => segment)])).IsTrue();
-			await Assert.That(tsRecording.Files.Single().SequenceEqual(ts)).IsTrue();
+			await Assert.That((flvFile.Length, flvFile.AsSpan().CommonPrefixLength(flv))).IsEqualTo((flv.Length, flv.Length));
+			await Assert.That((fmp4File.Length, fmp4File.AsSpan().CommonPrefixLength(fmp4))).IsEqualTo((fmp4.Length, fmp4.Length));
+			await Assert.That((tsHlsFile.Length, tsHlsFile.AsSpan().CommonPrefixLength(tsHls))).IsEqualTo((tsHls.Length, tsHls.Length));
+			await Assert.That((tsFile.Length, tsFile.AsSpan().CommonPrefixLength(ts))).IsEqualTo((ts.Length, ts.Length));
 		}
 	}
 
@@ -483,7 +491,7 @@ public sealed class RecordingTimelineTest
 		byte[] head = FlvHead();
 
 		// 源时间戳从 10 秒开始，第一个文件同样从第一帧的 0 开始
-		byte[] firstFile = [.. head, .. Enumerable.Range(0, 2 * FramesPerGop).SelectMany(static frame => FlvFrame((uint)frame * FrameInterval, frame % FramesPerGop is 0))];
+		byte[] expectedFirst = [.. head, .. Enumerable.Range(0, 2 * FramesPerGop).SelectMany(static frame => FlvFrame((uint)frame * FrameInterval, frame % FramesPerGop is 0))];
 		SplitRecording recording = new();
 
 		await recording.RunAsync(new FlvSplitter(), new RecordingSplit.ByDuration(TimeSpan.FromSeconds(3)), async session =>
@@ -497,10 +505,12 @@ public sealed class RecordingTimelineTest
 			}
 		}, cancellationToken);
 
+		byte[] first = recording.Files[0];
+
 		using (Assert.Multiple())
 		{
-			await Assert.That(recording.Files[0].SequenceEqual(firstFile)).IsTrue();
-			await Assert.That(string.Join(" ", FlvSamples.Describe(recording.Files[1]).Skip(3).Take(3))).IsEqualTo("V0[k] V100[p] V200[p]");
+			await Assert.That((first.Length, first.AsSpan().CommonPrefixLength(expectedFirst))).IsEqualTo((expectedFirst.Length, expectedFirst.Length));
+			await Assert.That(FlvSamples.Describe(recording.Files[1]).Skip(3).Take(3)).IsEquivalentTo(["V0[k]", "V100[p]", "V200[p]"], CollectionOrdering.Matching);
 		}
 	}
 
@@ -539,7 +549,7 @@ public sealed class RecordingTimelineTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(beforePruning).IsEqualTo(At(0, 550));
-			await Assert.That(Describe(Place(timeline, [times[5], times[19], times[29], times[35], times[39]]))).IsEqualTo(Describe([At(1, 800), At(1, 800), At(1, 950), At(1, 1550), At(1, 1950)]));
+			await Assert.That(Place(timeline, [times[5], times[19], times[29], times[35], times[39]])).IsEquivalentTo([At(1, 800), At(1, 800), At(1, 950), At(1, 1550), At(1, 1950)], CollectionOrdering.Matching);
 
 			// 保留范围内的 11 条，加上攒着还没删的最多 3 条
 			await Assert.That(timeline.RecordCount).IsLessThanOrEqualTo(14);
@@ -597,8 +607,8 @@ public sealed class RecordingTimelineTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(waited).IsTrue();
-			await Assert.That(Describe(woken)).IsEqualTo(Describe(Positions(0, 2250, 7500)));
-			await Assert.That(Describe(Place(timeline, [earlyInStall, lateInStall]))).IsEqualTo(Describe(Positions(0, 5000, 7500)));
+			await Assert.That(woken).IsEquivalentTo(Positions(0, 2250, 7500), CollectionOrdering.Matching);
+			await Assert.That(Place(timeline, [earlyInStall, lateInStall])).IsEquivalentTo(Positions(0, 5000, 7500), CollectionOrdering.Matching);
 		}
 
 		void AddFrame(int frame)
@@ -664,19 +674,9 @@ public sealed class RecordingTimelineTest
 		return [.. times.Select(time => timeline.TryPlace(time, out TimelinePosition? position) ? position : throw new InvalidOperationException("The position is not settled after the recording."))];
 	}
 
-	private static string Describe(IEnumerable<TimelinePosition?> positions)
-	{
-		return string.Join(" | ", positions.Select(static position => position?.ToString() ?? "null"));
-	}
-
 	private static TimelinePosition?[] Positions(int segment, params long[] milliseconds)
 	{
 		return [.. milliseconds.Select(value => At(segment, value))];
-	}
-
-	private static TimelinePosition?[] Expected(params TimelinePosition?[] positions)
-	{
-		return positions;
 	}
 
 	// 按整毫秒构造：浮点秒数换成 tick 时会截掉 1

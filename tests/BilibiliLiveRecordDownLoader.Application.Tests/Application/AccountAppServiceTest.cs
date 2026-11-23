@@ -16,9 +16,7 @@ public sealed class AccountAppServiceTest
 		using HttpClient httpClient = new(new HangingHandler()) { Timeout = TimeSpan.FromMilliseconds(100) };
 		AccountAppService accounts = new(new BilibiliApiClient(httpClient), new FakeConfigManager());
 
-		TimeoutException? exception = await Assert.ThrowsAsync<TimeoutException>(() => accounts.IsLoggedInAsync(cancellationToken));
-
-		await Assert.That(exception?.Message).IsEqualTo(AppLanguage.Current.RequestTimedOut);
+		await Assert.ThrowsAsync<TimeoutException>(() => accounts.IsLoggedInAsync(cancellationToken)).WithMessage(AppLanguage.Current.RequestTimedOut);
 	}
 
 	[Test]

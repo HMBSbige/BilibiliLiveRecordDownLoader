@@ -1,5 +1,6 @@
 using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -20,29 +21,22 @@ public sealed class HlsSplitterTest
 
 		await recording.RunAsync(new Fmp4HlsSplitter(), EverySegment, session => SendAsync(session, init, segments), cancellationToken);
 
-		await Assert.That(recording.Files.Count).IsEqualTo(2);
-		await Assert.That(recording.Files[0].SequenceEqual((byte[])[.. init, .. segments[0], .. segments[1]])).IsTrue();
-		await Assert.That(recording.Files[1].SequenceEqual((byte[])[.. init, .. segments[2], .. segments[3], .. segments[4]])).IsTrue();
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. init, .. segments[0], .. segments[1]], [.. init, .. segments[2], .. segments[3], .. segments[4]]], CollectionOrdering.Matching);
 	}
 
 	[Test]
 	[Timeout(10_000)]
-	public async Task Fmp4FallsBackToTheTrackExtendsDefaultFlagsAsync(CancellationToken cancellationToken)
+	[Arguments(Fmp4Samples.SyncFlags, 2, DisplayName = "trex 默认同步样本")]
+	[Arguments(Fmp4Samples.NonSyncFlags, 1, DisplayName = "trex 默认非同步样本")]
+	public async Task Fmp4FallsBackToTheTrackExtendsDefaultFlagsAsync(uint videoTrexFlags, int files, CancellationToken cancellationToken)
 	{
-		byte[] syncByDefault = Fmp4Samples.Init(videoTrexFlags: Fmp4Samples.SyncFlags, tkhdVersion: 1);
-		byte[] nonSyncByDefault = Fmp4Samples.Init(videoTrexFlags: Fmp4Samples.NonSyncFlags, tkhdVersion: 1);
+		byte[] init = Fmp4Samples.Init(videoTrexFlags: videoTrexFlags, tkhdVersion: 1);
 		byte[] fragment = Fmp4Samples.Fragment(true, SampleFlagsSource.TrackExtendsDefault);
-		SplitRecording splits = new();
-		SplitRecording doesNotSplit = new();
+		SplitRecording recording = new();
 
-		await splits.RunAsync(new Fmp4HlsSplitter(), EverySegment, session => SendAsync(session, syncByDefault, [fragment, fragment, fragment]), cancellationToken);
-		await doesNotSplit.RunAsync(new Fmp4HlsSplitter(), EverySegment, session => SendAsync(session, nonSyncByDefault, [fragment, fragment, fragment]), cancellationToken);
+		await recording.RunAsync(new Fmp4HlsSplitter(), EverySegment, session => SendAsync(session, init, [fragment, fragment, fragment]), cancellationToken);
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(splits.Files.Count).IsEqualTo(2);
-			await Assert.That(doesNotSplit.Files.Count).IsEqualTo(1);
-		}
+		await Assert.That(recording.Files).Count().IsEqualTo(files);
 	}
 
 	[Test]
@@ -54,7 +48,7 @@ public sealed class HlsSplitterTest
 
 		await recording.RunAsync(new Fmp4HlsSplitter(), EverySegment, session => SendAsync(session, init, [Fmp4Samples.Fragment(false), Fmp4Samples.Fragment(false), Fmp4Samples.Fragment(false)]), cancellationToken);
 
-		await Assert.That(recording.Files.Count).IsEqualTo(2);
+		await Assert.That(recording.Files).Count().IsEqualTo(2);
 	}
 
 	[Test]
@@ -66,9 +60,7 @@ public sealed class HlsSplitterTest
 
 		await recording.RunAsync(new TsHlsSplitter(), EverySegment, session => SendAsync(session, null, segments), cancellationToken);
 
-		await Assert.That(recording.Files.Count).IsEqualTo(2);
-		await Assert.That(recording.Files[0].SequenceEqual((byte[])[.. segments[0], .. segments[1]])).IsTrue();
-		await Assert.That(recording.Files[1].SequenceEqual((byte[])[.. segments[2], .. segments[3]])).IsTrue();
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. segments[0], .. segments[1]], [.. segments[2], .. segments[3]]], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -80,14 +72,13 @@ public sealed class HlsSplitterTest
 
 		await recording.RunAsync(new TsHlsSplitter(), EverySegment, session => SendAsync(session, null, segments), cancellationToken);
 
-		await Assert.That(recording.Files.Count).IsEqualTo(2);
-		await Assert.That(recording.Files[1].SequenceEqual((byte[])[.. TsSamples.Pat(), .. TsSamples.Pmt(), .. segments[1], .. segments[2]])).IsTrue();
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[segments[0], [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. segments[1], .. segments[2]]], CollectionOrdering.Matching);
 	}
 
 	[Test]
 	[Timeout(10_000)]
-	[Arguments(TsSamples.HevcStreamType, false)]
-	[Arguments(TsSamples.AvcStreamType, true)]
+	[Arguments(TsSamples.HevcStreamType, false, DisplayName = "HEVC 按 NAL 类型")]
+	[Arguments(TsSamples.AvcStreamType, true, DisplayName = "AVC 按随机访问标志")]
 	public async Task TsKeyFramesAreFoundByNalTypeOrRandomAccessFlagAsync(byte streamType, bool randomAccessOnly, CancellationToken cancellationToken)
 	{
 		(byte[] key, byte[] other) = streamType is TsSamples.HevcStreamType ? (TsSamples.HevcIdr, TsSamples.HevcTrail) : (TsSamples.AvcSlice, TsSamples.AvcSlice);
@@ -102,7 +93,7 @@ public sealed class HlsSplitterTest
 
 		await recording.RunAsync(new TsHlsSplitter(), EverySegment, session => SendAsync(session, null, segments), cancellationToken);
 
-		await Assert.That(recording.Files.Select(static file => file.Length).SequenceEqual([segments[0].Length + segments[1].Length, segments[2].Length + segments[3].Length])).IsTrue();
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. segments[0], .. segments[1]], [.. segments[2], .. segments[3]]], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -115,12 +106,7 @@ public sealed class HlsSplitterTest
 
 		await recording.RunAsync(new Fmp4HlsSplitter(), EverySegment, session => SendAsync(session, init, segments), cancellationToken);
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(recording.Files.Count).IsEqualTo(2);
-			await Assert.That(recording.Files[0].SequenceEqual((byte[])[.. init, .. segments[0]])).IsTrue();
-			await Assert.That(recording.Files[1].SequenceEqual((byte[])[.. init, .. segments[2], .. segments[3]])).IsTrue();
-		}
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. init, .. segments[0]], [.. init, .. segments[2], .. segments[3]]], CollectionOrdering.Matching);
 	}
 
 	// 收流结束时最后一个单元并入最后一段

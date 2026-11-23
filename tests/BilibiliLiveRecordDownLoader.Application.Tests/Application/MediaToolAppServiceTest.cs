@@ -6,6 +6,7 @@ using System.Text;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
+[Timeout(TestTimeout)]
 public sealed class MediaToolAppServiceTest
 {
 	private const int TestTimeout = 60_000;
@@ -21,7 +22,6 @@ public sealed class MediaToolAppServiceTest
 	private static readonly byte[] AacFrame = FlvSamples.Tag(FlvSamples.AudioTag, 23, Convert.FromHexString("AF01" + "21004990"));
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task FailedRemuxDeletesPartialOutputAndKeepsSourceAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
@@ -41,7 +41,6 @@ public sealed class MediaToolAppServiceTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	[Arguments(true)]
 	[Arguments(false)]
 	public async Task SuccessfulRemuxDeletesSourceOnlyWhenAskedAsync(bool deleteSource, CancellationToken cancellationToken)
@@ -62,7 +61,6 @@ public sealed class MediaToolAppServiceTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task RepairIsOnlyAppliedToFlvSourcesAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
@@ -82,7 +80,6 @@ public sealed class MediaToolAppServiceTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	[MethodDataSource(nameof(UnrepairableFlvs))]
 	public async Task UnrepairableFlvFailsAndKeepsSourceAsync(byte[] flv, Func<string, string> expectedMessage, CancellationToken cancellationToken)
 	{
@@ -129,13 +126,10 @@ public sealed class MediaToolAppServiceTest
 		MediaToolAppService service = new(new FFmpegProvider(new FakeConfigManager()), CreateTasks(), NullLogger<MediaToolAppService>.Instance);
 		CutInput input = new(directory.Combine("in.mp4"), directory.Combine("out.mp4"), TimeSpan.FromMilliseconds(startMilliseconds), TimeSpan.FromMilliseconds(endMilliseconds));
 
-		ArgumentException? exception = await Assert.That(async () => await service.QueueCutAsync(input, cancellationToken)).ThrowsExactly<ArgumentException>();
-
-		await Assert.That(exception?.Message).IsEqualTo(AppLanguage.Current.InvalidTimeRange);
+		await Assert.That(() => service.QueueCutAsync(input, cancellationToken)).ThrowsExactly<ArgumentException>().WithMessage(AppLanguage.Current.InvalidTimeRange);
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task DestinationDoesNotExistWhileFFmpegIsWritingAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
@@ -163,7 +157,7 @@ public sealed class MediaToolAppServiceTest
 			await Assert.That(Path.GetFileName(output)).IsEqualTo("out.mp4");
 			await Assert.That(Path.GetDirectoryName(Path.GetDirectoryName(output))).IsEqualTo(directory.Root);
 			await Assert.That(Path.GetFileName(Path.GetDirectoryName(output))).StartsWith(".");
-			await Assert.That(workDirectoryAttributes.HasFlag(FileAttributes.Hidden)).IsTrue();
+			await Assert.That(workDirectoryAttributes).HasFlag(FileAttributes.Hidden);
 			await Assert.That(snapshot.Status).IsEqualTo(BackgroundTaskStatus.Canceled);
 			await Assert.That(File.Exists(destination)).IsFalse();
 			await Assert.That(File.Exists(source)).IsTrue();
@@ -172,7 +166,6 @@ public sealed class MediaToolAppServiceTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	[Arguments(true)]
 	[Arguments(false)]
 	public async Task SuccessMovesTheOutputOntoTheDestinationAsync(bool destinationExists, CancellationToken cancellationToken)
@@ -200,7 +193,6 @@ public sealed class MediaToolAppServiceTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task RemuxDeletesOnlyStaleWorkDirectoriesAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
@@ -232,7 +224,6 @@ public sealed class MediaToolAppServiceTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task FailureLeavesAnExistingDestinationUntouchedAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
@@ -252,7 +243,6 @@ public sealed class MediaToolAppServiceTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task CutWritesBesideTheDestinationFirstAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
@@ -263,10 +253,11 @@ public sealed class MediaToolAppServiceTest
 
 		await service.QueueCutAsync(new CutInput(source, destination, TimeSpan.Zero, TimeSpan.FromSeconds(1)), cancellationToken);
 		await TestWait.UntilAsync(() => !tasks.HasActiveTasks, "the cut task finishes", cancellationToken, ProcessWaitTimeout);
+		BackgroundTaskSnapshot cut = await Assert.That(tasks.GetTasks()).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(tasks.GetTasks().Single().Status).IsEqualTo(BackgroundTaskStatus.Completed);
+			await Assert.That(cut.Status).IsEqualTo(BackgroundTaskStatus.Completed);
 			await Assert.That(await ReadOutputPathAsync(directory, cancellationToken)).IsNotEqualTo(destination);
 			await Assert.That(File.Exists(destination)).IsTrue();
 			await Assert.That(Directory.EnumerateDirectories(directory.Root)).IsEmpty();
@@ -274,7 +265,6 @@ public sealed class MediaToolAppServiceTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task RepairWritesBesideTheDestinationFirstAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();

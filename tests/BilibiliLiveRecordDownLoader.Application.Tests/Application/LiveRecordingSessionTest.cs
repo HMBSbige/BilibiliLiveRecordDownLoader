@@ -58,15 +58,15 @@ public sealed class LiveRecordingSessionTest
 		LiveStreamCandidate candidate = Candidate(StreamFormat.Flv, "a", "a.test");
 		session.Candidates = Batch(candidate);
 		session.MarkFailed(candidate, candidate.Urls[0]);
-		bool exhausted = session.GetUntriedCandidates([candidate]).Count is 0;
+		IReadOnlyList<LiveStreamCandidate> beforeReset = session.GetUntriedCandidates([candidate]);
 
 		session.Reset();
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(exhausted).IsTrue();
+			await Assert.That(beforeReset).IsEmpty();
 			await Assert.That(session.Candidates).IsNull();
-			await Assert.That(session.GetUntriedCandidates([candidate]).Count).IsEqualTo(1);
+			await Assert.That(Describe(session.GetUntriedCandidates([candidate]))).IsEqualTo("Flv@a.test");
 		}
 	}
 
@@ -101,11 +101,12 @@ public sealed class LiveRecordingSessionTest
 		session.MarkFailed(trueOriginal, trueOriginal.Urls[0]);
 		string afterTrueOriginal = Describe(session.GetUntriedCandidates(candidates));
 		session.MarkFailed(original, original.Urls[0]);
+		LiveStreamCandidate untried = await Assert.That(session.GetUntriedCandidates(candidates)).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(afterTrueOriginal).IsEqualTo("Fmp4@a.test, Fmp4@a.test");
-			await Assert.That(session.GetUntriedCandidates(candidates).Single() is LiveStreamCandidate.Listed { Format: StreamFormat.Fmp4 }).IsTrue();
+			await Assert.That(untried).IsTypeOf<LiveStreamCandidate.Listed>().And.Member(static candidate => candidate.Format, static format => format.IsEqualTo(StreamFormat.Fmp4));
 			await Assert.That(session.HasUntriedEndpoint).IsTrue();
 		}
 	}
@@ -132,22 +133,15 @@ public sealed class LiveRecordingSessionTest
 		}
 	}
 
+	// HLS 换时间线是正常分段，刚连上就换也不算线路故障
 	[Test]
-	[Arguments(0, true)]
-	[Arguments(29, true)]
-	[Arguments(30, false)]
-	public async Task AttemptWithLittleDataIsAQuickFailureAsync(int activeSeconds, bool expected)
+	[Arguments(29, StreamEndReason.EndOfStream, true)]
+	[Arguments(30, StreamEndReason.EndOfStream, false)]
+	[Arguments(2, StreamEndReason.Discontinuity, false)]
+	public async Task AttemptWithLittleDataIsAQuickFailureUnlessANewTimelineStartedAsync(int activeSeconds, StreamEndReason reason, bool expected)
 	{
-		RecordingAttempt attempt = new(Candidate(StreamFormat.Flv, "a", "a.test"), new Uri("https://a.test/"), TimeSpan.FromSeconds(activeSeconds), new RecordingEnd.Completed(StreamEndReason.EndOfStream));
+		RecordingAttempt attempt = new(Candidate(StreamFormat.Ts, "a", "a.test"), new Uri("https://a.test/"), TimeSpan.FromSeconds(activeSeconds), new RecordingEnd.Completed(reason));
 
 		await Assert.That(attempt.IsQuickFailure).IsEqualTo(expected);
-	}
-
-	[Test]
-	public async Task NewTimelineRightAfterStartIsNotAQuickFailureAsync()
-	{
-		RecordingAttempt attempt = new(Candidate(StreamFormat.Ts, "a", "a.test"), new Uri("https://a.test/"), TimeSpan.FromSeconds(2), new RecordingEnd.Completed(StreamEndReason.Discontinuity));
-
-		await Assert.That(attempt.IsQuickFailure).IsFalse();
 	}
 }

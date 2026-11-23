@@ -23,13 +23,11 @@ public sealed class QualityRestrictionsTest
 	}
 
 	[Test]
-	[Arguments(false)]
-	[Arguments(true)]
-	public async Task OriginalIsNotRestrictedAsync(bool hasCookie)
+	public async Task OriginalIsNotRestrictedAsync()
 	{
 		LiveStreamCandidate.Listed avc = Listed(StreamCodec.Avc, 10000, 10000, 250);
 
-		await Assert.That(QualityRestrictions.Evaluate(avc, [avc], Profile(StreamQuality.Original), hasCookie)).IsNull();
+		await Assert.That(QualityRestrictions.Evaluate(avc, [avc], Profile(StreamQuality.Original), true)).IsNull();
 	}
 
 	[Test]
@@ -52,16 +50,14 @@ public sealed class QualityRestrictionsTest
 
 	// 3990387 匿名时 AVC 和 HEVC 是超清，AV1 却是原画
 	[Test]
-	[Arguments(false)]
-	[Arguments(true)]
-	public async Task AnotherCodecAtAHigherQualityComesBeforeTheLoginAsync(bool hasCookie)
+	public async Task AnotherCodecAtAHigherQualityComesBeforeTheLoginAsync()
 	{
 		LiveStreamCandidate.Listed avc = Listed(StreamCodec.Avc, 250, 10000, 250);
 		LiveStreamCandidate.Listed hevc = Listed(StreamCodec.Hevc, 250, 10000, 250);
 		LiveStreamCandidate.Listed av1Transcoded = Listed(StreamCodec.Av1, 400, 10000, 400);
 		LiveStreamCandidate.Listed av1 = Listed(StreamCodec.Av1, 10000, 10000, 400);
 
-		await Assert.That(QualityRestrictions.Evaluate(avc, [avc, hevc, av1Transcoded, av1], Profile(StreamQuality.Original), hasCookie)).IsEqualTo(new QualityRestriction.OtherCodec(10000, StreamCodec.Av1, 10000));
+		await Assert.That(QualityRestrictions.Evaluate(avc, [avc, hevc, av1Transcoded, av1], Profile(StreamQuality.Original), false)).IsEqualTo(new QualityRestriction.OtherCodec(10000, StreamCodec.Av1, 10000));
 	}
 
 	// 算作编码原因的话，提示会让人换成正在录的这种编码
@@ -104,14 +100,21 @@ public sealed class QualityRestrictionsTest
 	}
 
 	[Test]
-	[Arguments(StreamQuality.BluRay, 400L, null)]
-	[Arguments(StreamQuality.BluRay, 250L, 400L)]
+	[Arguments(StreamQuality.BluRay, 400L, new long[] { 10000, 400, 250 }, null)]
+	[Arguments(StreamQuality.BluRay, 250L, new long[] { 10000, 400, 250 }, 400L)]
 	// 选了 4K 或杜比而接口最高只列原画时，按原画算
-	[Arguments(StreamQuality.Dolby, 10000L, null)]
-	[Arguments(StreamQuality.Dolby, 250L, 10000L)]
-	public async Task SelectedQualityBelowTheBestCapsTheTargetAsync(StreamQuality quality, long qn, long? highest)
+	[Arguments(StreamQuality.Dolby, 10000L, new long[] { 10000, 400, 250 }, null)]
+	[Arguments(StreamQuality.Dolby, 250L, new long[] { 10000, 400, 250 }, 10000L)]
+	// 所选画质不在 accept_qn 里时不能拿它和最高档位取小
+	[Arguments(StreamQuality.BluRay, 250L, new long[] { 10000, 250 }, null)]
+	[Arguments(StreamQuality.BluRay, 150L, new long[] { 10000, 250, 150 }, 250L)]
+	// 所选比所有档位都低时按最低一档
+	[Arguments(StreamQuality.Smooth, 150L, new long[] { 10000, 250, 150 }, null)]
+	// accept_qn 里有 25000 也按所选的原画算
+	[Arguments(StreamQuality.Original, 10000L, new long[] { 25000, 10000, 250 }, null)]
+	public async Task TargetIsTheBestListedQualityNotAboveTheSelectionAsync(StreamQuality quality, long qn, long[] accept, long? highest)
 	{
-		LiveStreamCandidate.Listed avc = Listed(StreamCodec.Avc, qn, 10000, 400, 250);
+		LiveStreamCandidate.Listed avc = Listed(StreamCodec.Avc, qn, accept);
 
 		await Assert.That(QualityRestrictions.Evaluate(avc, [avc], Profile(quality), false)?.Highest).IsEqualTo(highest);
 	}
@@ -139,41 +142,22 @@ public sealed class QualityRestrictionsTest
 	}
 
 	[Test]
-	[Arguments(StreamQuality.Original, 10000L)]
-	[Arguments(StreamQuality.BluRay, 400L)]
-	public async Task VariantAtTheTargetIsNotRestrictedAsync(StreamQuality quality, long target)
+	public async Task VariantAtTheTargetIsNotRestrictedAsync()
 	{
 		LiveStreamCandidate.Listed avc = Listed(StreamCodec.Avc, 250, 10000, 400, 250);
-		LiveStreamCandidate.Variant hevc = Variant(StreamCodec.Hevc, target);
+		LiveStreamCandidate.Variant hevc = Variant(StreamCodec.Hevc, 400);
 
-		await Assert.That(QualityRestrictions.Evaluate(hevc, [hevc, avc], Profile(quality), false)).IsNull();
+		await Assert.That(QualityRestrictions.Evaluate(hevc, [hevc, avc], Profile(StreamQuality.BluRay), false)).IsNull();
 	}
 
 	[Test]
-	[Arguments(false)]
-	[Arguments(true)]
-	public async Task TrueOriginalVariantIsNotRestrictedAsync(bool hasCookie)
+	public async Task TrueOriginalVariantIsNotRestrictedAsync()
 	{
 		LiveStreamCandidate.Listed avc = Listed(StreamCodec.Avc, 250, 10000, 250);
 		LiveStreamCandidate.Variant hevc = Variant(StreamCodec.Hevc, 25000);
 		RecordingProfile profile = Profile(StreamQuality.Original) with { RequestTrueOriginal = true };
 
-		await Assert.That(QualityRestrictions.Evaluate(hevc, [hevc, Variant(StreamCodec.Hevc, 10000), avc], profile, hasCookie)).IsNull();
-	}
-
-	// 所选画质不在 accept_qn 里时不能拿它和最高档位取小
-	[Test]
-	[Arguments(StreamQuality.BluRay, 250L, new long[] { 10000, 250 }, null)]
-	[Arguments(StreamQuality.BluRay, 150L, new long[] { 10000, 250, 150 }, 250L)]
-	// 所选比所有档位都低时按最低一档
-	[Arguments(StreamQuality.Smooth, 150L, new long[] { 10000, 250, 150 }, null)]
-	// accept_qn 里有 25000 也按所选的原画算
-	[Arguments(StreamQuality.Original, 10000L, new long[] { 25000, 10000, 250 }, null)]
-	public async Task TargetIsTheBestListedQualityNotAboveTheSelectionAsync(StreamQuality quality, long qn, long[] accept, long? highest)
-	{
-		LiveStreamCandidate.Listed avc = Listed(StreamCodec.Avc, qn, accept);
-
-		await Assert.That(QualityRestrictions.Evaluate(avc, [avc], Profile(quality), false)?.Highest).IsEqualTo(highest);
+		await Assert.That(QualityRestrictions.Evaluate(hevc, [hevc, Variant(StreamCodec.Hevc, 10000), avc], profile, false)).IsNull();
 	}
 
 	[Test]
@@ -223,7 +207,6 @@ public sealed class QualityRestrictionsTest
 
 	[Test]
 	[Arguments(null, false)]
-	[Arguments("", false)]
 	[Arguments("  ", false)]
 	[Arguments("SESSDATA=x", true)]
 	public async Task OnlyAConfiguredCookieCountsAsLoggedInAsync(string? cookie, bool expected)

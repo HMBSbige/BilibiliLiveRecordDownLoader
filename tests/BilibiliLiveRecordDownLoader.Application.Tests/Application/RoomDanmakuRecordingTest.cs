@@ -3,7 +3,9 @@ using BilibiliLiveRecordDownLoader.Application.Contracts.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Contracts.Media;
 using BilibiliLiveRecordDownLoader.Application.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
+using System.Globalization;
 using System.Xml;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -21,7 +23,7 @@ public sealed class RoomDanmakuRecordingTest
 		FakeDanmuConnection danmu = await ConnectAsync(loop, masked: true);
 
 		StreamRequest stream = await loop.NextStreamAsync();
-		await stream.AcceptAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. Frame(VideoPacket.KeyFrame, 0)]);
+		await stream.AcceptAsync(Start(0));
 		await SendSecondsAsync(loop, stream, 1, 3);
 		await danmu.SendAsync(Comment("第一段"));
 		loop.Time.Advance(TimeSpan.FromMilliseconds(500));
@@ -48,20 +50,25 @@ public sealed class RoomDanmakuRecordingTest
 
 		DanmakuFile firstFile = await DanmakuXmlReader.ReadFileAsync(first, cancellationToken);
 		DanmakuFile secondFile = await DanmakuXmlReader.ReadFileAsync(Path.Combine(loop.RoomDirectory, "20260101_000100.xml"), cancellationToken);
+		DanmakuFileHeader header = await HeaderAsync(firstFile);
 		string chapters = mediaTools.Chapters[Path.Combine(loop.RoomDirectory, "20260101_000000.mp4")];
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(firstFile.IsComplete).IsTrue();
-			await Assert.That(firstFile.Source is DanmakuFileSource.Native { Header: { RoomId: RecordingLoopHarness.RoomId, Streamer: "streamer", Title: "title", Area: "area", ParentArea: "parent area", LiveId: "745" } }).IsTrue();
-			await Assert.That(Describe(firstFile)).IsEqualTo("connection@0.000(anonymous,masked) 第一段@3.000 半秒之后@3.500");
-			await Assert.That(Describe(secondFile)).IsEqualTo("connection@0.000(anonymous,masked) 第二段@1.000");
-			await Assert.That(File.Exists(Path.Combine(loop.RoomDirectory, "20260101_000000.ass"))).IsTrue();
-			await Assert.That(File.Exists(Path.Combine(loop.RoomDirectory, "20260101_000100.ass"))).IsTrue();
-			await Assert.That(chapters).Contains("title=title");
+			await Assert.That(header)
+				.Member(static h => h.RoomId, static id => id.IsEqualTo(RecordingLoopHarness.RoomId))
+				.And.Member(static h => h.Streamer, static streamer => streamer.IsEqualTo("streamer"))
+				.And.Member(static h => h.Title, static title => title.IsEqualTo("title"))
+				.And.Member(static h => h.Area, static area => area.IsEqualTo("area"))
+				.And.Member(static h => h.ParentArea, static area => area.IsEqualTo("parent area"))
+				.And.Member(static h => h.LiveId, static id => id.IsEqualTo("745"));
+			await Assert.That(Describe(firstFile)).IsEquivalentTo(["connection@0.000(anonymous,masked)", "第一段@3.000", "半秒之后@3.500"], CollectionOrdering.Matching);
+			await Assert.That(Describe(secondFile)).IsEquivalentTo(["connection@0.000(anonymous,masked)", "第二段@1.000"], CollectionOrdering.Matching);
+			await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.ass").Select(static file => Path.GetFileName(file))).IsEquivalentTo(["20260101_000000.ass", "20260101_000100.ass"]);
 			// 时长来自时间轴：第一段最后一帧在 59 秒
-			await Assert.That(chapters).Contains("END=59000");
-			await Assert.That(mediaTools.Remuxes.All(static remux => remux.Mode is RemuxMode.WithChapters { Path: var path } && !File.Exists(path))).IsTrue();
+			await Assert.That(chapters).Contains("title=title").And.Contains("END=59000");
+			await Assert.That(mediaTools.Remuxes).All(static remux => remux.Mode is RemuxMode.WithChapters { Path: var path } && !File.Exists(path));
 		}
 	}
 
@@ -76,7 +83,7 @@ public sealed class RoomDanmakuRecordingTest
 		FakeDanmuConnection danmu = await ConnectAsync(loop);
 
 		StreamRequest stream = await loop.NextStreamAsync();
-		await stream.AcceptAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. Frame(VideoPacket.KeyFrame, 0)]);
+		await stream.AcceptAsync(Start(0));
 		await SendSecondsAsync(loop, stream, 1, 3);
 		await danmu.SendAsync(Comment("第一段"));
 
@@ -86,11 +93,12 @@ public sealed class RoomDanmakuRecordingTest
 		await WaitForRemuxAsync(loop, mediaTools, 1);
 
 		DanmakuFile file = await DanmakuXmlReader.ReadFileAsync(Path.Combine(loop.RoomDirectory, "20260101_000000.xml"), cancellationToken);
+		DanmakuFileHeader header = await HeaderAsync(file);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(file.Source is DanmakuFileSource.Native { Header.Offset.TotalSeconds: 2 }).IsTrue();
-			await Assert.That(Describe(file)).IsEqualTo("connection@0.000(anonymous) 第一段@5.000");
+			await Assert.That(header.Offset).IsEqualTo(TimeSpan.FromSeconds(2));
+			await Assert.That(Describe(file)).IsEquivalentTo(["connection@0.000(anonymous)", "第一段@5.000"], CollectionOrdering.Matching);
 		}
 	}
 
@@ -103,7 +111,7 @@ public sealed class RoomDanmakuRecordingTest
 		FakeDanmuConnection danmu = await ConnectAsync(loop);
 
 		StreamRequest stream = await loop.NextStreamAsync();
-		await stream.AcceptAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. Frame(VideoPacket.KeyFrame, 0)]);
+		await stream.AcceptAsync(Start(0));
 		await SendSecondsAsync(loop, stream, 1, 2);
 		await danmu.SendAsync(Comment("第一次"));
 		await stream.EndAsync();
@@ -112,7 +120,7 @@ public sealed class RoomDanmakuRecordingTest
 		StreamRequest next = await loop.NextStreamAsync();
 		loop.Time.Advance(TimeSpan.FromSeconds(1));
 		await danmu.SendAsync(Comment("重连中"));
-		await next.AcceptAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. Frame(VideoPacket.KeyFrame, 5000)]);
+		await next.AcceptAsync(Start(5000));
 		loop.Time.Advance(TimeSpan.FromMilliseconds(250));
 		await danmu.SendAsync(Comment("第二次"));
 		loop.Time.Advance(TimeSpan.FromMilliseconds(750));
@@ -121,14 +129,14 @@ public sealed class RoomDanmakuRecordingTest
 		await WaitForRemuxAsync(loop, mediaTools, 2);
 
 		string[] files = [.. Directory.GetFiles(loop.RoomDirectory, "*.xml").Order(StringComparer.Ordinal)];
+		await Assert.That(files.Select(static file => Path.GetFileName(file))).IsEquivalentTo(["20260101_000000.xml", "20260101_000003.xml"], CollectionOrdering.Matching);
 		DanmakuFile firstFile = await DanmakuXmlReader.ReadFileAsync(files[0], cancellationToken);
 		DanmakuFile secondFile = await DanmakuXmlReader.ReadFileAsync(files[1], cancellationToken);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(string.Join(", ", files.Select(Path.GetFileName))).IsEqualTo("20260101_000000.xml, 20260101_000003.xml");
-			await Assert.That(Describe(firstFile)).IsEqualTo("connection@0.000(anonymous) 第一次@2.000");
-			await Assert.That(Describe(secondFile)).IsEqualTo("connection@0.000(anonymous) 第二次@0.250");
+			await Assert.That(Describe(firstFile)).IsEquivalentTo(["connection@0.000(anonymous)", "第一次@2.000"], CollectionOrdering.Matching);
+			await Assert.That(Describe(secondFile)).IsEquivalentTo(["connection@0.000(anonymous)", "第二次@0.250"], CollectionOrdering.Matching);
 		}
 	}
 
@@ -139,13 +147,16 @@ public sealed class RoomDanmakuRecordingTest
 		RecordingMediaTools mediaTools = new();
 		await using RecordingLoopHarness loop = Create(cancellationToken, mediaTools);
 		FakeDanmuConnection danmu = await ConnectAsync(loop);
+		string stem = Path.Combine(loop.RoomDirectory, "20260101_000000");
 
 		StreamRequest stream = await loop.NextStreamAsync();
 		await stream.AcceptAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 0)]);
 		await danmu.SendAsync(Comment("很快断了"));
+
+		// 先确认两个文件都建了，否则下面等它们消失的条件一开始就成立
+		await loop.WaitUntilAsync(() => File.Exists(stem + ".flv") && File.Exists(stem + ".xml"), "the video and its danmaku are being written");
 		await stream.EndAsync();
 		_ = await loop.NextStreamAsync();
-		string stem = Path.Combine(loop.RoomDirectory, "20260101_000000");
 
 		await loop.WaitUntilAsync(() => !File.Exists(stem + ".flv") && !File.Exists(stem + ".xml"), "the small video and its danmaku are deleted");
 
@@ -173,7 +184,7 @@ public sealed class RoomDanmakuRecordingTest
 		danmu.Close();
 		(FakeDanmuConnection reconnected, TimeSpan disconnected) = await AdvanceUntilReconnectedAsync(loop);
 		await reconnected.SendAsync(new DanmuMessage.Connected(0));
-		string reconnectedAt = (2 + disconnected.TotalSeconds).ToString("0.000", System.Globalization.CultureInfo.InvariantCulture);
+		string reconnectedAt = Seconds(TimeSpan.FromSeconds(2) + disconnected);
 		await reconnected.SendAsync(Comment("重连之后"));
 
 		loop.GoOffline();
@@ -181,17 +192,19 @@ public sealed class RoomDanmakuRecordingTest
 		await loop.WaitUntilAsync(static snapshot => !snapshot.Danmaku.IsRecording);
 
 		string[] files = [.. Directory.GetFiles(loop.RoomDirectory, "*.xml").Order(StringComparer.Ordinal)];
+		await Assert.That(files.Select(static file => Path.GetFileName(file))).IsEquivalentTo(["20260101_000000.xml", "20260101_000010.xml"], CollectionOrdering.Matching);
 		DanmakuFile first = await DanmakuXmlReader.ReadFileAsync(files[0], cancellationToken);
 		DanmakuFile second = await DanmakuXmlReader.ReadFileAsync(files[1], cancellationToken);
+		DanmakuFileHeader firstHeader = await HeaderAsync(first);
+		DanmakuFileHeader secondHeader = await HeaderAsync(second);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(string.Join(", ", files.Select(Path.GetFileName))).IsEqualTo("20260101_000000.xml, 20260101_000010.xml");
 			// 仅弹幕不加偏移
-			await Assert.That(first.Source is DanmakuFileSource.Native { Header: { Title: "title", Offset.Ticks: 0 } }).IsTrue();
-			await Assert.That(second.Source is DanmakuFileSource.Native { Header.Title: "new title" }).IsTrue();
-			await Assert.That(Describe(first)).IsEqualTo("connection@0.000(anonymous,masked) 开播四秒@4.000");
-			await Assert.That(Describe(second)).IsEqualTo($"connection@0.000(anonymous,masked) 换标题之后@2.000 gap@2.000-{reconnectedAt} connection@{reconnectedAt}(anonymous) 重连之后@{reconnectedAt}");
+			await Assert.That((firstHeader.Title, firstHeader.Offset)).IsEqualTo(("title", TimeSpan.Zero));
+			await Assert.That(secondHeader.Title).IsEqualTo("new title");
+			await Assert.That(Describe(first)).IsEquivalentTo(["connection@0.000(anonymous,masked)", "开播四秒@4.000"], CollectionOrdering.Matching);
+			await Assert.That(Describe(second)).IsEquivalentTo(["connection@0.000(anonymous,masked)", "换标题之后@2.000", $"gap@2.000-{reconnectedAt}", $"connection@{reconnectedAt}(anonymous)", $"重连之后@{reconnectedAt}"], CollectionOrdering.Matching);
 			await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.ass")).IsEmpty();
 		}
 	}
@@ -211,9 +224,10 @@ public sealed class RoomDanmakuRecordingTest
 		await danmu.SendAsync(new DanmuMessage.LiveStopped(false));
 		await loop.WaitUntilAsync(static snapshot => !snapshot.Danmaku.IsRecording);
 
-		DanmakuFile file = await DanmakuXmlReader.ReadFileAsync(Directory.GetFiles(loop.RoomDirectory, "*.xml").Single(), cancellationToken);
+		string path = await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.xml")).HasSingleItem();
+		DanmakuFile file = await DanmakuXmlReader.ReadFileAsync(path, cancellationToken);
 
-		await Assert.That(Describe(file)).IsEqualTo("connection@0.000(anonymous) title@7.000(new title)");
+		await Assert.That(Describe(file)).IsEquivalentTo(["connection@0.000(anonymous)", "title@7.000(new title)"], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -237,7 +251,7 @@ public sealed class RoomDanmakuRecordingTest
 		await danmu.SendAsync(new DanmuMessage.RoomChanged("new title", null, null));
 		await danmu.SendAsync(new DanmuMessage.Raw("SEND_GIFT", """{"cmd":"SEND_GIFT"}"""u8.ToArray()));
 		danmu.Close();
-		(FakeDanmuConnection reconnected, _) = await AdvanceUntilReconnectedAsync(loop);
+		(FakeDanmuConnection reconnected, TimeSpan disconnected) = await AdvanceUntilReconnectedAsync(loop);
 		await reconnected.SendAsync(new DanmuMessage.Connected(0));
 		await reconnected.SendAsync(new DanmuMessage.LiveStopped(false));
 		await loop.WaitUntilAsync(static snapshot => !snapshot.Danmaku.IsRecording);
@@ -247,20 +261,23 @@ public sealed class RoomDanmakuRecordingTest
 		string raw = Path.Combine(loop.RoomDirectory, "20260101_000000.danmaku.jsonl");
 		await loop.WaitUntilAsync(() => IsClosed(raw), "the raw file is closed");
 		string[] lines = await File.ReadAllLinesAsync(raw, cancellationToken);
-		string start = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero).ToUnixTimeMilliseconds().ToString(System.Globalization.CultureInfo.InvariantCulture);
-		string second = new DateTimeOffset(2026, 1, 1, 0, 0, 1, TimeSpan.Zero).ToUnixTimeMilliseconds().ToString(System.Globalization.CultureInfo.InvariantCulture);
+		string start = UnixMilliseconds(TimeSpan.Zero);
+		string second = UnixMilliseconds(TimeSpan.FromSeconds(1));
+		string reconnectedAt = UnixMilliseconds(TimeSpan.FromSeconds(1) + disconnected);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.jsonl").Length).IsEqualTo(1);
-			await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.xml").Length).IsEqualTo(2);
-			await Assert.That(lines.Length).IsEqualTo(6);
-			await Assert.That(lines[0]).IsEqualTo("{\"t\":" + start + ",\"cmd\":\"@connected\",\"raw\":{\"anonymous\":true,\"masked\":true}}");
-			await Assert.That(lines[1]).IsEqualTo("{\"t\":" + start + ",\"cmd\":\"DANMU_MSG\",\"raw\":{\"cmd\":\"DANMU_MSG\",\"info\":[1]}}");
-			await Assert.That(lines[2]).IsEqualTo("{\"t\":" + second + ",\"cmd\":\"ROOM_CHANGE\",\"raw\":{\"cmd\":\"ROOM_CHANGE\",\"data\":{\"title\":\"new title\"}}}");
-			await Assert.That(lines[3]).IsEqualTo("{\"t\":" + second + ",\"cmd\":\"SEND_GIFT\",\"raw\":{\"cmd\":\"SEND_GIFT\"}}");
-			await Assert.That(lines[4]).IsEqualTo("{\"t\":" + second + ",\"cmd\":\"@disconnected\",\"raw\":null}");
-			await Assert.That(lines[5]).EndsWith(",\"cmd\":\"@connected\",\"raw\":{\"anonymous\":true}}");
+			await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.jsonl")).IsEquivalentTo([raw]);
+			await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.xml")).Count().IsEqualTo(2);
+			await Assert.That(lines).IsEquivalentTo(
+			[
+				RawLine(start, "@connected", """{"anonymous":true,"masked":true}"""),
+				RawLine(start, "DANMU_MSG", """{"cmd":"DANMU_MSG","info":[1]}"""),
+				RawLine(second, "ROOM_CHANGE", """{"cmd":"ROOM_CHANGE","data":{"title":"new title"}}"""),
+				RawLine(second, "SEND_GIFT", """{"cmd":"SEND_GIFT"}"""),
+				RawLine(second, "@disconnected", "null"),
+				RawLine(reconnectedAt, "@connected", """{"anonymous":true}""")
+			], CollectionOrdering.Matching);
 		}
 	}
 
@@ -327,7 +344,7 @@ public sealed class RoomDanmakuRecordingTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(string.Join(", ", entries.Select(static entry => entry.Sequence))).IsEqualTo("1, 2");
+			await Assert.That(entries.Select(static entry => entry.Sequence)).IsEquivalentTo([1L, 2], CollectionOrdering.Matching);
 			await Assert.That(entries[1].Entry).IsEqualTo(new DanmakuEntryDto.SuperChat(1, new DanmuSender(42, "老板", GuardLevel.Captain, null), "醒目留言", 30000, TimeSpan.FromSeconds(60)));
 			await Assert.That(status).IsEqualTo(new DanmakuFeedStatus(DanmakuConnectionState.Connected, 1, 0, true, 2, null));
 			await Assert.That(snapshot).IsEqualTo(new RoomDanmakuSnapshot(true));
@@ -392,27 +409,49 @@ public sealed class RoomDanmakuRecordingTest
 		}
 	}
 
+	private static byte[] Start(uint timestamp)
+	{
+		return [.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. Frame(VideoPacket.KeyFrame, timestamp)];
+	}
+
 	// 一段要超过后处理删除的下限
 	private static byte[] Frame(VideoPacket packet, uint timestamp)
 	{
 		return FlvSamples.PaddedVideo(packet, timestamp, packet is VideoPacket.KeyFrame ? KeyFrameSize : 0);
 	}
 
-	private static string Describe(DanmakuFile file)
+	private static async Task<DanmakuFileHeader> HeaderAsync(DanmakuFile file)
 	{
-		return string.Join(' ', file.Records.Select(static record => record switch
+		DanmakuFileSource.Native? native = await Assert.That(file.Source).IsTypeOf<DanmakuFileSource.Native>();
+		return native!.Header;
+	}
+
+	private static IEnumerable<string> Describe(DanmakuFile file)
+	{
+		return file.Records.Select(static record => record switch
 		{
 			DanmakuRecord.Comment comment => $"{comment.Text}@{Seconds(comment.Time)}",
 			DanmakuRecord.Connection connection => $"connection@{Seconds(connection.Time)}({string.Join(',', new[] { connection.Anonymous ? "anonymous" : null, connection.Masked ? "masked" : null }.OfType<string>())})",
 			DanmakuRecord.Gap gap => $"gap@{Seconds(gap.Time)}-{Seconds(gap.End)}",
 			DanmakuRecord.TitleChange title => $"title@{Seconds(title.Time)}({title.Title})",
 			_ => record.GetType().Name
-		}));
+		});
+	}
 
-		static string Seconds(TimeSpan time)
-		{
-			return time.TotalSeconds.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture);
-		}
+	private static string Seconds(TimeSpan time)
+	{
+		return time.TotalSeconds.ToString("0.000", CultureInfo.InvariantCulture);
+	}
+
+	// CreateSplitting 把时钟拨到这一刻
+	private static string UnixMilliseconds(TimeSpan sinceStart)
+	{
+		return (new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero) + sinceStart).ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture);
+	}
+
+	private static string RawLine(string time, string command, string raw)
+	{
+		return $$"""{"t":{{time}},"cmd":"{{command}}","raw":{{raw}}}""";
 	}
 
 	// 写入者还开着文件时，Windows 报共享冲突，Unix 拿不到排他锁；用 FileShare.Read 打开在 Unix 上探测不出来

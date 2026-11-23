@@ -7,6 +7,8 @@ internal static class ParameterSets
 	private const int AvcSpsType = 7;
 	private const int HevcSpsType = 33;
 
+	private static ReadOnlySpan<byte> StartCode => [0, 0, 1];
+
 	// AVCDecoderConfigurationRecord：第 6 字节低 5 位是 SPS 个数，之后每个 SPS 前有 2 字节长度
 	public static VideoResolution? ReadAvcConfiguration(ReadOnlySpan<byte> record)
 	{
@@ -70,31 +72,29 @@ internal static class ParameterSets
 	// 找第一个 SPS；它可能在 data 末尾被截断，读过头时返回 null，等更多数据
 	public static VideoResolution? ReadAnnexB(ReadOnlySpan<byte> data, NalSyntax syntax)
 	{
-		int start = FindStartCode(data, 0);
+		int start = data.IndexOf(StartCode);
 
 		while (start >= 0)
 		{
-			int nalStart = start + 3;
-			int next = FindStartCode(data, nalStart);
-			ReadOnlySpan<byte> nal = next < 0 ? data.Slice(nalStart) : data.Slice(nalStart, next - nalStart);
+			data = data.Slice(start + StartCode.Length);
+			start = data.IndexOf(StartCode);
+			ReadOnlySpan<byte> nal = start < 0 ? data : data.Slice(0, start);
 
-			if (nal.Length > 0 && ReadSps(nal, syntax) is { IsSps: true } sps)
+			if (!nal.IsEmpty && IsSps(nal[0], syntax))
 			{
-				return sps.Resolution;
+				return syntax is NalSyntax.Avc ? ReadAvcSps(nal) : ReadHevcSps(nal);
 			}
-
-			start = next;
 		}
 
 		return null;
 	}
 
-	private static (bool IsSps, VideoResolution? Resolution) ReadSps(ReadOnlySpan<byte> nal, NalSyntax syntax)
+	private static bool IsSps(byte header, NalSyntax syntax)
 	{
 		return syntax switch
 		{
-			NalSyntax.Avc => (nal[0] & 0x1F) is AvcSpsType ? (true, ReadAvcSps(nal)) : (false, null),
-			NalSyntax.Hevc => (nal[0] >> 1 & 0x3F) is HevcSpsType ? (true, ReadHevcSps(nal)) : (false, null)
+			NalSyntax.Avc => (header & 0x1F) is AvcSpsType,
+			NalSyntax.Hevc => (header >> 1 & 0x3F) is HevcSpsType
 		};
 	}
 
@@ -189,30 +189,20 @@ internal static class ParameterSets
 	{
 		RbspReader reader = new(nal);
 		reader.Skip(16 + 4);
-		int maxSubLayers = (int)reader.ReadBits(3);
+		int maxSubLayersMinus1 = (int)reader.ReadBits(3);
 		reader.Skip(1);
 
-		// profile_tier_level 的通用部分固定 96 位，子层部分先是各层的两个存在标志，不足 8 层时补齐到 16 位
+		// profile_tier_level 的通用部分固定 96 位；子层部分先是各层的两个存在标志，不足 8 层时补齐到 16 位，再是各层的档次（88 位）和级别（8 位）
 		reader.Skip(96);
-		Span<bool> profilePresent = stackalloc bool[8];
-		Span<bool> levelPresent = stackalloc bool[8];
+		int subLayerBits = 0;
 
-		for (int i = 0; i < maxSubLayers; ++i)
+		for (int i = 0; i < maxSubLayersMinus1; ++i)
 		{
-			profilePresent[i] = reader.ReadBit() is 1;
-			levelPresent[i] = reader.ReadBit() is 1;
+			subLayerBits += reader.ReadBit() is 1 ? 88 : 0;
+			subLayerBits += reader.ReadBit() is 1 ? 8 : 0;
 		}
 
-		if (maxSubLayers > 0)
-		{
-			reader.Skip(2 * (8 - maxSubLayers));
-		}
-
-		for (int i = 0; i < maxSubLayers; ++i)
-		{
-			reader.Skip((profilePresent[i] ? 88 : 0) + (levelPresent[i] ? 8 : 0));
-		}
-
+		reader.Skip((maxSubLayersMinus1 > 0 ? 2 * (8 - maxSubLayersMinus1) : 0) + subLayerBits);
 		reader.ReadUe();
 		uint chromaFormat = reader.ReadUe();
 		bool isSeparateColourPlane = chromaFormat is 3 && reader.ReadBit() is 1;
@@ -245,18 +235,5 @@ internal static class ParameterSets
 
 			last = next is 0 ? last : next;
 		}
-	}
-
-	private static int FindStartCode(ReadOnlySpan<byte> data, int from)
-	{
-		for (int i = from; i + 3 <= data.Length; ++i)
-		{
-			if (data[i] is 0 && data[i + 1] is 0 && data[i + 2] is 1)
-			{
-				return i;
-			}
-		}
-
-		return -1;
 	}
 }

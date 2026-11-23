@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Numerics;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
@@ -48,7 +49,7 @@ internal static class IsoBmff
 
 			while (TryReadBox(moof, ref trafOffset, out ReadOnlySpan<byte> trafType, out ReadOnlySpan<byte> traf))
 			{
-				if (trafType.SequenceEqual("traf"u8) && TryGetFirstSampleFlags(traf, video.TrackId, video.DefaultSampleFlags) is { } flags)
+				if (trafType.SequenceEqual("traf"u8) && ReadFirstSampleFlags(traf, video.TrackId, video.DefaultSampleFlags) is { } flags)
 				{
 					return (flags & NonSyncSampleFlag) is 0;
 				}
@@ -58,7 +59,8 @@ internal static class IsoBmff
 		return false;
 	}
 
-	private static uint? TryGetFirstSampleFlags(ReadOnlySpan<byte> traf, uint videoTrackId, uint trexSampleFlags)
+	// 不是视频轨的 traf 和读不全的返回 null
+	private static uint? ReadFirstSampleFlags(ReadOnlySpan<byte> traf, uint videoTrackId, uint trexSampleFlags)
 	{
 		uint defaultFlags = trexSampleFlags;
 		bool isVideo = false;
@@ -68,20 +70,14 @@ internal static class IsoBmff
 		{
 			if (type.SequenceEqual("tfhd"u8))
 			{
-				if (content.Length < 8)
+				if (content.Length < 8 || BinaryPrimitives.ReadUInt32BigEndian(content.Slice(4)) != videoTrackId)
 				{
 					return null;
 				}
 
+				isVideo = true;
 				uint flags = ReadFlags(content);
-				isVideo = BinaryPrimitives.ReadUInt32BigEndian(content.Slice(4)) == videoTrackId;
-
-				if (!isVideo)
-				{
-					return null;
-				}
-
-				int field = 8 + ((flags & TrackFragmentFlags.BaseDataOffsetPresent) is 0 ? 0 : 8) + ((flags & TrackFragmentFlags.SampleDescriptionIndexPresent) is 0 ? 0 : 4) + ((flags & TrackFragmentFlags.DefaultSampleDurationPresent) is 0 ? 0 : 4) + ((flags & TrackFragmentFlags.DefaultSampleSizePresent) is 0 ? 0 : 4);
+				int field = TrackFragmentFlags.OffsetOf(flags, TrackFragmentFlags.DefaultSampleFlagsPresent);
 
 				if ((flags & TrackFragmentFlags.DefaultSampleFlagsPresent) is not 0)
 				{
@@ -96,20 +92,15 @@ internal static class IsoBmff
 			else if (type.SequenceEqual("trun"u8) && isVideo && content.Length >= 8 && BinaryPrimitives.ReadUInt32BigEndian(content.Slice(4)) > 0)
 			{
 				uint flags = ReadFlags(content);
-				int field = 8 + ((flags & TrackRunFlags.DataOffsetPresent) is 0 ? 0 : 4);
+				uint source = (flags & TrackRunFlags.FirstSampleFlagsPresent) is not 0 ? TrackRunFlags.FirstSampleFlagsPresent : TrackRunFlags.SampleFlagsPresent;
 
-				if ((flags & TrackRunFlags.FirstSampleFlagsPresent) is not 0)
+				if ((flags & source) is 0)
 				{
-					return content.Length >= field + 4 ? BinaryPrimitives.ReadUInt32BigEndian(content.Slice(field)) : null;
+					return defaultFlags;
 				}
 
-				if ((flags & TrackRunFlags.SampleFlagsPresent) is not 0)
-				{
-					field += ((flags & TrackRunFlags.SampleDurationPresent) is 0 ? 0 : 4) + ((flags & TrackRunFlags.SampleSizePresent) is 0 ? 0 : 4);
-					return content.Length >= field + 4 ? BinaryPrimitives.ReadUInt32BigEndian(content.Slice(field)) : null;
-				}
-
-				return defaultFlags;
+				int field = TrackRunFlags.OffsetOf(flags, source);
+				return content.Length >= field + 4 ? BinaryPrimitives.ReadUInt32BigEndian(content.Slice(field)) : null;
 			}
 		}
 
@@ -150,8 +141,8 @@ internal static class IsoBmff
 		return [.. tracks];
 	}
 
-	// 版本 0 的 tfdt 给的是 32 位原值，由 Fmp4TrackTimes 展开
-	public static TrackFragmentTime? ReadTrackFragmentTime(ReadOnlySpan<byte> traf, ReadOnlySpan<Fmp4Track> tracks)
+	// trafOffset 是 traf 内容在 moof 内容里的位置；版本 0 的 tfdt 给的是 32 位原值，由 Fmp4TrackTimes 展开
+	public static TrackFragmentTime? ReadTrackFragmentTime(ReadOnlySpan<byte> traf, int trafOffset, ReadOnlySpan<Fmp4Track> tracks)
 	{
 		int track = -1;
 		uint defaultDuration = 0;
@@ -174,7 +165,7 @@ internal static class IsoBmff
 				defaultDuration = tracks[track].DefaultSampleDuration;
 
 				uint flags = ReadFlags(content);
-				int field = 8 + ((flags & TrackFragmentFlags.BaseDataOffsetPresent) is 0 ? 0 : 8) + ((flags & TrackFragmentFlags.SampleDescriptionIndexPresent) is 0 ? 0 : 4);
+				int field = TrackFragmentFlags.OffsetOf(flags, TrackFragmentFlags.DefaultSampleDurationPresent);
 
 				if ((flags & TrackFragmentFlags.DefaultSampleDurationPresent) is not 0 && content.Length >= field + 4)
 				{
@@ -184,7 +175,7 @@ internal static class IsoBmff
 			else if (type.SequenceEqual("tfdt"u8) && content.Length >= (content is [1, ..] ? 12 : 8))
 			{
 				decodeTime = content is [1, ..] ? BinaryPrimitives.ReadUInt64BigEndian(content.Slice(4)) : BinaryPrimitives.ReadUInt32BigEndian(content.Slice(4));
-				tfdtOffset = offset - content.Length;
+				tfdtOffset = trafOffset + offset - content.Length;
 			}
 			else if (type.SequenceEqual("trun"u8) && content.Length >= 8)
 			{
@@ -218,8 +209,8 @@ internal static class IsoBmff
 			return (ulong)count * defaultDuration;
 		}
 
-		int field = 8 + ((flags & TrackRunFlags.DataOffsetPresent) is 0 ? 0 : 4) + ((flags & TrackRunFlags.FirstSampleFlagsPresent) is 0 ? 0 : 4);
-		int stride = 4 * (1 + ((flags & TrackRunFlags.SampleSizePresent) is 0 ? 0 : 1) + ((flags & TrackRunFlags.SampleFlagsPresent) is 0 ? 0 : 1) + ((flags & TrackRunFlags.SampleCompositionTimeOffsetPresent) is 0 ? 0 : 1));
+		int field = TrackRunFlags.OffsetOf(flags, TrackRunFlags.SampleDurationPresent);
+		int stride = TrackRunFlags.SampleFieldsSize(flags);
 		ulong duration = 0;
 
 		for (long sample = 0; sample < count && field + 4 <= trun.Length; ++sample, field += stride)
@@ -373,12 +364,12 @@ internal readonly record struct Fmp4Track(uint TrackId, uint Timescale, uint Def
 	}
 }
 
-// 时间按轨道的 timescale 计；TfdtOffset 由 ReadTrackFragmentTime 给出时相对 traf 的内容，Fmp4TrackTimes.ReadMovieFragment 换成相对 moof 的内容
+// 时间按轨道的 timescale 计；TfdtOffset 是 tfdt 内容在 moof 内容里的位置
 internal readonly record struct TrackFragmentTime(int TrackIndex, Fmp4Track Track, ulong DecodeTime, ulong Duration, int TfdtOffset);
 
 internal readonly record struct TrackExtends(uint TrackId, uint DefaultSampleDuration, uint DefaultSampleSize, uint DefaultSampleFlags);
 
-// track_ID 之后的可选字段按这个顺序出现
+// track_ID 之后的可选字段按标志位从低到高的顺序出现，base_data_offset 占 8 字节，其余各占 4 字节
 internal static class TrackFragmentFlags
 {
 	public const uint BaseDataOffsetPresent = 0x00_0001;
@@ -387,9 +378,18 @@ internal static class TrackFragmentFlags
 	public const uint DefaultSampleSizePresent = 0x00_0010;
 	public const uint DefaultSampleFlagsPresent = 0x00_0020;
 	public const uint DefaultBaseIsMoof = 0x02_0000;
+
+	private const uint OptionalFields = BaseDataOffsetPresent | SampleDescriptionIndexPresent | DefaultSampleDurationPresent | DefaultSampleSizePresent | DefaultSampleFlagsPresent;
+
+	// field 是某个可选字段的标志，返回这个字段在 tfhd 内容里的位置，不管它在不在
+	public static int OffsetOf(uint flags, uint field)
+	{
+		uint preceding = flags & OptionalFields & (field - 1);
+		return 8 + 4 * BitOperations.PopCount(preceding) + ((preceding & BaseDataOffsetPresent) is 0 ? 0 : 4);
+	}
 }
 
-// data_offset 和 first_sample_flags 跟在 sample_count 之后，其余四个是每个样本依次带的 4 字节字段
+// sample_count 之后的字段按标志位从低到高的顺序出现，各占 4 字节：可选的 data_offset 和 first_sample_flags，然后每个样本依次带标志选中的那几个
 internal static class TrackRunFlags
 {
 	public const uint DataOffsetPresent = 0x00_0001;
@@ -398,4 +398,17 @@ internal static class TrackRunFlags
 	public const uint SampleSizePresent = 0x00_0200;
 	public const uint SampleFlagsPresent = 0x00_0400;
 	public const uint SampleCompositionTimeOffsetPresent = 0x00_0800;
+
+	private const uint SampleFields = SampleDurationPresent | SampleSizePresent | SampleFlagsPresent | SampleCompositionTimeOffsetPresent;
+
+	// 返回 field 对应的字段在 trun 内容里的位置，样本字段指第一个样本的，不管它在不在；第一个样本从 SampleDurationPresent 的位置开始
+	public static int OffsetOf(uint flags, uint field)
+	{
+		return 8 + 4 * BitOperations.PopCount(flags & (DataOffsetPresent | FirstSampleFlagsPresent | SampleFields) & (field - 1));
+	}
+
+	public static int SampleFieldsSize(uint flags)
+	{
+		return 4 * BitOperations.PopCount(flags & SampleFields);
+	}
 }

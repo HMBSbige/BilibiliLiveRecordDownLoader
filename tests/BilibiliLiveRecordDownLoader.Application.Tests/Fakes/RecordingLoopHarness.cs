@@ -230,6 +230,29 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		throw new TimeoutException("No stream was requested.");
 	}
 
+	// 重连等待带随机抖动，按秒推进直到弹幕重新连接；断开的那次连接要收到过连接成功
+	public async Task<(FakeDanmuConnection Connection, TimeSpan Advanced)> AdvanceUntilDanmuReconnectedAsync()
+	{
+		// 先等房间察觉断开再推进，推进的时长才都算在重连等待里
+		await WaitUntilAsync(() => Session.Danmaku.Feed.Status.DisconnectedAt is not null, "the room notices the disconnection");
+		Task<FakeDanmuConnection> next = Danmu.NextConnectionAsync();
+		TimeSpan advanced = TimeSpan.Zero;
+
+		for (int step = 0; step < 20 && !next.IsCompleted; ++step)
+		{
+			// 留出注册重连定时器的时间
+			await Task.Delay(50);
+
+			if (!next.IsCompleted)
+			{
+				Time.Advance(TimeSpan.FromSeconds(1));
+				advanced += TimeSpan.FromSeconds(1);
+			}
+		}
+
+		return (await next, advanced);
+	}
+
 	public async Task<RoomSnapshot> RecordForAsync(StreamRequest request, TimeSpan duration)
 	{
 		RoomSnapshot recording = await ReceiveForAsync(request, duration);

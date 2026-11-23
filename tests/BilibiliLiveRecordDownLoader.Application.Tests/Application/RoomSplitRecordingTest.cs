@@ -2,12 +2,15 @@ using BilibiliLive.Danmu;
 using BilibiliLiveRecordDownLoader.Application.Contracts.Media;
 using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
 public sealed class RoomSplitRecordingTest
 {
 	private const int FrameSize = 40 << 10;
+
+	private static byte[] Start => [.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. Frame(VideoPacket.KeyFrame, 0)];
 
 	[Test]
 	[Timeout(30_000)]
@@ -17,14 +20,9 @@ public sealed class RoomSplitRecordingTest
 	[Arguments(false, null, 1)]
 	public async Task TitleChangeWhileRecordingStartsANewFileAtTheNextKeyFrameAsync(bool global, bool? room, int expectedFiles, CancellationToken cancellationToken)
 	{
-		RecordingMediaTools mediaTools = new();
-		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools);
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, new RecordingMediaTools());
 		loop.Config.SplitMode = RecordingSplitMode.None;
-
-		loop.GoLive();
-		StreamRequest stream = await loop.NextStreamAsync();
-		await stream.AcceptAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. Frame(VideoPacket.KeyFrame, 0)]);
-		await stream.SendAndWaitAsync(Frame(VideoPacket.InterFrame, 33));
+		StreamRequest stream = await StartRecordingAsync(loop);
 
 		// 开始录制之后才打开的设置同样生效
 		loop.Config.SplitOnTitleChange = global;
@@ -36,70 +34,62 @@ public sealed class RoomSplitRecordingTest
 		await stream.EndAsync();
 
 		// 同一秒内的第二段文件名带序号
-		await Assert.That(await RecordedFilesAfterTheAttemptAsync(loop)).IsEqualTo(expectedFiles is 2 ? "20260101_000000.flv, 20260101_000000_1.flv" : "20260101_000000.flv");
+		string[] expected = expectedFiles is 2 ? ["20260101_000000.flv", "20260101_000000_1.flv"] : ["20260101_000000.flv"];
+		await Assert.That(await RecordedFilesAfterTheAttemptAsync(loop)).IsEquivalentTo(expected, CollectionOrdering.Matching);
 	}
 
 	[Test]
 	[Timeout(30_000)]
 	public async Task TitleChangeBeforeRecordingStartsDoesNotSplitAsync(CancellationToken cancellationToken)
 	{
-		RecordingMediaTools mediaTools = new();
-		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools);
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, new RecordingMediaTools());
 		loop.Config.SplitMode = RecordingSplitMode.None;
 		loop.Config.SplitOnTitleChange = true;
 
 		loop.GoLive();
 		StreamRequest stream = await loop.NextStreamAsync();
 		loop.Session.Handle(new DanmuMessage.RoomChanged("new title", null, null));
-		await stream.AcceptAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. Frame(VideoPacket.KeyFrame, 0)]);
+		await stream.AcceptAsync(Start);
 		await stream.SendAndWaitAsync(Frame(VideoPacket.InterFrame, 33));
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 2000));
 		await stream.EndAsync();
 
-		await Assert.That(await RecordedFilesAfterTheAttemptAsync(loop)).IsEqualTo("20260101_000000.flv");
+		await Assert.That(await RecordedFilesAfterTheAttemptAsync(loop)).IsEquivalentTo(["20260101_000000.flv"], CollectionOrdering.Matching);
 	}
 
 	[Test]
 	[Timeout(30_000)]
 	public async Task FileStartedAfterATitleChangeIsNamedWithTheNewTitleAsync(CancellationToken cancellationToken)
 	{
-		RecordingMediaTools mediaTools = new();
-		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools);
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, new RecordingMediaTools());
 		loop.Config.SplitMode = RecordingSplitMode.None;
 		loop.Config.SplitOnTitleChange = true;
 		loop.Config.IncludeTitleInFileName = true;
+		StreamRequest stream = await StartRecordingAsync(loop);
 
-		loop.GoLive();
-		StreamRequest stream = await loop.NextStreamAsync();
-		await stream.AcceptAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. Frame(VideoPacket.KeyFrame, 0)]);
-		await stream.SendAndWaitAsync(Frame(VideoPacket.InterFrame, 33));
 		loop.Session.Handle(new DanmuMessage.RoomChanged("updated title", null, null));
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 2000));
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 4000));
 		await stream.EndAsync();
 
-		await Assert.That(await RecordedFilesAfterTheAttemptAsync(loop)).IsEqualTo("20260101_000000_title.flv, 20260101_000000_updated title.flv");
+		await Assert.That(await RecordedFilesAfterTheAttemptAsync(loop)).IsEquivalentTo(["20260101_000000_title.flv", "20260101_000000_updated title.flv"], CollectionOrdering.Matching);
 	}
 
 	[Test]
 	[Timeout(30_000)]
 	public async Task TitleInFileNameFollowsTheSettingWhenEachFileStartsAsync(CancellationToken cancellationToken)
 	{
-		RecordingMediaTools mediaTools = new();
-		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools);
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, new RecordingMediaTools());
 		loop.Config.IncludeTitleInFileName = true;
+		StreamRequest stream = await StartRecordingAsync(loop);
 
-		loop.GoLive();
-		StreamRequest stream = await loop.NextStreamAsync();
-		await stream.AcceptAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. Frame(VideoPacket.KeyFrame, 0)]);
-		await stream.SendAndWaitAsync(Frame(VideoPacket.InterFrame, 33));
 		loop.Config.IncludeTitleInFileName = false;
 		loop.Time.Advance(TimeSpan.FromSeconds(61));
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 61_000));
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 63_000));
 		await stream.EndAsync();
 
-		await Assert.That(await RecordedFilesAfterTheAttemptAsync(loop)).IsEqualTo("20260101_000000_title.flv, 20260101_000101.flv");
+		await Assert.That(await RecordedFilesAfterTheAttemptAsync(loop)).IsEquivalentTo(["20260101_000000_title.flv", "20260101_000101.flv"], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -110,11 +100,7 @@ public sealed class RoomSplitRecordingTest
 		TaskCompletionSource nextFileWritten = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		int files = 0;
 		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools, path => Interlocked.Increment(ref files) is 1 ? LiveRecorder.CreateRecordingFile(path) : new FirstWriteFile(path, nextFileWritten));
-
-		loop.GoLive();
-		StreamRequest stream = await loop.NextStreamAsync();
-		await stream.AcceptAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. Frame(VideoPacket.KeyFrame, 0)]);
-		await stream.SendAndWaitAsync(Frame(VideoPacket.InterFrame, 33));
+		StreamRequest stream = await StartRecordingAsync(loop);
 		ActiveRecordingDto? first = loop.Snapshot.Recording;
 
 		loop.Time.Advance(TimeSpan.FromSeconds(61));
@@ -129,15 +115,12 @@ public sealed class RoomSplitRecordingTest
 
 		await stream.EndAsync();
 		RemuxInput last = await WaitForRemuxAsync(loop, mediaTools, 2);
-		string[] recorded = Directory.GetFiles(RecordingFileLayout.GetRoomDirectory(loop.Config.RecordDirectory, RecordingLoopHarness.RoomId), "*.flv");
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(first).IsNotNull();
 			await Assert.That(second).IsEqualTo(first);
-			await Assert.That(recorded.Length).IsEqualTo(2);
-			await Assert.That(finished.Source).IsNotEqualTo(last.Source);
-			await Assert.That(recorded.Order(StringComparer.Ordinal).SequenceEqual([finished.Source, last.Source], StringComparer.Ordinal)).IsTrue();
+			await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.flv").Order(StringComparer.Ordinal)).IsEquivalentTo([finished.Source, last.Source], CollectionOrdering.Matching);
 			await Assert.That(Path.GetFileNameWithoutExtension(last.Source)).IsEqualTo("20260101_000101");
 		}
 	}
@@ -150,11 +133,7 @@ public sealed class RoomSplitRecordingTest
 		TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		StuckClosingFile? first = null;
 		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools, path => first is null ? first = new StuckClosingFile(path, release.Task) : LiveRecorder.CreateRecordingFile(path));
-
-		loop.GoLive();
-		StreamRequest stream = await loop.NextStreamAsync();
-		await stream.AcceptAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. Frame(VideoPacket.KeyFrame, 0)]);
-		await stream.SendAndWaitAsync(Frame(VideoPacket.InterFrame, 33));
+		StreamRequest stream = await StartRecordingAsync(loop);
 		loop.Time.Advance(TimeSpan.FromSeconds(61));
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 61_000));
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 63_000));
@@ -168,12 +147,11 @@ public sealed class RoomSplitRecordingTest
 		StuckClosingFile stuck = await Assert.That(first).IsNotNull();
 		await stuck.Closed.WaitAsync(cancellationToken);
 		await Task.Delay(200, cancellationToken);
-		string[] recorded = Directory.GetFiles(RecordingFileLayout.GetRoomDirectory(loop.Config.RecordDirectory, RecordingLoopHarness.RoomId), "*.flv");
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(mediaTools.Remuxes.Count).IsEqualTo(1);
-			await Assert.That(recorded.SequenceEqual([finished.Source], StringComparer.Ordinal)).IsTrue();
+			await Assert.That(mediaTools.Remuxes).Count().IsEqualTo(1);
+			await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.flv")).IsEquivalentTo([finished.Source]);
 			await Assert.That(loop.Snapshot.Recording?.StartedAt).IsEqualTo(startedAt);
 		}
 	}
@@ -182,14 +160,10 @@ public sealed class RoomSplitRecordingTest
 	[Timeout(30_000)]
 	public async Task SplittingTurnedOnWhileRecordingSplitsTheCurrentRecordingAsync(CancellationToken cancellationToken)
 	{
-		RecordingMediaTools mediaTools = new();
-		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools);
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, new RecordingMediaTools());
 		loop.Config.SplitMode = RecordingSplitMode.None;
+		StreamRequest stream = await StartRecordingAsync(loop);
 
-		loop.GoLive();
-		StreamRequest stream = await loop.NextStreamAsync();
-		await stream.AcceptAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. Frame(VideoPacket.KeyFrame, 0)]);
-		await stream.SendAndWaitAsync(Frame(VideoPacket.InterFrame, 33));
 		loop.Config.SplitMode = RecordingSplitMode.Duration;
 		loop.Time.Advance(TimeSpan.FromSeconds(61));
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 61_000));
@@ -197,7 +171,7 @@ public sealed class RoomSplitRecordingTest
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 63_000));
 		await stream.EndAsync();
 
-		await Assert.That(await RecordedFilesAfterTheAttemptAsync(loop)).IsEqualTo("20260101_000000.flv, 20260101_000101.flv");
+		await Assert.That(await RecordedFilesAfterTheAttemptAsync(loop)).IsEquivalentTo(["20260101_000000.flv", "20260101_000101.flv"], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -207,46 +181,41 @@ public sealed class RoomSplitRecordingTest
 		RecordingMediaTools mediaTools = new();
 		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools);
 		loop.Config.ConvertToMp4 = false;
-
-		loop.GoLive();
-		StreamRequest stream = await loop.NextStreamAsync();
-		await stream.AcceptAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. Frame(VideoPacket.KeyFrame, 0)]);
-		await stream.SendAndWaitAsync(Frame(VideoPacket.InterFrame, 33));
+		StreamRequest stream = await StartRecordingAsync(loop);
 		loop.Time.Advance(TimeSpan.FromSeconds(61));
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 61_000));
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 63_000));
 
 		// 新文件建好时旧文件已经按当时的设置交给了后处理
-		await WaitForFilesAsync(loop, 2);
+		await loop.WaitUntilAsync(() => Directory.GetFiles(loop.RoomDirectory, "*.flv").Length >= 2, "2 recordings exist");
 		loop.Config.ConvertToMp4 = true;
 		await stream.EndAsync();
-		RemuxInput converted = await WaitForRemuxAsync(loop, mediaTools, 1);
+		await WaitForRemuxAsync(loop, mediaTools, 1);
 		await Task.Delay(200, cancellationToken);
+		RemuxInput converted = await Assert.That(mediaTools.Remuxes).HasSingleItem();
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(mediaTools.Remuxes.Count).IsEqualTo(1);
-			await Assert.That(Path.GetFileNameWithoutExtension(converted.Source)).IsEqualTo("20260101_000101");
-		}
+		await Assert.That(Path.GetFileNameWithoutExtension(converted.Source)).IsEqualTo("20260101_000101");
+	}
+
+	private static async Task<StreamRequest> StartRecordingAsync(RecordingLoopHarness loop)
+	{
+		loop.GoLive();
+		StreamRequest stream = await loop.NextStreamAsync();
+		await stream.AcceptAsync(Start);
+		await stream.SendAndWaitAsync(Frame(VideoPacket.InterFrame, 33));
+		return stream;
 	}
 
 	// 重连时上一次尝试已经结束；文件都超过后处理的下限，不会被删掉
-	private static async Task<string> RecordedFilesAfterTheAttemptAsync(RecordingLoopHarness loop)
+	private static async Task<string[]> RecordedFilesAfterTheAttemptAsync(RecordingLoopHarness loop)
 	{
 		_ = await loop.NextStreamAsync();
-		string directory = RecordingFileLayout.GetRoomDirectory(loop.Config.RecordDirectory, RecordingLoopHarness.RoomId);
-		return string.Join(", ", Directory.GetFiles(directory, "*.flv").Select(Path.GetFileName).Order(StringComparer.Ordinal));
+		return [.. Directory.GetFiles(loop.RoomDirectory, "*.flv").Select(static path => Path.GetFileName(path)).Order(StringComparer.Ordinal)];
 	}
 
 	private static byte[] Frame(VideoPacket packet, uint timestamp)
 	{
 		return FlvSamples.PaddedVideo(packet, timestamp, FrameSize);
-	}
-
-	private static async Task WaitForFilesAsync(RecordingLoopHarness loop, int count)
-	{
-		string directory = RecordingFileLayout.GetRoomDirectory(loop.Config.RecordDirectory, RecordingLoopHarness.RoomId);
-		await loop.WaitUntilAsync(() => Directory.GetFiles(directory, "*.flv").Length >= count, $"{count} recordings exist");
 	}
 
 	private static async Task<RemuxInput> WaitForRemuxAsync(RecordingLoopHarness loop, RecordingMediaTools mediaTools, int count)

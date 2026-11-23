@@ -41,6 +41,7 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 
 		lock (_lock)
 		{
+			// 不持配置锁也能枚举：房间列表只会整个换掉，见 UpdateConfiguredRoomsAsync
 			foreach (RoomConfig room in config.Rooms.Where(room => Find(room.RoomId) is null))
 			{
 				RoomSession session = sessionFactory.Create(room, Touch);
@@ -86,6 +87,7 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 		{
 			throw new InvalidOperationException(BilibiliErrors.Describe(exception, settings.RoomId), exception);
 		}
+
 		RoomConfig room = (settings with { RoomId = info.RoomId }).ToConfig();
 		RoomSession session;
 
@@ -104,7 +106,7 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 		session.Start();
 		Touch();
 
-		await configManager.UpdateAsync(config => config.Rooms.Add(room), CancellationToken.None);
+		await UpdateConfiguredRoomsAsync(rooms => rooms.Append(room));
 
 		return session.GetSnapshot();
 	}
@@ -173,7 +175,7 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 
 		if (rooms.Count > 0)
 		{
-			await configManager.UpdateAsync(config => config.Rooms.AddRange(rooms), CancellationToken.None);
+			await UpdateConfiguredRoomsAsync(configured => configured.Concat(rooms));
 		}
 
 		return results;
@@ -225,19 +227,7 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 
 		session.UpdateSettings(room);
 
-		await configManager.UpdateAsync
-		(
-			config =>
-			{
-				int index = config.Rooms.FindIndex(existing => existing.RoomId == room.RoomId);
-
-				if (index >= 0)
-				{
-					config.Rooms[index] = room;
-				}
-			},
-			CancellationToken.None
-		);
+		await UpdateConfiguredRoomsAsync(rooms => rooms.Select(existing => existing.RoomId == room.RoomId ? room : existing));
 
 		Touch();
 	}
@@ -256,7 +246,12 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 
 		Touch();
 
-		await configManager.UpdateAsync(config => RoomOrder.MoveBefore(config.Rooms, static room => room.RoomId, moving, before), CancellationToken.None);
+		await UpdateConfiguredRoomsAsync(rooms =>
+		{
+			List<RoomConfig> moved = [.. rooms];
+			RoomOrder.MoveBefore(moved, static room => room.RoomId, moving, before);
+			return moved;
+		});
 	}
 
 	public async Task RemoveAsync(IReadOnlyCollection<long> roomIds, CancellationToken cancellationToken = default)
@@ -274,7 +269,7 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 
 		try
 		{
-			await configManager.UpdateAsync(config => config.Rooms.RemoveAll(room => roomIds.Contains(room.RoomId)), CancellationToken.None);
+			await UpdateConfiguredRoomsAsync(rooms => rooms.Where(room => !roomIds.Contains(room.RoomId)));
 		}
 		finally
 		{
@@ -391,6 +386,13 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 		}
 
 		return resolved;
+	}
+
+	// 配置管理器一直返回同一个配置实例，StartAsync 在配置锁外枚举它的房间列表，所以只能换上新列表，不能在原列表上改
+	// 会话已经改好了，配置不能因为调用方取消而跟它对不上
+	private ValueTask UpdateConfiguredRoomsAsync(Func<IEnumerable<RoomConfig>, IEnumerable<RoomConfig>> change)
+	{
+		return configManager.UpdateAsync(config => config.Rooms = [.. change(config.Rooms)], CancellationToken.None);
 	}
 
 	private void Touch()

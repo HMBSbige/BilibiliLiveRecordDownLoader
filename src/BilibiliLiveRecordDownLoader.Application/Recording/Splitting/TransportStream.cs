@@ -23,6 +23,8 @@ internal static class TransportStream
 	private const byte PmtTableId = 0x02;
 	private const int CrcSize = 4;
 
+	private static ReadOnlySpan<byte> StartCode => [0, 0, 1];
+
 	public static int GetPid(ReadOnlySpan<byte> packet)
 	{
 		return (packet[1] & 0x1F) << 8 | packet[2];
@@ -167,15 +169,14 @@ internal static class TransportStream
 					return true;
 				}
 
-				// PES 头固定 9 字节：起始码和流 ID、长度、两个标志字节、头数据长度
-				if (syntax is not { } nalSyntax || payload.Length < 9 || !payload.StartsWith((ReadOnlySpan<byte>)[0, 0, 1]) || 9 + payload[8] > payload.Length)
+				if (syntax is not { } nalSyntax || GetPesHeaderLength(payload) is not (>= 0 and var headerLength))
 				{
 					return false;
 				}
 
 				scanner = new NalScanner(nalSyntax);
 				started = true;
-				payload = payload.Slice(9 + payload[8]);
+				payload = payload.Slice(headerLength);
 			}
 
 			if (started && scanner.Scan(payload) is { } isRandomAccess)
@@ -205,7 +206,7 @@ internal static class TransportStream
 	{
 		pts = dts = -1;
 
-		if (payload.Length < 9 || !payload.StartsWith((ReadOnlySpan<byte>)[0, 0, 1]) || payload[3] is 0xBC or 0xBE or 0xBF or 0xF0 or 0xF1 or 0xF2 or 0xF8 or 0xFF || (payload[6] & 0xC0) is not 0x80)
+		if (payload.Length < 9 || !payload.StartsWith(StartCode) || payload[3] is 0xBC or 0xBE or 0xBF or 0xF0 or 0xF1 or 0xF2 or 0xF8 or 0xFF || (payload[6] & 0xC0) is not 0x80)
 		{
 			return false;
 		}
@@ -279,7 +280,7 @@ internal static class TransportStream
 	// 不是 PES 头时原样返回
 	public static ReadOnlySpan<byte> SkipPesHeader(ReadOnlySpan<byte> payload)
 	{
-		return payload.Length >= 9 && payload.StartsWith((ReadOnlySpan<byte>)[0, 0, 1]) && 9 + payload[8] <= payload.Length ? payload.Slice(9 + payload[8]) : payload;
+		return GetPesHeaderLength(payload) is var length and >= 0 ? payload.Slice(length) : payload;
 	}
 
 	public static int Append(ReadOnlySpan<byte> source, Span<byte> destination)
@@ -287,6 +288,12 @@ internal static class TransportStream
 		int count = Math.Min(source.Length, destination.Length);
 		source.Slice(0, count).CopyTo(destination);
 		return count;
+	}
+
+	// PES 头固定 9 字节：起始码和流 ID、长度、两个标志字节、头数据长度；不是完整的 PES 头时返回 -1
+	private static int GetPesHeaderLength(ReadOnlySpan<byte> payload)
+	{
+		return payload.Length >= 9 && payload.StartsWith(StartCode) && 9 + payload[8] <= payload.Length ? 9 + payload[8] : -1;
 	}
 
 	private static bool TryGetSection(ReadOnlySpan<byte> packet, byte tableId, out ReadOnlySpan<byte> section)

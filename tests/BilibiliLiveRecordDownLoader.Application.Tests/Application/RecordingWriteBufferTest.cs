@@ -20,16 +20,16 @@ public sealed class RecordingWriteBufferTest
 
 		Task<StreamEndReason> copy = CopyAsync(session, output, progress, DrainTimeout, cancellationToken);
 		await progress.WaitForAsync(session.Length, cancellationToken);
-		(long writtenWhileStalled, bool finishedWhileStalled) = (output.Written.Length, copy.IsCompleted);
+		(int WrittenLength, bool IsFinished) whileStalled = (output.Written.Length, copy.IsCompleted);
 		output.Open();
 		StreamEndReason reason = await copy;
+		byte[] written = output.Written;
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(writtenWhileStalled).IsEqualTo(0);
-			await Assert.That(finishedWhileStalled).IsFalse();
+			await Assert.That(whileStalled).IsEqualTo((0, false));
 			await Assert.That(reason).IsEqualTo(StreamEndReason.EndOfStream);
-			await Assert.That(output.Written.SequenceEqual(session.Data)).IsTrue();
+			await Assert.That((written.Length, written.AsSpan().CommonPrefixLength(session.Data))).IsEqualTo((session.Data.Length, session.Data.Length));
 		}
 	}
 
@@ -48,7 +48,8 @@ public sealed class RecordingWriteBufferTest
 		output.Open();
 
 		await Assert.ThrowsAsync<OperationCanceledException>(() => copy);
-		await Assert.That(output.Written.SequenceEqual(session.Data)).IsTrue();
+		byte[] written = output.Written;
+		await Assert.That((written.Length, written.AsSpan().CommonPrefixLength(session.Data))).IsEqualTo((session.Data.Length, session.Data.Length));
 	}
 
 	[Test]
@@ -75,13 +76,8 @@ public sealed class RecordingWriteBufferTest
 		GatedStream output = new(new IOException("disk full"), new IOException("still full"));
 		output.Open();
 
-		RecordingWriteException? exception = await Assert.ThrowsExactlyAsync<RecordingWriteException>(() => CopyAsync(session, output, new Progress(), DrainTimeout, cancellationToken));
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(exception?.InnerException?.Message).IsEqualTo("disk full");
-			await Assert.That(session.WasCancelled).IsTrue();
-		}
+		await Assert.That(() => CopyAsync(session, output, new Progress(), DrainTimeout, cancellationToken)).Throws<RecordingWriteException>().WithInnerException().WithMessage("disk full");
+		await Assert.That(session.WasCancelled).IsTrue();
 	}
 
 	[Test]
@@ -92,9 +88,7 @@ public sealed class RecordingWriteBufferTest
 		GatedStream output = new(closeFailure: new IOException("disk full"));
 		output.Open();
 
-		RecordingWriteException? exception = await Assert.ThrowsExactlyAsync<RecordingWriteException>(() => CopyAsync(session, output, new Progress(), DrainTimeout, cancellationToken));
-
-		await Assert.That(exception?.InnerException?.Message).IsEqualTo("disk full");
+		await Assert.That(() => CopyAsync(session, output, new Progress(), DrainTimeout, cancellationToken)).Throws<RecordingWriteException>().WithInnerException().WithMessage("disk full");
 	}
 
 	[Test]
@@ -105,13 +99,9 @@ public sealed class RecordingWriteBufferTest
 		GatedStream output = new();
 		output.Open();
 
-		IOException? exception = await Assert.ThrowsExactlyAsync<IOException>(() => CopyAsync(session, output, new Progress(), DrainTimeout, cancellationToken));
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(exception?.Message).IsEqualTo("connection reset");
-			await Assert.That(output.Written.SequenceEqual(session.Data)).IsTrue();
-		}
+		await Assert.That(() => CopyAsync(session, output, new Progress(), DrainTimeout, cancellationToken)).ThrowsExactly<IOException>().WithMessage("connection reset");
+		byte[] written = output.Written;
+		await Assert.That((written.Length, written.AsSpan().CommonPrefixLength(session.Data))).IsEqualTo((session.Data.Length, session.Data.Length));
 	}
 
 	[Test]
@@ -147,8 +137,7 @@ public sealed class RecordingWriteBufferTest
 		await Assert.ThrowsExactlyAsync<RecordingWriteException>(() => copy);
 		output.Open();
 
-		await output.Closed.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
-		await Assert.That(output.Closed.IsCompleted).IsTrue();
+		await Assert.That(output.Closed.WaitAsync(TestWait.DefaultTimeout, cancellationToken)).ThrowsNothing();
 	}
 
 	private static Task<StreamEndReason> CopyAsync(LiveStreamSession session, Stream file, IProgress<long> progress, TimeSpan drainTimeout, CancellationToken cancellationToken)

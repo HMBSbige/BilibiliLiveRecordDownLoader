@@ -26,11 +26,7 @@ public sealed class RoomSessionLoggingTest
 
 		session.Apply(new LiveRoomInfo(RoomId, 0, 1, "streamer", "title", LiveStatus.Idle));
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(logs.Entries.Count).IsEqualTo(2);
-			await Assert.That(logs.Entries.All(static entry => entry.RoomId is RoomId)).IsTrue();
-		}
+		await Assert.That(logs.Entries).Count().IsEqualTo(2).And.All(static entry => entry.RoomId is RoomId);
 	}
 
 	private sealed record CapturedEntry(string Message, object? RoomId);

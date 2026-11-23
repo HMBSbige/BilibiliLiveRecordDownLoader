@@ -1,6 +1,7 @@
 using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -38,6 +39,7 @@ public sealed class FillerRemovalTest
 		}
 
 		byte[] stream = Stream(false);
+		byte[] expected = Stream(true);
 		SplitRecording recording = new();
 
 		await recording.RunAsync(new FlvSplitter(), SplitRecording.Fixed(new RecordingSplit.None(), removeFiller: true), session => session.WriteInChunksAsync(stream, 7), cancellationToken);
@@ -45,8 +47,8 @@ public sealed class FillerRemovalTest
 		using (Assert.Multiple())
 		{
 			// 只剩填充的 tag 不动
-			await Assert.That(recording.Files.Single().SequenceEqual(Stream(true))).IsTrue();
-			await Assert.That(Stream(true).Length).IsLessThan(stream.Length);
+			await Assert.That(recording.Files).IsEquivalentTo((byte[][])[expected], CollectionOrdering.Matching);
+			await Assert.That(expected.Length).IsLessThan(stream.Length);
 		}
 	}
 
@@ -72,7 +74,7 @@ public sealed class FillerRemovalTest
 
 		await recording.RunAsync(new FlvSplitter(), SplitRecording.Fixed(new RecordingSplit.None(), removeFiller: true), session => session.WriteAsync(Stream(false)), cancellationToken);
 
-		await Assert.That(recording.Files.Single().SequenceEqual(Stream(true))).IsTrue();
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[Stream(true)], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -86,8 +88,7 @@ public sealed class FillerRemovalTest
 
 		await recording.RunAsync(new FlvSplitter(), SplitRecording.Fixed(new RecordingSplit.None(), removeFiller: true), session => session.WriteAsync([.. head, .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 0, 4, nals), .. last]), cancellationToken);
 
-		byte[] expected = [.. head, .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 0, 4, [nals[0]])];
-		await Assert.That(recording.Files.Single().SequenceEqual(expected)).IsTrue();
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. head, .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 0, 4, [nals[0]])]], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -119,7 +120,7 @@ public sealed class FillerRemovalTest
 
 		await recording.RunAsync(new FlvSplitter(), SplitRecording.Fixed(new RecordingSplit.None(), removeFiller: true), session => session.WriteAsync(stream), cancellationToken);
 
-		await Assert.That(recording.Files.Single().SequenceEqual(stream)).IsTrue();
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[stream], CollectionOrdering.Matching);
 	}
 
 	// 这些序列头和帧在同一个攒着的单元里，提交时不能用已经看到后面序列头的状态
@@ -148,7 +149,7 @@ public sealed class FillerRemovalTest
 
 		await recording.RunAsync(new FlvSplitter(), SplitRecording.Fixed(OneMinute, removeFiller: true), session => session.WriteAsync(Stream(false)), cancellationToken);
 
-		await Assert.That(recording.Files.Single().SequenceEqual(Stream(true))).IsTrue();
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[Stream(true)], CollectionOrdering.Matching);
 	}
 
 	// 序列头在关闭时就过去了
@@ -170,8 +171,7 @@ public sealed class FillerRemovalTest
 			await session.WriteAsync(FillerSamples.FlvFrame(FlvFillerStyle.Avc, false, 66, 4, nals));
 		}, cancellationToken);
 
-		byte[] expected = [.. head, .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, false, 33, 4, [nals[0]]), .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, false, 66, 4, nals)];
-		await Assert.That(recording.Files.Single().SequenceEqual(expected)).IsTrue();
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. head, .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, false, 33, 4, [nals[0]]), .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, false, 66, 4, nals)]], CollectionOrdering.Matching);
 	}
 
 	// 去掉的字节让写出的位置落后于收到的位置
@@ -195,13 +195,16 @@ public sealed class FillerRemovalTest
 			await session.WriteAsync(lookalike);
 		}, cancellationToken);
 
-		byte[] expected =
+		byte[][] expected =
 		[
-			.. FlvSamples.Header, .. sequence,
-			.. FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 0, 4, [nals[0]]), .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, false, 33, 4, [nals[0]]),
-			.. unrecognized, .. lookalike
+			[.. FlvSamples.Header, .. sequence, .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 0, 4, [nals[0]])],
+			[
+				.. FlvSamples.Header, .. sequence,
+				.. FillerSamples.FlvFrame(FlvFillerStyle.Avc, true, 0, 4, [nals[0]]), .. FillerSamples.FlvFrame(FlvFillerStyle.Avc, false, 33, 4, [nals[0]]),
+				.. unrecognized, .. lookalike
+			]
 		];
-		await Assert.That(recording.Files[1].SequenceEqual(expected)).IsTrue();
+		await Assert.That(recording.Files).IsEquivalentTo(expected, CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -242,8 +245,7 @@ public sealed class FillerRemovalTest
 			await session.SegmentAsync([.. Fragment(secondVideo, false), .. Fragment(thirdVideo, false)]);
 		}, cancellationToken);
 
-		byte[] expected = [.. init, .. styp, .. Fragment(firstVideo, true), .. Fragment(secondVideo, true), .. Fragment(thirdVideo, true)];
-		await Assert.That(recording.Files.Single().SequenceEqual(expected)).IsTrue();
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. init, .. styp, .. Fragment(firstVideo, true), .. Fragment(secondVideo, true), .. Fragment(thirdVideo, true)]], CollectionOrdering.Matching);
 	}
 
 	// 大小为 0 的样本和下一个样本起点相同；样本多于 16 个时排序不稳定，零长样本放在分区中点附近最容易被排到后面
@@ -269,7 +271,7 @@ public sealed class FillerRemovalTest
 			await session.SegmentAsync(Fragment(false));
 		}, cancellationToken);
 
-		await Assert.That(recording.Files.Single().SequenceEqual((byte[])[.. init, .. Fragment(true)])).IsTrue();
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. init, .. Fragment(true)]], CollectionOrdering.Matching);
 	}
 
 	// init 段在关闭时就过去了
@@ -291,8 +293,7 @@ public sealed class FillerRemovalTest
 			await session.SegmentAsync(fragment);
 		}, cancellationToken);
 
-		byte[] expected = [.. init, .. fragment, .. FillerSamples.Fragment([FillerSamples.Sample(4, [nals[0]])], ["aac"u8.ToArray()])];
-		await Assert.That(recording.Files.Single().SequenceEqual(expected)).IsTrue();
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. init, .. fragment, .. FillerSamples.Fragment([FillerSamples.Sample(4, [nals[0]])], ["aac"u8.ToArray()])]], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -311,58 +312,48 @@ public sealed class FillerRemovalTest
 			await session.PartialSegmentAsync(fragment, fragment.Length - 10);
 		}, cancellationToken);
 
-		byte[] expected = [.. init, .. FillerSamples.Fragment([FillerSamples.Sample(4, [nals[0]])], ["aac"u8.ToArray()])];
-		await Assert.That(recording.Files.Single().SequenceEqual(expected)).IsTrue();
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. init, .. FillerSamples.Fragment([FillerSamples.Sample(4, [nals[0]])], ["aac"u8.ToArray()])]], CollectionOrdering.Matching);
 	}
 
-	// sidx 记着分片的字节数，遇到之后这一场都不再去
+	// 后面跟一个能处理的分片，确认原样写的分片不影响后面的解析
 	[Test]
 	[Timeout(10_000)]
-	public async Task Fmp4WithASegmentIndexIsWrittenUnchangedAsync(CancellationToken cancellationToken)
+	[MethodDataSource(nameof(UnchangedFmp4Fragments))]
+	public async Task Fmp4FragmentsThatCannotBeTakenApartAreWrittenUnchangedAsync(byte[] init, byte[] fragment, bool isNextProcessed, CancellationToken cancellationToken)
 	{
-		byte[] sample = FillerSamples.Sample(4, [FillerSamples.Picture(FillerCodec.Avc, true, "k1"), FillerSamples.Filler(FillerCodec.Avc, 50)]);
-		byte[] fragment = FillerSamples.Fragment([sample], ["aac"u8.ToArray()]);
+		byte[][] nals = [FillerSamples.Picture(FillerCodec.Avc, true, "k2"), FillerSamples.Filler(FillerCodec.Avc, 50)];
+		byte[] next = FillerSamples.Fragment([FillerSamples.Sample(4, nals)], ["aac"u8.ToArray()]);
+		byte[] processedNext = isNextProcessed ? FillerSamples.Fragment([FillerSamples.Sample(4, [nals[0]])], ["aac"u8.ToArray()]) : next;
+		SplitRecording recording = new();
 
-		await AssertFmp4UnchangedAsync(FillerSamples.Init(FillerCodec.Avc, 4), [.. Fmp4Samples.Box("sidx", new byte[24]), .. fragment], false, cancellationToken);
+		await recording.RunAsync(new Fmp4HlsSplitter(), SplitRecording.Fixed(new RecordingSplit.None(), removeFiller: true), async session =>
+		{
+			await session.InitAsync(init);
+			await session.SegmentAsync(fragment);
+			await session.SegmentAsync(next);
+		}, cancellationToken);
+
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. init, .. fragment, .. processedNext]], CollectionOrdering.Matching);
 	}
 
-	[Test]
-	[Timeout(10_000)]
-	[Arguments(Fmp4Layout.NotBasedOnMoof)]
-	[Arguments(Fmp4Layout.BaseDataOffset)]
-	[Arguments(Fmp4Layout.VideoDefaultSampleSize)]
-	[Arguments(Fmp4Layout.Encrypted)]
-	[Arguments(Fmp4Layout.MdatSizeZero)]
-	[Arguments(Fmp4Layout.DataOutsideMdat)]
-	[Arguments(Fmp4Layout.OverlappingRuns)]
-	[Arguments(Fmp4Layout.HugeAudioSampleCount)]
-	public async Task Fmp4FragmentsWhoseDataCannotBeLocatedAreWrittenUnchangedAsync(Fmp4Layout layout, CancellationToken cancellationToken)
+	public static IEnumerable<TestDataRow<Func<(byte[] Init, byte[] Fragment, bool IsNextProcessed)>>> UnchangedFmp4Fragments()
 	{
-		byte[] sample = FillerSamples.Sample(4, [FillerSamples.Picture(FillerCodec.Avc, true, "k1"), FillerSamples.Filler(FillerCodec.Avc, 50)]);
-		byte[] init = FillerSamples.Init(FillerCodec.Avc, 4);
-		byte[] fragment = FillerSamples.Fragment([sample, sample], ["aac"u8.ToArray()], layout);
+		// sidx 记着分片的字节数，遇到之后这一场都不再去
+		yield return new(static () => (FillerSamples.Init(FillerCodec.Avc, 4), [.. Fmp4Samples.Box("sidx", new byte[24]), .. FillerSamples.Fragment([Sample()], ["aac"u8.ToArray()])], false), DisplayName: "带 sidx");
 
-		await AssertFmp4UnchangedAsync(init, fragment, true, cancellationToken);
-	}
-
-	[Test]
-	[Timeout(10_000)]
-	public async Task Fmp4SamplesWhoseNalLengthsDoNotAddUpAreWrittenUnchangedAsync(CancellationToken cancellationToken)
-	{
-		byte[] good = FillerSamples.Sample(4, [FillerSamples.Picture(FillerCodec.Avc, true, "k1"), FillerSamples.Filler(FillerCodec.Avc, 50)]);
-		byte[] init = FillerSamples.Init(FillerCodec.Avc, 4);
+		foreach (Fmp4Layout layout in (Fmp4Layout[])[Fmp4Layout.NotBasedOnMoof, Fmp4Layout.BaseDataOffset, Fmp4Layout.VideoDefaultSampleSize, Fmp4Layout.Encrypted, Fmp4Layout.MdatSizeZero, Fmp4Layout.DataOutsideMdat, Fmp4Layout.OverlappingRuns, Fmp4Layout.HugeAudioSampleCount])
+		{
+			yield return new(() => (FillerSamples.Init(FillerCodec.Avc, 4), FillerSamples.Fragment([Sample(), Sample()], ["aac"u8.ToArray()], layout), true), DisplayName: $"分片布局 {layout}");
+		}
 
 		// 一个样本对不上时整个分片都不动
-		await AssertFmp4UnchangedAsync(init, FillerSamples.Fragment([good, [.. good, 0]], ["aac"u8.ToArray()]), true, cancellationToken);
-	}
+		yield return new(static () => (FillerSamples.Init(FillerCodec.Avc, 4), FillerSamples.Fragment([Sample(), [.. Sample(), 0]], ["aac"u8.ToArray()]), true), DisplayName: "NAL 长度加起来和样本大小对不上");
+		yield return new(static () => (FillerSamples.Init(FillerCodec.Avc, 4, "encv"), FillerSamples.Fragment([Sample()], ["aac"u8.ToArray()]), false), DisplayName: "加密的样本描述");
 
-	[Test]
-	[Timeout(10_000)]
-	public async Task Fmp4WithAnEncryptedSampleEntryIsWrittenUnchangedAsync(CancellationToken cancellationToken)
-	{
-		byte[] sample = FillerSamples.Sample(4, [FillerSamples.Picture(FillerCodec.Avc, true, "k1"), FillerSamples.Filler(FillerCodec.Avc, 50)]);
-
-		await AssertFmp4UnchangedAsync(FillerSamples.Init(FillerCodec.Avc, 4, "encv"), FillerSamples.Fragment([sample], ["aac"u8.ToArray()]), false, cancellationToken);
+		static byte[] Sample()
+		{
+			return FillerSamples.Sample(4, [FillerSamples.Picture(FillerCodec.Avc, true, "k1"), FillerSamples.Filler(FillerCodec.Avc, 50)]);
+		}
 	}
 
 	[Test]
@@ -386,8 +377,8 @@ public sealed class FillerRemovalTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(flvRecording.Files.Single().SequenceEqual(flv)).IsTrue();
-			await Assert.That(fmp4Recording.Files.Single().SequenceEqual((byte[])[.. init, .. fragment, .. fragment])).IsTrue();
+			await Assert.That(flvRecording.Files).IsEquivalentTo((byte[][])[flv], CollectionOrdering.Matching);
+			await Assert.That(fmp4Recording.Files).IsEquivalentTo((byte[][])[[.. init, .. fragment, .. fragment]], CollectionOrdering.Matching);
 		}
 	}
 
@@ -402,24 +393,6 @@ public sealed class FillerRemovalTest
 		config.RemoveFillerData = removeFiller;
 
 		await Assert.That(LiveRecorder.GetFillerRemoval(config, codec)).IsEqualTo(expected);
-	}
-
-	// 后面跟一个能处理的分片，确认原样写的分片不影响后面的解析
-	private static async Task AssertFmp4UnchangedAsync(byte[] init, byte[] fragment, bool isNextProcessed, CancellationToken cancellationToken)
-	{
-		byte[][] nals = [FillerSamples.Picture(FillerCodec.Avc, true, "k2"), FillerSamples.Filler(FillerCodec.Avc, 50)];
-		byte[] next = FillerSamples.Fragment([FillerSamples.Sample(4, nals)], ["aac"u8.ToArray()]);
-		byte[] processedNext = isNextProcessed ? FillerSamples.Fragment([FillerSamples.Sample(4, [nals[0]])], ["aac"u8.ToArray()]) : next;
-		SplitRecording recording = new();
-
-		await recording.RunAsync(new Fmp4HlsSplitter(), SplitRecording.Fixed(new RecordingSplit.None(), removeFiller: true), async session =>
-		{
-			await session.InitAsync(init);
-			await session.SegmentAsync(fragment);
-			await session.SegmentAsync(next);
-		}, cancellationToken);
-
-		await Assert.That(recording.Files.Single().SequenceEqual((byte[])[.. init, .. fragment, .. processedNext])).IsTrue();
 	}
 }
 

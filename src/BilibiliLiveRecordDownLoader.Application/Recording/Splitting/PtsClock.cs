@@ -30,18 +30,7 @@ internal struct PtsClock
 	// 和 reference 模 2³³ 同余、相差在半个周期以内的值；reference 是展开过的值
 	public static long Near(long reference, long pts)
 	{
-		long delta = (pts - reference) % Period;
-
-		if (delta < 0)
-		{
-			delta += Period;
-		}
-
-		if (delta >= Period / 2)
-		{
-			delta -= Period;
-		}
-
-		return reference + delta;
+		long delta = pts - reference & Period - 1;
+		return reference + (delta < Period / 2 ? delta : delta - Period);
 	}
 }

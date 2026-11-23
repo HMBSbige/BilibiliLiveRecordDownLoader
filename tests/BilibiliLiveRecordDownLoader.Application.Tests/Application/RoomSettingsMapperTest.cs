@@ -29,11 +29,7 @@ public sealed class RoomSettingsMapperTest
 			StreamIdleTimeout = TimeSpan.FromSeconds(6)
 		};
 
-		RoomSettingsDto roundTripped = settings.ToConfig().ToDto();
-
-		await Assert.That(roundTripped with { CodecPriority = null, FormatPriority = null }).IsEqualTo(settings with { CodecPriority = null, FormatPriority = null });
-		await Assert.That(roundTripped.CodecPriority?.SequenceEqual([StreamCodec.Hevc])).IsTrue();
-		await Assert.That(roundTripped.FormatPriority?.SequenceEqual([StreamFormat.Ts, StreamFormat.Flv])).IsTrue();
+		await Assert.That(settings.ToConfig().ToDto()).IsEquivalentTo(settings);
 	}
 
 	[Test]
@@ -41,7 +37,6 @@ public sealed class RoomSettingsMapperTest
 	{
 		RoomConfig config = new RoomSettingsDto { RoomId = 1, StatusCheckInterval = TimeSpan.Zero, CodecPriority = [] }.ToConfig();
 
-		await Assert.That(config.StatusCheckInterval).IsEqualTo(TimeSpan.FromSeconds(10));
-		await Assert.That(config.CodecPriority).IsNull();
+		await Assert.That((config.StatusCheckInterval, config.CodecPriority)).IsEqualTo((TimeSpan.FromSeconds(10), null));
 	}
 }

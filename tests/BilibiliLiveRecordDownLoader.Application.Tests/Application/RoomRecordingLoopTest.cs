@@ -30,7 +30,7 @@ public sealed class RoomRecordingLoopTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(string.Join(", ", first.Host, second.Host, third.Host)).IsEqualTo("a.test, b.test, c.test");
+			await Assert.That((first.Host, second.Host, third.Host)).IsEqualTo(("a.test", "b.test", "c.test"));
 			await Assert.That(loop.PlayInfoRequests).IsEqualTo(1);
 		}
 	}
@@ -317,7 +317,7 @@ public sealed class RoomRecordingLoopTest
 		{
 			await Assert.That(loop.Snapshot.LastError).IsNull();
 			await Assert.That(loop.Logs.Where(static log => log.Level >= LogLevel.Error)).IsEmpty();
-			await Assert.That(loop.Logs.Any(static log => log.Exception is RecordingWriteException)).IsTrue();
+			await Assert.That(loop.Logs).Contains(static log => log.Exception is RecordingWriteException);
 		}
 	}
 

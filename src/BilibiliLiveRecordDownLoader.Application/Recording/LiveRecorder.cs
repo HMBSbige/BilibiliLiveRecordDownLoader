@@ -27,14 +27,13 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 			}
 		}
 
-		HttpClient httpClient = httpClientFactory.CreateClient(HttpClientNames.BilibiliStream);
 		AppConfig config = await configManager.GetAsync(cancellationToken);
-		(LiveStreamSession session, LiveStreamCandidate candidate, CandidateBatch batch) = await OpenAsync(roomId, streamerUid, httpClient, profile, config, liveSession, cancellationToken);
+		(LiveStreamSession session, LiveStreamCandidate candidate, CandidateBatch batch) = await OpenAsync(roomId, streamerUid, profile, QualityRestrictions.HasCookie(config), liveSession, cancellationToken);
 		Uri endpoint = session.Source;
 
 		try
 		{
-			RecordingStream stream = new(candidate.Format, candidate.Codec, candidate.Qn, QualityRestrictions.Evaluate(candidate, batch.Candidates, profile, batch.HasCookie));
+			RecordingStream stream = new(candidate.Format, candidate.Codec, candidate.Qn, QualityRestrictions.Evaluate(candidate, batch.Candidates, profile, batch.Request.HasCookie));
 			// 换成 FFmpeg 之前取：FFmpeg 拉的是同一条流，数据同样按段到达
 			TimeSpan idleTimeout = GetIdleTimeout(profile.StreamIdleTimeout, session.MaxSilence);
 
@@ -56,8 +55,8 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 				LogQualityRestricted(logger, stream.Quality, restriction.Highest, Explain(restriction));
 			}
 
-			TransferResult result = await RecordToFileAsync(session, candidate, stream, recorderType, path, Reserve, idleTimeout, observer, split, cancellationToken);
-			return new RecordingAttempt(candidate, endpoint, result.ActiveDuration, result.End);
+			(RecordingEnd end, TimeSpan activeDuration) = await RecordToFileAsync(session, candidate, stream, recorderType, path, Reserve, idleTimeout, observer, split, cancellationToken);
+			return new RecordingAttempt(candidate, endpoint, activeDuration, end);
 		}
 		finally
 		{
@@ -69,9 +68,21 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 			await session.DisposeAsync();
 		}
 
+		// 同一秒内重连会得到相同的时间戳，不同格式的文件转封装后又会落到同一个 .mp4
 		string Reserve(DateTimeOffset startTime)
 		{
-			return ReservePath(liveSession, profile.RecordDirectory, roomId, getFileTitle(), candidate.Format, recorderType, startTime);
+			DateTimeOffset localTime = TimeZoneInfo.ConvertTime(startTime, timeProvider.LocalTimeZone);
+			string? title = getFileTitle();
+
+			for (int sequence = 0; ; ++sequence)
+			{
+				string stem = RecordingFileLayout.GetRecordingStem(profile.RecordDirectory, roomId, localTime, title, sequence);
+
+				if (RecordingFileLayout.IsStemAvailable(stem, File.Exists) && liveSession.TryReserveStem(stem))
+				{
+					return RecordingFileLayout.GetRecordingPath(stem, candidate.Format, recorderType);
+				}
+			}
 		}
 	}
 
@@ -104,23 +115,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		}
 	}
 
-	// 同一秒内重连会得到相同的时间戳，不同格式的文件转封装后又会落到同一个 .mp4
-	private string ReservePath(LiveRecordingSession liveSession, string recordDirectory, long roomId, string? title, StreamFormat format, RecorderType recorderType, DateTimeOffset startTime)
-	{
-		startTime = TimeZoneInfo.ConvertTime(startTime, timeProvider.LocalTimeZone);
-
-		for (int sequence = 0; ; ++sequence)
-		{
-			string stem = RecordingFileLayout.GetRecordingStem(recordDirectory, roomId, startTime, title, sequence);
-
-			if (RecordingFileLayout.IsStemAvailable(stem, File.Exists) && liveSession.TryReserveStem(stem))
-			{
-				return RecordingFileLayout.GetRecordingPath(stem, format, recorderType);
-			}
-		}
-	}
-
-	private async Task<(LiveStreamSession Session, LiveStreamCandidate Candidate, CandidateBatch Batch)> OpenAsync(long roomId, long streamerUid, HttpClient httpClient, RecordingProfile profile, AppConfig config, LiveRecordingSession liveSession, CancellationToken cancellationToken)
+	private async Task<(LiveStreamSession Session, LiveStreamCandidate Candidate, CandidateBatch Batch)> OpenAsync(long roomId, long streamerUid, RecordingProfile profile, bool hasCookie, LiveRecordingSession liveSession, CancellationToken cancellationToken)
 	{
 		// FastestResponse 同时打开各个主机，失败回调可能并发
 		Lock failureLock = new();
@@ -128,13 +123,15 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 		// 主播没在推流时 CDN 返回 404；其他状态码和连不上都可能要人处理
 		bool isEveryFailureNotFound = true;
-		CandidateRequest request = CandidateRequest.Create(profile, QualityRestrictions.HasCookie(config));
+		CandidateRequest request = CandidateRequest.Create(profile, hasCookie);
 
 		// 条件变了要重新请求；失败的线路按主机记，仍然有用，不清
 		if (liveSession.Candidates is not { } batch || batch.Request != request)
 		{
 			batch = liveSession.Candidates = await GetCandidatesAsync(roomId, streamerUid, profile, request, cancellationToken);
 		}
+
+		HttpClient httpClient = httpClientFactory.CreateClient(HttpClientNames.BilibiliStream);
 
 		foreach (LiveStreamCandidate candidate in liveSession.GetUntriedCandidates(batch.Candidates))
 		{
@@ -235,7 +232,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		return maxSilence is { } silence && silence + SampleInterval > configured ? silence + SampleInterval : configured;
 	}
 
-	private async Task<TransferResult> RecordToFileAsync(LiveStreamSession session, LiveStreamCandidate candidate, RecordingStream stream, RecorderType recorderType, string path, Func<DateTimeOffset, string> reservePath, TimeSpan idleTimeout, IRecordingObserver observer, SplitControl split, CancellationToken cancellationToken)
+	private async Task<(RecordingEnd End, TimeSpan ActiveDuration)> RecordToFileAsync(LiveStreamSession session, LiveStreamCandidate candidate, RecordingStream stream, RecorderType recorderType, string path, Func<DateTimeOffset, string> reservePath, TimeSpan idleTimeout, IRecordingObserver observer, SplitControl split, CancellationToken cancellationToken)
 	{
 		// 文件由写缓冲关闭
 		Stream file = CreateOnDisk(() => CreateFile(path));
@@ -244,9 +241,12 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		observer.OnRecordingStarted(path, stream, timeline);
 		TransferMeter meter = new();
 		AttemptGate gate = new();
-		RecordingOutput output = CreateOutput(file, path, candidate, recorderType, reservePath, observer, split, gate, timeline);
 
-		return await TransferAsync(CopyAsync, meter.TakePending, idleTimeout, observer, cancellationToken);
+		// 录制中途也可能打开分段，所以不分段时同样按容器解析
+		MediaSplitter splitter = CreateSplitter(candidate, recorderType);
+		SegmentedOutput output = new(file, path, (writer, starts) => new RecordingSegmenter(writer, splitter, split, starts, timeProvider, logger, timeline), OpenNext, completed => gate.TryRun(() => observer.OnSegmentCompleted(completed)));
+
+		return await TransferAsync(CopyAsync, meter, idleTimeout, observer, cancellationToken);
 
 		async Task<StreamEndReason> CopyAsync(CancellationToken ct)
 		{
@@ -261,13 +261,6 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 				timeline.Close();
 			}
 		}
-	}
-
-	// 录制中途也可能打开分段，所以不分段时同样按容器解析
-	private RecordingOutput CreateOutput(Stream file, string path, LiveStreamCandidate candidate, RecorderType recorderType, Func<DateTimeOffset, string> reservePath, IRecordingObserver observer, SplitControl split, AttemptGate gate, RecordingTimeline timeline)
-	{
-		MediaSplitter splitter = CreateSplitter(candidate, recorderType);
-		return new SegmentedOutput(file, path, (writer, starts) => new RecordingSegmenter(writer, splitter, split, starts, timeProvider, logger, timeline), OpenNext, completed => gate.TryRun(() => observer.OnSegmentCompleted(completed)));
 
 		(string Path, Stream File) OpenNext(SegmentStart start)
 		{
@@ -337,12 +330,13 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		};
 	}
 
-	private async Task<TransferResult> TransferAsync(Func<CancellationToken, Task<StreamEndReason>> transfer, Func<long> takeTransferredBytes, TimeSpan idleTimeout, IRecordingObserver observer, CancellationToken cancellationToken)
+	private async Task<(RecordingEnd End, TimeSpan ActiveDuration)> TransferAsync(Func<CancellationToken, Task<StreamEndReason>> transfer, TransferMeter meter, TimeSpan idleTimeout, IRecordingObserver observer, CancellationToken cancellationToken)
 	{
 		using CancellationTokenSource transferCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		Task<TransferStatistics> watchdog = WatchAsync(takeTransferredBytes, idleTimeout, observer, transferCancellation);
+		Task<(bool IsIdle, TimeSpan ActiveDuration)> watchdog = WatchAsync(meter, idleTimeout, observer, transferCancellation);
 		RecordingEnd end;
-		TransferStatistics statistics;
+		bool isIdle;
+		TimeSpan activeDuration;
 
 		try
 		{
@@ -355,14 +349,14 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		finally
 		{
 			await transferCancellation.CancelAsync();
-			statistics = await watchdog;
+			(isIdle, activeDuration) = await watchdog;
 		}
 
 		// 磁盘卡住时网络读取也会停下而触发空闲超时，这时写盘失败才是原因
-		return new TransferResult(statistics.IsIdle && end is not RecordingEnd.WriteFailed ? new RecordingEnd.Idle(idleTimeout) : end, statistics.ActiveDuration);
+		return (isIdle && end is not RecordingEnd.WriteFailed ? new RecordingEnd.Idle(idleTimeout) : end, activeDuration);
 	}
 
-	private async Task<TransferStatistics> WatchAsync(Func<long> takeTransferredBytes, TimeSpan idleTimeout, IRecordingObserver observer, CancellationTokenSource transfer)
+	private async Task<(bool IsIdle, TimeSpan ActiveDuration)> WatchAsync(TransferMeter meter, TimeSpan idleTimeout, IRecordingObserver observer, CancellationTokenSource transfer)
 	{
 		using PeriodicTimer timer = new(SampleInterval, timeProvider);
 		long startTimestamp = timeProvider.GetTimestamp();
@@ -379,7 +373,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 				TimeSpan elapsed = timeProvider.GetElapsedTime(lastTimestamp, timestamp);
 				lastTimestamp = timestamp;
 
-				long bytes = takeTransferredBytes();
+				long bytes = meter.TakePending();
 				observer.OnSpeedChanged(bytes / elapsed.TotalSeconds);
 
 				if (bytes > 0)
@@ -410,15 +404,13 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		}
 
 		// 最后一次采样之后到达的数据
-		if (!isIdle && takeTransferredBytes() > 0)
+		if (!isIdle && meter.TakePending() > 0)
 		{
 			lastDataTimestamp = timeProvider.GetTimestamp();
 		}
 
-		return new TransferStatistics(isIdle, lastDataTimestamp is { } last ? timeProvider.GetElapsedTime(startTimestamp, last) : TimeSpan.Zero);
+		return (isIdle, lastDataTimestamp is { } last ? timeProvider.GetElapsedTime(startTimestamp, last) : TimeSpan.Zero);
 	}
-
-	private readonly record struct TransferStatistics(bool IsIdle, TimeSpan ActiveDuration);
 
 	// 排空超时后写盘端还在后台换文件，尝试结束之后它不能再通知观察者；检查和通知在同一把锁里
 	private sealed class AttemptGate
@@ -461,8 +453,6 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 			}
 		}
 	}
-
-	private readonly record struct TransferResult(RecordingEnd End, TimeSpan ActiveDuration);
 
 	[LoggerMessage(Level = LogLevel.Warning, Message = "FFmpeg is not available, falling back to the built-in recorder")]
 	private static partial void LogFFmpegFallback(ILogger logger);

@@ -3,6 +3,7 @@ using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Collections.Concurrent;
 using System.IO.Pipelines;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -27,12 +28,7 @@ public sealed class TransportStreamSplitterTest
 			await session.WriteInChunksAsync([.. repeated, .. second], 100);
 		}, cancellationToken);
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(recording.Files.Count).IsEqualTo(2);
-			await Assert.That(recording.Files[0].SequenceEqual((byte[])[.. first, .. repeated, .. Inter("p2")])).IsTrue();
-			await Assert.That(recording.Files[1].SequenceEqual((byte[])[.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k2"), .. Inter("p3"), .. Key("k3")])).IsTrue();
-		}
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. first, .. repeated, .. Inter("p2")], [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k2"), .. Inter("p3"), .. Key("k3")]], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -44,7 +40,7 @@ public sealed class TransportStreamSplitterTest
 
 		await recording.RunAsync(new TransportStreamSplitter(), new RecordingSplit.None(), session => session.WriteInChunksAsync(stream, 100), cancellationToken);
 
-		await Assert.That(recording.Files.Single().SequenceEqual(stream)).IsTrue();
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[stream], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -61,7 +57,7 @@ public sealed class TransportStreamSplitterTest
 			await session.WriteAsync([.. TsSamples.Pat(), .. changedPmt, .. Key("k2"), .. Key("k3")]);
 		}, cancellationToken);
 
-		await Assert.That(recording.Files[1].AsSpan(0, 2 * TsSamples.PacketSize).SequenceEqual((byte[])[.. TsSamples.Pat(), .. changedPmt])).IsTrue();
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k1"), .. TsSamples.Pat(), .. changedPmt], [.. TsSamples.Pat(), .. changedPmt, .. Key("k2"), .. Key("k3")]], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -78,7 +74,7 @@ public sealed class TransportStreamSplitterTest
 			await session.WriteAsync(Key("k3"));
 		}, cancellationToken);
 
-		await Assert.That(recording.Files.Count).IsEqualTo(1);
+		await Assert.That(recording.Files).Count().IsEqualTo(1);
 	}
 
 	[Test]
@@ -95,7 +91,7 @@ public sealed class TransportStreamSplitterTest
 			await session.WriteAsync(stream[^TsSamples.PacketSize..]);
 		}, cancellationToken);
 
-		await Assert.That(recording.Files.Single().SequenceEqual(stream)).IsTrue();
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[stream], CollectionOrdering.Matching);
 	}
 
 	// 失去同步之前的关键帧照常改到 0
@@ -113,7 +109,7 @@ public sealed class TransportStreamSplitterTest
 			await session.WriteAsync(lookalike);
 		}, cancellationToken);
 
-		await Assert.That(recording.Files.Single().SequenceEqual((byte[])[.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedVideoFrame(TsSamples.AvcIdr, 0, true), 0x00, .. lookalike])).IsTrue();
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedVideoFrame(TsSamples.AvcIdr, 0, true), 0x00, .. lookalike]], CollectionOrdering.Matching);
 	}
 
 	// 停止录制时 FFmpeg 的输出可能停在一个包中间
@@ -126,7 +122,7 @@ public sealed class TransportStreamSplitterTest
 
 		await recording.RunAsync(new TransportStreamSplitter(), OneMinute, session => session.WriteAsync([.. stream, .. Key("k2").AsSpan(0, 100)]), cancellationToken);
 
-		await Assert.That(recording.Files.Single().SequenceEqual(stream)).IsTrue();
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[stream], CollectionOrdering.Matching);
 	}
 
 	// 失去包同步之后不再知道包的边界
@@ -139,7 +135,7 @@ public sealed class TransportStreamSplitterTest
 
 		await recording.RunAsync(new TransportStreamSplitter(), OneMinute, session => session.WriteAsync(stream), cancellationToken);
 
-		await Assert.That(recording.Files.Single().SequenceEqual(stream)).IsTrue();
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[stream], CollectionOrdering.Matching);
 	}
 
 	[Test]

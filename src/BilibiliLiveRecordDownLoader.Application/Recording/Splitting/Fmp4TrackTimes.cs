@@ -31,7 +31,7 @@ internal sealed class Fmp4TrackTimes(Fmp4Track[] tracks)
 		return [.. _spans];
 	}
 
-	// times 里的 TfdtOffset 换成相对 moof 内容的位置；用解码时间，不看合成时间偏移，只差几帧
+	// times 里每个带 tfdt 的 traf 一条，DecodeTime 是展开过的；用解码时间，不看合成时间偏移，只差几帧
 	public MediaSpan? ReadMovieFragment(ReadOnlySpan<byte> moof, List<TrackFragmentTime> times)
 	{
 		times.Clear();
@@ -41,13 +41,16 @@ internal sealed class Fmp4TrackTimes(Fmp4Track[] tracks)
 
 		while (IsoBmff.TryReadBox(moof, ref offset, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> traf))
 		{
-			if (!type.SequenceEqual("traf"u8) || IsoBmff.ReadTrackFragmentTime(traf, tracks) is not { } time)
+			if (!type.SequenceEqual("traf"u8) || IsoBmff.ReadTrackFragmentTime(traf, offset - traf.Length, tracks) is not { } time)
 			{
 				continue;
 			}
 
-			ulong decodeTime = traf[time.TfdtOffset] is 1 ? time.DecodeTime : Unwrap(time.TrackIndex, (uint)time.DecodeTime);
-			time = time with { DecodeTime = decodeTime, TfdtOffset = offset - traf.Length + time.TfdtOffset };
+			if (moof[time.TfdtOffset] is not 1)
+			{
+				time = time with { DecodeTime = Unwrap(time.TrackIndex, (uint)time.DecodeTime) };
+			}
+
 			times.Add(time);
 			start = Math.Min(start ?? long.MaxValue, time.Track.ToTicks(time.DecodeTime));
 			end = Math.Max(end, time.Track.ToTicks(time.DecodeTime + time.Duration));

@@ -1,10 +1,11 @@
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
 public sealed class BackgroundTaskAppServiceTest
 {
-	private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
+	private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(10);
 
 	[Test]
 	public async Task TasksInSameQueueRunOneAtATimeInOrderAsync()
@@ -38,7 +39,7 @@ public sealed class BackgroundTaskAppServiceTest
 		releaseFirst.SetResult();
 		await WaitForStatusAsync(service, second, BackgroundTaskStatus.Completed);
 
-		await Assert.That(started.SequenceEqual(["first", "second"])).IsTrue();
+		await Assert.That(started).IsEquivalentTo(["first", "second"], CollectionOrdering.Matching);
 		await Assert.That(service.HasActiveTasks).IsFalse();
 	}
 
@@ -63,7 +64,7 @@ public sealed class BackgroundTaskAppServiceTest
 	{
 		BackgroundTaskAppService service = CreateService();
 
-		Guid running = service.Enqueue("running", "q", static (_, cancellationToken) => Task.Delay(System.Threading.Timeout.Infinite, cancellationToken)).Id;
+		Guid running = service.Enqueue("running", "q", static (_, cancellationToken) => Task.Delay(Timeout.Infinite, cancellationToken)).Id;
 		Guid queued = service.Enqueue("queued", "q", static (_, _) => Task.CompletedTask).Id;
 
 		await WaitForStatusAsync(service, running, BackgroundTaskStatus.Running);
@@ -94,35 +95,21 @@ public sealed class BackgroundTaskAppServiceTest
 		await Assert.That(service.HasActiveTasks).IsFalse();
 	}
 
-	[Test]
-	public async Task FailureIsReportedAndDoesNotBlockQueueAsync()
-	{
-		BackgroundTaskAppService service = CreateService();
-
-		Guid failing = service.Enqueue("failing", "q", static (_, _) => throw new InvalidOperationException("boom")).Id;
-		Guid next = service.Enqueue("next", "q", static (_, _) => Task.CompletedTask).Id;
-
-		await WaitForStatusAsync(service, next, BackgroundTaskStatus.Completed);
-		BackgroundTaskSnapshot snapshot = Snapshot(service, failing);
-
-		await Assert.That(snapshot.Status).IsEqualTo(BackgroundTaskStatus.Failed);
-		await Assert.That(snapshot.Message).IsEqualTo("boom");
-	}
-
+	// 失败的任务之后，同一队列里的任务照常执行
 	[Test]
 	public async Task CompletionCarriesTheFinalSnapshotAsync()
 	{
 		BackgroundTaskAppService service = CreateService();
 
-		BackgroundTaskSnapshot failed = await service.Enqueue("failing", "q", static (_, _) => throw new InvalidOperationException("boom")).Completion.WaitAsync(Timeout);
-		BackgroundTaskSnapshot completed = await service.Enqueue("done", "q", static (_, _) => Task.CompletedTask).Completion.WaitAsync(Timeout);
+		BackgroundTaskSnapshot failed = await service.Enqueue("failing", "q", static (_, _) => throw new InvalidOperationException("boom")).Completion.WaitAsync(WaitTimeout);
+		BackgroundTaskSnapshot completed = await service.Enqueue("done", "q", static (_, _) => Task.CompletedTask, "in.flv", "out.mp4").Completion.WaitAsync(WaitTimeout);
 		await service.StopAsync();
-		BackgroundTaskSnapshot canceled = await service.Enqueue("late", "q", static (_, _) => Task.CompletedTask).Completion.WaitAsync(Timeout);
+		BackgroundTaskSnapshot canceled = await service.Enqueue("late", "q", static (_, _) => Task.CompletedTask).Completion.WaitAsync(WaitTimeout);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That((failed.Status, failed.Message)).IsEqualTo((BackgroundTaskStatus.Failed, "boom"));
-			await Assert.That(completed.Status).IsEqualTo(BackgroundTaskStatus.Completed);
+			await Assert.That(completed).IsEqualTo(new BackgroundTaskSnapshot(completed.Id, "done", "in.flv", "out.mp4", BackgroundTaskStatus.Completed, 1, null, null));
 			await Assert.That(canceled.Status).IsEqualTo(BackgroundTaskStatus.Canceled);
 		}
 	}
@@ -141,7 +128,7 @@ public sealed class BackgroundTaskAppServiceTest
 			await release.Task.WaitAsync(cancellationToken);
 		}).Id;
 
-		await reported.Task.WaitAsync(Timeout);
+		await reported.Task.WaitAsync(WaitTimeout);
 		BackgroundTaskSnapshot running = Snapshot(service, id);
 
 		await Assert.That(running.Progress).IsEqualTo(1);
@@ -166,7 +153,7 @@ public sealed class BackgroundTaskAppServiceTest
 
 		service.RemoveFinished();
 
-		await Assert.That(service.GetTasks().Select(static task => task.Id).SequenceEqual([active])).IsTrue();
+		await Assert.That(service.GetTasks().Select(static task => task.Id)).IsEquivalentTo([active], CollectionOrdering.Matching);
 		await Assert.That(service.Version).IsGreaterThan(version);
 
 		release.SetResult();
@@ -184,7 +171,7 @@ public sealed class BackgroundTaskAppServiceTest
 			Task enqueue = Task.Run(() =>
 			{
 				barrier.SignalAndWait();
-				service.Enqueue("task", "q", static (_, cancellationToken) => Task.Delay(System.Threading.Timeout.Infinite, cancellationToken));
+				service.Enqueue("task", "q", static (_, cancellationToken) => Task.Delay(Timeout.Infinite, cancellationToken));
 			});
 			Task stop = Task.Run(async () =>
 			{
@@ -192,7 +179,7 @@ public sealed class BackgroundTaskAppServiceTest
 				await service.StopAsync();
 			});
 
-			await Task.WhenAll(enqueue, stop).WaitAsync(Timeout);
+			await Task.WhenAll(enqueue, stop).WaitAsync(WaitTimeout);
 
 			await Assert.That(service.HasActiveTasks).IsFalse();
 		}
@@ -203,20 +190,15 @@ public sealed class BackgroundTaskAppServiceTest
 	{
 		BackgroundTaskAppService service = CreateService();
 
-		BackgroundTaskSnapshot failed = await service.Enqueue("failing", "q", static (_, _) => throw new InvalidOperationException("boom")).Completion.WaitAsync(Timeout);
+		BackgroundTaskSnapshot failed = await service.Enqueue("failing", "q", static (_, _) => throw new InvalidOperationException("boom")).Completion.WaitAsync(WaitTimeout);
 		List<Guid> completed = [];
 
 		for (int i = 0; i < BackgroundTaskAppService.MaxFinishedEntries + 5; i++)
 		{
-			completed.Add((await service.Enqueue("done", "q", static (_, _) => Task.CompletedTask).Completion.WaitAsync(Timeout)).Id);
+			completed.Add((await service.Enqueue("done", "q", static (_, _) => Task.CompletedTask).Completion.WaitAsync(WaitTimeout)).Id);
 		}
 
-		List<Guid> remaining = [.. service.GetTasks().Select(static task => task.Id)];
-
-		// 加入最后一个任务时它还在排队，结束后要等下次加入才裁剪
-		await Assert.That(remaining.Count).IsEqualTo(BackgroundTaskAppService.MaxFinishedEntries + 1);
-		await Assert.That(remaining[0]).IsEqualTo(failed.Id);
-		await Assert.That(remaining.Skip(1).SequenceEqual(completed.Skip(5))).IsTrue();
+		await Assert.That(service.GetTasks().Select(static task => task.Id)).IsEquivalentTo([failed.Id, .. completed.Skip(5)], CollectionOrdering.Matching).Because("加入最后一个任务时它还在排队，结束后要等下次加入才裁剪");
 	}
 
 	// 线程池上没有同步上下文，任务等的东西如果在取消回调里同步完成，任务的收尾也在取消回调里同步跑完
@@ -227,7 +209,7 @@ public sealed class BackgroundTaskAppServiceTest
 
 		for (int i = 0; i < BackgroundTaskAppService.MaxFinishedEntries; i++)
 		{
-			await service.Enqueue("done", "a", static (_, _) => Task.CompletedTask).Completion.WaitAsync(Timeout);
+			await service.Enqueue("done", "a", static (_, _) => Task.CompletedTask).Completion.WaitAsync(WaitTimeout);
 		}
 
 		TaskCompletionSource[] started = [new(TaskCreationOptions.RunContinuationsAsynchronously), new(TaskCreationOptions.RunContinuationsAsynchronously)];
@@ -239,23 +221,10 @@ public sealed class BackgroundTaskAppServiceTest
 			return canceled.Task;
 		}).Id)];
 
-		await Task.WhenAll(started.Select(static signal => signal.Task)).WaitAsync(Timeout);
-		await Task.Run(service.StopAsync).WaitAsync(Timeout);
+		await Task.WhenAll(started.Select(static signal => signal.Task)).WaitAsync(WaitTimeout);
+		await Task.Run(service.StopAsync).WaitAsync(WaitTimeout);
 
 		await Assert.That(running.Select(id => Status(service, id))).IsEquivalentTo([BackgroundTaskStatus.Canceled, BackgroundTaskStatus.Canceled]);
-	}
-
-	[Test]
-	public async Task SnapshotCarriesSourceAndTargetPathsAsync()
-	{
-		BackgroundTaskAppService service = CreateService();
-
-		Guid id = service.Enqueue("task", "q", static (_, _) => Task.CompletedTask, "in.flv", "out.mp4").Id;
-		await WaitForStatusAsync(service, id, BackgroundTaskStatus.Completed);
-
-		BackgroundTaskSnapshot snapshot = Snapshot(service, id);
-		await Assert.That(snapshot.SourcePath).IsEqualTo("in.flv");
-		await Assert.That(snapshot.TargetPath).IsEqualTo("out.mp4");
 	}
 
 	// 工具页在 UI 线程上排队；退出时 UI 线程在等这些任务，续体投回去就再也不会执行
@@ -269,7 +238,7 @@ public sealed class BackgroundTaskAppServiceTest
 		// 第二个任务要等第一个让出队列
 		(Task<BackgroundTaskSnapshot> first, Task<BackgroundTaskSnapshot> second) = ui.Run(() => (service.Enqueue("first", "q", (_, cancellationToken) => release.Task.WaitAsync(cancellationToken)).Completion, service.Enqueue("second", "q", static (_, _) => Task.CompletedTask).Completion));
 		release.SetResult();
-		BackgroundTaskSnapshot[] finished = await Task.WhenAll(first, second).WaitAsync(Timeout);
+		BackgroundTaskSnapshot[] finished = await Task.WhenAll(first, second).WaitAsync(WaitTimeout);
 
 		using (Assert.Multiple())
 		{
@@ -289,7 +258,7 @@ public sealed class BackgroundTaskAppServiceTest
 		progress.Report(new FFmpegProgress(null, TimeSpan.FromSeconds(50), "half"));
 		progress.Report(new FFmpegProgress(null, TimeSpan.FromSeconds(200), "overflow"));
 
-		await Assert.That(values.SequenceEqual([null, 0.75, 1.0])).IsTrue();
+		await Assert.That(values).IsEquivalentTo((double?[])[null, 0.75, 1], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -304,7 +273,7 @@ public sealed class BackgroundTaskAppServiceTest
 		time.Advance(TimeSpan.FromSeconds(2));
 		progress.Report(new FFmpegProgress(null, TimeSpan.FromSeconds(50), "half"));
 
-		await Assert.That(speeds.SequenceEqual([null, 25.0])).IsTrue();
+		await Assert.That(speeds).IsEquivalentTo((double?[])[null, 25], CollectionOrdering.Matching);
 	}
 
 	private static BackgroundTaskAppService CreateService()
@@ -324,6 +293,6 @@ public sealed class BackgroundTaskAppServiceTest
 
 	private static Task WaitForStatusAsync(BackgroundTaskAppService service, Guid id, BackgroundTaskStatus expected)
 	{
-		return TestWait.UntilAsync(() => Status(service, id) == expected, $"the task is {expected}", CancellationToken.None, Timeout);
+		return TestWait.UntilAsync(() => Status(service, id) == expected, $"the task is {expected}", CancellationToken.None, WaitTimeout);
 	}
 }

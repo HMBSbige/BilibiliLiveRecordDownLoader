@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -35,12 +36,13 @@ public sealed class BilibiliHttpClientsTest
 		HttpClient client = services.GetRequiredService<IHttpClientFactory>().CreateClient(HttpClientNames.BilibiliApi);
 
 		using HttpResponseMessage response = await client.GetAsync("http://api.live.bilibili.com/redirect", cancellationToken);
+		ReceivedRequest request = await Assert.That(server.Requests).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Found);
-			await Assert.That(string.Join(", ", server.Requests.Select(static request => request.Host))).IsEqualTo("api.live.bilibili.com");
-			await Assert.That(server.Requests.Single().Cookie).Contains(LoginCookie);
+			await Assert.That(request.Host).IsEqualTo("api.live.bilibili.com");
+			await Assert.That(request.Cookie).Contains(LoginCookie);
 		}
 	}
 
@@ -57,7 +59,7 @@ public sealed class BilibiliHttpClientsTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
-			await Assert.That(string.Join(", ", server.Requests.Select(static request => $"{request.Host} Cookie={request.Cookie}"))).IsEqualTo("live.bilibili.com Cookie=, cdn.test Cookie=");
+			await Assert.That(server.Requests).IsEquivalentTo([new ReceivedRequest("live.bilibili.com", null), new ReceivedRequest("cdn.test", null)], CollectionOrdering.Matching);
 		}
 	}
 

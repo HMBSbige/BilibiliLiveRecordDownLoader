@@ -2,7 +2,7 @@ namespace BilibiliLiveRecordDownLoader.Application.Rooms;
 
 internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServices services, Action onChanged) : IRecordingObserver, IAsyncDisposable
 {
-	internal static readonly TimeSpan DanmakuCloseTimeout = TimeSpan.FromMinutes(2);
+	private static readonly TimeSpan DanmakuCloseTimeout = TimeSpan.FromMinutes(2);
 
 	private readonly Lock _lock = new();
 	private readonly CancellationTokenSource _lifetime = new();
@@ -295,8 +295,9 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 			{
 				await foreach (DanmuMessage message in services.ReceiveDanmu(RoomId, Danmaku.Options, cancellationToken))
 				{
-					// 认证后马上就有这两条，算作收到会让认证后立刻断开的连接一直不退避
-					if (message is not (DanmuMessage.Connected or DanmuMessage.LoginNotice))
+					// 认证后马上就有连接成功和未登录通知，算作收到会让认证后立刻断开的连接一直不退避
+					// 原始消息只是存档用的副本，未登录通知也有一份；只看解析出的消息，存不存原始消息退避都一样
+					if (message is not (DanmuMessage.Connected or DanmuMessage.LoginNotice or DanmuMessage.Raw))
 					{
 						backoff.OnReceived();
 					}

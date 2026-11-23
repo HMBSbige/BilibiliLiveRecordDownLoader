@@ -15,7 +15,7 @@ public sealed class FFmpegStreamSessionTest
 		CapturingStream destination = new(written => written is "ready" ? stop.CancelAsync() : Task.CompletedTask);
 		FFmpegStreamSession session = new(new FFmpegRunner(Executable), QuitEchoingArguments(), Source);
 
-		await Assert.That(async () => await session.CopyToAsync(destination, null, stop.Token)).Throws<OperationCanceledException>();
+		await Assert.That(() => session.CopyToAsync(destination, null, stop.Token)).Throws<OperationCanceledException>();
 
 		await Assert.That(destination.Text).IsEqualTo("ready|stdin=q");
 	}
@@ -37,7 +37,7 @@ public sealed class FFmpegStreamSessionTest
 		await writeStarted.Task.WaitAsync(cancellationToken);
 		await stop.CancelAsync();
 
-		await Assert.That(async () => await copy.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken)).Throws<OperationCanceledException>();
+		await Assert.That(() => copy.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken)).Throws<OperationCanceledException>();
 	}
 
 	private static string Executable => OperatingSystem.IsWindows() ? "powershell.exe" : "/bin/sh";

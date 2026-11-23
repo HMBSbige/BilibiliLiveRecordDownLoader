@@ -5,15 +5,13 @@ internal sealed class ProgramTables
 {
 	private byte[]? _pat;
 	private byte[]? _pmt;
-
-	public int PmtPid { get; private set; } = -1;
+	private int _pmtPid = -1;
+	private TransportVideoCodec _videoCodec;
 
 	// 读到 PMT 之前为 -1，节目里没有视频时也是 -1
 	public int VideoPid { get; private set; } = -1;
 
-	public TransportVideoCodec VideoCodec { get; private set; }
-
-	public NalSyntax? VideoSyntax => VideoCodec switch
+	public NalSyntax? VideoSyntax => _videoCodec switch
 	{
 		TransportVideoCodec.Avc => NalSyntax.Avc,
 		TransportVideoCodec.Hevc => NalSyntax.Hevc,
@@ -46,9 +44,9 @@ internal sealed class ProgramTables
 		{
 			if (TransportStream.IsPayloadStart(packet) && TransportStream.ReadPmtPid(packet) is var pmtPid and >= 0)
 			{
-				if (pmtPid != PmtPid)
+				if (pmtPid != _pmtPid)
 				{
-					PmtPid = pmtPid;
+					_pmtPid = pmtPid;
 					_pmt = null;
 				}
 
@@ -58,14 +56,14 @@ internal sealed class ProgramTables
 			return true;
 		}
 
-		if (pid != PmtPid)
+		if (pid != _pmtPid)
 		{
 			return false;
 		}
 
 		if (TransportStream.IsPayloadStart(packet) && TransportStream.TryReadVideoStream(packet, out int videoPid, out TransportVideoCodec codec))
 		{
-			(VideoPid, VideoCodec) = (videoPid, codec);
+			(VideoPid, _videoCodec) = (videoPid, codec);
 			Store(ref _pmt, packet);
 		}
 

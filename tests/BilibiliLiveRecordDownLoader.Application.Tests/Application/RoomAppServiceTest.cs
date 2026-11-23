@@ -21,8 +21,9 @@ public sealed class RoomAppServiceTest
 	private const long SecondRoomId = 5440;
 	private const long ThirdRoomId = 21452505;
 	private const long FourthRoomId = 7777;
+	private const long FifthRoomId = 8888;
 
-	private static readonly (long RoomId, long ShortId, string UserName)[] KnownRooms = [(FirstRoomId, 732, "Asaki大人"), (SecondRoomId, 1, "官方"), (ExistingRoomId, 0, "已有"), (ThirdRoomId, 0, "第三"), (FourthRoomId, 0, "第四")];
+	private static readonly (long RoomId, long ShortId, string UserName)[] KnownRooms = [(FirstRoomId, 732, "Asaki大人"), (SecondRoomId, 1, "官方"), (ExistingRoomId, 0, "已有"), (ThirdRoomId, 0, "第三"), (FourthRoomId, 0, "第四"), (FifthRoomId, 0, "第五")];
 
 	[Test]
 	[Timeout(30_000)]
@@ -34,13 +35,19 @@ public sealed class RoomAppServiceTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(results[0] is RoomAddResult.Added { RequestedRoomId: 732, Room: { RoomId: 6154037, ShortId: 732, UserName: "Asaki大人" } }).IsTrue();
+			await Assert.That(results[0]).IsTypeOf<RoomAddResult.Added>()
+				.And.Member(static added => added.RequestedRoomId, static id => id.IsEqualTo(732))
+				.And.Member(static added => added.Room.RoomId, static id => id.IsEqualTo(6154037))
+				.And.Member(static added => added.Room.ShortId, static id => id.IsEqualTo(732))
+				.And.Member(static added => added.Room.UserName, static name => name.IsEqualTo("Asaki大人"));
 			await Assert.That(results[1]).IsEqualTo(new RoomAddResult.Skipped(ExistingRoomId, ExistingRoomId));
 			await Assert.That(results[2]).IsEqualTo(new RoomAddResult.Skipped(6154037, 6154037));
-			await Assert.That(results[3] is RoomAddResult.Added { RequestedRoomId: 1, Room.RoomId: 5440 }).IsTrue();
+			await Assert.That(results[3]).IsTypeOf<RoomAddResult.Added>()
+				.And.Member(static added => added.RequestedRoomId, static id => id.IsEqualTo(1))
+				.And.Member(static added => added.Room.RoomId, static id => id.IsEqualTo(5440));
 			await Assert.That(harness.Config.UpdateCount).IsEqualTo(1);
-			await Assert.That(harness.ConfiguredRoomIds).IsEquivalentTo([ExistingRoomId, 6154037, 5440], EqualityComparer<long>.Default, CollectionOrdering.Matching);
-			await Assert.That(harness.Rooms.GetRooms().Select(static room => room.RoomId).ToArray()).IsEquivalentTo([ExistingRoomId, 6154037, 5440], EqualityComparer<long>.Default, CollectionOrdering.Matching);
+			await Assert.That(harness.ConfiguredRoomIds).IsEquivalentTo([ExistingRoomId, 6154037, 5440], CollectionOrdering.Matching);
+			await Assert.That(harness.Rooms.GetRooms().Select(static room => room.RoomId)).IsEquivalentTo([ExistingRoomId, 6154037, 5440], CollectionOrdering.Matching);
 			await Assert.That(harness.RoomInfoQueries).Contains("732,6154037,1");
 			await Assert.That(harness.RoomInfoQueries).DoesNotContain("732");
 			await Assert.That(harness.RoomInfoQueries).DoesNotContain("1");
@@ -58,10 +65,10 @@ public sealed class RoomAppServiceTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(results[0]).IsEqualTo(new RoomAddResult.Failed(404404, AppLanguage.Current.RoomNotFound.ToString(404404)));
-			await Assert.That(results[1] is RoomAddResult.Failed { RequestedRoomId: 0 }).IsTrue();
-			await Assert.That(results[2] is RoomAddResult.Added { RequestedRoomId: 5440 }).IsTrue();
+			await Assert.That(results[1]).IsEqualTo(new RoomAddResult.Failed(0, AppLanguage.Current.InvalidRoomId));
+			await Assert.That(results[2]).IsTypeOf<RoomAddResult.Added>().And.Member(static added => added.RequestedRoomId, static id => id.IsEqualTo(5440));
 			await Assert.That(harness.Config.UpdateCount).IsEqualTo(1);
-			await Assert.That(harness.ConfiguredRoomIds).IsEquivalentTo([ExistingRoomId, 5440], EqualityComparer<long>.Default, CollectionOrdering.Matching);
+			await Assert.That(harness.ConfiguredRoomIds).IsEquivalentTo([ExistingRoomId, 5440], CollectionOrdering.Matching);
 			// 批量查询结果里缺少的房间再单独确认一次
 			await Assert.That(harness.RoomInfoQueries).Contains("404404");
 		}
@@ -77,8 +84,8 @@ public sealed class RoomAppServiceTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(results.All(static result => result is RoomAddResult.Added)).IsTrue();
-			await Assert.That(harness.ConfiguredRoomIds).IsEquivalentTo([ExistingRoomId, 6154037, 5440], EqualityComparer<long>.Default, CollectionOrdering.Matching);
+			await Assert.That(results).All(static result => result is RoomAddResult.Added);
+			await Assert.That(harness.ConfiguredRoomIds).IsEquivalentTo([ExistingRoomId, 6154037, 5440], CollectionOrdering.Matching);
 		}
 	}
 
@@ -93,10 +100,10 @@ public sealed class RoomAppServiceTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(results.All(static result => result is RoomAddResult.Failed { Error: var error } && error == AppLanguage.Current.RequestRateLimited)).IsTrue();
+			await Assert.That(results).IsEquivalentTo([new RoomAddResult.Failed(732, AppLanguage.Current.RequestRateLimited), new RoomAddResult.Failed(1, AppLanguage.Current.RequestRateLimited)], EqualityComparer<RoomAddResult>.Default, CollectionOrdering.Matching);
 			await Assert.That(harness.Config.UpdateCount).IsEqualTo(0);
-			await Assert.That(harness.Rooms.GetRooms().Count).IsEqualTo(1);
-			await Assert.That(harness.RoomInfoQueries).IsEquivalentTo(["732,1"], EqualityComparer<string>.Default, CollectionOrdering.Matching);
+			await Assert.That(harness.Rooms.GetRooms()).HasSingleItem();
+			await Assert.That(harness.RoomInfoQueries).IsEquivalentTo(["732,1"], CollectionOrdering.Matching);
 		}
 	}
 
@@ -109,7 +116,7 @@ public sealed class RoomAppServiceTest
 
 		IReadOnlyList<RoomAddResult> results = await harness.Rooms.AddRangeAsync([Room(732), Room(1)], cancellationToken);
 
-		await Assert.That(results.All(static result => result is RoomAddResult.Failed { Error: var error } && error == AppLanguage.Current.RequestTimedOut)).IsTrue();
+		await Assert.That(results).IsEquivalentTo([new RoomAddResult.Failed(732, AppLanguage.Current.RequestTimedOut), new RoomAddResult.Failed(1, AppLanguage.Current.RequestTimedOut)], EqualityComparer<RoomAddResult>.Default, CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -120,12 +127,7 @@ public sealed class RoomAppServiceTest
 		await harness.Rooms.AddRangeAsync([Room(6154037)], cancellationToken);
 		harness.Handler.Following = """{"code":0,"data":{"totalPage":1,"list":[{"roomid":732,"uname":"Asaki大人","live_status":1},{"roomid":22907643,"uname":"已有"},{"roomid":5440,"uname":"官方","title":"t"}]}}""";
 
-		List<FollowedRoomDto> rooms = [];
-
-		await foreach (FollowedRoomDto room in harness.Rooms.GetFollowedRoomsAsync(cancellationToken))
-		{
-			rooms.Add(room);
-		}
+		List<FollowedRoomDto> rooms = await harness.Rooms.GetFollowedRoomsAsync(cancellationToken).ToListAsync(cancellationToken);
 
 		FollowedRoomDto[] expected =
 		[
@@ -134,7 +136,7 @@ public sealed class RoomAppServiceTest
 			new(5440, "官方", "t", LiveStatus.Idle, false)
 		];
 
-		await Assert.That(rooms).IsEquivalentTo(expected, EqualityComparer<FollowedRoomDto>.Default, CollectionOrdering.Matching);
+		await Assert.That(rooms).IsEquivalentTo(expected, CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -154,9 +156,7 @@ public sealed class RoomAppServiceTest
 		await using Harness harness = await Harness.CreateAsync();
 		harness.Handler.FollowingStatus = HttpStatusCode.PreconditionFailed;
 
-		InvalidOperationException? exception = await Assert.ThrowsAsync<InvalidOperationException>(async () => await harness.Rooms.GetFollowedRoomsAsync(cancellationToken).ToListAsync(cancellationToken));
-
-		await Assert.That(exception?.Message).IsEqualTo(AppLanguage.Current.RequestRateLimited);
+		await Assert.ThrowsAsync<InvalidOperationException>(async () => await harness.Rooms.GetFollowedRoomsAsync(cancellationToken).ToListAsync(cancellationToken)).WithMessage(AppLanguage.Current.RequestRateLimited);
 	}
 
 	[Test]
@@ -166,9 +166,7 @@ public sealed class RoomAppServiceTest
 		await using Harness harness = await Harness.CreateAsync();
 		harness.Handler.TimesOut = true;
 
-		TimeoutException? exception = await Assert.ThrowsAsync<TimeoutException>(async () => await harness.Rooms.GetFollowedRoomsAsync(cancellationToken).ToListAsync(cancellationToken));
-
-		await Assert.That(exception?.Message).IsEqualTo(AppLanguage.Current.RequestTimedOut);
+		await Assert.ThrowsAsync<TimeoutException>(async () => await harness.Rooms.GetFollowedRoomsAsync(cancellationToken).ToListAsync(cancellationToken)).WithMessage(AppLanguage.Current.RequestTimedOut);
 	}
 
 	[Test]
@@ -177,11 +175,9 @@ public sealed class RoomAppServiceTest
 	{
 		await using Harness harness = await Harness.CreateAsync();
 
-		InvalidOperationException? exception = await Assert.ThrowsAsync<InvalidOperationException>(async () => await harness.Rooms.AddAsync(Room(404404), cancellationToken));
-
 		using (Assert.Multiple())
 		{
-			await Assert.That(exception?.Message).IsEqualTo(AppLanguage.Current.RoomNotFound.ToString(404404));
+			await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Rooms.AddAsync(Room(404404), cancellationToken)).WithMessage(AppLanguage.Current.RoomNotFound.ToString(404404));
 			await Assert.That(harness.Config.UpdateCount).IsEqualTo(0);
 		}
 	}
@@ -193,9 +189,7 @@ public sealed class RoomAppServiceTest
 		await using Harness harness = await Harness.CreateAsync();
 		harness.Handler.RoomInfoStatus = HttpStatusCode.PreconditionFailed;
 
-		InvalidOperationException? exception = await Assert.ThrowsAsync<InvalidOperationException>(async () => await harness.Rooms.AddAsync(Room(732), cancellationToken));
-
-		await Assert.That(exception?.Message).IsEqualTo(AppLanguage.Current.RequestRateLimited);
+		await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Rooms.AddAsync(Room(732), cancellationToken)).WithMessage(AppLanguage.Current.RequestRateLimited);
 	}
 
 	[Test]
@@ -205,11 +199,9 @@ public sealed class RoomAppServiceTest
 		await using Harness harness = await Harness.CreateAsync();
 		harness.Handler.TimesOut = true;
 
-		TimeoutException? exception = await Assert.ThrowsAsync<TimeoutException>(async () => await harness.Rooms.AddAsync(Room(732), cancellationToken));
-
 		using (Assert.Multiple())
 		{
-			await Assert.That(exception?.Message).IsEqualTo(AppLanguage.Current.RequestTimedOut);
+			await Assert.ThrowsAsync<TimeoutException>(() => harness.Rooms.AddAsync(Room(732), cancellationToken)).WithMessage(AppLanguage.Current.RequestTimedOut);
 			await Assert.That(harness.Config.UpdateCount).IsEqualTo(0);
 		}
 	}
@@ -242,6 +234,40 @@ public sealed class RoomAppServiceTest
 		}
 	}
 
+	// 启动时在配置锁外枚举房间列表，这时界面上可能正在增删改房间
+	[Test]
+	[Timeout(30_000)]
+	[MethodDataSource(nameof(RoomListChanges))]
+	public async Task RoomChangesReplaceTheRoomListInsteadOfChangingItAsync(Func<IRoomAppService, CancellationToken, Task> change, RoomSettingsDto[] expected, CancellationToken cancellationToken)
+	{
+		await using Harness harness = await Harness.CreateWithRoomsAsync(cancellationToken);
+		List<RoomConfig> listed = harness.AppConfig.Rooms;
+		RoomConfig[] original = [.. listed];
+
+		await change(harness.Rooms, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(listed).IsEquivalentTo(original, ReferenceEqualityComparer.Instance, CollectionOrdering.Matching);
+			await Assert.That(harness.AppConfig.Rooms.Select(static room => room.ToDto())).IsEquivalentTo(expected, CollectionOrdering.Matching);
+		}
+	}
+
+	public static IEnumerable<TestDataRow<Func<(Func<IRoomAppService, CancellationToken, Task> Change, RoomSettingsDto[] Expected)>>> RoomListChanges()
+	{
+		// 初始顺序：已有、第一、第二、第三、第四
+		yield return new(static () => (static (rooms, cancellationToken) => rooms.AddAsync(Room(FifthRoomId), cancellationToken), Rooms(ExistingRoomId, FirstRoomId, SecondRoomId, ThirdRoomId, FourthRoomId, FifthRoomId)), DisplayName: "Add");
+		yield return new(static () => (static (rooms, cancellationToken) => rooms.AddRangeAsync([Room(FifthRoomId)], cancellationToken), Rooms(ExistingRoomId, FirstRoomId, SecondRoomId, ThirdRoomId, FourthRoomId, FifthRoomId)), DisplayName: "AddRange");
+		yield return new(static () => (static (rooms, cancellationToken) => rooms.UpdateAsync(Room(FirstRoomId) with { IsRecordingEnabled = false }, cancellationToken), [Room(ExistingRoomId), Room(FirstRoomId) with { IsRecordingEnabled = false }, Room(SecondRoomId), Room(ThirdRoomId), Room(FourthRoomId)]), DisplayName: "Update");
+		yield return new(static () => (static (rooms, cancellationToken) => rooms.MoveAsync([FourthRoomId], ExistingRoomId, cancellationToken), Rooms(FourthRoomId, ExistingRoomId, FirstRoomId, SecondRoomId, ThirdRoomId)), DisplayName: "Move");
+		yield return new(static () => (static (rooms, cancellationToken) => rooms.RemoveAsync([FirstRoomId], cancellationToken), Rooms(ExistingRoomId, SecondRoomId, ThirdRoomId, FourthRoomId)), DisplayName: "Remove");
+
+		static RoomSettingsDto[] Rooms(params long[] roomIds)
+		{
+			return [.. roomIds.Select(Room)];
+		}
+	}
+
 	[Test]
 	[Timeout(30_000)]
 	[MethodDataSource(nameof(MoveCases))]
@@ -254,8 +280,8 @@ public sealed class RoomAppServiceTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(harness.Rooms.GetRooms().Select(static room => room.RoomId).ToArray()).IsEquivalentTo(expected, EqualityComparer<long>.Default, CollectionOrdering.Matching);
-			await Assert.That(harness.ConfiguredRoomIds).IsEquivalentTo(expected, EqualityComparer<long>.Default, CollectionOrdering.Matching);
+			await Assert.That(harness.Rooms.GetRooms().Select(static room => room.RoomId)).IsEquivalentTo(expected, CollectionOrdering.Matching);
+			await Assert.That(harness.ConfiguredRoomIds).IsEquivalentTo(expected, CollectionOrdering.Matching);
 			await Assert.That(harness.Config.UpdateCount).IsEqualTo(updates + 1);
 			await Assert.That(harness.Rooms.Version).IsGreaterThan(version);
 		}
@@ -285,8 +311,8 @@ public sealed class RoomAppServiceTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(harness.Rooms.GetRooms().Select(static room => room.RoomId).ToArray()).IsEquivalentTo(original, EqualityComparer<long>.Default, CollectionOrdering.Matching);
-			await Assert.That(harness.ConfiguredRoomIds).IsEquivalentTo(original, EqualityComparer<long>.Default, CollectionOrdering.Matching);
+			await Assert.That(harness.Rooms.GetRooms().Select(static room => room.RoomId)).IsEquivalentTo(original, CollectionOrdering.Matching);
+			await Assert.That(harness.ConfiguredRoomIds).IsEquivalentTo(original, CollectionOrdering.Matching);
 			await Assert.That(harness.Config.UpdateCount).IsEqualTo(updates);
 		}
 	}
@@ -310,16 +336,17 @@ public sealed class RoomAppServiceTest
 	private sealed class Harness : IAsyncDisposable
 	{
 		private readonly ServiceProvider _services;
-		private readonly AppConfig _config;
 
 		private Harness(ServiceProvider services, AppConfig config, FakeConfigManager configManager, FakeBilibiliHandler handler)
 		{
 			_services = services;
-			_config = config;
+			AppConfig = config;
 			Config = configManager;
 			Handler = handler;
 			Rooms = services.GetRequiredService<RoomAppService>();
 		}
+
+		public AppConfig AppConfig { get; }
 
 		public FakeConfigManager Config { get; }
 
@@ -327,7 +354,7 @@ public sealed class RoomAppServiceTest
 
 		public RoomAppService Rooms { get; }
 
-		public long[] ConfiguredRoomIds => [.. _config.Rooms.Select(static room => room.RoomId)];
+		public long[] ConfiguredRoomIds => [.. AppConfig.Rooms.Select(static room => room.RoomId)];
 
 		public string[] RoomInfoQueries => [.. Handler.RoomInfoQueries];
 

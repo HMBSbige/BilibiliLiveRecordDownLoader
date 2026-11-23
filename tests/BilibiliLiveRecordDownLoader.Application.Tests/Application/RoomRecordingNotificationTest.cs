@@ -202,7 +202,7 @@ public sealed class RoomRecordingNotificationTest
 			await Assert.That(first.Title).Contains("streamer");
 			await Assert.That(first.Message).Contains("disk full");
 			await Assert.That(first.Type).IsEqualTo(AppNotificationType.Error);
-			await Assert.That(loop.Notifications.Shown.Count).IsEqualTo(2);
+			await Assert.That(loop.Notifications.Shown).Count().IsEqualTo(2);
 		}
 	}
 
@@ -320,14 +320,10 @@ public sealed class RoomRecordingNotificationTest
 		await loop.WaitUntilAsync(_ => loop.PlayInfoRequests > requested);
 	}
 
-	private static Task<(StreamRequest Next, TimeSpan Quiet, TimeSpan Notified)> FailUntilNotifiedAsync(RecordingLoopHarness loop, StreamRequest next, int count)
-	{
-		return FailUntilNotifiedAsync(loop, next, count, FailEveryStreamAsync);
-	}
-
 	// 下一次拉流开始时上一轮的失败已经处理完；返回最后一轮没有提醒和出现提醒的那一轮距开始的时长
-	private static async Task<(StreamRequest Next, TimeSpan Quiet, TimeSpan Notified)> FailUntilNotifiedAsync(RecordingLoopHarness loop, StreamRequest next, int count, Func<RecordingLoopHarness, StreamRequest, Task> failRound)
+	private static async Task<(StreamRequest Next, TimeSpan Quiet, TimeSpan Notified)> FailUntilNotifiedAsync(RecordingLoopHarness loop, StreamRequest next, int count, Func<RecordingLoopHarness, StreamRequest, Task>? failRound = null)
 	{
+		failRound ??= FailEveryStreamAsync;
 		DateTimeOffset start = loop.Time.GetUtcNow();
 		TimeSpan quiet = TimeSpan.Zero;
 

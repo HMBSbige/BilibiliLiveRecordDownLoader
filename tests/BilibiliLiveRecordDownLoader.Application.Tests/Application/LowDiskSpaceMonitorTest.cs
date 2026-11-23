@@ -2,7 +2,6 @@ using BilibiliLiveRecordDownLoader.Application.Contracts.Storage;
 using BilibiliLiveRecordDownLoader.Application.Storage;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Time.Testing;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -28,8 +27,8 @@ public sealed class LowDiskSpaceMonitorTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(notifications.Shown.Count).IsEqualTo(2);
-			await Assert.That(notifications.Shown.All(static shown => shown.Type is AppNotificationType.Warning)).IsTrue();
+			await Assert.That(notifications.Shown).Count().IsEqualTo(2);
+			await Assert.That(notifications.Shown).All(static shown => shown.Type is AppNotificationType.Warning);
 		}
 	}
 

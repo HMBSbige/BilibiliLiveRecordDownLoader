@@ -21,7 +21,6 @@ internal static class FillerNalUnits
 	public static int Measure(ReadOnlySpan<byte> sample, int lengthSize, NalSyntax syntax)
 	{
 		int kept = 0;
-		bool hasKept = false;
 
 		for (int offset = 0; offset < sample.Length;)
 		{
@@ -40,13 +39,12 @@ internal static class FillerNalUnits
 			if (!IsFiller(sample.Slice(offset, (int)unitLength), lengthSize, syntax))
 			{
 				kept += (int)unitLength;
-				hasKept = true;
 			}
 
 			offset += (int)unitLength;
 		}
 
-		return hasKept ? kept : sample.Length;
+		return kept > 0 ? kept : sample.Length;
 	}
 
 	// keptLength 是 Measure 的结果；destination 不能在 source 之后，否则写出会覆盖还没读的数据

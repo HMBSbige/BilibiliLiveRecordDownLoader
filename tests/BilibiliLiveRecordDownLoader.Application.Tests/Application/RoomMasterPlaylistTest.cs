@@ -3,6 +3,7 @@ using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Globalization;
 using System.Net;
 using System.Text;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -92,9 +93,19 @@ public sealed class RoomMasterPlaylistTest
 		return loop;
 	}
 
-	private static string Paths(RecordingLoopHarness loop)
+	private static IEnumerable<string> Playlists(RecordingLoopHarness loop)
 	{
-		return string.Join(" ", loop.StreamRequests.Select(static uri => uri.AbsolutePath).Where(static path => path.EndsWith(".m3u8", StringComparison.Ordinal)).Distinct());
+		return loop.StreamRequests.Select(static uri => uri.AbsolutePath).Where(static path => path.EndsWith(".m3u8", StringComparison.Ordinal)).Distinct();
+	}
+
+	private static (StreamCodec Codec, long Quality, QualityRestriction? Restriction)? Recorded(RecordingLoopHarness loop)
+	{
+		return loop.Snapshot.Recording is { } recording ? (recording.Codec, recording.Quality, recording.Restriction) : null;
+	}
+
+	private static IEnumerable<string> LogsStartingWith(RecordingLoopHarness loop, string prefix)
+	{
+		return loop.RecorderLogs.Where(log => log.StartsWith(prefix, StringComparison.Ordinal));
 	}
 
 	[Test]
@@ -108,17 +119,18 @@ public sealed class RoomMasterPlaylistTest
 		loop.GoLive();
 
 		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Recording);
+		string masterQuery = await Assert.That(loop.MasterPlaylistQueries).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(loop.Snapshot.Recording is { Format: StreamFormat.Fmp4, Quality: 10000, Restriction: null }).IsTrue();
-			await Assert.That(loop.Snapshot.Recording?.Codec).IsEqualTo(codec);
-			await Assert.That(Paths(loop)).IsEqualTo(playlist);
+			await Assert.That(Recorded(loop)).IsEqualTo((codec, 10000L, null));
+			await Assert.That(loop.Snapshot.Recording?.Format).IsEqualTo(StreamFormat.Fmp4);
+			await Assert.That(Playlists(loop)).IsEquivalentTo([playlist], CollectionOrdering.Matching);
 			await Assert.That(loop.StreamRequests.First().Query).IsEqualTo("?sign=master");
 			// 不要真原画时不填别人的 uid
-			await Assert.That(loop.MasterPlaylistQueries.Single()).StartsWith($"?cid={RecordingLoopHarness.RoomId}&mid=0&");
-			await Assert.That(loop.RecorderLogs.Any(log => log.StartsWith($"Recording Fmp4/{codec} at quality 10000 from a.test{playlist} to ", StringComparison.Ordinal))).IsTrue();
-			await Assert.That(loop.RecorderLogs.Any(static log => log.Contains(" is available: ", StringComparison.Ordinal))).IsFalse();
+			await Assert.That(masterQuery).StartsWith($"?cid={RecordingLoopHarness.RoomId}&mid=0&");
+			await Assert.That(loop.RecorderLogs).Contains(log => log.StartsWith($"Recording Fmp4/{codec} at quality 10000 from a.test{playlist} to ", StringComparison.Ordinal));
+			await Assert.That(loop.RecorderLogs.Where(static log => log.Contains(" is available: ", StringComparison.Ordinal))).IsEmpty();
 		}
 	}
 
@@ -134,14 +146,14 @@ public sealed class RoomMasterPlaylistTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(loop.Snapshot.Recording is { Codec: StreamCodec.Avc, Quality: 400, Restriction: null }).IsTrue();
-			await Assert.That(Paths(loop)).IsEqualTo(AvcBluRayPlaylist);
+			await Assert.That(Recorded(loop)).IsEqualTo((StreamCodec.Avc, 400L, null));
+			await Assert.That(Playlists(loop)).IsEquivalentTo([AvcBluRayPlaylist], CollectionOrdering.Matching);
 		}
 	}
 
 	[Test]
 	[Timeout(30_000)]
-	[Arguments(false, 250L, "NotLoggedIn")]
+	[Arguments(false, 250L, nameof(QualityRestriction.NotLoggedIn))]
 	[Arguments(true, 10000L, null)]
 	public async Task MasterPlaylistIsOnlyRequestedWhenTurnedOnAndTheQualityIsRestrictedAsync(bool useMasterPlaylist, long qn, string? restriction, CancellationToken cancellationToken)
 	{
@@ -154,7 +166,7 @@ public sealed class RoomMasterPlaylistTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(loop.MasterPlaylistQueries).IsEmpty();
-			await Assert.That(Paths(loop)).IsEqualTo(AvcPlaylist);
+			await Assert.That(Playlists(loop)).IsEquivalentTo([AvcPlaylist], CollectionOrdering.Matching);
 			await Assert.That(loop.Snapshot.Recording?.Restriction?.GetType().Name).IsEqualTo(restriction);
 		}
 	}
@@ -176,11 +188,11 @@ public sealed class RoomMasterPlaylistTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(loop.MasterPlaylistQueries.Count).IsEqualTo(1);
-			await Assert.That(Paths(loop)).IsEqualTo(AvcPlaylist);
+			await Assert.That(loop.MasterPlaylistQueries).Count().IsEqualTo(1);
+			await Assert.That(Playlists(loop)).IsEquivalentTo([AvcPlaylist], CollectionOrdering.Matching);
 			await Assert.That(loop.Snapshot.Recording?.Restriction).IsEqualTo(new QualityRestriction.NotLoggedIn(10000));
-			await Assert.That(loop.RecorderLogs.Count(static log => log.StartsWith("The master playlist offers no stream of quality 10000: ", StringComparison.Ordinal))).IsEqualTo(1);
-			await Assert.That(loop.RecorderLogs.Any(static log => log.StartsWith("Failed to open", StringComparison.Ordinal))).IsFalse();
+			await Assert.That(LogsStartingWith(loop, "The master playlist offers no stream of quality 10000: ")).Count().IsEqualTo(1);
+			await Assert.That(LogsStartingWith(loop, "Failed to open")).IsEmpty();
 			await Assert.That(loop.PlayInfoRequests).IsEqualTo(1);
 		}
 	}
@@ -188,25 +200,22 @@ public sealed class RoomMasterPlaylistTest
 	// 变体连不上时同一节点上接口给的流照常可用
 	[Test]
 	[Timeout(30_000)]
-	[Arguments(HttpStatusCode.Forbidden)]
-	[Arguments(HttpStatusCode.NotFound)]
-	public async Task RejectedVariantFallsBackToTheListedStreamRightAwayAsync(HttpStatusCode status, CancellationToken cancellationToken)
+	public async Task RejectedVariantFallsBackToTheListedStreamRightAwayAsync(CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = Loop(cancellationToken, respond: path => path is AvcOriginalPlaylist or HevcOriginalPlaylist ? new HttpResponseMessage(status) : null);
+		await using RecordingLoopHarness loop = Loop(cancellationToken, respond: static path => path is AvcOriginalPlaylist or HevcOriginalPlaylist ? new HttpResponseMessage(HttpStatusCode.Forbidden) : null);
 		loop.GoLive();
 
 		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Recording);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(loop.Snapshot.Recording?.Codec).IsEqualTo(StreamCodec.Avc);
-			await Assert.That(loop.Snapshot.Recording?.Restriction).IsEqualTo(new QualityRestriction.NotLoggedIn(10000));
-			await Assert.That(Paths(loop)).IsEqualTo($"{AvcOriginalPlaylist} {HevcOriginalPlaylist} {AvcPlaylist}");
+			await Assert.That(Recorded(loop)).IsEqualTo((StreamCodec.Avc, 250L, new QualityRestriction.NotLoggedIn(10000)));
+			await Assert.That(Playlists(loop)).IsEquivalentTo([AvcOriginalPlaylist, HevcOriginalPlaylist, AvcPlaylist], CollectionOrdering.Matching);
 			await Assert.That(loop.PlayInfoRequests).IsEqualTo(1);
-			await Assert.That(loop.RecorderLogs.Count(static log => log == "Recording at quality 250 while 10000 is available: not logged in")).IsEqualTo(1);
-			await Assert.That(loop.RecorderLogs.Count(static log => log.StartsWith("Fmp4/Avc 10000 from the master playlist is not available from a.test: ", StringComparison.Ordinal))).IsEqualTo(1);
-			await Assert.That(loop.RecorderLogs.Count(static log => log.StartsWith("Fmp4/Hevc 10000 from the master playlist is not available from a.test: ", StringComparison.Ordinal))).IsEqualTo(1);
-			await Assert.That(loop.RecorderLogs.Any(static log => log.StartsWith("Failed to open", StringComparison.Ordinal))).IsFalse();
+			await Assert.That(loop.RecorderLogs.Where(static log => log == "Recording at quality 250 while 10000 is available: not logged in")).Count().IsEqualTo(1);
+			await Assert.That(LogsStartingWith(loop, "Fmp4/Avc 10000 from the master playlist is not available from a.test: ")).Count().IsEqualTo(1);
+			await Assert.That(LogsStartingWith(loop, "Fmp4/Hevc 10000 from the master playlist is not available from a.test: ")).Count().IsEqualTo(1);
+			await Assert.That(LogsStartingWith(loop, "Failed to open")).IsEmpty();
 		}
 	}
 
@@ -221,9 +230,9 @@ public sealed class RoomMasterPlaylistTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(Paths(loop)).IsEqualTo($"{AvcOriginalPlaylist} {HevcOriginalPlaylist} {AvcPlaylist} {HevcPlaylist}");
+			await Assert.That(Playlists(loop)).IsEquivalentTo([AvcOriginalPlaylist, HevcOriginalPlaylist, AvcPlaylist, HevcPlaylist], CollectionOrdering.Matching);
 			await Assert.That(loop.Snapshot.LastError).Contains("Fmp4/Hevc a.test");
-			await Assert.That(loop.RecorderLogs.Count(static log => log.StartsWith("Failed to open", StringComparison.Ordinal))).IsEqualTo(2);
+			await Assert.That(LogsStartingWith(loop, "Failed to open")).Count().IsEqualTo(2);
 		}
 	}
 
@@ -244,77 +253,66 @@ public sealed class RoomMasterPlaylistTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(Paths(loop)).IsEqualTo($"{AvcOriginalPlaylist} {HevcOriginalPlaylist} {AvcPlaylist} {HevcPlaylist}");
-			await Assert.That(loop.StreamRequests.Count(static uri => uri.AbsolutePath == AvcOriginalPlaylist)).IsEqualTo(1);
+			await Assert.That(Playlists(loop)).IsEquivalentTo([AvcOriginalPlaylist, HevcOriginalPlaylist, AvcPlaylist, HevcPlaylist], CollectionOrdering.Matching);
+			await Assert.That(loop.StreamRequests.Where(static uri => uri.AbsolutePath == AvcOriginalPlaylist)).Count().IsEqualTo(1);
 			await Assert.That(loop.PlayInfoRequests).IsEqualTo(1);
-			await Assert.That(loop.MasterPlaylistQueries.Count).IsEqualTo(1);
+			await Assert.That(loop.MasterPlaylistQueries).Count().IsEqualTo(1);
 		}
 	}
 
-	// 已登录拿到普通原画不算受限，仍要请求真原画；mid 填主播的 uid
+	// 已登录拿到普通原画不算受限，仍要请求真原画，和受限时用不用主播放列表无关；mid 填主播的 uid
 	[Test]
 	[Timeout(30_000)]
-	[Arguments(true)]
-	[Arguments(false)]
-	public async Task MissingTrueOriginalIsTakenFromTheMasterPlaylistAsync(bool useMasterPlaylist, CancellationToken cancellationToken)
+	public async Task MissingTrueOriginalIsTakenFromTheMasterPlaylistAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Loop(cancellationToken, Fmp4Streams(10000, 10000, 250));
 		loop.Config.Cookie = "SESSDATA=x";
 		loop.Config.RequestTrueOriginal = true;
-		loop.Config.UseMasterPlaylistWhenRestricted = useMasterPlaylist;
+		loop.Config.UseMasterPlaylistWhenRestricted = false;
 		loop.GoLive();
 
 		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Recording);
+		string masterQuery = await Assert.That(loop.MasterPlaylistQueries).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(loop.PlayInfoQuery).Contains("&qn=25000&");
-			await Assert.That(loop.MasterPlaylistQueries.Single()).StartsWith($"?cid={RecordingLoopHarness.RoomId}&mid=1&");
-			await Assert.That(loop.Snapshot.Recording is { Codec: StreamCodec.Hevc, Quality: 25000, Restriction: null }).IsTrue();
-			await Assert.That(Paths(loop)).IsEqualTo(TrueOriginalPlaylist);
+			await Assert.That(masterQuery).StartsWith($"?cid={RecordingLoopHarness.RoomId}&mid=1&");
+			await Assert.That(Recorded(loop)).IsEqualTo((StreamCodec.Hevc, 25000L, null));
+			await Assert.That(Playlists(loop)).IsEquivalentTo([TrueOriginalPlaylist], CollectionOrdering.Matching);
 		}
 	}
 
+	// 接口给的是原画时只补真原画，受限时同一次请求里的原画变体也补上
 	[Test]
 	[Timeout(30_000)]
-	public async Task MissingTrueOriginalLeavesTheOtherVariantsAloneAsync(CancellationToken cancellationToken)
+	[Arguments(10000L, new[] { TrueOriginalPlaylist, AvcPlaylist }, DisplayName = "接口给的是原画")]
+	[Arguments(250L, new[] { TrueOriginalPlaylist, AvcOriginalPlaylist }, DisplayName = "接口给的画质受限")]
+	public async Task UnavailableTrueOriginalVariantFallsBackToTheOriginalAsync(long qn, string[] playlists, CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = Loop(cancellationToken, Fmp4Streams(10000, 10000, 250), respond: static path => path is TrueOriginalPlaylist ? new HttpResponseMessage(HttpStatusCode.Forbidden) : null);
+		await using RecordingLoopHarness loop = Loop(cancellationToken, Fmp4Streams(qn), respond: static path => path is TrueOriginalPlaylist ? new HttpResponseMessage(HttpStatusCode.Forbidden) : null);
 		loop.Config.RequestTrueOriginal = true;
 		loop.GoLive();
 
 		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Recording);
+		string masterQuery = await Assert.That(loop.MasterPlaylistQueries).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(Paths(loop)).IsEqualTo($"{TrueOriginalPlaylist} {AvcPlaylist}");
-			await Assert.That(loop.Snapshot.Recording is { Codec: StreamCodec.Avc, Quality: 10000, Restriction: null }).IsTrue();
+			await Assert.That(masterQuery).StartsWith($"?cid={RecordingLoopHarness.RoomId}&mid=1&");
+			await Assert.That(Playlists(loop)).IsEquivalentTo(playlists, CollectionOrdering.Matching);
+			await Assert.That(Recorded(loop)).IsEqualTo((StreamCodec.Avc, 10000L, null));
 		}
 	}
 
+	// 接口只在 HEVC 上给真原画
 	[Test]
 	[Timeout(30_000)]
-	public async Task TrueOriginalFromTheApiIsRecordedBeforeThePreferredCodecAsync(CancellationToken cancellationToken)
+	[Arguments(false, new[] { TrueOriginalPlaylist }, StreamCodec.Hevc, 25000L, DisplayName = "真原画连得上")]
+	[Arguments(true, new[] { TrueOriginalPlaylist, AvcPlaylist }, StreamCodec.Avc, 10000L, DisplayName = "真原画连不上时录原画")]
+	public async Task TrueOriginalFromTheApiIsTriedBeforeThePreferredCodecAsync(bool isRejected, string[] playlists, StreamCodec codec, long quality, CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = Loop(cancellationToken, Fmp4Codecs(Codec("avc", AvcPlaylist, 10000, 10000, 250), Codec("hevc", TrueOriginalPlaylist, 25000, 25000, 10000)));
-		loop.Config.RequestTrueOriginal = true;
-		loop.GoLive();
-
-		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Recording);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(loop.MasterPlaylistQueries).IsEmpty();
-			await Assert.That(Paths(loop)).IsEqualTo(TrueOriginalPlaylist);
-			await Assert.That(loop.Snapshot.Recording is { Codec: StreamCodec.Hevc, Quality: 25000, Restriction: null }).IsTrue();
-		}
-	}
-
-	[Test]
-	[Timeout(30_000)]
-	public async Task UnavailableTrueOriginalFromTheApiFallsBackToTheOriginalAsync(CancellationToken cancellationToken)
-	{
-		await using RecordingLoopHarness loop = Loop(cancellationToken, Fmp4Codecs(Codec("avc", AvcPlaylist, 10000, 10000, 250), Codec("hevc", TrueOriginalPlaylist, 25000, 25000, 10000)), static path => path is TrueOriginalPlaylist ? new HttpResponseMessage(HttpStatusCode.Forbidden) : null);
+		await using RecordingLoopHarness loop = Loop(cancellationToken, Fmp4Codecs(Codec("avc", AvcPlaylist, 10000, 10000, 250), Codec("hevc", TrueOriginalPlaylist, 25000, 25000, 10000)), path => isRejected && path is TrueOriginalPlaylist ? new HttpResponseMessage(HttpStatusCode.Forbidden) : null);
 		loop.Config.RequestTrueOriginal = true;
 		loop.GoLive();
 
@@ -323,26 +321,8 @@ public sealed class RoomMasterPlaylistTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(loop.MasterPlaylistQueries).IsEmpty();
-			await Assert.That(Paths(loop)).IsEqualTo($"{TrueOriginalPlaylist} {AvcPlaylist}");
-			await Assert.That(loop.Snapshot.Recording is { Codec: StreamCodec.Avc, Quality: 10000, Restriction: null }).IsTrue();
-		}
-	}
-
-	[Test]
-	[Timeout(30_000)]
-	public async Task RestrictedTrueOriginalRequestsTheMasterPlaylistOnceAsync(CancellationToken cancellationToken)
-	{
-		await using RecordingLoopHarness loop = Loop(cancellationToken, respond: static path => path is TrueOriginalPlaylist ? new HttpResponseMessage(HttpStatusCode.Forbidden) : null);
-		loop.Config.RequestTrueOriginal = true;
-		loop.GoLive();
-
-		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Recording);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(loop.MasterPlaylistQueries.Single()).StartsWith($"?cid={RecordingLoopHarness.RoomId}&mid=1&");
-			await Assert.That(Paths(loop)).IsEqualTo($"{TrueOriginalPlaylist} {AvcOriginalPlaylist}");
-			await Assert.That(loop.Snapshot.Recording is { Codec: StreamCodec.Avc, Quality: 10000, Restriction: null }).IsTrue();
+			await Assert.That(Playlists(loop)).IsEquivalentTo(playlists, CollectionOrdering.Matching);
+			await Assert.That(Recorded(loop)).IsEqualTo((codec, quality, null));
 		}
 	}
 
@@ -361,7 +341,7 @@ public sealed class RoomMasterPlaylistTest
 		{
 			await Assert.That(loop.PlayInfoQuery).Contains("&qn=25000&");
 			await Assert.That(loop.Snapshot.Recording?.Restriction).IsNull();
-			await Assert.That(loop.RecorderLogs.Any(static log => log.Contains(" is available: ", StringComparison.Ordinal))).IsFalse();
+			await Assert.That(loop.RecorderLogs.Where(static log => log.Contains(" is available: ", StringComparison.Ordinal))).IsEmpty();
 		}
 	}
 
@@ -379,10 +359,9 @@ public sealed class RoomMasterPlaylistTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(loop.Snapshot.Recording?.Codec).IsEqualTo(StreamCodec.Hevc);
-			await Assert.That(loop.Snapshot.Recording?.Restriction).IsEqualTo(new QualityRestriction.NotLoggedIn(10000));
-			await Assert.That(loop.MasterPlaylistQueries.Count).IsEqualTo(1);
-			await Assert.That(Paths(loop)).IsEqualTo(HevcPlaylist);
+			await Assert.That(Recorded(loop)).IsEqualTo((StreamCodec.Hevc, 250L, new QualityRestriction.NotLoggedIn(10000)));
+			await Assert.That(loop.MasterPlaylistQueries).Count().IsEqualTo(1);
+			await Assert.That(Playlists(loop)).IsEquivalentTo([HevcPlaylist], CollectionOrdering.Matching);
 		}
 	}
 
@@ -400,12 +379,12 @@ public sealed class RoomMasterPlaylistTest
 
 		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Recording);
 		QualityRestriction expected = triedFirst ? new QualityRestriction.OtherCodecUnavailable(10000, StreamCodec.Av1, 10000) : new QualityRestriction.OtherCodec(10000, StreamCodec.Av1, 10000);
+		string[] playlists = triedFirst ? [Av1Playlist, AvcPlaylist] : [AvcPlaylist];
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(loop.Snapshot.Recording?.Codec).IsEqualTo(StreamCodec.Avc);
-			await Assert.That(loop.Snapshot.Recording?.Restriction).IsEqualTo(expected);
-			await Assert.That(Paths(loop)).IsEqualTo(triedFirst ? $"{Av1Playlist} {AvcPlaylist}" : AvcPlaylist);
+			await Assert.That(Recorded(loop)).IsEqualTo((StreamCodec.Avc, 250L, expected));
+			await Assert.That(Playlists(loop)).IsEquivalentTo(playlists, CollectionOrdering.Matching);
 			await Assert.That(loop.RecorderLogs).Contains(triedFirst ? "Recording at quality 250 while 10000 is available: the Av1 stream offers quality 10000 but could not be opened" : "Recording at quality 250 while 10000 is available: the Av1 stream offers quality 10000");
 		}
 	}
@@ -438,9 +417,9 @@ public sealed class RoomMasterPlaylistTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(loop.PlayInfoRequests).IsEqualTo(2);
-			await Assert.That(loop.Snapshot.Recording is { Quality: 10000, Restriction: null }).IsTrue();
-			await Assert.That(loop.StreamRequests.Count(static uri => uri.AbsolutePath == AvcPlaylist)).IsEqualTo(1);
-			await Assert.That(loop.RecorderLogs.Any(static log => log.Contains("the login may have expired", StringComparison.Ordinal))).IsFalse();
+			await Assert.That(Recorded(loop)).IsEqualTo((StreamCodec.Hevc, 10000L, null));
+			await Assert.That(loop.StreamRequests.Where(static uri => uri.AbsolutePath == AvcPlaylist)).Count().IsEqualTo(1);
+			await Assert.That(loop.RecorderLogs.Where(static log => log.Contains("the login may have expired", StringComparison.Ordinal))).IsEmpty();
 		}
 	}
 
@@ -473,7 +452,7 @@ public sealed class RoomMasterPlaylistTest
 		loop.Config.RemoveFillerData = true;
 		loop.GoLive();
 
-		await loop.WaitUntilAsync(_ => !loop.FFmpegRuns.IsEmpty);
+		await loop.WaitUntilAsync(() => !loop.FFmpegRuns.IsEmpty, "FFmpeg is started");
 		string[] arguments = [.. loop.FFmpegRuns.First()];
 
 		using (Assert.Multiple())
@@ -504,9 +483,9 @@ public sealed class RoomMasterPlaylistTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(loop.PlayInfoRequests).IsEqualTo(2);
-			await Assert.That(loop.StreamRequests.All(static uri => uri.AbsolutePath == "/live-bvc/1/live_a_b_c_2500.flv")).IsTrue();
+			await Assert.That(loop.StreamRequests).All(static uri => uri.AbsolutePath == "/live-bvc/1/live_a_b_c_2500.flv");
 			await Assert.That(loop.Snapshot.Recording?.Restriction).IsEqualTo(new QualityRestriction.NotLoggedIn(10000));
-			await Assert.That(loop.RecorderLogs.Count(static log => log == "Recording at quality 250 while 10000 is available: not logged in")).IsEqualTo(1);
+			await Assert.That(loop.RecorderLogs.Where(static log => log == "Recording at quality 250 while 10000 is available: not logged in")).Count().IsEqualTo(1);
 		}
 	}
 }

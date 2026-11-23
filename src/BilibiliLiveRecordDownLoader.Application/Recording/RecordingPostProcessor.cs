@@ -78,31 +78,30 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 
 			if (file.Length < MinimumLength)
 			{
-				FileOperations.TryDelete(path, logger);
-
-				foreach (string companion in (ReadOnlySpan<string>)[stem + RecordingFileLayout.DanmakuExtension, stem + RecordingFileLayout.SubtitleExtension])
+				// 录像删不掉时（写盘端排空超时后还开着它）弹幕和字幕跟着留下
+				if (FileOperations.TryDelete(path, logger))
 				{
-					if (File.Exists(companion))
-					{
-						FileOperations.TryDelete(companion, logger);
-					}
+					FileOperations.TryDelete(stem + RecordingFileLayout.DanmakuExtension, logger);
+					FileOperations.TryDelete(stem + RecordingFileLayout.SubtitleExtension, logger);
 				}
 
 				return null;
 			}
 
 			string? destination = profile.ConvertToMp4 ? RecordingFileLayout.GetMp4ConversionPath(path) : null;
-			string? chaptersDestination = danmakuProfile.WriteChapters ? destination : null;
+
+			// 章节只能在转封装时写进 MP4
+			bool writeChapters = danmakuProfile.WriteChapters && destination is not null;
 			string? chapters = null;
 
-			if (danmaku is { } segment && (danmakuProfile.GenerateSubtitle || chaptersDestination is not null) && await ReadDanmakuAsync(segment.Path) is { } records)
+			if (danmaku is { } segment && (danmakuProfile.GenerateSubtitle || writeChapters) && await ReadDanmakuAsync(segment.Path) is { } records)
 			{
 				if (danmakuProfile.GenerateSubtitle)
 				{
 					await WriteSubtitleAsync(stem + RecordingFileLayout.SubtitleExtension, records, segment.Resolution, danmakuProfile.ShowPaidMessagesInSubtitle);
 				}
 
-				if (chaptersDestination is not null)
+				if (writeChapters)
 				{
 					// 进程被强行结束时，录播目录里不会留下这个文件
 					chaptersFile = Path.Combine(Path.GetTempPath(), $@"{Guid.CreateVersion7():N}.ffmetadata");

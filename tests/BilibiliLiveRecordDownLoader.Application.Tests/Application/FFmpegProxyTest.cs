@@ -15,12 +15,12 @@ public sealed class FFmpegProxyTest
 		loop.Proxy.Enabled = true;
 
 		string[] arguments = await StartFFmpegAsync(loop);
-
 		int proxy = Array.IndexOf(arguments, "-http_proxy");
+
 		using (Assert.Multiple())
 		{
-			await Assert.That(proxy).IsGreaterThanOrEqualTo(0);
-			await Assert.That(proxy).IsLessThan(Array.IndexOf(arguments, "-i"));
+			// 代理是输入选项，要写在 -i 之前
+			await Assert.That(proxy).IsGreaterThanOrEqualTo(0).And.IsLessThan(Array.IndexOf(arguments, "-i"));
 			await Assert.That(arguments[proxy + 1]).IsEqualTo(HttpProxy);
 		}
 	}

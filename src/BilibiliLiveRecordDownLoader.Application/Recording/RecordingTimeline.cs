@@ -194,7 +194,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 	{
 		lock (_lock)
 		{
-			if (!_isClosed && segment < _segments.Count)
+			if (!_isClosed)
 			{
 				_segments[segment].Path = path;
 				Signal();
@@ -300,11 +300,10 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		Segment segment = _segments[^1];
 		segment.Resolution ??= record.Resolution;
 
-		if (segment.Start is not { } start)
+		if (segment.Start is null)
 		{
-			start = record.Arrival;
-			segment.Start = start;
-			segment.BaseArrival = start;
+			segment.Start = record.Arrival;
+			segment.BaseArrival = record.Arrival;
 		}
 
 		if (record.Span is { } span)

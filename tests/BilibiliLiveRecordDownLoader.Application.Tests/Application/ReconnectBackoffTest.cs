@@ -1,3 +1,5 @@
+using TUnit.Assertions.Enums;
+
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
 public sealed class ReconnectBackoffTest
@@ -14,13 +16,13 @@ public sealed class ReconnectBackoffTest
 	}
 
 	[Test]
-	public async Task ConsecutiveFailuresDoubleTheDelayUpToTheCapAsync()
+	[Arguments(2.0, new[] { 2.0, 4, 8, 16, 32, 64, 120, 120 }, DisplayName = "初始 2 秒，翻倍到 2 分钟的上限")]
+	[Arguments(360.0, new[] { 360.0, 360, 360 }, DisplayName = "初始间隔超过上限时不缩短")]
+	public async Task ConsecutiveFailuresDoubleTheDelayUpToTheCapAsync(double initialSeconds, double[] expectedSeconds)
 	{
-		ReconnectBackoff backoff = new(static () => InitialDelay, new FakeTimeProvider(), new FixedRandom(0.5));
+		ReconnectBackoff backoff = new(() => TimeSpan.FromSeconds(initialSeconds), new FakeTimeProvider(), new FixedRandom(0.5));
 
-		TimeSpan[] delays = [.. Fail(backoff, 8)];
-
-		await Assert.That(delays.Select(static delay => delay.TotalSeconds).SequenceEqual([2, 4, 8, 16, 32, 64, 120, 120])).IsTrue();
+		await Assert.That(Fail(backoff, expectedSeconds.Length).Select(static delay => delay.TotalSeconds)).IsEquivalentTo(expectedSeconds, CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -60,20 +62,7 @@ public sealed class ReconnectBackoffTest
 		TimeSpan afterMessage = backoff.NextDelay();
 		TimeSpan next = Fail(backoff, 1).Single();
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(afterMessage).IsEqualTo(InitialDelay);
-			await Assert.That(next).IsEqualTo(InitialDelay * 2);
-		}
-	}
-
-	[Test]
-	public async Task InitialDelayAboveTheCapIsNotShortenedAsync()
-	{
-		TimeSpan initial = ReconnectBackoff.MaxDelay * 3;
-		ReconnectBackoff backoff = new(() => initial, new FakeTimeProvider(), new FixedRandom(0.5));
-
-		await Assert.That(Fail(backoff, 3).All(delay => delay == initial)).IsTrue();
+		await Assert.That((afterMessage, next)).IsEqualTo((InitialDelay, InitialDelay * 2));
 	}
 
 	[Test]
@@ -97,7 +86,7 @@ public sealed class ReconnectBackoffTest
 		{
 			await Assert.That(raised).IsEqualTo(TimeSpan.FromMinutes(5));
 			await Assert.That(capped).IsEqualTo(ReconnectBackoff.MaxDelay);
-			await Assert.That(lowered.Select(static delay => delay.TotalSeconds).SequenceEqual([1, 2, 4])).IsTrue();
+			await Assert.That(lowered.Select(static delay => delay.TotalSeconds)).IsEquivalentTo([1.0, 2, 4], CollectionOrdering.Matching);
 		}
 	}
 

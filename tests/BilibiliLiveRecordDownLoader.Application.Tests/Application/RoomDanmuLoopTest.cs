@@ -80,6 +80,31 @@ public sealed class RoomDanmuLoopTest
 		await Assert.That(loop.Session.Danmaku.Feed.Status.DisconnectedAt).IsNull();
 	}
 
+	// 未登录的连接认证后马上收到这几条，存原始消息时未登录通知还多一份原始消息；只收到这些就被断开的连接要接着翻倍等待
+	[Test]
+	[Timeout(30_000)]
+	public async Task ConnectionsDroppedRightAfterAuthenticationKeepBackingOffAsync(CancellationToken cancellationToken)
+	{
+		await using RecordingLoopHarness loop = new(cancellationToken);
+
+		// 未开播，推进时钟时只有弹幕连接在等
+		loop.GoOffline();
+		loop.Session.Start();
+		FakeDanmuConnection danmu = await loop.Danmu.NextConnectionAsync();
+		TimeSpan waited = TimeSpan.Zero;
+
+		for (int i = 0; i < 2; ++i)
+		{
+			await danmu.SendAsync(new DanmuMessage.Connected(0));
+			await danmu.SendAsync(new DanmuMessage.Raw("LOG_IN_NOTICE", """{"cmd":"LOG_IN_NOTICE"}"""u8.ToArray()));
+			await danmu.SendAsync(new DanmuMessage.LoginNotice("为保护用户隐私，未登录无法查看他人昵称"));
+			danmu.Close();
+			(danmu, waited) = await loop.AdvanceUntilDanmuReconnectedAsync();
+		}
+
+		await Assert.That(waited).IsGreaterThanOrEqualTo(loop.Settings.DanmuReconnectDelay * 2 * ReconnectBackoff.MinJitter);
+	}
+
 	[Test]
 	[Timeout(30_000)]
 	public async Task LiveStartedFromDanmuDoesNotRecordThePreviousLiveIdAsync(CancellationToken cancellationToken)
@@ -100,7 +125,10 @@ public sealed class RoomDanmuLoopTest
 		string path = await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.xml")).HasSingleItem();
 		DanmakuFile file = await DanmakuXmlReader.ReadFileAsync(path, cancellationToken);
 
-		await Assert.That(file.Source is DanmakuFileSource.Native { Header: { LiveId.Length: 0, LiveStartTime: null } }).IsTrue();
+		await Assert.That(file.Source)
+			.IsTypeOf<DanmakuFileSource.Native>()
+			.And.Member(static source => source.Header.LiveId, static liveId => liveId.IsEmpty())
+			.And.Member(static source => source.Header.LiveStartTime, static startTime => startTime.IsNull());
 	}
 
 	[Test]

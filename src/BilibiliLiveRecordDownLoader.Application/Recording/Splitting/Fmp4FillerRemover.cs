@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Runtime.InteropServices;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
@@ -145,19 +146,7 @@ internal sealed class Fmp4FillerRemover
 		Span<byte> fragment = elements.Slice(read, mdatEnd - read);
 		int payloadStart = fragment.Length - payload.Length;
 
-		if (!TryPlan(fragment, moofLength, videoTrackId) || !TryMeasure(fragment, payloadStart))
-		{
-			return false;
-		}
-
-		int removed = 0;
-
-		foreach (Sample sample in _samples)
-		{
-			removed += sample.Length - sample.KeptLength;
-		}
-
-		if (removed is 0)
+		if (!TryPlan(fragment, moofLength, videoTrackId) || !TryMeasure(fragment, payloadStart, out int removed) || removed is 0)
 		{
 			return false;
 		}
@@ -262,7 +251,7 @@ internal sealed class Fmp4FillerRemover
 				}
 
 				trackId = BinaryPrimitives.ReadUInt32BigEndian(content.Slice(4));
-				int field = 8 + ((flags & TrackFragmentFlags.SampleDescriptionIndexPresent) is 0 ? 0 : 4) + ((flags & TrackFragmentFlags.DefaultSampleDurationPresent) is 0 ? 0 : 4);
+				int field = TrackFragmentFlags.OffsetOf(flags, TrackFragmentFlags.DefaultSampleSizePresent);
 
 				if ((flags & TrackFragmentFlags.DefaultSampleSizePresent) is not 0)
 				{
@@ -322,30 +311,29 @@ internal sealed class Fmp4FillerRemover
 			return true;
 		}
 
-		int field = 12 + ((flags & TrackRunFlags.FirstSampleFlagsPresent) is 0 ? 0 : 4);
-		int sizeField = (flags & TrackRunFlags.SampleDurationPresent) is 0 ? 0 : 4;
-		int sampleFieldsSize = sizeField + 4 + ((flags & TrackRunFlags.SampleFlagsPresent) is 0 ? 0 : 4) + ((flags & TrackRunFlags.SampleCompositionTimeOffsetPresent) is 0 ? 0 : 4);
+		int stride = TrackRunFlags.SampleFieldsSize(flags);
 
-		if (field + sampleCount * sampleFieldsSize > trun.Length)
+		if (TrackRunFlags.OffsetOf(flags, TrackRunFlags.SampleDurationPresent) + sampleCount * stride > trun.Length)
 		{
 			return false;
 		}
 
 		long sampleOffset = dataOffset;
+		int sizeField = TrackRunFlags.OffsetOf(flags, TrackRunFlags.SampleSizePresent);
 
-		for (uint sample = 0; sample < sampleCount; ++sample, field += sampleFieldsSize)
+		for (uint sample = 0; sample < sampleCount; ++sample, sizeField += stride)
 		{
-			uint size = BinaryPrimitives.ReadUInt32BigEndian(trun.Slice(field + sizeField));
+			uint size = BinaryPrimitives.ReadUInt32BigEndian(trun.Slice(sizeField));
 
 			if (sampleOffset + size > int.MaxValue)
 			{
 				return false;
 			}
 
-			// 大小为 0 的样本没有可删的，放进来的话排序时分不清它和下一个样本的先后
+			// 大小为 0 的样本没有可删的；它和下一个样本起点相同，放进来的话排序后可能排到那个样本后面，搬移时算出负的长度
 			if (isVideo && size > 0)
 			{
-				_samples.Add(new Sample(trunStart + field + sizeField, (int)sampleOffset, (int)size, (int)size));
+				_samples.Add(new Sample(trunStart + sizeField, (int)sampleOffset, (int)size, (int)size));
 			}
 
 			sampleOffset += size;
@@ -355,8 +343,10 @@ internal sealed class Fmp4FillerRemover
 		return true;
 	}
 
-	private bool TryMeasure(Span<byte> fragment, int payloadStart)
+	// 各 trun 的数据互不重叠，里面的样本也就不重叠，按位置排好就能一个接一个地搬
+	private bool TryMeasure(ReadOnlySpan<byte> fragment, int payloadStart, out int removed)
 	{
+		removed = 0;
 		_runs.Sort(static (x, y) => x.DataOffset.CompareTo(y.DataOffset));
 		long previousEnd = payloadStart;
 
@@ -371,19 +361,9 @@ internal sealed class Fmp4FillerRemover
 		}
 
 		_samples.Sort(static (x, y) => x.Offset.CompareTo(y.Offset));
-		long previousSampleEnd = payloadStart;
 
-		for (int index = 0; index < _samples.Count; ++index)
+		foreach (ref Sample sample in CollectionsMarshal.AsSpan(_samples))
 		{
-			Sample sample = _samples[index];
-
-			// 搬移时按顺序一个接一个地拷，样本有重叠就会算出负的长度
-			if (sample.Offset < previousSampleEnd)
-			{
-				return false;
-			}
-
-			previousSampleEnd = sample.Offset + sample.Length;
 			int kept = FillerNalUnits.Measure(fragment.Slice(sample.Offset, sample.Length), _nalLengthSize, _syntax);
 
 			if (kept < 0)
@@ -391,7 +371,8 @@ internal sealed class Fmp4FillerRemover
 				return false;
 			}
 
-			_samples[index] = sample with { KeptLength = kept };
+			sample = sample with { KeptLength = kept };
+			removed += sample.Length - kept;
 		}
 
 		return true;

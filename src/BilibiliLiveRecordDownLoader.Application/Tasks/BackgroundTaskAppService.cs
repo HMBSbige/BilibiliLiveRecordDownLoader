@@ -138,7 +138,7 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 		catch (Exception exception)
 		{
 			LogTaskFailed(logger, exception, entry.Title);
-			Fail(entry, exception.Message);
+			Update(entry, BackgroundTaskStatus.Failed, message: exception.Message);
 		}
 		finally
 		{
@@ -157,25 +157,14 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 	}
 
 	// 速度只在运行中有意义，不保留旧值
-	private void Update(TaskEntry entry, BackgroundTaskStatus status, double? progress = null, double? speed = null)
+	private void Update(TaskEntry entry, BackgroundTaskStatus status, double? progress = null, double? speed = null, string? message = null)
 	{
 		lock (_lock)
 		{
 			entry.Status = status;
 			entry.Progress = progress ?? entry.Progress;
 			entry.Speed = speed;
-		}
-
-		Touch();
-	}
-
-	private void Fail(TaskEntry entry, string message)
-	{
-		lock (_lock)
-		{
-			entry.Status = BackgroundTaskStatus.Failed;
-			entry.Speed = null;
-			entry.Message = message;
+			entry.Message = message ?? entry.Message;
 		}
 
 		Touch();

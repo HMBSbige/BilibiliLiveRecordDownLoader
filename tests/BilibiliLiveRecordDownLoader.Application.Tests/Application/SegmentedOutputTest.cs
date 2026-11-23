@@ -1,5 +1,7 @@
 using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
+using System.Collections.Concurrent;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -7,18 +9,21 @@ public sealed class SegmentedOutputTest
 {
 	private static readonly RecordingSplit ThreeUnits = new RecordingSplit.BySize(100);
 
+	// 交出时记下已经建了哪些文件和它们关闭时的内容：没关闭的文件内容为空，下一段建得太早会多出一个
 	[Test]
 	[Timeout(10_000)]
 	public async Task FinishedSegmentIsClosedAndHandedOverBeforeTheNextOneOpensAsync(CancellationToken cancellationToken)
 	{
-		SplitRecording recording = new();
+		ConcurrentQueue<string> handOvers = new();
+		SplitRecording? recording = null;
+		recording = new SplitRecording { SegmentCompleted = path => handOvers.Enqueue($"{path}: {RecordingSegmenterTest.Describe(recording!.Files)}") };
 
 		await recording.RunAsync(new FakeSplitter(), ThreeUnits, session => WriteUnitsAsync(session, 7), cancellationToken);
 
 		using (Assert.Multiple())
 		{
+			await Assert.That(handOvers).IsEquivalentTo(["0: 012", "1: 012 | H0:345"], CollectionOrdering.Matching);
 			await Assert.That(RecordingSegmenterTest.Describe(recording.Files)).IsEqualTo("012 | H0:345 | H0:6");
-			await Assert.That(string.Join(", ", recording.Completed)).IsEqualTo("0, 1");
 		}
 	}
 
@@ -28,12 +33,11 @@ public sealed class SegmentedOutputTest
 	{
 		SplitRecording recording = new() { FailOpeningFile = 1 };
 
-		RecordingWriteException? exception = await Assert.ThrowsExactlyAsync<RecordingWriteException>(() => recording.RunAsync(new FakeSplitter(), ThreeUnits, session => WriteUnitsAsync(session, int.MaxValue), cancellationToken));
+		await Assert.ThrowsAsync<RecordingWriteException>(() => recording.RunAsync(new FakeSplitter(), ThreeUnits, session => WriteUnitsAsync(session, int.MaxValue), cancellationToken)).WithInnerException().WithMessage("cannot create");
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(exception?.InnerException?.Message).IsEqualTo("cannot create");
-			await Assert.That(string.Join(", ", recording.Completed)).IsEqualTo("0");
+			await Assert.That(recording.Completed).IsEquivalentTo(["0"], CollectionOrdering.Matching);
 			await Assert.That(RecordingSegmenterTest.Describe(recording.Files)).IsEqualTo("012");
 		}
 	}
@@ -44,14 +48,13 @@ public sealed class SegmentedOutputTest
 	{
 		SplitRecording recording = new() { FailClosingFile = 0 };
 
-		RecordingWriteException? exception = await Assert.ThrowsExactlyAsync<RecordingWriteException>(() => recording.RunAsync(new FakeSplitter(), ThreeUnits, session => WriteUnitsAsync(session, int.MaxValue), cancellationToken));
+		await Assert.ThrowsAsync<RecordingWriteException>(() => recording.RunAsync(new FakeSplitter(), ThreeUnits, session => WriteUnitsAsync(session, int.MaxValue), cancellationToken)).WithInnerException().WithMessage("cannot flush");
 
 		// 没有交出去的一段由录制循环最后处理
 		using (Assert.Multiple())
 		{
-			await Assert.That(exception?.InnerException?.Message).IsEqualTo("cannot flush");
 			await Assert.That(recording.Completed).IsEmpty();
-			await Assert.That(recording.Files.Count).IsEqualTo(1);
+			await Assert.That(recording.Files).Count().IsEqualTo(1);
 		}
 	}
 
@@ -70,7 +73,7 @@ public sealed class SegmentedOutputTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(recording.Completed).IsEmpty();
-			await Assert.That(recording.Files.Count).IsEqualTo(1);
+			await Assert.That(recording.Files).Count().IsEqualTo(1);
 		}
 	}
 

@@ -3,6 +3,7 @@ using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Buffers.Binary;
 using System.Text;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -38,10 +39,12 @@ public sealed class RecordingTimestampTest
 			}
 		}, cancellationToken);
 
+		byte[] file = await Assert.That(recording.Files).HasSingleItem();
+
 		using (Assert.Multiple())
 		{
-			await Assert.That(string.Join(" ", FlvSamples.Describe(recording.Files.Single()))).IsEqualTo("S0 V0[vseq] A0 V0[v] A10[a] V1000[v] A1010[a] V2000[v] A2010[a]");
-			await Assert.That(string.Join(" | ", Place(recording, times))).IsEqualTo("0@10 | 0@1010 | 0@2010");
+			await Assert.That(FlvSamples.Describe(file)).IsEquivalentTo(["S0", "V0[vseq]", "A0", "V0[v]", "A10[a]", "V1000[v]", "A1010[a]", "V2000[v]", "A2010[a]"], CollectionOrdering.Matching);
+			await Assert.That(Place(recording, times)).IsEquivalentTo(["0@10", "0@1010", "0@2010"], CollectionOrdering.Matching);
 		}
 	}
 
@@ -67,10 +70,9 @@ public sealed class RecordingTimestampTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(recording.Files[0].SequenceEqual((byte[])[.. Fmp4Init(), .. Fmp4Fragment(900, 0)])).IsTrue();
-			await Assert.That(recording.Files[1].SequenceEqual((byte[])[.. Fmp4Init(), .. Fmp4Fragment(900, 0), .. Fmp4Fragment(181_800, 96_480)])).IsTrue();
-			await Assert.That(string.Join(" | ", recording.Files.Select(DescribeDecodeTimes))).IsEqualTo("V900 A0 | V900 A0 V181800 A96480");
-			await Assert.That(string.Join(" | ", Place(recording, times))).IsEqualTo("0@2010 | 1@2010 | 1@4020");
+			await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. Fmp4Init(), .. Fmp4Fragment(900, 0)], [.. Fmp4Init(), .. Fmp4Fragment(900, 0), .. Fmp4Fragment(181_800, 96_480)]], CollectionOrdering.Matching);
+			await Assert.That(recording.Files.Select(DescribeDecodeTimes)).IsEquivalentTo((string[][])[["V900", "A0"], ["V900", "A0", "V181800", "A96480"]], CollectionOrdering.Matching);
+			await Assert.That(Place(recording, times)).IsEquivalentTo(["0@2010", "1@2010", "1@4020"], CollectionOrdering.Matching);
 		}
 	}
 
@@ -89,8 +91,8 @@ public sealed class RecordingTimestampTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(recording.Files.Single().SequenceEqual((byte[])[.. Fmp4Init(44_100), .. Fmp4MovieFragment(VideoTraf(897, 1, 60), AudioTraf(0, 0, 96_000))])).IsTrue();
-			await Assert.That(DescribeDecodeTimes(recording.Files.Single())).IsEqualTo("V897 A0");
+			await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. Fmp4Init(44_100), .. Fmp4MovieFragment(VideoTraf(897, 1, 60), AudioTraf(0, 0, 96_000))]], CollectionOrdering.Matching);
+			await Assert.That(recording.Files.Select(DescribeDecodeTimes)).IsEquivalentTo((string[][])[["V897", "A0"]], CollectionOrdering.Matching);
 		}
 	}
 
@@ -109,7 +111,7 @@ public sealed class RecordingTimestampTest
 			await session.SegmentAsync([.. Fmp4MovieFragment(VideoTraf(10 * VideoTimescale, 1, 1)), .. Fmp4MovieFragment(AudioTraf(10 * AudioTimescale - 960, audioVersion, 960))]);
 		}, cancellationToken);
 
-		await Assert.That(DescribeDecodeTimes(recording.Files.Single())).IsEqualTo("V0 A0");
+		await Assert.That(recording.Files.Select(DescribeDecodeTimes)).IsEquivalentTo((string[][])[["V0", "A0"]], CollectionOrdering.Matching);
 	}
 
 	// 第三个分片比前一个的开头只晚 0.5 秒，结尾仍在已经写出的时间之后；按开头判断才认得出重新开始
@@ -134,8 +136,8 @@ public sealed class RecordingTimestampTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(DescribeDecodeTimes(recording.Files.Single())).IsEqualTo("V0 A0 V180000 A96000 V360000 A192000");
-			await Assert.That(string.Join(" | ", Place(recording, times))).IsEqualTo("0@2000 | 0@4000 | 0@6000");
+			await Assert.That(recording.Files.Select(DescribeDecodeTimes)).IsEquivalentTo((string[][])[["V0", "A0", "V180000", "A96000", "V360000", "A192000"]], CollectionOrdering.Matching);
+			await Assert.That(Place(recording, times)).IsEquivalentTo(["0@2000", "0@4000", "0@6000"], CollectionOrdering.Matching);
 		}
 	}
 
@@ -159,8 +161,8 @@ public sealed class RecordingTimestampTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(DescribeDecodeTimes(recording.Files.Single())).IsEqualTo("V0 A0 V180000 A96000 V360000 A192000 V540000 A288000");
-			await Assert.That(string.Join(" | ", Place(recording, times))).IsEqualTo("0@4000 | 0@8000");
+			await Assert.That(recording.Files.Select(DescribeDecodeTimes)).IsEquivalentTo((string[][])[["V0", "A0", "V180000", "A96000", "V360000", "A192000", "V540000", "A288000"]], CollectionOrdering.Matching);
+			await Assert.That(Place(recording, times)).IsEquivalentTo(["0@4000", "0@8000"], CollectionOrdering.Matching);
 		}
 	}
 
@@ -187,8 +189,8 @@ public sealed class RecordingTimestampTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(DescribeDecodeTimes(recording.Files.Single())).IsEqualTo("V0 A0 V180000 A96000 V360000 A192000");
-			await Assert.That(string.Join(" | ", Place(recording, times))).IsEqualTo("0@2000 | 0@4000 | 0@6000");
+			await Assert.That(recording.Files.Select(DescribeDecodeTimes)).IsEquivalentTo((string[][])[["V0", "A0", "V180000", "A96000", "V360000", "A192000"]], CollectionOrdering.Matching);
+			await Assert.That(Place(recording, times)).IsEquivalentTo(["0@2000", "0@4000", "0@6000"], CollectionOrdering.Matching);
 		}
 	}
 
@@ -212,10 +214,9 @@ public sealed class RecordingTimestampTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(recording.Files[0].SequenceEqual((byte[])[.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedPes(TsSamples.VideoPid, 3903, 900, 0, true), .. TsSamples.TimedPes(TsSamples.AudioPid, 0), .. TsSamples.TimedPes(TsSamples.VideoPid, 9909, 3903, 1901)])).IsTrue();
-			await Assert.That(recording.Files[1].SequenceEqual((byte[])[.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedPes(TsSamples.VideoPid, 3903, 900, 0, true), .. TsSamples.TimedPes(TsSamples.AudioPid, 0), .. TsSamples.TimedPes(TsSamples.VideoPid, 93_903, 90_900, null, true)])).IsTrue();
-			await Assert.That(string.Join(" | ", recording.Files.Select(DescribeTimestamps))).IsEqualTo("V:c0,p3903,d900 A:p0 V:c1901,p9909,d3903 | V:c0,p3903,d900 A:p0 V:p93903,d90900");
-			await Assert.That(string.Join(" | ", Place(recording, times))).IsEqualTo("1@1010");
+			await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedPes(TsSamples.VideoPid, 3903, 900, 0, true), .. TsSamples.TimedPes(TsSamples.AudioPid, 0), .. TsSamples.TimedPes(TsSamples.VideoPid, 9909, 3903, 1901)], [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedPes(TsSamples.VideoPid, 3903, 900, 0, true), .. TsSamples.TimedPes(TsSamples.AudioPid, 0), .. TsSamples.TimedPes(TsSamples.VideoPid, 93_903, 90_900, null, true)]], CollectionOrdering.Matching);
+			await Assert.That(recording.Files.Select(DescribeTimestamps)).IsEquivalentTo((string[][])[["V:c0,p3903,d900", "A:p0", "V:c1901,p9909,d3903"], ["V:c0,p3903,d900", "A:p0", "V:p93903,d90900"]], CollectionOrdering.Matching);
+			await Assert.That(Place(recording, times)).IsEquivalentTo(["1@1010"], CollectionOrdering.Matching);
 		}
 	}
 
@@ -240,8 +241,8 @@ public sealed class RecordingTimestampTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(string.Join(" | ", recording.Files.Select(DescribeTimestamps))).IsEqualTo("V:p4500,d900 A:p0 V:p8100,d4500 | V:p4500,d900 A:p0 V:p94500,d90900");
-			await Assert.That(string.Join(" | ", Place(recording, times))).IsEqualTo("0@50 | 1@1010");
+			await Assert.That(recording.Files.Select(DescribeTimestamps)).IsEquivalentTo((string[][])[["V:p4500,d900", "A:p0", "V:p8100,d4500"], ["V:p4500,d900", "A:p0", "V:p94500,d90900"]], CollectionOrdering.Matching);
+			await Assert.That(Place(recording, times)).IsEquivalentTo(["0@50", "1@1010"], CollectionOrdering.Matching);
 			await Assert.That((recording.Timeline.GetDuration("0"), recording.Timeline.GetDuration("1"))).IsEqualTo((TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(1010)));
 		}
 	}
@@ -261,10 +262,12 @@ public sealed class RecordingTimestampTest
 			times.Add(session.Now);
 		}, cancellationToken);
 
+		byte[] file = await Assert.That(recording.Files).HasSingleItem();
+
 		using (Assert.Multiple())
 		{
-			await Assert.That(DescribeTimestamps(recording.Files.Single())).IsEqualTo("V:p0 V:p45000 V:p45000 V:p90000");
-			await Assert.That(string.Join(" | ", Place(recording, times))).IsEqualTo("0@1000");
+			await Assert.That(DescribeTimestamps(file)).IsEquivalentTo(["V:p0", "V:p45000", "V:p45000", "V:p90000"], CollectionOrdering.Matching);
+			await Assert.That(Place(recording, times)).IsEquivalentTo(["0@1000"], CollectionOrdering.Matching);
 		}
 	}
 
@@ -283,10 +286,12 @@ public sealed class RecordingTimestampTest
 			times.Add(session.Now);
 		}, cancellationToken);
 
+		byte[] file = await Assert.That(recording.Files).HasSingleItem();
+
 		using (Assert.Multiple())
 		{
-			await Assert.That(DescribeTimestamps(recording.Files.Single())).IsEqualTo("V:c0,p7200,d0 V:c45000,p187200,d180000 V:p183600,d180000 V:p187200,d183600");
-			await Assert.That(string.Join(" | ", Place(recording, times))).IsEqualTo("0@2040");
+			await Assert.That(DescribeTimestamps(file)).IsEquivalentTo(["V:c0,p7200,d0", "V:c45000,p187200,d180000", "V:p183600,d180000", "V:p187200,d183600"], CollectionOrdering.Matching);
+			await Assert.That(Place(recording, times)).IsEquivalentTo(["0@2040"], CollectionOrdering.Matching);
 		}
 	}
 
@@ -308,10 +313,12 @@ public sealed class RecordingTimestampTest
 			times.Add(session.Now);
 		}, cancellationToken);
 
+		byte[] file = await Assert.That(recording.Files).HasSingleItem();
+
 		using (Assert.Multiple())
 		{
-			await Assert.That(DescribeTimestamps(recording.Files.Single())).IsEqualTo("V:p7200,d3600 A:p0 V:p10800,d7200");
-			await Assert.That(string.Join(" | ", Place(recording, times))).IsEqualTo("0@40 | 0@80");
+			await Assert.That(DescribeTimestamps(file)).IsEquivalentTo(["V:p7200,d3600", "A:p0", "V:p10800,d7200"], CollectionOrdering.Matching);
+			await Assert.That(Place(recording, times)).IsEquivalentTo(["0@40", "0@80"], CollectionOrdering.Matching);
 		}
 	}
 
@@ -332,10 +339,12 @@ public sealed class RecordingTimestampTest
 			}
 		}, cancellationToken);
 
+		byte[] file = await Assert.That(recording.Files).HasSingleItem();
+
 		using (Assert.Multiple())
 		{
-			await Assert.That(DescribeTimestamps(recording.Files.Single())).IsEqualTo("V:c900,p900 A:p0 V:p90900 V:c90900,p90900 A:p91350 V:p180900");
-			await Assert.That(string.Join(" | ", Place(recording, times))).IsEqualTo("0@1010 | 0@2010");
+			await Assert.That(DescribeTimestamps(file)).IsEquivalentTo(["V:c900,p900", "A:p0", "V:p90900", "V:c90900,p90900", "A:p91350", "V:p180900"], CollectionOrdering.Matching);
+			await Assert.That(Place(recording, times)).IsEquivalentTo(["0@1010", "0@2010"], CollectionOrdering.Matching);
 		}
 	}
 
@@ -357,10 +366,12 @@ public sealed class RecordingTimestampTest
 			}
 		}, cancellationToken);
 
+		byte[] file = await Assert.That(recording.Files).HasSingleItem();
+
 		using (Assert.Multiple())
 		{
-			await Assert.That(DescribeTimestamps(recording.Files.Single())).IsEqualTo("V:c0,p0 V:p180000 V:c360000,p360000 V:p540000 V:c540000,p540000 V:p720000");
-			await Assert.That(string.Join(" | ", Place(recording, times))).IsEqualTo("0@2000 | 0@6000 | 0@8000");
+			await Assert.That(DescribeTimestamps(file)).IsEquivalentTo(["V:c0,p0", "V:p180000", "V:c360000,p360000", "V:p540000", "V:c540000,p540000", "V:p720000"], CollectionOrdering.Matching);
+			await Assert.That(Place(recording, times)).IsEquivalentTo(["0@2000", "0@6000", "0@8000"], CollectionOrdering.Matching);
 		}
 	}
 
@@ -382,10 +393,47 @@ public sealed class RecordingTimestampTest
 			times.Add(session.Now);
 		}, cancellationToken);
 
+		byte[] file = await Assert.That(recording.Files).HasSingleItem();
+
 		using (Assert.Multiple())
 		{
-			await Assert.That(DescribeTimestamps(recording.Files.Single())).IsEqualTo("V:c0,p0 V:p90000 V:p90000 V:p180000 V:c270000,p270000 V:p360000");
-			await Assert.That(string.Join(" | ", Place(recording, times))).IsEqualTo("0@2000 | 0@4000");
+			await Assert.That(DescribeTimestamps(file)).IsEquivalentTo(["V:c0,p0", "V:p90000", "V:p90000", "V:p180000", "V:c270000,p270000", "V:p360000"], CollectionOrdering.Matching);
+			await Assert.That(Place(recording, times)).IsEquivalentTo(["0@2000", "0@4000"], CollectionOrdering.Matching);
+		}
+	}
+
+	// 会话认开头有不到一个包杂字节的 TS 分片；分片末尾不完整的包也不能让同一次提交里后面的分片对不上包边界
+	[Test]
+	[Timeout(10_000)]
+	[Arguments((byte[])[0, 0], 0, DisplayName = "分片开头有杂字节")]
+	[Arguments((byte[])[0x47, 0], 0, DisplayName = "杂字节以 0x47 开头")]
+	[Arguments((byte[])[], 100, DisplayName = "分片末尾有不完整的包")]
+	public async Task TsHlsSegmentsOffThePacketGridAreRebasedFromTheirOwnFirstPacketAsync(byte[] junk, int trailing, CancellationToken cancellationToken)
+	{
+		byte[] partial = TsSamples.Packet(TsSamples.AudioPid, false, new byte[184]).AsSpan(0, trailing).ToArray();
+		SplitRecording recording = new();
+		List<long> times = [];
+
+		// 第三个分片开头不是关键帧，和第二个分片在同一次提交里
+		await recording.RunAsync(new TsHlsSplitter(), OneMinute, async session =>
+		{
+			foreach (byte[] segment in (byte[][])[Segment(900_000, true), [.. junk, .. Segment(1_080_000, true), .. partial], Segment(1_260_000, false)])
+			{
+				await session.SegmentAsync(segment);
+				times.Add(session.Now);
+				session.Advance(TimeSpan.FromSeconds(1));
+			}
+		}, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. Segment(0, true), .. junk, .. Segment(180_000, true), .. partial, .. Segment(360_000, false)]], CollectionOrdering.Matching);
+			await Assert.That(Place(recording, times)).IsEquivalentTo(["0@1000", "0@3000", "0@5000"], CollectionOrdering.Matching);
+		}
+
+		static byte[] Segment(long decode, bool isKey)
+		{
+			return [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedPes(TsSamples.VideoPid, decode, null, decode, isKey), .. TsSamples.TimedPes(TsSamples.VideoPid, decode + 90_000)];
 		}
 	}
 
@@ -400,7 +448,7 @@ public sealed class RecordingTimestampTest
 	}
 
 	// c 是 PCR 的基准值，p 和 d 是 PTS 和 DTS
-	private static string DescribeTimestamps(byte[] file)
+	private static string[] DescribeTimestamps(byte[] file)
 	{
 		List<string> packets = [];
 
@@ -433,7 +481,7 @@ public sealed class RecordingTimestampTest
 			packets.Add($"{(pid is TsSamples.VideoPid ? "V" : "A")}:{string.Join(",", fields)}");
 		}
 
-		return string.Join(" ", packets);
+		return [.. packets];
 
 		static long ReadTimestamp(ReadOnlySpan<byte> field)
 		{
@@ -518,7 +566,7 @@ public sealed class RecordingTimestampTest
 		return bytes;
 	}
 
-	private static string DescribeDecodeTimes(byte[] file)
+	private static string[] DescribeDecodeTimes(byte[] file)
 	{
 		List<string> times = [];
 
@@ -533,7 +581,7 @@ public sealed class RecordingTimestampTest
 			}
 		}
 
-		return string.Join(" ", times);
+		return [.. times];
 
 		// 改写弄坏了盒子头时直接报错，不能卡在同一个位置
 		static List<ReadOnlyMemory<byte>> Boxes(ReadOnlyMemory<byte> data, string type)

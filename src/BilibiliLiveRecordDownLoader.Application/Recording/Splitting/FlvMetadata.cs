@@ -21,11 +21,6 @@ internal static class FlvMetadata
 	// body 从 AMF0 字符串 "onMetaData" 开始
 	public static VideoResolution? ReadResolution(ReadOnlySpan<byte> body)
 	{
-		if (body.Length < 3)
-		{
-			return null;
-		}
-
 		int offset = 3 + BinaryPrimitives.ReadUInt16BigEndian(body.Slice(1));
 
 		if (offset >= body.Length)

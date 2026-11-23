@@ -2,17 +2,21 @@ using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Buffers.Binary;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
 public sealed class MediaHeaderTest
 {
 	// x264 和 x265 对 testsrc 编码得到的 SPS，尺寸来自 ffprobe；1080、768 和 854 宽都要靠裁剪，都带防竞争字节
+	// HevcSubLayers766 带 3 个时间子层，x265 写的子层存在标志都是 0，只有补齐位要跳过；HevcSubLayerInfo766 是在它上面手工补上第 0 层的档次和级别、第 1 层的级别，ffprobe 读出的尺寸不变
 	internal const string Avc1080 = "67640028acd940780227e5c044000003000400000300f03c60c658";
 	internal const string Avc480 = "674d401feca06c1ef3780880000003008000001e078c18cb";
 	internal const string Avc444720 = "67f4001f919b280a00b76022000003000200000300781e30632c";
 	internal const string Hevc768 = "420101016000000300900000030000030078a002ac80301d796566924caf016808000003000800000300f040";
 	internal const string Hevc1080 = "420101016000000300900000030000030078a003c08010e596566924caf0168080000003008000000f04";
+	private const string HevcSubLayers766 = "4201040408000003009e080000030000780000900055900603bbcb2b29594acb24995e02dc08080010000003001000000301e080";
+	private const string HevcSubLayerInfo766 = "4201040408000003009e08000003000078d0000408000003009e0800000300007878900055900603bbcb2b29594acb24995e02dc08080010000003001000000301e080";
 
 	[Test]
 	[Arguments(Avc1080, false, 1920, 1080)]
@@ -20,6 +24,8 @@ public sealed class MediaHeaderTest
 	[Arguments(Avc444720, false, 1280, 720)]
 	[Arguments(Hevc768, true, 1366, 768)]
 	[Arguments(Hevc1080, true, 1920, 1080)]
+	[Arguments(HevcSubLayers766, true, 1366, 766)]
+	[Arguments(HevcSubLayerInfo766, true, 1366, 766)]
 	public async Task SpsGivesTheDisplaySizeAsync(string sps, bool isHevc, int width, int height)
 	{
 		byte[] nal = Convert.FromHexString(sps);
@@ -84,7 +90,7 @@ public sealed class MediaHeaderTest
 
 		Scan(splitter, [.. header, .. key, .. audio]);
 
-		await Assert.That(splitter.MediaMarks.ToArray().Select(static mark => (mark.End, mark.Span)).SequenceEqual([((long)header.Length + key.Length, MediaSpan.At(TimeSpan.FromMilliseconds(100_000))), ((long)header.Length + key.Length + audio.Length, MediaSpan.At(TimeSpan.FromMilliseconds(99_990)))])).IsTrue();
+		await Assert.That(splitter.MediaMarks.ToArray().Select(static mark => (mark.End, mark.Span))).IsEquivalentTo([((long)header.Length + key.Length, MediaSpan.At(TimeSpan.FromMilliseconds(100_000))), ((long)header.Length + key.Length + audio.Length, MediaSpan.At(TimeSpan.FromMilliseconds(99_990)))], CollectionOrdering.Matching);
 	}
 
 	// mdhd 版本 1 的创建和修改时间是 64 位，timescale 跟着往后挪；没有 mdhd 的音频轨不列出
@@ -100,7 +106,7 @@ public sealed class MediaHeaderTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(splitter.Resolution).IsEqualTo(new VideoResolution(1920, 1080));
-			await Assert.That(ReadTracks(init).SequenceEqual([new Fmp4Track(Fmp4Samples.VideoTrack, 90_000, 3000)])).IsTrue();
+			await Assert.That(ReadTracks(init)).IsEquivalentTo([new Fmp4Track(Fmp4Samples.VideoTrack, 90_000, 3000)], CollectionOrdering.Matching);
 			await Assert.That(IsoBmff.TryReadMovie(init, out Fmp4VideoTrack? video) ? video : null).IsEqualTo(new Fmp4VideoTrack(Fmp4Samples.VideoTrack, Fmp4Samples.NonSyncFlags, new VideoResolution(1920, 1080)));
 		}
 	}
@@ -113,7 +119,7 @@ public sealed class MediaHeaderTest
 	{
 		Fmp4TrackTimes times = new([new Fmp4Track(Fmp4Samples.VideoTrack, 90_000, defaultDuration)]);
 
-		await Assert.That(times.ReadFragmentSpans(Fmp4Samples.TimedFragment(900_000, 30, sampleDuration, tfdtVersion: tfdtVersion)).SequenceEqual([new MediaSpan(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(11))])).IsTrue();
+		await Assert.That(times.ReadFragmentSpans(Fmp4Samples.TimedFragment(900_000, 30, sampleDuration, tfdtVersion: tfdtVersion))).IsEquivalentTo([new MediaSpan(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(11))], CollectionOrdering.Matching);
 	}
 
 	// 往回的小差值和差得很远的（源重新开始）都不加周期，交给 SegmentClock 判断
@@ -128,7 +134,7 @@ public sealed class MediaHeaderTest
 
 		MediaSpan[] spans = [.. values.SelectMany(value => times.ReadFragmentSpans(Fmp4Samples.TimedFragment(value, 1, 0, tfdtVersion: 0)))];
 
-		await Assert.That(spans.Select(static span => span.Start.Ticks).SequenceEqual(expected.Select(track.ToTicks))).IsTrue();
+		await Assert.That(spans.Select(static span => span.Start.Ticks)).IsEquivalentTo(expected.Select(track.ToTicks), CollectionOrdering.Matching);
 	}
 
 	// 按分片里的顺序，第一个 PES 不是最早的
@@ -144,7 +150,7 @@ public sealed class MediaHeaderTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(splitter.Resolution).IsEqualTo(new VideoResolution(1920, 1080));
-			await Assert.That(splitter.MediaMarks.ToArray().Select(static mark => mark.Span).SequenceEqual([MediaSpan.At(TimeSpan.FromSeconds(10)), MediaSpan.At(TimeSpan.FromMilliseconds(9960)), MediaSpan.At(TimeSpan.FromSeconds(11)), MediaSpan.At(TimeSpan.FromMilliseconds(11_040))])).IsTrue();
+			await Assert.That(splitter.MediaMarks.ToArray().Select(static mark => mark.Span)).IsEquivalentTo([MediaSpan.At(TimeSpan.FromSeconds(10)), MediaSpan.At(TimeSpan.FromMilliseconds(9960)), MediaSpan.At(TimeSpan.FromSeconds(11)), MediaSpan.At(TimeSpan.FromMilliseconds(11_040))], CollectionOrdering.Matching);
 		}
 	}
 
@@ -159,7 +165,7 @@ public sealed class MediaHeaderTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(splitter.Resolution).IsEqualTo(new VideoResolution(854, 480));
-			await Assert.That(splitter.MediaMarks.ToArray().Select(static mark => mark.Span).SequenceEqual([MediaSpan.At(TimeSpan.FromMilliseconds(1400)), MediaSpan.At(TimeSpan.FromMilliseconds(1380)), MediaSpan.At(TimeSpan.FromMilliseconds(1440))])).IsTrue();
+			await Assert.That(splitter.MediaMarks.ToArray().Select(static mark => mark.Span)).IsEquivalentTo([MediaSpan.At(TimeSpan.FromMilliseconds(1400)), MediaSpan.At(TimeSpan.FromMilliseconds(1380)), MediaSpan.At(TimeSpan.FromMilliseconds(1440))], CollectionOrdering.Matching);
 		}
 	}
 
@@ -172,7 +178,7 @@ public sealed class MediaHeaderTest
 
 		Scan(splitter, stream);
 
-		await Assert.That(splitter.MediaMarks.ToArray().Select(static mark => mark.Resolution).SequenceEqual([new VideoResolution(854, 480), new VideoResolution(854, 480), new VideoResolution(1920, 1080)])).IsTrue();
+		await Assert.That(splitter.MediaMarks.ToArray().Select(static mark => mark.Resolution)).IsEquivalentTo((VideoResolution?[])[new VideoResolution(854, 480), new VideoResolution(854, 480), new VideoResolution(1920, 1080)], CollectionOrdering.Matching);
 	}
 
 	// 损坏的文件里 mdhd 可以是空盒子
@@ -218,7 +224,7 @@ public sealed class MediaHeaderTest
 		TimeSpan[] times = [clock.Unwrap(period - 90_000), clock.Unwrap(0), clock.Unwrap(90_000), clock.Unwrap(period - 45_000), clock.Unwrap(180_000)];
 		TimeSpan start = times[0];
 
-		await Assert.That(times.Select(time => time - start).SequenceEqual([TimeSpan.Zero, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(0.5), TimeSpan.FromSeconds(3)])).IsTrue();
+		await Assert.That(times.Select(time => time - start)).IsEquivalentTo([TimeSpan.Zero, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(0.5), TimeSpan.FromSeconds(3)], CollectionOrdering.Matching);
 	}
 
 	private static Fmp4Track[] ReadTracks(byte[] init)

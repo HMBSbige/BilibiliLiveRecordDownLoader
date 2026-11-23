@@ -24,9 +24,7 @@ internal sealed partial class DiskSpaceService : IDiskSpaceService
 				return GetWindowsDiskSpace(fullPath);
 			}
 
-			StringComparison comparison = OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-
-			DriveInfo? drive = FindReadyMount(DriveInfo.GetDrives(), static drive => drive.RootDirectory.FullName, static drive => drive.IsReady, fullPath, comparison);
+			DriveInfo? drive = FindReadyMount(DriveInfo.GetDrives(), static drive => drive.RootDirectory.FullName, static drive => drive.IsReady, fullPath, FileOperations.PathComparison);
 
 			return drive is null ? null : new DiskSpaceInfo(drive.TotalSize, drive.AvailableFreeSpace);
 		}
