@@ -1,3 +1,5 @@
+using Microsoft.Win32.SafeHandles;
+
 namespace BilibiliLiveRecordDownLoader.Application.Danmaku;
 
 internal static class DanmakuOffsetRewriter
@@ -33,12 +35,9 @@ internal static class DanmakuOffsetRewriter
 			}
 
 			// 不先落盘的话，断电时替换可能先于数据写到磁盘，原文件没了，新文件却是残缺的
-			await using (FileStream stream = new(temporary, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+			using (SafeFileHandle handle = File.OpenHandle(temporary, FileMode.Open, FileAccess.Write))
 			{
-				// FlushAsync 不会落盘
-#pragma warning disable CA1849
-				stream.Flush(true);
-#pragma warning restore CA1849
+				RandomAccess.FlushToDisk(handle);
 			}
 
 			File.Move(temporary, path, true);
@@ -63,7 +62,7 @@ internal static class DanmakuOffsetRewriter
 
 		static TimeSpan ToFileTime(TimeSpan time)
 		{
-			return time < TimeSpan.Zero ? TimeSpan.Zero : TimeSpan.FromTicks(time.Ticks - time.Ticks % TimeSpan.TicksPerMillisecond);
+			return time < TimeSpan.Zero ? TimeSpan.Zero : TimeSpan.FromMilliseconds(time.Ticks / TimeSpan.TicksPerMillisecond);
 		}
 	}
 }

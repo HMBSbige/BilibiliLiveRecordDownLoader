@@ -3,11 +3,6 @@ using System.Text;
 
 namespace BilibiliLiveRecordDownLoader.Application.Danmaku;
 
-internal sealed record DanmakuFlushPolicy(TimeSpan Interval, int MaxPending)
-{
-	public static DanmakuFlushPolicy Default { get; } = new(TimeSpan.FromSeconds(5), 500);
-}
-
 // 每次刷新连同 </i> 一起写，下次从 </i> 之前接着写，文件在任何一次刷新之后都是完整的 XML
 // 不是线程安全的
 internal sealed class DanmakuXmlWriter : IAsyncDisposable
@@ -47,9 +42,6 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 			throw new ArgumentException(@"The stream must be writable and seekable.", nameof(stream));
 		}
 
-		ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(policy.Interval, TimeSpan.Zero);
-		ArgumentOutOfRangeException.ThrowIfLessThan(policy.MaxPending, 1);
-
 		DanmakuXmlWriter writer = new(stream, header.Offset, policy, timeProvider);
 		writer.AppendHeader(header);
 		await writer.FlushCoreAsync(cancellationToken);
@@ -68,24 +60,23 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 		catch
 		{
 			await stream.DisposeAsync();
+
+			// CreateNew 保证文件是这次建的；没写完文件头的文件打开时不算弹幕文件，还会占住主干
+			try
+			{
+				File.Delete(path);
+			}
+			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+			{
+				// 删不掉也要报出原来的错误
+			}
+
 			throw;
 		}
 	}
 
 	// 没有待写内容时为 null；调用方空闲时要在到期后调用 FlushIfDueAsync
-	public TimeSpan? FlushDueIn
-	{
-		get
-		{
-			if (PendingCount is 0)
-			{
-				return null;
-			}
-
-			TimeSpan remaining = _policy.Interval - _timeProvider.GetElapsedTime(_firstPendingTimestamp);
-			return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
-		}
-	}
+	public TimeSpan? FlushDueIn => PendingCount is 0 ? null : _policy.GetFlushDueIn(_timeProvider.GetElapsedTime(_firstPendingTimestamp));
 
 	public async ValueTask WriteAsync(DanmakuRecord record, CancellationToken cancellationToken)
 	{
@@ -218,6 +209,7 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 				_pending.Append(@"<sc");
 				AppendAttribute(@"ts", FormatTime(superChat.Time));
 				AppendUser(superChat.Uid, superChat.User);
+				// 和 blrec 一样用千分之一元：录播姬写的是元，DanmakuFactory 只对录播姬的文件乘 1000，其他文件按千分之一元读
 				AppendAttribute(@"price", DanmakuXmlText.Format(superChat.Price));
 				AppendAttribute(@"time", DanmakuXmlText.Format((long)superChat.Duration.TotalSeconds));
 				AppendAttribute(@"id", DanmakuXmlText.Format(superChat.Id));

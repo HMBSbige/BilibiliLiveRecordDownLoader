@@ -61,12 +61,12 @@ public sealed class DanmakuLiveFeedTest
 		_time.Advance(TimeSpan.FromSeconds(30));
 		feed.Add(Comment(2));
 		feed.Add(Comment(3));
-		double both = feed.Status.MessagesPerMinute;
+		int both = feed.Status.MessagesPerMinute;
 		_time.Advance(TimeSpan.FromSeconds(31));
-		double later = feed.Status.MessagesPerMinute;
+		int later = feed.Status.MessagesPerMinute;
 		_time.Advance(TimeSpan.FromMinutes(5));
 
-		await Assert.That((both, later, feed.Status.MessagesPerMinute)).IsEqualTo((3d, 2d, 0d));
+		await Assert.That((both, later, feed.Status.MessagesPerMinute)).IsEqualTo((3, 2, 0));
 	}
 
 	[Test]

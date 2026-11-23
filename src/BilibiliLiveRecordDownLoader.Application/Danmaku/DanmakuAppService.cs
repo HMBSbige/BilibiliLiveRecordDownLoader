@@ -4,7 +4,7 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 {
 	internal const int MaxDensityBins = 2000;
 
-	private static readonly TimeSpan MinDensityBinWidth = TimeSpan.FromSeconds(5);
+	private const int MinDensityBinSeconds = 5;
 
 	public IDanmakuFeed Subscribe(long roomId)
 	{
@@ -85,7 +85,7 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 		(
 			path,
 			source,
-			[.. records.Select(DanmakuConverter.ToEntry)],
+			[.. records.Select(DanmakuConverter.ToFileEntry)],
 			file.IsComplete,
 			ComputeDensity(records),
 			[.. DanmakuHighlightDetector.Detect(records).Select(DanmakuConverter.ToDto)],
@@ -124,7 +124,7 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 
 		try
 		{
-			await DanmakuAssGenerator.WriteFileAsync(subtitle, records, resolution, labels, CancellationToken.None);
+			await DanmakuAssGenerator.WriteFileAsync(subtitle, records, resolution, labels);
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
@@ -141,13 +141,13 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 
 		if (comments.Length is 0)
 		{
-			return new DanmakuDensityDto(MinDensityBinWidth, []);
+			return new DanmakuDensityDto(TimeSpan.FromSeconds(MinDensityBinSeconds), []);
 		}
 
 		long last = comments.Max(static comment => comment.Time.Ticks);
 
 		// 按整秒放宽，曲线的刻度好读
-		TimeSpan width = TimeSpan.FromSeconds(Math.Max(MinDensityBinWidth.TotalSeconds, Math.Floor((double)last / TimeSpan.TicksPerSecond / MaxDensityBins) + 1));
+		TimeSpan width = TimeSpan.FromSeconds(Math.Max(MinDensityBinSeconds, last / (TimeSpan.TicksPerSecond * MaxDensityBins) + 1));
 
 		int[] counts = new int[(int)(last / width.Ticks) + 1];
 

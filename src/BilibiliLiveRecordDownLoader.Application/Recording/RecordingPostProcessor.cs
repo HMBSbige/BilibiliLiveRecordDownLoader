@@ -149,7 +149,7 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 	{
 		try
 		{
-			await DanmakuAssGenerator.WriteFileAsync(path, danmaku.Records, resolution, showPaidMessages ? DanmakuTexts.SubtitleLabels : null, CancellationToken.None);
+			await DanmakuAssGenerator.WriteFileAsync(path, danmaku.Records, resolution, showPaidMessages ? DanmakuTexts.SubtitleLabels : null);
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{

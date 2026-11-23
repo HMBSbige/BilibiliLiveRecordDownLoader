@@ -19,7 +19,7 @@ internal static class DanmakuUid
 		return Crc32(digits.Slice(0, length)).ToString(@"x", CultureInfo.InvariantCulture);
 	}
 
-	internal static uint Crc32(ReadOnlySpan<byte> data)
+	private static uint Crc32(ReadOnlySpan<byte> data)
 	{
 		Span<byte> hash = stackalloc byte[HashAlgorithm<Crc32Core>.HashLength];
 		HashAlgorithm<Crc32Core>.HashData(data, hash);

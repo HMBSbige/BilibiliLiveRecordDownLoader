@@ -21,6 +21,7 @@ internal sealed record DanmakuFileHeader
 
 	public DateTimeOffset? LiveStartTime { get; init; }
 
+	// 记录的时间减去偏移后为 0 处对应的本地时刻，视频段的弹幕文件是画面开头
 	public DateTimeOffset? RecordStartTime { get; init; }
 
 	// 已经加到文件里每条记录上的时间偏移，正数让弹幕更晚出现

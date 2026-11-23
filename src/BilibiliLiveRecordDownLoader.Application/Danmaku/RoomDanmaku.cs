@@ -182,12 +182,12 @@ internal sealed partial class RoomDanmaku : IAsyncDisposable
 
 	public void OnVideoStarted(IRecordingTimeline timeline, string path, DanmakuRun run)
 	{
-		Enqueue(new DanmakuWork.VideoStarted(timeline, path, run));
+		Enqueue(new DanmakuWork.VideoStarted(timeline, path, run, _timeProvider.GetTimestamp()));
 	}
 
 	public void OnSegmentStarted(string path)
 	{
-		Enqueue(new DanmakuWork.SegmentStarted(path));
+		Enqueue(new DanmakuWork.SegmentStarted(path, _timeProvider.GetTimestamp()));
 	}
 
 	// 结果在这一段的弹幕文件写完关闭之后给出；这一段没录弹幕时为 null

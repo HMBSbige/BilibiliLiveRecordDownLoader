@@ -235,7 +235,7 @@ public sealed class LiveDanmakuViewModelTest
 		using LiveDanmakuViewModel viewModel = new(feed, filter, false);
 		DateTimeOffset disconnectedAt = new(2026, 11, 22, 20, 0, 0, TimeSpan.FromHours(8));
 
-		feed.Status = new DanmakuFeedStatus(DanmakuConnectionState.Disconnected, 1, 0, true, 12.4, disconnectedAt);
+		feed.Status = new DanmakuFeedStatus(DanmakuConnectionState.Disconnected, 1, 0, true, 12, disconnectedAt);
 		viewModel.Refresh();
 
 		using (Assert.Multiple())

@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace BilibiliLiveRecordDownLoader.Application.Danmaku;
@@ -10,7 +11,8 @@ internal sealed class RawDanmakuWriter : IAsyncDisposable
 	private const string ConnectedCommand = @"@connected";
 	private const string DisconnectedCommand = @"@disconnected";
 
-	private static readonly JsonWriterOptions WriterOptions = new() { SkipValidation = true };
+	// 默认的编码器按 HTML 安全转义，重写的行里中文会变成 \uXXXX；这是给程序读的存档，不会嵌进网页
+	private static readonly JsonWriterOptions WriterOptions = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping, SkipValidation = true };
 
 	private readonly Stream _stream;
 	private readonly DanmakuFlushPolicy _policy;
@@ -35,19 +37,7 @@ internal sealed class RawDanmakuWriter : IAsyncDisposable
 		return new RawDanmakuWriter(new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read, 0, FileOptions.Asynchronous), policy, timeProvider);
 	}
 
-	public TimeSpan? FlushDueIn
-	{
-		get
-		{
-			if (_pendingCount is 0)
-			{
-				return null;
-			}
-
-			TimeSpan remaining = _policy.Interval - _timeProvider.GetElapsedTime(_firstPendingTimestamp);
-			return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
-		}
-	}
+	public TimeSpan? FlushDueIn => _pendingCount is 0 ? null : _policy.GetFlushDueIn(_timeProvider.GetElapsedTime(_firstPendingTimestamp));
 
 	// json 已由协议层校验过；token 之间的换行会把一条记录拆成几行，有换行时重写成紧凑的形式
 	public ValueTask WriteAsync(DateTimeOffset time, string command, ReadOnlySpan<byte> json, CancellationToken cancellationToken)
@@ -55,7 +45,7 @@ internal sealed class RawDanmakuWriter : IAsyncDisposable
 		BeginLine(time, command);
 		_json.WritePropertyName("raw"u8);
 
-		if (json.IndexOfAny((byte)'\r', (byte)'\n') >= 0)
+		if (json.ContainsAny((byte)'\r', (byte)'\n'))
 		{
 			Utf8JsonReader reader = new(json);
 			using JsonDocument document = JsonDocument.ParseValue(ref reader);
@@ -139,23 +129,18 @@ internal sealed class RawDanmakuWriter : IAsyncDisposable
 		_json.WriteString("cmd"u8, command);
 	}
 
-	private async ValueTask EndLineAsync(CancellationToken cancellationToken)
+	private ValueTask EndLineAsync(CancellationToken cancellationToken)
+	{
+		CommitLine();
+		return _pendingCount >= _policy.MaxPending ? FlushAsync(cancellationToken) : FlushIfDueAsync(cancellationToken);
+	}
+
+	// Utf8JsonWriter 只写进内存缓冲区，同步刷新不会阻塞
+	private void CommitLine()
 	{
 		_json.WriteEndObject();
-		// 只写到内存缓冲区
-#pragma warning disable CA1849
 		_json.Flush();
-#pragma warning restore CA1849
 		_pending.Write("\n"u8);
 		++_pendingCount;
-
-		if (_pendingCount >= _policy.MaxPending)
-		{
-			await FlushAsync(cancellationToken);
-		}
-		else
-		{
-			await FlushIfDueAsync(cancellationToken);
-		}
 	}
 }

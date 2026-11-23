@@ -12,16 +12,16 @@ public sealed partial class DanmakuAssGeneratorTest
 	private const double Tolerance = 0.02;
 
 	[GeneratedRegex(@"^Dialogue: 0,(?<start>[^,]+),(?<end>[^,]+),Danmaku,,0,0,0,,\{(?<tags>[^}]*)\}(?<text>.*)$")]
-	private static partial Regex DialogueRegex();
+	private static partial Regex DialogueRegex { get; }
 
 	[GeneratedRegex(@"\\move\((?<x1>-?\d+),(?<y1>-?\d+),(?<x2>-?\d+),(?<y2>-?\d+)\)")]
-	private static partial Regex MoveRegex();
+	private static partial Regex MoveRegex { get; }
 
 	[GeneratedRegex(@"\\fs(?<size>\d+)")]
-	private static partial Regex FontSizeRegex();
+	private static partial Regex FontSizeRegex { get; }
 
 	[GeneratedRegex(@"\\c.*$")]
-	private static partial Regex ColorRegex();
+	private static partial Regex ColorRegex { get; }
 
 	private static (string Text, DanmakuAssResult Result) Generate(IEnumerable<DanmakuRecord> records, VideoResolution? size = null)
 	{
@@ -32,7 +32,7 @@ public sealed partial class DanmakuAssGeneratorTest
 
 	private static Match[] Dialogues(string text)
 	{
-		return [.. text.Split('\n').Select(static line => DialogueRegex().Match(line)).Where(static match => match.Success)];
+		return [.. text.Split('\n').Select(static line => DialogueRegex.Match(line)).Where(static match => match.Success)];
 	}
 
 	private static double ParseTime(string value)
@@ -67,7 +67,7 @@ public sealed partial class DanmakuAssGeneratorTest
 			await Assert.That(text).Contains(string.Create(CultureInfo.InvariantCulture, $"PlayResX: {width}\nPlayResY: {height}\n"));
 			await Assert.That(text).Contains(string.Create(CultureInfo.InvariantCulture, $"Style: Danmaku,Microsoft YaHei,{fontSize},"));
 			await Assert.That(result).IsEqualTo(new DanmakuAssResult(lanes, 60 - lanes, 0, 0));
-			await Assert.That(Dialogues(text).Select(static match => int.Parse(MoveRegex().Match(match.Groups[@"tags"].Value).Groups[@"y1"].Value, CultureInfo.InvariantCulture))).IsEquivalentTo(Enumerable.Range(0, lanes).Select(lane => lane * fontSize));
+			await Assert.That(Dialogues(text).Select(static match => int.Parse(MoveRegex.Match(match.Groups[@"tags"].Value).Groups[@"y1"].Value, CultureInfo.InvariantCulture))).IsEquivalentTo(Enumerable.Range(0, lanes).Select(lane => lane * fontSize));
 		}
 	}
 
@@ -88,8 +88,8 @@ public sealed partial class DanmakuAssGeneratorTest
 		Placed[] placed = [.. Dialogues(ass).Select(static match =>
 		{
 			string tags = match.Groups[@"tags"].Value;
-			Match move = MoveRegex().Match(tags);
-			int fontSize = FontSizeRegex().Match(tags) is { Success: true } fs ? int.Parse(fs.Groups[@"size"].Value, CultureInfo.InvariantCulture) : 38;
+			Match move = MoveRegex.Match(tags);
+			int fontSize = FontSizeRegex.Match(tags) is { Success: true } fs ? int.Parse(fs.Groups[@"size"].Value, CultureInfo.InvariantCulture) : 38;
 			return new Placed(ParseTime(match.Groups[@"start"].Value), int.Parse(move.Groups[@"y1"].Value, CultureInfo.InvariantCulture), fontSize, -int.Parse(move.Groups[@"x2"].Value, CultureInfo.InvariantCulture));
 		})];
 		int violations = 0;
@@ -178,15 +178,19 @@ public sealed partial class DanmakuAssGeneratorTest
 		(string text, _) = Generate([DanmakuSamples.Comment(0) with { Color = rgb }]);
 		Match dialogue = await Assert.That(Dialogues(text)).HasSingleItem();
 
-		await Assert.That(ColorRegex().Match(dialogue.Groups[@"tags"].Value).Value).IsEqualTo(expected);
+		await Assert.That(ColorRegex.Match(dialogue.Groups[@"tags"].Value).Value).IsEqualTo(expected);
 	}
 
+	// 换行和制表符换成空格，其他控制字符去掉
 	[Test]
-	public async Task OverrideCharactersAreShownLiterallyAsync()
+	[Arguments("  普通  ", "普通")]
+	[Arguments("{\\b1}换\\N行\n第二\t行", "｛＼b1｝换＼N行 第二 行")]
+	[Arguments("响\u0007铃\u0085声", "响铃声")]
+	public async Task CommentTextIsShownAsPlainTextAsync(string comment, string shown)
 	{
-		(string text, _) = Generate([DanmakuSamples.Comment(0, "{\\b1}换\\N行\n第二行\u0007")]);
+		(string text, _) = Generate([DanmakuSamples.Comment(0, comment)]);
 
-		await Assert.That(Texts(text)).IsEquivalentTo([@"｛＼b1｝换＼N行 第二行"]);
+		await Assert.That(Texts(text)).IsEquivalentTo([shown]);
 	}
 
 	[Test]
@@ -234,7 +238,7 @@ public sealed partial class DanmakuAssGeneratorTest
 		using TestDirectory directory = new();
 		string path = directory.Combine(@"弹幕.ass");
 
-		await DanmakuAssGenerator.WriteFileAsync(path, [DanmakuSamples.Comment(0)], null, null, cancellationToken);
+		await DanmakuAssGenerator.WriteFileAsync(path, [DanmakuSamples.Comment(0)], null, null);
 		byte[] content = await File.ReadAllBytesAsync(path, cancellationToken);
 
 		await Assert.That(content.Take(3)).IsEquivalentTo((byte[])[0xEF, 0xBB, 0xBF], CollectionOrdering.Matching);

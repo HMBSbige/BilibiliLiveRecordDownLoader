@@ -79,15 +79,16 @@ internal static class DanmakuAssMessages
 			{
 				case DanmakuRecord.SuperChat superChat when superChat.Id is 0 || !deleted.Contains(superChat.Id):
 				{
-					Card.SuperChat card = CreateSuperChat(superChat, bar);
+					string text = DanmakuAssText.Escape(superChat.Text);
+					Card.SuperChat card = CreateSuperChat(DanmakuAssText.Escape(superChat.User), text, superChat.Price, bar);
 					cards.Add(card);
-					requests.Add(new DanmakuMessageRequest(time, DanmakuMessageKind.SuperChat, card.Height, SuperChatDuration(superChat), 1, null));
+					requests.Add(new DanmakuMessageRequest(time, DanmakuMessageKind.SuperChat, card.Height, SuperChatDuration(text, superChat.Duration), 1, null));
 					break;
 				}
 				// 等级可能是没定义的值或坏数据
 				case DanmakuRecord.Guard { Level: GuardLevel.Governor or GuardLevel.Admiral or GuardLevel.Captain } guard:
 				{
-					string user = DanmakuAssGenerator.EscapeText(guard.User);
+					string user = DanmakuAssText.Escape(guard.User);
 					string text = FitName(name => labels.Guard(name, guard.Level, guard.Count, guard.IsRenewal), user, bar.FontSize, textWidth);
 					cards.Add(new Card.Capsule(bar.CapsuleHeight, GuardColor(guard.Level), _ => text));
 					requests.Add(new DanmakuMessageRequest(time, DanmakuMessageKind.Guard, bar.CapsuleHeight, GuardDuration, 1, null));
@@ -95,8 +96,8 @@ internal static class DanmakuAssMessages
 				}
 				case DanmakuRecord.Gift { Price: > 0 } gift:
 				{
-					string user = DanmakuAssGenerator.EscapeText(gift.User);
-					string giftName = DanmakuAssGenerator.EscapeText(gift.Name);
+					string user = DanmakuAssText.Escape(gift.User);
+					string giftName = DanmakuAssText.Escape(gift.Name);
 					// 昵称打码时 uid 为 0，只能按昵称区分送礼的人
 					string comboKey = gift.Uid is not 0 ? string.Create(CultureInfo.InvariantCulture, $"{gift.Uid}\n{gift.Name}") : $"\n{gift.User}\n{gift.Name}";
 					cards.Add(new Card.Capsule(bar.CapsuleHeight, GiftBackground, count => FitName(name => labels.Gift(name, giftName, count), user, bar.FontSize, textWidth)));
@@ -190,22 +191,22 @@ internal static class DanmakuAssMessages
 		}
 	}
 
-	private static Card.SuperChat CreateSuperChat(DanmakuRecord.SuperChat superChat, Geometry bar)
+	// user 和 text 已经转义
+	private static Card.SuperChat CreateSuperChat(string user, string text, long price, Geometry bar)
 	{
-		string price = FormatYuan(superChat.Price);
-		double nameWidth = bar.BarWidth - 3 * bar.Padding - Measure(price, bar.FontSize);
-		string name = Truncate(DanmakuAssGenerator.EscapeText(superChat.User), bar.FontSize, nameWidth);
-		IReadOnlyList<string> body = Wrap(DanmakuAssGenerator.EscapeText(superChat.Text), bar.FontSize, bar.BarWidth - 2 * bar.Padding, MaxBodyLines);
+		string yuan = FormatYuan(price);
+		string name = Truncate(user, bar.FontSize, bar.BarWidth - 3 * bar.Padding - Measure(yuan, bar.FontSize));
+		IReadOnlyList<string> body = Wrap(text, bar.FontSize, bar.BarWidth - 2 * bar.Padding, MaxBodyLines);
 		double height = bar.HeaderHeight + (body.Count is 0 ? 0 : body.Count * bar.LineHeight + 2 * bar.BodyPadding);
-		return new Card.SuperChat(height, name, price, body, SuperChatTier.For(superChat.Price));
+		return new Card.SuperChat(height, name, yuan, body, SuperChatTier.For(price));
 	}
 
-	// 不超过 SC 在直播间里置顶的时长
-	private static TimeSpan SuperChatDuration(DanmakuRecord.SuperChat superChat)
+	// pinned 是 SC 在直播间里置顶的时长，消息栏里不比它留得久
+	private static TimeSpan SuperChatDuration(string text, TimeSpan pinned)
 	{
-		TimeSpan duration = SuperChatMinimum + SuperChatPerCharacter * DanmakuAssGenerator.EscapeText(superChat.Text).EnumerateRunes().Count();
+		TimeSpan duration = SuperChatMinimum + SuperChatPerCharacter * text.EnumerateRunes().Count();
 		duration = duration < SuperChatMaximum ? duration : SuperChatMaximum;
-		return superChat.Duration > TimeSpan.Zero && superChat.Duration < duration ? Quantize(superChat.Duration) : duration;
+		return pinned > TimeSpan.Zero && pinned < duration ? Quantize(pinned) : duration;
 	}
 
 	// 自定的颜色，和 SC 的档位色区分开
@@ -228,7 +229,7 @@ internal static class DanmakuAssMessages
 			Round(bar.Left),
 			Round(bar.Bottom - span.From - card.Height),
 			Round(bar.Bottom - span.To - card.Height),
-			span.MoveEnd > span.Start && Math.Abs(span.From - span.To) >= 0.5 ? (int)(span.MoveEnd - span.Start).TotalMilliseconds : 0
+			Milliseconds(span.MoveEnd - span.Start)
 		);
 		string fade = Fade(placement, span);
 
@@ -241,27 +242,27 @@ internal static class DanmakuAssMessages
 				int header = Round(bar.HeaderHeight);
 				int center = header / 2;
 
-				Add(BackgroundLayer, $@"\an7{frame.At(0, 0)}{fade}\1c&H{DanmakuAssGenerator.ToAssColor(superChat.Tier.Background)}&\1a&H{CardAlpha}&\p1", RoundedRectangle(width, header, radius, superChat.Lines.Count is 0 ? radius : 0));
+				Add(BackgroundLayer, $@"\an7{frame.At(0, 0)}{fade}\1c&H{DanmakuAssText.Color(superChat.Tier.Background)}&\1a&H{CardAlpha}&\p1", RoundedRectangle(width, header, radius, superChat.Lines.Count is 0 ? radius : 0));
 
 				if (superChat.Lines.Count > 0)
 				{
-					Add(BackgroundLayer, $@"\an7{frame.At(0, header)}{fade}\1c&H{DanmakuAssGenerator.ToAssColor(superChat.Tier.BottomBackground)}&\1a&H{CardAlpha}&\p1", RoundedRectangle(width, height - header, 0, radius));
+					Add(BackgroundLayer, $@"\an7{frame.At(0, header)}{fade}\1c&H{DanmakuAssText.Color(superChat.Tier.BottomBackground)}&\1a&H{CardAlpha}&\p1", RoundedRectangle(width, height - header, 0, radius));
 					// 每行单独定位：\N 的行距取决于字体和渲染器，和按行高算出的卡片高度对不上
 					for (int i = 0; i < superChat.Lines.Count; ++i)
 					{
-						Add(TextLayer, $@"\an4{frame.At(bar.Padding, header + bar.BodyPadding + bar.LineHeight * (i + 0.5))}{fade}\1c&H{DanmakuAssGenerator.ToAssColor(superChat.Tier.TextColor)}&", superChat.Lines[i]);
+						Add(TextLayer, $@"\an4{frame.At(bar.Padding, header + bar.BodyPadding + bar.LineHeight * (i + 0.5))}{fade}\1c&H{DanmakuAssText.Color(superChat.Tier.TextColor)}&", superChat.Lines[i]);
 					}
 				}
 
-				Add(TextLayer, $@"\an4{frame.At(bar.Padding, center)}{fade}\b1\1c&H{DanmakuAssGenerator.ToAssColor(NameColor)}&", superChat.Name);
-				Add(TextLayer, $@"\an6{frame.At(bar.BarWidth - bar.Padding, center)}{fade}\1c&H{DanmakuAssGenerator.ToAssColor(superChat.Tier.PriceColor)}&", superChat.Price);
+				Add(TextLayer, $@"\an4{frame.At(bar.Padding, center)}{fade}\b1\1c&H{DanmakuAssText.Color(NameColor)}&", superChat.Name);
+				Add(TextLayer, $@"\an6{frame.At(bar.BarWidth - bar.Padding, center)}{fade}\1c&H{DanmakuAssText.Color(superChat.Tier.PriceColor)}&", superChat.Price);
 				break;
 			}
 			case Card.Capsule capsule:
 			{
 				string text = capsule.Text(span.Count);
 				int width = Round(Math.Min(bar.BarWidth, Measure(text, bar.FontSize) + 2 * bar.CapsulePadding));
-				Add(BackgroundLayer, $@"\an7{frame.At(0, 0)}{fade}\1c&H{DanmakuAssGenerator.ToAssColor(capsule.Color)}&\1a&H{CardAlpha}&\p1", RoundedRectangle(Math.Max(width, height), height, height / 2, height / 2));
+				Add(BackgroundLayer, $@"\an7{frame.At(0, 0)}{fade}\1c&H{DanmakuAssText.Color(capsule.Color)}&\1a&H{CardAlpha}&\p1", RoundedRectangle(Math.Max(width, height), height, height / 2, height / 2));
 				Add(TextLayer, $@"\an4{frame.At(bar.CapsulePadding, height / 2.0)}{fade}", text);
 				break;
 			}
@@ -273,7 +274,7 @@ internal static class DanmakuAssMessages
 
 		void Add(int layer, string tags, string text)
 		{
-			lines.Add((span.Start, string.Create(CultureInfo.InvariantCulture, $"Dialogue: {layer},{DanmakuAssGenerator.FormatTime(span.Start)},{DanmakuAssGenerator.FormatTime(span.End)},Message,,0,0,0,,{{{tags}}}{text}\n")));
+			lines.Add((span.Start, string.Create(CultureInfo.InvariantCulture, $"Dialogue: {layer},{DanmakuAssText.Time(span.Start)},{DanmakuAssText.Time(span.End)},Message,,0,0,0,,{{{tags}}}{text}\n")));
 		}
 	}
 
@@ -388,7 +389,7 @@ internal static class DanmakuAssMessages
 
 				string rest = string.Empty;
 
-				if (rune.Value is not ' ' && !DanmakuAssGenerator.IsWide(rune.Value) && breakAt > 0 && breakAt < line.Length)
+				if (rune.Value is not ' ' && !DanmakuAssText.IsWide(rune.Value) && breakAt > 0 && breakAt < line.Length)
 				{
 					rest = line.ToString(breakAt, line.Length - breakAt);
 					line.Length = breakAt;
@@ -408,7 +409,7 @@ internal static class DanmakuAssMessages
 			line.Append(rune);
 			width += runeWidth;
 
-			if (rune.Value is ' ' || DanmakuAssGenerator.IsWide(rune.Value))
+			if (rune.Value is ' ' || DanmakuAssText.IsWide(rune.Value))
 			{
 				breakAt = line.Length;
 			}
@@ -428,7 +429,7 @@ internal static class DanmakuAssMessages
 	{
 		double em = fontSize * 0.8;
 
-		if (DanmakuAssGenerator.IsWide(rune.Value))
+		if (DanmakuAssText.IsWide(rune.Value))
 		{
 			return em;
 		}

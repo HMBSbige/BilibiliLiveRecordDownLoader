@@ -267,6 +267,17 @@ public sealed class DanmakuXmlWriterTest
 		await Assert.That(await File.ReadAllTextAsync(path, cancellationToken)).IsEqualTo(@"keep");
 	}
 
+	// 房间停止时的取消可能正好落在建好文件之后、写完文件头之前
+	[Test]
+	public async Task AFileWhoseHeaderCannotBeWrittenIsRemovedAsync()
+	{
+		using TestDirectory directory = new();
+		string path = directory.Combine(@"取消.xml");
+
+		await Assert.That(async () => await DanmakuXmlWriter.CreateFileAsync(path, DanmakuSamples.Header, DanmakuFlushPolicy.Default, TimeProvider.System, new CancellationToken(true))).Throws<OperationCanceledException>();
+		await Assert.That(File.Exists(path)).IsFalse();
+	}
+
 	private sealed class FailingStream(MemoryStream inner) : Stream
 	{
 		public bool FailNextWrite { get; set; }

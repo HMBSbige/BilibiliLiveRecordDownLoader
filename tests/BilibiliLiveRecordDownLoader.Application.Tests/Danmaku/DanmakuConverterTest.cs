@@ -102,7 +102,7 @@ public sealed class DanmakuConverterTest
 	[Test]
 	public async Task FileEntriesComeFromEveryKindOfRecordAsync()
 	{
-		await Assert.That(DanmakuSamples.AllKinds().Select(DanmakuConverter.ToEntry)).IsEquivalentTo(
+		await Assert.That(DanmakuSamples.AllKinds().Select(DanmakuConverter.ToFileEntry)).IsEquivalentTo(
 		[
 			new(TimeSpan.Zero, new DanmakuEntryDto.Connection(true, true)),
 			new(TimeSpan.FromMilliseconds(12345), new DanmakuEntryDto.Comment(FileSender(123, "昵称"), "文本", false)),

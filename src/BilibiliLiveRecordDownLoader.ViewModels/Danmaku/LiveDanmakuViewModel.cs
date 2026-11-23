@@ -234,7 +234,7 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 			_ when _status.Connection == _loginConnection => (AppLanguage.Current.DanmakuLoginPending, false),
 			_ => (AppLanguage.Current.DanmakuAnonymousMasked, true)
 		};
-		RateText = AppLanguage.Current.DanmakuRate.ToString(Math.Round(_status.MessagesPerMinute).ToString("0", CultureInfo.CurrentCulture));
+		RateText = AppLanguage.Current.DanmakuRate.ToString(_status.MessagesPerMinute.ToString(CultureInfo.CurrentCulture));
 		ReconnectingText = _status.DisconnectedAt is { } disconnectedAt ? AppLanguage.Current.DanmakuReconnecting.ToString(disconnectedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture)) : null;
 	}
 

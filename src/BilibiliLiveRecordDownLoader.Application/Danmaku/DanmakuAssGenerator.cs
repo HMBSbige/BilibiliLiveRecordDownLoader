@@ -25,11 +25,11 @@ internal static class DanmakuAssGenerator
 	private static readonly UTF8Encoding Utf8WithBom = new(true);
 
 	// 很多播放器只在有 BOM 时把 ASS 当 UTF-8；messageLabels 为 null 时不画消息栏
-	public static async Task WriteFileAsync(string path, IEnumerable<DanmakuRecord> records, VideoResolution? videoSize, DanmakuAssLabels? messageLabels, CancellationToken cancellationToken)
+	// 不接受取消，写到一半停下会留下残缺的字幕
+	public static async Task WriteFileAsync(string path, IEnumerable<DanmakuRecord> records, VideoResolution? videoSize, DanmakuAssLabels? messageLabels)
 	{
 		await using StreamWriter writer = new(path, false, Utf8WithBom);
 		Write(writer, records, videoSize, messageLabels);
-		await writer.FlushAsync(cancellationToken);
 	}
 
 	public static DanmakuAssResult Write(TextWriter writer, IEnumerable<DanmakuRecord> records, VideoResolution? videoSize, DanmakuAssLabels? messageLabels)
@@ -53,7 +53,7 @@ internal static class DanmakuAssGenerator
 
 		foreach (DanmakuRecord.Comment comment in sorted.OfType<DanmakuRecord.Comment>())
 		{
-			if (comment.Mode is not (>= 1 and <= 5) || EscapeText(comment.Text) is not { Length: > 0 } text)
+			if (comment.Mode is not (>= 1 and <= 5) || DanmakuAssText.Escape(comment.Text) is not { Length: > 0 } text)
 			{
 				continue;
 			}
@@ -77,8 +77,8 @@ internal static class DanmakuAssGenerator
 
 			TimeSpan end = start + (comment.Mode is 4 or 5 ? FixedDuration : ScrollDuration);
 			string sizeTag = fontSize == laneHeight ? string.Empty : string.Create(CultureInfo.InvariantCulture, $@"\fs{fontSize}");
-			string colorTag = (comment.Color & 0xFFFFFF) is 0xFFFFFF ? string.Empty : $@"\c&H{ToAssColor(comment.Color)}&";
-			writer.Write($"Dialogue: 0,{FormatTime(start)},{FormatTime(end)},Danmaku,,0,0,0,,{{{position}{sizeTag}{colorTag}}}{text}\n");
+			string colorTag = (comment.Color & 0xFFFFFF) is 0xFFFFFF ? string.Empty : $@"\c&H{DanmakuAssText.Color(comment.Color)}&";
+			writer.Write($"Dialogue: 0,{DanmakuAssText.Time(start)},{DanmakuAssText.Time(end)},Danmaku,,0,0,0,,{{{position}{sizeTag}{colorTag}}}{text}\n");
 			++shown;
 		}
 
@@ -181,73 +181,13 @@ internal static class DanmakuAssGenerator
 
 		foreach (Rune rune in text.EnumerateRunes())
 		{
-			width += IsWide(rune.Value) ? fontSize : fontSize * 0.6;
+			width += DanmakuAssText.IsWide(rune.Value) ? fontSize : fontSize * 0.6;
 		}
 
 		return width;
 	}
 
-	internal static bool IsWide(int codePoint)
-	{
-		return codePoint is >= 0x1100 and <= 0x115F
-			or >= 0x2E80 and <= 0xA4CF
-			or >= 0xAC00 and <= 0xD7A3
-			or >= 0xF900 and <= 0xFAFF
-			or >= 0xFE30 and <= 0xFE4F
-			or >= 0xFF00 and <= 0xFF60
-			or >= 0xFFE0 and <= 0xFFE6
-			or >= 0x1F000;
-	}
-
-	// ASS 里 { } 是样式代码，\N、\n、\h 是换行和硬空格，换成全角字符才能原样显示
-	internal static string EscapeText(string text)
-	{
-		StringBuilder builder = new(text.Length);
-
-		foreach (Rune rune in text.EnumerateRunes())
-		{
-			switch (rune.Value)
-			{
-				case '{':
-					builder.Append('｛');
-					break;
-				case '}':
-					builder.Append('｝');
-					break;
-				case '\\':
-					builder.Append('＼');
-					break;
-				case '\n' or '\r' or '\t':
-					builder.Append(' ');
-					break;
-				default:
-				{
-					if (!Rune.IsControl(rune))
-					{
-						builder.Append(rune);
-					}
-
-					break;
-				}
-			}
-		}
-
-		return builder.ToString().Trim();
-	}
-
-	// ASS 的颜色是 BGR
-	internal static string ToAssColor(int rgb)
-	{
-		return string.Create(CultureInfo.InvariantCulture, $@"{rgb & 0xFF:X2}{rgb >> 8 & 0xFF:X2}{rgb >> 16 & 0xFF:X2}");
-	}
-
-	internal static string FormatTime(TimeSpan value)
-	{
-		long centiseconds = value.Ticks / (TimeSpan.TicksPerMillisecond * 10);
-		return string.Create(CultureInfo.InvariantCulture, $@"{centiseconds / 360000}:{centiseconds / 6000 % 60:00}:{centiseconds / 100 % 60:00}.{centiseconds % 100:00}");
-	}
-
-	private sealed record ScrollLane(TimeSpan Start, double Width, double Speed)
+	private readonly record struct ScrollLane(TimeSpan Start, double Width, double Speed)
 	{
 		public bool AllowsNext(TimeSpan start, double speed, int screenWidth)
 		{

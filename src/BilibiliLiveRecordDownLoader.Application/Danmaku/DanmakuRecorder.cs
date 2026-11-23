@@ -50,7 +50,7 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 		return _openPaths.ContainsKey(Path.GetFullPath(path));
 	}
 
-	private IEnumerable<Sink> OpenSinks => _videoSinks.Values.OfType<Sink>().Concat(_text is { Sink: { } sink } ? [sink] : []);
+	private IEnumerable<Sink> OpenSinks => _videoSinks.Values.OfType<Sink>().Concat(_text is { File: { } sink } ? [sink] : []);
 
 	public async Task RunAsync(ChannelReader<DanmakuWork> reader, Action<DanmakuWork> onDequeued, CancellationToken cancellationToken)
 	{
@@ -148,13 +148,10 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 				await wait.CancelAsync();
 				cancellationToken.ThrowIfCancellationRequested();
 
-				// 成功完成后才读 Result，不会阻塞
-#pragma warning disable CA1849
-				if (completed == readable && readable is { IsCompletedSuccessfully: true, Result: false })
+				if (completed == readable && !await readable)
 				{
 					return null;
 				}
-#pragma warning restore CA1849
 
 				// 可读通知异步送达，WhenAny 可能先看到到期；已经排进来的工作里可能有未登录通知，要先处理
 				if (completed == readable || reader.TryPeek(out _))
@@ -163,8 +160,16 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 				}
 			}
 
-			await FlushDueAsync(cancellationToken);
-			UpdateRecording();
+			// 和处理工作一样出错只记日志：写入者停下的话队列不会完成，之后关闭段的请求只能等到超时
+			try
+			{
+				await FlushDueAsync(cancellationToken);
+				UpdateRecording();
+			}
+			catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+			{
+				LogFlushFailed(logger, exception);
+			}
 		}
 	}
 
@@ -257,15 +262,15 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 				await EndVideoAsync();
 				DanmakuRunSettings settings = await started.Run.GetSettingsAsync(cancellationToken);
 				_video = new VideoRun(started.Timeline, started.Run, settings);
-				await StartSegmentAsync(started.Path, cancellationToken);
+				await StartSegmentAsync(started.Path, started.Timestamp, cancellationToken);
 				break;
 			}
-			case DanmakuWork.SegmentStarted { Path: var path }:
+			case DanmakuWork.SegmentStarted started:
 			{
 				if (_video is { } video)
 				{
 					video.Settings = await video.Run.GetSettingsAsync(cancellationToken);
-					await StartSegmentAsync(path, cancellationToken);
+					await StartSegmentAsync(started.Path, started.Timestamp, cancellationToken);
 				}
 
 				break;
@@ -289,7 +294,7 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 				if (settings.Profile.IsEnabled)
 				{
 					_text = new TextRun(started.Run);
-					_text.Sink = await OpenTextSinkAsync(_text, settings, started.Timestamp, null, cancellationToken);
+					_text.File = await OpenTextSinkAsync(_text, settings, started.Timestamp, null, cancellationToken);
 				}
 
 				break;
@@ -468,14 +473,14 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 
 	private async Task ChangeTitleAsync(string title, long timestamp, CancellationToken cancellationToken)
 	{
-		if (_text is { Sink: { } current } text)
+		if (_text is { File: { } current } text)
 		{
 			DanmakuRunSettings settings = await text.Run.GetSettingsAsync(cancellationToken);
 
 			if (settings.SplitOnTitleChange)
 			{
 				await CloseSinkAsync(current, timeProvider.GetElapsedTime(current.StartTimestamp, timestamp), null);
-				text.Sink = await OpenTextSinkAsync(text, settings, timestamp, title, cancellationToken);
+				text.File = await OpenTextSinkAsync(text, settings, timestamp, title, cancellationToken);
 				return;
 			}
 		}
@@ -489,7 +494,7 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 
 	private async Task<(Sink Sink, TimeSpan Time)?> PlaceAsync(long timestamp, CancellationToken cancellationToken)
 	{
-		if (_text is { Sink: { } textSink })
+		if (_text is { File: { } textSink })
 		{
 			TimeSpan elapsed = timeProvider.GetElapsedTime(textSink.StartTimestamp, timestamp);
 			return (textSink, elapsed > TimeSpan.Zero ? elapsed : TimeSpan.Zero);
@@ -506,12 +511,13 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 			return null;
 		}
 
-		// 写盘端已经开始新的一段，段开始的通知还排在后面
-		Sink.Video? sink = _videoSinks.TryGetValue(position.Path, out Sink.Video? known) ? known : await AddVideoSinkAsync(video, position.Path, cancellationToken);
+		// 写盘端已经开始新的一段、段开始的通知还排在后面，或者段中途才打开录弹幕；画面开头的时刻从这一条的位置往回推
+		Sink.Video? sink = _videoSinks.TryGetValue(position.Path, out Sink.Video? known) ? known : await AddVideoSinkAsync(video, position.Path, timeProvider.GetLocalNow() - timeProvider.GetElapsedTime(timestamp) - position.Time, cancellationToken);
 		return sink is { IsFailed: false } ? (sink, position.Time) : null;
 	}
 
-	private async Task StartSegmentAsync(string path, CancellationToken cancellationToken)
+	// timestamp 是录制换到这个文件的时刻，写入者可能正卡在放置前面的弹幕上，处理到时已经过了一会儿
+	private async Task StartSegmentAsync(string path, long timestamp, CancellationToken cancellationToken)
 	{
 		if (_video is not { } video)
 		{
@@ -520,7 +526,7 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 
 		if (!_videoSinks.ContainsKey(path) && !_closedVideoPaths.Contains(path))
 		{
-			await AddVideoSinkAsync(video, path, cancellationToken);
+			await AddVideoSinkAsync(video, path, timeProvider.GetLocalNow() - timeProvider.GetElapsedTime(timestamp), cancellationToken);
 		}
 
 		if (!video.Settings.Profile.IsEnabled)
@@ -529,10 +535,10 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 		}
 	}
 
-	// 没录弹幕的段也登记，又打开录弹幕之前不再为它建文件
-	private async Task<Sink.Video?> AddVideoSinkAsync(VideoRun video, string path, CancellationToken cancellationToken)
+	// 没录弹幕的段也登记，又打开录弹幕之前不再为它建文件；start 是画面开头对应的本地时刻
+	private async Task<Sink.Video?> AddVideoSinkAsync(VideoRun video, string path, DateTimeOffset start, CancellationToken cancellationToken)
 	{
-		Sink.Video? sink = video.Settings.Profile.IsEnabled ? await OpenVideoSinkAsync(video, path, cancellationToken) : null;
+		Sink.Video? sink = video.Settings.Profile.IsEnabled ? await OpenVideoSinkAsync(video, path, start, cancellationToken) : null;
 
 		// DeliverSpillAsync 按登记的先后找下一段，先登记
 		_videoSinks[path] = sink;
@@ -597,7 +603,7 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 
 	private async Task StopTextAsync()
 	{
-		if (_text is { Sink: { } sink })
+		if (_text is { File: { } sink })
 		{
 			await CloseSinkAsync(sink, timeProvider.GetElapsedTime(sink.StartTimestamp), null);
 		}
@@ -645,11 +651,11 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 		}
 	}
 
-	private async Task<Sink.Video?> OpenVideoSinkAsync(VideoRun video, string videoPath, CancellationToken cancellationToken)
+	private async Task<Sink.Video?> OpenVideoSinkAsync(VideoRun video, string videoPath, DateTimeOffset start, CancellationToken cancellationToken)
 	{
 		string stem = RecordingFileLayout.GetStem(videoPath);
 		DanmakuRunSettings settings = video.Settings;
-		DanmakuFileHeader header = video.Run.CreateHeader() with { RecordStartTime = timeProvider.GetLocalNow(), Offset = settings.Profile.Offset };
+		DanmakuFileHeader header = video.Run.CreateHeader() with { RecordStartTime = start, Offset = settings.Profile.Offset };
 		return await OpenSinkAsync(stem, header, settings, (path, writer) => new Sink.Video(path, writer, settings.Profile, video, videoPath), cancellationToken);
 	}
 
@@ -832,9 +838,9 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 
 	private async Task<DanmakuSegment?> CloseSinkAsync(Sink sink, TimeSpan? duration, VideoResolution? resolution)
 	{
-		if (_text is not null && ReferenceEquals(sink, _text.Sink))
+		if (_text is not null && ReferenceEquals(sink, _text.File))
 		{
-			_text.Sink = null;
+			_text.File = null;
 		}
 
 		try
@@ -1088,8 +1094,7 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 	{
 		public DanmakuRun Run { get; } = run;
 
-		// ReSharper disable once MemberHidesStaticFromOuterClass
-		public Sink.Text? Sink { get; set; }
+		public Sink.Text? File { get; set; }
 	}
 
 	[LoggerMessage(Level = LogLevel.Information, Message = "Recording danmaku to {Path}")]
@@ -1118,4 +1123,7 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to handle {Work}")]
 	private static partial void LogWorkFailed(ILogger logger, Exception exception, string work);
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to flush danmaku on schedule")]
+	private static partial void LogFlushFailed(ILogger logger, Exception exception);
 }

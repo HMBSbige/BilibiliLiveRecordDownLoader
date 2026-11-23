@@ -15,9 +15,9 @@ internal closed record DanmakuWork
 
 	public sealed record TitleChanged(string Title, long Timestamp) : DanmakuWork;
 
-	public sealed record VideoStarted(IRecordingTimeline Timeline, string Path, DanmakuRun Run) : DanmakuWork;
+	public sealed record VideoStarted(IRecordingTimeline Timeline, string Path, DanmakuRun Run, long Timestamp) : DanmakuWork;
 
-	public sealed record SegmentStarted(string Path) : DanmakuWork;
+	public sealed record SegmentStarted(string Path, long Timestamp) : DanmakuWork;
 
 	// 处理到这里时，接收时刻落在这一段的弹幕都已经排在前面
 	public sealed record SegmentCompleted(string Path, TaskCompletionSource<DanmakuSegment?> Completion) : DanmakuWork;

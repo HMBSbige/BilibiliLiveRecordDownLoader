@@ -17,14 +17,14 @@ public sealed partial class DanmakuAssMessagesTest
 	);
 
 	[GeneratedRegex(@"^Dialogue: (?<layer>\d),(?<start>[^,]+),(?<end>[^,]+),Message,,0,0,0,,\{(?<tags>[^}]*)\}(?<text>.*)$")]
-	private static partial Regex MessageRegex();
+	private static partial Regex MessageRegex { get; }
 
 	private static (Match[] Messages, DanmakuAssResult Result, string Text) Generate(IEnumerable<DanmakuRecord> records, VideoResolution? size = null)
 	{
 		StringWriter writer = new(CultureInfo.InvariantCulture);
 		DanmakuAssResult result = DanmakuAssGenerator.Write(writer, records, size, Labels);
 		string text = writer.ToString();
-		return ([.. text.Split('\n').Select(static line => MessageRegex().Match(line)).Where(static match => match.Success)], result, text);
+		return ([.. text.Split('\n').Select(static line => MessageRegex.Match(line)).Where(static match => match.Success)], result, text);
 	}
 
 	private static string[] Texts(Match[] messages)
@@ -39,7 +39,7 @@ public sealed partial class DanmakuAssMessagesTest
 
 	private static string Color(int rgb)
 	{
-		return $@"\1c&H{DanmakuAssGenerator.ToAssColor(rgb)}&";
+		return $@"\1c&H{DanmakuAssText.Color(rgb)}&";
 	}
 
 	// B 站原样的价格色在浅色底上看不清
@@ -175,7 +175,7 @@ public sealed partial class DanmakuAssMessagesTest
 	{
 		(Match[] messages, _, _) = Generate([new DanmakuRecord.SuperChat(TimeSpan.FromSeconds(1), 1, @"老板", 30_000, TimeSpan.FromSeconds(duration), new string('字', length))]);
 
-		await Assert.That(messages.Select(static match => match.Groups[@"end"].Value).Distinct()).IsEquivalentTo([DanmakuAssGenerator.FormatTime(TimeSpan.FromSeconds(1 + seconds))]);
+		await Assert.That(messages.Select(static match => match.Groups[@"end"].Value).Distinct()).IsEquivalentTo([DanmakuAssText.Time(TimeSpan.FromSeconds(1 + seconds))]);
 	}
 
 	[Test]
@@ -185,6 +185,28 @@ public sealed partial class DanmakuAssMessagesTest
 
 		// 胶囊高 46、间距 8；1080 × 0.96 - 46 = 990.8，取整 991；中线再往下 23
 		await Assert.That(messages.Where(static match => match.Groups[@"text"].Value is @"甲 开通了舰长").Select(static match => $"{match.Groups[@"start"].Value}-{match.Groups[@"end"].Value} {match.Groups[@"tags"].Value}")).IsEquivalentTo([@"0:00:00.00-0:00:01.00 \an4\pos(58,1014)\fad(200,0)", @"0:00:01.00-0:00:06.00 \an4\move(58,1014,58,960,0,200)\fad(0,200)"], CollectionOrdering.Matching);
+	}
+
+	// 某一段从淡入或淡出途中开始时，接着当时的透明度变
+	[Test]
+	public async Task ASegmentStartingMidFadeContinuesFromTheCurrentAlphaAsync()
+	{
+		// 礼物 0.1 秒进来把上舰顶上去，连击 5.85 秒结束时上舰落回原位，6 秒消失
+		(Match[] messages, _, _) = Generate(
+		[
+			new DanmakuRecord.Guard(TimeSpan.Zero, 1, @"甲", GuardLevel.Captain, 1, 198_000),
+			new DanmakuRecord.Gift(TimeSpan.FromSeconds(0.1), 2, @"乙", @"礼物", 1, 1000),
+			new DanmakuRecord.Gift(TimeSpan.FromSeconds(0.85), 2, @"乙", @"礼物", 1, 1000)
+		]);
+
+		await Assert.That(messages.Where(static match => match.Groups[@"text"].Value is @"甲 开通了舰长").Select(static match => $"{match.Groups[@"start"].Value}-{match.Groups[@"end"].Value} {match.Groups[@"tags"].Value}")).IsEquivalentTo(
+		[
+			@"0:00:00.00-0:00:00.10 \an4\pos(58,1014)\fad(200,0)",
+			// 淡入过半，透明度 128，再过 100 毫秒完全显示
+			@"0:00:00.10-0:00:05.85 \an4\move(58,1014,58,960,0,200)\fade(128,0,255,0,100,5700,5900)",
+			// 淡出过了四分之一
+			@"0:00:05.85-0:00:06.00 \an4\move(58,960,58,1014,0,200)\fade(64,64,255,0,0,0,150)"
+		], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -316,11 +338,11 @@ public sealed partial class DanmakuAssMessagesTest
 	}
 
 	[GeneratedRegex(@"^Dialogue: 0,[^,]+,[^,]+,Danmaku,,0,0,0,,\{(?<tags>[^}]*)\}(?<text>.*)$")]
-	private static partial Regex DanmakuRegex();
+	private static partial Regex DanmakuRegex { get; }
 
 	private static Dictionary<string, string> BottomPositions(string text)
 	{
-		return text.Split('\n').Select(static line => DanmakuRegex().Match(line)).Where(static match => match.Success).ToDictionary(static match => match.Groups[@"text"].Value, static match => match.Groups[@"tags"].Value);
+		return text.Split('\n').Select(static line => DanmakuRegex.Match(line)).Where(static match => match.Success).ToDictionary(static match => match.Groups[@"text"].Value, static match => match.Groups[@"tags"].Value);
 	}
 
 	// 1080p 下消息栏右边到 518，居中的弹幕估算宽度超过 884 才伸进来；30 个全角字按字号 38 估算是 1140

@@ -36,7 +36,9 @@ public sealed class RoomDanmakuTest : IDisposable
 		TaskCompletionSource<TimelinePosition?> pending = timeline.Next();
 		danmaku.OnReceived(Comment("还在等"));
 		Task<DanmakuSegment?> closed = danmaku.CompleteSegment(video);
-		await Task.Delay(100, cancellationToken);
+
+		// 写入者卡在这一条的归属上
+		await timeline.Placing.Task.WaitAsync(cancellationToken);
 		bool closedEarly = closed.IsCompleted;
 		pending.SetResult(new TimelinePosition(0, video, TimeSpan.FromSeconds(3)));
 		DanmakuSegment? segment = await closed.WaitAsync(cancellationToken);
@@ -292,11 +294,12 @@ public sealed class RoomDanmakuTest : IDisposable
 		danmaku.SetRecording(true);
 		danmaku.OnVideoStarted(new ControlledTimeline(), video, Run());
 
-		await TestWait.UntilAsync(() => danmaku.IsWriting(xml), "the danmaku file is opened", cancellationToken);
+		await BarrierAsync(danmaku, cancellationToken);
+		bool whileOpen = danmaku.IsWriting(xml);
 
 		DanmakuSegment? segment = await danmaku.CompleteSegment(video).WaitAsync(cancellationToken);
 
-		await Assert.That((segment?.Path, danmaku.IsWriting(xml))).IsEqualTo((xml, false));
+		await Assert.That((whileOpen, segment?.Path, danmaku.IsWriting(xml))).IsEqualTo((true, xml, false));
 	}
 
 	// 开着保存原始消息也一样，不建原始消息文件，也不解析原始消息
@@ -396,7 +399,17 @@ public sealed class RoomDanmakuTest : IDisposable
 	{
 		TimerWatchingTimeProvider watched = new(_time);
 		ListLogger logger = new();
-		HookedStream stream = new(static index => index > 1 ? throw new IOException("磁盘已满") : Task.CompletedTask);
+		TaskCompletionSource failed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		HookedStream stream = new(index =>
+		{
+			if (index > 1)
+			{
+				failed.TrySetResult();
+				throw new IOException("磁盘已满");
+			}
+
+			return Task.CompletedTask;
+		});
 		bool isRecording = false;
 		DanmakuRecorder recorder = new(1, watched, logger, new DanmuReceiveOptions(), recording => isRecording = recording)
 		{
@@ -407,11 +420,13 @@ public sealed class RoomDanmakuTest : IDisposable
 		queue.Writer.TryWrite(new DanmakuWork.Received(Comment("写不进去")));
 		Task running = Task.Run(() => recorder.RunAsync(queue.Reader, static _ => { }, cancellationToken), cancellationToken);
 
-		// 写入者开始等按时刷新，到期后写失败
+		// 写入者开始等按时刷新，到期后写失败；处理完失败、回去等待之后再过一个间隔也不该重试
 		await watched.TimerCreated.Task.WaitAsync(cancellationToken);
 		_time.Advance(DanmakuFlushPolicy.Default.Interval);
-		await TestWait.UntilAsync(() => stream.Writes >= 2, "the due flush is attempted", cancellationToken);
-		await Task.Delay(200, cancellationToken);
+		await failed.Task.WaitAsync(cancellationToken);
+		await BarrierAsync(queue.Writer, cancellationToken);
+		_time.Advance(DanmakuFlushPolicy.Default.Interval);
+		await BarrierAsync(queue.Writer, cancellationToken);
 		int writes = stream.Writes;
 		bool recordingAfterFailure = isRecording;
 
@@ -425,6 +440,33 @@ public sealed class RoomDanmakuTest : IDisposable
 			await Assert.That(recordingAfterFailure).IsFalse();
 			await Assert.That(stream.Writes).IsEqualTo(3).Because("关闭时再写一次");
 			await Assert.That(logger.Entries.Where(static entry => entry.Level is LogLevel.Warning)).Count().IsEqualTo(1).Because("仍然失败也只记一条警告");
+		}
+	}
+
+	// 写入者停下的话队列不会完成，之后关闭段的请求只能等到超时
+	[Test]
+	public async Task AScheduledFlushThatThrowsDoesNotStopTheWriterAsync(CancellationToken cancellationToken)
+	{
+		TimerWatchingTimeProvider watched = new(_time);
+		ListLogger logger = new();
+		ControlledTimeline timeline = new();
+		await using RoomDanmaku danmaku = new(1, watched, logger, static () => { });
+		string video = _directory.Combine("a.flv");
+		danmaku.SetRecording(true);
+		danmaku.OnVideoStarted(timeline, video, Run());
+		danmaku.OnReceived(Connected());
+
+		// 等不到未登录通知，到期时放置连接记录出错
+		await watched.TimerCreated.Task.WaitAsync(cancellationToken);
+		timeline.Next().SetException(new InvalidOperationException());
+		_time.Advance(DanmakuRecorder.LoginNoticeWait);
+		await timeline.Placing.Task.WaitAsync(cancellationToken);
+		DanmakuSegment? segment = await danmaku.CompleteSegment(video).WaitAsync(cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(segment?.Path).IsEqualTo(_directory.Combine("a.xml"));
+			await Assert.That(logger.Entries).Contains((LogLevel.Warning, "Failed to flush danmaku on schedule"));
 		}
 	}
 
@@ -446,7 +488,7 @@ public sealed class RoomDanmakuTest : IDisposable
 
 		await watched.TimerCreated.Task.WaitAsync(cancellationToken);
 		_time.Advance(DanmakuFlushPolicy.Default.Interval);
-		await TestWait.UntilAsync(() => stream.Writes >= 2, "the due flush is attempted", cancellationToken);
+		await stream.Failed.Task.WaitAsync(cancellationToken);
 		queue.Writer.TryWrite(new DanmakuWork.TextOnlyStopped());
 		queue.Writer.Complete();
 		await running.WaitAsync(cancellationToken);
@@ -624,6 +666,56 @@ public sealed class RoomDanmakuTest : IDisposable
 		}
 	}
 
+	// 段中途才打开录弹幕时文件才建，文件里的时间仍从画面开头算
+	[Test]
+	public async Task AFileOpenedMidwayRecordsWhenItsVideoStartedAsync(CancellationToken cancellationToken)
+	{
+		bool isEnabled = false;
+		ControlledTimeline timeline = new();
+		await using RoomDanmaku danmaku = Create();
+		string video = _directory.Combine("a.flv");
+		DateTimeOffset videoStart = _time.GetLocalNow();
+		danmaku.SetRecording(true);
+		danmaku.OnVideoStarted(timeline, video, Run([SuppressMessage("ReSharper", "AccessToModifiedClosure")] () => isEnabled));
+		await BarrierAsync(danmaku, cancellationToken);
+
+		_time.Advance(TimeSpan.FromMinutes(10));
+		isEnabled = true;
+		danmaku.OnSettingsChanged();
+		timeline.Next().SetResult(new TimelinePosition(0, video, TimeSpan.FromMinutes(10)));
+		danmaku.OnReceived(Comment("打开之后"));
+		await danmaku.CompleteSegment(video).WaitAsync(cancellationToken);
+		DanmakuFile file = await DanmakuXmlReader.ReadFileAsync(_directory.Combine("a.xml"), cancellationToken);
+
+		await Assert.That(file.Source).IsTypeOf<DanmakuFileSource.Native>().And.Member(static source => source.Header.RecordStartTime, start => start.IsEqualTo(videoStart));
+	}
+
+	// 写入者卡在放置前面的弹幕上时，新一段的开头仍是换文件的时刻
+	[Test]
+	public async Task ASegmentStartedWhileTheWriterIsBusyRecordsWhenItStartedAsync(CancellationToken cancellationToken)
+	{
+		ControlledTimeline timeline = new();
+		await using RoomDanmaku danmaku = Create();
+		string first = _directory.Combine("a.flv");
+		string second = _directory.Combine("b.flv");
+		danmaku.SetRecording(true);
+		danmaku.OnVideoStarted(timeline, first, Run());
+
+		TaskCompletionSource<TimelinePosition?> pending = timeline.Next();
+		danmaku.OnReceived(Comment("还在等"));
+		await timeline.Placing.Task.WaitAsync(cancellationToken);
+		DateTimeOffset secondStart = _time.GetLocalNow();
+		Task<DanmakuSegment?> closed = danmaku.CompleteSegment(first);
+		danmaku.OnSegmentStarted(second);
+		_time.Advance(TimeSpan.FromSeconds(5));
+		pending.SetResult(new TimelinePosition(0, first, TimeSpan.FromSeconds(3)));
+		await closed.WaitAsync(cancellationToken);
+		await danmaku.CompleteSegment(second).WaitAsync(cancellationToken);
+		DanmakuFile file = await DanmakuXmlReader.ReadFileAsync(_directory.Combine("b.xml"), cancellationToken);
+
+		await Assert.That(file.Source).IsTypeOf<DanmakuFileSource.Native>().And.Member(static source => source.Header.RecordStartTime, start => start.IsEqualTo(secondStart));
+	}
+
 	// 又打开时开头补记当前的连接
 	[Test]
 	public async Task RawMessagesStopWhileDanmakuIsOffAndContinueInTheSameFileAsync(CancellationToken cancellationToken)
@@ -758,6 +850,13 @@ public sealed class RoomDanmakuTest : IDisposable
 	private async Task BarrierAsync(RoomDanmaku danmaku, CancellationToken cancellationToken)
 	{
 		await danmaku.CompleteSegment(_directory.Combine("barrier.flv")).WaitAsync(cancellationToken);
+	}
+
+	private async Task BarrierAsync(ChannelWriter<DanmakuWork> queue, CancellationToken cancellationToken)
+	{
+		TaskCompletionSource<DanmakuSegment?> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		queue.TryWrite(new DanmakuWork.SegmentCompleted(_directory.Combine("barrier.flv"), completion));
+		await completion.Task.WaitAsync(cancellationToken);
 	}
 
 	private static async Task CloseSegmentsAsync(RoomDanmaku danmaku, string first, string second, CancellationToken cancellationToken)
@@ -974,13 +1073,14 @@ public sealed class RoomDanmakuTest : IDisposable
 	{
 		private int _writes;
 
-		public int Writes => Volatile.Read(ref _writes);
+		public TaskCompletionSource Failed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
 		{
 			if (Interlocked.Increment(ref _writes) == failAt)
 			{
 				await base.WriteAsync(buffer.Slice(0, buffer.Length / 2), cancellationToken);
+				Failed.TrySetResult();
 				throw new IOException("磁盘已满");
 			}
 

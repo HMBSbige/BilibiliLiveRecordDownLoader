@@ -59,36 +59,10 @@ internal static class DanmakuHighlightDetector
 		}
 
 		double[] baselines = ComputeBaselines(scores, (int)(BaselineWindow.Ticks / BinWidth.Ticks));
-		List<DanmakuHighlight> candidates = [];
-
-		for (int i = 0; i < binCount;)
-		{
-			if (!IsHot(i))
-			{
-				++i;
-				continue;
-			}
-
-			int first = i;
-			int peak = i;
-
-			for (; i < binCount && IsHot(i); ++i)
-			{
-				if (scores[i] > scores[peak])
-				{
-					peak = i;
-				}
-			}
-
-			TimeSpan end = BinWidth * i;
-			HashSet<string> excluded = [with(StringComparer.Ordinal), .. dominantPhrases.Skip(first).Take(i - first).OfType<string>()];
-			candidates.Add(new DanmakuHighlight(BinWidth * first, BinWidth * peak, end < total ? end : total, scores[peak], FindPhrase(bins.Skip(first).Take(i - first), excluded)));
-		}
-
 		List<DanmakuHighlight> selected = [];
 		int limit = Math.Max(1, (int)Math.Ceiling(total.TotalHours * MaxPerHour));
 
-		foreach (DanmakuHighlight candidate in candidates.OrderByDescending(static highlight => highlight.Score).ThenBy(static highlight => highlight.Start))
+		foreach (DanmakuHighlight candidate in FindCandidates(bins, scores, dominantPhrases, baselines, total).OrderByDescending(static highlight => highlight.Score).ThenBy(static highlight => highlight.Start))
 		{
 			if (selected.Count >= limit)
 			{
@@ -102,6 +76,34 @@ internal static class DanmakuHighlightDetector
 		}
 
 		return [.. selected.OrderBy(static highlight => highlight.Start)];
+	}
+
+	// 连续的热格合成一个候选
+	private static IEnumerable<DanmakuHighlight> FindCandidates(List<Message>?[] bins, int[] scores, string?[] dominantPhrases, double[] baselines, TimeSpan total)
+	{
+		for (int i = 0; i < scores.Length;)
+		{
+			if (!IsHot(i))
+			{
+				++i;
+				continue;
+			}
+
+			int first = i;
+			int peak = i;
+
+			for (; i < scores.Length && IsHot(i); ++i)
+			{
+				if (scores[i] > scores[peak])
+				{
+					peak = i;
+				}
+			}
+
+			TimeSpan end = BinWidth * i;
+			HashSet<string> excluded = [with(StringComparer.Ordinal), .. dominantPhrases.Skip(first).Take(i - first).OfType<string>()];
+			yield return new DanmakuHighlight(BinWidth * first, BinWidth * peak, end < total ? end : total, scores[peak], FindPhrase(bins.Skip(first).Take(i - first), excluded));
+		}
 
 		bool IsHot(int bin)
 		{
