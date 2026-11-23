@@ -27,7 +27,7 @@ internal static class StreamCandidates
 						continue;
 					}
 
-					// HEVC in FLV relies on a non-standard codec id that most players and remuxers reject
+					// FLV 里的 HEVC 靠非标准的编码 ID，多数播放器和转封装工具都不认
 					if (streamCodec is StreamCodec.Hevc && streamFormat is StreamFormat.Flv)
 					{
 						continue;

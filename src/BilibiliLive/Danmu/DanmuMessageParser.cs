@@ -1,31 +1,32 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Text.Unicode;
 
 namespace BilibiliLive.Danmu;
 
-// Fields go missing or change type between server versions, so every read falls back to a default instead of throwing
+// 服务器版本之间会缺字段或改字段类型，所以每次读取都退回默认值而不是抛异常
 internal static class DanmuMessageParser
 {
 	private static readonly long MaxUnixSeconds = DateTimeOffset.MaxValue.ToUnixTimeSeconds();
 
-	// Far beyond the longest tier, and keeps an absurd value within the range of TimeSpan
+	// 远超最长的档位，也让离谱的值不超出 TimeSpan 的范围
 	private const long MaxSuperChatSeconds = 24 * 60 * 60;
 
-	// The largest whole-yuan price whose thousandths still fit in a long
+	// 换算成千分之一元后仍能放进 long 的最大整元价格
 	private const long MaxSuperChatPrice = long.MaxValue / 1000;
 
-	/// <summary>When it throws, only the raw message may have been appended to <paramref name="output"/>.</summary>
-	/// <exception cref="JsonException">The body is not valid JSON.</exception>
-	/// <exception cref="InvalidDataException">The protobuf of a gift is malformed.</exception>
-	/// <exception cref="FormatException">The base64 of a gift is malformed.</exception>
-	/// <exception cref="InvalidOperationException">A string holds invalid UTF-8 or a lone surrogate escape.</exception>
+	/// <summary>抛出异常时，<paramref name="output"/> 里最多只多了原始消息</summary>
+	/// <exception cref="JsonException">包体不是合法的 JSON</exception>
+	/// <exception cref="InvalidDataException">礼物的 protobuf 格式错误</exception>
+	/// <exception cref="FormatException">礼物的 base64 格式错误</exception>
+	/// <exception cref="InvalidOperationException">字符串里有非法的 UTF-8 或孤立代理项的转义</exception>
 	public static void Parse(ReadOnlyMemory<byte> json, DanmuParseMode mode, DanmuReceiveTime receivedAt, List<DanmuMessage> output)
 	{
 		string? command;
 
 		if (mode.HasFlag(DanmuParseMode.Raw))
 		{
-			// A raw message ends up verbatim in a JSON Lines file, so it has to be valid as a whole, not just up to its cmd
+			// 原始消息会原样写进 JSON Lines 文件，所以必须整体合法，不能只合法到 cmd 为止
 			command = ValidateAndGetCommand(json.Span);
 
 			if (command is not null)
@@ -35,7 +36,7 @@ internal static class DanmuMessageParser
 		}
 		else
 		{
-			// Most traffic is chat nobody asked for, so it is rejected after reading only the cmd
+			// 大部分流量是没人要的聊天消息，只读 cmd 就能丢掉
 			command = GetCommand(json.Span);
 		}
 
@@ -71,7 +72,7 @@ internal static class DanmuMessageParser
 				output.Add(changed with { ReceivedAt = receivedAt });
 				break;
 			}
-			// Arrives once right after authentication, so later subscribers still learn whether nicknames are masked
+			// 只在认证后到一次，所以不管解不解析聊天都产出，后来开始看聊天的订阅者也能知道昵称是否打码
 			case "LOG_IN_NOTICE":
 			{
 				output.Add(new DanmuMessage.LoginNotice { ReceivedAt = receivedAt });
@@ -102,7 +103,7 @@ internal static class DanmuMessageParser
 				output.Add(deleted with { ReceivedAt = receivedAt });
 				break;
 			}
-			// Every purchase also arrives as GUARD_BUY, but that only carries the list price; the web page shows purchases from this one
+			// 每次购买也会以 GUARD_BUY 到达，但那里只有标价；网页显示的购买来自这一条
 			case "USER_TOAST_MSG_V2" when includeChat && ParseUserToast(json, receivedAt) is { } guard:
 			{
 				output.Add(guard);
@@ -155,7 +156,13 @@ internal static class DanmuMessageParser
 
 	private static string? ValidateAndGetCommand(ReadOnlySpan<byte> json)
 	{
-		// The reader itself rejects empty input, malformed JSON and trailing content
+		// 读取器要到 GetString 才检查属性名和字符串里的 UTF-8，而原文会被原样写进 JSON Lines 文件
+		if (!Utf8.IsValid(json))
+		{
+			throw new JsonException("Danmu message is not valid UTF-8.");
+		}
+
+		// 读取器本身就会拒绝空输入、格式错误的 JSON 和多余的尾随内容
 		Utf8JsonReader reader = new(json);
 
 		while (reader.Read())
@@ -175,7 +182,7 @@ internal static class DanmuMessageParser
 	private static DanmuMessage.LiveStopped ParsePreparing(ReadOnlyMemory<byte> json)
 	{
 		using JsonDocument document = JsonDocument.Parse(json);
-		return new DanmuMessage.LiveStopped(document.RootElement.TryGetProperty("round", out _));
+		return new DanmuMessage.LiveStopped(GetInt64(Get(document.RootElement, "round")) is not 0);
 	}
 
 	private static DanmuMessage.RoomChanged? ParseRoomChange(ReadOnlyMemory<byte> json)
@@ -225,7 +232,7 @@ internal static class DanmuMessageParser
 		{ ReceivedAt = receivedAt };
 	}
 
-	// [level, name, streamer name, room id, color, special, ?, border color, start color, end color, guard level, is lit, streamer uid]
+	// [等级, 名称, 主播名, 房间号, 颜色, 特殊, ?, 边框颜色, 渐变起始色, 渐变结束色, 大航海等级, 是否点亮, 主播 uid]
 	private static DanmuMedal? ParseMedalArray(JsonElement medal)
 	{
 		if (medal.ValueKind is not JsonValueKind.Array || GetString(At(medal, 1)) is not { Length: > 0 } name)
@@ -243,7 +250,7 @@ internal static class DanmuMessageParser
 			return null;
 		}
 
-		// medal_color_start matches the color DANMU_MSG lists, medal_color is a different shade written as a string
+		// medal_color_start 和 DANMU_MSG 列出的颜色一致，medal_color 是另一种色调，而且写成字符串
 		return new DanmuMedal(GetInt32(Get(medal, "medal_level")), name, GetInt32(Get(medal, "medal_color_start")), GetInt64(Get(medal, "is_lighted")) is not 0);
 	}
 
@@ -280,8 +287,7 @@ internal static class DanmuMessageParser
 
 		DanmuSender sender = new(GetInt64(Get(data, "uid")), GetString(data, "uname") ?? string.Empty, (GuardLevel)GetInt32(Get(data, "guard_level")), ParseMedalObject(Get(data, "medal_info")));
 		int count = GetInt32(Get(data, "num"));
-		long unitPrice = GetInt64(Get(data, "price"));
-		long totalPrice = GetInt64(Get(data, "total_coin")) is > 0 and var total ? total : unitPrice * count;
+		long totalPrice = GiftTotalPrice(GetInt64(Get(data, "total_coin")), GetInt64(Get(data, "price")), count);
 
 		return new DanmuMessage.Gift(sender, GetString(data, "giftName") ?? string.Empty, count, totalPrice, ParseCoinType(GetString(data, "coin_type")))
 		{
@@ -311,7 +317,7 @@ internal static class DanmuMessageParser
 			return null;
 		}
 
-		// 0 is what a missing super chat id reads as, deleting it would hit unrelated super chats
+		// 缺失的醒目留言 id 读出来是 0，按它删除会误删无关的醒目留言
 		long[] values = [.. ids.EnumerateArray().Select(GetInt64).Where(static id => id > 0)];
 		return values.Length > 0 ? new DanmuMessage.SuperChatDeleted(values) : null;
 	}
@@ -321,7 +327,7 @@ internal static class DanmuMessageParser
 		using JsonDocument document = JsonDocument.Parse(json);
 		JsonElement data = Get(document.RootElement, "data");
 
-		// Source 2 repeats a purchase already announced with another source, the web page leaves it out of the chat too
+		// source 为 2 的是重复播报已经以其他 source 通知过的购买，网页也不把它放进聊天
 		if (data.ValueKind is not JsonValueKind.Object || GetInt64(Get(Get(data, "option"), "source")) is 2)
 		{
 			return null;
@@ -333,12 +339,11 @@ internal static class DanmuMessageParser
 		GuardLevel level = (GuardLevel)GetInt32(Get(guard, "guard_level"));
 		DanmuSender sender = new(GetInt64(Get(user, "uid")), GetString(Get(user, "base"), "name") ?? string.Empty, level, null);
 
-		// Every captured purchase was a single month and the web page reads neither price nor unit, so the price is taken per unit like the per-month price of GUARD_BUY
+		// 抓到的购买都是单月，网页既不读价格也不读单位，所以价格按单位计，和 GUARD_BUY 的每月价格一样
 		int units = Math.Max(1, GetInt32(Get(pay, "num")));
 		int months = GetString(pay, "unit") is null or "" or "月" ? units : 1;
-		long unitPrice = Math.Max(0, GetInt64(Get(pay, "price")));
-		long price = unitPrice <= long.MaxValue / units ? unitPrice * units : long.MaxValue;
-		// Captured toasts use 1 to open and 2 to renew; the web page treats anything but 1 as a renewal, but 0 is a missing field
+		long price = TotalPrice(GetInt64(Get(pay, "price")), units);
+		// 抓到的通知里 1 是开通、2 是续费；网页把 1 以外的都当续费，但 0 是缺了这个字段
 		bool isRenewal = GetInt64(Get(guard, "op_type")) >= 2;
 
 		return new DanmuMessage.GuardBought(sender, level, months, price, isRenewal)
@@ -352,7 +357,18 @@ internal static class DanmuMessageParser
 		return coinType is "gold" ? DanmuCoinType.Gold : DanmuCoinType.Silver;
 	}
 
-	// A missing or absurd time falls back to the arrival, which is at most seconds later
+	internal static long GiftTotalPrice(long totalPrice, long unitPrice, int count)
+	{
+		return totalPrice > 0 ? totalPrice : TotalPrice(unitPrice, count);
+	}
+
+	// 离谱的单价或数量相乘会溢出成负数，再经 PaidPrice 进入营收统计
+	private static long TotalPrice(long unitPrice, int count)
+	{
+		return unitPrice > 0 && count > 0 ? long.CreateSaturating(Math.BigMul(unitPrice, count)) : 0;
+	}
+
+	// 时间缺失或离谱时退回到达时间，两者最多差几秒
 	private static DateTimeOffset FromUnixSeconds(long seconds, DanmuReceiveTime receivedAt)
 	{
 		return seconds > 0 && seconds <= MaxUnixSeconds ? DateTimeOffset.FromUnixTimeSeconds(seconds) : receivedAt.UtcTime;

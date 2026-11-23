@@ -40,7 +40,7 @@ internal static class CookieHeader
 
 	public static string FromSetCookie(IEnumerable<string> setCookieHeaders)
 	{
-		OrderedDictionary<string, string> cookies = new(StringComparer.Ordinal);
+		OrderedDictionary<string, string> cookies = [];
 
 		foreach (string header in setCookieHeaders)
 		{
@@ -67,6 +67,6 @@ internal static class CookieHeader
 			}
 		}
 
-		return string.Join(';', cookies.Select(static cookie => $"{cookie.Key}={cookie.Value}"));
+		return string.Join("; ", cookies.Select(static cookie => $"{cookie.Key}={cookie.Value}"));
 	}
 }

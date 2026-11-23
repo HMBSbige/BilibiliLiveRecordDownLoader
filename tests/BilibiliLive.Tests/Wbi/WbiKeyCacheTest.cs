@@ -87,11 +87,13 @@ public class WbiKeyCacheTest
 	[Test]
 	public async Task ConcurrentRequestsFetchKeysOnceAsync(CancellationToken cancellationToken)
 	{
+		TaskCompletionSource navRequested = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		TaskCompletionSource navGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		using ApiClient api = new(async (request, ct) =>
 		{
 			if (request.RequestUri?.AbsolutePath is ApiPaths.Nav)
 			{
+				navRequested.TrySetResult();
 				await navGate.Task.WaitAsync(ct);
 				return Responses.Fixture("nav_anonymous.json");
 			}
@@ -101,11 +103,7 @@ public class WbiKeyCacheTest
 
 		Task[] calls = [.. Enumerable.Range(0, 8).Select(_ => api.Client.GetDanmuServerInfoAsync(732, anonymous: false, cancellationToken))];
 
-		while (api.Handler.Requests.IsEmpty)
-		{
-			await Task.Delay(10, cancellationToken);
-		}
-
+		await navRequested.Task.WaitAsync(cancellationToken);
 		navGate.SetResult();
 		await Task.WhenAll(calls);
 

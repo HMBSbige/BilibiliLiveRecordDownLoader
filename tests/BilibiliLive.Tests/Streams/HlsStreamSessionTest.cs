@@ -27,7 +27,7 @@ public class HlsStreamSessionTest
 			: Segment(request));
 	}
 
-	// Polls and retry delays pass at once, a request only times out when a test advances the clock
+	// 轮询和重试间隔立即过去，只有测试拨动时钟时请求才会超时
 	private static ShortDelayTimeProvider NewTime()
 	{
 		return new ShortDelayTimeProvider(RequestTimeout);
@@ -281,7 +281,7 @@ public class HlsStreamSessionTest
 			? Interlocked.Increment(ref refreshes) switch
 			{
 				1 => Responses.Text(Head + "a.ts\n"),
-				// An error page served with a 200 status fails to parse instead of failing the request
+				// 以 200 状态返回的错误页面不会让请求失败，只会解析失败
 				2 => errorPage ? Responses.Text("<html>blocked</html>") : Responses.Status(HttpStatusCode.ServiceUnavailable),
 				_ => Responses.Text(Head + "a.ts\nb.ts\n" + EndList)
 			}
@@ -297,46 +297,11 @@ public class HlsStreamSessionTest
 		}
 	}
 
+	// 第二行的请求超时已经触发，请求之后才放弃时仍属于调用方取消的复制
 	[Test]
-	public async Task CancellingTheCopyIsNeitherATimeoutNorRetriedAsync(CancellationToken cancellationToken)
-	{
-		TaskCompletionSource hung = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		FakeHttpMessageHandler handler = new(async (request, ct) =>
-		{
-			if (request.RequestUri == PlaylistUri)
-			{
-				return Responses.Text("#EXTM3U\na.ts\nb.ts\n" + EndList);
-			}
-
-			if (request.RequestUri?.AbsolutePath.EndsWith("b.ts", StringComparison.Ordinal) is true)
-			{
-				hung.SetResult();
-				await Task.Delay(Timeout.Infinite, ct);
-			}
-
-			return Segment(request);
-		});
-		using HttpClient client = new(handler);
-		ShortDelayTimeProvider time = NewTime();
-		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, time, cancellationToken);
-		using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		using MemoryStream output = new();
-
-		Task<StreamEndReason> copying = session.CopyToAsync(output, null, stop.Token);
-		await hung.Task.WaitAsync(cancellationToken);
-		await stop.CancelAsync();
-		await Assert.ThrowsAsync<OperationCanceledException>(() => copying);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/b.ts")).Count().IsEqualTo(1);
-			await Assert.That(time.Delays).IsEmpty();
-		}
-	}
-
-	// A request that only gives up after its timeout already fired still belongs to a copy the caller cancelled
-	[Test]
-	public async Task CancellingTheCopyPastTheRequestTimeoutIsNotATimeoutAsync(CancellationToken cancellationToken)
+	[Arguments(false)]
+	[Arguments(true)]
+	public async Task CancellingTheCopyIsNeitherATimeoutNorRetriedAsync(bool pastRequestTimeout, CancellationToken cancellationToken)
 	{
 		TaskCompletionSource hung = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		TaskCompletionSource released = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -364,7 +329,12 @@ public class HlsStreamSessionTest
 
 		Task<StreamEndReason> copying = session.CopyToAsync(output, null, stop.Token);
 		await hung.Task.WaitAsync(cancellationToken);
-		time.Advance(RequestTimeout);
+
+		if (pastRequestTimeout)
+		{
+			time.Advance(RequestTimeout);
+		}
+
 		await stop.CancelAsync();
 		released.SetResult();
 		await Assert.ThrowsAsync<OperationCanceledException>(() => copying);
@@ -415,7 +385,7 @@ public class HlsStreamSessionTest
 		}
 	}
 
-	// The session lets a body stream for two target durations without retrying, so the watchdog must wait at least a listing gap plus such a body
+	// 会话让正文传上两个目标时长也不重试，所以看门狗至少要等一个列表间隔再加这样一段正文
 	[Test]
 	public async Task MaxSilenceCoversABodyTheSessionStillWaitsForAsync(CancellationToken cancellationToken)
 	{
@@ -442,7 +412,7 @@ public class HlsStreamSessionTest
 		bodyReleased.SetResult();
 		await copying;
 
-		// A target duration until the next segment is listed, plus a poll interval
+		// 下一个分片被列出之前的一个目标时长，再加一个轮询间隔
 		TimeSpan listingGap = targetDuration + targetDuration / 2;
 
 		using (Assert.Multiple())
@@ -537,29 +507,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	public async Task RefreshThatOmitsTheMediaSequenceDoesNotRewriteSegmentsAsync(CancellationToken cancellationToken)
-	{
-		CopyResult copy = await CopyAsync(Serve(Head + "#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n", Head + "1.ts\n2.ts\n3.ts\n" + EndList), NewTime(), cancellationToken);
-
-		await Assert.That(copy.Output).IsEqualTo("[1][2][3]");
-	}
-
-	[Test]
-	public async Task SegmentsQueuedFromAnUnnumberedRefreshAreNotCountedAsMissedAsync(CancellationToken cancellationToken)
-	{
-		FakeHttpMessageHandler handler = Serve
-		(
-			Head + "#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n",
-			Head + "2.ts\n3.ts\n4.ts\n5.ts\n",
-			Head + "#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n6.ts\n7.ts\n" + EndList
-		);
-
-		CopyResult copy = await CopyAsync(handler, NewTime(), cancellationToken);
-
-		await Assert.That((copy.Output, copy.MissedSegments)).IsEqualTo(("[1][2][3][4][5][6][7]", 0L));
-	}
-
-	[Test]
 	public async Task SegmentsResolveAgainstRedirectedPlaylistAsync(CancellationToken cancellationToken)
 	{
 		Uri redirected = new("https://edge.test/node/7/index.m3u8?token=y");
@@ -581,16 +528,21 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	public async Task MissingTargetDurationPollsEverySecondAsync(CancellationToken cancellationToken)
+	[Arguments("", 1000)]
+	[Arguments("#EXT-X-TARGETDURATION:0\n", 1000)]
+	[Arguments("#EXT-X-TARGETDURATION:0.001\n", 500)]
+	[Arguments("#EXT-X-TARGETDURATION:1\n", 500)]
+	public async Task MissingOrSubSecondTargetDurationKeepsPollingBoundedAsync(string targetDuration, int pollMilliseconds, CancellationToken cancellationToken)
 	{
 		ShortDelayTimeProvider time = NewTime();
+		string playlist = $"#EXTM3U\n{targetDuration}#EXTINF:1,\na.ts\n";
 
-		CopyResult copy = await CopyAsync(Serve("#EXTM3U\n#EXTINF:1,\na.ts\n", "#EXTM3U\n#EXTINF:1,\na.ts\n" + EndList), time, cancellationToken);
+		CopyResult copy = await CopyAsync(Serve(playlist, playlist + EndList), time, cancellationToken);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(copy.Output).IsEqualTo("[a]");
-			await Assert.That(time.Delays).IsEquivalentTo([HlsStreamSession.DefaultPollInterval], CollectionOrdering.Matching);
+			await Assert.That(time.Delays).IsEquivalentTo([TimeSpan.FromMilliseconds(pollMilliseconds)], CollectionOrdering.Matching);
 		}
 	}
 
@@ -639,7 +591,7 @@ public class HlsStreamSessionTest
 				return await gates.PassAsync(request, ct);
 			}
 
-			// The last playlist no longer lists segment 3, which only an earlier refresh could have found
+			// 最后一份播放列表不再列出分片 3，只有更早的刷新能发现它
 			int index = Math.Min(Interlocked.Increment(ref playlistIndex) - 1, playlists.Length - 1);
 
 			if (index == playlists.Length - 1)
@@ -713,15 +665,18 @@ public class HlsStreamSessionTest
 		}
 	}
 
+	// 第四行的重启可能重排编号，新时间线反正会结束复制；后三行先由不带序号的刷新把 3、4、5 入队：它们之后整段滑出窗口也不算漏掉，游标只推进到 3 时，4、5 仍排在游标之后
 	[Test]
-	[Arguments(Head + "#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n6.ts\n" + EndList, "[1][2][5][6]", 2L)]
-	[Arguments(Head + "#EXT-X-MEDIA-SEQUENCE:3\n3.ts\n4.ts\n" + EndList, "[1][2][3][4]", 0L)]
-	[Arguments(Head + "#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n3.ts\n" + EndList, "[1][2][3]", 0L)]
-	// A restart may renumber the segments, and the new timeline ends the copy anyway
-	[Arguments(Head + "#EXT-X-DISCONTINUITY-SEQUENCE:1\n#EXT-X-MEDIA-SEQUENCE:40\n40.ts\n" + EndList, "[1][2]", 0L)]
-	public async Task ReportsSegmentsThatLeftTheWindowBeforeARefreshListedThemAsync(string refreshed, string expected, long missed, CancellationToken cancellationToken)
+	[Arguments(new[] { Head + "#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n6.ts\n" + EndList }, "[1][2][5][6]", 2L)]
+	[Arguments(new[] { Head + "#EXT-X-MEDIA-SEQUENCE:3\n3.ts\n4.ts\n" + EndList }, "[1][2][3][4]", 0L)]
+	[Arguments(new[] { Head + "#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n3.ts\n" + EndList }, "[1][2][3]", 0L)]
+	[Arguments(new[] { Head + "#EXT-X-DISCONTINUITY-SEQUENCE:1\n#EXT-X-MEDIA-SEQUENCE:40\n40.ts\n" + EndList }, "[1][2]", 0L)]
+	[Arguments(new[] { Head + "2.ts\n3.ts\n4.ts\n5.ts\n", Head + "#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n6.ts\n7.ts\n" + EndList }, "[1][2][3][4][5][6][7]", 0L)]
+	[Arguments(new[] { Head + "2.ts\n3.ts\n4.ts\n5.ts\n", Head + "#EXT-X-MEDIA-SEQUENCE:6\n6.ts\n7.ts\n" + EndList }, "[1][2][3][4][5][6][7]", 0L)]
+	[Arguments(new[] { Head + "2.ts\n3.ts\n4.ts\n5.ts\n", Head + "#EXT-X-MEDIA-SEQUENCE:3\n3.ts\n", Head + "#EXT-X-MEDIA-SEQUENCE:7\n7.ts\n" + EndList }, "[1][2][3][4][5][7]", 1L)]
+	public async Task ReportsSegmentsThatLeftTheWindowBeforeARefreshListedThemAsync(string[] refreshes, string expected, long missed, CancellationToken cancellationToken)
 	{
-		CopyResult copy = await CopyAsync(Serve(Head + "#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n", refreshed), NewTime(), cancellationToken);
+		CopyResult copy = await CopyAsync(Serve([Head + "#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n", .. refreshes]), NewTime(), cancellationToken);
 
 		await Assert.That((copy.Output, copy.MissedSegments)).IsEqualTo((expected, missed));
 	}
@@ -731,7 +686,7 @@ public class HlsStreamSessionTest
 	[Arguments(typeof(OperationCanceledException), false)]
 	public async Task EndingTheCopyStopsEveryDownloadBeforeReturningAsync(Type expected, bool segmentFails, CancellationToken cancellationToken)
 	{
-		// When segment 2 fails, segments 3 and 4 are still downloading behind it
+		// 分片 2 失败时，排在后面的 3 和 4 还在下载
 		SegmentGates gates = segmentFails ? new(2, "3", "4") : new(3, "2", "3", "4");
 		FakeHttpMessageHandler handler = new(async (request, ct) =>
 		{
@@ -783,7 +738,7 @@ public class HlsStreamSessionTest
 			: await gates.PassAsync(request, ct));
 		using HttpClient client = new(handler);
 		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken);
-		// Segments 3 and 4 are still downloading when segment 2 fails
+		// 分片 2 失败时，3 和 4 还在下载
 		FailingOnSecondWrite output = new(observerFails ? null : gates.Reached);
 		FailingObserver segments = new(observerFails ? gates.Reached : null);
 
@@ -849,8 +804,8 @@ public class HlsStreamSessionTest
 		}
 	}
 
-	/// <param name="target">How many downloads must wait at once before <see cref="Reached"/> completes.</param>
-	/// <param name="names">The segments whose downloads wait until <see cref="Release"/> lets them through.</param>
+	/// <param name="target">同时等待的下载达到这个数，<see cref="Reached"/> 才完成。</param>
+	/// <param name="names">这些分片的下载要等 <see cref="Release"/> 放行。</param>
 	private sealed class SegmentGates(int target, params string[] names)
 	{
 		private readonly Lock _lock = new();
@@ -1013,7 +968,7 @@ public class HlsStreamSessionTest
 		}
 	}
 
-	// Each report must describe exactly the bytes the destination receives next
+	// 每次报告都必须正好描述目标流接下来收到的字节
 	private sealed class SegmentLog(MemoryStream output) : IHlsSegmentObserver
 	{
 		private byte[]? _expected;

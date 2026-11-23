@@ -79,7 +79,7 @@ public class HostSelectorTest
 			if (uri == Hosts[0])
 			{
 				ct.Register(slowCancelled.SetResult);
-				// Ignores cancellation on purpose, like a request whose response arrives just as it is cancelled
+				// 故意不理会取消，就像响应恰好在取消时到达的请求
 				return await slow.Task;
 			}
 
@@ -122,7 +122,7 @@ public class HostSelectorTest
 				allStarted.SetResult();
 			}
 
-			// Each attempt only finishes once all of them are in flight, which sequential opening would never reach
+			// 所有尝试同时在进行时每个尝试才会结束，依次打开永远走不到这一步
 			await allStarted.Task.WaitAsync(ct);
 			return uri == Hosts[1] ? new FakeSession(uri) : throw new HttpRequestException("failed");
 		});

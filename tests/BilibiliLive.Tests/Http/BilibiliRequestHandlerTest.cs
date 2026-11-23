@@ -11,7 +11,7 @@ public partial class BilibiliRequestHandlerTest
 	private const string Url = "https://api.live.bilibili.com/test";
 
 	[GeneratedRegex("^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}infoc$")]
-	private static partial Regex Buvid3Pattern();
+	private static partial Regex Buvid3Pattern { get; }
 
 	private sealed class TestClient : IDisposable
 	{
@@ -57,7 +57,7 @@ public partial class BilibiliRequestHandlerTest
 			await Assert.That(headers["User-Agent"]).IsEqualTo(BilibiliRequestHandler.DefaultUserAgent);
 			await Assert.That(headers["Accept"]).IsEqualTo(BilibiliRequestHandler.DefaultAccept);
 			await Assert.That(headers["Cookie"]).IsEqualTo($"buvid3={test.Identity.GeneratedBuvid3}");
-			await Assert.That(test.Identity.GeneratedBuvid3).Matches(Buvid3Pattern());
+			await Assert.That(test.Identity.GeneratedBuvid3).Matches(Buvid3Pattern);
 		}
 	}
 

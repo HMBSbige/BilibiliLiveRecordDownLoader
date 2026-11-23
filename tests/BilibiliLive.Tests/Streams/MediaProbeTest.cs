@@ -13,7 +13,7 @@ public class MediaProbeTest
 		byte[] shifted = [0x00, 0x00, .. MediaSamples.TransportStream("x")];
 		byte[] lastPacketMisaligned = MediaSamples.TransportStream("x");
 		lastPacketMisaligned[(MediaProbe.TransportPacketsToCheck - 1) * MediaProbe.TransportPacketSize] = 0;
-		// Long enough for every offset of the first packet to be checked, and starting with a 'G' like a sync byte
+		// 长到第一个包的每个偏移都会被检查，而且像同步字节一样以 'G' 开头
 		byte[] errorPage = Encoding.ASCII.GetBytes($"GATEWAY TIMEOUT<html>{new string('x', MediaProbe.TransportPacketSize * (MediaProbe.TransportPacketsToCheck + 1))}</html>");
 
 		using (Assert.Multiple())
@@ -58,7 +58,7 @@ public class MediaProbeTest
 	[Test]
 	public async Task IsoBmffRejectsBoxesSmallerThanTheirHeaderAsync()
 	{
-		// A large box of 12 bytes followed by 12 bytes that would read as a free box if the header were allowed to overlap it
+		// 大盒子声明只有 12 字节，比它 16 字节的头还短；如果允许头部与后面重叠，后 12 字节会被读成一个 free 盒子
 		byte[] data = [0, 0, 0, 1, .. "moof"u8, 0, 0, 0, 0, 0, 0, 0, 12, .. "free"u8, 1, 2, 3, 4];
 
 		await Assert.That(MediaProbe.IsIsoBmff(data, false)).IsFalse();

@@ -8,14 +8,14 @@ internal readonly record struct DanmuPacket(ushort ProtocolVersion, DanmuOperati
 {
 	public const int HeaderLength = 16;
 
-	// The server sends packets of a few KB wrapped in one compression level, anything far beyond is hostile or corrupt
+	// 服务器下发的包只有几 KB，只套一层压缩，远超这些的不是恶意就是损坏
 	internal const int MaxPacketLength = 4 * 1024 * 1024;
 	internal const int MaxDecompressedLength = 16 * 1024 * 1024;
 	private const int MaxCompressionRatio = 256;
 	internal const int MaxCompressionDepth = 3;
 
 	private const ushort ZlibVersion = 2;
-	private const ushort BrotliVersion = 3;
+	internal const ushort BrotliVersion = 3;
 	private const int DecompressChunkSize = 16 * 1024;
 
 	public static byte[] Encode(DanmuOperation operation, ushort protocolVersion, ReadOnlySpan<byte> body)
@@ -90,7 +90,7 @@ internal readonly record struct DanmuPacket(ushort ProtocolVersion, DanmuOperati
 		}
 	}
 
-	// The budget is shared by every packet of a message, so many small bombs cannot add up either
+	// 一条消息的所有包共用一份预算，许多小炸弹也累加不起来
 	private static ReadOnlyMemory<byte> Decompress(ReadOnlyMemory<byte> body, ushort version, ref int budget)
 	{
 		using ReadOnlyMemoryStream input = new(body);

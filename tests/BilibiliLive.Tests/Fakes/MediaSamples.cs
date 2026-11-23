@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 
 namespace BilibiliLive.Tests.Fakes;
 
-/// <summary>Minimal media that passes structural validation while carrying a readable [marker] to tell segments apart in the output.</summary>
+/// <summary>能通过结构校验的最小媒体，带一个可读的 [marker]，用来在输出里区分各个分片。</summary>
 internal static partial class MediaSamples
 {
 	private const int PacketSize = 188;
@@ -45,7 +45,7 @@ internal static partial class MediaSamples
 
 	public static string Markers(byte[] output)
 	{
-		return string.Concat(MarkerPattern().Matches(Encoding.Latin1.GetString(output)).Select(static match => match.Value));
+		return string.Concat(MarkerPattern.Matches(Encoding.Latin1.GetString(output)).Select(static match => match.Value));
 	}
 
 	public static byte[] Box(string type, byte[] payload)
@@ -63,5 +63,5 @@ internal static partial class MediaSamples
 	}
 
 	[GeneratedRegex(@"\[[^\[\]]*\]")]
-	private static partial Regex MarkerPattern();
+	private static partial Regex MarkerPattern { get; }
 }

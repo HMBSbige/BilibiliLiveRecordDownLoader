@@ -19,16 +19,15 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 	internal const int MaxMessageLength = 8 * 1024 * 1024;
 
 	private const ushort SendProtocolVersion = 1;
-	private const ushort ReceiveProtocolVersion = 3;
 	private const int ReceiveChunkSize = 16 * 1024;
 
 	internal static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(30);
 
-	// The server answers every heartbeat, so silence this long means a half-open connection
+	// 服务器每个心跳都会回复，这么久没有任何数据说明连接已经半开
 	internal static readonly TimeSpan ReceiveTimeout = HeartbeatInterval * 2.5;
 	private static readonly TimeSpan CloseTimeout = TimeSpan.FromSeconds(5);
 
-	// Rooms reconnect within seconds, refetching on every attempt would trip risk control
+	// 房间断线几秒内就会重连，每次都重新获取会触发风控
 	internal static readonly TimeSpan ServerCacheDuration = TimeSpan.FromMinutes(1);
 
 	private readonly ILogger _logger = logger ?? NullLogger<DanmuClient>.Instance;
@@ -47,7 +46,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 					break;
 				}
 			}
-			// Cancelling a pending WebSocket operation aborts the socket, which surfaces as various exception types
+			// 取消挂起的 WebSocket 操作会中止 socket，表现为各种类型的异常
 			catch (Exception) when (cancellationToken.IsCancellationRequested)
 			{
 				break;
@@ -66,16 +65,16 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 
 		using ClientWebSocket socket = new();
 
-		// A uid 0 token comes with the anonymous cookie, the handshake has to present the same identity as the auth packet
+		// uid 0 的 token 是用匿名 cookie 申请的，握手必须和认证包呈现同一个身份
 		if (endpoint.UserId is 0)
 		{
 			socket.Options.SetRequestHeader(BilibiliRequestHandler.AnonymousHeader, "1");
 		}
 
-		// Going through the api HttpClient keeps the proxy, User-Agent and buvid3 of the WebSocket handshake identical to the API requests
+		// 经由 API 的 HttpClient 握手，WebSocket 的代理、User-Agent 和 buvid3 都和 API 请求一致
 		await socket.ConnectAsync(uri, apiClient.HttpClient, cancellationToken);
 
-		DanmuAuthBody auth = new(endpoint.UserId, roomId, ReceiveProtocolVersion, "web", 2, await identity.GetBuvid3Async(cancellationToken), endpoint.Token);
+		DanmuAuthBody auth = new(endpoint.UserId, roomId, await identity.GetBuvid3Async(cancellationToken), endpoint.Token);
 		await SendAsync(socket, DanmuOperation.Auth, JsonSerializer.SerializeToUtf8Bytes(auth, BilibiliJsonContext.Default.DanmuAuthBody), cancellationToken);
 
 		using CancellationTokenSource heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -90,7 +89,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 			{
 				activity.Touch();
 
-				// Taken once the whole frame is in, so batching on the server does not spread one frame over several arrival times
+				// 整帧收完才取时间，服务器批量下发的一帧不会被分成几个到达时间
 				DanmuReceiveTime receivedAt = new(apiClient.TimeProvider.GetTimestamp(), apiClient.TimeProvider.GetUtcNow());
 				DanmuParseMode mode = options.Mode;
 
@@ -106,7 +105,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 						}
 						case DanmuOperation.Message:
 						{
-							TryParse(packet.Body, mode, receivedAt, messages);
+							ParseOrSkip(packet.Body, mode, receivedAt, messages);
 
 							foreach (DanmuMessage message in messages)
 							{
@@ -122,7 +121,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 				buffer.ResetWrittenCount();
 			}
 
-			if (!activity.IsIdentityChanged)
+			if (activity.End is not ConnectionEnd.IdentityChanged)
 			{
 				LogServerClosed(roomId, socket.CloseStatus, socket.CloseStatusDescription);
 			}
@@ -137,10 +136,10 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 
 	private async Task<DanmuEndpoint> ResolveEndpointAsync(long roomId, CancellationToken cancellationToken)
 	{
-		// Taken before the requests, so a login during them only causes one more reconnect instead of a stale token passing for the new identity
+		// 在请求之前取，请求期间登录只会多一次重连，不会把旧身份的 token 当成新身份的用
 		string identityHash = await GetIdentityHashAsync(cancellationToken);
 
-		// A token only authenticates the uid it was issued for
+		// token 只能认证签发它时的 uid
 		if (!_servers.TryGetValue(roomId, out DanmuServer? server) || apiClient.TimeProvider.GetElapsedTime(server.FetchedAt) >= ServerCacheDuration || server.IdentityHash != identityHash)
 		{
 			server = await FetchServerAsync(roomId, identityHash, cancellationToken);
@@ -155,15 +154,15 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 			_servers[roomId] = server;
 		}
 
-		// Picking a random host lets the caller's reconnects move away from a broken one
+		// 随机挑选主机，调用方重连时就能避开坏掉的那台
 		DanmuHost host = server.Info.Hosts[Random.Shared.Next(server.Info.Hosts.Count)];
 		return new DanmuEndpoint(host.Host, host.WssPort, server.Info.Token, server.UserId, identityHash);
 	}
 
-	// Only a hash is kept, so the cookie cannot leak through anything that logs the cached server
+	// 只保留哈希，记录缓存的服务器信息时不会泄露 cookie
 	private async ValueTask<string> GetIdentityHashAsync(CancellationToken cancellationToken)
 	{
-		(_, string cookie) = await identity.ResolveAsync(false, cancellationToken);
+		string cookie = await identity.GetCookieAsync(cancellationToken);
 		byte[] buffer = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(cookie.Length));
 
 		try
@@ -198,7 +197,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		}
 		catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 		{
-			// A token requested with the login cookie would not match uid 0
+			// 用登录 cookie 申请的 token 和 uid 0 对不上
 			LogUserIdFailed(ex);
 			return await FetchAnonymousServerAsync(roomId, identityHash, cancellationToken);
 		}
@@ -207,7 +206,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		{
 			return ToServer(roomId, await apiClient.GetDanmuServerInfoAsync(roomId, anonymous: false, cancellationToken), userId, identityHash);
 		}
-		// Only risk control of the account is worth an anonymous retry; -412 and HTTP 412 block the IP, which an anonymous request shares
+		// 只有账号被风控才值得匿名重试；-412 和 HTTP 412 封的是 IP，匿名请求也一样
 		catch (BilibiliApiException ex) when (ex.Code is BilibiliApiException.RiskControlCode)
 		{
 			LogRiskControl(roomId);
@@ -257,7 +256,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		LogAuthenticated(roomId);
 	}
 
-	private void TryParse(ReadOnlyMemory<byte> body, DanmuParseMode mode, DanmuReceiveTime receivedAt, List<DanmuMessage> output)
+	private void ParseOrSkip(ReadOnlyMemory<byte> body, DanmuParseMode mode, DanmuReceiveTime receivedAt, List<DanmuMessage> output)
 	{
 		try
 		{
@@ -277,18 +276,18 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 
 			do
 			{
-				// Sends into a dead TCP connection still succeed, only the missing replies reveal it
+				// 往断掉的 TCP 连接里发送照样成功，只有收不到回复才能发现
 				TimeSpan idle = activity.Idle;
 
 				if (idle > ReceiveTimeout)
 				{
 					LogReceiveTimedOut(idle);
-					activity.IsTimedOut = true;
+					activity.End = new ConnectionEnd.TimedOut();
 					socket.Abort();
 					return;
 				}
 
-				// The identity of a connection is fixed by its auth packet, so logging in or out only takes effect on a new connection
+				// 连接的身份由认证包决定，登录或退出只能在新连接上生效
 				if (await GetIdentityHashAsync(cancellationToken) != identityHash)
 				{
 					LogIdentityChanged();
@@ -305,20 +304,21 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		}
 		catch (Exception ex)
 		{
-			// Aborting fails the pending receive, so the failure reaches the consumer instead of a silent stall
+			// 中止 socket 让接收失败，消费者拿到心跳的异常，不会一直卡着；换身份时关闭握手出错的连接仍按正常丢弃处理
 			LogHeartbeatFailed(ex);
+			activity.End ??= new ConnectionEnd.HeartbeatFailed(ex);
 			socket.Abort();
 		}
 	}
 
-	// Aborting would fail the pending receive, which the caller takes for a broken connection; a close handshake ends it like the server closing
+	// 直接中止会让挂起的接收失败，调用方会当成连接故障；走关闭握手则和服务器主动关闭一样正常结束
 	private async Task CloseForNewIdentityAsync(ClientWebSocket socket, ReceiveActivity activity, CancellationToken cancellationToken)
 	{
-		activity.IsIdentityChanged = true;
+		activity.End = new ConnectionEnd.IdentityChanged();
 		await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
 		await Task.Delay(CloseTimeout, apiClient.TimeProvider, cancellationToken);
 
-		// A server that never answers the close would leave the receive waiting until the receive timeout
+		// 服务器一直不回应关闭时，接收要等到接收超时才会结束
 		if (socket.State is not WebSocketState.Closed)
 		{
 			socket.Abort();
@@ -357,19 +357,20 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 				}
 			}
 		}
-		// The connection is discarded after an identity change, so a server dropping it instead of answering the close is no failure either
-		catch (Exception ex) when (ex is OperationCanceledException or WebSocketException && !cancellationToken.IsCancellationRequested && activity.IsIdentityChanged)
+		// 心跳中止 socket 时，挂起的接收以没人请求的取消失败，没有挂起的接收则下一次接收遇到已释放的 socket；
+		// 换身份后服务器不回应关闭而是直接断开，也只是结束了这条本来就要丢弃的连接
+		catch (Exception ex) when (ex is OperationCanceledException or WebSocketException or ObjectDisposedException && !cancellationToken.IsCancellationRequested && activity.End is { } end)
 		{
-			return false;
-		}
-		catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
-		{
-			// The heartbeat aborted the socket, which fails the pending receive as a cancellation nobody requested
-			throw activity.IsTimedOut ? new TimeoutException($"No danmu packet received within {ReceiveTimeout}.", ex) : new WebSocketException(WebSocketError.ConnectionClosedPrematurely, ex);
+			return end switch
+			{
+				ConnectionEnd.IdentityChanged => false,
+				ConnectionEnd.TimedOut => throw new TimeoutException($"No danmu packet received within {ReceiveTimeout}.", ex),
+				ConnectionEnd.HeartbeatFailed failed => throw new WebSocketException(WebSocketError.ConnectionClosedPrematurely, failed.Exception)
+			};
 		}
 	}
 
-	private static async ValueTask CloseOutputAsync(ClientWebSocket socket)
+	private async ValueTask CloseOutputAsync(ClientWebSocket socket)
 	{
 		if (socket.State is not WebSocketState.CloseReceived)
 		{
@@ -378,7 +379,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 
 		try
 		{
-			using CancellationTokenSource cts = new(CloseTimeout);
+			using CancellationTokenSource cts = new(CloseTimeout, apiClient.TimeProvider);
 			await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, cts.Token);
 		}
 		catch (Exception ex) when (ex is WebSocketException or OperationCanceledException)
@@ -413,7 +414,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 	[LoggerMessage(Level = LogLevel.Debug, Message = "Skipped a malformed danmu message")]
 	private partial void LogMalformedMessage(Exception exception);
 
-	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to send danmu heartbeat")]
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Danmu heartbeat failed")]
 	private partial void LogHeartbeatFailed(Exception exception);
 
 	[LoggerMessage(Level = LogLevel.Information, Message = "Login state changed, reconnecting to the danmu server")]
@@ -429,13 +430,8 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 
 		public TimeSpan Idle => timeProvider.GetElapsedTime(Volatile.Read(ref _lastReceived));
 
-		public bool IsTimedOut
-		{
-			get => Volatile.Read(ref field);
-			set => Volatile.Write(ref field, value);
-		}
-
-		public bool IsIdentityChanged
+		// 心跳在中止 socket 之前写入，接收一方据此把失败的接收换成结束原因
+		public ConnectionEnd? End
 		{
 			get => Volatile.Read(ref field);
 			set => Volatile.Write(ref field, value);
@@ -445,5 +441,14 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		{
 			Volatile.Write(ref _lastReceived, timeProvider.GetTimestamp());
 		}
+	}
+
+	private closed record ConnectionEnd
+	{
+		public sealed record TimedOut : ConnectionEnd;
+
+		public sealed record IdentityChanged : ConnectionEnd;
+
+		public sealed record HeartbeatFailed(Exception Exception) : ConnectionEnd;
 	}
 }

@@ -1,17 +1,25 @@
 namespace BilibiliLive.Http;
 
-// API requests, the danmu handshake and the danmu auth packet have to present the same buvid3
+// 接口请求、弹幕握手和弹幕认证包必须带同一个 buvid3
 public sealed class BilibiliIdentity(Func<CancellationToken, ValueTask<BilibiliRequestOptions>> optionsProvider)
 {
 	private const string Buvid3CookieName = "buvid3";
 
 	internal string GeneratedBuvid3 { get; } = Guid.NewGuid().ToString().ToUpperInvariant() + "infoc";
 
-	internal async ValueTask<(string? UserAgent, string Cookie)> ResolveAsync(bool anonymous, CancellationToken cancellationToken)
+	internal ValueTask<BilibiliRequestOptions> GetOptionsAsync(CancellationToken cancellationToken)
 	{
-		BilibiliRequestOptions options = await optionsProvider(cancellationToken);
-		string cookie = anonymous ? $"{Buvid3CookieName}={GetBuvid3(options)}" : CookieHeader.EnsureCookie(options.Cookie, Buvid3CookieName, GeneratedBuvid3);
-		return (options.UserAgent, cookie);
+		return optionsProvider(cancellationToken);
+	}
+
+	internal string GetCookie(BilibiliRequestOptions options, bool anonymous)
+	{
+		return anonymous ? $"{Buvid3CookieName}={GetBuvid3(options)}" : CookieHeader.EnsureCookie(options.Cookie, Buvid3CookieName, GeneratedBuvid3);
+	}
+
+	internal async ValueTask<string> GetCookieAsync(CancellationToken cancellationToken)
+	{
+		return GetCookie(await optionsProvider(cancellationToken), anonymous: false);
 	}
 
 	internal async ValueTask<string> GetBuvid3Async(CancellationToken cancellationToken)
@@ -19,7 +27,7 @@ public sealed class BilibiliIdentity(Func<CancellationToken, ValueTask<BilibiliR
 		return GetBuvid3(await optionsProvider(cancellationToken));
 	}
 
-	// Same precedence as EnsureCookie
+	// 和 EnsureCookie 一样，选项里已有的 buvid3 优先于生成的
 	private string GetBuvid3(BilibiliRequestOptions options)
 	{
 		return CookieHeader.GetValue(options.Cookie, Buvid3CookieName) ?? GeneratedBuvid3;

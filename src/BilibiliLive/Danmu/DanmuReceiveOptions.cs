@@ -1,11 +1,11 @@
 namespace BilibiliLive.Danmu;
 
 /// <summary>
-/// What a connection yields beyond the live status, room changes and connection state; the client reads the flags for every WebSocket frame, so they can change while connected.
+/// 连接在直播状态、房间变化和连接状态之外还产出什么；客户端每个 WebSocket 帧都重新读这些开关，所以连接期间也能改
 /// </summary>
 public sealed class DanmuReceiveOptions
 {
-	/// <summary>Parses comments, super chats and their deletions, gifts and guard purchases.</summary>
+	/// <summary>解析弹幕、醒目留言及其删除、礼物和大航海购买</summary>
 	public bool IncludeChat
 	{
 		get => Volatile.Read(ref field);

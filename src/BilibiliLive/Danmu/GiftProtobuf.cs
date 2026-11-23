@@ -1,6 +1,6 @@
 namespace BilibiliLive.Danmu;
 
-// The data.pb of SEND_GIFT_V2; an anonymous connection receives no uid field, proto3 leaves out zero values
+// SEND_GIFT_V2 的 data.pb；匿名连接收不到 uid 字段，proto3 也会省略零值
 internal static class GiftProtobuf
 {
 	private const int UserIdField = 1;
@@ -25,7 +25,7 @@ internal static class GiftProtobuf
 		DanmuSender sender = ReadSender(data);
 		ProtobufReader reader = new(data);
 
-		// Gifts come after the sender on the wire, but protobuf allows any field order, so the sender is read in a pass of its own
+		// 线上礼物排在发送者后面，但 protobuf 允许任意字段顺序，所以发送者单独遍历一遍来读
 		while (reader.TryReadTag(out int field, out ProtobufWireType wireType))
 		{
 			if (field is GiftField && wireType is ProtobufWireType.LengthDelimited)
@@ -122,7 +122,7 @@ internal static class GiftProtobuf
 			}
 		}
 
-		// Users without a medal get an empty message
+		// 没有粉丝牌的用户收到的是空消息
 		return name.Length is 0 ? null : new DanmuMedal(level, name, color, isLit);
 	}
 
@@ -172,7 +172,7 @@ internal static class GiftProtobuf
 			}
 		}
 
-		return new DanmuMessage.Gift(sender, giftName, count, totalPrice > 0 ? totalPrice : unitPrice * count, coinType)
+		return new DanmuMessage.Gift(sender, giftName, count, DanmuMessageParser.GiftTotalPrice(totalPrice, unitPrice, count), coinType)
 		{
 			ReceivedAt = receivedAt
 		};

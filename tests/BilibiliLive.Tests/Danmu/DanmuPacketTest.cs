@@ -1,4 +1,5 @@
 using BilibiliLive.Danmu;
+using System.Buffers;
 using System.IO.Compression;
 using System.Text;
 
@@ -6,13 +7,16 @@ namespace BilibiliLive.Tests.Danmu;
 
 public class DanmuPacketTest
 {
-	private static byte[] Compress(byte[] data, Func<Stream, Stream> createCompressor)
+	private static byte[] Compress(byte[][] packets, Func<Stream, Stream> createCompressor)
 	{
 		using MemoryStream output = new();
 
 		using (Stream compressor = createCompressor(output))
 		{
-			compressor.Write(data);
+			foreach (byte[] packet in packets)
+			{
+				compressor.Write(packet);
+			}
 		}
 
 		return output.ToArray();
@@ -30,12 +34,12 @@ public class DanmuPacketTest
 
 	internal static byte[] Zlib(params byte[][] packets)
 	{
-		return DanmuPacket.Encode(DanmuOperation.Message, 2, Compress([.. packets.SelectMany(static p => p)], static s => new ZLibStream(s, CompressionLevel.Optimal)));
+		return DanmuPacket.Encode(DanmuOperation.Message, 2, Compress(packets, static s => new ZLibStream(s, CompressionLevel.Optimal)));
 	}
 
 	internal static byte[] Brotli(params byte[][] packets)
 	{
-		return DanmuPacket.Encode(DanmuOperation.Message, 3, Compress([.. packets.SelectMany(static p => p)], static s => new BrotliStream(s, CompressionLevel.Optimal)));
+		return DanmuPacket.Encode(DanmuOperation.Message, 3, Compress(packets, static s => new BrotliStream(s, CompressionLevel.Optimal)));
 	}
 
 	internal static byte[] Json(string json, ushort version = 0)
@@ -64,22 +68,26 @@ public class DanmuPacketTest
 			return data;
 		}, DisplayName: "Decode rejects a header shorter than sixteen bytes");
 		yield return new(static () => DanmuPacket.Encode(DanmuOperation.Message, 0, new byte[DanmuPacket.MaxPacketLength - DanmuPacket.HeaderLength + 1]), DisplayName: "Decode rejects a packet longer than the limit");
-		// Each packet and their sum stay within the size limits, so only the ratio can reject it
+		// 每个包和它们的总和都没超出大小限制，只有压缩比能拒绝它
 		yield return new(static () =>
 		{
 			byte[] zeros = DanmuPacket.Encode(DanmuOperation.Message, 0, new byte[DanmuPacket.MaxPacketLength / 2]);
 			return Zlib(zeros, zeros, zeros);
 		}, DisplayName: "Decode rejects a compression bomb");
-		// Random bytes do not compress, so every packet stays within the ratio and only their sum exceeds the limit
+		// 随机字节压缩不了，每个包都没超出压缩比，只有总和超出大小限制
 		yield return new(static () =>
 		{
 			Random random = new(42);
 			byte[] body = new byte[DanmuPacket.MaxPacketLength / 2];
-			return [.. Enumerable.Range(0, DanmuPacket.MaxDecompressedLength / body.Length + 1).SelectMany(_ =>
+			ArrayBufferWriter<byte> data = new();
+
+			for (int i = 0; i <= DanmuPacket.MaxDecompressedLength / body.Length; ++i)
 			{
 				random.NextBytes(body);
-				return Zlib(DanmuPacket.Encode(DanmuOperation.Message, 0, body));
-			})];
+				data.Write(Zlib(DanmuPacket.Encode(DanmuOperation.Message, 0, body)));
+			}
+
+			return data.WrittenSpan.ToArray();
 		}, DisplayName: "Decode rejects decompressed packets beyond the size limit");
 	}
 

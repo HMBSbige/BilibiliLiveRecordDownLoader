@@ -2,7 +2,7 @@ namespace BilibiliLive.Danmu;
 
 public closed record DanmuMessage
 {
-	/// <summary>When the WebSocket frame that carried the message finished arriving; every message of one frame shares it.</summary>
+	/// <summary>承载这条消息的 WebSocket 帧收完的时间，同一帧的消息共用它</summary>
 	public DanmuReceiveTime ReceivedAt { get; init; }
 
 	public sealed record LiveStarted : DanmuMessage;
@@ -11,55 +11,55 @@ public closed record DanmuMessage
 
 	public sealed record RoomChanged(string Title, string? AreaName, string? ParentAreaName) : DanmuMessage;
 
-	/// <summary>The server accepted the authentication; it precedes every other message of the connection.</summary>
+	/// <summary>服务器接受了认证，它在这条连接的其他所有消息之前</summary>
 	public sealed record Connected(long UserId) : DanmuMessage
 	{
 		public bool IsAnonymous => UserId is 0;
 	}
 
-	/// <summary>The server announced that this anonymous connection receives masked nicknames and uid 0.</summary>
+	/// <summary>服务器通知这条匿名连接收到的昵称打码、uid 为 0</summary>
 	public sealed record LoginNotice : DanmuMessage;
 
-	/// <param name="Mode">1–3 scroll, 4 bottom, 5 top, as in the Bilibili danmaku XML.</param>
-	/// <param name="Color">Decimal RGB.</param>
-	/// <param name="UserHash">CRC32 of the sender's decimal uid in lowercase hexadecimal, sent even when the uid is masked, empty when absent.</param>
-	/// <param name="Text">For an emoticon, its name.</param>
-	/// <param name="IsStorm">Sent by a "rhythm storm", a phrase many viewers repeat with one click.</param>
+	/// <param name="Mode">1–3 滚动，4 底部，5 顶部，和 B 站弹幕 XML 一致</param>
+	/// <param name="Color">十进制 RGB</param>
+	/// <param name="UserHash">发送者十进制 uid 的 CRC32，小写十六进制；uid 打码时也会发，缺失时为空</param>
+	/// <param name="Text">表情弹幕是表情的名称</param>
+	/// <param name="IsStorm">由节奏风暴发送，也就是许多观众一键重复的同一句话</param>
 	public sealed record Comment(DanmuSender Sender, string Text, int Mode, int FontSize, int Color, DateTimeOffset SentAt, string UserHash, bool IsStorm) : DanmuMessage;
 
-	/// <param name="Price">In thousandths of a yuan.</param>
-	/// <param name="Duration">How long the room pins it.</param>
+	/// <param name="Price">单位是千分之一元</param>
+	/// <param name="Duration">在房间里置顶的时长</param>
 	public sealed record SuperChat(long Id, DanmuSender Sender, string Message, long Price, TimeSpan Duration) : DanmuMessage;
 
-	/// <summary>One kind of gift sent by one user, a protobuf gift message listing several gifts is split into one message each.</summary>
-	/// <param name="TotalPrice">Price of all <paramref name="Count"/> gifts, in units of <paramref name="CoinType"/>: a gold coin is a thousandth of a yuan, silver coins are not money.</param>
+	/// <summary>一个用户送出的一种礼物，列出多种礼物的 protobuf 礼物消息会拆成每种一条</summary>
+	/// <param name="TotalPrice">全部 <paramref name="Count"/> 个礼物的价格，单位由 <paramref name="CoinType"/> 决定：金瓜子是千分之一元，银瓜子不是钱</param>
 	public sealed record Gift(DanmuSender Sender, string GiftName, int Count, long TotalPrice, DanmuCoinType CoinType) : DanmuMessage
 	{
-		/// <summary>In thousandths of a yuan.</summary>
+		/// <summary>单位是千分之一元</summary>
 		public long PaidPrice => CoinType is DanmuCoinType.Gold ? TotalPrice : 0;
 	}
 
-	/// <summary>The room removed these super chats from its list, they are the <see cref="SuperChat.Id"/> of earlier messages.</summary>
+	/// <summary>房间从列表里移除了这些醒目留言，它们是之前消息的 <see cref="DanmuMessage.SuperChat.Id"/></summary>
 	public sealed record SuperChatDeleted(IReadOnlyList<long> Ids) : DanmuMessage;
 
-	/// <param name="Count">Number of months.</param>
-	/// <param name="Price">What was paid for all months, in thousandths of a yuan, discounts included.</param>
-	/// <param name="IsRenewal">Extends a guard the user already had instead of starting one.</param>
+	/// <param name="Count">月数</param>
+	/// <param name="Price">所有月份的实付价格，计入了折扣，单位是千分之一元</param>
+	/// <param name="IsRenewal">延长用户已有的大航海，而不是新开通</param>
 	public sealed record GuardBought(DanmuSender Sender, GuardLevel Level, int Count, long Price, bool IsRenewal) : DanmuMessage;
 
-	/// <summary>Any command as received, emitted before the messages parsed from it.</summary>
-	/// <param name="Command">The <c>cmd</c> without the <c>:</c> suffix some commands carry.</param>
-	/// <param name="Json">The UTF-8 JSON of the whole packet body.</param>
+	/// <summary>收到的任意命令的原文，在从它解析出的消息之前产出</summary>
+	/// <param name="Command">去掉了部分命令带的 <c>:</c> 后缀的 <c>cmd</c></param>
+	/// <param name="Json">整个包体的 UTF-8 JSON</param>
 	public sealed record Raw(string Command, ReadOnlyMemory<byte> Json) : DanmuMessage;
 }
 
-/// <param name="Timestamp">From <see cref="TimeProvider.GetTimestamp"/> of the api client's time provider.</param>
+/// <param name="Timestamp">来自 API 客户端所用时间提供程序的 <see cref="TimeProvider.GetTimestamp"/></param>
 public readonly record struct DanmuReceiveTime(long Timestamp, DateTimeOffset UtcTime);
 
-/// <param name="UserId">0 when an anonymous connection receives the message masked.</param>
+/// <param name="UserId">匿名连接收到打码的消息时为 0</param>
 public sealed record DanmuSender(long UserId, string Name, GuardLevel GuardLevel, DanmuMedal? Medal);
 
-/// <param name="Color">Decimal RGB.</param>
+/// <param name="Color">十进制 RGB</param>
 public sealed record DanmuMedal(int Level, string Name, int Color, bool IsLit);
 
 public enum GuardLevel

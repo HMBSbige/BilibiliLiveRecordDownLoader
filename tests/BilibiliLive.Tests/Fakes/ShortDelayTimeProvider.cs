@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 
 namespace BilibiliLive.Tests.Fakes;
 
-/// <summary>One-shot timers shorter than <paramref name="longest"/> fire at once, so it must not exceed the timeouts a test controls with <see cref="Advance"/>.</summary>
+/// <summary>短于 <paramref name="longest"/> 的一次性计时器立即触发，所以它不能超过测试用 <see cref="Advance"/> 控制的超时。</summary>
 internal sealed class ShortDelayTimeProvider(TimeSpan longest) : TimeProvider
 {
 	private readonly FakeTimeProvider _clock = new();
@@ -37,7 +37,7 @@ internal sealed class ShortDelayTimeProvider(TimeSpan longest) : TimeProvider
 		Delays.Enqueue(dueTime);
 		ThreadPool.QueueUserWorkItem(static timer => timer.callback(timer.state), (callback, state), preferLocal: false);
 
-		// A later Change, such as CancelAfter moving a deadline, then follows the fake clock
+		// 之后的 Change（例如 CancelAfter 推迟截止时间）跟随假时钟
 		return _clock.CreateTimer(callback, state, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 	}
 }

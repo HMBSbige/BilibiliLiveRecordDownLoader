@@ -8,7 +8,7 @@ internal sealed class HlsStreamSession : LiveStreamSession
 {
 	internal const int MaxAttempts = 3;
 
-	// Enough to catch up after a slow segment without flooding a struggling node
+	// 足以在慢分片之后追上进度，又不至于压垮本就吃力的节点
 	internal const int MaxConcurrentDownloads = 3;
 
 	internal static readonly TimeSpan DefaultPollInterval = TimeSpan.FromSeconds(1);
@@ -17,6 +17,8 @@ internal sealed class HlsStreamSession : LiveStreamSession
 	private const int SegmentHistoryCapacity = 1024;
 	private const int DefaultSegmentCapacity = 1 << 20;
 	private const int MaxInitialSegmentCapacity = 64 << 20;
+
+	private static readonly TimeSpan MinTargetDuration = TimeSpan.FromSeconds(1);
 
 	private readonly HttpClient _httpClient;
 	private readonly TimeSpan _requestTimeout;
@@ -37,8 +39,8 @@ internal sealed class HlsStreamSession : LiveStreamSession
 
 	public override Uri Source { get; }
 
-	// The listing gap (a target duration and a poll interval) plus one fault in full: a failed attempt, the retry delay and a retry as long, since the idle watchdog only backs up the session's own timeouts
-	// A refresh fault fits as long as an attempt takes at least two request timeouts
+	// 列表间隔（一个目标时长加一个轮询间隔）再加一次完整的故障：失败的一次尝试、重试间隔和同样长的重试，因为空闲看门狗只是会话自身超时的后备
+	// 一次尝试至少有两个请求超时那么长，所以刷新出一次故障也盖得住
 	public override TimeSpan? MaxSilence
 	{
 		get
@@ -51,7 +53,7 @@ internal sealed class HlsStreamSession : LiveStreamSession
 
 	public override long MissedSegments => Interlocked.Read(ref _missedSegments);
 
-	/// <param name="requestTimeout">Bounds every later playlist refresh as a whole and every segment download until its response headers arrive, because the stream client itself never times out.</param>
+	/// <param name="requestTimeout">限制之后每次刷新播放列表的全程，以及每次下载分片直到收到响应头的时长，因为流客户端自身从不超时。</param>
 	public static async Task<LiveStreamSession> OpenAsync(HttpClient httpClient, Uri uri, TimeSpan requestTimeout, TimeProvider timeProvider, CancellationToken cancellationToken)
 	{
 		PlaylistSnapshot snapshot = await FetchPlaylistAsync(httpClient, uri, cancellationToken).ConfigureAwait(false);
@@ -81,35 +83,40 @@ internal sealed class HlsStreamSession : LiveStreamSession
 		return GetSegmentDuration(playlist) / 2;
 	}
 
+	// HLS 的目标时长是整秒数，不足一秒的值只会来自不合规的播放列表，照用会让刷新几乎不停；夹到一秒而不是回退默认值，声明的分片越短刷新才不会反而越慢
 	private static TimeSpan GetSegmentDuration(HlsPlaylist playlist)
 	{
-		return playlist.TargetDuration is { } duration && duration > TimeSpan.Zero ? duration : DefaultPollInterval * 2;
+		return playlist.TargetDuration switch
+		{
+			{ Ticks: > 0 } duration => duration < MinTargetDuration ? MinTargetDuration : duration,
+			_ => DefaultPollInterval * 2
+		};
 	}
 
-	// A slow body is not a hung request, and a segment takes about a target duration to stream at its bit rate
+	// 正文慢不等于请求挂起，按码率传完一个分片大约就要一个目标时长
 	private TimeSpan GetBodyTimeout(HlsPlaylist playlist)
 	{
 		TimeSpan streaming = GetSegmentDuration(playlist) * 2;
 		return streaming > _requestTimeout ? streaming : _requestTimeout;
 	}
 
-	// The refresh and prefetch stages never fail on their own: whatever ends them reaches the writer in order through the download queue, so nothing is left unobserved
+	// 刷新和预取阶段自己从不失败：结束它们的无论是什么，都经下载队列按顺序交给写入端，不会留下未观察的异常
 	private async Task<StreamEndReason> CopyCoreAsync(Stream destination, IHlsSegmentObserver? segments, IProgress<long>? progress, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(destination);
 
 		(HlsSegment first, byte[]? initData, byte[] firstData) = _firstSegment;
 		using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		// A refresh must never wait for the downloads, or a short window could slide past segments never listed
+		// 刷新绝不能等下载，否则窗口短时，分片还没被列出就可能滑出去
 		Channel<PendingSegment> listed = Channel.CreateUnbounded<PendingSegment>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
-		// The one being written is already out of the channel, so its capacity is one less than the downloads allowed
+		// 正在写的那个已经出了通道，所以容量比允许的下载数少一
 		Channel<Task<Fetched>> fetched = Channel.CreateBounded<Task<Fetched>>(new BoundedChannelOptions(MaxConcurrentDownloads - 1) { SingleReader = true, SingleWriter = true });
 		Task<Fetched> refreshing = RefreshAsync(first, listed.Writer, stop.Token);
 		Task prefetching = PrefetchAsync(listed.Reader, refreshing, fetched.Writer, stop.Token);
 
 		try
 		{
-			// Both were already downloaded and validated while opening, and every refresh repeats the init segment that must only be written once
+			// 两者打开时已经下载并校验过；初始化段只能写一次，每次刷新却都会重复列出它
 			if (initData is not null)
 			{
 				segments?.OnInitSegment(initData);
@@ -147,13 +154,13 @@ internal sealed class HlsStreamSession : LiveStreamSession
 				}
 			}
 
-			// The queue only ends early when the prefetch stage was cancelled
+			// 只有预取阶段被取消时队列才会提前结束
 			cancellationToken.ThrowIfCancellationRequested();
 			throw new UnreachableException("The segment queue ended without a reason.");
 		}
 		finally
 		{
-			// Whichever stage ended the copy, no download may keep running into a pooled buffer after it returns
+			// 无论哪个阶段结束了复制，返回之后都不能再有下载写进池化的缓冲
 			await stop.CancelAsync().ConfigureAwait(false);
 			await prefetching.ConfigureAwait(false);
 			await refreshing.ConfigureAwait(false);
@@ -202,8 +209,8 @@ internal sealed class HlsStreamSession : LiveStreamSession
 		PlaylistSnapshot snapshot = _initialPlaylist;
 		HlsSegmentTracker tracker = new(SegmentHistoryCapacity);
 
-		// Older segments belong to a moov or timeline this output will never contain
-		foreach (HlsSegment stale in snapshot.Playlist.Segments.Where(s => !IsSameEra(s, first)))
+		// 更早的分片属于这次输出永远不会包含的 moov 或时间线
+		foreach (HlsSegment stale in snapshot.Playlist.Segments.Where(s => !s.IsSameEra(first)))
 		{
 			tracker.Skip(stale);
 		}
@@ -225,14 +232,14 @@ internal sealed class HlsStreamSession : LiveStreamSession
 
 				lastSeen = i;
 
-				if (IsSameEra(segments[i], first))
+				if (segments[i].IsSameEra(first))
 				{
 					tracker.Advance(segments[i]);
 				}
 			}
 
-			// A window that starts in another era may follow a restart that renumbered the segments
-			if (segments is [var head, ..] && IsSameEra(head, first))
+			// 从其他时代开始的窗口可能出现在重启之后，重启可能重排了编号
+			if (segments is [var head, ..] && head.IsSameEra(first))
 			{
 				Interlocked.Add(ref _missedSegments, tracker.CountMissed(playlist));
 			}
@@ -255,8 +262,8 @@ internal sealed class HlsStreamSession : LiveStreamSession
 					continue;
 				}
 
-				// An encoder restart or resolution change cannot continue the current file; its era is checked before the sequence number, which a restart may reset
-				if (!IsSameEra(segment, first))
+				// 编码器重启或分辨率变化后不能接着写当前文件；先查时代再查序号，因为重启可能把序号清零
+				if (!segment.IsSameEra(first))
 				{
 					return StreamEndReason.Discontinuity;
 				}
@@ -279,14 +286,14 @@ internal sealed class HlsStreamSession : LiveStreamSession
 				return StreamEndReason.EndOfStream;
 			}
 
-			// The interval follows the target duration of each refresh, which a periodic timer could not
+			// 间隔跟随每次刷新的目标时长，周期计时器做不到
 			await Task.Delay(GetPollInterval(playlist), _timeProvider, cancellationToken).ConfigureAwait(false);
 			Uri playlistUri = snapshot.Uri;
 			snapshot = await RetryAsync((_, ct) => FetchPlaylistAsync(_httpClient, playlistUri, ct), cancellationToken).ConfigureAwait(false);
 		}
 	}
 
-	// Waiting for room before starting a download is what limits the downloads in flight; the refresh outcome goes last, after every segment it listed
+	// 先等到有空位再开始下载，正是这一步限制了同时进行的下载数；刷新的结局排在它列出的所有分片之后
 	private async Task PrefetchAsync(ChannelReader<PendingSegment> listed, Task<Fetched> refreshing, ChannelWriter<Task<Fetched>> fetched, CancellationToken cancellationToken)
 	{
 		try
@@ -300,7 +307,7 @@ internal sealed class HlsStreamSession : LiveStreamSession
 		}
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
-			// The writer stops on the same token
+			// 写入端在同一个令牌上停止
 		}
 		finally
 		{
@@ -318,7 +325,7 @@ internal sealed class HlsStreamSession : LiveStreamSession
 
 	private async Task<Fetched> FetchAsync(PendingSegment segment, CancellationToken cancellationToken)
 	{
-		// Each attempt buffers the whole segment, so a retry never writes a partial copy twice
+		// 每次尝试都把整个分片缓冲下来，重试就不会把残缺的内容写两遍
 		try
 		{
 			return new Fetched.Segment(await RetryAsync((timeout, ct) => DownloadAsync(segment, timeout, ct), cancellationToken).ConfigureAwait(false));
@@ -327,12 +334,6 @@ internal sealed class HlsStreamSession : LiveStreamSession
 		{
 			return new Fetched.Failed(ExceptionDispatchInfo.Capture(exception));
 		}
-	}
-
-	// Only segments sharing an init segment and a timeline can go into the same file
-	private static bool IsSameEra(HlsSegment segment, HlsSegment other)
-	{
-		return segment.MapUri == other.MapUri && segment.DiscontinuitySequence == other.DiscontinuitySequence;
 	}
 
 	private static async Task<PlaylistSnapshot> FetchPlaylistAsync(HttpClient httpClient, Uri uri, CancellationToken cancellationToken)
@@ -353,7 +354,7 @@ internal sealed class HlsStreamSession : LiveStreamSession
 		using HttpResponseMessage response = await httpClient.GetAsync(uri, cancellationToken).ConfigureAwait(false);
 		response.EnsureSuccessStatusCode();
 
-		// Segments are relative to the playlist after redirects, which may point to another CDN node
+		// 分片地址相对于重定向之后的播放列表，重定向可能指向另一个 CDN 节点
 		return (response.RequestMessage?.RequestUri ?? uri, await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false));
 	}
 
@@ -364,8 +365,8 @@ internal sealed class HlsStreamSession : LiveStreamSession
 			throw new InvalidDataException("The playlist lists no segment.");
 		}
 
-		// Starting where the latest era begins records as much as possible without mixing eras in one file
-		HlsSegment first = snapshot.Playlist.Segments.First(s => IsSameEra(s, latest));
+		// 从最新时代的开头录起，录得最多，又不会把不同时代混进一个文件
+		HlsSegment first = snapshot.Playlist.Segments.First(s => s.IsSameEra(latest));
 		byte[]? initData = null;
 
 		if (first.MapUri is { } mapUri)
@@ -386,13 +387,15 @@ internal sealed class HlsStreamSession : LiveStreamSession
 
 	private static void EnsureMedia(HlsSegment segment, ReadOnlySpan<byte> data)
 	{
-		if (segment.MapUri is null ? !MediaProbe.IsTransportStream(data) : !MediaProbe.IsIsoBmff(data, false))
+		(bool valid, string format) = segment.MapUri is null ? (MediaProbe.IsTransportStream(data), "MPEG-TS") : (MediaProbe.IsIsoBmff(data, false), "fMP4");
+
+		if (!valid)
 		{
-			throw new InvalidDataException($"The segment {Describe(segment.Uri)} is not valid {(segment.MapUri is null ? "MPEG-TS" : "fMP4")}.");
+			throw new InvalidDataException($"The segment {Describe(segment.Uri)} is not valid {format}.");
 		}
 	}
 
-	// Messages end up in logs, and a playlist entry may carry a signed query
+	// 消息会写进日志，而播放列表条目可能带有签名的查询参数
 	private static string Describe(string uri)
 	{
 		int end = uri.AsSpan().IndexOfAny('?', '#');
@@ -441,14 +444,14 @@ internal sealed class HlsStreamSession : LiveStreamSession
 			}
 		}
 
-		// A CDN may answer a refresh with an error page and a 200 status, which only fails to parse
+		// CDN 可能以 200 状态用错误页面回应刷新，这种情况只表现为解析失败
 		static bool IsTransient(Exception ex)
 		{
 			return ex is HttpRequestException or IOException or InvalidDataException or FormatException or TimeoutException or TaskCanceledException { InnerException: TimeoutException };
 		}
 	}
 
-	// The action may move the deadline once the response headers are in
+	// 收到响应头之后，action 可以推迟截止时间
 	private async Task<T> WithTimeoutAsync<T>(Func<CancellationTokenSource, CancellationToken, Task<T>> action, CancellationToken cancellationToken)
 	{
 		using CancellationTokenSource timeout = new(_requestTimeout, _timeProvider);

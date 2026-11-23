@@ -53,25 +53,24 @@ internal static class HostSelector
 		T? winner = null;
 		List<Exception> errors = [];
 
-		// Waiting for every attempt guarantees that a loser which still managed to open is disposed rather than leaked
+		// 等完每个尝试，晚到但仍打开成功的落选者才会被释放而不是泄漏
 		await foreach (Task<T> attempt in Task.WhenEach(attempts))
 		{
 			if (attempt.IsCompletedSuccessfully)
 			{
-				// Result is only read once the attempt has succeeded, so it does not block
-#pragma warning disable CA1849
+				T session = await attempt;
+
 				if (winner is null)
 				{
-					winner = attempt.Result;
+					winner = session;
 					await losers.CancelAsync();
 				}
 				else
 				{
-					await attempt.Result.DisposeAsync();
+					await session.DisposeAsync();
 				}
-#pragma warning restore CA1849
 			}
-			// Reading Exception also marks it observed, which matters for failures that arrive after a winner
+			// 读取 Exception 同时把异常标记为已观察，赢家产生之后才失败的尝试靠它避免留下未观察的异常
 			else if (attempt.Exception?.InnerException is { } error && winner is null)
 			{
 				errors.Add(error);

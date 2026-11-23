@@ -14,15 +14,6 @@ internal static class LoopbackWebSocket
 
 	public static async Task<(HttpResponseMessage Response, WebSocket Server)> AcceptAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 	{
-		using Socket listener = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-		listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
-		listener.Listen(1);
-
-		Socket client = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-		ValueTask connect = client.ConnectAsync(listener.LocalEndPoint ?? throw new InvalidOperationException("The listener is not bound."), cancellationToken);
-		Socket server = await listener.AcceptAsync(cancellationToken);
-		await connect;
-
 		string key = request.Headers.GetValues("Sec-WebSocket-Key").Single();
 		Span<byte> input = stackalloc byte[key.Length + AcceptGuid.Length];
 		int length = Encoding.ASCII.GetBytes(key, input);
@@ -30,6 +21,25 @@ internal static class LoopbackWebSocket
 		Span<byte> hash = stackalloc byte[HashAlgorithm<Sha1Core>.HashLength];
 		HashAlgorithm<Sha1Core>.HashData(input, hash);
 		string accept = Convert.ToBase64String(hash);
+
+		using Socket listener = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+		listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+		listener.Listen(1);
+
+		Socket client = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+		Socket server;
+
+		// 连接在监听队列里就已建立，不必等 Accept
+		try
+		{
+			await client.ConnectAsync(listener.LocalEndPoint ?? throw new InvalidOperationException("The listener is not bound."), cancellationToken);
+			server = await listener.AcceptAsync(cancellationToken);
+		}
+		catch
+		{
+			client.Dispose();
+			throw;
+		}
 
 		HttpResponseMessage response = new(HttpStatusCode.SwitchingProtocols) { Content = new DuplexContent(new NetworkStream(client, true)) };
 		response.Headers.Connection.Add("Upgrade");
@@ -41,12 +51,12 @@ internal static class LoopbackWebSocket
 		return (response, serverSocket);
 	}
 
-	// StreamContent wraps its stream read-only, but the upgraded connection has to be writable
-	private sealed class DuplexContent(Stream stream) : HttpContent
+	// StreamContent 会把流包装成只读，但升级后的连接必须可写
+	private sealed class DuplexContent(Stream connection) : HttpContent
 	{
-		protected override Task SerializeToStreamAsync(Stream target, TransportContext? context)
+		protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context)
 		{
-			return stream.CopyToAsync(target);
+			return connection.CopyToAsync(stream);
 		}
 
 		protected override bool TryComputeLength(out long length)
@@ -57,19 +67,19 @@ internal static class LoopbackWebSocket
 
 		protected override Stream CreateContentReadStream(CancellationToken cancellationToken)
 		{
-			return stream;
+			return connection;
 		}
 
 		protected override Task<Stream> CreateContentReadStreamAsync()
 		{
-			return Task.FromResult(stream);
+			return Task.FromResult(connection);
 		}
 
 		protected override void Dispose(bool disposing)
 		{
 			if (disposing)
 			{
-				stream.Dispose();
+				connection.Dispose();
 			}
 
 			base.Dispose(disposing);

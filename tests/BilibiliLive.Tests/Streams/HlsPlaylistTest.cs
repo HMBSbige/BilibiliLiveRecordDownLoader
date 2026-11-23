@@ -108,8 +108,12 @@ public class HlsPlaylistTest
 	[Arguments("")]
 	[Arguments("<html></html>")]
 	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:abc\n")]
+	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:NaN\n")]
+	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:Infinity\n")]
+	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:100000000000000\n")]
 	[Arguments("#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:-1\n")]
 	[Arguments("#EXTM3U\n#EXT-X-MAP:BYTERANGE=\"1@0\"\n")]
+	[Arguments("#EXTM3U\n#EXT-X-MAP:URI=\"\"\n")]
 	public async Task RejectsInvalidContentAsync(string content)
 	{
 		await Assert.That(() => HlsPlaylist.Parse(content)).Throws<FormatException>();

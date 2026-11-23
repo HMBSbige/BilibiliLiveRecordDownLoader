@@ -12,7 +12,7 @@ internal enum ProtobufWireType
 	Fixed32 = 5
 }
 
-// Only the few messages the danmu server sends as protobuf are read, a schema-driven library would be a dependency for a handful of fields
+// 只读弹幕服务器以 protobuf 下发的少数几种消息，为几个字段引入基于 schema 的库不值得
 internal ref struct ProtobufReader(ReadOnlySpan<byte> data)
 {
 	private const int MaxVarintLength = 10;
@@ -58,7 +58,7 @@ internal ref struct ProtobufReader(ReadOnlySpan<byte> data)
 
 			byte b = _data[_position++];
 
-			// The tenth byte holds only the top bit of a 64-bit value
+			// 第十个字节只承载 64 位值的最高位
 			if (i is MaxVarintLength - 1 && b > 1)
 			{
 				throw new InvalidDataException("Protobuf varint overflows 64 bits.");
@@ -80,7 +80,7 @@ internal ref struct ProtobufReader(ReadOnlySpan<byte> data)
 		return (long)ReadVarint();
 	}
 
-	// Negative int32 values are sign-extended to ten bytes, so truncating the 64-bit value restores them
+	// 负的 int32 会符号扩展成十个字节，截断 64 位值就能还原
 	public int ReadInt32()
 	{
 		return (int)ReadVarint();
@@ -131,7 +131,7 @@ internal ref struct ProtobufReader(ReadOnlySpan<byte> data)
 			}
 			default:
 			{
-				// Groups have been deprecated since proto2 and nothing the server sends uses them
+				// group 从 proto2 起就已弃用，服务器下发的消息也不用
 				throw new InvalidDataException($"Unsupported protobuf wire type {(int)wireType}.");
 			}
 		}

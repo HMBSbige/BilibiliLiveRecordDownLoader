@@ -2,8 +2,8 @@ namespace BilibiliLive.Streams;
 
 public static class LiveStreamReader
 {
-	/// <param name="connectTimeout">Applies to each host on its own; opening an HLS host includes downloading its first segment. Every later HLS playlist refresh must complete within it, and every segment download must receive its response headers within it.</param>
-	/// <param name="hostFailed">Invoked for every host that fails to open, including hosts skipped before another one succeeds.</param>
+	/// <param name="connectTimeout">每个主机单独计时，打开 HLS 主机包括下载它的第一个分片。之后每次刷新 HLS 播放列表都要在这个时限内完成，每次下载分片都要在这个时限内收到响应头。</param>
+	/// <param name="hostFailed">每个打开失败的主机都会调用一次，包括另一个主机成功之前跳过的主机；<see cref="StreamHostSelection.FastestResponse"/> 同时打开所有主机，所以可能被并发调用。</param>
 	public static Task<LiveStreamSession> OpenAsync(HttpClient httpClient, LiveStreamCandidate candidate, StreamHostSelection selection, TimeSpan connectTimeout, Action<Uri, Exception>? hostFailed = null, TimeProvider? timeProvider = null, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(httpClient);

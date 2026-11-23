@@ -30,7 +30,7 @@ public class ProtobufReaderTest
 	[Arguments(new byte[] { 0x7F }, 127UL)]
 	[Arguments(new byte[] { 0x96, 0x01 }, 150UL)]
 	[Arguments(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01 }, ulong.MaxValue)]
-	// A redundant continuation byte is still a valid encoding
+	// 多余的延续字节仍是合法的编码
 	[Arguments(new byte[] { 0x81, 0x00 }, 1UL)]
 	public async Task VarintIsDecodedAsync(byte[] data, ulong expected)
 	{
@@ -48,9 +48,9 @@ public class ProtobufReaderTest
 
 	[Test]
 	[Arguments(new byte[] { 0x80 })]
-	// Ten bytes whose last one carries more than the top bit
+	// 十个字节，最后一个承载的不止最高位
 	[Arguments(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x02 })]
-	// Eleven bytes
+	// 十一个字节
 	[Arguments(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x81, 0x00 })]
 	public async Task MalformedVarintThrowsAsync(byte[] data)
 	{
@@ -66,9 +66,9 @@ public class ProtobufReaderTest
 			0x11, 1, 2, 3, 4, 5, 6, 7, 8,
 			0x1A, 0x03, (byte)'a', (byte)'b', (byte)'c',
 			0x25, 1, 2, 3, 4,
-			// Field 16 needs a two-byte tag
+			// 字段 16 的 tag 要两个字节
 			0x80, 0x01, 0x05,
-			// The largest field number protobuf allows
+			// protobuf 允许的最大字段号
 			0xF8, 0xFF, 0xFF, 0xFF, 0x0F, 0x00
 		];
 
@@ -104,23 +104,23 @@ public class ProtobufReaderTest
 	}
 
 	[Test]
-	// Length beyond the end
+	// 长度超出末尾
 	[Arguments(new byte[] { 0x0A, 0x05, 1, 2 })]
-	// Length that does not fit in an int
+	// 长度放不进 int
 	[Arguments(new byte[] { 0x0A, 0xFF, 0xFF, 0xFF, 0xFF, 0x0F })]
-	// Truncated fixed-width fields
+	// 被截断的定长字段
 	[Arguments(new byte[] { 0x09, 1, 2, 3 })]
 	[Arguments(new byte[] { 0x0D, 1, 2 })]
-	// Groups
+	// group
 	[Arguments(new byte[] { 0x0B })]
 	[Arguments(new byte[] { 0x0C })]
-	// Wire types 6 and 7 do not exist
+	// 不存在线类型 6 和 7
 	[Arguments(new byte[] { 0x0E })]
-	// Field number 0
+	// 字段号 0
 	[Arguments(new byte[] { 0x00, 0x01 })]
-	// Field number above the 29-bit limit
+	// 字段号超出 29 位上限
 	[Arguments(new byte[] { 0xF8, 0xFF, 0xFF, 0xFF, 0x7F, 0x00 })]
-	// Tag cut off
+	// tag 被截断
 	[Arguments(new byte[] { 0x80 })]
 	public async Task MalformedMessageThrowsAsync(byte[] data)
 	{

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
@@ -31,20 +32,36 @@ internal static class ApiResponse
 			throw new BilibiliApiException("The response is not a Bilibili API envelope.");
 		}
 
-		// Error responses carry data of arbitrary shape (null, [], {}), but nav still returns the wbi keys alongside -101
+		// 出错时 data 的形状不定（null、[]、{}），但 nav 返回 -101 时仍带着 wbi 密钥
 		T? data = root.TryGetProperty("data", out JsonElement dataElement) && dataElement.ValueKind is JsonValueKind.Object ? dataElement.Deserialize(typeInfo) : null;
 
 		return new ApiResponse<T>(code, message, data);
 	}
 
-	public static (long Code, string Message)? ReadEnvelope(JsonElement root)
+	// 不返回信封的接口出错时仍会返回信封，靠其中的 code 区分风控和错误请求
+	public static void ThrowIfError(string content)
+	{
+		if (!content.AsSpan().TrimStart().StartsWith('{'))
+		{
+			return;
+		}
+
+		using JsonDocument document = JsonDocument.Parse(content);
+
+		if (ReadEnvelope(document.RootElement) is (not 0 and var code, var message))
+		{
+			throw new BilibiliApiException(message, code);
+		}
+	}
+
+	private static (long Code, string Message)? ReadEnvelope(JsonElement root)
 	{
 		if (root.ValueKind is not JsonValueKind.Object || !root.TryGetProperty("code", out JsonElement codeElement) || codeElement.ValueKind is not JsonValueKind.Number || !codeElement.TryGetInt64(out long code))
 		{
 			return null;
 		}
 
-		return (code, GetMessage(root) ?? $"Bilibili API returned code {code}.");
+		return (code, GetMessage(root) ?? string.Create(CultureInfo.InvariantCulture, $"Bilibili API returned code {code}."));
 	}
 
 	private static string? GetMessage(JsonElement root)

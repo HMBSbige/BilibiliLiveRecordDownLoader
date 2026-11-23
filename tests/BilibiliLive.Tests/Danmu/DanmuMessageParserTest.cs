@@ -1,4 +1,5 @@
 using BilibiliLive.Danmu;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -65,7 +66,7 @@ public class DanmuMessageParserTest
 
 	private static readonly DanmuMessage.Gift MaskedGiftV2 = new(new DanmuSender(0, "测3***", GuardLevel.None, null), "粉丝团灯牌", 1, 100, DanmuCoinType.Gold);
 
-	// Hand-made from the documented fields, no SEND_GIFT arrived during the captures
+	// 照着文档里的字段手写，抓包期间没收到 SEND_GIFT
 	private static readonly DanmuMessage.Gift SendGift = new
 	(
 		new DanmuSender(10000010, "用户12", GuardLevel.Admiral, new DanmuMedal(21, "测试牌", 398668, true)),
@@ -104,7 +105,7 @@ public class DanmuMessageParserTest
 		return Parse(Encoding.UTF8.GetBytes(json), mode).SingleOrDefault();
 	}
 
-	// Captured anonymously from live rooms, with uids, nicknames and avatars replaced by fake values
+	// 匿名从直播间抓取，uid、昵称和头像都换成了假值
 	internal static byte[] Fixture(string name)
 	{
 		return File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Danmu", name));
@@ -120,7 +121,7 @@ public class DanmuMessageParserTest
 		return message with { ReceivedAt = ReceivedAt };
 	}
 
-	// Fails loudly when a fixture changes shape, instead of silently leaving it unmodified
+	// 测试数据的结构变了就直接失败，而不是悄悄地什么都没改
 	private static JsonNode Required(JsonNode? node)
 	{
 		return node ?? throw new InvalidDataException();
@@ -142,7 +143,7 @@ public class DanmuMessageParserTest
 		});
 	}
 
-	// The first two gifts stay intact, only the last one is cut off
+	// 前两个礼物完整，只截断最后一个
 	private static byte[] TruncatedGifts()
 	{
 		return Encoding.UTF8.GetBytes(ModifyGiftProtobuf("gift_v2_multiple.json", static pb => pb.AsSpan(0, pb.Length - 3).ToArray()));
@@ -165,6 +166,7 @@ public class DanmuMessageParserTest
 	[Test]
 	[Arguments("""{"cmd":"PREPARING","roomid":"6154037"}""", false)]
 	[Arguments("""{"cmd":"PREPARING","round":1,"roomid":"6154037"}""", true)]
+	[Arguments("""{"cmd":"PREPARING","round":0,"roomid":"6154037"}""", false)]
 	public async Task PreparingMapsToLiveStoppedAsync(string json, bool isRound)
 	{
 		await Assert.That(Parse(json)).IsEqualTo(Received(new DanmuMessage.LiveStopped(isRound)));
@@ -193,7 +195,7 @@ public class DanmuMessageParserTest
 	[Arguments("""{"cmd":"SEND_GIFT_V2","data":{"pb":"not base64"}}""")]
 	[Arguments("""{"cmd":"USER_TOAST_MSG_V2","data":{}}""")]
 	[Arguments("""{"cmd":"SUPER_CHAT_MESSAGE_DELETE","data":{"ids":[1]}}""")]
-	// Malformed after the cmd, so reaching the parser would throw
+	// cmd 之后格式错误，交给解析就会抛异常
 	[Arguments("""{"cmd":"DANMU_MSG","info":[[0,1,""")]
 	[Arguments("""{"cmd":"LIVE_INTERACTIVE_GAME","data":{}}""")]
 	[Arguments("""{"cmd":"PREPARING_X"}""")]
@@ -299,7 +301,7 @@ public class DanmuMessageParserTest
 	[Test]
 	public async Task GiftV2ListingSeveralGiftsIsSplitAsync()
 	{
-		// Made from gift_v2_masked.json by appending two gifts, no captured message listed more than one
+		// 在 gift_v2_masked.json 后面追加两个礼物而成，抓到的消息都只列了一个
 		List<DanmuMessage> messages = Parse(Fixture("gift_v2_multiple.json"), DanmuParseMode.Chat);
 
 		await Assert.That(messages).IsEquivalentTo(
@@ -355,7 +357,7 @@ public class DanmuMessageParserTest
 			{
 				ReadOnlySpan<byte> payload = reader.ReadLengthDelimited();
 				pb.AsSpan().Overlaps(payload, out int offset);
-				// One tag byte and the length varint precede the payload
+				// 负载前面是一个字节的 tag 和长度 varint
 				gifts.Add((offset - 1 - VarintLength(payload.Length), offset + payload.Length));
 			}
 			else
@@ -393,27 +395,23 @@ public class DanmuMessageParserTest
 	}
 
 	[Test]
-	public async Task GiftWithoutTotalUsesUnitPriceTimesCountAsync()
+	[Arguments(4, 100L, 400L)]
+	[Arguments(2, long.MaxValue / 2 + 1, long.MaxValue)]
+	[Arguments(-1, 100L, 0L)]
+	[Arguments(4, -100L, 0L)]
+	public async Task GiftWithoutTotalUsesUnitPriceTimesCountAsync(int count, long unitPrice, long totalPrice)
 	{
-		DanmuMessage? message = Parse("""{"cmd":"SEND_GIFT","data":{"giftName":"x","num":4,"price":100,"coin_type":"gold"}}""", DanmuParseMode.Chat);
+		DanmuMessage? message = Parse(string.Create(CultureInfo.InvariantCulture, $$$"""{"cmd":"SEND_GIFT","data":{"giftName":"x","num":{{{count}}},"price":{{{unitPrice}}},"coin_type":"gold"}}"""), DanmuParseMode.Chat);
 
-		DanmuMessage.Gift expected = new(new DanmuSender(0, "", GuardLevel.None, null), "x", 4, 400, DanmuCoinType.Gold);
+		DanmuMessage.Gift expected = new(new DanmuSender(0, "", GuardLevel.None, null), "x", count, totalPrice, DanmuCoinType.Gold);
 
 		await Assert.That(message).IsEqualTo(Received(expected));
 	}
 
 	[Test]
-	[Arguments(DanmuCoinType.Gold, 500L)]
-	[Arguments(DanmuCoinType.Silver, 0L)]
-	public async Task OnlyGoldGiftsArePaidAsync(DanmuCoinType coinType, long paidPrice)
-	{
-		await Assert.That((SendGift with { CoinType = coinType }).PaidPrice).IsEqualTo(paidPrice);
-	}
-
-	[Test]
 	public async Task SuperChatDeleteIsParsedAsync()
 	{
-		// Hand-made from the fields the web page reads, no deletion arrived during the captures
+		// 照着网页读取的字段手写，抓包期间没收到删除
 		await Assert.That(ParseFixture("super_chat_delete.json")).IsTypeOf<DanmuMessage.SuperChatDeleted>()
 			.And.Member(static deleted => deleted.Ids, static ids => ids.IsEquivalentTo([20541912L, 20541913], CollectionOrdering.Matching))
 			.And.Member(static deleted => deleted.ReceivedAt, static time => time.IsEqualTo(ReceivedAt));
@@ -430,7 +428,7 @@ public class DanmuMessageParserTest
 	[Test]
 	public async Task GuardBuyIsIgnoredAsync()
 	{
-		// The same purchase also arrives as USER_TOAST_MSG_V2, parsing both would record it twice
+		// 同一次购买也会以 USER_TOAST_MSG_V2 到达，两者都解析会记两次
 		await Assert.That(Parse(Fixture("guard_buy.json"), DanmuParseMode.Chat)).IsEmpty();
 	}
 
@@ -533,6 +531,19 @@ public class DanmuMessageParserTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(() => DanmuMessageParser.Parse(Encoding.UTF8.GetBytes(json), DanmuParseMode.Raw, ReceivedAt, output)).Throws<JsonException>();
+			await Assert.That(output).IsEmpty();
+		}
+	}
+
+	[Test]
+	public async Task RawRejectsBodiesThatAreNotValidUtf8Async()
+	{
+		byte[] json = [.. "{\"cmd\":\"A\",\"x\":\""u8, 0xFF, .. "\"}"u8];
+		List<DanmuMessage> output = [];
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(() => DanmuMessageParser.Parse(json, DanmuParseMode.Raw, ReceivedAt, output)).Throws<JsonException>();
 			await Assert.That(output).IsEmpty();
 		}
 	}

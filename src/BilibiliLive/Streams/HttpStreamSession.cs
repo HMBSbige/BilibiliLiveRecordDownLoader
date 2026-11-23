@@ -2,7 +2,7 @@ using System.Buffers;
 
 namespace BilibiliLive.Streams;
 
-// Bilibili only serves FLV over http_stream
+// B 站的 http_stream 只提供 FLV
 internal sealed class HttpStreamSession : LiveStreamSession
 {
 	private const int BufferSize = 64 * 1024;
@@ -23,15 +23,14 @@ internal sealed class HttpStreamSession : LiveStreamSession
 
 	public static async Task<LiveStreamSession> OpenAsync(HttpClient httpClient, Uri uri, CancellationToken cancellationToken)
 	{
-		using HttpRequestMessage request = new(HttpMethod.Get, uri);
-		HttpResponseMessage response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+		HttpResponseMessage response = await httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
 		try
 		{
 			response.EnsureSuccessStatusCode();
 			Stream body = await response.Content.ReadAsStreamAsync(cancellationToken);
 
-			// A 200 alone proves little: a failing node may still answer with an error page or close at once
+			// 单凭 200 说明不了什么：出故障的节点仍可能返回错误页面或者立刻断开
 			byte[] header = new byte[MediaProbe.FlvSignature.Length];
 			int read = await body.ReadAtLeastAsync(header, header.Length, false, cancellationToken);
 
@@ -60,18 +59,13 @@ internal sealed class HttpStreamSession : LiveStreamSession
 
 		try
 		{
-			while (true)
+			while (await _body.ReadAsync(buffer, cancellationToken) is var read and > 0)
 			{
-				int read = await _body.ReadAsync(buffer, cancellationToken);
-
-				if (read is 0)
-				{
-					return StreamEndReason.EndOfStream;
-				}
-
 				await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
 				progress?.Report(read);
 			}
+
+			return StreamEndReason.EndOfStream;
 		}
 		finally
 		{

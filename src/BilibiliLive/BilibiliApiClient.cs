@@ -4,7 +4,6 @@ using BilibiliLive.Http;
 using BilibiliLive.Wbi;
 using System.Globalization;
 using System.Runtime.CompilerServices;
-using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
 namespace BilibiliLive;
@@ -17,7 +16,7 @@ public sealed class BilibiliApiClient
 
 	private static readonly TimeSpan BeijingOffset = TimeSpan.FromHours(8);
 
-	// page_size is documented to accept 1-10
+	// 文档写明 page_size 只接受 1 到 10
 	private const int FollowingPageSize = 10;
 
 	private readonly WbiKeyCache _wbiKeys;
@@ -41,12 +40,15 @@ public sealed class BilibiliApiClient
 		return rooms is [var room, ..] ? room : throw new BilibiliApiException($"Room {roomId} does not exist.", BilibiliApiException.RoomNotFoundCode);
 	}
 
-	// Rooms that do not exist are left out of the result
+	/// <returns>不存在的房间不在结果中。</returns>
 	public async Task<IReadOnlyList<LiveRoomInfo>> GetRoomInfosAsync(IReadOnlyCollection<long> roomIds, CancellationToken cancellationToken = default)
 	{
-		ArgumentOutOfRangeException.ThrowIfZero(roomIds.Count);
+		if (roomIds.Count is 0)
+		{
+			throw new ArgumentException("At least one room id is required.", nameof(roomIds));
+		}
 
-		// getRoomBaseInfo resolves short ids and is the only unsigned endpoint that also returns the streamer name
+		// getRoomBaseInfo 能解析短号，也是唯一不用签名又返回主播名的接口
 		string query = string.Join('&', roomIds.Select(static roomId => string.Create(CultureInfo.InvariantCulture, $"room_ids={roomId}")));
 		RoomBaseInfoData data = await GetDataAsync(new Uri($"{LiveApi}xlive/web-room/v1/index/getRoomBaseInfo?{query}&req_biz=web_room_componet"), BilibiliJsonContext.Default.RoomBaseInfoData, cancellationToken);
 		return data.ByRoomIds is { } rooms ? [.. rooms.Values.Select(ToRoomInfo)] : [];
@@ -63,8 +65,8 @@ public sealed class BilibiliApiClient
 		};
 	}
 
-	// live_time has no offset and is always Beijing time; rooms that have never been live report all zeros
-	internal static DateTimeOffset? ParseBeijingTime(string? value)
+	// live_time 不带时区，总是北京时间；从未开播的房间返回全零
+	private static DateTimeOffset? ParseBeijingTime(string? value)
 	{
 		return DateTime.TryParseExact(value, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime time) ? new DateTimeOffset(time, BeijingOffset) : null;
 	}
@@ -86,7 +88,7 @@ public sealed class BilibiliApiClient
 
 			foreach (FollowingRoom room in data.List ?? [])
 			{
-				// Entries can shift between pages while paging, so the same room may show up twice
+				// 翻页期间条目可能在页与页之间移动，同一个房间可能出现两次
 				if (room.RoomId > 0 && seen.Add(room.RoomId))
 				{
 					hasNewRoom = true;
@@ -94,7 +96,7 @@ public sealed class BilibiliApiClient
 				}
 			}
 
-			// Without totalPage, stop at a page that adds nothing in case pages past the end repeat the last one
+			// 没有 totalPage 时，末页之后的页可能重复最后一页，所以遇到没有新房间的页就停
 			if (data.List is not { Count: > 0 } || (data.TotalPage > 0 ? page >= data.TotalPage : !hasNewRoom))
 			{
 				yield break;
@@ -102,7 +104,7 @@ public sealed class BilibiliApiClient
 		}
 	}
 
-	/// <returns>Empty when the room is live but lists no stream that can be recorded.</returns>
+	/// <returns>房间在直播但没有可录制的流时为空。</returns>
 	public async Task<IReadOnlyList<LiveStreamCandidate.Listed>> GetStreamCandidatesAsync(long roomId, long qn, IReadOnlyList<StreamCodec> codecPriority, IReadOnlyList<StreamFormat> formatPriority, CancellationToken cancellationToken = default)
 	{
 		Uri uri = CreateUri($"{LiveApi}xlive/web-room/v2/index/getRoomPlayInfo?room_id={roomId}&no_playurl=0&mask=1&qn={qn}&platform=web&protocol=0,1&format=0,1,2&codec=0,1,2");
@@ -116,7 +118,7 @@ public sealed class BilibiliApiClient
 		return StreamCandidates.Select(data, codecPriority, formatPriority);
 	}
 
-	/// <param name="mid">Meant to be the uid of the requester, but not checked against the login, which is why the request goes without the login cookie.</param>
+	/// <param name="mid">本应是请求者的 uid，但接口不拿它核对登录，所以请求不带登录 Cookie。</param>
 	public async Task<IReadOnlyList<LiveStreamCandidate.Variant>> GetMasterPlaylistVariantsAsync(long roomId, long mid, CancellationToken cancellationToken = default)
 	{
 		Uri uri = CreateUri($"{LiveApi}xlive/play-gateway/master/url?cid={roomId}&mid={mid}&pt=web&p2p_type=-1&net=0&free_type=0&build=0&feature=2&qn=10000&drm_type=0&codec=0,1");
@@ -125,28 +127,12 @@ public sealed class BilibiliApiClient
 		using HttpResponseMessage response = await HttpClient.SendAsync(request, cancellationToken);
 		response.EnsureSuccessStatusCode();
 
-		// A room that is not live gets an empty response
+		// 未开播的房间返回空内容
 		string content = await response.Content.ReadAsStringAsync(cancellationToken);
-		ThrowIfErrorEnvelope(content);
+		ApiResponse.ThrowIfError(content);
 		LiveStreamCandidate.Variant[] variants = MasterPlaylistVariants.Parse(content, uri);
 
 		return variants.Length is 0 ? throw new BilibiliApiException($"The master playlist of room {roomId} lists no usable variant.") : variants;
-	}
-
-	// Errors come as an API envelope instead of a playlist, and the code tells risk control apart from a bad request
-	private static void ThrowIfErrorEnvelope(string content)
-	{
-		if (!content.AsSpan().TrimStart().StartsWith('{'))
-		{
-			return;
-		}
-
-		using JsonDocument document = JsonDocument.Parse(content);
-
-		if (ApiResponse.ReadEnvelope(document.RootElement) is (not 0 and var code, var message))
-		{
-			throw new BilibiliApiException(message, code);
-		}
 	}
 
 	internal async Task<DanmuServerInfo> GetDanmuServerInfoAsync(long roomId, bool anonymous, CancellationToken cancellationToken)
@@ -173,7 +159,7 @@ public sealed class BilibiliApiClient
 	{
 		ApiResponse<NavData> response = await GetNavAsync(cancellationToken);
 
-		// The danmu token is requested right after the uid, so it gets signed with these keys rather than cached ones that may have rotated
+		// 紧接着要请求弹幕 token，用这次拿到的密钥签名，而不是可能已经轮换的缓存密钥
 		if (GetMixinKey(response.Data) is { } mixinKey)
 		{
 			_wbiKeys.Store(mixinKey);
@@ -273,7 +259,7 @@ public sealed class BilibiliApiClient
 	{
 		ApiResponse<NavData> response = await GetNavAsync(cancellationToken);
 
-		// nav answers -101 to anonymous users but still carries the keys
+		// 未登录时 nav 返回 -101，但仍带着密钥
 		if (response.Code is not (0 or BilibiliApiException.NotLoggedInCode))
 		{
 			throw new BilibiliApiException(response.Message, response.Code);

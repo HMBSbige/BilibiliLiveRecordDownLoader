@@ -37,12 +37,6 @@ public class BilibiliApiClientTest
 	}
 
 	[Test]
-	public async Task RoomThatHasNeverBeenLiveHasNoStartTimeAsync()
-	{
-		await Assert.That(BilibiliApiClient.ParseBeijingTime("0000-00-00 00:00:00")).IsNull();
-	}
-
-	[Test]
 	public async Task GetRoomInfoThrowsWhenRoomIsMissingAsync(CancellationToken cancellationToken)
 	{
 		using ApiClient api = Single(ApiPaths.RoomBaseInfo, static () => Responses.Json("""{"code":0,"message":"OK","data":{"by_uids":{},"by_room_ids":{}}}"""));
@@ -53,7 +47,7 @@ public class BilibiliApiClientTest
 	[Test]
 	public async Task GetRoomInfosRequestsAllRoomsAtOnceAsync(CancellationToken cancellationToken)
 	{
-		using ApiClient api = Single(ApiPaths.RoomBaseInfo, static () => Responses.Json("""{"code":0,"message":"OK","data":{"by_room_ids":{"6154037":{"room_id":6154037,"short_id":732,"uid":194484313,"uname":"Asaki大人","title":"t","live_status":1},"5440":{"room_id":5440,"short_id":1,"uid":9617619,"live_status":0}}}}"""));
+		using ApiClient api = Single(ApiPaths.RoomBaseInfo, static () => Responses.Json("""{"code":0,"message":"OK","data":{"by_room_ids":{"6154037":{"room_id":6154037,"short_id":732,"uid":194484313,"uname":"Asaki大人","title":"t","live_status":1},"5440":{"room_id":5440,"short_id":1,"uid":9617619,"live_status":0,"live_time":"0000-00-00 00:00:00"}}}}"""));
 
 		IReadOnlyList<LiveRoomInfo> rooms = await api.Client.GetRoomInfosAsync([732, 5440, 999999999], cancellationToken);
 		RecordedRequest request = await Assert.That(api.Handler.Requests).HasSingleItem();
@@ -208,7 +202,7 @@ public class BilibiliApiClientTest
 		await Assert.That(candidates.Select(static c => (c.Format, c.Codec))).IsEquivalentTo(expected, CollectionOrdering.Matching);
 	}
 
-	// A rebroadcast still comes with stream urls, so only the live status keeps it from being recorded
+	// 轮播时照样返回流地址，只有直播状态能挡住录制
 	[Test]
 	[Arguments(0)]
 	[Arguments(2)]
@@ -358,7 +352,7 @@ public class BilibiliApiClientTest
 
 		QrCodeLoginResult result = await api.Client.PollQrCodeLoginAsync("abc", cancellationToken);
 
-		await Assert.That(result).IsEqualTo(new QrCodeLoginResult.Succeeded("SESSDATA=s%2Ce;bili_jct=csrf;DedeUserID=12345678"));
+		await Assert.That(result).IsEqualTo(new QrCodeLoginResult.Succeeded("SESSDATA=s%2Ce; bili_jct=csrf; DedeUserID=12345678"));
 	}
 
 	[Test]

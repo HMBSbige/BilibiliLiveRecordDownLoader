@@ -39,6 +39,6 @@ public class CookieHeaderTest
 			"SESSDATA=new%2Cvalue; Path=/"
 		];
 
-		await Assert.That(CookieHeader.FromSetCookie(headers)).IsEqualTo("SESSDATA=new%2Cvalue;bili_jct=csrf;DedeUserID=12345678");
+		await Assert.That(CookieHeader.FromSetCookie(headers)).IsEqualTo("SESSDATA=new%2Cvalue; bili_jct=csrf; DedeUserID=12345678");
 	}
 }

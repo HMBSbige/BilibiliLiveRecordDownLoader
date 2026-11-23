@@ -8,8 +8,8 @@ internal static class MasterPlaylistVariants
 	private const string Header = "#EXTM3U";
 	private const string StreamInfTag = "#EXT-X-STREAM-INF:";
 
-	/// <summary>Every quality and codec is listed once per pathway, another CDN host serving the same stream, so their entries merge into one variant.</summary>
-	/// <exception cref="FormatException">The content is not an HLS playlist.</exception>
+	/// <summary>每种画质和编码在每条 pathway（提供同一路流的另一个 CDN 主机）下各列一次，这些条目合并成一个变体。</summary>
+	/// <exception cref="FormatException">内容不是 HLS 播放列表。</exception>
 	public static LiveStreamCandidate.Variant[] Parse(string content, Uri playlistUri)
 	{
 		bool hasHeader = false;
@@ -62,7 +62,7 @@ internal static class MasterPlaylistVariants
 		return long.TryParse(HlsPlaylist.GetAttribute(attributes, "BILI-QN"), NumberStyles.None, CultureInfo.InvariantCulture, out long qn) && ParseVideoCodec(HlsPlaylist.GetAttribute(attributes, "CODECS")) is { } codec ? (codec, qn) : null;
 	}
 
-	// Some entries name the video codec twice and no audio codec, although their init segments carry both tracks, so only the first codec counts
+	// 有的条目把视频编码写两遍而不写音频编码，其实初始化分片里音视频都有，所以只看第一个编码
 	private static StreamCodec? ParseVideoCodec(ReadOnlySpan<char> codecs)
 	{
 		int comma = codecs.IndexOf(',');

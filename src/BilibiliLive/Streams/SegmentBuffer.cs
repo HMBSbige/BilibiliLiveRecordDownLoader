@@ -2,7 +2,7 @@ using System.Buffers;
 
 namespace BilibiliLive.Streams;
 
-// Renting saves a new large object heap allocation of several megabytes for every segment
+// 租用省掉了每个分片几 MB 的大对象堆分配
 internal sealed class SegmentBuffer(int capacity, long? expectedLength = null) : IDisposable
 {
 	internal const int MinimumCapacity = 4096;
@@ -22,7 +22,7 @@ internal sealed class SegmentBuffer(int capacity, long? expectedLength = null) :
 		{
 			if (_length == _array.Length)
 			{
-				// A body of the announced length that fills the rental exactly would otherwise rent twice the size just to read its end
+				// 正文按声明的长度恰好填满租来的数组时，不先探一下就要为读到结尾再租一块两倍大的
 				if (_length != expectedLength)
 				{
 					Grow();
@@ -56,7 +56,7 @@ internal sealed class SegmentBuffer(int capacity, long? expectedLength = null) :
 		}
 	}
 
-	// Otherwise the buffer grows and keeps the byte read past the announced length, so the media check still sees the body as it came
+	// 没到结尾就照常扩容并留下多读的那个字节，媒体校验看到的仍是原样的正文
 	private async Task<bool> IsAtEndAsync(Stream source, CancellationToken cancellationToken)
 	{
 		byte[] probe = ArrayPool<byte>.Shared.Rent(1);

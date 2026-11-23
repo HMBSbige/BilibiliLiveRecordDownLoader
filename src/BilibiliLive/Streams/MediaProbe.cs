@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 
 namespace BilibiliLive.Streams;
 
-/// <summary>Cheap structural checks that tell real media from error pages a CDN may serve with a 200 status.</summary>
+/// <summary>用低成本的结构检查区分真正的媒体和 CDN 以 200 状态返回的错误页面。</summary>
 internal static class MediaProbe
 {
 	internal const int TransportPacketSize = 188;
@@ -18,7 +18,7 @@ internal static class MediaProbe
 		return data.StartsWith(FlvSignature);
 	}
 
-	// A lone 0x47 is common in any payload, so several packets in a row have to line up
+	// 任何数据里都常见单独的 0x47，所以要连续几个包都对齐
 	public static bool IsTransportStream(ReadOnlySpan<byte> data)
 	{
 		for (int offset = 0; offset < TransportPacketSize && offset + TransportPacketSize * TransportPacketsToCheck <= data.Length; ++offset)
