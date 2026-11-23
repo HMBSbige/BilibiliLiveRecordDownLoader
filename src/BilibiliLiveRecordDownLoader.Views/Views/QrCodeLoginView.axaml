@@ -21,7 +21,7 @@
         </StackPanel>
 
         <StackPanel Spacing="16" HorizontalAlignment="Center">
-            <Border Width="240" Height="240" CornerRadius="{DynamicResource SemiBorderRadiusMedium}" Background="White" Padding="8" HorizontalAlignment="Center">
+            <Border Width="240" Height="240" CornerRadius="{DynamicResource ControlCornerRadius}" Background="White" Padding="8" HorizontalAlignment="Center">
                 <Panel>
                     <Image Source="{Binding QrCodeUrl, Converter={x:Static c:QrCodeImageConverter.Instance}}"
                            RenderOptions.BitmapInterpolationMode="None" />

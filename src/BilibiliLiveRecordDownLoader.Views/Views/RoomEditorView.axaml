@@ -35,7 +35,7 @@
             </Border>
             <StackPanel Classes="toolbar" HorizontalAlignment="Right">
                 <Button Command="{Binding DismissDialogCommand}" Content="{Binding Cancel, Source={x:Static l:AppLanguage.Current}}" />
-                <Button Theme="{DynamicResource SolidButton}" Classes="Primary" IsDefault="True" Command="{Binding SaveCommand}">
+                <Button Classes="accent" IsDefault="True" Command="{Binding SaveCommand}">
                     <StackPanel Classes="iconText">
                         <ProgressBar Theme="{DynamicResource ProgressRing}" IsIndeterminate="True" Width="14" Height="14" IsVisible="{Binding IsBusy}" />
                         <TextBlock Text="{Binding Save, Source={x:Static l:AppLanguage.Current}}" />

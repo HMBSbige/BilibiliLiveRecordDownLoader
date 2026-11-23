@@ -23,7 +23,7 @@
                     <TextBlock Text="{Binding ClearFinishedTasks, Source={x:Static l:AppLanguage.Current}}" />
                 </StackPanel>
             </Button>
-            <Button Classes="Danger" Command="{Binding CancelAllTasksCommand}">
+            <Button Classes="danger" Command="{Binding CancelAllTasksCommand}">
                 <StackPanel Classes="iconText">
                     <ic:FluentIcon Icon="DismissCircle" />
                     <TextBlock Text="{Binding CancelAllTasks, Source={x:Static l:AppLanguage.Current}}" />
@@ -53,7 +53,7 @@
                                     <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding Details}"
                                                IsVisible="{Binding Details, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                     <ContentControl Content="{Binding Status}" ContentTemplate="{StaticResource LocalizedLabel}"
-                                                    FontSize="{DynamicResource SemiFontSizeSmall}" ctl:StatusColor.Value="{Binding Status}" />
+                                                    FontSize="{DynamicResource CaptionFontSize}" ctl:StatusColor.Value="{Binding Status}" />
                                 </StackPanel>
 
                                 <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Classes="caption" Text="{Binding Paths}"

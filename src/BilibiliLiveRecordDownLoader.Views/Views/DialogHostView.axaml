@@ -9,21 +9,25 @@
     x:DataType="dialogs:DialogHostViewModel"
     IsVisible="{Binding Current, Converter={x:Static ObjectConverters.IsNotNull}}">
     <Panel>
-        <Border Background="{DynamicResource SemiColorOverlayBackground}" PointerPressed="OnOverlayPressed" />
+        <Border Background="{DynamicResource SmokeFillColorDefaultBrush}" PointerPressed="OnOverlayPressed">
+            <Border.BackdropEffect>
+                <BlurEffect Radius="16" />
+            </Border.BackdropEffect>
+        </Border>
         <Border HorizontalAlignment="Center" VerticalAlignment="Center"
                 MinWidth="380" MaxWidth="720" Margin="32"
-                Padding="24" CornerRadius="{DynamicResource SemiBorderRadiusLarge}"
-                Background="{DynamicResource SemiColorBackground2}"
-                BoxShadow="{DynamicResource SemiShadowElevated}"
+                Padding="24" CornerRadius="{DynamicResource OverlayCornerRadius}"
+                Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
+                BoxShadow="{DynamicResource ElevatedShadow}"
                 KeyboardNavigation.TabNavigation="Cycle">
             <DockPanel VerticalSpacing="16">
                 <DockPanel DockPanel.Dock="Top" HorizontalSpacing="8">
-                    <Button DockPanel.Dock="Right" Theme="{DynamicResource BorderlessButton}" Command="{Binding Current.DismissDialogCommand, FallbackValue={x:Null}}"
+                    <Button DockPanel.Dock="Right" Theme="{DynamicResource SubtleButton}" Command="{Binding Current.DismissDialogCommand, FallbackValue={x:Null}}"
                             ToolTip.Tip="{Binding Close, Source={x:Static l:AppLanguage.Current}}"
                             AutomationProperties.Name="{Binding Close, Source={x:Static l:AppLanguage.Current}}">
                         <ic:FluentIcon Icon="Dismiss" />
                     </Button>
-                    <TextBlock Classes="H5" Theme="{DynamicResource TitleTextBlock}" Text="{Binding Current.Title, FallbackValue={x:Null}}" VerticalAlignment="Center"
+                    <TextBlock Classes="title" Text="{Binding Current.Title, FallbackValue={x:Null}}" VerticalAlignment="Center"
                                TextWrapping="Wrap" />
                 </DockPanel>
                 <ContentControl x:Name="DialogContent" Content="{Binding Current}">

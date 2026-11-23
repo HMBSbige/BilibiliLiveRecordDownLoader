@@ -15,14 +15,7 @@
         <Style Selector="ListBox.nav > ListBoxItem">
             <Setter Property="Padding" Value="12,8" />
             <Setter Property="Margin" Value="0,2" />
-            <Setter Property="CornerRadius" Value="{DynamicResource SemiBorderRadiusMedium}" />
-        </Style>
-        <Style Selector="ListBox.nav > ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource SemiColorPrimaryLight}" />
-            <Setter Property="Foreground" Value="{DynamicResource SemiColorPrimary}" />
-        </Style>
-        <Style Selector="ListBox.nav > ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="{DynamicResource SemiColorPrimaryLightPointerover}" />
+            <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}" />
         </Style>
         <Style Selector="ListBox.nav > ListBoxItem:selected TextBlock">
             <Setter Property="FontWeight" Value="SemiBold" />
@@ -41,14 +34,13 @@
     <Panel>
         <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding IsInitialized}">
             <Border Grid.Column="0" Width="188" Padding="8,12"
-                    Background="{DynamicResource SemiColorBackground1}"
-                    BorderBrush="{DynamicResource SemiColorBorder}" BorderThickness="0,0,1,0">
+                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,1,0">
                 <DockPanel>
                     <Grid DockPanel.Dock="Bottom" ColumnDefinitions="20,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="2" Margin="12,8"
                           IsVisible="{Binding Rooms.RecordingSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                        <Ellipse Grid.Row="0" Grid.Column="0" Width="8" Height="8" Fill="{DynamicResource SemiColorDanger}" />
+                        <Ellipse Grid.Row="0" Grid.Column="0" Width="8" Height="8" Fill="{DynamicResource SystemFillColorCriticalBrush}" />
                         <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Rooms.RecordingSummary}" TextTrimming="CharacterEllipsis"
-                                   FontSize="{DynamicResource SemiFontSizeSmall}" />
+                                   FontSize="{DynamicResource CaptionFontSize}" />
                         <TextBlock Grid.Row="1" Grid.Column="1" Classes="caption" Text="{Binding Rooms.RecordingSpeed}" TextTrimming="CharacterEllipsis" />
                     </Grid>
                     <ListBox x:Name="Navigation" Classes="nav" SelectedIndex="{Binding SelectedPageIndex, Mode=TwoWay}" SelectionChanged="OnNavigationSelectionChanged">

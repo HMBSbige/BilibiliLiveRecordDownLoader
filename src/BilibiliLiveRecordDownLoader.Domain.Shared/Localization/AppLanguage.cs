@@ -11,13 +11,16 @@ public static partial class AppLanguage
 {
 	public static event EventHandler? CurrentChanged;
 
-	public static void SetCurrent(CultureInfo culture)
+	// 系统的区域格式，要在 SetCurrent 改掉当前区域性之前取
+	public static CultureInfo SystemCulture { get; } = CultureInfo.CurrentCulture;
+
+	public static void SetCurrent(CultureInfo uiCulture, CultureInfo formatCulture)
 	{
-		CultureInfo.DefaultThreadCurrentCulture = culture;
-		CultureInfo.DefaultThreadCurrentUICulture = culture;
-		CultureInfo.CurrentCulture = culture;
-		CultureInfo.CurrentUICulture = culture;
-		SetCurrent(culture.Name);
+		CultureInfo.DefaultThreadCurrentCulture = formatCulture;
+		CultureInfo.DefaultThreadCurrentUICulture = uiCulture;
+		CultureInfo.CurrentCulture = formatCulture;
+		CultureInfo.CurrentUICulture = uiCulture;
+		SetCurrent(uiCulture.Name);
 		CurrentChanged?.Invoke(null, EventArgs.Empty);
 	}
 }

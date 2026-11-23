@@ -3,32 +3,12 @@ using System.Windows.Input;
 
 namespace BilibiliLiveRecordDownLoader.Views.Controls;
 
-public sealed class DanmakuDensityChart : Control
+public sealed partial class DanmakuDensityChart : Control
 {
 	private const double PeakRadius = 3;
 
 	// 高能区间正是曲线最高处，色带画在曲线下面会被填充盖住
 	private const double HighlightOpacity = 0.25;
-
-	public static readonly StyledProperty<DanmakuDensityDto?> DensityProperty = AvaloniaProperty.Register<DanmakuDensityChart, DanmakuDensityDto?>(nameof(Density));
-
-	public static readonly StyledProperty<IReadOnlyList<DanmakuHighlightViewModel>?> HighlightsProperty = AvaloniaProperty.Register<DanmakuDensityChart, IReadOnlyList<DanmakuHighlightViewModel>?>(nameof(Highlights));
-
-	public static readonly StyledProperty<TimeSpan> DurationProperty = AvaloniaProperty.Register<DanmakuDensityChart, TimeSpan>(nameof(Duration));
-
-	public static readonly StyledProperty<TimeSpan?> PositionProperty = AvaloniaProperty.Register<DanmakuDensityChart, TimeSpan?>(nameof(Position));
-
-	public static readonly StyledProperty<ICommand?> CommandProperty = AvaloniaProperty.Register<DanmakuDensityChart, ICommand?>(nameof(Command));
-
-	public static readonly StyledProperty<IBrush?> FillProperty = AvaloniaProperty.Register<DanmakuDensityChart, IBrush?>(nameof(Fill));
-
-	public static readonly StyledProperty<IBrush?> StrokeProperty = AvaloniaProperty.Register<DanmakuDensityChart, IBrush?>(nameof(Stroke));
-
-	public static readonly StyledProperty<IBrush?> HighlightBrushProperty = AvaloniaProperty.Register<DanmakuDensityChart, IBrush?>(nameof(HighlightBrush));
-
-	public static readonly StyledProperty<IBrush?> PeakBrushProperty = AvaloniaProperty.Register<DanmakuDensityChart, IBrush?>(nameof(PeakBrush));
-
-	public static readonly StyledProperty<IBrush?> PositionBrushProperty = AvaloniaProperty.Register<DanmakuDensityChart, IBrush?>(nameof(PositionBrush));
 
 	static DanmakuDensityChart()
 	{
@@ -36,66 +16,36 @@ public sealed class DanmakuDensityChart : Control
 		CursorProperty.OverrideDefaultValue<DanmakuDensityChart>(new Cursor(StandardCursorType.Hand));
 	}
 
-	public DanmakuDensityDto? Density
-	{
-		get => GetValue(DensityProperty);
-		set => SetValue(DensityProperty, value);
-	}
+	[GeneratedStyledProperty]
+	public partial DanmakuDensityDto? Density { get; set; }
 
-	public IReadOnlyList<DanmakuHighlightViewModel>? Highlights
-	{
-		get => GetValue(HighlightsProperty);
-		set => SetValue(HighlightsProperty, value);
-	}
+	[GeneratedStyledProperty]
+	public partial IReadOnlyList<DanmakuHighlightViewModel>? Highlights { get; set; }
 
-	public TimeSpan Duration
-	{
-		get => GetValue(DurationProperty);
-		set => SetValue(DurationProperty, value);
-	}
+	[GeneratedStyledProperty]
+	public partial TimeSpan Duration { get; set; }
 
-	public TimeSpan? Position
-	{
-		get => GetValue(PositionProperty);
-		set => SetValue(PositionProperty, value);
-	}
+	[GeneratedStyledProperty]
+	public partial TimeSpan? Position { get; set; }
 
 	// 参数是文件内的 TimeSpan
-	public ICommand? Command
-	{
-		get => GetValue(CommandProperty);
-		set => SetValue(CommandProperty, value);
-	}
+	[GeneratedStyledProperty]
+	public partial ICommand? Command { get; set; }
 
-	public IBrush? Fill
-	{
-		get => GetValue(FillProperty);
-		set => SetValue(FillProperty, value);
-	}
+	[GeneratedStyledProperty]
+	public partial IBrush? Fill { get; set; }
 
-	public IBrush? Stroke
-	{
-		get => GetValue(StrokeProperty);
-		set => SetValue(StrokeProperty, value);
-	}
+	[GeneratedStyledProperty]
+	public partial IBrush? Stroke { get; set; }
 
-	public IBrush? HighlightBrush
-	{
-		get => GetValue(HighlightBrushProperty);
-		set => SetValue(HighlightBrushProperty, value);
-	}
+	[GeneratedStyledProperty]
+	public partial IBrush? HighlightBrush { get; set; }
 
-	public IBrush? PeakBrush
-	{
-		get => GetValue(PeakBrushProperty);
-		set => SetValue(PeakBrushProperty, value);
-	}
+	[GeneratedStyledProperty]
+	public partial IBrush? PeakBrush { get; set; }
 
-	public IBrush? PositionBrush
-	{
-		get => GetValue(PositionBrushProperty);
-		set => SetValue(PositionBrushProperty, value);
-	}
+	[GeneratedStyledProperty]
+	public partial IBrush? PositionBrush { get; set; }
 
 	public override void Render(DrawingContext context)
 	{

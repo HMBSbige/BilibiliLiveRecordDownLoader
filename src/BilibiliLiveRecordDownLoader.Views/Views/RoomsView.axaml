@@ -11,25 +11,25 @@
     x:DataType="rooms:RoomListViewModel">
     <UserControl.Styles>
         <Style Selector="ToggleButton.flag">
-            <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+            <Setter Property="Theme" Value="{DynamicResource SubtleButton}" />
             <Setter Property="Padding" Value="3" />
             <Setter Property="MinWidth" Value="0" />
             <Setter Property="MinHeight" Value="0" />
         </Style>
         <Style Selector="ToggleButton.flag > ic|FluentIcon">
             <Setter Property="FontSize" Value="15" />
-            <Setter Property="Foreground" Value="{DynamicResource SemiColorText3}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
         </Style>
         <Style Selector="ToggleButton.flag:checked > ic|FluentIcon">
             <Setter Property="IconVariant" Value="Filled" />
-            <Setter Property="Foreground" Value="{DynamicResource SemiColorPrimary}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentTextFillColorPrimaryBrush}" />
         </Style>
         <Style Selector="DropDownButton ContentControl, DropDownButton TextBlock">
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
         <Style Selector="Border.dragHandle">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="CornerRadius" Value="{DynamicResource SemiBorderRadiusSmall}" />
+            <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}" />
             <Setter Property="Padding" Value="2,4" />
             <Setter Property="Margin" Value="-6,0,6,0" />
             <Setter Property="VerticalAlignment" Value="Center" />
@@ -37,21 +37,21 @@
         </Style>
         <Style Selector="Border.dragHandle > ic|FluentIcon">
             <Setter Property="FontSize" Value="16" />
-            <Setter Property="Foreground" Value="{DynamicResource SemiColorText3}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
         </Style>
         <Style Selector="Border.dragHandle:pointerover">
-            <Setter Property="Background" Value="{DynamicResource SemiColorFill1}" />
+            <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
         </Style>
         <Style Selector="Border.dragHandle:pointerover > ic|FluentIcon">
-            <Setter Property="Foreground" Value="{DynamicResource SemiColorText1}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         </Style>
         <Style Selector="TextBlock.restricted">
-            <Setter Property="Foreground" Value="{DynamicResource SemiColorWarning}" />
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
         </Style>
         <Style Selector="Border.dropIndicator">
             <Setter Property="Height" Value="2" />
             <Setter Property="CornerRadius" Value="1" />
-            <Setter Property="Background" Value="{DynamicResource SemiColorPrimary}" />
+            <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
         </Style>
     </UserControl.Styles>
 
@@ -115,7 +115,7 @@
 
             <!-- 窄窗口里放不下时换行，免得画到右边那组上面 -->
             <WrapPanel ItemSpacing="{StaticResource ToolbarSpacing}" LineSpacing="{StaticResource ToolbarSpacing}">
-                <Button Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding AddRoomCommand}" IsVisible="{Binding HasRooms}">
+                <Button Classes="accent" Command="{Binding AddRoomCommand}" IsVisible="{Binding HasRooms}">
                     <StackPanel Classes="iconText">
                         <ic:FluentIcon Icon="Add" />
                         <TextBlock Text="{Binding AddRoom, Source={x:Static l:AppLanguage.Current}}" />
@@ -138,7 +138,7 @@
                             AutomationProperties.Name="{Binding StopRecording, Source={x:Static l:AppLanguage.Current}}">
                         <ic:FluentIcon Icon="RecordStop" />
                     </Button>
-                    <Button Classes="Danger" Command="{Binding RemoveRoomsCommand}"
+                    <Button Classes="danger" Command="{Binding RemoveRoomsCommand}"
                             ToolTip.Tip="{Binding RemoveRooms, Source={x:Static l:AppLanguage.Current}}"
                             AutomationProperties.Name="{Binding RemoveRooms, Source={x:Static l:AppLanguage.Current}}">
                         <ic:FluentIcon Icon="Delete" />
@@ -153,7 +153,7 @@
             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
                 <ic:FluentIcon Grid.Column="0" Icon="Warning" />
                 <TextBlock Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding LoginBannerText}" />
-                <Button Grid.Column="2" Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding LoginCommand}"
+                <Button Grid.Column="2" Classes="accent" Command="{Binding LoginCommand}"
                         Content="{Binding Login, Source={x:Static l:AppLanguage.Current}}" />
             </Grid>
         </Border>
@@ -273,7 +273,7 @@
                                                 <StackPanel Orientation="Horizontal" Spacing="2" Background="Transparent"
                                                             ToolTip.Tip="{Binding QualityRestrictionTip}">
                                                     <ic:FluentIcon Icon="Warning" IconVariant="Filled" FontSize="12" VerticalAlignment="Center"
-                                                                   Foreground="{DynamicResource SemiColorWarning}"
+                                                                   Foreground="{DynamicResource SystemFillColorCautionBrush}"
                                                                    IsVisible="{Binding IsQualityRestricted}"
                                                                    AutomationProperties.Name="{Binding QualityRestricted, Source={x:Static l:AppLanguage.Current}}" />
                                                     <TextBlock Classes="caption" Classes.restricted="{Binding IsQualityRestricted}" VerticalAlignment="Center" Text="{Binding QualityText}" />
@@ -281,16 +281,16 @@
                                             </StackPanel>
                                             <StackPanel Orientation="Horizontal" Spacing="2" IsVisible="{Binding IsRecordingDanmakuOnly}">
                                                 <ic:FluentIcon Icon="CommentMultiple" IconVariant="Filled" FontSize="12" VerticalAlignment="Center"
-                                                               Foreground="{DynamicResource SemiColorDanger}" />
+                                                               Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
                                                 <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding RecordingDanmaku, Source={x:Static l:AppLanguage.Current}}" />
                                             </StackPanel>
                                             <StackPanel Orientation="Horizontal" Spacing="2" Background="Transparent"
                                                         ToolTip.Tip="{Binding StatusTip}">
                                                 <ic:FluentIcon Icon="ErrorCircle" IconVariant="Filled" FontSize="12" VerticalAlignment="Center"
-                                                               Foreground="{DynamicResource SemiColorDanger}"
+                                                               Foreground="{DynamicResource SystemFillColorCriticalBrush}"
                                                                IsVisible="{Binding HasError}" />
                                                 <ContentControl Content="{Binding Status}" ContentTemplate="{StaticResource LocalizedLabel}" VerticalAlignment="Center"
-                                                                FontSize="{DynamicResource SemiFontSizeSmall}" ctl:StatusColor.Value="{Binding Status}" />
+                                                                FontSize="{DynamicResource CaptionFontSize}" ctl:StatusColor.Value="{Binding Status}" />
                                             </StackPanel>
                                         </StackPanel>
 
@@ -338,7 +338,7 @@
                                     Description="{Binding NoRoomsHint, Source={x:Static l:AppLanguage.Current}}"
                                     IsVisible="{Binding !HasRooms}">
                         <StackPanel Classes="toolbar">
-                            <Button Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding AddRoomCommand}">
+                            <Button Classes="accent" Command="{Binding AddRoomCommand}">
                                 <StackPanel Classes="iconText">
                                     <ic:FluentIcon Icon="Add" />
                                     <TextBlock Text="{Binding AddRoom, Source={x:Static l:AppLanguage.Current}}" />

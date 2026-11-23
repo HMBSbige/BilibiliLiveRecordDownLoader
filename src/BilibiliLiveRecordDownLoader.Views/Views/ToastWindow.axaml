@@ -16,16 +16,18 @@
     Opacity="0"
     Cursor="Hand">
     <Border Margin="8"
-            CornerRadius="{DynamicResource NotificationCardCornerRadius}"
-            Padding="{DynamicResource NotificationCardPadding}"
-            Background="{DynamicResource NotificationCardBackground}"
-            BoxShadow="{DynamicResource SemiShadowElevated}">
+            CornerRadius="{DynamicResource OverlayCornerRadius}"
+            Padding="16"
+            Background="{DynamicResource SolidBackgroundFillColorQuarternaryBrush}"
+            BorderBrush="{DynamicResource SurfaceStrokeColorFlyoutBrush}"
+            BorderThickness="1"
+            BoxShadow="{DynamicResource ElevatedShadow}">
         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
             <ic:FluentIcon x:Name="TypeIcon" Grid.Column="0" FontSize="20" VerticalAlignment="Top" IconVariant="Filled" />
             <StackPanel Grid.Column="1" Spacing="4">
                 <TextBlock x:Name="TitleText" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                 <TextBlock x:Name="MessageText" TextWrapping="Wrap" MaxLines="4" TextTrimming="CharacterEllipsis"
-                           Foreground="{DynamicResource SemiColorText1}" />
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
             </StackPanel>
         </Grid>
     </Border>

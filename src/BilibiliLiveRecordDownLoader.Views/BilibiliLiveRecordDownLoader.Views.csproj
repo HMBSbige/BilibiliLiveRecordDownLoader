@@ -6,10 +6,10 @@
   <ItemGroup>
     <!-- 其他包要求更高版本时报降级错误，免得核心和平台后端版本不一致 -->
     <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Themes.Fluent2" />
     <PackageReference Include="FluentIcons.Avalonia" />
     <PackageReference Include="QRCoder" />
     <PackageReference Include="ReactiveUI.Avalonia.Microsoft.Extensions.DependencyInjection" />
-    <PackageReference Include="Semi.Avalonia" />
     <PackageReference Include="Serilog" />
     <PackageReference Include="Serilog.Extensions.Logging" />
     <PackageReference Include="Serilog.Sinks.Async" />

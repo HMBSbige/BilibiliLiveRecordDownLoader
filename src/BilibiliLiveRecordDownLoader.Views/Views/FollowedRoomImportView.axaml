@@ -14,7 +14,7 @@
             <Setter Property="Background" Value="Transparent" />
         </Style>
         <Style Selector="Border.row:pointerover">
-            <Setter Property="Background" Value="{DynamicResource SemiColorFill0}" />
+            <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
         </Style>
         <Style Selector="Border.row > CheckBox">
             <Setter Property="HorizontalAlignment" Value="Stretch" />
@@ -35,7 +35,7 @@
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Classes="toolbar">
                     <Button Command="{Binding DismissDialogCommand}" Content="{Binding Cancel, Source={x:Static l:AppLanguage.Current}}" />
-                    <Button Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding ImportCommand}" IsVisible="{Binding HasRooms}">
+                    <Button Classes="accent" Command="{Binding ImportCommand}" IsVisible="{Binding HasRooms}">
                         <StackPanel Classes="iconText">
                             <ProgressBar Theme="{DynamicResource ProgressRing}" IsIndeterminate="True" Width="14" Height="14" IsVisible="{Binding IsBusy}" />
                             <TextBlock Text="{Binding ImportText}" />
@@ -88,7 +88,7 @@
                                                     <TextBlock Grid.Row="1" Grid.Column="1" Classes="caption" Text="{Binding Subtitle}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Subtitle}" />
                                                     <Panel Grid.Row="0" Grid.Column="2" Grid.RowSpan="2" VerticalAlignment="Center">
                                                         <ContentControl Content="{Binding LiveStatus}" ContentTemplate="{StaticResource LocalizedLabel}"
-                                                                        FontSize="{DynamicResource SemiFontSizeSmall}" ctl:StatusColor.Value="{Binding LiveStatus}"
+                                                                        FontSize="{DynamicResource CaptionFontSize}" ctl:StatusColor.Value="{Binding LiveStatus}"
                                                                         IsVisible="{Binding !IsAdded}" />
                                                         <StackPanel Classes="iconText" Spacing="4" IsVisible="{Binding IsAdded}">
                                                             <ic:FluentIcon Icon="Checkmark" FontSize="14" />
@@ -127,7 +127,7 @@
                                 Title="{Binding LoginRequired, Source={x:Static l:AppLanguage.Current}}"
                                 Description="{Binding LoginRequiredHint, Source={x:Static l:AppLanguage.Current}}"
                                 IsVisible="{Binding State, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static dialogs:FollowedRoomLoadState.LoginRequired}}">
-                    <Button Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding LoginCommand}">
+                    <Button Classes="accent" Command="{Binding LoginCommand}">
                         <StackPanel Classes="iconText">
                             <ic:FluentIcon Icon="QrCode" />
                             <TextBlock Text="{Binding GoToLogin, Source={x:Static l:AppLanguage.Current}}" />

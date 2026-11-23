@@ -15,7 +15,7 @@
                                Text="{Binding FFmpegNotFound, Source={x:Static l:AppLanguage.Current}}" />
                     <StackPanel Grid.Column="2" Classes="toolbar">
                         <Button Command="{Binding CheckFFmpegCommand}" Content="{Binding CheckAgain, Source={x:Static l:AppLanguage.Current}}" />
-                        <Button Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding DownloadFFmpegCommand}">
+                        <Button Classes="accent" Command="{Binding DownloadFFmpegCommand}">
                             <StackPanel Classes="iconText">
                                 <ic:FluentIcon Icon="ArrowDownload" />
                                 <TextBlock Text="{Binding DownloadFFmpeg, Source={x:Static l:AppLanguage.Current}}" />
@@ -25,7 +25,7 @@
                 </Grid>
             </Border>
             <StackPanel Classes="iconText" IsVisible="{Binding IsFFmpegAvailable, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:True}}">
-                <ic:FluentIcon Icon="CheckmarkCircle" IconVariant="Filled" FontSize="14" Foreground="{DynamicResource SemiColorSuccess}" />
+                <ic:FluentIcon Icon="CheckmarkCircle" IconVariant="Filled" FontSize="14" Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
                 <TextBlock Classes="caption" Text="{Binding FFmpegVersion}" />
                 <Button Classes="icon" Padding="2" Command="{Binding CheckFFmpegCommand}"
                         ToolTip.Tip="{Binding CheckAgain, Source={x:Static l:AppLanguage.Current}}"
@@ -61,7 +61,7 @@
                     <CheckBox IsChecked="{Binding DeleteRemuxSource}" Content="{Binding DeleteSource, Source={x:Static l:AppLanguage.Current}}" />
                     <TextBlock Classes="error" Text="{Binding RemuxError}"
                                IsVisible="{Binding RemuxError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                    <Button HorizontalAlignment="Left" Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding QueueRemuxCommand}">
+                    <Button HorizontalAlignment="Left" Classes="accent" Command="{Binding QueueRemuxCommand}">
                         <StackPanel Classes="iconText">
                             <ic:FluentIcon Icon="ArrowRepeatAll" />
                             <TextBlock Text="{Binding AddToQueue, Source={x:Static l:AppLanguage.Current}}" />
@@ -101,7 +101,7 @@
                     </Grid>
                     <TextBlock Classes="error" Text="{Binding CutError}"
                                IsVisible="{Binding CutError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                    <Button HorizontalAlignment="Left" Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding QueueCutCommand}">
+                    <Button HorizontalAlignment="Left" Classes="accent" Command="{Binding QueueCutCommand}">
                         <StackPanel Classes="iconText">
                             <ic:FluentIcon Icon="Cut" />
                             <TextBlock Text="{Binding AddToQueue, Source={x:Static l:AppLanguage.Current}}" />

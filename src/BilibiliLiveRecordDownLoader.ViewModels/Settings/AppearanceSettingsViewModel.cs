@@ -1,6 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.ViewModels.Settings;
 
-public sealed partial class AppearanceSettingsViewModel(IAppConfigManager configManager, IThemeService themeService) : ViewModelBase
+public sealed partial class AppearanceSettingsViewModel(IAppConfigManager configManager, IThemeService themeService, ISystemLanguageService systemLanguage) : ViewModelBase
 {
 	public IReadOnlyList<ChoiceOption> ThemeOptions { get; } = ChoiceOption.Of(Enum.GetValues<AppTheme>());
 
@@ -25,9 +25,8 @@ public sealed partial class AppearanceSettingsViewModel(IAppConfigManager config
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.SelectedLanguage).Map(static language => language?.CultureName), static (appConfig, value) => appConfig.Language = value);
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.Theme), static (appConfig, value) => appConfig.Theme = value);
 
-		this.WhenChanged(static viewModel => viewModel.SelectedLanguage)
-			.KeepNotNull()
-			.Subscribe(static language => ApplyCulture(language.CultureName))
+		Signal.Switch(this.WhenChanged(static viewModel => viewModel.SelectedLanguage).KeepNotNull().Map(ResolveCultures))
+			.Subscribe(static cultures => AppLanguage.SetCurrent(cultures.Ui, cultures.Format))
 			.DisposeWith(Disposables);
 
 		this.WhenChanged(static viewModel => viewModel.Theme)
@@ -35,8 +34,32 @@ public sealed partial class AppearanceSettingsViewModel(IAppConfigManager config
 			.DisposeWith(Disposables);
 	}
 
-	private static void ApplyCulture(string cultureName)
+	private IObservable<(CultureInfo Ui, CultureInfo Format)> ResolveCultures(LanguageOptionViewModel language)
 	{
-		AppLanguage.SetCurrent(string.IsNullOrEmpty(cultureName) ? CultureInfo.InstalledUICulture : CultureInfo.GetCultureInfo(cultureName));
+		if (string.IsNullOrEmpty(language.CultureName))
+		{
+			// 跟随系统时只换界面语言，数字和日期仍按系统的区域格式
+			return systemLanguage.PreferredLanguage.Map(static tag => (ToCulture(tag), AppLanguage.SystemCulture));
+		}
+
+		CultureInfo culture = CultureInfo.GetCultureInfo(language.CultureName);
+		return Signal.Return((culture, culture));
+	}
+
+	private static CultureInfo ToCulture(string languageTag)
+	{
+		if (languageTag.Length > 0)
+		{
+			try
+			{
+				return CultureInfo.GetCultureInfo(languageTag);
+			}
+			catch (CultureNotFoundException)
+			{
+				// .NET 不认识系统给的标签时退回区域格式
+			}
+		}
+
+		return AppLanguage.SystemCulture;
 	}
 }

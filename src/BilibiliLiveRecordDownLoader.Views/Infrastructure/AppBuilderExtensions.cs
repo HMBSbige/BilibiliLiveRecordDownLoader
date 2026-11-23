@@ -4,6 +4,7 @@ public static class AppBuilderExtensions
 {
 	public static AppBuilder UseBilibiliLiveRecordDownLoader(this AppBuilder builder, AppStartupOptions startupOptions)
 	{
+		// Fluent2 的默认字体是 fonts:Inter，不注册就回落到系统默认字体
 		return builder.UseReactiveUIWithMicrosoftDependencyResolver
 		(
 			services => services.AddViews(startupOptions),

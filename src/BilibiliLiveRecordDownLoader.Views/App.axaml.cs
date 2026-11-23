@@ -5,6 +5,30 @@ public class App : Avalonia.Application
 	public override void Initialize()
 	{
 		AvaloniaXamlLoader.Load(this);
+		ApplyThemeStrings();
+		AppLanguage.CurrentChanged += (_, _) => ApplyThemeStrings();
+	}
+
+	// Fluent2 的内置菜单文字只有英文；Application.Resources 先于主题被查找，同名资源即可覆盖
+	private void ApplyThemeStrings()
+	{
+		IResourceDictionary resources = Resources;
+		resources["StringTextFlyoutCutText"] = AppLanguage.Current.CutText;
+		resources["StringTextFlyoutCopyText"] = AppLanguage.Current.Copy;
+		resources["StringTextFlyoutPasteText"] = AppLanguage.Current.PasteText;
+		resources["StringScrollBarScrollHere"] = AppLanguage.Current.ScrollHere;
+		resources["StringScrollBarTop"] = AppLanguage.Current.ScrollTop;
+		resources["StringScrollBarBottom"] = AppLanguage.Current.ScrollBottom;
+		resources["StringScrollBarPageUp"] = AppLanguage.Current.PageUp;
+		resources["StringScrollBarPageDown"] = AppLanguage.Current.PageDown;
+		resources["StringScrollBarScrollUp"] = AppLanguage.Current.ScrollUp;
+		resources["StringScrollBarScrollDown"] = AppLanguage.Current.ScrollDown;
+		resources["StringScrollBarLeftEdge"] = AppLanguage.Current.LeftEdge;
+		resources["StringScrollBarRightEdge"] = AppLanguage.Current.RightEdge;
+		resources["StringScrollBarPageLeft"] = AppLanguage.Current.PageLeft;
+		resources["StringScrollBarPageRight"] = AppLanguage.Current.PageRight;
+		resources["StringScrollBarScrollLeft"] = AppLanguage.Current.ScrollLeft;
+		resources["StringScrollBarScrollRight"] = AppLanguage.Current.ScrollRight;
 	}
 
 	public override void OnFrameworkInitializationCompleted()

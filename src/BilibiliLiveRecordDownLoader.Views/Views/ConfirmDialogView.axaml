@@ -8,8 +8,8 @@
     <DockPanel>
         <StackPanel Classes="toolbar dialogFooter" HorizontalAlignment="Right">
             <Button Command="{Binding DismissDialogCommand}" Content="{Binding Cancel, Source={x:Static l:AppLanguage.Current}}" />
-            <Button Theme="{DynamicResource SolidButton}" IsDefault="True"
-                    Classes.Primary="{Binding !IsDestructive}" Classes.Danger="{Binding IsDestructive}"
+            <Button IsDefault="True"
+                    Classes.accent="{Binding !IsDestructive}" Classes.critical="{Binding IsDestructive}"
                     Command="{Binding ConfirmCommand}" Content="{Binding ConfirmText}" />
         </StackPanel>
         <ScrollViewer MaxHeight="360">

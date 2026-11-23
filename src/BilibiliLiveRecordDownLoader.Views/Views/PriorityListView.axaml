@@ -13,7 +13,7 @@
                 <DataTemplate x:DataType="common:PriorityItemViewModel">
                     <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="4" Margin="8,0,4,0">
                         <TextBlock Grid.Column="0" Text="{Binding Label}" VerticalAlignment="Center" />
-                        <Button Grid.Column="1" Theme="{DynamicResource BorderlessButton}" IsEnabled="{Binding CanMoveUp}"
+                        <Button Grid.Column="1" Theme="{DynamicResource SubtleButton}" IsEnabled="{Binding CanMoveUp}"
                                 Command="{Binding #Items.((common:PriorityListViewModel)DataContext).MoveUpCommand, FallbackValue={x:Null}}"
                                 CommandParameter="{Binding}"
                                 ToolTip.Tip="{Binding MoveUp, Source={x:Static l:AppLanguage.Current}}"
@@ -21,7 +21,7 @@
                                 AutomationProperties.HelpText="{Binding Label}">
                             <ic:FluentIcon Icon="ArrowUp" FontSize="14" />
                         </Button>
-                        <Button Grid.Column="2" Theme="{DynamicResource BorderlessButton}" IsEnabled="{Binding CanMoveDown}"
+                        <Button Grid.Column="2" Theme="{DynamicResource SubtleButton}" IsEnabled="{Binding CanMoveDown}"
                                 Command="{Binding #Items.((common:PriorityListViewModel)DataContext).MoveDownCommand, FallbackValue={x:Null}}"
                                 CommandParameter="{Binding}"
                                 ToolTip.Tip="{Binding MoveDown, Source={x:Static l:AppLanguage.Current}}"

@@ -13,7 +13,7 @@
                     <TextBlock Classes="section" Text="{Binding LoginStatus, Source={x:Static l:AppLanguage.Current}}" />
                     <DockPanel MinHeight="32">
                         <StackPanel DockPanel.Dock="Right" Classes="toolbar">
-                            <Button Theme="{DynamicResource SolidButton}" Classes="Primary" Command="{Binding QrCodeLoginCommand}"
+                            <Button Classes="accent" Command="{Binding QrCodeLoginCommand}"
                                     IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}">
                                 <StackPanel Classes="iconText">
                                     <ic:FluentIcon Icon="QrCode" />
@@ -27,7 +27,7 @@
                                     <TextBlock Text="{Binding CheckLogin, Source={x:Static l:AppLanguage.Current}}" />
                                 </StackPanel>
                             </Button>
-                            <Button Classes="Danger" Command="{Binding LogoutCommand}"
+                            <Button Classes="danger" Command="{Binding LogoutCommand}"
                                     IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:True}}">
                                 <StackPanel Classes="iconText">
                                     <ic:FluentIcon Icon="SignOut" />
@@ -38,11 +38,11 @@
 
                         <Panel VerticalAlignment="Center">
                             <StackPanel Classes="iconText" IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:True}}">
-                                <ic:FluentIcon Icon="CheckmarkCircle" IconVariant="Filled" Foreground="{DynamicResource SemiColorSuccess}" />
+                                <ic:FluentIcon Icon="CheckmarkCircle" IconVariant="Filled" Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
                                 <TextBlock Text="{Binding LoggedIn, Source={x:Static l:AppLanguage.Current}}" />
                             </StackPanel>
                             <StackPanel Classes="iconText" IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}">
-                                <ic:FluentIcon Icon="PersonCircle" Foreground="{DynamicResource SemiColorText2}" />
+                                <ic:FluentIcon Icon="PersonCircle" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                 <TextBlock Text="{Binding NotLoggedIn, Source={x:Static l:AppLanguage.Current}}" />
                             </StackPanel>
                             <StackPanel Classes="iconText" IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.IsNull}}">

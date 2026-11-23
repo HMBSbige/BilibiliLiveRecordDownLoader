@@ -22,6 +22,7 @@ public static class ViewsServiceCollectionExtensions
 		services.TryAddSingleton<ILauncherService, LauncherService>();
 		services.TryAddSingleton<IStoragePickerService, StoragePickerService>();
 		services.TryAddSingleton<IThemeService, ThemeService>();
+		services.TryAddSingleton<ISystemLanguageService, SystemLanguageService>();
 		services.TryAddSingleton<IAutoStartService, AutoStartService>();
 		services.TryAddSingleton<NotificationExceptionHandler>();
 		services.TryAddSingleton<GlobalExceptionHandler>();

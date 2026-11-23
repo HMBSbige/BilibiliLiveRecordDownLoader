@@ -1,7 +1,6 @@
 <Application
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:semi="https://irihi.tech/semi"
     xmlns:vm="using:BilibiliLiveRecordDownLoader.ViewModels"
     xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
     xmlns:c="using:BilibiliLiveRecordDownLoader.Views.Converters"
@@ -10,7 +9,7 @@
     Name="Bilibili Live Recorder"
     RequestedThemeVariant="Default">
     <Application.Styles>
-        <semi:SemiTheme />
+        <Fluent2Theme />
         <StyleInclude Source="avares://BilibiliLiveRecordDownLoader.Views/Styles/AppStyles.axaml" />
     </Application.Styles>
 

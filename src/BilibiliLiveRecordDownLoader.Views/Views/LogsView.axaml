@@ -10,20 +10,20 @@
     x:DataType="logs:LogViewModel">
     <UserControl.Styles>
         <Style Selector="Button.columnHeader">
-            <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
+            <Setter Property="Theme" Value="{DynamicResource SubtleButton}" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="MinHeight" Value="0" />
             <Setter Property="HorizontalAlignment" Value="Left" />
             <Setter Property="Background" Value="Transparent" />
         </Style>
         <Style Selector="Button.columnHeader TextBlock">
-            <Setter Property="FontSize" Value="{DynamicResource SemiFontSizeSmall}" />
+            <Setter Property="FontSize" Value="{DynamicResource CaptionFontSize}" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource SemiColorText2}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
         </Style>
         <Style Selector="ic|FluentIcon.sortArrow">
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="{DynamicResource SemiColorText2}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
         </Style>
         <Style Selector="ic|FluentIcon.sortArrow.ascending">
             <Setter Property="RenderTransform" Value="rotate(180deg)" />
@@ -36,7 +36,7 @@
             <Setter Property="Template">
                 <ControlTemplate>
                     <Border Background="Transparent">
-                        <Border Width="1" Margin="0,2" Background="{DynamicResource SemiColorBorder}" HorizontalAlignment="Center" />
+                        <Border Width="1" Margin="0,2" Background="{DynamicResource DividerStrokeColorDefaultBrush}" HorizontalAlignment="Center" />
                     </Border>
                 </ControlTemplate>
             </Setter>
