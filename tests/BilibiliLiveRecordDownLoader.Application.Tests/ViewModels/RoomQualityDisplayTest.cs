@@ -26,7 +26,8 @@ public sealed class RoomQualityDisplayTest
 
 	private static RoomListViewModel CreateList(FakeRoomAppService rooms, IObservable<string?> cookie)
 	{
-		RoomListViewModel viewModel = new(new DialogHostViewModel(), rooms, new SettingsAppService(new FakeConfigManager()), new FakeDanmakuAppService(), new PlatformStub(), TimeProvider.System);
+		PlatformStub platform = new();
+		RoomListViewModel viewModel = new(new DialogHostViewModel(), rooms, new SettingsAppService(new FakeConfigManager()), new FakeDanmakuAppService(), platform, platform, new RecordingNotifications(), TimeProvider.System);
 		viewModel.ApplySettings(AppConfig.CreateDefault().ToSettingsDto(), cookie);
 		viewModel.Sync();
 		return viewModel;

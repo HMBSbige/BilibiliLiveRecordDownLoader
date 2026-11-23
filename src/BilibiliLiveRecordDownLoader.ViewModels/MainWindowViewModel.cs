@@ -7,9 +7,10 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 	private readonly ISettingsAppService _settingsAppService;
 	private readonly IRoomAppService _roomAppService;
 	private readonly IBackgroundTaskAppService _backgroundTasks;
+	private readonly IAutoStartService _autoStart;
 	private bool _startupTasksStarted;
 
-	public MainWindowViewModel(DialogHostViewModel dialogs, IApplicationShell shell, IAppLifecycleService lifecycle, ISettingsAppService settingsAppService, IRoomAppService roomAppService, IBackgroundTaskAppService backgroundTasks)
+	public MainWindowViewModel(DialogHostViewModel dialogs, IApplicationShell shell, IAppLifecycleService lifecycle, ISettingsAppService settingsAppService, IRoomAppService roomAppService, IBackgroundTaskAppService backgroundTasks, IAutoStartService autoStart)
 	{
 		Dialogs = dialogs;
 		_shell = shell;
@@ -17,6 +18,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 		_settingsAppService = settingsAppService;
 		_roomAppService = roomAppService;
 		_backgroundTasks = backgroundTasks;
+		_autoStart = autoStart;
 
 		ShowWindowCommand.DisposeWith(Disposables);
 		ExitCommand.DisposeWith(Disposables);
@@ -94,7 +96,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 		// 要在设置页读开机启动状态之前；没导入配置时接管，开机就只会启动一个空列表的新版
 		if (_settingsAppService.IsLegacyConfigImported)
 		{
-			AppLocator.Current.GetRequiredService<IAutoStartService>().TakeOverExisting();
+			_autoStart.TakeOverExisting();
 		}
 
 		WindowWidth = settings.WindowWidth;

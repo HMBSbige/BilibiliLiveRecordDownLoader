@@ -34,7 +34,7 @@ public sealed class BilibiliRequestHandler(BilibiliIdentity identity) : Delegati
 		// 直播流管道的每个分片都经过这里，不发送时就不拼 Cookie
 		if (IncludeCookie && IsBilibiliHost(request.RequestUri))
 		{
-			bool anonymous = markedAnonymous || (request.Options.TryGetValue(AnonymousOption, out bool value) && value);
+			bool anonymous = markedAnonymous || request.Options.TryGetValue(AnonymousOption, out bool value) && value;
 			headers.TryAddWithoutValidation("Cookie", identity.GetCookie(options, anonymous));
 		}
 

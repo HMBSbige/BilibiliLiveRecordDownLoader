@@ -1,7 +1,9 @@
 using BilibiliLive.Models;
 using BilibiliLiveRecordDownLoader.Application.Contracts.Accounts;
+using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
+using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels;
-using ReactiveUI;
+using BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
 using ReactiveUI.Primitives;
 using System.Collections.Concurrent;
 using System.Windows.Input;
@@ -22,7 +24,7 @@ public sealed class AccountViewModelTest
 	public async Task FailedCheckLeavesTheCheckingStateAsync(Exception failure, CancellationToken cancellationToken)
 	{
 		FakeAccountAppService accounts = new() { IsLoggedIn = OnThreadPool(_ => throw failure) };
-		using AccountViewModel viewModel = new(accounts, TimeProvider.System);
+		using AccountViewModel viewModel = Create(accounts);
 		// 先订阅，否则异常会落到全局处理
 		Task<Exception> reported = viewModel.CheckLoginCommand.ThrownExceptions.FirstAsync(cancellationToken);
 
@@ -48,7 +50,7 @@ public sealed class AccountViewModelTest
 				return true;
 			})
 		};
-		using AccountViewModel viewModel = new(accounts, TimeProvider.System);
+		using AccountViewModel viewModel = Create(accounts);
 		await viewModel.LoadAsync(cancellationToken);
 		Task loggedIn = WhenLoggedInAsync(viewModel, true, cancellationToken);
 
@@ -73,7 +75,7 @@ public sealed class AccountViewModelTest
 				return check.Task;
 			}
 		};
-		using AccountViewModel viewModel = new(accounts, TimeProvider.System);
+		using AccountViewModel viewModel = Create(accounts);
 		await viewModel.LoadAsync(CancellationToken.None);
 
 		viewModel.RefreshLoginStatus();
@@ -90,7 +92,7 @@ public sealed class AccountViewModelTest
 	public async Task CookieReloadedAfterLogoutIsNotSavedOrCheckedAgainAsync(CancellationToken cancellationToken)
 	{
 		FakeAccountAppService accounts = new() { Cookie = "old", IsLoggedIn = OnThreadPool(static _ => true) };
-		using AccountViewModel viewModel = new(accounts, TimeProvider.System);
+		using AccountViewModel viewModel = Create(accounts);
 		await viewModel.LoadAsync(cancellationToken);
 		await viewModel.CheckLoginCommand.Execute().ToTask(cancellationToken);
 		int saves = accounts.Saves;
@@ -104,6 +106,32 @@ public sealed class AccountViewModelTest
 			await Assert.That(accounts.Checks).IsEqualTo(1);
 			await Assert.That(accounts.Saves).IsEqualTo(saves);
 		}
+	}
+
+	[Test]
+	public async Task SuccessfulQrCodeLoginShowsANotificationAsync(CancellationToken cancellationToken)
+	{
+		FakeAccountAppService accounts = new() { IsLoggedIn = OnThreadPool(static _ => true) };
+		RecordingNotifications notifications = new();
+		FakeTimeProvider time = new();
+		using DialogHostViewModel dialogs = new();
+		using AccountViewModel viewModel = new(accounts, dialogs, notifications, time);
+
+		Task login = viewModel.QrCodeLoginCommand.Execute().ToTask(cancellationToken);
+		// 不知道轮询的定时器什么时候建好，一直推进到登录走完
+		await TestWait.UntilAsync(() =>
+		{
+			time.Advance(QrCodeLoginViewModel.PollInterval);
+			return login.IsCompleted;
+		}, "the QR code login completes", cancellationToken);
+		await login;
+
+		await Assert.That(notifications.Shown).IsEquivalentTo([new ShownNotification(AppLanguage.Current.Account, AppLanguage.Current.LoginSucceeded, AppNotificationType.Success, null)]);
+	}
+
+	private static AccountViewModel Create(FakeAccountAppService accounts)
+	{
+		return new AccountViewModel(accounts, new DialogHostViewModel(), new RecordingNotifications(), TimeProvider.System);
 	}
 
 	// 结果在别的线程上写入
@@ -149,14 +177,15 @@ public sealed class AccountViewModelTest
 			return IsLoggedIn(Cookie, cancellationToken);
 		}
 
+		// 扫码一轮询就成功
 		public Task<QrCodeLoginTicket> CreateQrCodeLoginAsync(CancellationToken cancellationToken = default)
 		{
-			throw new NotSupportedException();
+			return Task.FromResult(new QrCodeLoginTicket("https://example.com/qr", "key"));
 		}
 
 		public Task<QrCodeLoginState> PollQrCodeLoginAsync(string key, CancellationToken cancellationToken = default)
 		{
-			throw new NotSupportedException();
+			return Task.FromResult(QrCodeLoginState.Succeeded);
 		}
 
 		public Task LogoutAsync(CancellationToken cancellationToken = default)

@@ -1,5 +1,3 @@
-using BilibiliLiveRecordDownLoader.Configuration;
-
 namespace BilibiliLiveRecordDownLoader.Views.Infrastructure;
 
 // 平台初始化（选择渲染后端等）早于容器创建，日志管道要先建好，那时 Avalonia 的告警才记得下

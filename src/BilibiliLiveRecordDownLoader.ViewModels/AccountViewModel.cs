@@ -3,13 +3,17 @@ namespace BilibiliLiveRecordDownLoader.ViewModels;
 public sealed partial class AccountViewModel : ViewModelBase
 {
 	private readonly IAccountAppService _accountAppService;
+	private readonly DialogHostViewModel _dialogs;
+	private readonly INotificationService _notifications;
 	private readonly TimeProvider _timeProvider;
 	private bool _isReloadingCookie;
 	private int _loginCheckGeneration;
 
-	public AccountViewModel(IAccountAppService accountAppService, TimeProvider timeProvider)
+	public AccountViewModel(IAccountAppService accountAppService, DialogHostViewModel dialogs, INotificationService notifications, TimeProvider timeProvider)
 	{
 		_accountAppService = accountAppService;
+		_dialogs = dialogs;
+		_notifications = notifications;
 		_timeProvider = timeProvider;
 
 		CanLogout = this.WhenChanged(static viewModel => viewModel.IsLoggedIn).Map(static isLoggedIn => isLoggedIn is true);
@@ -68,13 +72,13 @@ public sealed partial class AccountViewModel : ViewModelBase
 	[ReactiveCommand]
 	internal async Task QrCodeLoginAsync(CancellationToken cancellationToken)
 	{
-		if (!await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ShowAsync(new QrCodeLoginViewModel(_accountAppService, _timeProvider)))
+		if (!await _dialogs.ShowAsync(new QrCodeLoginViewModel(_accountAppService, _timeProvider)))
 		{
 			return;
 		}
 
 		await ReloadCookieAsync(cancellationToken);
-		AppLocator.Current.GetRequiredService<INotificationService>().Show(AppLanguage.Current.Account, AppLanguage.Current.LoginSucceeded, AppNotificationType.Success);
+		_notifications.Show(AppLanguage.Current.Account, AppLanguage.Current.LoginSucceeded, AppNotificationType.Success);
 		await CheckLoginAsync(cancellationToken);
 	}
 

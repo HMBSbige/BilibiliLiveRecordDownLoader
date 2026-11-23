@@ -36,18 +36,13 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		]}]}]
 		""";
 
-	private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(5);
-
 	private readonly TestDirectory _directory = new();
 	private readonly Channel<StreamRequest> _streams = Channel.CreateUnbounded<StreamRequest>();
 	private readonly CancellationTokenSource _lifetime;
 	private readonly RecordingPostProcessor _postProcessor;
-	private volatile string _streamsTemplate;
 	private readonly Func<HttpRequestMessage, HttpResponseMessage>? _respondStream;
 	private int _playInfoRequests;
 	private volatile bool _isLive = true;
-	private volatile string _title = "title";
-	private volatile string? _playInfoQuery;
 	private RoomConfig _settings;
 
 	/// <param name="streams">其中的 $SIGN 换成第几次请求候选流</param>
@@ -58,7 +53,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		SwitchableWebProxy proxy = new(systemProxy ?? new WebProxy());
 		proxy.Follow(Config);
 		_lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		_streamsTemplate = streams;
+		Streams = streams;
 		_respondStream = respondStream;
 		Config.RecordDirectory = _directory.Root;
 		Config.RecorderType = recorderType;
@@ -108,17 +103,9 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	public AppConfig Config { get; } = AppConfig.CreateDefault();
 
 	// 替换规则和构造函数的 streams 参数相同
-	public string Streams
-	{
-		get => _streamsTemplate;
-		set => _streamsTemplate = value;
-	}
+	public string Streams { get => Volatile.Read(ref field); set => Volatile.Write(ref field, value); }
 
-	public string Title
-	{
-		get => _title;
-		set => _title = value;
-	}
+	public string Title { get => Volatile.Read(ref field); set => Volatile.Write(ref field, value); } = "title";
 
 	public RecordingNotifications Notifications { get; } = new();
 
@@ -144,7 +131,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 	public int PlayInfoRequests => Volatile.Read(ref _playInfoRequests);
 
-	public string? PlayInfoQuery => _playInfoQuery;
+	public string? PlayInfoQuery { get => Volatile.Read(ref field); private set => Volatile.Write(ref field, value); }
 
 	// 没给时按 404 应答
 	public Func<HttpRequestMessage, HttpResponseMessage>? MasterPlaylist { get; set; }
@@ -166,7 +153,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	public void GoLive()
 	{
 		_isLive = true;
-		Session.Apply(new LiveRoomInfo(RoomId, 0, 1, "streamer", _title, LiveStatus.Live));
+		Session.Apply(new LiveRoomInfo(RoomId, 0, 1, "streamer", Title, LiveStatus.Live));
 	}
 
 	// 只影响之后的状态查询，不通知房间
@@ -190,7 +177,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 	public Task<StreamRequest> NextStreamAsync()
 	{
-		return _streams.Reader.ReadAsync(_lifetime.Token).AsTask().WaitAsync(WaitTimeout);
+		return TestWait.ForAsync(_streams.Reader.ReadAsync, "the room requests a stream", _lifetime.Token);
 	}
 
 	public static RecordingLoopHarness CreateSplitting(IMediaToolAppService mediaTools, CancellationToken cancellationToken, Func<string, Stream>? createFile = null)
@@ -215,7 +202,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 	public Task WaitUntilAsync(Func<bool> condition, string because)
 	{
-		return TestWait.UntilAsync(condition, because, _lifetime.Token, WaitTimeout);
+		return TestWait.UntilAsync(condition, because, _lifetime.Token);
 	}
 
 	// 按步推进，不依赖重连等待何时注册定时器
@@ -320,7 +307,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		{
 			return await _streams.Reader.ReadAsync(wait.Token);
 		}
-		catch (OperationCanceledException) when (wait.IsCancellationRequested)
+		catch (OperationCanceledException) when (!_lifetime.IsCancellationRequested)
 		{
 			return null;
 		}
@@ -330,7 +317,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	{
 		if (request.RequestUri is { AbsolutePath: "/xlive/web-room/v2/index/getRoomPlayInfo", Query: var query })
 		{
-			_playInfoQuery = query;
+			PlayInfoQuery = query;
 		}
 
 		if (request.RequestUri is { AbsolutePath: "/xlive/play-gateway/master/url", Query: var masterQuery })
@@ -346,11 +333,11 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 		string template = request.RequestUri?.AbsolutePath switch
 		{
-			"/xlive/web-room/v2/index/getRoomPlayInfo" => PlayInfoTemplate.Replace("$STREAMS", _streamsTemplate, StringComparison.Ordinal).Replace("$SIGN", Interlocked.Increment(ref _playInfoRequests).ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal),
+			"/xlive/web-room/v2/index/getRoomPlayInfo" => PlayInfoTemplate.Replace("$STREAMS", Streams, StringComparison.Ordinal).Replace("$SIGN", Interlocked.Increment(ref _playInfoRequests).ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal),
 			"/xlive/web-room/v1/index/getRoomBaseInfo" => RoomInfoTemplate,
 			var path => throw new InvalidOperationException($"Unexpected API request {path}.")
 		};
-		string json = template.Replace("$ROOM", RoomId.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal).Replace("$LIVE", _isLive ? "1" : "0", StringComparison.Ordinal).Replace("$TITLE", _title, StringComparison.Ordinal);
+		string json = template.Replace("$ROOM", RoomId.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal).Replace("$LIVE", _isLive ? "1" : "0", StringComparison.Ordinal).Replace("$TITLE", Title, StringComparison.Ordinal);
 
 		return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") });
 	}
@@ -416,33 +403,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		}
 	}
 
-	private sealed class UnusedMediaTools : IMediaToolAppService
-	{
-		public Task<string?> GetFFmpegVersionAsync(CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
-		}
-
-		public Task<Task<BackgroundTaskSnapshot>> QueueRemuxAsync(RemuxInput input, CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
-		}
-
-		public Task QueueCutAsync(CutInput input, CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
-		}
-
-		public string? SuggestRemuxDestination(string source)
-		{
-			throw new NotSupportedException();
-		}
-
-		public string? SuggestCutDestination(string source)
-		{
-			throw new NotSupportedException();
-		}
-	}
+	private sealed class UnusedMediaTools : MediaToolAppServiceStub;
 }
 
 // 日志输出会连同异常消息一起写出，检查敏感信息时两者都要看
@@ -473,14 +434,14 @@ internal sealed class StreamRequest(string host)
 			await _body.Writer.CompleteAsync();
 		}
 
-		_response.SetResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new ObservedStream(_body.Reader.AsStream(), OnRead)) });
+		Respond();
 	}
 
 	// 等会话把数据交给录制器之后才返回
 	public async Task AcceptAsync(byte[] body)
 	{
 		await _body.Writer.WriteAsync(body);
-		_response.SetResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new ObservedStream(_body.Reader.AsStream(), OnRead)) });
+		Respond();
 
 		// 一次读 FLV 签名，一次读其余数据，第三次读说明前面的都处理完了
 		await WaitForReadsAsync(3);
@@ -520,6 +481,11 @@ internal sealed class StreamRequest(string host)
 	public async Task EndAsync()
 	{
 		await _body.Writer.CompleteAsync();
+	}
+
+	private void Respond()
+	{
+		_response.SetResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new ObservedStream(_body.Reader.AsStream(), OnRead)) });
 	}
 
 	private Task WaitForReadsAsync(int count)

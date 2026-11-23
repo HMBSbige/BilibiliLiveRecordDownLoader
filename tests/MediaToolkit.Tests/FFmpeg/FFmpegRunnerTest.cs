@@ -352,4 +352,42 @@ public class FFmpegRunnerTest
 
 		await Assert.That(version).IsNull();
 	}
+
+	[Test]
+	public async Task GetVersionAsyncCancellationEndsTheWrappedProcessAsync(CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		// 配错的路径指向包装脚本，它启动的程序不退出，还占着输出管道
+		string script = FakeProcess.CreateScript(directory, @"ffmpeg",
+			"@powershell -NoLogo -NoProfile -NonInteractive -Command \"Set-Content -LiteralPath '%~dp0pid.tmp' -Value $PID; Move-Item -LiteralPath '%~dp0pid.tmp' -Destination '%~dp0pid'; Start-Sleep -Seconds 600\"\r\n",
+			"d=$(dirname \"$0\")\nsleep 600 &\necho $! > \"$d/pid.tmp\"\nmv \"$d/pid.tmp\" \"$d/pid\"\nwait\n");
+		using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+		Task<string?> getting = new FFmpegRunner(script).GetVersionAsync(cts.Token);
+		using Process wrapped = await WaitForProcessIdFileAsync(directory.Combine(@"pid"), cancellationToken);
+
+		try
+		{
+			await cts.CancelAsync();
+
+			await Assert.That(() => getting).Throws<OperationCanceledException>();
+			// 没被结束的话会一直等到测试超时
+			await wrapped.WaitForExitAsync(cancellationToken);
+		}
+		finally
+		{
+			wrapped.Kill();
+		}
+	}
+
+	// 脚本先写临时文件再改名，文件出现时内容已经完整
+	private static async Task<Process> WaitForProcessIdFileAsync(string path, CancellationToken cancellationToken)
+	{
+		while (!File.Exists(path))
+		{
+			await Task.Delay(TimeSpan.FromMilliseconds(50), cancellationToken);
+		}
+
+		return Process.GetProcessById(int.Parse(await File.ReadAllTextAsync(path, cancellationToken), CultureInfo.InvariantCulture));
+	}
 }

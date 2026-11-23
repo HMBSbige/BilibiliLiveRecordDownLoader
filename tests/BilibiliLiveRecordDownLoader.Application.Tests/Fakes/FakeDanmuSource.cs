@@ -7,8 +7,6 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 
 internal sealed class FakeDanmuSource(TimeProvider time)
 {
-	private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(5);
-
 	private readonly Channel<FakeDanmuConnection> _connections = Channel.CreateUnbounded<FakeDanmuConnection>();
 
 	// 房间的整个生命周期里是同一个对象
@@ -29,7 +27,7 @@ internal sealed class FakeDanmuSource(TimeProvider time)
 
 	public Task<FakeDanmuConnection> NextConnectionAsync()
 	{
-		return _connections.Reader.ReadAsync().AsTask().WaitAsync(WaitTimeout);
+		return TestWait.ForAsync(_connections.Reader.ReadAsync, "the room connects to the danmu server", CancellationToken.None);
 	}
 }
 

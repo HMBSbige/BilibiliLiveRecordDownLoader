@@ -3,7 +3,6 @@ using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
 using BilibiliLiveRecordDownLoader.ViewModels.Platform;
-using ReactiveUI;
 using ReactiveUI.Primitives;
 using System.Collections.Concurrent;
 using System.Windows.Input;
@@ -71,7 +70,7 @@ public sealed class MainWindowViewModelTest
 
 	private static MainWindowViewModel Create(Events events, bool isRecording, FakeLifecycle lifecycle, DialogHostViewModel dialogs)
 	{
-		return new MainWindowViewModel(dialogs, new FakeShell(events), lifecycle, new SettingsAppService(new FakeConfigManager()), new FakeRoomAppService(isRecording), new IdleTasks());
+		return new MainWindowViewModel(dialogs, new FakeShell(events), lifecycle, new SettingsAppService(new FakeConfigManager()), new FakeRoomAppService(isRecording), new IdleTasks(), new UnsupportedAutoStart());
 	}
 
 	private sealed class Events : ConcurrentQueue<string>;

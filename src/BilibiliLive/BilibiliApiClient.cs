@@ -40,7 +40,7 @@ public sealed class BilibiliApiClient
 		return rooms is [var room, ..] ? room : throw new BilibiliApiException($"Room {roomId} does not exist.", BilibiliApiException.RoomNotFoundCode);
 	}
 
-	/// <returns>不存在的房间不在结果中。</returns>
+	/// <returns>不存在的房间不在结果中</returns>
 	public async Task<IReadOnlyList<LiveRoomInfo>> GetRoomInfosAsync(IReadOnlyCollection<long> roomIds, CancellationToken cancellationToken = default)
 	{
 		if (roomIds.Count is 0)
@@ -104,7 +104,7 @@ public sealed class BilibiliApiClient
 		}
 	}
 
-	/// <returns>房间在直播但没有可录制的流时为空。</returns>
+	/// <returns>房间在直播但没有可录制的流时为空</returns>
 	public async Task<IReadOnlyList<LiveStreamCandidate.Listed>> GetStreamCandidatesAsync(long roomId, long qn, IReadOnlyList<StreamCodec> codecPriority, IReadOnlyList<StreamFormat> formatPriority, CancellationToken cancellationToken = default)
 	{
 		Uri uri = CreateUri($"{LiveApi}xlive/web-room/v2/index/getRoomPlayInfo?room_id={roomId}&no_playurl=0&mask=1&qn={qn}&platform=web&protocol=0,1&format=0,1,2&codec=0,1,2");
@@ -118,7 +118,7 @@ public sealed class BilibiliApiClient
 		return StreamCandidates.Select(data, codecPriority, formatPriority);
 	}
 
-	/// <param name="mid">本应是请求者的 uid，但接口不拿它核对登录，所以请求不带登录 Cookie。</param>
+	/// <param name="mid">本应是请求者的 uid，但接口不拿它核对登录，所以请求不带登录 Cookie</param>
 	public async Task<IReadOnlyList<LiveStreamCandidate.Variant>> GetMasterPlaylistVariantsAsync(long roomId, long mid, CancellationToken cancellationToken = default)
 	{
 		Uri uri = CreateUri($"{LiveApi}xlive/play-gateway/master/url?cid={roomId}&mid={mid}&pt=web&p2p_type=-1&net=0&free_type=0&build=0&feature=2&qn=10000&drm_type=0&codec=0,1");

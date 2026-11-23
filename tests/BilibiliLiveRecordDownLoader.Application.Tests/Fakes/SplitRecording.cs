@@ -14,6 +14,7 @@ internal sealed class SplitRecording
 	private readonly ConcurrentQueue<MemoryFile> _files = new();
 	private readonly ConcurrentQueue<string> _completed = new();
 	private readonly ConcurrentQueue<SegmentStart> _starts = new();
+	private SegmentedOutput? _output;
 
 	public SplitRecording()
 	{
@@ -66,10 +67,12 @@ internal sealed class SplitRecording
 			_completed.Enqueue(path);
 			SegmentCompleted?.Invoke(path);
 		});
+		_output = output;
+		await using ScriptedSession session = new(script, Time);
 
 		try
 		{
-			return await RecordingWriteBuffer.CopyAsync(new ScriptedSession(script, Time), output, new Progress<long>(), DrainTimeout, cancellationToken);
+			return await RecordingWriteBuffer.CopyAsync(session, output, new Progress<long>(), DrainTimeout, cancellationToken);
 		}
 		finally
 		{
@@ -93,9 +96,10 @@ internal sealed class SplitRecording
 		}
 	}
 
+	// 等到写盘端不再碰文件：排空超时后会晚于 RunAsync 结束，之后不会再交出或新建文件
 	public Task WaitForClosingAsync(CancellationToken cancellationToken)
 	{
-		return _files.ElementAt(BlockClosingFile?.Index ?? 0).Closed.WaitAsync(cancellationToken);
+		return TestWait.ForAsync((_output ?? throw new InvalidOperationException("RunAsync has not started.")).Closed, "the segmented output closes", cancellationToken);
 	}
 
 	private MemoryFile Create(int index)
@@ -107,17 +111,12 @@ internal sealed class SplitRecording
 
 	private sealed class MemoryFile(bool failOnClose, Task release) : MemoryStream
 	{
-		private readonly TaskCompletionSource _closed = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
 		public byte[] Data { get; private set; } = [];
-
-		public Task Closed => _closed.Task;
 
 		public override async ValueTask DisposeAsync()
 		{
 			Data = ToArray();
 			await release;
-			_closed.TrySetResult();
 
 			if (failOnClose)
 			{

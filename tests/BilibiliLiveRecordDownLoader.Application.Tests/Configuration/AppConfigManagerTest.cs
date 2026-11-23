@@ -1,3 +1,4 @@
+using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using Microsoft.Extensions.Logging;
 using System.Runtime.Versioning;
 using OS = TUnit.Core.Enums.OS;
@@ -130,6 +131,23 @@ public sealed class AppConfigManagerTest : IDisposable
 #pragma warning restore CA1849
 
 		await Assert.That((await ReloadAsync(cancellationToken)).Language).IsEqualTo("zh-Hans");
+	}
+
+	[Test]
+	public async Task ConfigLoadedAfterDisposeIsNotWrittenAsync(CancellationToken cancellationToken)
+	{
+		await WriteFileAsync(LegacyFileName, """{ "Rooms": [{ "RoomId": 732 }] }""", cancellationToken);
+		AppConfigManager manager = Create();
+		await manager.DisposeAsync();
+
+		AppConfig config = await manager.GetAsync(cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(RoomIds(config)).IsEquivalentTo((long[])[732], CollectionOrdering.Matching);
+			await Assert.That(manager.IsLegacyConfigImported).IsTrue();
+			await Assert.That(File.Exists(ConfigPath)).IsFalse();
+		}
 	}
 
 	[Test]
@@ -619,19 +637,6 @@ public sealed class AppConfigManagerTest : IDisposable
 	private string[] CorruptedFiles()
 	{
 		return Directory.GetFiles(_directory.Root, ConfigFileName + ".corrupt-*");
-	}
-
-	// 定时器建好之后再拨钟，否则拨过的时间算不到它身上
-	private sealed class TimerSignalingTimeProvider : FakeTimeProvider
-	{
-		public TaskCompletionSource TimerCreated { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-		public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
-		{
-			ITimer timer = base.CreateTimer(callback, state, dueTime, period);
-			TimerCreated.TrySetResult();
-			return timer;
-		}
 	}
 
 	// 报告配置损坏时取消，取消就落在从备份恢复的过程中

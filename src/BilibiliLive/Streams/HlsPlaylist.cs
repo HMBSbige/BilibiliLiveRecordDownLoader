@@ -119,7 +119,7 @@ internal sealed record HlsPlaylist(TimeSpan? TargetDuration, IReadOnlyList<HlsSe
 		return null;
 	}
 
-	/// <returns>没有这个属性和值为空对调用方是一回事，都返回空切片。</returns>
+	/// <returns>没有这个属性和值为空对调用方是一回事，都返回空切片</returns>
 	internal static ReadOnlySpan<char> GetAttribute(ReadOnlySpan<char> attributes, ReadOnlySpan<char> name)
 	{
 		while (!attributes.IsEmpty)

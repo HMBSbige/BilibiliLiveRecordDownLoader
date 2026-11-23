@@ -63,7 +63,6 @@ public sealed class SegmentedOutputTest
 		await Assert.ThrowsExactlyAsync<RecordingWriteException>(() => recording.RunAsync(new FakeSplitter(), ThreeUnits, static session => WriteUnitsAsync(session, 7), cancellationToken));
 		closing.SetResult();
 		await recording.WaitForClosingAsync(cancellationToken);
-		await Task.Delay(200, cancellationToken);
 
 		using (Assert.Multiple())
 		{

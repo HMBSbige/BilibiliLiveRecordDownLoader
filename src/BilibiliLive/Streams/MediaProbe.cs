@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 
 namespace BilibiliLive.Streams;
 
-/// <summary>用低成本的结构检查区分真正的媒体和 CDN 以 200 状态返回的错误页面。</summary>
+/// <summary>用低成本的结构检查区分真正的媒体和 CDN 以 200 状态返回的错误页面</summary>
 internal static class MediaProbe
 {
 	internal const int TransportPacketSize = 188;

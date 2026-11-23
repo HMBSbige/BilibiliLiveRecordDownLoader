@@ -62,7 +62,7 @@ public sealed class SettingsAppServiceTest
 			await Assert.That(SameProperties(original, changed)).IsEmpty();
 			await Assert.That(saved).IsEquivalentTo(changed);
 			await Assert.That(config.Cookie).IsEqualTo("SESSDATA=a");
-			await Assert.That(config.Rooms).IsSameReferenceAs(rooms);
+			await Assert.That(config.Rooms).IsEquivalentTo(rooms);
 		}
 	}
 

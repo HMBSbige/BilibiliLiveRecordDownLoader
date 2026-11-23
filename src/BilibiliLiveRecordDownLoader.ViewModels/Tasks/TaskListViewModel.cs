@@ -5,10 +5,14 @@ public sealed partial class TaskListViewModel : ViewModelBase
 	private static readonly TimeSpan RefreshInterval = TimeSpan.FromMilliseconds(300);
 
 	private readonly IBackgroundTaskAppService _taskAppService;
+	private readonly DialogHostViewModel _dialogs;
+	private readonly ILauncherService _launcher;
 
-	public TaskListViewModel(IBackgroundTaskAppService taskAppService)
+	public TaskListViewModel(IBackgroundTaskAppService taskAppService, DialogHostViewModel dialogs, ILauncherService launcher)
 	{
 		_taskAppService = taskAppService;
+		_dialogs = dialogs;
+		_launcher = launcher;
 		CanCancelAll = this.WhenChanged(static viewModel => viewModel.HasActiveTasks);
 		CanClearFinished = this.WhenChanged(static viewModel => viewModel.HasFinishedTasks);
 
@@ -81,14 +85,14 @@ public sealed partial class TaskListViewModel : ViewModelBase
 	{
 		if (Path.GetDirectoryName(task.TargetPath) is { Length: > 0 } directory)
 		{
-			await AppLocator.Current.GetRequiredService<ILauncherService>().OpenFolderAsync(directory);
+			await _launcher.OpenFolderAsync(directory);
 		}
 	}
 
 	[ReactiveCommand(CanExecute = nameof(CanCancelAll))]
 	private async Task CancelAllTasksAsync()
 	{
-		if (_taskAppService.HasActiveTasks && await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ConfirmAsync(AppLanguage.Current.CancelAllTasks, AppLanguage.Current.CancelAllTasksConfirm, AppLanguage.Current.CancelAllTasks, true))
+		if (_taskAppService.HasActiveTasks && await _dialogs.ConfirmAsync(AppLanguage.Current.CancelAllTasks, AppLanguage.Current.CancelAllTasksConfirm, AppLanguage.Current.CancelAllTasks, true))
 		{
 			_taskAppService.CancelAll();
 		}

@@ -130,6 +130,7 @@
                                 <TextBlock Classes="caption" Text="{TemplateBinding Description}" TextWrapping="Wrap"
                                            IsVisible="{TemplateBinding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                             </StackPanel>
+                            <!-- ReSharper disable once Xaml.MissingGridIndex -->
                             <ContentPresenter x:Name="PART_ContentPresenter" Grid.Column="1" VerticalAlignment="Center"
                                               Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" />
                         </Grid>
@@ -143,10 +144,6 @@
             </Style>
             <Style Selector="^.stacked:labeled /template/ ContentPresenter#PART_ContentPresenter">
                 <Setter Property="Margin" Value="0,8,0,0" />
-            </Style>
-            <!-- 标题和说明不在控件里，不会随控件一起变淡 -->
-            <Style Selector="^:disabled /template/ TextBlock">
-                <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
             </Style>
             <!-- 依赖上一行开关的子设置 -->
             <Style Selector="^.nested">
@@ -212,11 +209,6 @@
         <Setter Property="AutomationProperties.Name" Value="{Binding $parent[NumericUpDown].(AutomationProperties.Name)}" />
         <Setter Property="AutomationProperties.LabeledBy" Value="{Binding $parent[NumericUpDown].(AutomationProperties.LabeledBy)}" />
     </Style>
-    <!-- 开关的文字不随状态变化；文字在 OnContent 里，读屏取不到 -->
-    <Style Selector="ToggleSwitch">
-        <Setter Property="OffContent" Value="{Binding $self.OnContent}" />
-        <Setter Property="AutomationProperties.Name" Value="{Binding $self.OnContent}" />
-    </Style>
     <!-- 设置卡片由一行行设置组成，分隔线贯穿卡片 -->
     <Style Selector="Border.card.settings">
         <Setter Property="Padding" Value="0" />
@@ -244,7 +236,7 @@
     <Style Selector="ctl|SettingRow NumericUpDown">
         <Setter Property="Width" Value="200" />
     </Style>
-    <!-- 行里的控件没有自己的标签，读屏时念行标题和说明；要排在上面的 ToggleSwitch 样式之后 -->
+    <!-- 行里的控件没有自己的标签，读屏时念行标题和说明 -->
     <Style Selector="ctl|SettingRow ToggleSwitch, ctl|SettingRow ComboBox, ctl|SettingRow NumericUpDown, ctl|SettingRow TextBox">
         <Setter Property="AutomationProperties.Name" Value="{Binding $parent[ctl:SettingRow].Header}" />
         <Setter Property="AutomationProperties.HelpText" Value="{Binding $parent[ctl:SettingRow].Description}" />
@@ -267,6 +259,12 @@
     <Style Selector="TextBlock.caption, SelectableTextBlock.caption">
         <Setter Property="FontSize" Value="{DynamicResource CaptionFontSize}" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+    </Style>
+    <!-- 标题和说明不在控件里，不会随控件一起变淡。
+         不能放进 SettingRow 的 ControlTheme：同为触发样式时全局样式优先于主题，说明会一直取 caption 的颜色；
+         两条都是全局样式时按文档顺序后者胜出，所以要排在 caption 之后 -->
+    <Style Selector="ctl|SettingRow:disabled /template/ TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
     </Style>
     <Style Selector="TextBlock.error">
         <Setter Property="FontSize" Value="{DynamicResource CaptionFontSize}" />

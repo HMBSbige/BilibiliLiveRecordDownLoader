@@ -312,34 +312,14 @@ public sealed class DanmakuAppServiceTest
 		await Assert.That(() => danmaku.Subscribe(1)).Throws<KeyNotFoundException>();
 	}
 
-	private sealed class CutRecorder : IMediaToolAppService
+	private sealed class CutRecorder : MediaToolAppServiceStub
 	{
 		public ConcurrentQueue<CutInput> Cuts { get; } = new();
 
-		public Task<string?> GetFFmpegVersionAsync(CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
-		}
-
-		public Task<Task<BackgroundTaskSnapshot>> QueueRemuxAsync(RemuxInput input, CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
-		}
-
-		public Task QueueCutAsync(CutInput input, CancellationToken cancellationToken = default)
+		public override Task QueueCutAsync(CutInput input, CancellationToken cancellationToken = default)
 		{
 			Cuts.Enqueue(input);
 			return Task.CompletedTask;
-		}
-
-		public string? SuggestRemuxDestination(string source)
-		{
-			throw new NotSupportedException();
-		}
-
-		public string? SuggestCutDestination(string source)
-		{
-			throw new NotSupportedException();
 		}
 	}
 

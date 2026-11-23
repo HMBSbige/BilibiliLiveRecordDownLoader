@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 
 namespace BilibiliLive.Tests.Fakes;
 
-/// <summary>短于 <paramref name="longest"/> 的一次性计时器立即触发，所以它不能超过测试用 <see cref="Advance"/> 控制的超时。</summary>
+/// <summary>短于 <paramref name="longest"/> 的一次性计时器立即触发，所以它不能超过测试用 <see cref="Advance"/> 控制的超时</summary>
 internal sealed class ShortDelayTimeProvider(TimeSpan longest) : TimeProvider
 {
 	private readonly FakeTimeProvider _clock = new();

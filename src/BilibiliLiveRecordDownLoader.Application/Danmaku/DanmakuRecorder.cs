@@ -17,8 +17,6 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 
 	private const int CompletedCapacity = 32;
 
-	private static readonly string Version = ThisAssembly.Info.InformationalVersion.Split('+')[0];
-
 	// 开着的段按开始的先后排列；没录弹幕或者建不出文件的段为 null
 	private readonly OrderedDictionary<string, Sink.Video?> _videoSinks = new(StringComparer.Ordinal);
 	private readonly HashSet<string> _closedVideoPaths = new(StringComparer.Ordinal);
@@ -720,7 +718,7 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 	{
 		string path = stem + RecordingFileLayout.DanmakuExtension;
 		string fullPath = Path.GetFullPath(path);
-		header = header with { Version = Version };
+		header = header with { Version = AppVersion.Current };
 		DanmakuXmlWriter writer;
 
 		// 文件一建出来就可能被改写偏移，先登记再建

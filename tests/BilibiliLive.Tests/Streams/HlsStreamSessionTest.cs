@@ -804,8 +804,8 @@ public class HlsStreamSessionTest
 		}
 	}
 
-	/// <param name="target">同时等待的下载达到这个数，<see cref="Reached"/> 才完成。</param>
-	/// <param name="names">这些分片的下载要等 <see cref="Release"/> 放行。</param>
+	/// <param name="target">同时等待的下载达到这个数，<see cref="Reached"/> 才完成</param>
+	/// <param name="names">这些分片的下载要等 <see cref="Release"/> 放行</param>
 	private sealed class SegmentGates(int target, params string[] names)
 	{
 		private readonly Lock _lock = new();

@@ -1,4 +1,5 @@
 using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
+using System.Globalization;
 using System.Text;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
@@ -41,16 +42,22 @@ internal sealed class FakeSplitter(bool holdsFirstUnit = false) : MediaSplitter
 
 		while (!data.IsEmpty)
 		{
-			if (data[0] is (byte)'H')
+			if (data[0] is (byte)'H' && data.IndexOf((byte)':') is var colon and >= 0)
 			{
-				int end = data.IndexOf((byte)':') + 1;
-				builder.Append(Encoding.ASCII.GetString(data.Slice(0, end)));
-				data = data.Slice(end);
+				builder.Append(Encoding.ASCII.GetString(data.Slice(0, colon + 1)));
+				data = data.Slice(colon + 1);
 				continue;
 			}
 
-			builder.Append((char)data[2]);
-			data = data.Slice(Math.Min(data[1], data.Length));
+			// 被测代码写坏的元素不能让这里原地打转，记一个 ? 让断言失败
+			if (data is not [_, > 0 and var length, var marker, ..])
+			{
+				builder.Append('?');
+				break;
+			}
+
+			builder.Append((char)marker);
+			data = data.Slice(Math.Min(length, data.Length));
 		}
 
 		return builder.ToString();
@@ -100,7 +107,7 @@ internal sealed class FakeSplitter(bool holdsFirstUnit = false) : MediaSplitter
 
 	protected override ReadOnlyMemory<byte> CaptureHeader()
 	{
-		return Encoding.ASCII.GetBytes($"H{_sequences}:");
+		return Encoding.ASCII.GetBytes(string.Create(CultureInfo.InvariantCulture, $"H{_sequences}:"));
 	}
 
 	private static byte[] Element(char type, string marker, int length)

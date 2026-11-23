@@ -142,15 +142,18 @@ public sealed class RoomSplitRecordingTest
 		release.SetResult();
 		StuckClosingFile stuck = await Assert.That(first).IsNotNull();
 		await stuck.Closed.WaitAsync(cancellationToken);
-		RemuxInput finished = await WaitForRemuxAsync(loop, mediaTools, 1);
-		await Task.Delay(200, cancellationToken);
+		await WaitForRemuxAsync(loop, mediaTools, 1);
+
+		// 关闭之后有没有开始新的一段要在停下之前看，停下会结束录制循环；有没有多余的转封装要等后处理全部结束再看
+		DateTimeOffset? startedAtAfterClosing = loop.Snapshot.Recording?.StartedAt;
+		await loop.StopAsync();
+		RemuxInput finished = await Assert.That(mediaTools.Remuxes).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(remuxedWhileClosing).IsEqualTo(0);
-			await Assert.That(mediaTools.Remuxes).Count().IsEqualTo(1);
 			await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.flv")).IsEquivalentTo([finished.Source]);
-			await Assert.That(loop.Snapshot.Recording?.StartedAt).IsEqualTo(startedAt);
+			await Assert.That(startedAtAfterClosing).IsEqualTo(startedAt);
 		}
 	}
 

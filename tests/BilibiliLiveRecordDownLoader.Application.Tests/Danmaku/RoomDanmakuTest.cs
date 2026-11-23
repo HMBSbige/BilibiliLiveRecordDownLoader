@@ -1,6 +1,7 @@
 using BilibiliLive.Danmu;
 using BilibiliLiveRecordDownLoader.Application.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Recording;
+using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
@@ -16,7 +17,7 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 public sealed class RoomDanmakuTest : IDisposable
 {
 	private readonly TestDirectory _directory = new();
-	private readonly FakeTimeProvider _time = new();
+	private readonly TimerSignalingTimeProvider _time = new();
 
 	public void Dispose()
 	{
@@ -375,15 +376,14 @@ public sealed class RoomDanmakuTest : IDisposable
 	[Test]
 	public async Task ALoginNoticeQueuedBeforeTheDeadlineCountsEvenIfTheWaitEndsFirstAsync(CancellationToken cancellationToken)
 	{
-		TimerWatchingTimeProvider watched = new(_time);
 		ManualReader reader = new();
-		DanmakuRecorder recorder = new(1, watched, NullLogger.Instance, new DanmuReceiveOptions(), static _ => { });
+		DanmakuRecorder recorder = new(1, _time, NullLogger.Instance, new DanmuReceiveOptions(), static _ => { });
 		reader.Add(new DanmakuWork.TextOnlyStarted(Run(), _time.GetTimestamp()));
 		reader.Add(new DanmakuWork.Received(Connected()));
 		Task running = recorder.RunAsync(reader, static _ => { }, cancellationToken);
 
 		// 写入者开始等通知：可读通知不会来，只有到期能把它叫醒
-		await watched.TimerCreated.Task.WaitAsync(cancellationToken);
+		await _time.TimerCreated.Task.WaitAsync(cancellationToken);
 		reader.Add(new DanmakuWork.Received(LoginNotice()));
 		_time.Advance(DanmakuRecorder.LoginNoticeWait * 2);
 		reader.Add(new DanmakuWork.TextOnlyStopped());
@@ -397,7 +397,6 @@ public sealed class RoomDanmakuTest : IDisposable
 	[Test]
 	public async Task AFileThatCannotBeWrittenIsGivenUpWithoutRetryingAsync(CancellationToken cancellationToken)
 	{
-		TimerWatchingTimeProvider watched = new(_time);
 		ListLogger logger = new();
 		TaskCompletionSource failed = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		HookedStream stream = new(index =>
@@ -411,7 +410,7 @@ public sealed class RoomDanmakuTest : IDisposable
 			return Task.CompletedTask;
 		});
 		bool isRecording = false;
-		DanmakuRecorder recorder = new(1, watched, logger, new DanmuReceiveOptions(), recording => isRecording = recording)
+		DanmakuRecorder recorder = new(1, _time, logger, new DanmuReceiveOptions(), recording => isRecording = recording)
 		{
 			CreateWriterAsync = (_, header, token) => DanmakuXmlWriter.CreateAsync(stream, header, DanmakuFlushPolicy.Default, _time, token)
 		};
@@ -421,7 +420,7 @@ public sealed class RoomDanmakuTest : IDisposable
 		Task running = Task.Run(() => recorder.RunAsync(queue.Reader, static _ => { }, cancellationToken), cancellationToken);
 
 		// 写入者开始等按时刷新，到期后写失败；处理完失败、回去等待之后再过一个间隔也不该重试
-		await watched.TimerCreated.Task.WaitAsync(cancellationToken);
+		await _time.TimerCreated.Task.WaitAsync(cancellationToken);
 		_time.Advance(DanmakuFlushPolicy.Default.Interval);
 		await failed.Task.WaitAsync(cancellationToken);
 		await BarrierAsync(queue.Writer, cancellationToken);
@@ -447,17 +446,16 @@ public sealed class RoomDanmakuTest : IDisposable
 	[Test]
 	public async Task AScheduledFlushThatThrowsDoesNotStopTheWriterAsync(CancellationToken cancellationToken)
 	{
-		TimerWatchingTimeProvider watched = new(_time);
 		ListLogger logger = new();
 		ControlledTimeline timeline = new();
-		await using RoomDanmaku danmaku = new(1, watched, logger, static () => { });
+		await using RoomDanmaku danmaku = new(1, _time, logger, static () => { });
 		string video = _directory.Combine("a.flv");
 		danmaku.SetRecording(true);
 		danmaku.OnVideoStarted(timeline, video, Run());
 		danmaku.OnReceived(Connected());
 
 		// 等不到未登录通知，到期时放置连接记录出错
-		await watched.TimerCreated.Task.WaitAsync(cancellationToken);
+		await _time.TimerCreated.Task.WaitAsync(cancellationToken);
 		timeline.Next().SetException(new InvalidOperationException());
 		_time.Advance(DanmakuRecorder.LoginNoticeWait);
 		await timeline.Placing.Task.WaitAsync(cancellationToken);
@@ -474,10 +472,9 @@ public sealed class RoomDanmakuTest : IDisposable
 	[Test]
 	public async Task AFileThatFailedHalfwayIsCompletedWhenClosedAsync(CancellationToken cancellationToken)
 	{
-		TimerWatchingTimeProvider watched = new(_time);
 		ListLogger logger = new();
 		HalfWrittenOnceStream stream = new(failAt: 2);
-		DanmakuRecorder recorder = new(1, watched, logger, new DanmuReceiveOptions(), static _ => { })
+		DanmakuRecorder recorder = new(1, _time, logger, new DanmuReceiveOptions(), static _ => { })
 		{
 			CreateWriterAsync = (_, header, token) => DanmakuXmlWriter.CreateAsync(stream, header, DanmakuFlushPolicy.Default, _time, token)
 		};
@@ -486,7 +483,7 @@ public sealed class RoomDanmakuTest : IDisposable
 		queue.Writer.TryWrite(new DanmakuWork.Received(Comment("写到一半")));
 		Task running = Task.Run(() => recorder.RunAsync(queue.Reader, static _ => { }, cancellationToken), cancellationToken);
 
-		await watched.TimerCreated.Task.WaitAsync(cancellationToken);
+		await _time.TimerCreated.Task.WaitAsync(cancellationToken);
 		_time.Advance(DanmakuFlushPolicy.Default.Interval);
 		await stream.Failed.Task.WaitAsync(cancellationToken);
 		queue.Writer.TryWrite(new DanmakuWork.TextOnlyStopped());
@@ -978,33 +975,6 @@ public sealed class RoomDanmakuTest : IDisposable
 			}
 
 			return _completed.Task.IsCompleted ? ValueTask.FromResult(TryPeek(out _)) : new ValueTask<bool>(_completed.Task.WaitAsync(cancellationToken));
-		}
-	}
-
-	// 写入者的等待到期由计时器实现，建好计时器才说明它已经在等
-	private sealed class TimerWatchingTimeProvider(FakeTimeProvider inner) : TimeProvider
-	{
-		public TaskCompletionSource TimerCreated { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-		public override TimeZoneInfo LocalTimeZone => inner.LocalTimeZone;
-
-		public override long TimestampFrequency => inner.TimestampFrequency;
-
-		public override DateTimeOffset GetUtcNow()
-		{
-			return inner.GetUtcNow();
-		}
-
-		public override long GetTimestamp()
-		{
-			return inner.GetTimestamp();
-		}
-
-		public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
-		{
-			ITimer timer = inner.CreateTimer(callback, state, dueTime, period);
-			TimerCreated.TrySetResult();
-			return timer;
 		}
 	}
 

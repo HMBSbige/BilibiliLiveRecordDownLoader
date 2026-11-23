@@ -12,7 +12,7 @@ internal static class ReadOnlyListExtensions
 
 			while (low < high)
 			{
-				int middle = (low + high) >>> 1;
+				int middle = low + high >>> 1;
 
 				if (isBefore(list[middle]))
 				{

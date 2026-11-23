@@ -53,7 +53,7 @@ internal sealed class HlsStreamSession : LiveStreamSession
 
 	public override long MissedSegments => Interlocked.Read(ref _missedSegments);
 
-	/// <param name="requestTimeout">限制之后每次刷新播放列表的全程，以及每次下载分片直到收到响应头的时长，因为流客户端自身从不超时。</param>
+	/// <param name="requestTimeout">限制之后每次刷新播放列表的全程，以及每次下载分片直到收到响应头的时长，因为流客户端自身从不超时</param>
 	public static async Task<LiveStreamSession> OpenAsync(HttpClient httpClient, Uri uri, TimeSpan requestTimeout, TimeProvider timeProvider, CancellationToken cancellationToken)
 	{
 		PlaylistSnapshot snapshot = await FetchPlaylistAsync(httpClient, uri, cancellationToken).ConfigureAwait(false);

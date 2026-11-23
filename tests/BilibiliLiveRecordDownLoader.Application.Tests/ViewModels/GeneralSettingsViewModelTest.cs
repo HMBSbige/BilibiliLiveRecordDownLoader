@@ -1,6 +1,5 @@
 using BilibiliLiveRecordDownLoader.Application.Contracts.Storage;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
-using BilibiliLiveRecordDownLoader.ViewModels.Platform;
 using BilibiliLiveRecordDownLoader.ViewModels.Settings;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
@@ -32,25 +31,6 @@ public sealed class GeneralSettingsViewModelTest
 		public DiskSpaceInfo? GetDiskSpace(string path)
 		{
 			return null;
-		}
-	}
-
-	private sealed class UnsupportedAutoStart : IAutoStartService
-	{
-		public bool IsSupported => false;
-
-		public bool IsEnabled()
-		{
-			return false;
-		}
-
-		public void SetEnabled(bool enabled)
-		{
-			throw new NotSupportedException();
-		}
-
-		public void TakeOverExisting()
-		{
 		}
 	}
 }

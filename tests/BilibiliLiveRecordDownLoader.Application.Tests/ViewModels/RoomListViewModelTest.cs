@@ -98,7 +98,8 @@ public sealed class RoomListViewModelTest
 		AppConfig config = AppConfig.CreateDefault();
 		config.RoomSortOrder = RoomSortOrder.Name;
 		FakeConfigManager configManager = new(config);
-		using RoomListViewModel viewModel = new(new DialogHostViewModel(), new FakeRoomAppService(InitialOrder), new SettingsAppService(configManager), new FakeDanmakuAppService(), new PlatformStub(), TimeProvider.System);
+		PlatformStub platform = new();
+		using RoomListViewModel viewModel = new(new DialogHostViewModel(), new FakeRoomAppService(InitialOrder), new SettingsAppService(configManager), new FakeDanmakuAppService(), platform, platform, new RecordingNotifications(), TimeProvider.System);
 
 		viewModel.ApplySettings(config.ToSettingsDto(), Signal.Return<string?>(null));
 		(RoomSortOrder restored, bool canReorder, int updates) = (viewModel.SortOrder, viewModel.CanReorder, configManager.UpdateCount);
@@ -248,6 +249,24 @@ public sealed class RoomListViewModelTest
 	}
 
 	[Test]
+	public async Task OpeningTheFolderAndTheLiveRoomUseTheSelectedRoomAsync(CancellationToken cancellationToken)
+	{
+		FakeRoomAppService rooms = new(InitialOrder);
+		PlatformStub platform = new();
+		using RoomListViewModel viewModel = Create(rooms, platform: platform);
+		Select(viewModel, [3]);
+
+		await viewModel.OpenRoomFolderCommand.Execute().ToTask(cancellationToken);
+		await viewModel.OpenLiveRoomCommand.Execute().ToTask(cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(platform.OpenedFolders).IsEquivalentTo([await rooms.GetDirectoryAsync(3, cancellationToken)]);
+			await Assert.That(platform.LaunchedUris).IsEquivalentTo([new Uri(AppConsts.LiveRoomUrlPrefix + "3")]);
+		}
+	}
+
+	[Test]
 	[Arguments(false)]
 	[Arguments(true)]
 	public async Task LoggingInDismissesTheBannerAndMarksTheDanmakuConnectionAsPendingAsync(bool fromPanel, CancellationToken cancellationToken)
@@ -296,7 +315,8 @@ public sealed class RoomListViewModelTest
 
 	private static RoomListViewModel Create(FakeRoomAppService rooms, FakeDanmakuAppService? danmaku = null, Action<Exception>? reportSaveFailure = null, DialogHostViewModel? dialogs = null, PlatformStub? platform = null)
 	{
-		RoomListViewModel viewModel = new(dialogs ?? new DialogHostViewModel(), rooms, new SettingsAppService(new FakeConfigManager()), danmaku ?? new FakeDanmakuAppService(), platform ?? new PlatformStub(), TimeProvider.System) { ReportSaveFailure = reportSaveFailure };
+		platform ??= new PlatformStub();
+		RoomListViewModel viewModel = new(dialogs ?? new DialogHostViewModel(), rooms, new SettingsAppService(new FakeConfigManager()), danmaku ?? new FakeDanmakuAppService(), platform, platform, new RecordingNotifications(), TimeProvider.System) { ReportSaveFailure = reportSaveFailure };
 		((ICommand)viewModel.SortByCommand).Execute(RoomSortOrder.Custom);
 		viewModel.Sync();
 		return viewModel;
@@ -307,7 +327,8 @@ public sealed class RoomListViewModelTest
 	{
 		FakeRoomAppService rooms = new(InitialOrder);
 		rooms.Change(1, static snapshot => snapshot with { Danmaku = new RoomDanmakuSnapshot(true) });
-		RoomListViewModel viewModel = new(new DialogHostViewModel(), rooms, new SettingsAppService(new FakeConfigManager()), new FakeDanmakuAppService(), new PlatformStub(), TimeProvider.System) { ShowLogin = showLogin };
+		PlatformStub platform = new();
+		RoomListViewModel viewModel = new(new DialogHostViewModel(), rooms, new SettingsAppService(new FakeConfigManager()), new FakeDanmakuAppService(), platform, platform, new RecordingNotifications(), TimeProvider.System) { ShowLogin = showLogin };
 		viewModel.ApplySettings(AppConfig.CreateDefault().ToSettingsDto(), cookie);
 		viewModel.Sync();
 		viewModel.Danmaku.IsOpen = true;

@@ -7,6 +7,8 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	private static readonly TimeSpan RefreshInterval = TimeSpan.FromMilliseconds(500);
 
 	private readonly DialogHostViewModel _dialogs;
+	private readonly ILauncherService _launcher;
+	private readonly INotificationService _notifications;
 	private readonly IRoomAppService _roomAppService;
 	private readonly ISettingsAppService _settingsAppService;
 	private readonly TimeProvider _timeProvider;
@@ -14,9 +16,11 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	private bool _hasCookie;
 	private bool _isArranging;
 
-	public RoomListViewModel(DialogHostViewModel dialogs, IRoomAppService roomAppService, ISettingsAppService settingsAppService, IDanmakuAppService danmakuAppService, IStoragePickerService storagePicker, TimeProvider timeProvider)
+	public RoomListViewModel(DialogHostViewModel dialogs, IRoomAppService roomAppService, ISettingsAppService settingsAppService, IDanmakuAppService danmakuAppService, IStoragePickerService storagePicker, ILauncherService launcher, INotificationService notifications, TimeProvider timeProvider)
 	{
 		_dialogs = dialogs;
+		_launcher = launcher;
+		_notifications = notifications;
 		_roomAppService = roomAppService;
 		_settingsAppService = settingsAppService;
 		_timeProvider = timeProvider;
@@ -108,6 +112,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	// 为 null 时交给全局处理
 	internal Action<Exception>? ReportSaveFailure { get; init; }
 
+	// 账号页和导入后跳转用的主窗口在用到时才解析，构造房间列表时不必先建好它们
 	internal Func<CancellationToken, Task> ShowLogin { get; init; } = static cancellationToken => AppLocator.Current.GetRequiredService<AccountViewModel>().QrCodeLoginAsync(cancellationToken);
 
 	// cookie 是账号页的 Cookie：扫码登录、退出和手动编辑都会改它，房间的版本不变
@@ -143,7 +148,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	[ReactiveCommand]
 	private async Task ImportFollowedRoomsAsync()
 	{
-		await _dialogs.ShowAsync(new FollowedRoomImportViewModel(_roomAppService, AppLocator.Current.GetRequiredService<INotificationService>(), static () => AppLocator.Current.GetRequiredService<MainWindowViewModel>().Navigate(MainPage.Account)));
+		await _dialogs.ShowAsync(new FollowedRoomImportViewModel(_roomAppService, _notifications, static () => AppLocator.Current.GetRequiredService<MainWindowViewModel>().Navigate(MainPage.Account)));
 		Sync();
 	}
 
@@ -207,7 +212,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 
 		string directory = await _roomAppService.GetDirectoryAsync(room.RoomId, cancellationToken);
 
-		await AppLocator.Current.GetRequiredService<ILauncherService>().OpenFolderAsync(directory);
+		await _launcher.OpenFolderAsync(directory);
 	}
 
 	[ReactiveCommand(CanExecute = nameof(HasSingleSelection))]
@@ -215,7 +220,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	{
 		if (SelectedRooms is [{ } room])
 		{
-			await AppLocator.Current.GetRequiredService<ILauncherService>().LaunchUriAsync(new Uri(AppConsts.LiveRoomUrlPrefix + room.RoomId.ToString(CultureInfo.InvariantCulture)));
+			await _launcher.LaunchUriAsync(new Uri(AppConsts.LiveRoomUrlPrefix + room.RoomId.ToString(CultureInfo.InvariantCulture)));
 		}
 	}
 

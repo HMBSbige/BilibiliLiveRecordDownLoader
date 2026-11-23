@@ -49,7 +49,6 @@ public sealed class FFmpegRunner(string executablePath)
 		return FindInDirectories(command, [.. pathDirectories, .. platformDirectories]);
 	}
 
-	// 不到一秒就退出，不用交给 ChildProcessTracker
 	public async Task<string?> GetVersionAsync(CancellationToken cancellationToken = default)
 	{
 		ProcessStartInfo startInfo = new(ExecutablePath, [@"-version"])
@@ -59,15 +58,32 @@ public sealed class FFmpegRunner(string executablePath)
 			RedirectStandardError = true,
 			StandardOutputEncoding = Encoding.UTF8
 		};
+		Process process;
 
 		try
 		{
-			ProcessTextOutput result = await Process.RunAndCaptureTextAsync(startInfo, cancellationToken);
-			return result.ExitStatus.ExitCode is 0 ? FFmpegOutputParser.ParseVersion(result.StandardOutput) : null;
+			process = ChildProcessTracker.Start(startInfo);
 		}
 		catch (Win32Exception)
 		{
 			return null;
+		}
+
+		using (process)
+		{
+			try
+			{
+				(string output, _) = await process.ReadAllTextAsync(cancellationToken);
+				await process.WaitForExitAsync(cancellationToken);
+
+				return process.ExitCode is 0 ? FFmpegOutputParser.ParseVersion(output) : null;
+			}
+			catch (OperationCanceledException)
+			{
+				// 与 StopAsync 同理：配置的可能是包装脚本，只结束它本身，子进程和管道会留下
+				process.Kill(true);
+				throw;
+			}
 		}
 	}
 

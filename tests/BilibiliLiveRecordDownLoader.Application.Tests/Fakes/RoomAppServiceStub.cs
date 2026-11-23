@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Runtime.CompilerServices;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 
@@ -24,10 +23,9 @@ internal abstract class RoomAppServiceStub : IRoomAppService
 		throw new NotSupportedException();
 	}
 
-	public virtual async IAsyncEnumerable<FollowedRoomDto> GetFollowedRoomsAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
+	public virtual IAsyncEnumerable<FollowedRoomDto> GetFollowedRoomsAsync(CancellationToken cancellationToken = default)
 	{
-		await Task.CompletedTask;
-		yield break;
+		return AsyncEnumerable.Empty<FollowedRoomDto>();
 	}
 
 	public virtual Task UpdateAsync(RoomSettingsDto settings, CancellationToken cancellationToken = default)

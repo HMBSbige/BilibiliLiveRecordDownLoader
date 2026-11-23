@@ -126,11 +126,11 @@ internal sealed partial class MediaToolAppService(FFmpegProvider ffmpegProvider,
 	}
 
 	// MediaToolkit 的异常文案是英文，任务列表直接显示异常消息
-	private static async Task<FlvExtractResult> ExtractFlvAsync(string source, string workDirectory, IProgress<double> progress, CancellationToken cancellationToken)
+	private static async Task<FlvExtractResult> ExtractFlvAsync(string source, string outputDirectory, IProgress<double> progress, CancellationToken cancellationToken)
 	{
 		try
 		{
-			return await FlvExtractor.ExtractAsync(source, workDirectory, progress, cancellationToken);
+			return await FlvExtractor.ExtractAsync(source, outputDirectory, progress, cancellationToken);
 		}
 		catch (InvalidDataException exception)
 		{

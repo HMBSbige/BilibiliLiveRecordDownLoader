@@ -1,7 +1,6 @@
 using BilibiliLive.Models;
 using BilibiliLiveRecordDownLoader.Application.Contracts.Accounts;
 using BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
-using ReactiveUI;
 using ReactiveUI.Primitives;
 using System.Globalization;
 using System.Threading.Channels;

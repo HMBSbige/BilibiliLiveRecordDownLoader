@@ -282,7 +282,7 @@ public sealed class RecordingPostProcessorTest
 		return RecordingProfile.Create(config, new RoomConfig { RoomId = 1 });
 	}
 
-	private sealed class QueuedRemuxes : IMediaToolAppService
+	private sealed class QueuedRemuxes : MediaToolAppServiceStub
 	{
 		private readonly Func<RemuxInput, Task<Task<BackgroundTaskSnapshot>>> _queue;
 
@@ -298,30 +298,10 @@ public sealed class RecordingPostProcessorTest
 
 		public ConcurrentQueue<RemuxInput> Inputs { get; } = new();
 
-		public Task<string?> GetFFmpegVersionAsync(CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
-		}
-
-		public Task<Task<BackgroundTaskSnapshot>> QueueRemuxAsync(RemuxInput input, CancellationToken cancellationToken = default)
+		public override Task<Task<BackgroundTaskSnapshot>> QueueRemuxAsync(RemuxInput input, CancellationToken cancellationToken = default)
 		{
 			Inputs.Enqueue(input);
 			return _queue(input);
-		}
-
-		public Task QueueCutAsync(CutInput input, CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException();
-		}
-
-		public string? SuggestRemuxDestination(string source)
-		{
-			throw new NotSupportedException();
-		}
-
-		public string? SuggestCutDestination(string source)
-		{
-			throw new NotSupportedException();
 		}
 	}
 }
