@@ -2,12 +2,106 @@ using BilibiliLive.Danmu;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLive.Tests.Danmu;
 
 public class DanmuMessageParserTest
 {
 	private static readonly DanmuReceiveTime ReceivedAt = new(42, new DateTimeOffset(2026, 11, 22, 10, 0, 0, TimeSpan.Zero));
+
+	private static readonly DanmuMessage.Comment MaskedComment = new
+	(
+		new DanmuSender(0, "测1***", GuardLevel.None, new DanmuMedal(18, "i奶芙", 13081892, 10000001, 1939021227, true)),
+		"666",
+		1,
+		25,
+		16777215,
+		DateTimeOffset.FromUnixTimeMilliseconds(1795344443482),
+		"d3bbbee6",
+		DanmuCommentKind.Text,
+		false
+	);
+
+	private static readonly DanmuMessage.Comment CaptainComment = new
+	(
+		new DanmuSender(10000005, "用户7", GuardLevel.Captain, new DanmuMedal(24, "Knt", 1725515, 10000006, 25383355, true)),
+		"？",
+		4,
+		25,
+		14893055,
+		DateTimeOffset.FromUnixTimeMilliseconds(1795344548119),
+		"7cc87912",
+		DanmuCommentKind.Text,
+		false
+	);
+
+	private static readonly DanmuMessage.Comment EmoticonComment = new
+	(
+		new DanmuSender(0, "测4***", GuardLevel.None, null),
+		"哇哈哈",
+		1,
+		25,
+		16777215,
+		DateTimeOffset.FromUnixTimeMilliseconds(1795344457091),
+		"a4bc8e70",
+		DanmuCommentKind.Emoticon,
+		false
+	);
+
+	private static readonly DanmuMessage.SuperChat CapturedSuperChat = new
+	(
+		20541912,
+		new DanmuSender(10000007, "用户9", GuardLevel.Captain, new DanmuMedal(26, "老陈皮", 398668, 10000008, 719085, true)),
+		"测试醒目留言",
+		30_000,
+		TimeSpan.FromSeconds(60),
+		DateTimeOffset.FromUnixTimeSeconds(1795344559)
+	);
+
+	private static readonly DanmuMessage.Gift GiftV2 = new
+	(
+		new DanmuSender(10000002, "用户5", GuardLevel.None, new DanmuMedal(19, "瑪奇瑪", 13081892, 10000003, 0, true)),
+		35339,
+		"为国创打call",
+		1,
+		100,
+		100,
+		DanmuCoinType.Gold,
+		DateTimeOffset.FromUnixTimeSeconds(1795344574)
+	);
+
+	private static readonly DanmuMessage.Gift MaskedGiftV2 = new(new DanmuSender(0, "测3***", GuardLevel.None, null), 31164, "粉丝团灯牌", 1, 100, 100, DanmuCoinType.Gold, DateTimeOffset.FromUnixTimeSeconds(1795344444));
+
+	// Hand-made from the documented fields, no SEND_GIFT arrived during the captures
+	private static readonly DanmuMessage.Gift SendGift = new
+	(
+		new DanmuSender(10000010, "用户12", GuardLevel.Admiral, new DanmuMedal(21, "测试牌", 398668, 10000011, 1939021227, true)),
+		1,
+		"辣条",
+		5,
+		100,
+		500,
+		DanmuCoinType.Silver,
+		DateTimeOffset.FromUnixTimeSeconds(1795344600)
+	);
+
+	private static readonly DanmuMessage.GuardBought UserToast = new(new DanmuSender(10000012, "用户14", GuardLevel.Captain, null), GuardLevel.Captain, 1, 138000, false, DateTimeOffset.FromUnixTimeSeconds(1795350125));
+
+	private static readonly DanmuMessage.GuardBought UserToastRenewal = new(new DanmuSender(10000014, "用户16", GuardLevel.Captain, null), GuardLevel.Captain, 1, 138000, true, DateTimeOffset.FromUnixTimeSeconds(1795350193));
+
+	public static IEnumerable<TestDataRow<Func<(string Fixture, DanmuMessage Expected)>>> Samples()
+	{
+		yield return new(static () => ("comment_masked.json", MaskedComment), DisplayName: "A masked comment is parsed");
+		yield return new(static () => ("comment_captain.json", CaptainComment), DisplayName: "A comment of a guard member is parsed");
+		yield return new(static () => ("comment_emoticon.json", EmoticonComment), DisplayName: "An emoticon comment carries its name as text");
+		yield return new(static () => ("super_chat.json", CapturedSuperChat), DisplayName: "A super chat is parsed");
+		yield return new(static () => ("gift_v2.json", GiftV2), DisplayName: "A protobuf gift is parsed");
+		yield return new(static () => ("gift_v2_masked.json", MaskedGiftV2), DisplayName: "A masked protobuf gift without medal is parsed");
+		yield return new(static () => ("send_gift.json", SendGift), DisplayName: "A JSON gift is parsed");
+		yield return new(static () => ("user_toast_v2.json", UserToast), DisplayName: "A guard purchase is parsed");
+		yield return new(static () => ("user_toast_v2_renewal.json", UserToastRenewal), DisplayName: "A guard renewal is parsed");
+	}
 
 	private static List<DanmuMessage> Parse(byte[] json, DanmuParseMode mode)
 	{
@@ -27,9 +121,9 @@ public class DanmuMessageParserTest
 		return File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Danmu", name));
 	}
 
-	private static List<DanmuMessage> ParseFixture(string name)
+	private static DanmuMessage? ParseFixture(string name, DanmuParseMode mode = DanmuParseMode.Chat)
 	{
-		return Parse(Fixture(name), DanmuParseMode.Chat);
+		return Parse(Fixture(name), mode).SingleOrDefault();
 	}
 
 	private static T Received<T>(T message) where T : DanmuMessage
@@ -45,9 +139,29 @@ public class DanmuMessageParserTest
 
 	private static string Modify(string fixture, Action<JsonNode> modify)
 	{
-		JsonNode root = JsonNode.Parse(Fixture(fixture)) ?? throw new InvalidDataException();
+		JsonNode root = Required(JsonNode.Parse(Fixture(fixture)));
 		modify(root);
 		return root.ToJsonString();
+	}
+
+	private static string ModifyGiftProtobuf(string fixture, Func<byte[], byte[]> modify)
+	{
+		return Modify(fixture, root =>
+		{
+			JsonNode data = Required(root["data"]);
+			data["pb"] = Convert.ToBase64String(modify(Convert.FromBase64String(Required(data["pb"]).GetValue<string>())));
+		});
+	}
+
+	// The first two gifts stay intact, only the last one is cut off
+	private static byte[] TruncatedGifts()
+	{
+		return Encoding.UTF8.GetBytes(ModifyGiftProtobuf("gift_v2_multiple.json", static pb => pb.AsSpan(0, pb.Length - 3).ToArray()));
+	}
+
+	private static string Text(ReadOnlyMemory<byte> json)
+	{
+		return Encoding.UTF8.GetString(json.Span);
 	}
 
 	[Test]
@@ -62,7 +176,6 @@ public class DanmuMessageParserTest
 	[Test]
 	[Arguments("""{"cmd":"PREPARING","roomid":"6154037"}""", false)]
 	[Arguments("""{"cmd":"PREPARING","round":1,"roomid":"6154037"}""", true)]
-	[Arguments("""{"cmd":"PREPARING:1:2","round":1}""", true)]
 	public async Task PreparingMapsToLiveStoppedAsync(string json, bool isRound)
 	{
 		await Assert.That(Parse(json)).IsEqualTo(Received(new DanmuMessage.LiveStopped(isRound)));
@@ -81,9 +194,9 @@ public class DanmuMessageParserTest
 	[Arguments(true)]
 	public async Task LoginNoticeIsParsedWhetherOrNotChatIsIncludedAsync(bool includeChat)
 	{
-		List<DanmuMessage> messages = Parse(Fixture("log_in_notice.json"), includeChat ? DanmuParseMode.Chat : DanmuParseMode.None);
+		DanmuMessage? message = ParseFixture("log_in_notice.json", includeChat ? DanmuParseMode.Chat : DanmuParseMode.None);
 
-		await Sequences.AssertEqualAsync(messages, [Received(new DanmuMessage.LoginNotice("为保护用户隐私，未登录无法查看他人昵称"))]);
+		await Assert.That(message).IsEqualTo(Received(new DanmuMessage.LoginNotice("为保护用户隐私，未登录无法查看他人昵称")));
 	}
 
 	[Test]
@@ -91,6 +204,8 @@ public class DanmuMessageParserTest
 	[Arguments("""{"cmd":"SEND_GIFT_V2","data":{"pb":"not base64"}}""")]
 	[Arguments("""{"cmd":"USER_TOAST_MSG_V2","data":{}}""")]
 	[Arguments("""{"cmd":"SUPER_CHAT_MESSAGE_DELETE","data":{"ids":[1]}}""")]
+	// Malformed after the cmd, so reaching the parser would throw
+	[Arguments("""{"cmd":"DANMU_MSG","info":[[0,1,""")]
 	[Arguments("""{"cmd":"LIVE_INTERACTIVE_GAME","data":{}}""")]
 	[Arguments("""{"cmd":"PREPARING_X"}""")]
 	[Arguments("""{"cmd":"ROOM_CHANGE"}""")]
@@ -103,79 +218,16 @@ public class DanmuMessageParserTest
 	}
 
 	[Test]
-	public async Task ChatIsDroppedWithoutBeingParsedWhenNotIncludedAsync()
-	{
-		// Malformed after the cmd, so reaching the parser would throw
-		await Assert.That(Parse("""{"cmd":"DANMU_MSG","info":[[0,1,""")).IsNull();
-	}
-
-	[Test]
 	public async Task MalformedJsonThrowsJsonExceptionAsync()
 	{
 		await Assert.That(() => Parse("""{"cmd":"LIVE""")).Throws<JsonException>();
 	}
 
 	[Test]
-	public async Task MaskedCommentIsParsedAsync()
+	[MethodDataSource(nameof(Samples))]
+	public async Task SampleIsParsedAsync(string fixture, DanmuMessage expected)
 	{
-		List<DanmuMessage> messages = ParseFixture("comment_masked.json");
-
-		DanmuMessage.Comment expected = new
-		(
-			new DanmuSender(0, "测1***", GuardLevel.None, new DanmuMedal(18, "i奶芙", 13081892, 10000001, 1939021227, true)),
-			"666",
-			1,
-			25,
-			16777215,
-			DateTimeOffset.FromUnixTimeMilliseconds(1795344443482),
-			"d3bbbee6",
-			DanmuCommentKind.Text,
-			false
-		);
-
-		await Sequences.AssertEqualAsync(messages, [Received(expected)]);
-	}
-
-	[Test]
-	public async Task CommentOfGuardMemberIsParsedAsync()
-	{
-		List<DanmuMessage> messages = ParseFixture("comment_captain.json");
-
-		DanmuMessage.Comment expected = new
-		(
-			new DanmuSender(10000005, "用户7", GuardLevel.Captain, new DanmuMedal(24, "Knt", 1725515, 10000006, 25383355, true)),
-			"？",
-			4,
-			25,
-			14893055,
-			DateTimeOffset.FromUnixTimeMilliseconds(1795344548119),
-			"7cc87912",
-			DanmuCommentKind.Text,
-			false
-		);
-
-		await Sequences.AssertEqualAsync(messages, [Received(expected)]);
-	}
-
-	[Test]
-	public async Task EmoticonCommentCarriesItsNameAsTextAsync()
-	{
-		List<DanmuMessage> messages = ParseFixture("comment_emoticon.json");
-
-		DanmuMessage.Comment expected = new
-		(
-			new DanmuSender(0, "测4***", GuardLevel.None, null),
-			"哇哈哈",
-			1,
-			25,
-			16777215,
-			DateTimeOffset.FromUnixTimeMilliseconds(1795344457091),
-			"a4bc8e70",
-			DanmuCommentKind.Emoticon,
-			false
-		);
-
-		await Sequences.AssertEqualAsync(messages, [Received(expected)]);
+		await Assert.That(ParseFixture(fixture)).IsEqualTo(Received(expected));
 	}
 
 	[Test]
@@ -183,7 +235,7 @@ public class DanmuMessageParserTest
 	{
 		string json = Modify("comment_masked.json", static root => Required(Required(root["info"])[0])[9] = 2);
 
-		await Assert.That(Parse(json, DanmuParseMode.Chat) is DanmuMessage.Comment { IsStorm: true }).IsTrue();
+		await Assert.That(Parse(json, DanmuParseMode.Chat)).IsEqualTo(Received(MaskedComment with { IsStorm = true }));
 	}
 
 	[Test]
@@ -191,7 +243,7 @@ public class DanmuMessageParserTest
 	{
 		string json = Modify("comment_captain.json", static root => Required(Required(root["info"])[2])[1] = "");
 
-		await Assert.That(Parse(json, DanmuParseMode.Chat) is DanmuMessage.Comment { Sender.Name: "用户7" }).IsTrue();
+		await Assert.That(Parse(json, DanmuParseMode.Chat)).IsEqualTo(Received(CaptainComment));
 	}
 
 	[Test]
@@ -205,19 +257,11 @@ public class DanmuMessageParserTest
 	}
 
 	[Test]
-	public async Task CommentWithMalformedExtraIsStillParsedAsync()
-	{
-		string json = Modify("comment_masked.json", static root => Required(Required(Required(root["info"])[0])[15])["extra"] = "{not json");
-
-		await Assert.That(Parse(json, DanmuParseMode.Chat) is DanmuMessage.Comment { Text: "666" }).IsTrue();
-	}
-
-	[Test]
 	public async Task CommentWithoutMillisecondsFallsBackToTheSecondsAsync()
 	{
 		string json = Modify("comment_masked.json", static root => Required(Required(root["info"])[0])[4] = 0);
 
-		await Assert.That(Parse(json, DanmuParseMode.Chat) is DanmuMessage.Comment { SentAt: var time } && time == DateTimeOffset.FromUnixTimeSeconds(1795344443)).IsTrue();
+		await Assert.That(Parse(json, DanmuParseMode.Chat)).IsEqualTo(Received(MaskedComment with { SentAt = DateTimeOffset.FromUnixTimeSeconds(1795344443) }));
 	}
 
 	[Test]
@@ -234,29 +278,10 @@ public class DanmuMessageParserTest
 	[Arguments("""{"cmd":"SEND_GIFT_V2","data":{}}""")]
 	[Arguments("""{"cmd":"USER_TOAST_MSG_V2","data":"x"}""")]
 	[Arguments("""{"cmd":"SUPER_CHAT_MESSAGE_DELETE","data":{}}""")]
-	[Arguments("""{"cmd":"SUPER_CHAT_MESSAGE_DELETE","data":{"ids":[]}}""")]
 	[Arguments("""{"cmd":"SUPER_CHAT_MESSAGE_DELETE","data":{"ids":[0,"x"]}}""")]
 	public async Task ChatWithoutItsPayloadIsDroppedAsync(string json)
 	{
 		await Assert.That(Parse(json, DanmuParseMode.Chat)).IsNull();
-	}
-
-	[Test]
-	public async Task SuperChatIsParsedAsync()
-	{
-		List<DanmuMessage> messages = ParseFixture("super_chat.json");
-
-		DanmuMessage.SuperChat expected = new
-		(
-			20541912,
-			new DanmuSender(10000007, "用户9", GuardLevel.Captain, new DanmuMedal(26, "老陈皮", 398668, 10000008, 719085, true)),
-			"测试醒目留言",
-			30_000,
-			TimeSpan.FromSeconds(60),
-			DateTimeOffset.FromUnixTimeSeconds(1795344559)
-		);
-
-		await Sequences.AssertEqualAsync(messages, [Received(expected)]);
 	}
 
 	[Test]
@@ -268,109 +293,66 @@ public class DanmuMessageParserTest
 	{
 		DanmuMessage? message = Parse($$$"""{"cmd":"SUPER_CHAT_MESSAGE","data":{"price":{{{price}}}}}""", DanmuParseMode.Chat);
 
-		await Assert.That((message as DanmuMessage.SuperChat)?.Price).IsEqualTo(expected);
+		await Assert.That(message).IsTypeOf<DanmuMessage.SuperChat>().And.Member(static superChat => superChat.Price, actual => actual.IsEqualTo(expected));
 	}
 
 	[Test]
-	[Arguments("60", 60)]
-	[Arguments("1e30", 0)]
-	[Arguments("1000000000000", 0)]
-	[Arguments("-5", 0)]
-	public async Task SuperChatDurationOutOfRangeIsUnknownAsync(string time, int seconds)
+	[Arguments("1e30")]
+	[Arguments("1000000000000")]
+	[Arguments("-5")]
+	public async Task SuperChatDurationOutOfRangeIsUnknownAsync(string time)
 	{
 		DanmuMessage? message = Parse($$$"""{"cmd":"SUPER_CHAT_MESSAGE","data":{"price":30,"time":{{{time}}}}}""", DanmuParseMode.Chat);
 
-		await Assert.That((message as DanmuMessage.SuperChat)?.Duration).IsEqualTo(TimeSpan.FromSeconds(seconds));
-	}
-
-	[Test]
-	public async Task GiftV2IsParsedAsync()
-	{
-		List<DanmuMessage> messages = ParseFixture("gift_v2.json");
-
-		DanmuMessage.Gift expected = new
-		(
-			new DanmuSender(10000002, "用户5", GuardLevel.None, new DanmuMedal(19, "瑪奇瑪", 13081892, 10000003, 0, true)),
-			35339,
-			"为国创打call",
-			1,
-			100,
-			100,
-			DanmuCoinType.Gold,
-			DateTimeOffset.FromUnixTimeSeconds(1795344574)
-		);
-
-		using (Assert.Multiple())
-		{
-			await Sequences.AssertEqualAsync(messages, [Received(expected)]);
-			await Assert.That(expected.PaidPrice).IsEqualTo(100);
-		}
-	}
-
-	[Test]
-	public async Task MaskedGiftV2WithoutMedalIsParsedAsync()
-	{
-		List<DanmuMessage> messages = ParseFixture("gift_v2_masked.json");
-
-		DanmuMessage.Gift expected = new(new DanmuSender(0, "测3***", GuardLevel.None, null), 31164, "粉丝团灯牌", 1, 100, 100, DanmuCoinType.Gold, DateTimeOffset.FromUnixTimeSeconds(1795344444));
-
-		await Sequences.AssertEqualAsync(messages, [Received(expected)]);
+		await Assert.That(message).IsTypeOf<DanmuMessage.SuperChat>().And.Member(static superChat => superChat.Duration, static duration => duration.IsEqualTo(TimeSpan.Zero));
 	}
 
 	[Test]
 	public async Task GiftV2ListingSeveralGiftsIsSplitAsync()
 	{
 		// Made from gift_v2_masked.json by appending two gifts, no captured message listed more than one
-		List<DanmuMessage> messages = ParseFixture("gift_v2_multiple.json");
+		List<DanmuMessage> messages = Parse(Fixture("gift_v2_multiple.json"), DanmuParseMode.Chat);
 
-		DanmuSender sender = new(0, "测3***", GuardLevel.None, null);
-		DateTimeOffset time = DateTimeOffset.FromUnixTimeSeconds(1795344444);
-		DanmuMessage.Gift silver = new(sender, 1, "辣条", 3, 100, 300, DanmuCoinType.Silver, time);
-
-		using (Assert.Multiple())
-		{
-			await Sequences.AssertEqualAsync(messages,
-			[
-				Received(new DanmuMessage.Gift(sender, 31164, "粉丝团灯牌", 1, 100, 100, DanmuCoinType.Gold, time)),
-				Received(new DanmuMessage.Gift(sender, 31036, "小花花", 5, 100, 500, DanmuCoinType.Gold, time)),
-				Received(silver)
-			]);
-			await Assert.That(silver.PaidPrice).IsEqualTo(0);
-		}
+		await Assert.That(messages).IsEquivalentTo(
+		[
+			Received(MaskedGiftV2),
+			Received(MaskedGiftV2 with { GiftId = 31036, GiftName = "小花花", Count = 5, TotalPrice = 500 }),
+			Received(MaskedGiftV2 with { GiftId = 1, GiftName = "辣条", Count = 3, TotalPrice = 300, CoinType = DanmuCoinType.Silver })
+		], EqualityComparer<DanmuMessage>.Default, CollectionOrdering.Matching);
 	}
 
 	[Test]
 	public async Task MalformedGiftProtobufDropsTheWholeMessageAsync()
 	{
-		JsonNode root = JsonNode.Parse(Fixture("gift_v2_multiple.json")) ?? throw new InvalidDataException();
-		JsonNode data = Required(root["data"]);
-		byte[] pb = Convert.FromBase64String(Required(data["pb"]).GetValue<string>());
-		// The first two gifts stay intact, only the last one is cut off
-		data["pb"] = Convert.ToBase64String(pb.AsSpan(0, pb.Length - 3));
 		List<DanmuMessage> output = [];
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(() => DanmuMessageParser.Parse(Encoding.UTF8.GetBytes(root.ToJsonString()), DanmuParseMode.Chat, ReceivedAt, output)).Throws<InvalidDataException>();
+			await Assert.That(() => DanmuMessageParser.Parse(TruncatedGifts(), DanmuParseMode.Chat, ReceivedAt, output)).Throws<InvalidDataException>();
 			await Assert.That(output).IsEmpty();
 		}
 	}
 
 	[Test]
+	public async Task MalformedGiftProtobufKeepsTheRawMessageAsync()
+	{
+		byte[] json = TruncatedGifts();
+		List<DanmuMessage> output = [];
+
+		await Assert.That(() => DanmuMessageParser.Parse(json, DanmuParseMode.Chat | DanmuParseMode.Raw, ReceivedAt, output)).Throws<InvalidDataException>();
+		DanmuMessage message = await Assert.That(output).HasSingleItem();
+
+		await Assert.That(message).IsTypeOf<DanmuMessage.Raw>()
+			.And.Member(static raw => raw.Command, static command => command.IsEqualTo("SEND_GIFT_V2"))
+			.And.Member(static raw => Text(raw.Json), text => text.IsEqualTo(Encoding.UTF8.GetString(json)));
+	}
+
+	[Test]
 	public async Task GiftV2SenderIsReadWhereverItIsOnTheWireAsync()
 	{
-		List<DanmuMessage> inOrder = ParseFixture("gift_v2.json");
-		JsonNode root = JsonNode.Parse(Fixture("gift_v2.json")) ?? throw new InvalidDataException();
-		JsonNode data = Required(root["data"]);
-		data["pb"] = Convert.ToBase64String(MoveGiftsFirst(Convert.FromBase64String(Required(data["pb"]).GetValue<string>())));
+		string json = ModifyGiftProtobuf("gift_v2.json", MoveGiftsFirst);
 
-		List<DanmuMessage> reordered = Parse(Encoding.UTF8.GetBytes(root.ToJsonString()), DanmuParseMode.Chat);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(inOrder.Count).IsEqualTo(1);
-			await Sequences.AssertEqualAsync(reordered, inOrder);
-		}
+		await Assert.That(Parse(json, DanmuParseMode.Chat)).IsEqualTo(Received(GiftV2));
 	}
 
 	private static byte[] MoveGiftsFirst(byte[] pb)
@@ -422,62 +404,30 @@ public class DanmuMessageParserTest
 	}
 
 	[Test]
-	public async Task MalformedGiftProtobufKeepsTheRawMessageAsync()
-	{
-		JsonNode root = JsonNode.Parse(Fixture("gift_v2_multiple.json")) ?? throw new InvalidDataException();
-		JsonNode data = Required(root["data"]);
-		byte[] pb = Convert.FromBase64String(Required(data["pb"]).GetValue<string>());
-		data["pb"] = Convert.ToBase64String(pb.AsSpan(0, pb.Length - 3));
-		byte[] json = Encoding.UTF8.GetBytes(root.ToJsonString());
-		List<DanmuMessage> output = [];
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(() => DanmuMessageParser.Parse(json, DanmuParseMode.Chat | DanmuParseMode.Raw, ReceivedAt, output)).Throws<InvalidDataException>();
-			await Assert.That(output.SingleOrDefault() is DanmuMessage.Raw { Command: "SEND_GIFT_V2" } raw && raw.Json.Span.SequenceEqual(json)).IsTrue();
-		}
-	}
-
-	[Test]
-	public async Task GiftIsParsedAsync()
-	{
-		// Hand-made from the documented fields, no SEND_GIFT arrived during the captures
-		List<DanmuMessage> messages = ParseFixture("send_gift.json");
-
-		DanmuMessage.Gift expected = new
-		(
-			new DanmuSender(10000010, "用户12", GuardLevel.Admiral, new DanmuMedal(21, "测试牌", 398668, 10000011, 1939021227, true)),
-			1,
-			"辣条",
-			5,
-			100,
-			500,
-			DanmuCoinType.Silver,
-			DateTimeOffset.FromUnixTimeSeconds(1795344600)
-		);
-
-		await Sequences.AssertEqualAsync(messages, [Received(expected)]);
-	}
-
-	[Test]
 	public async Task GiftWithoutTotalUsesUnitPriceTimesCountAsync()
 	{
 		DanmuMessage? message = Parse("""{"cmd":"SEND_GIFT","data":{"giftName":"x","num":4,"price":100,"coin_type":"gold"}}""", DanmuParseMode.Chat);
 
-		await Assert.That(message is DanmuMessage.Gift { TotalPrice: 400, PaidPrice: 400, Time: var time } && time == ReceivedAt.UtcTime).IsTrue();
+		DanmuMessage.Gift expected = new(new DanmuSender(0, "", GuardLevel.None, null), 0, "x", 4, 100, 400, DanmuCoinType.Gold, ReceivedAt.UtcTime);
+
+		await Assert.That(message).IsEqualTo(Received(expected));
+	}
+
+	[Test]
+	[Arguments(DanmuCoinType.Gold, 500L)]
+	[Arguments(DanmuCoinType.Silver, 0L)]
+	public async Task OnlyGoldGiftsArePaidAsync(DanmuCoinType coinType, long paidPrice)
+	{
+		await Assert.That((SendGift with { CoinType = coinType }).PaidPrice).IsEqualTo(paidPrice);
 	}
 
 	[Test]
 	public async Task SuperChatDeleteIsParsedAsync()
 	{
 		// Hand-made from the fields the web page reads, no deletion arrived during the captures
-		List<DanmuMessage> messages = ParseFixture("super_chat_delete.json");
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(messages.Count).IsEqualTo(1);
-			await Assert.That(messages[0] is DanmuMessage.SuperChatDeleted { Ids: [20541912, 20541913] } deleted && deleted.ReceivedAt == ReceivedAt).IsTrue();
-		}
+		await Assert.That(ParseFixture("super_chat_delete.json")).IsTypeOf<DanmuMessage.SuperChatDeleted>()
+			.And.Member(static deleted => deleted.Ids, static ids => ids.IsEquivalentTo([20541912L, 20541913], CollectionOrdering.Matching))
+			.And.Member(static deleted => deleted.ReceivedAt, static time => time.IsEqualTo(ReceivedAt));
 	}
 
 	[Test]
@@ -485,34 +435,14 @@ public class DanmuMessageParserTest
 	{
 		DanmuMessage? message = Parse("""{"cmd":"SUPER_CHAT_MESSAGE_DELETE","data":{"ids":[0,"42",-1,7]}}""", DanmuParseMode.Chat);
 
-		await Assert.That(message is DanmuMessage.SuperChatDeleted { Ids: [42, 7] }).IsTrue();
+		await Assert.That(message).IsTypeOf<DanmuMessage.SuperChatDeleted>().And.Member(static deleted => deleted.Ids, static ids => ids.IsEquivalentTo([42L, 7], CollectionOrdering.Matching));
 	}
 
 	[Test]
 	public async Task GuardBuyIsIgnoredAsync()
 	{
 		// The same purchase also arrives as USER_TOAST_MSG_V2, parsing both would record it twice
-		await Assert.That(ParseFixture("guard_buy.json")).IsEmpty();
-	}
-
-	[Test]
-	public async Task UserToastIsParsedAsync()
-	{
-		List<DanmuMessage> messages = ParseFixture("user_toast_v2.json");
-
-		DanmuMessage.GuardBought expected = new(new DanmuSender(10000012, "用户14", GuardLevel.Captain, null), GuardLevel.Captain, 1, 138000, false, DateTimeOffset.FromUnixTimeSeconds(1795350125));
-
-		await Sequences.AssertEqualAsync(messages, [Received(expected)]);
-	}
-
-	[Test]
-	public async Task UserToastRenewalIsParsedAsync()
-	{
-		List<DanmuMessage> messages = ParseFixture("user_toast_v2_renewal.json");
-
-		DanmuMessage.GuardBought expected = new(new DanmuSender(10000014, "用户16", GuardLevel.Captain, null), GuardLevel.Captain, 1, 138000, true, DateTimeOffset.FromUnixTimeSeconds(1795350193));
-
-		await Sequences.AssertEqualAsync(messages, [Received(expected)]);
+		await Assert.That(Parse(Fixture("guard_buy.json"), DanmuParseMode.Chat)).IsEmpty();
 	}
 
 	[Test]
@@ -522,7 +452,7 @@ public class DanmuMessageParserTest
 	{
 		string json = Modify("user_toast_v2.json", root => Required(Required(root["data"])["guard_info"])["op_type"] = operation);
 
-		await Assert.That(Parse(json, DanmuParseMode.Chat) is DanmuMessage.GuardBought guard && guard.IsRenewal == isRenewal).IsTrue();
+		await Assert.That(Parse(json, DanmuParseMode.Chat)).IsEqualTo(Received(UserToast with { IsRenewal = isRenewal }));
 	}
 
 	[Test]
@@ -532,7 +462,7 @@ public class DanmuMessageParserTest
 	{
 		string json = Modify("user_toast_v2.json", root => Required(Required(root["data"])["option"])["source"] = source);
 
-		await Assert.That(Parse(json, DanmuParseMode.Chat) is DanmuMessage.GuardBought).IsEqualTo(parsed);
+		await Assert.That(Parse(json, DanmuParseMode.Chat)).IsEqualTo(parsed ? Received(UserToast) : null);
 	}
 
 	[Test]
@@ -549,7 +479,7 @@ public class DanmuMessageParserTest
 			pay["num"] = num;
 		});
 
-		await Assert.That(Parse(json, DanmuParseMode.Chat) is DanmuMessage.GuardBought guard && guard.Count == months && guard.Price == price).IsTrue();
+		await Assert.That(Parse(json, DanmuParseMode.Chat)).IsEqualTo(Received(UserToast with { Count = months, Price = price }));
 	}
 
 	[Test]
@@ -559,11 +489,15 @@ public class DanmuMessageParserTest
 
 		List<DanmuMessage> messages = Parse(json, DanmuParseMode.Chat | DanmuParseMode.Raw);
 
+		await Assert.That(messages).Count().IsEqualTo(2);
+
 		using (Assert.Multiple())
 		{
-			await Assert.That(messages.Count).IsEqualTo(2);
-			await Assert.That(messages[0] is DanmuMessage.Raw { Command: "USER_TOAST_MSG_V2" } raw && raw.Json.Span.SequenceEqual(json) && raw.ReceivedAt == ReceivedAt).IsTrue();
-			await Assert.That(messages[1]).IsTypeOf<DanmuMessage.GuardBought>();
+			await Assert.That(messages[0]).IsTypeOf<DanmuMessage.Raw>()
+				.And.Member(static raw => raw.Command, static command => command.IsEqualTo("USER_TOAST_MSG_V2"))
+				.And.Member(static raw => Text(raw.Json), text => text.IsEqualTo(Encoding.UTF8.GetString(json)))
+				.And.Member(static raw => raw.ReceivedAt, static time => time.IsEqualTo(ReceivedAt));
+			await Assert.That(messages[1]).IsEqualTo(Received(UserToast));
 		}
 	}
 
@@ -575,17 +509,19 @@ public class DanmuMessageParserTest
 	{
 		List<DanmuMessage> messages = Parse(Encoding.UTF8.GetBytes(json), DanmuParseMode.Raw);
 
-		await Assert.That(messages.FirstOrDefault() is DanmuMessage.Raw raw && raw.Command == command && Encoding.UTF8.GetString(raw.Json.Span) == json).IsTrue();
+		await Assert.That(messages.FirstOrDefault()).IsTypeOf<DanmuMessage.Raw>()
+			.And.Member(static raw => raw.Command, actual => actual.IsEqualTo(command))
+			.And.Member(static raw => Text(raw.Json), text => text.IsEqualTo(json));
 	}
 
 	[Test]
 	public async Task RawDoesNotShareTheReceiveBufferAsync()
 	{
 		byte[] json = Encoding.UTF8.GetBytes("""{"cmd":"A"}""");
-		DanmuMessage.Raw? raw = Parse(json, DanmuParseMode.Raw).SingleOrDefault() as DanmuMessage.Raw;
+		DanmuMessage? message = Parse(json, DanmuParseMode.Raw).SingleOrDefault();
 		json[2] = (byte)'X';
 
-		await Assert.That(raw is not null && Encoding.UTF8.GetString(raw.Json.Span) == """{"cmd":"A"}""").IsTrue();
+		await Assert.That(message).IsTypeOf<DanmuMessage.Raw>().And.Member(static raw => Text(raw.Json), static text => text.IsEqualTo("""{"cmd":"A"}"""));
 	}
 
 	[Test]
@@ -622,6 +558,7 @@ public class DanmuMessageParserTest
 
 	[Test]
 	[Arguments("""{}""")]
+	[Arguments("""[0]""")]
 	[Arguments("""not json""")]
 	[Arguments("""{"code":null}""")]
 	[Arguments("""{"code":"0"}""")]

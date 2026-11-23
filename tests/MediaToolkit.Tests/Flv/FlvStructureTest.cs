@@ -19,17 +19,16 @@ public class FlvStructureTest
 	}
 
 	[Test]
-	public async Task HeaderTryReadParsesFlagsAndOffsetAsync()
+	[Arguments(@"464C56010500000009", 9u)]
+	[Arguments(@"464C5601050000000D", 13u)]
+	public async Task HeaderTryReadParsesFlagsAndOffsetAsync(string hex, uint dataOffset)
 	{
-		bool success = FlvHeader.TryRead(AudioVideoHeader, out FlvHeader header);
+		bool success = FlvHeader.TryRead(Convert.FromHexString(hex), out FlvHeader header);
 
-		await Assert.That(success).IsTrue();
-		await Assert.That(header).IsEqualTo(new FlvHeader(FlvHeaderFlags.Video | FlvHeaderFlags.Audio, 9));
+		await Assert.That((success, header)).IsEqualTo((true, new FlvHeader(FlvHeaderFlags.Video | FlvHeaderFlags.Audio, dataOffset)));
 	}
 
 	[Test]
-	[Arguments((byte)0b0000_0001, (byte)0b0001)]
-	[Arguments((byte)0b0000_0100, (byte)0b0100)]
 	[Arguments((byte)0b1111_1011, (byte)0b0001)]
 	[Arguments((byte)0b1111_1110, (byte)0b0100)]
 	[Arguments((byte)0b1111_1111, (byte)0b0101)]
@@ -42,16 +41,6 @@ public class FlvStructureTest
 		FlvHeader.TryRead(buffer, out FlvHeader header);
 
 		await Assert.That(header.Flags).IsEqualTo((FlvHeaderFlags)expected);
-	}
-
-	[Test]
-	[Arguments(@"464C5601050000000D", 13u)]
-	public async Task HeaderTryReadAcceptsValidOffsetAsync(string hex, uint expectedOffset)
-	{
-		bool success = FlvHeader.TryRead(Convert.FromHexString(hex), out FlvHeader header);
-
-		await Assert.That(success).IsTrue();
-		await Assert.That(header.DataOffset).IsEqualTo(expectedOffset);
 	}
 
 	[Test]

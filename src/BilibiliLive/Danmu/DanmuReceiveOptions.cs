@@ -5,20 +5,17 @@ namespace BilibiliLive.Danmu;
 /// </summary>
 public sealed class DanmuReceiveOptions
 {
-	private volatile bool _includeChat;
-	private volatile bool _includeRaw;
-
 	/// <summary>Parses comments, super chats and their deletions, gifts and guard purchases.</summary>
 	public bool IncludeChat
 	{
-		get => _includeChat;
-		set => _includeChat = value;
+		get => Volatile.Read(ref field);
+		set => Volatile.Write(ref field, value);
 	}
 
 	public bool IncludeRaw
 	{
-		get => _includeRaw;
-		set => _includeRaw = value;
+		get => Volatile.Read(ref field);
+		set => Volatile.Write(ref field, value);
 	}
 
 	internal DanmuParseMode Mode => (IncludeChat ? DanmuParseMode.Chat : DanmuParseMode.None) | (IncludeRaw ? DanmuParseMode.Raw : DanmuParseMode.None);

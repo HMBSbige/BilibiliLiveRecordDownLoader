@@ -2,11 +2,15 @@ using BilibiliLive.Streams;
 using BilibiliLive.Tests.Fakes;
 using System.Diagnostics;
 using System.Net;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLive.Tests.Streams;
 
 public class HlsStreamSessionTest
 {
+	private const string Head = "#EXTM3U\n#EXT-X-TARGETDURATION:2\n";
+	private const string EndList = "#EXT-X-ENDLIST\n";
+
 	private static readonly Uri PlaylistUri = new("https://cdn.test/live-bvc/1/live_2500/index.m3u8?expires=1&sign=x");
 	private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(10);
 
@@ -16,65 +20,69 @@ public class HlsStreamSessionTest
 		return Responses.Bytes(MediaSamples.ForPath(path, Path.GetFileNameWithoutExtension(path)));
 	}
 
+	// 播放列表按顺序给出，用完后一直给最后一个；其余请求都按分片回应
+	private static FakeHttpMessageHandler Serve(params string[] playlists)
+	{
+		int served = 0;
+		return new FakeHttpMessageHandler(request => request.RequestUri == PlaylistUri
+			? Responses.Text(playlists[Math.Min(Interlocked.Increment(ref served), playlists.Length) - 1])
+			: Segment(request));
+	}
+
 	// Polls and retry delays pass at once, a request only times out when a test advances the clock
 	private static ShortDelayTimeProvider NewTime()
 	{
 		return new ShortDelayTimeProvider(RequestTimeout);
 	}
 
-	private static async Task<(string Output, RecordingProgress Progress, StreamEndReason Reason)> CopyAsync(HttpClient client, ShortDelayTimeProvider time, CancellationToken cancellationToken)
+	private static async Task<CopyResult> CopyAsync(HttpMessageHandler handler, ShortDelayTimeProvider time, CancellationToken cancellationToken)
 	{
+		using HttpClient client = new(handler);
 		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, time, cancellationToken);
 		using MemoryStream output = new();
 		RecordingProgress progress = new();
 
 		StreamEndReason reason = await session.CopyToAsync(output, progress, cancellationToken);
 
-		return (MediaSamples.Markers(output.ToArray()), progress, reason);
+		return new CopyResult(MediaSamples.Markers(output.ToArray()), progress.Reports, reason, session.MissedSegments);
 	}
 
 	[Test]
 	[Timeout(10_000)]
 	public async Task WritesMapOnceDeduplicatesSegmentsAndStopsAtEndListAsync(CancellationToken cancellationToken)
 	{
-		string[] playlists =
-		[
-			"#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:2\n#EXT-X-MAP:URI=\"h1.m4s\"\n#EXTINF:1.00,\n1.m4s\n#EXTINF:1.00,\n2.m4s\n",
-			"#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:2\n#EXT-X-MAP:URI=\"h1.m4s\"\n#EXTINF:1.00,\n2.m4s\n#EXTINF:1.00,\n3.m4s\n",
-			"#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:2\n#EXT-X-MAP:URI=\"h1.m4s\"\n#EXTINF:1.00,\n3.m4s\n#EXTINF:1.00,\n4.m4s\n#EXT-X-ENDLIST\n"
-		];
-		int playlistIndex = 0;
-		FakeHttpMessageHandler handler = new(request => request.RequestUri?.AbsolutePath switch
-		{
-			"/live-bvc/1/live_2500/index.m3u8" => Responses.Text(playlists[Math.Min(playlistIndex++, playlists.Length - 1)]),
-			{ } path when path.StartsWith("/live-bvc/1/live_2500/", StringComparison.Ordinal) => Segment(request),
-			_ => Responses.NotFound()
-		});
-		using HttpClient client = new(handler);
+		const string mapped = "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:2\n#EXT-X-MAP:URI=\"h1.m4s\"\n";
+		FakeHttpMessageHandler handler = Serve
+		(
+			mapped + "#EXTINF:1.00,\n1.m4s\n#EXTINF:1.00,\n2.m4s\n",
+			mapped + "#EXTINF:1.00,\n2.m4s\n#EXTINF:1.00,\n3.m4s\n",
+			mapped + "#EXTINF:1.00,\n3.m4s\n#EXTINF:1.00,\n4.m4s\n" + EndList
+		);
 		ShortDelayTimeProvider time = NewTime();
 
-		(string output, RecordingProgress progress, _) = await CopyAsync(client, time, cancellationToken);
+		CopyResult copy = await CopyAsync(handler, time, cancellationToken);
 
 		long init = MediaSamples.Fmp4Init("h1").Length;
 		long fragment = MediaSamples.Fmp4Fragment("1").Length;
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(output).IsEqualTo("[h1][1][2][3][4]");
-			await Sequences.AssertEqualAsync(progress.Reports, [init, fragment, fragment, fragment, fragment]);
-			await Assert.That(handler.RequestsTo(PlaylistUri.AbsolutePath).Count()).IsEqualTo(3);
-			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/2.m4s").Count()).IsEqualTo(1);
-			await Sequences.AssertEqualAsync(time.Delays, [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1)]);
+			await Assert.That(copy.Output).IsEqualTo("[h1][1][2][3][4]");
+			await Assert.That(copy.Progress).IsEquivalentTo([init, fragment, fragment, fragment, fragment], CollectionOrdering.Matching);
+			await Assert.That(handler.Requests.Select(static r => Path.GetFileName(r.Uri.AbsolutePath)))
+				.IsEquivalentTo(["index.m3u8", "index.m3u8", "index.m3u8", "h1.m4s", "1.m4s", "2.m4s", "3.m4s", "4.m4s"])
+				.Because("打开时下载并校验过的初始化段和第一段不再下载，重复列出的分片只下载一次");
+			await Assert.That(time.Delays).IsEquivalentTo([TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1)], CollectionOrdering.Matching);
 		}
 	}
 
 	[Test]
 	[Timeout(10_000)]
-	[Arguments("#EXTM3U\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n2.m4s\n#EXT-X-ENDLIST\n", "init:[h1] media:[1] media:[2]")]
-	[Arguments("#EXTM3U\n1.ts\n2.ts\n#EXT-X-ENDLIST\n", "media:[1] media:[2]")]
-	public async Task ReportsEachSegmentRightBeforeWritingExactlyItsBytesAsync(string playlist, string expected, CancellationToken cancellationToken)
+	[Arguments("#EXTM3U\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n2.m4s\n" + EndList, new[] { "init:[h1]", "media:[1]", "media:[2]" })]
+	[Arguments("#EXTM3U\n1.ts\n2.ts\n" + EndList, new[] { "media:[1]", "media:[2]" })]
+	public async Task ReportsEachSegmentRightBeforeWritingExactlyItsBytesAsync(string playlist, string[] expected, CancellationToken cancellationToken)
 	{
-		using HttpClient client = new(new FakeHttpMessageHandler(request => request.RequestUri == PlaylistUri ? Responses.Text(playlist) : Segment(request)));
+		using HttpClient client = new(Serve(playlist));
 		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken);
 		using MemoryStream output = new();
 		SegmentLog segments = new(output);
@@ -83,7 +91,7 @@ public class HlsStreamSessionTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(string.Join(" ", segments.Entries)).IsEqualTo(expected);
+			await Assert.That(segments.Entries).IsEquivalentTo(expected, CollectionOrdering.Matching);
 			await Assert.That(segments.MatchedEveryWrite()).IsTrue();
 			await Assert.That(segments.Length).IsEqualTo(output.Length);
 		}
@@ -97,7 +105,7 @@ public class HlsStreamSessionTest
 		string[] playlists =
 		[
 			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n2.m4s\n",
-			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MAP:URI=\"h1.m4s\"\n2.m4s\n3.m4s\n#EXT-X-ENDLIST\n"
+			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MAP:URI=\"h1.m4s\"\n2.m4s\n3.m4s\n" + EndList
 		];
 		int playlistIndex = 0;
 		FakeHttpMessageHandler handler = new(request => request.RequestUri?.AbsolutePath switch
@@ -107,44 +115,23 @@ public class HlsStreamSessionTest
 			{ } path when path.StartsWith("/edge/live-bvc/1/live_2500/", StringComparison.Ordinal) => Segment(request),
 			_ => Responses.NotFound()
 		});
-		using HttpClient client = new(handler);
 
-		(string output, _, StreamEndReason reason) = await CopyAsync(client, NewTime(), cancellationToken);
+		CopyResult copy = await CopyAsync(handler, NewTime(), cancellationToken);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(output).IsEqualTo("[h1][1][2][3]");
-			await Assert.That(reason).IsEqualTo(StreamEndReason.EndOfStream);
-			await Assert.That(handler.RequestsTo(PlaylistUri.AbsolutePath).Count()).IsEqualTo(1);
-			await Assert.That(handler.RequestsTo(variantPath).Count()).IsEqualTo(2);
+			await Assert.That((copy.Output, copy.Reason)).IsEqualTo(("[h1][1][2][3]", StreamEndReason.EndOfStream));
+			await Assert.That(handler.RequestsTo(PlaylistUri.AbsolutePath)).Count().IsEqualTo(1);
+			await Assert.That(handler.RequestsTo(variantPath)).Count().IsEqualTo(2);
 		}
 	}
 
 	[Test]
-	[Timeout(10_000)]
-	public async Task ValidatedFirstSegmentAndMapAreNotDownloadedAgainAsync(CancellationToken cancellationToken)
-	{
-		FakeHttpMessageHandler handler = new(request => request.RequestUri == PlaylistUri
-			? Responses.Text("#EXTM3U\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n2.m4s\n#EXT-X-ENDLIST\n")
-			: Segment(request));
-		using HttpClient client = new(handler);
-
-		(string output, _, _) = await CopyAsync(client, NewTime(), cancellationToken);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(output).IsEqualTo("[h1][1][2]");
-			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/h1.m4s").Count()).IsEqualTo(1);
-			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/1.m4s").Count()).IsEqualTo(1);
-		}
-	}
-
-	[Test]
-	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:2\n")]
-	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-ENDLIST\n")]
+	[Arguments(Head)]
+	[Arguments(Head + EndList)]
 	public async Task PlaylistWithoutSegmentsIsRejectedAsync(string playlist, CancellationToken cancellationToken)
 	{
-		using HttpClient client = new(new FakeHttpMessageHandler(request => request.RequestUri == PlaylistUri ? Responses.Text(playlist) : Segment(request)));
+		using HttpClient client = new(Serve(playlist));
 
 		await Assert.ThrowsAsync<InvalidDataException>(() => HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken));
 	}
@@ -162,88 +149,31 @@ public class HlsStreamSessionTest
 			_ => Segment(request)
 		}));
 
-		InvalidDataException? exception = await Assert.ThrowsAsync<InvalidDataException>(() => HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken));
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(exception?.Message).Contains(invalid);
-			await Assert.That(exception?.Message).DoesNotContain("sign");
-		}
+		await Assert.ThrowsAsync<InvalidDataException>(() => HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken))
+			.WithMessageContaining(invalid)
+			.And.WithMessageNotContaining("sign");
 	}
 
+	// 后三行的新时代把编号从头排起，比已经写出的分片还小
 	[Test]
 	[Timeout(10_000)]
-	public async Task ChangedMapEndsTheCopyAsync(CancellationToken cancellationToken)
+	[Arguments("#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n2.m4s\n", "#EXT-X-MAP:URI=\"h1.m4s\"\n2.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n3.m4s\n", "[h1][1][2]", "3.m4s")]
+	[Arguments("a.ts\nb.ts\n", "b.ts\n#EXT-X-DISCONTINUITY\nc.ts\n", "[a][b]", "c.ts")]
+	[Arguments("#EXT-X-MEDIA-SEQUENCE:10\n10.ts\n11.ts\n", "#EXT-X-DISCONTINUITY-SEQUENCE:1\n#EXT-X-MEDIA-SEQUENCE:0\n0.ts\n", "[10][11]", "0.ts")]
+	[Arguments("#EXT-X-MEDIA-SEQUENCE:10\n10.ts\n11.ts\n", "#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-DISCONTINUITY\n0.ts\n", "[10][11]", "0.ts")]
+	[Arguments("#EXT-X-MAP:URI=\"h1.m4s\"\n#EXT-X-MEDIA-SEQUENCE:10\n10.m4s\n11.m4s\n", "#EXT-X-MAP:URI=\"h2.m4s\"\n#EXT-X-MEDIA-SEQUENCE:0\n0.m4s\n", "[h1][10][11]", "0.m4s")]
+	public async Task NewEraEndsTheCopyBeforeItsFirstSegmentAsync(string opened, string refreshed, string expected, string newSegment, CancellationToken cancellationToken)
 	{
-		string[] playlists =
-		[
-			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n2.m4s\n",
-			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MAP:URI=\"h1.m4s\"\n2.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n3.m4s\n"
-		];
-		int playlistIndex = 0;
-		FakeHttpMessageHandler handler = new(request => request.RequestUri == PlaylistUri
-			? Responses.Text(playlists[Math.Min(playlistIndex++, playlists.Length - 1)])
-			: Segment(request));
-		using HttpClient client = new(handler);
+		// 最后一次刷新结束列表，没认出新时代时复制也不会一直刷新下去
+		FakeHttpMessageHandler handler = Serve(Head + opened, Head + refreshed, Head + refreshed, Head + refreshed + EndList);
 
-		(string output, _, StreamEndReason reason) = await CopyAsync(client, NewTime(), cancellationToken);
+		CopyResult copy = await CopyAsync(handler, NewTime(), cancellationToken);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(output).IsEqualTo("[h1][1][2]");
-			await Assert.That(reason).IsEqualTo(StreamEndReason.Discontinuity);
-		}
-	}
-
-	[Test]
-	[Timeout(10_000)]
-	public async Task DiscontinuityEndsTheCopyBeforeTheNewTimelineAsync(CancellationToken cancellationToken)
-	{
-		string[] playlists =
-		[
-			"#EXTM3U\n#EXT-X-TARGETDURATION:2\na.ts\nb.ts\n",
-			"#EXTM3U\n#EXT-X-TARGETDURATION:2\nb.ts\n#EXT-X-DISCONTINUITY\nc.ts\n"
-		];
-		int playlistIndex = 0;
-		FakeHttpMessageHandler handler = new(request => request.RequestUri == PlaylistUri
-			? Responses.Text(playlists[Math.Min(playlistIndex++, playlists.Length - 1)])
-			: Segment(request));
-		using HttpClient client = new(handler);
-
-		(string output, _, StreamEndReason reason) = await CopyAsync(client, NewTime(), cancellationToken);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(output).IsEqualTo("[a][b]");
-			await Assert.That(reason).IsEqualTo(StreamEndReason.Discontinuity);
-			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/c.ts").Count()).IsEqualTo(0);
-		}
-	}
-
-	// The new timeline numbers its segments below the ones already written
-	[Test]
-	[Timeout(10_000)]
-	[Arguments("#EXT-X-MEDIA-SEQUENCE:10\n10.ts\n11.ts\n", "#EXT-X-DISCONTINUITY-SEQUENCE:1\n#EXT-X-MEDIA-SEQUENCE:0\n0.ts\n", "[10][11]")]
-	[Arguments("#EXT-X-MEDIA-SEQUENCE:10\n10.ts\n11.ts\n", "#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-DISCONTINUITY\n0.ts\n", "[10][11]")]
-	[Arguments("#EXT-X-MAP:URI=\"h1.m4s\"\n#EXT-X-MEDIA-SEQUENCE:10\n10.m4s\n11.m4s\n", "#EXT-X-MAP:URI=\"h2.m4s\"\n#EXT-X-MEDIA-SEQUENCE:0\n0.m4s\n", "[h1][10][11]")]
-	public async Task RestartThatRenumbersIntoANewEraEndsWithDiscontinuityAsync(string before, string after, string expected, CancellationToken cancellationToken)
-	{
-		const string head = "#EXTM3U\n#EXT-X-TARGETDURATION:2\n";
-		// The last refresh ends the list, so a timeline that goes unrecognized cannot keep the copy refreshing
-		string[] playlists = [head + before, head + after, head + after, head + after + "#EXT-X-ENDLIST\n"];
-		int playlistIndex = 0;
-		FakeHttpMessageHandler handler = new(request => request.RequestUri == PlaylistUri
-			? Responses.Text(playlists[Math.Min(playlistIndex++, playlists.Length - 1)])
-			: Segment(request));
-		using HttpClient client = new(handler);
-
-		(string output, _, StreamEndReason reason) = await CopyAsync(client, NewTime(), cancellationToken);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(output).IsEqualTo(expected);
-			await Assert.That(reason).IsEqualTo(StreamEndReason.Discontinuity);
-			await Assert.That(handler.RequestsTo(PlaylistUri.AbsolutePath).Count()).IsEqualTo(2);
+			await Assert.That((copy.Output, copy.Reason)).IsEqualTo((expected, StreamEndReason.Discontinuity));
+			await Assert.That(handler.RequestsTo(PlaylistUri.AbsolutePath)).Count().IsEqualTo(2);
+			await Assert.That(handler.RequestsTo($"/live-bvc/1/live_2500/{newSegment}")).IsEmpty();
 		}
 	}
 
@@ -251,71 +181,31 @@ public class HlsStreamSessionTest
 	[Timeout(10_000)]
 	public async Task NewSessionStartsAtTheLatestTimelineAndFollowsTheSlidingWindowAsync(CancellationToken cancellationToken)
 	{
-		string[] playlists =
-		[
-			"#EXTM3U\n#EXT-X-DISCONTINUITY-SEQUENCE:0\na.ts\n#EXT-X-DISCONTINUITY\nb.ts\n",
-			"#EXTM3U\n#EXT-X-DISCONTINUITY-SEQUENCE:1\nb.ts\nc.ts\n#EXT-X-ENDLIST\n"
-		];
-		int playlistIndex = 0;
-		FakeHttpMessageHandler handler = new(request => request.RequestUri == PlaylistUri
-			? Responses.Text(playlists[Math.Min(playlistIndex++, playlists.Length - 1)])
-			: Segment(request));
-		using HttpClient client = new(handler);
+		FakeHttpMessageHandler handler = Serve("#EXTM3U\n#EXT-X-DISCONTINUITY-SEQUENCE:0\na.ts\n#EXT-X-DISCONTINUITY\nb.ts\n", "#EXTM3U\n#EXT-X-DISCONTINUITY-SEQUENCE:1\nb.ts\nc.ts\n" + EndList);
 
-		(string output, _, StreamEndReason reason) = await CopyAsync(client, NewTime(), cancellationToken);
+		CopyResult copy = await CopyAsync(handler, NewTime(), cancellationToken);
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(output).IsEqualTo("[b][c]");
-			await Assert.That(reason).IsEqualTo(StreamEndReason.EndOfStream);
-		}
+		await Assert.That((copy.Output, copy.Reason)).IsEqualTo(("[b][c]", StreamEndReason.EndOfStream));
 	}
 
+	// 刷新列出的旧时代分片排在见过的分片前面：前两行是打开时就列出的，后三行来自窗口落后的节点；最后一行的落后窗口里只剩打开时跳过的旧时代分片
 	[Test]
 	[Timeout(10_000)]
-	[Arguments("a.ts\n#EXT-X-DISCONTINUITY\nb.ts\n", "c.ts\n", "[b][c]")]
-	[Arguments("#EXT-X-MEDIA-SEQUENCE:1\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n2.m4s\n", "3.m4s\n", "[h2][2][3]")]
-	public async Task OlderEraStillListedByARefreshIsNotANewTimelineAsync(string listed, string added, string expected, CancellationToken cancellationToken)
-	{
-		const string head = "#EXTM3U\n#EXT-X-TARGETDURATION:2\n";
-		string[] playlists = [head + listed, head + listed + added + "#EXT-X-ENDLIST\n"];
-		int playlistIndex = 0;
-		FakeHttpMessageHandler handler = new(request => request.RequestUri == PlaylistUri
-			? Responses.Text(playlists[Math.Min(playlistIndex++, playlists.Length - 1)])
-			: Segment(request));
-		using HttpClient client = new(handler);
-
-		(string output, _, StreamEndReason reason) = await CopyAsync(client, NewTime(), cancellationToken);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(output).IsEqualTo(expected);
-			await Assert.That(reason).IsEqualTo(StreamEndReason.EndOfStream);
-		}
-	}
-
-	// A lagging node lists an older era the opening playlist had already dropped, ahead of the segments queued since
-	[Test]
-	[Timeout(10_000)]
+	[Arguments("a.ts\n#EXT-X-DISCONTINUITY\nb.ts\n", "a.ts\n#EXT-X-DISCONTINUITY\nb.ts\nc.ts\n", "[b][c]", "a.ts")]
+	[Arguments("#EXT-X-MEDIA-SEQUENCE:1\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n2.m4s\n", "#EXT-X-MEDIA-SEQUENCE:1\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n2.m4s\n3.m4s\n", "[h2][2][3]", "1.m4s")]
 	[Arguments("#EXT-X-MEDIA-SEQUENCE:7\n#EXT-X-MAP:URI=\"h2.m4s\"\n7.m4s\n8.m4s\n", "#EXT-X-MEDIA-SEQUENCE:6\n#EXT-X-MAP:URI=\"h1.m4s\"\n6.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n7.m4s\n8.m4s\n9.m4s\n", "[h2][7][8][9]", "6.m4s")]
 	[Arguments("#EXT-X-DISCONTINUITY-SEQUENCE:1\n#EXT-X-MEDIA-SEQUENCE:7\n7.ts\n8.ts\n", "#EXT-X-MEDIA-SEQUENCE:6\n6.ts\n#EXT-X-DISCONTINUITY\n7.ts\n8.ts\n9.ts\n", "[7][8][9]", "6.ts")]
-	public async Task OlderEraFirstListedByALaggingNodeIsNotANewTimelineAsync(string opened, string refreshed, string expected, string older, CancellationToken cancellationToken)
+	[Arguments("#EXT-X-MEDIA-SEQUENCE:8\n#EXT-X-MAP:URI=\"h1.m4s\"\n8.m4s\n9.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n10.m4s\n", "#EXT-X-MEDIA-SEQUENCE:7\n#EXT-X-MAP:URI=\"h1.m4s\"\n7.m4s\n8.m4s\n9.m4s\n", "[h2][10]", "7.m4s")]
+	public async Task OlderEraListedByARefreshIsNotANewTimelineAsync(string opened, string refreshed, string expected, string older, CancellationToken cancellationToken)
 	{
-		const string head = "#EXTM3U\n#EXT-X-TARGETDURATION:2\n";
-		string[] playlists = [head + opened, head + refreshed + "#EXT-X-ENDLIST\n"];
-		int playlistIndex = 0;
-		FakeHttpMessageHandler handler = new(request => request.RequestUri == PlaylistUri
-			? Responses.Text(playlists[Math.Min(playlistIndex++, playlists.Length - 1)])
-			: Segment(request));
-		using HttpClient client = new(handler);
+		FakeHttpMessageHandler handler = Serve(Head + opened, Head + refreshed + EndList);
 
-		(string output, _, StreamEndReason reason) = await CopyAsync(client, NewTime(), cancellationToken);
+		CopyResult copy = await CopyAsync(handler, NewTime(), cancellationToken);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(output).IsEqualTo(expected);
-			await Assert.That(reason).IsEqualTo(StreamEndReason.EndOfStream);
-			await Assert.That(handler.RequestsTo($"/live-bvc/1/live_2500/{older}").Count()).IsEqualTo(0);
+			await Assert.That((copy.Output, copy.Reason)).IsEqualTo((expected, StreamEndReason.EndOfStream));
+			await Assert.That(handler.RequestsTo($"/live-bvc/1/live_2500/{older}")).IsEmpty();
 		}
 	}
 
@@ -329,7 +219,7 @@ public class HlsStreamSessionTest
 		{
 			if (request.RequestUri == PlaylistUri)
 			{
-				return Responses.Text("#EXTM3U\na.ts\nb.ts\n#EXT-X-ENDLIST\n");
+				return Responses.Text("#EXTM3U\na.ts\nb.ts\n" + EndList);
 			}
 
 			if (request.RequestUri?.AbsolutePath.EndsWith("b.ts", StringComparison.Ordinal) is true && Interlocked.Increment(ref attempts) is 1)
@@ -340,19 +230,14 @@ public class HlsStreamSessionTest
 
 			return Segment(request);
 		});
-		using HttpClient client = new(handler);
 		ShortDelayTimeProvider time = NewTime();
 
-		Task<(string Output, RecordingProgress Progress, StreamEndReason Reason)> copying = CopyAsync(client, time, cancellationToken);
+		Task<CopyResult> copying = CopyAsync(handler, time, cancellationToken);
 		await hung.Task.WaitAsync(cancellationToken);
 		time.Advance(RequestTimeout);
-		(string output, _, _) = await copying;
+		CopyResult copy = await copying;
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(output).IsEqualTo("[a][b]");
-			await Assert.That(attempts).IsEqualTo(2);
-		}
+		await Assert.That((copy.Output, attempts)).IsEqualTo(("[a][b]", 2));
 	}
 
 	[Test]
@@ -372,7 +257,7 @@ public class HlsStreamSessionTest
 			{
 				case 1:
 				{
-					return Responses.Text("#EXTM3U\n#EXT-X-TARGETDURATION:2\na.ts\n");
+					return Responses.Text(Head + "a.ts\n");
 				}
 				case 2:
 				{
@@ -382,24 +267,18 @@ public class HlsStreamSessionTest
 				}
 				default:
 				{
-					return Responses.Text("#EXTM3U\n#EXT-X-TARGETDURATION:2\na.ts\nb.ts\n#EXT-X-ENDLIST\n");
+					return Responses.Text(Head + "a.ts\nb.ts\n" + EndList);
 				}
 			}
 		});
-		using HttpClient client = new(handler);
 		ShortDelayTimeProvider time = NewTime();
 
-		Task<(string Output, RecordingProgress Progress, StreamEndReason Reason)> copying = CopyAsync(client, time, cancellationToken);
+		Task<CopyResult> copying = CopyAsync(handler, time, cancellationToken);
 		await hung.Task.WaitAsync(cancellationToken);
 		time.Advance(RequestTimeout);
-		(string output, _, StreamEndReason reason) = await copying;
+		CopyResult copy = await copying;
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(output).IsEqualTo("[a][b]");
-			await Assert.That(reason).IsEqualTo(StreamEndReason.EndOfStream);
-			await Assert.That(refreshes).IsEqualTo(3);
-		}
+		await Assert.That((copy.Output, copy.Reason, refreshes)).IsEqualTo(("[a][b]", StreamEndReason.EndOfStream, 3));
 	}
 
 	[Test]
@@ -412,23 +291,20 @@ public class HlsStreamSessionTest
 		FakeHttpMessageHandler handler = new(request => request.RequestUri == PlaylistUri
 			? Interlocked.Increment(ref refreshes) switch
 			{
-				1 => Responses.Text("#EXTM3U\n#EXT-X-TARGETDURATION:2\na.ts\n"),
+				1 => Responses.Text(Head + "a.ts\n"),
 				// An error page served with a 200 status fails to parse instead of failing the request
 				2 => errorPage ? Responses.Text("<html>blocked</html>") : Responses.Status(HttpStatusCode.ServiceUnavailable),
-				_ => Responses.Text("#EXTM3U\n#EXT-X-TARGETDURATION:2\na.ts\nb.ts\n#EXT-X-ENDLIST\n")
+				_ => Responses.Text(Head + "a.ts\nb.ts\n" + EndList)
 			}
 			: Segment(request));
-		using HttpClient client = new(handler);
 		ShortDelayTimeProvider time = NewTime();
 
-		(string output, _, StreamEndReason reason) = await CopyAsync(client, time, cancellationToken);
+		CopyResult copy = await CopyAsync(handler, time, cancellationToken);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(output).IsEqualTo("[a][b]");
-			await Assert.That(reason).IsEqualTo(StreamEndReason.EndOfStream);
-			await Assert.That(refreshes).IsEqualTo(3);
-			await Sequences.AssertEqualAsync(time.Delays, [TimeSpan.FromSeconds(1), HlsStreamSession.RetryDelay]);
+			await Assert.That((copy.Output, copy.Reason, refreshes)).IsEqualTo(("[a][b]", StreamEndReason.EndOfStream, 3));
+			await Assert.That(time.Delays).IsEquivalentTo([TimeSpan.FromSeconds(1), HlsStreamSession.RetryDelay], CollectionOrdering.Matching);
 		}
 	}
 
@@ -441,7 +317,7 @@ public class HlsStreamSessionTest
 		{
 			if (request.RequestUri == PlaylistUri)
 			{
-				return Responses.Text("#EXTM3U\na.ts\nb.ts\n#EXT-X-ENDLIST\n");
+				return Responses.Text("#EXTM3U\na.ts\nb.ts\n" + EndList);
 			}
 
 			if (request.RequestUri?.AbsolutePath.EndsWith("b.ts", StringComparison.Ordinal) is true)
@@ -461,12 +337,11 @@ public class HlsStreamSessionTest
 		Task<StreamEndReason> copying = session.CopyToAsync(output, null, stop.Token);
 		await hung.Task.WaitAsync(cancellationToken);
 		await stop.CancelAsync();
-		Exception? exception = await Assert.ThrowsAsync<Exception>(() => copying);
+		await Assert.ThrowsAsync<OperationCanceledException>(() => copying);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(exception is OperationCanceledException).IsTrue();
-			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/b.ts").Count()).IsEqualTo(1);
+			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/b.ts")).Count().IsEqualTo(1);
 			await Assert.That(time.Delays).IsEmpty();
 		}
 	}
@@ -482,7 +357,7 @@ public class HlsStreamSessionTest
 		{
 			if (request.RequestUri == PlaylistUri)
 			{
-				return Responses.Text("#EXTM3U\na.ts\nb.ts\n#EXT-X-ENDLIST\n");
+				return Responses.Text("#EXTM3U\na.ts\nb.ts\n" + EndList);
 			}
 
 			if (request.RequestUri?.AbsolutePath.EndsWith("b.ts", StringComparison.Ordinal) is true)
@@ -505,12 +380,11 @@ public class HlsStreamSessionTest
 		time.Advance(RequestTimeout);
 		await stop.CancelAsync();
 		released.SetResult();
-		Exception? exception = await Assert.ThrowsAsync<Exception>(() => copying);
+		await Assert.ThrowsAsync<OperationCanceledException>(() => copying);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(exception is OperationCanceledException).IsTrue();
-			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/b.ts").Count()).IsEqualTo(1);
+			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/b.ts")).Count().IsEqualTo(1);
 			await Assert.That(time.Delays).IsEmpty();
 		}
 	}
@@ -534,7 +408,7 @@ public class HlsStreamSessionTest
 				await Task.Delay(Timeout.Infinite, ct);
 			}
 
-			return Responses.Text("#EXTM3U\n#EXT-X-TARGETDURATION:2\na.ts\n");
+			return Responses.Text(Head + "a.ts\n");
 		});
 		using HttpClient client = new(handler);
 		ShortDelayTimeProvider time = NewTime();
@@ -545,43 +419,13 @@ public class HlsStreamSessionTest
 		Task<StreamEndReason> copying = session.CopyToAsync(output, null, stop.Token);
 		await hung.Task.WaitAsync(cancellationToken);
 		await stop.CancelAsync();
-		Exception? exception = await Assert.ThrowsAsync<Exception>(() => copying);
+		await Assert.ThrowsAsync<OperationCanceledException>(() => copying);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(exception is OperationCanceledException).IsTrue();
 			await Assert.That(refreshes).IsEqualTo(2);
-			await Sequences.AssertEqualAsync(time.Delays, [TimeSpan.FromSeconds(1)]);
+			await Assert.That(time.Delays).IsEquivalentTo([TimeSpan.FromSeconds(1)], CollectionOrdering.Matching);
 			await Assert.That(MediaSamples.Markers(output.ToArray())).IsEqualTo("[a]");
-		}
-	}
-
-	[Test]
-	[Timeout(10_000)]
-	public async Task SlowSegmentBodyGetsTwoTargetDurationsAsync(CancellationToken cancellationToken)
-	{
-		TaskCompletionSource headersSent = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		TaskCompletionSource bodyReleased = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		FakeHttpMessageHandler handler = new(request => request.RequestUri?.AbsolutePath switch
-		{
-			_ when request.RequestUri == PlaylistUri => Responses.Text("#EXTM3U\n#EXT-X-TARGETDURATION:8\na.ts\nb.ts\n#EXT-X-ENDLIST\n"),
-			{ } path when path.EndsWith("b.ts", StringComparison.Ordinal) => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new GatedStream(MediaSamples.TransportStream("b"), headersSent, bodyReleased.Task)) },
-			_ => Segment(request)
-		});
-		using HttpClient client = new(handler);
-		ShortDelayTimeProvider time = NewTime();
-
-		Task<(string Output, RecordingProgress Progress, StreamEndReason Reason)> copying = CopyAsync(client, time, cancellationToken);
-		await headersSent.Task.WaitAsync(cancellationToken);
-		// Past the request timeout but within twice the target duration
-		time.Advance(RequestTimeout + TimeSpan.FromSeconds(1));
-		bodyReleased.SetResult();
-		(string output, _, _) = await copying;
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(output).IsEqualTo("[a][b]");
-			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/b.ts").Count()).IsEqualTo(1);
 		}
 	}
 
@@ -591,13 +435,14 @@ public class HlsStreamSessionTest
 	public async Task MaxSilenceCoversABodyTheSessionStillWaitsForAsync(CancellationToken cancellationToken)
 	{
 		TimeSpan targetDuration = TimeSpan.FromSeconds(5);
-		TimeSpan requestTimeout = TimeSpan.FromSeconds(1);
+		// 长于重试间隔：正文超时没有放宽时会立刻重试并多请求一次，而不是停在重试间隔上等到测试超时；又不能太长，否则不计正文超时的 MaxSilence 也盖得住这段正文
+		TimeSpan requestTimeout = TimeSpan.FromMilliseconds(1500);
 		TimeSpan body = targetDuration * 2 - TimeSpan.FromSeconds(1);
 		TaskCompletionSource headersSent = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		TaskCompletionSource bodyReleased = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		FakeHttpMessageHandler handler = new(request => request.RequestUri?.AbsolutePath switch
 		{
-			_ when request.RequestUri == PlaylistUri => Responses.Text("#EXTM3U\n#EXT-X-TARGETDURATION:5\na.ts\nb.ts\n#EXT-X-ENDLIST\n"),
+			_ when request.RequestUri == PlaylistUri => Responses.Text("#EXTM3U\n#EXT-X-TARGETDURATION:5\na.ts\nb.ts\n" + EndList),
 			{ } path when path.EndsWith("b.ts", StringComparison.Ordinal) => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new GatedStream(MediaSamples.TransportStream("b"), headersSent, bodyReleased.Task)) },
 			_ => Segment(request)
 		});
@@ -618,7 +463,7 @@ public class HlsStreamSessionTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(MediaSamples.Markers(output.ToArray())).IsEqualTo("[a][b]");
-			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/b.ts").Count()).IsEqualTo(1);
+			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/b.ts")).Count().IsEqualTo(1);
 			await Assert.That(session.MaxSilence ?? TimeSpan.Zero).IsGreaterThanOrEqualTo(listingGap + body);
 		}
 	}
@@ -629,33 +474,35 @@ public class HlsStreamSessionTest
 	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n", 5, 22.5)]
 	public async Task MaxSilenceCoversAGapAndOneFailedAttemptWithItsRetryAsync(string playlist, int requestTimeoutSeconds, double expectedSeconds, CancellationToken cancellationToken)
 	{
-		using HttpClient client = new(new FakeHttpMessageHandler(request => request.RequestUri == PlaylistUri ? Responses.Text(playlist) : Segment(request)));
+		using HttpClient client = new(Serve(playlist));
 
 		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, TimeSpan.FromSeconds(requestTimeoutSeconds), NewTime(), cancellationToken);
 
 		await Assert.That(session.MaxSilence).IsEqualTo(TimeSpan.FromSeconds(expectedSeconds));
 	}
 
+	// 200 的错误页面过不了媒体校验，其他状态码直接请求失败
 	[Test]
 	[Timeout(10_000)]
-	public async Task SegmentThatIsNotMediaIsRetriedThenFailsAsync(CancellationToken cancellationToken)
+	[Arguments("#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\nbad.m4s\n", HttpStatusCode.OK, typeof(InvalidDataException), "[h1][1]")]
+	[Arguments("#EXTINF:1,\n1.ts\n#EXTINF:1,\nbad.ts\n", HttpStatusCode.ServiceUnavailable, typeof(HttpRequestException), "[1]")]
+	public async Task SegmentFailingEveryAttemptThrowsAfterTheSegmentsBeforeItAsync(string listed, HttpStatusCode status, Type expected, string written, CancellationToken cancellationToken)
 	{
-		FakeHttpMessageHandler handler = new(request => request.RequestUri?.AbsolutePath switch
-		{
-			_ when request.RequestUri == PlaylistUri => Responses.Text("#EXTM3U\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\nbad.m4s\n#EXT-X-ENDLIST\n"),
-			{ } path when path.EndsWith("bad.m4s", StringComparison.Ordinal) => Responses.Text("<html>blocked</html>"),
-			_ => Segment(request)
-		});
+		FakeHttpMessageHandler handler = new(request => request.RequestUri == PlaylistUri
+			? Responses.Text("#EXTM3U\n" + listed + EndList)
+			: Path.GetFileNameWithoutExtension(request.RequestUri?.AbsolutePath) is "bad"
+				? new HttpResponseMessage(status) { Content = new StringContent("<html>blocked</html>") }
+				: Segment(request));
 		using HttpClient client = new(handler);
 		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken);
 		using MemoryStream output = new();
 
-		await Assert.ThrowsAsync<InvalidDataException>(() => session.CopyToAsync(output, null, cancellationToken));
+		await Assert.ThrowsAsync(expected, () => session.CopyToAsync(output, null, cancellationToken));
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(MediaSamples.Markers(output.ToArray())).IsEqualTo("[h1][1]");
-			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/bad.m4s").Count()).IsEqualTo(HlsStreamSession.MaxAttempts);
+			await Assert.That(MediaSamples.Markers(output.ToArray())).IsEqualTo(written);
+			await Assert.That(handler.Requests.Where(static r => Path.GetFileNameWithoutExtension(r.Uri.AbsolutePath) is "bad")).Count().IsEqualTo(HlsStreamSession.MaxAttempts);
 		}
 	}
 
@@ -665,8 +512,8 @@ public class HlsStreamSessionTest
 	{
 		(string Host, string Content)[] playlists =
 		[
-			("node-a.test", "#EXTM3U\n#EXT-X-TARGETDURATION:2\n100.ts\n101.ts\n"),
-			("node-b.test", "#EXTM3U\n#EXT-X-TARGETDURATION:2\n101.ts\n102.ts\n#EXT-X-ENDLIST\n")
+			("node-a.test", Head + "100.ts\n101.ts\n"),
+			("node-b.test", Head + "101.ts\n102.ts\n" + EndList)
 		];
 		int playlistIndex = 0;
 		FakeHttpMessageHandler handler = new(request =>
@@ -681,37 +528,29 @@ public class HlsStreamSessionTest
 
 			return Segment(request);
 		});
-		using HttpClient client = new(handler);
 
-		(string output, _, _) = await CopyAsync(client, NewTime(), cancellationToken);
+		CopyResult copy = await CopyAsync(handler, NewTime(), cancellationToken);
 
-		await Assert.That(output).IsEqualTo("[100][101][102]");
+		await Assert.That(copy.Output).IsEqualTo("[100][101][102]");
 	}
 
-	// The older entry was never listed before, either two or just one below the last queued segment
+	// 更早的分片此前没有列出过：前两行比最后入队的分片小两个或一个；第三行的刷新不带序号，只能靠位置认出；最后一行落后窗口的开头低于前一次不带序号的刷新入队的分片
 	[Test]
 	[Timeout(10_000)]
-	[Arguments("5.ts\n6.ts\n")]
-	[Arguments("5.ts\n")]
-	public async Task RefreshFromALaggingNodeDoesNotAppendOlderSegmentsAsync(string listed, CancellationToken cancellationToken)
+	[Arguments(new[] { Head + "#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n6.ts\n", Head + "#EXT-X-MEDIA-SEQUENCE:4\n4.ts\n5.ts\n6.ts\n7.ts\n" + EndList }, "[5][6][7]", "4.ts")]
+	[Arguments(new[] { Head + "#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n", Head + "#EXT-X-MEDIA-SEQUENCE:4\n4.ts\n5.ts\n6.ts\n7.ts\n" + EndList }, "[5][6][7]", "4.ts")]
+	[Arguments(new[] { Head + "#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n6.ts\n", Head + "4.ts\n5.ts\n6.ts\n7.ts\n" + EndList }, "[5][6][7]", "4.ts")]
+	[Arguments(new[] { Head + "#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n", Head + "8.ts\n9.ts\n", Head + "#EXT-X-MEDIA-SEQUENCE:6\n6.ts\n7.ts\n8.ts\n9.ts\n10.ts\n" + EndList }, "[1][2][8][9][10]", "6.ts")]
+	public async Task RefreshFromALaggingNodeDoesNotAppendOlderSegmentsAsync(string[] playlists, string expected, string older, CancellationToken cancellationToken)
 	{
-		string[] playlists =
-		[
-			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:5\n" + listed,
-			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:4\n4.ts\n5.ts\n6.ts\n7.ts\n#EXT-X-ENDLIST\n"
-		];
-		int playlistIndex = 0;
-		FakeHttpMessageHandler handler = new(request => request.RequestUri == PlaylistUri
-			? Responses.Text(playlists[Math.Min(playlistIndex++, playlists.Length - 1)])
-			: Segment(request));
-		using HttpClient client = new(handler);
+		FakeHttpMessageHandler handler = Serve(playlists);
 
-		(string output, _, _) = await CopyAsync(client, NewTime(), cancellationToken);
+		CopyResult copy = await CopyAsync(handler, NewTime(), cancellationToken);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(output).IsEqualTo("[5][6][7]");
-			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/4.ts").Count()).IsEqualTo(0);
+			await Assert.That(copy.Output).IsEqualTo(expected);
+			await Assert.That(handler.RequestsTo($"/live-bvc/1/live_2500/{older}")).IsEmpty();
 		}
 	}
 
@@ -719,71 +558,25 @@ public class HlsStreamSessionTest
 	[Timeout(10_000)]
 	public async Task RefreshThatOmitsTheMediaSequenceDoesNotRewriteSegmentsAsync(CancellationToken cancellationToken)
 	{
-		string[] playlists =
-		[
-			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n",
-			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n1.ts\n2.ts\n3.ts\n#EXT-X-ENDLIST\n"
-		];
-		int playlistIndex = 0;
-		using HttpClient client = new(new FakeHttpMessageHandler(request => request.RequestUri == PlaylistUri
-			? Responses.Text(playlists[Math.Min(playlistIndex++, playlists.Length - 1)])
-			: Segment(request)));
+		CopyResult copy = await CopyAsync(Serve(Head + "#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n", Head + "1.ts\n2.ts\n3.ts\n" + EndList), NewTime(), cancellationToken);
 
-		(string output, _, _) = await CopyAsync(client, NewTime(), cancellationToken);
-
-		await Assert.That(output).IsEqualTo("[1][2][3]");
+		await Assert.That(copy.Output).IsEqualTo("[1][2][3]");
 	}
 
 	[Test]
 	[Timeout(10_000)]
 	public async Task SegmentsQueuedFromAnUnnumberedRefreshAreNotCountedAsMissedAsync(CancellationToken cancellationToken)
 	{
-		string[] playlists =
-		[
-			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n",
-			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n2.ts\n3.ts\n4.ts\n5.ts\n",
-			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n6.ts\n7.ts\n#EXT-X-ENDLIST\n"
-		];
-		int playlistIndex = 0;
-		using HttpClient client = new(new FakeHttpMessageHandler(request => request.RequestUri == PlaylistUri
-			? Responses.Text(playlists[Math.Min(playlistIndex++, playlists.Length - 1)])
-			: Segment(request)));
-		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken);
-		using MemoryStream output = new();
+		FakeHttpMessageHandler handler = Serve
+		(
+			Head + "#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n",
+			Head + "2.ts\n3.ts\n4.ts\n5.ts\n",
+			Head + "#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n6.ts\n7.ts\n" + EndList
+		);
 
-		await session.CopyToAsync(output, null, cancellationToken);
+		CopyResult copy = await CopyAsync(handler, NewTime(), cancellationToken);
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(MediaSamples.Markers(output.ToArray())).IsEqualTo("[1][2][3][4][5][6][7]");
-			await Assert.That(session.MissedSegments).IsEqualTo(0);
-		}
-	}
-
-	// The lagging window starts below the segments an unnumbered refresh queued
-	[Test]
-	[Timeout(10_000)]
-	public async Task LaggingRefreshAfterAnUnnumberedOneDoesNotAppendOlderSegmentsAsync(CancellationToken cancellationToken)
-	{
-		string[] playlists =
-		[
-			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n",
-			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n8.ts\n9.ts\n",
-			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:6\n6.ts\n7.ts\n8.ts\n9.ts\n10.ts\n#EXT-X-ENDLIST\n"
-		];
-		int playlistIndex = 0;
-		FakeHttpMessageHandler handler = new(request => request.RequestUri == PlaylistUri
-			? Responses.Text(playlists[Math.Min(playlistIndex++, playlists.Length - 1)])
-			: Segment(request));
-		using HttpClient client = new(handler);
-
-		(string output, _, _) = await CopyAsync(client, NewTime(), cancellationToken);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(output).IsEqualTo("[1][2][8][9][10]");
-			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/6.ts").Count()).IsEqualTo(0);
-		}
+		await Assert.That((copy.Output, copy.MissedSegments)).IsEqualTo(("[1][2][3][4][5][6][7]", 0L));
 	}
 
 	[Test]
@@ -795,37 +588,31 @@ public class HlsStreamSessionTest
 		{
 			if (request.RequestUri == PlaylistUri)
 			{
-				HttpResponseMessage response = Responses.Text("#EXTM3U\n#EXTINF:1,\nseg-1.ts\n#EXTINF:1,\n../shared/seg-2.ts?part=2\n#EXT-X-ENDLIST\n");
+				HttpResponseMessage response = Responses.Text("#EXTM3U\n#EXTINF:1,\nseg-1.ts\n#EXTINF:1,\n../shared/seg-2.ts?part=2\n" + EndList);
 				response.RequestMessage = new HttpRequestMessage(HttpMethod.Get, redirected);
 				return response;
 			}
 
 			return request.RequestUri?.Host is "edge.test" ? Responses.Bytes(MediaSamples.TransportStream(request.RequestUri.PathAndQuery)) : Responses.NotFound();
 		});
-		using HttpClient client = new(handler);
 
-		(string output, _, _) = await CopyAsync(client, NewTime(), cancellationToken);
+		CopyResult copy = await CopyAsync(handler, NewTime(), cancellationToken);
 
-		await Assert.That(output).IsEqualTo("[/node/7/seg-1.ts][/node/shared/seg-2.ts?part=2]");
+		await Assert.That(copy.Output).IsEqualTo("[/node/7/seg-1.ts][/node/shared/seg-2.ts?part=2]");
 	}
 
 	[Test]
 	[Timeout(10_000)]
 	public async Task MissingTargetDurationPollsEverySecondAsync(CancellationToken cancellationToken)
 	{
-		int playlistIndex = 0;
-		FakeHttpMessageHandler handler = new(request => request.RequestUri == PlaylistUri
-			? Responses.Text(playlistIndex++ is 0 ? "#EXTM3U\n#EXTINF:1,\na.ts\n" : "#EXTM3U\n#EXTINF:1,\na.ts\n#EXT-X-ENDLIST\n")
-			: Segment(request));
-		using HttpClient client = new(handler);
 		ShortDelayTimeProvider time = NewTime();
 
-		(string output, _, _) = await CopyAsync(client, time, cancellationToken);
+		CopyResult copy = await CopyAsync(Serve("#EXTM3U\n#EXTINF:1,\na.ts\n", "#EXTM3U\n#EXTINF:1,\na.ts\n" + EndList), time, cancellationToken);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(output).IsEqualTo("[a]");
-			await Sequences.AssertEqualAsync(time.Delays, [HlsStreamSession.DefaultPollInterval]);
+			await Assert.That(copy.Output).IsEqualTo("[a]");
+			await Assert.That(time.Delays).IsEquivalentTo([HlsStreamSession.DefaultPollInterval], CollectionOrdering.Matching);
 		}
 	}
 
@@ -836,43 +623,22 @@ public class HlsStreamSessionTest
 		int attempts = 0;
 		FakeHttpMessageHandler handler = new(request => request.RequestUri?.AbsolutePath switch
 		{
-			_ when request.RequestUri == PlaylistUri => Responses.Text("#EXTM3U\n#EXTINF:1,\na.ts\n#EXTINF:1,\nb.ts\n#EXT-X-ENDLIST\n"),
+			_ when request.RequestUri == PlaylistUri => Responses.Text("#EXTM3U\n#EXTINF:1,\na.ts\n#EXTINF:1,\nb.ts\n" + EndList),
 			{ } path when path.EndsWith("b.ts", StringComparison.Ordinal) && ++attempts < HlsStreamSession.MaxAttempts => Responses.Status(HttpStatusCode.ServiceUnavailable),
 			_ => Segment(request)
 		});
-		using HttpClient client = new(handler);
 		ShortDelayTimeProvider time = NewTime();
 
-		(string output, RecordingProgress progress, _) = await CopyAsync(client, time, cancellationToken);
+		CopyResult copy = await CopyAsync(handler, time, cancellationToken);
 
 		long segment = MediaSamples.TransportStream("a").Length;
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(output).IsEqualTo("[a][b]");
-			await Sequences.AssertEqualAsync(progress.Reports, [segment, segment]);
+			await Assert.That(copy.Output).IsEqualTo("[a][b]");
+			await Assert.That(copy.Progress).IsEquivalentTo([segment, segment], CollectionOrdering.Matching);
 			await Assert.That(attempts).IsEqualTo(HlsStreamSession.MaxAttempts);
-			await Sequences.AssertEqualAsync(time.Delays, Enumerable.Repeat(HlsStreamSession.RetryDelay, HlsStreamSession.MaxAttempts - 1));
-		}
-	}
-
-	[Test]
-	[Timeout(10_000)]
-	public async Task SegmentFailingEveryAttemptThrowsAsync(CancellationToken cancellationToken)
-	{
-		FakeHttpMessageHandler handler = new(request => request.RequestUri == PlaylistUri
-			? Responses.Text("#EXTM3U\n#EXTINF:1,\nok.ts\n#EXTINF:1,\nbad.ts\n#EXT-X-ENDLIST\n")
-			: request.RequestUri?.AbsolutePath.EndsWith("ok.ts", StringComparison.Ordinal) is true ? Segment(request) : Responses.Status(HttpStatusCode.ServiceUnavailable));
-		using HttpClient client = new(handler);
-		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken);
-		using MemoryStream output = new();
-
-		await Assert.ThrowsAsync<HttpRequestException>(() => session.CopyToAsync(output, null, cancellationToken));
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(MediaSamples.Markers(output.ToArray())).IsEqualTo("[ok]");
-			await Assert.That(handler.Requests.Count(r => r.Uri.AbsolutePath.EndsWith("bad.ts", StringComparison.Ordinal))).IsEqualTo(HlsStreamSession.MaxAttempts);
+			await Assert.That(time.Delays).IsEquivalentTo(Enumerable.Repeat(HlsStreamSession.RetryDelay, HlsStreamSession.MaxAttempts - 1), CollectionOrdering.Matching);
 		}
 	}
 
@@ -882,10 +648,10 @@ public class HlsStreamSessionTest
 	{
 		string[] playlists =
 		[
-			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n",
-			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:2\n2.ts\n3.ts\n",
-			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:3\n3.ts\n4.ts\n",
-			"#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:4\n4.ts\n5.ts\n#EXT-X-ENDLIST\n"
+			Head + "#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n",
+			Head + "#EXT-X-MEDIA-SEQUENCE:2\n2.ts\n3.ts\n",
+			Head + "#EXT-X-MEDIA-SEQUENCE:3\n3.ts\n4.ts\n",
+			Head + "#EXT-X-MEDIA-SEQUENCE:4\n4.ts\n5.ts\n" + EndList
 		];
 		int playlistIndex = 0;
 		TaskCompletionSource slidPast = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -907,21 +673,16 @@ public class HlsStreamSessionTest
 
 			return Responses.Text(playlists[index]);
 		});
-		using HttpClient client = new(handler);
-		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken);
-		using MemoryStream output = new();
 
-		Task<StreamEndReason> copying = session.CopyToAsync(output, null, cancellationToken);
+		Task<CopyResult> copying = CopyAsync(handler, NewTime(), cancellationToken);
 		await slidPast.Task.WaitAsync(cancellationToken);
 		gates.ReleaseAll();
-		StreamEndReason reason = await copying;
+		CopyResult copy = await copying;
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(MediaSamples.Markers(output.ToArray())).IsEqualTo("[1][2][3][4][5]");
-			await Assert.That(reason).IsEqualTo(StreamEndReason.EndOfStream);
-			await Assert.That(session.MissedSegments).IsEqualTo(0);
-			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/2.ts").Count()).IsEqualTo(1);
+			await Assert.That((copy.Output, copy.Reason, copy.MissedSegments)).IsEqualTo(("[1][2][3][4][5]", StreamEndReason.EndOfStream, 0L));
+			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/2.ts")).Count().IsEqualTo(1);
 		}
 	}
 
@@ -931,20 +692,18 @@ public class HlsStreamSessionTest
 	{
 		string[] later = ["2", "3", "4", "5", "6", "7", "8"];
 		SegmentGates gates = new(HlsStreamSession.MaxConcurrentDownloads, later);
-		using HttpClient client = new(new FakeHttpMessageHandler(async (request, ct) => request.RequestUri == PlaylistUri
-			? Responses.Text($"#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n{string.Concat(later.Select(name => $"{name}.ts\n"))}#EXT-X-ENDLIST\n")
-			: await gates.PassAsync(request, ct)));
-		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken);
-		using MemoryStream output = new();
+		FakeHttpMessageHandler handler = new(async (request, ct) => request.RequestUri == PlaylistUri
+			? Responses.Text($"#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n{string.Concat(later.Select(static name => $"{name}.ts\n"))}{EndList}")
+			: await gates.PassAsync(request, ct));
 
-		Task<StreamEndReason> copying = session.CopyToAsync(output, null, cancellationToken);
+		Task<CopyResult> copying = CopyAsync(handler, NewTime(), cancellationToken);
 		await gates.Reached.WaitAsync(cancellationToken);
 		gates.ReleaseAll();
-		await copying;
+		CopyResult copy = await copying;
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(MediaSamples.Markers(output.ToArray())).IsEqualTo("[1][2][3][4][5][6][7][8]");
+			await Assert.That(copy.Output).IsEqualTo("[1][2][3][4][5][6][7][8]");
 			await Assert.That(gates.Peak).IsEqualTo(HlsStreamSession.MaxConcurrentDownloads);
 		}
 	}
@@ -955,7 +714,7 @@ public class HlsStreamSessionTest
 	{
 		SegmentGates gates = new(3, "2", "3", "4");
 		using HttpClient client = new(new FakeHttpMessageHandler(async (request, ct) => request.RequestUri == PlaylistUri
-			? Responses.Text("#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n3.ts\n4.ts\n#EXT-X-ENDLIST\n")
+			? Responses.Text("#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n3.ts\n4.ts\n" + EndList)
 			: await gates.PassAsync(request, ct)));
 		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken);
 		using MemoryStream output = new();
@@ -975,41 +734,30 @@ public class HlsStreamSessionTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(MediaSamples.Markers(output.ToArray())).IsEqualTo("[1][2][3][4]");
-			await Assert.That(string.Join(" ", segments.Entries)).IsEqualTo("media:[1] media:[2] media:[3] media:[4]");
+			await Assert.That(segments.Entries).IsEquivalentTo(["media:[1]", "media:[2]", "media:[3]", "media:[4]"], CollectionOrdering.Matching);
 			await Assert.That(segments.MatchedEveryWrite()).IsTrue();
 		}
 	}
 
 	[Test]
 	[Timeout(10_000)]
-	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n6.ts\n#EXT-X-ENDLIST\n", "[1][2][5][6]", 2L)]
-	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:3\n3.ts\n4.ts\n#EXT-X-ENDLIST\n", "[1][2][3][4]", 0L)]
-	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n3.ts\n#EXT-X-ENDLIST\n", "[1][2][3]", 0L)]
+	[Arguments(Head + "#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n6.ts\n" + EndList, "[1][2][5][6]", 2L)]
+	[Arguments(Head + "#EXT-X-MEDIA-SEQUENCE:3\n3.ts\n4.ts\n" + EndList, "[1][2][3][4]", 0L)]
+	[Arguments(Head + "#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n3.ts\n" + EndList, "[1][2][3]", 0L)]
 	// A restart may renumber the segments, and the new timeline ends the copy anyway
-	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-DISCONTINUITY-SEQUENCE:1\n#EXT-X-MEDIA-SEQUENCE:40\n40.ts\n#EXT-X-ENDLIST\n", "[1][2]", 0L)]
+	[Arguments(Head + "#EXT-X-DISCONTINUITY-SEQUENCE:1\n#EXT-X-MEDIA-SEQUENCE:40\n40.ts\n" + EndList, "[1][2]", 0L)]
 	public async Task ReportsSegmentsThatLeftTheWindowBeforeARefreshListedThemAsync(string refreshed, string expected, long missed, CancellationToken cancellationToken)
 	{
-		int playlistIndex = 0;
-		using HttpClient client = new(new FakeHttpMessageHandler(request => request.RequestUri == PlaylistUri
-			? Responses.Text(playlistIndex++ is 0 ? "#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n" : refreshed)
-			: Segment(request)));
-		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken);
-		using MemoryStream output = new();
+		CopyResult copy = await CopyAsync(Serve(Head + "#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n", refreshed), NewTime(), cancellationToken);
 
-		await session.CopyToAsync(output, null, cancellationToken);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(MediaSamples.Markers(output.ToArray())).IsEqualTo(expected);
-			await Assert.That(session.MissedSegments).IsEqualTo(missed);
-		}
+		await Assert.That((copy.Output, copy.MissedSegments)).IsEqualTo((expected, missed));
 	}
 
 	[Test]
 	[Timeout(10_000)]
-	[Arguments(false)]
-	[Arguments(true)]
-	public async Task EndingTheCopyStopsEveryDownloadBeforeReturningAsync(bool segmentFails, CancellationToken cancellationToken)
+	[Arguments(typeof(HttpRequestException), true)]
+	[Arguments(typeof(OperationCanceledException), false)]
+	public async Task EndingTheCopyStopsEveryDownloadBeforeReturningAsync(Type expected, bool segmentFails, CancellationToken cancellationToken)
 	{
 		// When segment 2 fails, segments 3 and 4 are still downloading behind it
 		SegmentGates gates = segmentFails ? new(2, "3", "4") : new(3, "2", "3", "4");
@@ -1017,7 +765,7 @@ public class HlsStreamSessionTest
 		{
 			if (request.RequestUri == PlaylistUri)
 			{
-				return Responses.Text("#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n3.ts\n4.ts\n5.ts\n#EXT-X-ENDLIST\n");
+				return Responses.Text("#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n3.ts\n4.ts\n5.ts\n" + EndList);
 			}
 
 			if (segmentFails && request.RequestUri?.AbsolutePath.EndsWith("/2.ts", StringComparison.Ordinal) is true)
@@ -1041,15 +789,13 @@ public class HlsStreamSessionTest
 			await stop.CancelAsync();
 		}
 
-		Exception? exception = await Assert.ThrowsAsync<Exception>(() => copying);
+		await Assert.ThrowsAsync(expected, () => copying);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(exception is HttpRequestException).IsEqualTo(segmentFails);
-			await Assert.That(exception is OperationCanceledException).IsEqualTo(!segmentFails);
 			await Assert.That(gates.Waiting).IsEqualTo(0);
 			await Assert.That(gates.Cancelled).IsEqualTo(segmentFails ? 2 : 3);
-			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/5.ts").Count()).IsEqualTo(0);
+			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/5.ts")).IsEmpty();
 			await Assert.That(MediaSamples.Markers(output.ToArray())).IsEqualTo("[1]");
 		}
 	}
@@ -1062,7 +808,7 @@ public class HlsStreamSessionTest
 	{
 		SegmentGates gates = new(2, "3", "4");
 		FakeHttpMessageHandler handler = new(async (request, ct) => request.RequestUri == PlaylistUri
-			? Responses.Text("#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n3.ts\n4.ts\n5.ts\n#EXT-X-ENDLIST\n")
+			? Responses.Text("#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n3.ts\n4.ts\n5.ts\n" + EndList)
 			: await gates.PassAsync(request, ct));
 		using HttpClient client = new(handler);
 		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken);
@@ -1070,14 +816,13 @@ public class HlsStreamSessionTest
 		FailingOnSecondWrite output = new(observerFails ? null : gates.Reached);
 		FailingObserver segments = new(observerFails ? gates.Reached : null);
 
-		Exception? exception = await Assert.ThrowsAsync<Exception>(() => session.CopyToAsync(output, segments, null, cancellationToken));
+		await Assert.ThrowsAsync<IOException>(() => session.CopyToAsync(output, segments, null, cancellationToken));
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(exception is IOException).IsTrue();
 			await Assert.That(gates.Waiting).IsEqualTo(0);
 			await Assert.That(gates.Cancelled).IsEqualTo(2);
-			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/5.ts").Count()).IsEqualTo(0);
+			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/5.ts")).IsEmpty();
 		}
 	}
 
@@ -1087,7 +832,7 @@ public class HlsStreamSessionTest
 	{
 		int refreshes = 0;
 		FakeHttpMessageHandler handler = new(request => request.RequestUri == PlaylistUri
-			? Interlocked.Increment(ref refreshes) is 1 ? Responses.Text("#EXTM3U\n#EXT-X-TARGETDURATION:2\na.ts\nb.ts\n") : Responses.Status(HttpStatusCode.ServiceUnavailable)
+			? Interlocked.Increment(ref refreshes) is 1 ? Responses.Text(Head + "a.ts\nb.ts\n") : Responses.Status(HttpStatusCode.ServiceUnavailable)
 			: Segment(request));
 		using HttpClient client = new(handler);
 		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken);
@@ -1095,12 +840,10 @@ public class HlsStreamSessionTest
 
 		await Assert.ThrowsAsync<HttpRequestException>(() => session.CopyToAsync(output, null, cancellationToken));
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(MediaSamples.Markers(output.ToArray())).IsEqualTo("[a][b]");
-			await Assert.That(refreshes).IsEqualTo(1 + HlsStreamSession.MaxAttempts);
-		}
+		await Assert.That((MediaSamples.Markers(output.ToArray()), refreshes)).IsEqualTo(("[a][b]", 1 + HlsStreamSession.MaxAttempts));
 	}
+
+	private sealed record CopyResult(string Output, IEnumerable<long> Progress, StreamEndReason Reason, long MissedSegments);
 
 	private sealed class FailingOnSecondWrite(Task? before) : MemoryStream
 	{

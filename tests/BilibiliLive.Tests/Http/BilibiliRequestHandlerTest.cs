@@ -2,6 +2,7 @@ using BilibiliLive.Http;
 using BilibiliLive.Tests.Fakes;
 using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLive.Tests.Http;
 
@@ -14,14 +15,14 @@ public partial class BilibiliRequestHandlerTest
 
 	private sealed class TestClient : IDisposable
 	{
-		public TestClient(Func<BilibiliRequestOptions> options) : this(new BilibiliIdentity(_ => ValueTask.FromResult(options())))
+		public TestClient(Func<BilibiliRequestOptions> options, bool includeCookie = true) : this(new BilibiliIdentity(_ => ValueTask.FromResult(options())), includeCookie)
 		{
 		}
 
-		public TestClient(BilibiliIdentity identity)
+		public TestClient(BilibiliIdentity identity, bool includeCookie = true)
 		{
 			Identity = identity;
-			Client = new HttpClient(new BilibiliRequestHandler(identity) { InnerHandler = Inner });
+			Client = new HttpClient(new BilibiliRequestHandler(identity) { IncludeCookie = includeCookie, InnerHandler = Inner });
 		}
 
 		public FakeHttpMessageHandler Inner { get; } = new(_ => Responses.Text("ok"));
@@ -30,7 +31,11 @@ public partial class BilibiliRequestHandlerTest
 
 		public HttpClient Client { get; }
 
-		public IReadOnlyDictionary<string, string> SingleRequestHeaders => Inner.Requests.Single().Headers;
+		public async Task<IReadOnlyDictionary<string, string>> SingleRequestHeadersAsync()
+		{
+			RecordedRequest request = await Assert.That(Inner.Requests).HasSingleItem();
+			return request.Headers;
+		}
 
 		public void Dispose()
 		{
@@ -44,8 +49,7 @@ public partial class BilibiliRequestHandlerTest
 		using TestClient test = new(() => new BilibiliRequestOptions());
 
 		await test.Client.GetAsync(Url, cancellationToken);
-
-		IReadOnlyDictionary<string, string> headers = test.SingleRequestHeaders;
+		IReadOnlyDictionary<string, string> headers = await test.SingleRequestHeadersAsync();
 
 		using (Assert.Multiple())
 		{
@@ -53,7 +57,7 @@ public partial class BilibiliRequestHandlerTest
 			await Assert.That(headers["User-Agent"]).IsEqualTo(BilibiliRequestHandler.DefaultUserAgent);
 			await Assert.That(headers["Accept"]).IsEqualTo(BilibiliRequestHandler.DefaultAccept);
 			await Assert.That(headers["Cookie"]).IsEqualTo($"buvid3={test.Identity.GeneratedBuvid3}");
-			await Assert.That(Buvid3Pattern().IsMatch(test.Identity.GeneratedBuvid3)).IsTrue();
+			await Assert.That(test.Identity.GeneratedBuvid3).Matches(Buvid3Pattern());
 		}
 	}
 
@@ -63,71 +67,41 @@ public partial class BilibiliRequestHandlerTest
 		string userAgent = "agent/1";
 		string cookie = "SESSDATA=first";
 		using TestClient test = new(() => new BilibiliRequestOptions(userAgent, cookie));
+		string buvid3 = test.Identity.GeneratedBuvid3;
 
 		await test.Client.GetAsync(Url, cancellationToken);
 		userAgent = "agent/2";
 		cookie = "SESSDATA=second;";
 		await test.Client.GetAsync(Url, cancellationToken);
 
-		RecordedRequest[] requests = [.. test.Inner.Requests];
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(requests[0].Headers["User-Agent"]).IsEqualTo("agent/1");
-			await Assert.That(requests[0].Headers["Cookie"]).IsEqualTo($"SESSDATA=first; buvid3={test.Identity.GeneratedBuvid3}");
-			await Assert.That(requests[1].Headers["User-Agent"]).IsEqualTo("agent/2");
-			await Assert.That(requests[1].Headers["Cookie"]).IsEqualTo($"SESSDATA=second; buvid3={test.Identity.GeneratedBuvid3}");
-		}
+		await Assert.That(test.Inner.Requests.Select(static r => (r.Headers["User-Agent"], r.Headers["Cookie"]))).IsEquivalentTo([("agent/1", $"SESSDATA=first; buvid3={buvid3}"), ("agent/2", $"SESSDATA=second; buvid3={buvid3}")], CollectionOrdering.Matching);
 	}
 
 	[Test]
-	[Arguments("https://xy1x2x3x4xy.mcdn.bilivideo.cn:4483/live-bvc/1/live_1.flv")]
-	[Arguments("https://cn-gddg-ct-01-01.bilivideo.com/live-bvc/1/live_1.flv")]
-	[Arguments("https://evilbilibili.com/")]
-	public async Task CookieIsNotSentOutsideBilibiliDomainsAsync(string url, CancellationToken cancellationToken)
+	[Arguments("https://cn-gddg-ct-01-01.bilivideo.com/live-bvc/1/live_1.flv", true)]
+	[Arguments("https://evilbilibili.com/", true)]
+	[Arguments(Url, false)]
+	public async Task CookieIsNotSentOutsideBilibiliDomainsOrWhenExcludedAsync(string url, bool includeCookie, CancellationToken cancellationToken)
 	{
-		using TestClient test = new(() => new BilibiliRequestOptions(Cookie: "SESSDATA=secret"));
+		using TestClient test = new(() => new BilibiliRequestOptions("agent/1", "SESSDATA=secret"), includeCookie);
 
 		await test.Client.GetAsync(url, cancellationToken);
-
-		await Assert.That(test.SingleRequestHeaders.ContainsKey("Cookie")).IsFalse();
-	}
-
-	[Test]
-	public async Task CookieIsNotSentWhenExcludedAsync(CancellationToken cancellationToken)
-	{
-		BilibiliIdentity identity = new(static _ => ValueTask.FromResult(new BilibiliRequestOptions("agent/1", "SESSDATA=secret")));
-		FakeHttpMessageHandler inner = new(_ => Responses.Text("ok"));
-		using HttpClient client = new(new BilibiliRequestHandler(identity) { IncludeCookie = false, InnerHandler = inner });
-
-		await client.GetAsync(Url, cancellationToken);
-
-		IReadOnlyDictionary<string, string> headers = inner.Requests.Single().Headers;
+		IReadOnlyDictionary<string, string> headers = await test.SingleRequestHeadersAsync();
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(headers.ContainsKey("Cookie")).IsFalse();
+			await Assert.That(headers).DoesNotContainKey("Cookie");
 			await Assert.That(headers["User-Agent"]).IsEqualTo("agent/1");
 		}
 	}
 
 	[Test]
-	[Arguments(null)]
-	[Arguments("  ")]
-	public async Task BlankUserAgentFallsBackToDefaultAsync(string? userAgent)
+	[Arguments(null, BilibiliRequestHandler.DefaultUserAgent)]
+	[Arguments("  ", BilibiliRequestHandler.DefaultUserAgent)]
+	[Arguments(" agent/1 ", "agent/1")]
+	public async Task UserAgentIsTrimmedAndBlankFallsBackToDefaultAsync(string? userAgent, string expected)
 	{
-		await Assert.That(BilibiliRequestHandler.ResolveUserAgent(userAgent)).IsEqualTo(BilibiliRequestHandler.DefaultUserAgent);
-		await Assert.That(BilibiliRequestHandler.ResolveUserAgent(" agent/1 ")).IsEqualTo("agent/1");
-	}
-
-	[Test]
-	public async Task ExistingBuvid3IsKeptAsync(CancellationToken cancellationToken)
-	{
-		using TestClient test = new(() => new BilibiliRequestOptions(Cookie: "SESSDATA=x; buvid3=MINE"));
-
-		await test.Client.GetAsync(Url, cancellationToken);
-
-		await Assert.That(test.SingleRequestHeaders["Cookie"]).IsEqualTo("SESSDATA=x; buvid3=MINE");
+		await Assert.That(BilibiliRequestHandler.ResolveUserAgent(userAgent)).IsEqualTo(expected);
 	}
 
 	[Test]
@@ -143,13 +117,15 @@ public partial class BilibiliRequestHandlerTest
 		await sameIdentity.Client.GetAsync(Url, cancellationToken);
 		await otherIdentity.Client.GetAsync(Url, cancellationToken);
 
-		string[] firstCookies = [.. first.Inner.Requests.Select(r => r.Headers["Cookie"])];
+		string expected = $"buvid3={identity.GeneratedBuvid3}";
+		IReadOnlyDictionary<string, string> sameHeaders = await sameIdentity.SingleRequestHeadersAsync();
+		IReadOnlyDictionary<string, string> otherHeaders = await otherIdentity.SingleRequestHeadersAsync();
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(firstCookies[0]).IsEqualTo(firstCookies[1]);
-			await Assert.That(sameIdentity.SingleRequestHeaders["Cookie"]).IsEqualTo(firstCookies[0]);
-			await Assert.That(otherIdentity.SingleRequestHeaders["Cookie"]).IsNotEqualTo(firstCookies[0]);
+			await Assert.That(first.Inner.Requests.Select(static r => r.Headers["Cookie"])).IsEquivalentTo([expected, expected]);
+			await Assert.That(sameHeaders["Cookie"]).IsEqualTo(expected);
+			await Assert.That(otherHeaders["Cookie"]).IsNotEqualTo(expected);
 		}
 	}
 
@@ -163,8 +139,9 @@ public partial class BilibiliRequestHandlerTest
 		request.Options.Set(BilibiliRequestHandler.AnonymousOption, true);
 
 		await test.Client.SendAsync(request, cancellationToken);
+		IReadOnlyDictionary<string, string> headers = await test.SingleRequestHeadersAsync();
 
-		await Assert.That(test.SingleRequestHeaders["Cookie"]).IsEqualTo($"buvid3={userBuvid3 ?? test.Identity.GeneratedBuvid3}");
+		await Assert.That(headers["Cookie"]).IsEqualTo($"buvid3={userBuvid3 ?? test.Identity.GeneratedBuvid3}");
 	}
 
 	[Test]
@@ -175,11 +152,12 @@ public partial class BilibiliRequestHandlerTest
 		request.Headers.TryAddWithoutValidation(BilibiliRequestHandler.AnonymousHeader, "1");
 
 		await test.Client.SendAsync(request, cancellationToken);
+		IReadOnlyDictionary<string, string> headers = await test.SingleRequestHeadersAsync();
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(test.SingleRequestHeaders["Cookie"]).IsEqualTo($"buvid3={test.Identity.GeneratedBuvid3}");
-			await Assert.That(test.SingleRequestHeaders.ContainsKey(BilibiliRequestHandler.AnonymousHeader)).IsFalse();
+			await Assert.That(headers["Cookie"]).IsEqualTo($"buvid3={test.Identity.GeneratedBuvid3}");
+			await Assert.That(headers).DoesNotContainKey(BilibiliRequestHandler.AnonymousHeader);
 		}
 	}
 
@@ -191,26 +169,23 @@ public partial class BilibiliRequestHandlerTest
 		request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("video/x-flv"));
 
 		await test.Client.SendAsync(request, cancellationToken);
+		IReadOnlyDictionary<string, string> headers = await test.SingleRequestHeadersAsync();
 
-		await Assert.That(test.SingleRequestHeaders["Accept"]).IsEqualTo("video/x-flv");
+		await Assert.That(headers["Accept"]).IsEqualTo("video/x-flv");
 	}
 
+	// 选项里已有 buvid3 时原样保留，不追加生成的
 	[Test]
 	public async Task RequestCookieAndUserAgentAreReplacedAsync(CancellationToken cancellationToken)
 	{
-		using TestClient test = new(() => new BilibiliRequestOptions("agent/1", "buvid3=OPTION"));
+		using TestClient test = new(() => new BilibiliRequestOptions("agent/1", "SESSDATA=x; buvid3=OPTION"));
 		using HttpRequestMessage request = new(HttpMethod.Get, Url);
 		request.Headers.TryAddWithoutValidation("Cookie", "stale=1");
 		request.Headers.UserAgent.ParseAdd("stale/1");
 
 		await test.Client.SendAsync(request, cancellationToken);
+		IReadOnlyDictionary<string, string> headers = await test.SingleRequestHeadersAsync();
 
-		IReadOnlyDictionary<string, string> headers = test.SingleRequestHeaders;
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(headers["Cookie"]).IsEqualTo("buvid3=OPTION");
-			await Assert.That(headers["User-Agent"]).IsEqualTo("agent/1");
-		}
+		await Assert.That((headers["Cookie"], headers["User-Agent"])).IsEqualTo(("SESSDATA=x; buvid3=OPTION", "agent/1"));
 	}
 }

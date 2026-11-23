@@ -6,6 +6,9 @@ public class FFmpegLocateTest
 {
 	private static readonly string ExecutableName = FFmpegRunner.ExecutableName;
 
+	// 配置里只写命令名 ffmpeg7 时，Windows 上实际找的是 ffmpeg7.exe
+	private static readonly string CommandFile = OperatingSystem.IsWindows() ? @"ffmpeg7.exe" : @"ffmpeg7";
+
 	private static string JoinPath(params string[] directories)
 	{
 		return string.Join(Path.PathSeparator, directories);
@@ -38,9 +41,8 @@ public class FFmpegLocateTest
 	public async Task PreferredCommandNameIgnoresApplicationDirectoryAsync()
 	{
 		using TestDirectory directory = new();
-		string commandFile = OperatingSystem.IsWindows() ? @"ffmpeg7.exe" : @"ffmpeg7";
-		directory.CreateFile(Path.Combine(@"app", commandFile));
-		string expected = directory.CreateFile(Path.Combine(@"second", commandFile));
+		directory.CreateFile(Path.Combine(@"app", CommandFile));
+		string expected = directory.CreateFile(Path.Combine(@"second", CommandFile));
 
 		string? located = FFmpegRunner.Locate(@"ffmpeg7", directory.Combine(@"app"), JoinPath(directory.Combine(@"first"), directory.Combine(@"second")), []);
 
@@ -51,7 +53,7 @@ public class FFmpegLocateTest
 	public async Task PreferredCommandNameFallsBackToPlatformDirectoriesAsync()
 	{
 		using TestDirectory directory = new();
-		string expected = directory.CreateFile(Path.Combine(@"platform", OperatingSystem.IsWindows() ? @"ffmpeg7.exe" : @"ffmpeg7"));
+		string expected = directory.CreateFile(Path.Combine(@"platform", CommandFile));
 
 		string? located = FFmpegRunner.Locate(@"ffmpeg7", directory.Root, directory.Combine(@"empty"), [directory.Combine(@"platform")]);
 
@@ -62,9 +64,8 @@ public class FFmpegLocateTest
 	public async Task PreferredCommandNameInPathWinsOverPlatformDirectoriesAsync()
 	{
 		using TestDirectory directory = new();
-		string commandFile = OperatingSystem.IsWindows() ? @"ffmpeg7.exe" : @"ffmpeg7";
-		string expected = directory.CreateFile(Path.Combine(@"bin", commandFile));
-		directory.CreateFile(Path.Combine(@"platform", commandFile));
+		string expected = directory.CreateFile(Path.Combine(@"bin", CommandFile));
+		directory.CreateFile(Path.Combine(@"platform", CommandFile));
 
 		string? located = FFmpegRunner.Locate(@"ffmpeg7", directory.Root, directory.Combine(@"bin"), [directory.Combine(@"platform")]);
 

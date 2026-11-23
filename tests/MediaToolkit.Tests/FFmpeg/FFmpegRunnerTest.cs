@@ -16,7 +16,7 @@ public class FFmpegRunnerTest
 
 		FFmpegRunner.RemoveUnrequestedProxy(startInfo);
 
-		await Assert.That(startInfo.Environment.ContainsKey(@"http_proxy")).IsFalse();
+		await Assert.That(startInfo.Environment).DoesNotContainKey(@"http_proxy");
 	}
 
 	[Test]
@@ -63,7 +63,7 @@ public class FFmpegRunnerTest
 		});
 		Stopwatch stopwatch = Stopwatch.StartNew();
 
-		await Assert.That(async () => await runner.RunAsync(arguments, progress, cts.Token)).Throws<OperationCanceledException>();
+		await Assert.That(() => runner.RunAsync(arguments, progress, cts.Token)).Throws<OperationCanceledException>();
 
 		await Assert.That(messages).Contains(@"stdin=q");
 		await Assert.That(stopwatch.Elapsed).IsLessThan(TimeSpan.FromSeconds(20));
@@ -95,7 +95,7 @@ public class FFmpegRunnerTest
 		});
 		Stopwatch stopwatch = Stopwatch.StartNew();
 
-		await Assert.That(async () => await runner.RunAsync(arguments, progress, cts.Token)).Throws<OperationCanceledException>();
+		await Assert.That(() => runner.RunAsync(arguments, progress, cts.Token)).Throws<OperationCanceledException>();
 
 		await Assert.That(stopwatch.Elapsed).IsLessThan(TimeSpan.FromSeconds(30));
 		await Assert.That(processId).IsNotEqualTo(0);
@@ -137,7 +137,7 @@ public class FFmpegRunnerTest
 		using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		StringBuilder output = new();
 
-		await Assert.That(async () => await runner.RunAsync(arguments, ReadAsync, null, cts.Token)).Throws<OperationCanceledException>();
+		await Assert.That(() => runner.RunAsync(arguments, ReadAsync, null, cts.Token)).Throws<OperationCanceledException>();
 
 		await Assert.That(output.ToString()).IsEqualTo(@"ready|stdin=q");
 
@@ -180,9 +180,7 @@ public class FFmpegRunnerTest
 			}
 		});
 
-		IOException? exception = await Assert.That(async () => await runner.RunAsync(arguments, FailAsync, progress, cancellationToken)).Throws<IOException>();
-
-		await Assert.That(exception?.Message).IsEqualTo(@"disk full");
+		await Assert.That(() => runner.RunAsync(arguments, FailAsync, progress, cancellationToken)).Throws<IOException>().WithMessage(@"disk full");
 		await Assert.That(FakeProcess.IsRunning(await started.Task)).IsFalse();
 
 		async Task FailAsync(Stream stdout)
@@ -197,7 +195,7 @@ public class FFmpegRunnerTest
 	{
 		FFmpegRunner runner = new(@"this-executable-does-not-exist");
 
-		await Assert.That(async () => await runner.RunAsync([], null, new CancellationToken(true))).Throws<OperationCanceledException>();
+		await Assert.That(() => runner.RunAsync([], null, new CancellationToken(true))).Throws<OperationCanceledException>();
 	}
 
 	[Test]
@@ -219,11 +217,11 @@ public class FFmpegRunnerTest
 			exit 3
 			""");
 
-		FFmpegException? exception = await Assert.That(async () => await runner.RunAsync(arguments, null, cancellationToken)).Throws<FFmpegException>();
-
-		await Assert.That(exception?.ExitCode).IsEqualTo(3);
-		await Assert.That(exception?.LastMessage).IsEqualTo(@"first | boom");
-		await Assert.That(exception?.Message).EndsWith(@": first | boom");
+		await Assert.That(() => runner.RunAsync(arguments, null, cancellationToken))
+			.Throws<FFmpegException>()
+			.WithMessage(@"FFmpeg exited with code 3: first | boom")
+			.And.Member(static e => e.ExitCode, static code => code.IsEqualTo(3))
+			.And.Member(static e => e.LastMessage, static last => last.IsEqualTo(@"first | boom"));
 	}
 
 	[Test]
@@ -247,9 +245,9 @@ public class FFmpegRunnerTest
 			exit 1
 			""");
 
-		FFmpegException? exception = await Assert.That(async () => await runner.RunAsync(arguments, null, cancellationToken)).Throws<FFmpegException>();
-
-		await Assert.That(exception?.LastMessage).IsEqualTo(@"Stream #0:0 -> #0:0 (copy) | [wav @ 0001] wav muxer does not support any stream of type video | [out#0/wav @ 0002] Could not write header: Invalid argument");
+		await Assert.That(() => runner.RunAsync(arguments, null, cancellationToken))
+			.Throws<FFmpegException>()
+			.And.Member(static e => e.LastMessage, static last => last.IsEqualTo(@"Stream #0:0 -> #0:0 (copy) | [wav @ 0001] wav muxer does not support any stream of type video | [out#0/wav @ 0002] Could not write header: Invalid argument"));
 	}
 
 	[Test]
@@ -270,17 +268,13 @@ public class FFmpegRunnerTest
 			""");
 		List<string> messages = [];
 
-		FFmpegException? exception = await Assert.That(async () => await runner.RunAsync(arguments, new SyncProgress<FFmpegProgress>(p => messages.Add(p.Message)), cancellationToken)).Throws<FFmpegException>();
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(exception?.Message).DoesNotContain(@"sign=");
-			await Assert.That(exception?.Message).DoesNotContain(@"uid=");
-			await Assert.That(exception?.Message).Contains(@"https://cdn.test/live/a.flv?…");
-			await Assert.That(exception?.Message).Contains(@"'https://cdn.test/live/1.m4s?…' for reading");
-			await Assert.That(messages).IsNotEmpty();
-			await Assert.That(messages.Any(static message => message.Contains(@"sign=", StringComparison.Ordinal))).IsFalse();
-		}
+		await Assert.That(() => runner.RunAsync(arguments, new SyncProgress<FFmpegProgress>(p => messages.Add(p.Message)), cancellationToken))
+			.Throws<FFmpegException>()
+			.WithMessageContaining(@"https://cdn.test/live/a.flv?…")
+			.And.WithMessageContaining(@"'https://cdn.test/live/1.m4s?…' for reading")
+			.And.WithMessageNotContaining(@"sign=")
+			.And.WithMessageNotContaining(@"uid=");
+		await Assert.That(messages).IsNotEmpty().And.All(static message => !message.Contains(@"sign=", StringComparison.Ordinal));
 	}
 
 	[Test]
@@ -305,9 +299,7 @@ public class FFmpegRunnerTest
 			throw new InvalidOperationException(@"progress failed");
 		});
 
-		InvalidOperationException? exception = await Assert.That(async () => await runner.RunAsync(arguments, progress, cancellationToken)).Throws<InvalidOperationException>();
-
-		await Assert.That(exception?.Message).IsEqualTo(@"progress failed");
+		await Assert.That(() => runner.RunAsync(arguments, progress, cancellationToken)).Throws<InvalidOperationException>().WithMessage(@"progress failed");
 		await Assert.That(processId).IsNotEqualTo(0);
 		await Assert.That(FakeProcess.IsRunning(processId)).IsFalse();
 	}
@@ -341,7 +333,7 @@ public class FFmpegRunnerTest
 			new(duration, TimeSpan.FromSeconds(20), @"frame=2 time=00:00:20.00 speed=1x"),
 			new(duration, TimeSpan.FromSeconds(20), @"done")
 		];
-		await Assert.That(reports).IsEquivalentTo(expected, EqualityComparer<FFmpegProgress>.Default, CollectionOrdering.Matching);
+		await Assert.That(reports).IsEquivalentTo(expected, CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -384,19 +376,14 @@ public class FFmpegRunnerTest
 	{
 		using Process tracked = ChildProcessTracker.Start(SleepStartInfo());
 		using Process untracked = Process.Start(SleepStartInfo()) ?? throw new InvalidOperationException();
+		(bool Tracked, bool Untracked) tracking = (ChildProcessTracker.IsTracked(tracked), ChildProcessTracker.IsTracked(untracked));
 
-		try
-		{
-			await Assert.That(ChildProcessTracker.IsTracked(tracked)).IsTrue();
-			await Assert.That(ChildProcessTracker.IsTracked(untracked)).IsFalse();
-		}
-		finally
-		{
-			tracked.Kill();
-			untracked.Kill();
-			await tracked.WaitForExitAsync(cancellationToken);
-			await untracked.WaitForExitAsync(cancellationToken);
-		}
+		tracked.Kill();
+		untracked.Kill();
+		await tracked.WaitForExitAsync(cancellationToken);
+		await untracked.WaitForExitAsync(cancellationToken);
+
+		await Assert.That(tracking).IsEqualTo((true, false));
 
 		static ProcessStartInfo SleepStartInfo()
 		{

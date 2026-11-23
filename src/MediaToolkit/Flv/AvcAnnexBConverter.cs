@@ -45,25 +45,13 @@ internal sealed class AvcAnnexBConverter : IFlvTagConverter
 
 		ReadOnlySpan<byte> body = data.Slice(VideoTagHeaderSize);
 
-		switch (packetType)
+		return packetType switch
 		{
-			case PacketTypeSequenceHeader:
-			{
-				return TryWriteDecoderConfiguration(body, output) ? FlvTagConversion.NonFrame : FlvTagConversion.Unsupported;
-			}
-			case PacketTypeNalu:
-			{
-				return WriteNalUnits(body, output) ? FlvTagConversion.Frame : FlvTagConversion.NonFrame;
-			}
-			case PacketTypeEndOfSequence:
-			{
-				return FlvTagConversion.NonFrame;
-			}
-			default:
-			{
-				return FlvTagConversion.Unsupported;
-			}
-		}
+			PacketTypeSequenceHeader => TryWriteDecoderConfiguration(body, output) ? FlvTagConversion.NonFrame : FlvTagConversion.Unsupported,
+			PacketTypeNalu => WriteNalUnits(body, output) ? FlvTagConversion.Frame : FlvTagConversion.NonFrame,
+			PacketTypeEndOfSequence => FlvTagConversion.NonFrame,
+			_ => FlvTagConversion.Unsupported
+		};
 	}
 
 	private bool TryWriteDecoderConfiguration(ReadOnlySpan<byte> record, IBufferWriter<byte> output)

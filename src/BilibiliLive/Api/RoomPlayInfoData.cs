@@ -1,6 +1,6 @@
 namespace BilibiliLive.Api;
 
-internal sealed record RoomPlayInfoData(long RoomId, int LiveStatus, PlayUrlInfo? PlayurlInfo);
+internal sealed record RoomPlayInfoData(int LiveStatus, PlayUrlInfo? PlayurlInfo);
 
 internal sealed record PlayUrlInfo(PlayUrl? Playurl);
 

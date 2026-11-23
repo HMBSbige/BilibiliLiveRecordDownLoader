@@ -2,15 +2,12 @@ using System.Collections.Concurrent;
 
 namespace BilibiliLive.Tests.Fakes;
 
-internal sealed class ManualTimeProvider(DateTimeOffset start) : TimeProvider
+// FakeTimeProvider 的时钟不能往回调，测时钟被调回的用例需要；计时器立即触发，只记下本该等待多久
+internal sealed class ManualTimeProvider : TimeProvider
 {
-	private DateTimeOffset _now = start;
+	private DateTimeOffset _now = DateTimeOffset.FromUnixTimeSeconds(1702204169);
 
 	public ConcurrentQueue<TimeSpan> Delays { get; } = new();
-
-	public ManualTimeProvider() : this(DateTimeOffset.FromUnixTimeSeconds(1702204169))
-	{
-	}
 
 	public override DateTimeOffset GetUtcNow()
 	{

@@ -7,7 +7,6 @@ namespace BilibiliLive.Streams;
 internal sealed class HlsStreamSession : LiveStreamSession
 {
 	internal const int MaxAttempts = 3;
-	internal const int SegmentHistoryCapacity = 1024;
 
 	// Enough to catch up after a slow segment without flooding a struggling node
 	internal const int MaxConcurrentDownloads = 3;
@@ -15,6 +14,7 @@ internal sealed class HlsStreamSession : LiveStreamSession
 	internal static readonly TimeSpan DefaultPollInterval = TimeSpan.FromSeconds(1);
 	internal static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(1);
 
+	private const int SegmentHistoryCapacity = 1024;
 	private const int DefaultSegmentCapacity = 1 << 20;
 	private const int MaxInitialSegmentCapacity = 64 << 20;
 
@@ -76,7 +76,7 @@ internal sealed class HlsStreamSession : LiveStreamSession
 		return ValueTask.CompletedTask;
 	}
 
-	internal static TimeSpan GetPollInterval(HlsPlaylist playlist)
+	private static TimeSpan GetPollInterval(HlsPlaylist playlist)
 	{
 		return GetSegmentDuration(playlist) / 2;
 	}
@@ -213,14 +213,20 @@ internal sealed class HlsStreamSession : LiveStreamSession
 		{
 			HlsPlaylist playlist = snapshot.Playlist;
 			IReadOnlyList<HlsSegment> segments = playlist.Segments;
-			int lastQueued = -1;
+			int lastSeen = -1;
 
 			for (int i = 0; i < segments.Count; ++i)
 			{
-				if (IsSameEra(segments[i], first) && tracker.HasSeen(segments[i]))
+				if (!tracker.HasSeen(segments[i]))
+				{
+					continue;
+				}
+
+				lastSeen = i;
+
+				if (IsSameEra(segments[i], first))
 				{
 					tracker.Advance(segments[i]);
-					lastQueued = i;
 				}
 			}
 
@@ -241,16 +247,16 @@ internal sealed class HlsStreamSession : LiveStreamSession
 					continue;
 				}
 
+				// 播放列表按顺序列出分片，排在见过的分片之前的一定更早，来自窗口落后的节点；没有序号或属于旧时代的分片只能靠位置认出
+				if (i < lastSeen)
+				{
+					tracker.Skip(segment);
+					continue;
+				}
+
 				// An encoder restart or resolution change cannot continue the current file; its era is checked before the sequence number, which a restart may reset
 				if (!IsSameEra(segment, first))
 				{
-					// A playlist lists its segments in order, so another era listed before a queued segment is older and comes from a node whose window lags behind
-					if (i < lastQueued)
-					{
-						tracker.Skip(segment);
-						continue;
-					}
-
 					return StreamEndReason.Discontinuity;
 				}
 

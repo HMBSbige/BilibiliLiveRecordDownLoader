@@ -1,4 +1,5 @@
 using BilibiliLive.Streams;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLive.Tests.Streams;
 
@@ -13,7 +14,7 @@ public class SegmentHistoryTest
 
 		using (Assert.Multiple())
 		{
-			await Sequences.AssertEqualAsync(added, [true, true, false, true, false, true]);
+			await Assert.That(added).IsEquivalentTo([true, true, false, true, false, true], CollectionOrdering.Matching);
 			await Assert.That(history.Count).IsEqualTo(2);
 		}
 	}

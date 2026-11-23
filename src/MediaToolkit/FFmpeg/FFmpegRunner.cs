@@ -11,7 +11,7 @@ public sealed class FFmpegRunner(string executablePath)
 	internal static string ExecutableName { get; } = OperatingSystem.IsWindows() ? @"ffmpeg.exe" : @"ffmpeg";
 
 	// 从 Finder 或桌面环境启动的 GUI 应用拿不到 shell 里配置的 PATH
-	internal static IReadOnlyList<string> PlatformDirectories { get; } = OperatingSystem.IsMacOS() ? [@"/opt/homebrew/bin", @"/usr/local/bin"]
+	private static IReadOnlyList<string> PlatformDirectories { get; } = OperatingSystem.IsMacOS() ? [@"/opt/homebrew/bin", @"/usr/local/bin"]
 		: OperatingSystem.IsLinux() ? [@"/usr/bin", @"/usr/local/bin"]
 		: [];
 

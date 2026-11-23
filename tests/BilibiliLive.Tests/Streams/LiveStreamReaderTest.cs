@@ -2,6 +2,7 @@ using BilibiliLive.Streams;
 using BilibiliLive.Tests.Fakes;
 using Microsoft.Extensions.Time.Testing;
 using System.Diagnostics;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLive.Tests.Streams;
 
@@ -25,14 +26,15 @@ public class LiveStreamReaderTest
 		using MemoryStream output = new();
 		RecordingProgress progress = new();
 		await session.CopyToAsync(output, progress, cancellationToken);
+		byte[] copied = output.ToArray();
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(session.Source).IsEqualTo(WorkingHost);
-			await Assert.That(output.ToArray().AsSpan().SequenceEqual(body)).IsTrue();
+			await Assert.That((copied.Length, copied.AsSpan().CommonPrefixLength(body))).IsEqualTo((body.Length, body.Length));
 			await Assert.That(progress.Reports.Sum()).IsEqualTo(body.Length);
-			await Assert.That(progress.Reports.Count).IsGreaterThan(1);
-			await Sequences.AssertEquivalentAsync(handler.Requests.Select(r => r.Uri), [BrokenHost, WorkingHost]);
+			await Assert.That(progress.Reports).Count().IsGreaterThan(1);
+			await Assert.That(handler.Requests.Select(static r => r.Uri)).IsEquivalentTo([BrokenHost, WorkingHost], EqualityComparer<Uri>.Default);
 		}
 	}
 
@@ -55,11 +57,7 @@ public class LiveStreamReaderTest
 		using MemoryStream output = new();
 		await session.CopyToAsync(output, null, cancellationToken);
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(session.Source).IsEqualTo(valid);
-			await Assert.That(MediaSamples.Markers(output.ToArray())).IsEqualTo("[segment]");
-		}
+		await Assert.That((session.Source, MediaSamples.Markers(output.ToArray()))).IsEqualTo((valid, "[segment]"));
 	}
 
 	[Test]
@@ -86,13 +84,13 @@ public class LiveStreamReaderTest
 		await hung.Task.WaitAsync(cancellationToken);
 		time.Advance(ConnectTimeout);
 		await using LiveStreamSession session = await opening;
+		(Uri host, Exception error) = await Assert.That(failures).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(session.Source).IsEqualTo(WorkingHost);
-			await Assert.That(failures.Count).IsEqualTo(1);
-			await Assert.That(failures[0].Host).IsEqualTo(BrokenHost);
-			await Assert.That(failures[0].Error).IsTypeOf<TimeoutException>();
+			await Assert.That(host).IsEqualTo(BrokenHost);
+			await Assert.That(error).IsTypeOf<TimeoutException>();
 		}
 	}
 
@@ -106,7 +104,7 @@ public class LiveStreamReaderTest
 
 		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, (host, _) => failed.Add(host), cancellationToken: cancellationToken);
 
-		await Sequences.AssertEqualAsync(failed, [BrokenHost, otherBroken]);
+		await Assert.That(failed).IsEquivalentTo([BrokenHost, otherBroken], EqualityComparer<Uri>.Default, CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -119,8 +117,9 @@ public class LiveStreamReaderTest
 		List<Exception> failures = [];
 
 		await Assert.ThrowsAsync<AggregateException>(() => LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, (_, error) => failures.Add(error), cancellationToken: cancellationToken));
+		Exception failure = await Assert.That(failures).HasSingleItem();
 
-		await Assert.That(failures.Single()).IsTypeOf<InvalidDataException>();
+		await Assert.That(failure).IsTypeOf<InvalidDataException>();
 	}
 
 	[Test]
@@ -138,8 +137,9 @@ public class LiveStreamReaderTest
 		time.Advance(ConnectTimeout);
 
 		await Assert.ThrowsAsync<AggregateException>(() => opening);
+		Exception failure = await Assert.That(failures).HasSingleItem();
 
-		await Assert.That(failures.Single()).IsTypeOf<TimeoutException>();
+		await Assert.That(failure).IsTypeOf<TimeoutException>();
 	}
 
 	[Test]
@@ -162,13 +162,9 @@ public class LiveStreamReaderTest
 		Task<LiveStreamSession> opening = LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, (_, error) => failures.Add(error), new FakeTimeProvider(), stop.Token);
 		await hung.Task.WaitAsync(cancellationToken);
 		await stop.CancelAsync();
-		Exception? exception = await Assert.ThrowsAsync<Exception>(() => opening);
+		await Assert.ThrowsAsync<OperationCanceledException>(() => opening);
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(exception is OperationCanceledException).IsTrue();
-			await Assert.That(failures).IsEmpty();
-		}
+		await Assert.That(failures).IsEmpty();
 	}
 
 	private sealed class StalledStream(TaskCompletionSource stalled) : Stream

@@ -19,7 +19,7 @@ internal sealed class HlsSegmentTracker(int historyCapacity)
 		return (segment.Sequence, _last) is not ({ } sequence, { } last) || sequence > last;
 	}
 
-	// Older eras need not share the numbering of the cursor
+	// 更早的分片不推进游标，其他时代的编号也未必和游标同一套
 	public void Skip(HlsSegment segment)
 	{
 		_seen.Add(segment.Uri);

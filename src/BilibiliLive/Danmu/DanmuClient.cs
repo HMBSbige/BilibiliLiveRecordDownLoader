@@ -29,16 +29,8 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 	// Rooms reconnect within seconds, refetching on every attempt would trip risk control
 	internal static readonly TimeSpan ServerCacheDuration = TimeSpan.FromMinutes(1);
 
-	// Never handed out, so it stays at the defaults
-	private static readonly DanmuReceiveOptions DefaultOptions = new();
-
 	private readonly ILogger _logger = logger ?? NullLogger<DanmuClient>.Instance;
 	private readonly ConcurrentDictionary<long, DanmuServer> _servers = new();
-
-	public IAsyncEnumerable<DanmuMessage> ReceiveAsync(long roomId, CancellationToken cancellationToken = default)
-	{
-		return ReceiveAsync(roomId, DefaultOptions, cancellationToken);
-	}
 
 	public async IAsyncEnumerable<DanmuMessage> ReceiveAsync(long roomId, DanmuReceiveOptions options, [EnumeratorCancellation] CancellationToken cancellationToken = default)
 	{
@@ -46,21 +38,17 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 
 		while (true)
 		{
-			bool hasNext;
-
 			try
 			{
-				hasNext = await enumerator.MoveNextAsync();
+				if (!await enumerator.MoveNextAsync())
+				{
+					break;
+				}
 			}
+			// Cancelling a pending WebSocket operation aborts the socket, which surfaces as various exception types
 			catch (Exception) when (cancellationToken.IsCancellationRequested)
 			{
-				// Cancelling a pending WebSocket operation aborts the socket, which surfaces as various exception types
-				hasNext = false;
-			}
-
-			if (!hasNext)
-			{
-				yield break;
+				break;
 			}
 
 			yield return enumerator.Current;
@@ -272,7 +260,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 				if (idle > ReceiveTimeout)
 				{
 					LogReceiveTimedOut(idle);
-					activity.MarkTimedOut();
+					activity.IsTimedOut = true;
 					socket.Abort();
 					return;
 				}
@@ -303,7 +291,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 	// Aborting would fail the pending receive, which the caller takes for a broken connection; a close handshake ends it like the server closing
 	private async Task CloseForNewIdentityAsync(ClientWebSocket socket, ReceiveActivity activity, CancellationToken cancellationToken)
 	{
-		activity.MarkIdentityChanged();
+		activity.IsIdentityChanged = true;
 		await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
 		await Task.Delay(CloseTimeout, apiClient.TimeProvider, cancellationToken);
 
@@ -415,28 +403,24 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 	private sealed class ReceiveActivity(TimeProvider timeProvider)
 	{
 		private long _lastReceived = timeProvider.GetTimestamp();
-		private volatile bool _isTimedOut;
-		private volatile bool _isIdentityChanged;
 
 		public TimeSpan Idle => timeProvider.GetElapsedTime(Volatile.Read(ref _lastReceived));
 
-		public bool IsTimedOut => _isTimedOut;
+		public bool IsTimedOut
+		{
+			get => Volatile.Read(ref field);
+			set => Volatile.Write(ref field, value);
+		}
 
-		public bool IsIdentityChanged => _isIdentityChanged;
+		public bool IsIdentityChanged
+		{
+			get => Volatile.Read(ref field);
+			set => Volatile.Write(ref field, value);
+		}
 
 		public void Touch()
 		{
 			Volatile.Write(ref _lastReceived, timeProvider.GetTimestamp());
-		}
-
-		public void MarkTimedOut()
-		{
-			_isTimedOut = true;
-		}
-
-		public void MarkIdentityChanged()
-		{
-			_isIdentityChanged = true;
 		}
 	}
 }

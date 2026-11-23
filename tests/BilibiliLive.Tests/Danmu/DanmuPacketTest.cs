@@ -1,12 +1,13 @@
 using BilibiliLive.Danmu;
 using System.IO.Compression;
 using System.Text;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLive.Tests.Danmu;
 
 public class DanmuPacketTest
 {
-	internal static byte[] Compress(byte[] data, Func<Stream, Stream> createCompressor)
+	private static byte[] Compress(byte[] data, Func<Stream, Stream> createCompressor)
 	{
 		using MemoryStream output = new();
 
@@ -43,9 +44,44 @@ public class DanmuPacketTest
 		return DanmuPacket.Encode(DanmuOperation.Message, version, Encoding.UTF8.GetBytes(json));
 	}
 
-	private static string[] Bodies(IEnumerable<DanmuPacket> packets)
+	private static IEnumerable<string> Bodies(IEnumerable<DanmuPacket> packets)
 	{
-		return [.. packets.Select(p => Encoding.UTF8.GetString(p.Body.Span))];
+		return packets.Select(static p => Encoding.UTF8.GetString(p.Body.Span));
+	}
+
+	public static IEnumerable<TestDataRow<Func<byte[]>>> MalformedData()
+	{
+		yield return new(static () => [.. Json("{}"), 0, 0, 0], DisplayName: "Decode rejects a truncated header");
+		yield return new(static () =>
+		{
+			byte[] data = Json("{}");
+			data[3] += 1;
+			return data;
+		}, DisplayName: "Decode rejects a length beyond the buffer");
+		yield return new(static () =>
+		{
+			byte[] data = Json("{}");
+			data[5] = 8;
+			return data;
+		}, DisplayName: "Decode rejects a header shorter than sixteen bytes");
+		yield return new(static () => DanmuPacket.Encode(DanmuOperation.Message, 0, new byte[DanmuPacket.MaxPacketLength - DanmuPacket.HeaderLength + 1]), DisplayName: "Decode rejects a packet longer than the limit");
+		// Each packet and their sum stay within the size limits, so only the ratio can reject it
+		yield return new(static () =>
+		{
+			byte[] zeros = DanmuPacket.Encode(DanmuOperation.Message, 0, new byte[DanmuPacket.MaxPacketLength / 2]);
+			return Zlib(zeros, zeros, zeros);
+		}, DisplayName: "Decode rejects a compression bomb");
+		// Random bytes do not compress, so every packet stays within the ratio and only their sum exceeds the limit
+		yield return new(static () =>
+		{
+			Random random = new(42);
+			byte[] body = new byte[DanmuPacket.MaxPacketLength / 2];
+			return [.. Enumerable.Range(0, DanmuPacket.MaxDecompressedLength / body.Length + 1).SelectMany(_ =>
+			{
+				random.NextBytes(body);
+				return Zlib(DanmuPacket.Encode(DanmuOperation.Message, 0, body));
+			})];
+		}, DisplayName: "Decode rejects decompressed packets beyond the size limit");
 	}
 
 	[Test]
@@ -53,7 +89,7 @@ public class DanmuPacketTest
 	{
 		byte[] packet = DanmuPacket.Encode(DanmuOperation.Auth, 1, "{}"u8);
 
-		await Sequences.AssertEqualAsync<byte>(packet, [0, 0, 0, 18, 0, 16, 0, 1, 0, 0, 0, 7, 0, 0, 0, 1, (byte)'{', (byte)'}']);
+		await Assert.That(packet).IsEquivalentTo((byte[])[0, 0, 0, 18, 0, 16, 0, 1, 0, 0, 0, 7, 0, 0, 0, 1, (byte)'{', (byte)'}'], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -63,10 +99,11 @@ public class DanmuPacketTest
 
 		List<DanmuPacket> packets = DanmuPacket.Decode(data);
 
+		await Assert.That(packets.Select(static p => (p.ProtocolVersion, p.Operation))).IsEquivalentTo([((ushort)0, DanmuOperation.Message), ((ushort)1, DanmuOperation.HeartbeatReply), ((ushort)1, DanmuOperation.Message)], CollectionOrdering.Matching);
+
 		using (Assert.Multiple())
 		{
-			await Sequences.AssertEqualAsync(packets.Select(p => (p.ProtocolVersion, p.Operation)), [((ushort)0, DanmuOperation.Message), ((ushort)1, DanmuOperation.HeartbeatReply), ((ushort)1, DanmuOperation.Message)]);
-			await Sequences.AssertEqualAsync<byte>(packets[1].Body.ToArray(), [0, 0, 0, 42]);
+			await Assert.That(packets[1].Body.ToArray()).IsEquivalentTo((byte[])[0, 0, 0, 42], CollectionOrdering.Matching);
 			await Assert.That(Encoding.UTF8.GetString(packets[2].Body.Span)).IsEqualTo("""{"cmd":"B"}""");
 		}
 	}
@@ -76,7 +113,7 @@ public class DanmuPacketTest
 	{
 		byte[] data = [.. Json("""{"cmd":"before"}"""), .. Brotli(Json("""{"cmd":"A"}"""), Zlib(Json("""{"cmd":"B"}"""), Json("""{"cmd":"C"}""")), Json("""{"cmd":"D"}""")), .. Json("""{"cmd":"after"}""")];
 
-		await Sequences.AssertEqualAsync(Bodies(DanmuPacket.Decode(data)), ["""{"cmd":"before"}""", """{"cmd":"A"}""", """{"cmd":"B"}""", """{"cmd":"C"}""", """{"cmd":"D"}""", """{"cmd":"after"}"""]);
+		await Assert.That(Bodies(DanmuPacket.Decode(data))).IsEquivalentTo(["""{"cmd":"before"}""", """{"cmd":"A"}""", """{"cmd":"B"}""", """{"cmd":"C"}""", """{"cmd":"D"}""", """{"cmd":"after"}"""], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -84,65 +121,13 @@ public class DanmuPacketTest
 	{
 		byte[] packet = [0, 0, 0, 22, 0, 20, 0, 0, 0, 0, 0, 5, 0, 0, 0, 1, 9, 9, 9, 9, (byte)'o', (byte)'k'];
 
-		await Sequences.AssertEqualAsync(Bodies(DanmuPacket.Decode(packet)), ["ok"]);
+		await Assert.That(Bodies(DanmuPacket.Decode(packet))).IsEquivalentTo(["ok"], CollectionOrdering.Matching);
 	}
 
 	[Test]
-	public async Task DecodeRejectsTruncatedHeaderAsync()
+	[MethodDataSource(nameof(MalformedData))]
+	public async Task DecodeRejectsMalformedDataAsync(byte[] data)
 	{
-		byte[] data = [.. Json("{}"), 0, 0, 0];
-
-		await Assert.That(() => DanmuPacket.Decode(data)).Throws<InvalidDataException>();
-	}
-
-	[Test]
-	public async Task DecodeRejectsLengthBeyondBufferAsync()
-	{
-		byte[] data = Json("{}");
-		data[3] += 1;
-
-		await Assert.That(() => DanmuPacket.Decode(data)).Throws<InvalidDataException>();
-	}
-
-	[Test]
-	public async Task DecodeRejectsHeaderShorterThanSixteenBytesAsync()
-	{
-		byte[] data = Json("{}");
-		data[5] = 8;
-
-		await Assert.That(() => DanmuPacket.Decode(data)).Throws<InvalidDataException>();
-	}
-
-	[Test]
-	public async Task DecodeRejectsPacketLongerThanTheLimitAsync()
-	{
-		byte[] data = DanmuPacket.Encode(DanmuOperation.Message, 0, new byte[DanmuPacket.MaxPacketLength - DanmuPacket.HeaderLength + 1]);
-
-		await Assert.That(() => DanmuPacket.Decode(data)).Throws<InvalidDataException>();
-	}
-
-	[Test]
-	public async Task DecodeRejectsCompressionBombAsync()
-	{
-		// Each packet and their sum stay within the size limits, so only the ratio can reject it
-		byte[] zeros = DanmuPacket.Encode(DanmuOperation.Message, 0, new byte[DanmuPacket.MaxPacketLength / 2]);
-		byte[] data = Zlib(zeros, zeros, zeros);
-
-		await Assert.That(() => DanmuPacket.Decode(data)).Throws<InvalidDataException>();
-	}
-
-	[Test]
-	public async Task DecodeRejectsDecompressedPacketsBeyondTheSizeLimitAsync()
-	{
-		// Random bytes do not compress, so every packet stays within the ratio and only their sum exceeds the limit
-		Random random = new(42);
-		byte[] body = new byte[DanmuPacket.MaxPacketLength / 2];
-		byte[] data = [.. Enumerable.Range(0, DanmuPacket.MaxDecompressedLength / body.Length + 1).SelectMany(_ =>
-		{
-			random.NextBytes(body);
-			return Zlib(DanmuPacket.Encode(DanmuOperation.Message, 0, body));
-		})];
-
 		await Assert.That(() => DanmuPacket.Decode(data)).Throws<InvalidDataException>();
 	}
 
@@ -153,7 +138,7 @@ public class DanmuPacketTest
 
 		using (Assert.Multiple())
 		{
-			await Sequences.AssertEqualAsync(Bodies(DanmuPacket.Decode(Nest(packet, DanmuPacket.MaxCompressionDepth))), ["""{"cmd":"A"}"""]);
+			await Assert.That(Bodies(DanmuPacket.Decode(Nest(packet, DanmuPacket.MaxCompressionDepth)))).IsEquivalentTo(["""{"cmd":"A"}"""], CollectionOrdering.Matching);
 			await Assert.That(() => DanmuPacket.Decode(Nest(packet, DanmuPacket.MaxCompressionDepth + 1))).Throws<InvalidDataException>();
 		}
 	}

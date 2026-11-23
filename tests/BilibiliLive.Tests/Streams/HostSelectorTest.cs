@@ -1,5 +1,6 @@
 using BilibiliLive.Streams;
 using System.Collections.Concurrent;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLive.Tests.Streams;
 
@@ -51,26 +52,19 @@ public class HostSelectorTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(session.Uri).IsEqualTo(Hosts[1]);
-			await Sequences.AssertEqualAsync(opener.Attempts, Hosts.Take(2));
+			await Assert.That(opener.Attempts).IsEquivalentTo(Hosts.Take(2), EqualityComparer<Uri>.Default, CollectionOrdering.Matching);
 		}
 	}
 
 	[Test]
-	public async Task AllFailuresAreAggregatedAsync(CancellationToken cancellationToken)
+	[MatrixDataSource]
+	public async Task AllFailuresAreAggregatedAsync([Matrix] StreamHostSelection selection, CancellationToken cancellationToken)
 	{
-		foreach (StreamHostSelection selection in Enum.GetValues<StreamHostSelection>())
-		{
-			Opener opener = new((uri, _) => Fail(uri));
+		Opener opener = new((uri, _) => Fail(uri));
 
-			AggregateException? exception = await Assert.ThrowsAsync<AggregateException>(() => HostSelector.OpenAsync(Hosts, selection, opener.OpenAsync, Random.Shared, cancellationToken));
-
-			using (Assert.Multiple())
-			{
-				await Assert.That(exception?.InnerExceptions.Count).IsEqualTo(Hosts.Length);
-				await Assert.That(exception?.InnerExceptions.All(e => e is HttpRequestException)).IsTrue();
-				await Sequences.AssertEquivalentAsync(opener.Attempts, Hosts);
-			}
-		}
+		await Assert.ThrowsAsync<AggregateException>(() => HostSelector.OpenAsync(Hosts, selection, opener.OpenAsync, Random.Shared, cancellationToken))
+			.And.Member(static e => e.InnerExceptions, static errors => errors.Count().IsEqualTo(Hosts.Length).And.All(static e => e is HttpRequestException));
+		await Assert.That(opener.Attempts).IsEquivalentTo(Hosts, EqualityComparer<Uri>.Default);
 	}
 
 	[Test]
@@ -78,7 +72,7 @@ public class HostSelectorTest
 	public async Task FastestResponseWinsCancelsAndDisposesTheRestAsync(CancellationToken cancellationToken)
 	{
 		TaskCompletionSource<FakeSession> slow = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		CancellationToken slowToken = default;
+		TaskCompletionSource slowCancelled = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		CancellationToken cancelledToken = default;
 		FakeSession lateSession = new(Hosts[0]);
 
@@ -86,7 +80,7 @@ public class HostSelectorTest
 		{
 			if (uri == Hosts[0])
 			{
-				slowToken = ct;
+				ct.Register(slowCancelled.SetResult);
 				// Ignores cancellation on purpose, like a request whose response arrives just as it is cancelled
 				return await slow.Task;
 			}
@@ -102,12 +96,7 @@ public class HostSelectorTest
 		});
 
 		Task<FakeSession> opening = HostSelector.OpenAsync(Hosts, StreamHostSelection.FastestResponse, opener.OpenAsync, Random.Shared, cancellationToken);
-
-		while (!slowToken.IsCancellationRequested)
-		{
-			await Task.Delay(10, cancellationToken);
-		}
-
+		await slowCancelled.Task.WaitAsync(cancellationToken);
 		bool pendingWhileLoserRuns = !opening.IsCompleted;
 		slow.SetResult(lateSession);
 		FakeSession winner = await opening;
@@ -147,17 +136,14 @@ public class HostSelectorTest
 	}
 
 	[Test]
-	public async Task OuterCancellationIsNotReportedAsHostFailureAsync()
+	[MatrixDataSource]
+	public async Task OuterCancellationIsNotReportedAsHostFailureAsync([Matrix] StreamHostSelection selection)
 	{
 		using CancellationTokenSource cts = new();
 		await cts.CancelAsync();
+		Opener opener = new((_, ct) => Task.FromCanceled<FakeSession>(ct));
 
-		foreach (StreamHostSelection selection in Enum.GetValues<StreamHostSelection>())
-		{
-			Opener opener = new((_, ct) => Task.FromCanceled<FakeSession>(ct));
-
-			await Assert.ThrowsAsync<OperationCanceledException>(() => HostSelector.OpenAsync(Hosts, selection, opener.OpenAsync, Random.Shared, cts.Token));
-		}
+		await Assert.ThrowsAsync<OperationCanceledException>(() => HostSelector.OpenAsync(Hosts, selection, opener.OpenAsync, Random.Shared, cts.Token));
 	}
 
 	[Test]
@@ -171,13 +157,14 @@ public class HostSelectorTest
 			Opener opener = new((uri, _) => uri == Hosts[2] ? Succeed(uri) : Fail(uri));
 
 			FakeSession session = await HostSelector.OpenAsync(Hosts, StreamHostSelection.Random, opener.OpenAsync, random, cancellationToken);
+			List<Uri> attempts = [.. opener.Attempts];
 
 			await Assert.That(session.Uri).IsEqualTo(Hosts[2]);
-			await Assert.That(opener.Attempts.Last()).IsEqualTo(Hosts[2]);
-			await Assert.That(opener.Attempts.Distinct().Count()).IsEqualTo(opener.Attempts.Count);
-			firstAttempts.Add(opener.Attempts.First());
+			await Assert.That(attempts).HasDistinctItems();
+			await Assert.That(attempts).LastItem().IsEqualTo(Hosts[2]);
+			firstAttempts.Add(attempts[0]);
 		}
 
-		await Assert.That(firstAttempts.Count).IsGreaterThan(1);
+		await Assert.That(firstAttempts).Count().IsGreaterThan(1);
 	}
 }

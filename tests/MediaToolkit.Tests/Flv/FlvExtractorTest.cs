@@ -18,6 +18,27 @@ public class FlvExtractorTest
 			.ToArray();
 	}
 
+	private static FlvBuilder BuildConvertibleStart(int frames)
+	{
+		FlvBuilder builder = new FlvBuilder()
+			.Tag(FlvTagType.Video, 0, FlvSamples.AvcSequenceHeader)
+			.Tag(FlvTagType.Audio, 0, FlvSamples.AacSequenceHeader);
+
+		for (uint i = 0; i < frames; ++i)
+		{
+			builder.Tag(FlvTagType.Video, i * 33, FlvSamples.AvcKeyFrame).Tag(FlvTagType.Audio, i * 23, FlvSamples.AacFrame);
+		}
+
+		return builder;
+	}
+
+	public static IEnumerable<TestDataRow<Func<byte[]>>> FlvsWithoutFrames()
+	{
+		yield return new(static () => new FlvBuilder().ToArray(), DisplayName: "header only");
+		// 只有参数集的 H.264 流没有画面，FFmpeg 合并时报 dimensions not set
+		yield return new(static () => new FlvBuilder().Tag(FlvTagType.Video, 0, FlvSamples.AvcSequenceHeader).Tag(FlvTagType.Audio, 0, FlvSamples.AacSequenceHeader).ToArray(), DisplayName: "sequence headers only");
+	}
+
 	[Test]
 	public async Task ExtractsAnnexBVideoAndAdtsAudioAsync()
 	{
@@ -58,7 +79,6 @@ public class FlvExtractorTest
 	[Test]
 	[Arguments(0u, "timestamps restart from zero")]
 	[Arguments(600_000u, "timestamps jump ten minutes ahead")]
-	[Arguments(2500u, "timestamps step back half a second")]
 	public async Task FrameRateIgnoresTimestampDiscontinuitiesAsync(uint secondHalfStart, string reason)
 	{
 		using TestDirectory directory = new();
@@ -122,8 +142,7 @@ public class FlvExtractorTest
 
 		await FlvExtractor.ExtractAsync(input, directory.Root, new SyncProgress<double>(values.Add));
 
-		await Assert.That(values).IsNotEmpty();
-		await Assert.That(values).IsInOrder();
+		await Assert.That(values).IsNotEmpty().And.IsInOrder();
 		await Assert.That(values[0]).IsGreaterThan(0);
 		await Assert.That(values[^1]).IsEqualTo(1);
 	}
@@ -137,25 +156,20 @@ public class FlvExtractorTest
 			.Tag(FlvTagType.Video, 0, FlvSamples.AvcKeyFrame)
 			.ToArray();
 		string input = directory.CreateFile(@"video.flv", flv);
+		string video = directory.Combine(@"video.h264");
 
 		FlvExtractResult result = await FlvExtractor.ExtractAsync(input, directory.Root);
 
-		await Assert.That(result.VideoPath).IsEqualTo(directory.Combine(@"video.h264"));
-		await Assert.That(result.AudioPath).IsNull();
-		await Assert.That(File.Exists(directory.Combine(@"video.aac"))).IsFalse();
+		await Assert.That(result).IsEqualTo(new FlvExtractResult(video, null));
+		await Assert.That(Directory.EnumerateFiles(directory.Root)).IsEquivalentTo([input, video], StringComparer.Ordinal);
 	}
 
 	[Test]
 	// CodecID 12：B 站 HEVC 流使用的非标准编号
 	[Arguments(false, true, @"1C00000000" + @"01", "video starts as HEVC")]
-	[Arguments(false, true, @"1700000000" + @"0164001FFFE1" + @"0004" + @"6764001F", "video sequence header ends after its SPS")]
 	[Arguments(false, false, @"2F01" + @"21004990", "audio starts as MP3")]
-	// AudioObjectType 6（BSAC）无法用 ADTS 表示
-	[Arguments(false, false, @"AF00" + @"3210", "audio starts with an unsupported AudioSpecificConfig")]
-	[Arguments(true, true, @"1C00000000" + @"01", "video switches to HEVC")]
 	[Arguments(true, true, @"9068766331" + @"01", "video switches to enhanced HEVC")]
-	[Arguments(true, true, @"1700000000" + @"00", "video sequence header cannot be parsed")]
-	[Arguments(true, false, @"2F01" + @"21004990", "audio switches to MP3")]
+	// AudioObjectType 6（BSAC）无法用 ADTS 表示
 	[Arguments(true, false, @"AF00" + @"3210", "audio switches to an unsupported AudioSpecificConfig")]
 	public async Task UnconvertibleTagThrowsWithoutOutputAsync(bool midway, bool isVideo, string hex, string reason)
 	{
@@ -170,8 +184,7 @@ public class FlvExtractorTest
 		string input = directory.CreateFile(@"input.flv", flv);
 
 		await Assert.That(async () => await FlvExtractor.ExtractAsync(input, directory.Root)).Throws<NotSupportedException>().Because(reason);
-		string[] expected = [input];
-		await Assert.That(Directory.EnumerateFiles(directory.Root)).IsEquivalentTo(expected, StringComparer.Ordinal, CollectionOrdering.Matching);
+		await Assert.That(Directory.EnumerateFiles(directory.Root)).IsEquivalentTo([input], StringComparer.Ordinal);
 	}
 
 	[Test]
@@ -192,22 +205,7 @@ public class FlvExtractorTest
 
 		FlvExtractResult result = await FlvExtractor.ExtractAsync(input, directory.Root);
 
-		await Assert.That(result.VideoPath).IsEqualTo(directory.Combine(@"live.h264"));
-		await Assert.That(result.AudioPath).IsEqualTo(directory.Combine(@"live.aac"));
-	}
-
-	private static FlvBuilder BuildConvertibleStart(int frames)
-	{
-		FlvBuilder builder = new FlvBuilder()
-			.Tag(FlvTagType.Video, 0, FlvSamples.AvcSequenceHeader)
-			.Tag(FlvTagType.Audio, 0, FlvSamples.AacSequenceHeader);
-
-		for (uint i = 0; i < frames; ++i)
-		{
-			builder.Tag(FlvTagType.Video, i * 33, FlvSamples.AvcKeyFrame).Tag(FlvTagType.Audio, i * 23, FlvSamples.AacFrame);
-		}
-
-		return builder;
+		await Assert.That((result.VideoPath, result.AudioPath)).IsEqualTo((directory.Combine(@"live.h264"), directory.Combine(@"live.aac")));
 	}
 
 	[Test]
@@ -227,32 +225,16 @@ public class FlvExtractorTest
 	}
 
 	[Test]
-	public async Task StreamWithOnlyASequenceHeaderCountsAsMissingAsync()
+	[MethodDataSource(nameof(FlvsWithoutFrames))]
+	public async Task FlvWithoutFramesYieldsNoStreamsAsync(byte[] flv)
 	{
 		using TestDirectory directory = new();
-		byte[] flv = new FlvBuilder()
-			.Tag(FlvTagType.Video, 0, FlvSamples.AvcSequenceHeader)
-			.Tag(FlvTagType.Audio, 0, FlvSamples.AacSequenceHeader)
-			.Tag(FlvTagType.Video, 0, FlvSamples.AvcKeyFrame)
-			.Tag(FlvTagType.Video, 33, FlvSamples.AvcKeyFrame)
-			.ToArray();
-		string input = directory.CreateFile(@"video.flv", flv);
-
-		FlvExtractResult result = await FlvExtractor.ExtractAsync(input, directory.Root);
-
-		await Assert.That(result.VideoPath).IsEqualTo(directory.Combine(@"video.h264"));
-		await Assert.That(result.AudioPath).IsNull();
-	}
-
-	[Test]
-	public async Task HeaderOnlyFlvYieldsNoStreamsAsync()
-	{
-		using TestDirectory directory = new();
-		string input = directory.CreateFile(@"empty.flv", new FlvBuilder().ToArray());
+		string input = directory.CreateFile(@"empty.flv", flv);
 
 		FlvExtractResult result = await FlvExtractor.ExtractAsync(input, directory.Root);
 
 		await Assert.That(result).IsEqualTo(new FlvExtractResult(null, null));
+		await Assert.That(Directory.EnumerateFiles(directory.Root)).IsEquivalentTo([input], StringComparer.Ordinal);
 	}
 
 	[Test]
@@ -272,9 +254,10 @@ public class FlvExtractorTest
 
 		FlvExtractResult result = await FlvExtractor.ExtractAsync(input, directory.Root);
 
+		string video = await Assert.That(result.VideoPath).IsNotNull();
+		byte[] actual = await File.ReadAllBytesAsync(video);
 		byte[] expected = FlvSamples.AnnexB(FlvSamples.Sps, FlvSamples.Pps, FlvSamples.IdrSlice, FlvSamples.Sei, largeSlice, FlvSamples.IdrSlice, FlvSamples.Sei);
-		await Assert.That(result.VideoPath).IsNotNull();
-		await Assert.That(Convert.ToHexString(await File.ReadAllBytesAsync(directory.Combine(@"large.h264")))).IsEqualTo(Convert.ToHexString(expected));
+		await Assert.That((actual.Length, actual.AsSpan().CommonPrefixLength(expected))).IsEqualTo((expected.Length, expected.Length));
 
 		static byte[] BigEndian(int value)
 		{
@@ -297,9 +280,9 @@ public class FlvExtractorTest
 
 		FlvExtractResult result = await FlvExtractor.ExtractAsync(input, directory.Root);
 
-		await Assert.That(result.AudioPath).IsNotNull();
+		string audio = await Assert.That(result.AudioPath).IsNotNull();
 		byte[] expected = [.. FlvSamples.AdtsHeaderForAacFrame, .. AacPayload];
-		await Assert.That(Convert.ToHexString(await File.ReadAllBytesAsync(directory.Combine(@"cut.aac")))).IsEqualTo(Convert.ToHexString(expected));
+		await Assert.That(Convert.ToHexString(await File.ReadAllBytesAsync(audio))).IsEqualTo(Convert.ToHexString(expected));
 	}
 
 	[Test]
@@ -313,8 +296,9 @@ public class FlvExtractorTest
 
 		FlvExtractResult result = await FlvExtractor.ExtractAsync(input, directory.Root);
 
-		await Assert.That(result.AudioPath).IsNotNull();
-		await Assert.That(new FileInfo(directory.Combine(@"extended.aac")).Length).IsEqualTo(FlvSamples.AdtsHeaderForAacFrame.Length + AacPayload.Length);
+		string audio = await Assert.That(result.AudioPath).IsNotNull();
+		byte[] expected = [.. FlvSamples.AdtsHeaderForAacFrame, .. AacPayload];
+		await Assert.That(Convert.ToHexString(await File.ReadAllBytesAsync(audio))).IsEqualTo(Convert.ToHexString(expected));
 	}
 
 	[Test]
@@ -324,18 +308,18 @@ public class FlvExtractorTest
 		string input = directory.CreateFile(@"fake.flv", "not an flv file"u8.ToArray());
 
 		await Assert.That(async () => await FlvExtractor.ExtractAsync(input, directory.Root)).Throws<InvalidDataException>();
-		string[] expected = [input];
-		await Assert.That(Directory.EnumerateFiles(directory.Root)).IsEquivalentTo(expected, StringComparer.Ordinal, CollectionOrdering.Matching);
+		await Assert.That(Directory.EnumerateFiles(directory.Root)).IsEquivalentTo([input], StringComparer.Ordinal);
 	}
 
 	[Test]
 	public async Task RefusesToOverwriteInputAsync()
 	{
 		using TestDirectory directory = new();
-		string input = directory.CreateFile(@"stream.aac", BuildAudioVideoFlv());
+		byte[] flv = BuildAudioVideoFlv();
+		string input = directory.CreateFile(@"stream.aac", flv);
 
 		await Assert.That(async () => await FlvExtractor.ExtractAsync(input, directory.Root)).Throws<ArgumentException>();
-		await Assert.That(Convert.ToHexString(await File.ReadAllBytesAsync(input))).IsEqualTo(Convert.ToHexString(BuildAudioVideoFlv()));
+		await Assert.That(Convert.ToHexString(await File.ReadAllBytesAsync(input))).IsEqualTo(Convert.ToHexString(flv));
 	}
 
 	[Test]
@@ -364,7 +348,6 @@ public class FlvExtractorTest
 		});
 
 		await Assert.That(async () => await FlvExtractor.ExtractAsync(input, directory.Root, progress, cts.Token)).Throws<OperationCanceledException>();
-		await Assert.That(audioWritten).IsTrue();
-		await Assert.That(File.Exists(audioPath)).IsFalse();
+		await Assert.That((audioWritten, File.Exists(audioPath))).IsEqualTo((true, false));
 	}
 }

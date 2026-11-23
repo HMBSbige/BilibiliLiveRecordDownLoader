@@ -1,4 +1,5 @@
 using BilibiliLive.Streams;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLive.Tests.Streams;
 
@@ -21,42 +22,24 @@ public class HlsPlaylistTest
 			#EXTINF:1.00,2603a|75ed7701
 			328033199.m4s
 			""";
+		HlsPlaylist expected = new(TimeSpan.FromSeconds(1), [new HlsSegment("328033198.m4s", "h1795240925.m4s", 0, 328033198), new HlsSegment("328033199.m4s", "h1795240925.m4s", 0, 328033199)], false);
 
-		HlsPlaylist playlist = HlsPlaylist.Parse(content);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(playlist.TargetDuration).IsEqualTo(TimeSpan.FromSeconds(1));
-			await Sequences.AssertEqualAsync(playlist.Segments, [new HlsSegment("328033198.m4s", "h1795240925.m4s", 0, 328033198), new HlsSegment("328033199.m4s", "h1795240925.m4s", 0, 328033199)]);
-			await Assert.That(playlist.EndList).IsFalse();
-		}
+		await Assert.That(HlsPlaylist.Parse(content)).IsEquivalentTo(expected);
 	}
 
 	[Test]
 	public async Task ParsesTsPlaylistWithEndListAndCrLfAsync()
 	{
-		string content = "\uFEFF#EXTM3U\r\n#EXT-X-VERSION:3\r\n#EXT-X-TARGETDURATION:3\r\n#EXT-X-PROGRAM-DATE-TIME:2026-11-21T18:46:26+08:00\r\n#EXTINF:3.000, no desc\r\n  live-1.ts  \r\n\r\n#EXTINF:3.000, no desc\r\nhttps://cdn.test/live-2.ts?x=1\r\n#EXT-X-ENDLIST\r\n";
+		const string content = "\uFEFF#EXTM3U\r\n#EXT-X-VERSION:3\r\n#EXT-X-TARGETDURATION:3\r\n#EXT-X-PROGRAM-DATE-TIME:2026-11-21T18:46:26+08:00\r\n#EXTINF:3.000, no desc\r\n  live-1.ts  \r\n\r\n#EXTINF:3.000, no desc\r\nhttps://cdn.test/live-2.ts?x=1\r\n#EXT-X-ENDLIST\r\n";
+		HlsPlaylist expected = new(TimeSpan.FromSeconds(3), [new HlsSegment("live-1.ts", null, 0, null), new HlsSegment("https://cdn.test/live-2.ts?x=1", null, 0, null)], true);
 
-		HlsPlaylist playlist = HlsPlaylist.Parse(content);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(playlist.TargetDuration).IsEqualTo(TimeSpan.FromSeconds(3));
-			await Sequences.AssertEqualAsync(playlist.Segments, [new HlsSegment("live-1.ts", null, 0, null), new HlsSegment("https://cdn.test/live-2.ts?x=1", null, 0, null)]);
-			await Assert.That(playlist.EndList).IsTrue();
-		}
+		await Assert.That(HlsPlaylist.Parse(content)).IsEquivalentTo(expected);
 	}
 
 	[Test]
 	public async Task DefaultsWhenTagsAreMissingAsync()
 	{
-		HlsPlaylist playlist = HlsPlaylist.Parse("#EXTM3U\n");
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(playlist.TargetDuration).IsNull();
-			await Assert.That(playlist.Segments).IsEmpty();
-		}
+		await Assert.That(HlsPlaylist.Parse("#EXTM3U\n")).IsEquivalentTo(new HlsPlaylist(null, [], false));
 	}
 
 	[Test]
@@ -64,7 +47,7 @@ public class HlsPlaylistTest
 	{
 		HlsPlaylist playlist = HlsPlaylist.Parse("#EXTM3U\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n2.m4s\n");
 
-		await Sequences.AssertEqualAsync(playlist.Segments, [new HlsSegment("1.m4s", "h1.m4s", 0, null), new HlsSegment("2.m4s", "h2.m4s", 0, null)]);
+		await Assert.That(playlist.Segments).IsEquivalentTo([new HlsSegment("1.m4s", "h1.m4s", 0, null), new HlsSegment("2.m4s", "h2.m4s", 0, null)], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -72,7 +55,7 @@ public class HlsPlaylistTest
 	{
 		HlsPlaylist playlist = HlsPlaylist.Parse("#EXTM3U\n#EXT-X-DISCONTINUITY-SEQUENCE:7\n1.ts\n#EXT-X-DISCONTINUITY\n2.ts\n3.ts\n#EXT-X-DISCONTINUITY\n4.ts\n");
 
-		await Sequences.AssertEqualAsync(playlist.Segments.Select(s => s.DiscontinuitySequence), [7L, 8L, 8L, 9L]);
+		await Assert.That(playlist.Segments.Select(static s => s.DiscontinuitySequence)).IsEquivalentTo([7L, 8L, 8L, 9L], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -80,15 +63,13 @@ public class HlsPlaylistTest
 	{
 		HlsPlaylist playlist = HlsPlaylist.Parse("#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:41\n1.ts\n#EXT-X-DISCONTINUITY\n2.ts\n3.ts\n");
 
-		await Sequences.AssertEqualAsync(playlist.Segments.Select(s => s.Sequence), [41L, 42L, 43L]);
+		await Assert.That(playlist.Segments.Select(static s => s.Sequence)).IsEquivalentTo((long?[])[41, 42, 43], CollectionOrdering.Matching);
 	}
 
 	[Test]
 	public async Task UnusedVersionTagIsIgnoredAsync()
 	{
-		HlsPlaylist playlist = HlsPlaylist.Parse("#EXTM3U\n#EXT-X-VERSION:x\n1.ts\n");
-
-		await Assert.That(playlist.Segments.Count).IsEqualTo(1);
+		await Assert.That(HlsPlaylist.Parse("#EXTM3U\n#EXT-X-VERSION:x\n1.ts\n").Segments).HasSingleItem();
 	}
 
 	[Test]

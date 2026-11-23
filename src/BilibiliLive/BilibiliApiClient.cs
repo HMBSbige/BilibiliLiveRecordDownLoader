@@ -48,13 +48,7 @@ public sealed class BilibiliApiClient
 		// getRoomBaseInfo resolves short ids and is the only unsigned endpoint that also returns the streamer name
 		string query = string.Join('&', roomIds.Select(static roomId => string.Create(CultureInfo.InvariantCulture, $"room_ids={roomId}")));
 		RoomBaseInfoData data = await GetDataAsync(new Uri($"{LiveApi}xlive/web-room/v1/index/getRoomBaseInfo?{query}&req_biz=web_room_componet"), BilibiliJsonContext.Default.RoomBaseInfoData, cancellationToken);
-
-		if (data.ByRoomIds is not { } rooms)
-		{
-			return [];
-		}
-
-		return [.. rooms.Values.Select(static room => ToRoomInfo(room))];
+		return data.ByRoomIds is { } rooms ? [.. rooms.Values.Select(ToRoomInfo)] : [];
 	}
 
 	private static LiveRoomInfo ToRoomInfo(RoomBaseInfo room)

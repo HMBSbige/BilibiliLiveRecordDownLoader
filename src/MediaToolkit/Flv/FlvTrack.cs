@@ -17,33 +17,19 @@ internal sealed class FlvTrack(string path, IFlvTagConverter converter) : IAsync
 
 	public string? OutputPath => _output is null ? null : path;
 
-	public bool HasUnsupportedInput { get; private set; }
-
-	/// <returns>写出了一个编码帧</returns>
-	public async ValueTask<bool> WriteAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
+	// 参数集攒到下一帧再一起写：只有参数集的流解码不出画面，不能算作有这条流
+	public async ValueTask<FlvTagConversion> WriteAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
 	{
-		if (data.IsEmpty)
-		{
-			return false;
-		}
-
-		_buffer.ResetWrittenCount();
 		FlvTagConversion conversion = converter.Convert(data.Span, _buffer);
 
-		if (conversion is FlvTagConversion.Unsupported)
+		if (conversion is FlvTagConversion.Frame)
 		{
-			HasUnsupportedInput = true;
-			return false;
+			_output ??= new FileStream(path, WriteOptions);
+			await _output.WriteAsync(_buffer.WrittenMemory, cancellationToken);
+			_buffer.ResetWrittenCount();
 		}
 
-		if (_buffer.WrittenCount is 0)
-		{
-			return false;
-		}
-
-		_output ??= new FileStream(path, WriteOptions);
-		await _output.WriteAsync(_buffer.WrittenMemory, cancellationToken);
-		return conversion is FlvTagConversion.Frame;
+		return conversion;
 	}
 
 	public async ValueTask DiscardAsync()

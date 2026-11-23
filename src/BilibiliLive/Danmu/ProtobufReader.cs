@@ -116,7 +116,7 @@ internal ref struct ProtobufReader(ReadOnlySpan<byte> data)
 			}
 			case ProtobufWireType.Fixed64:
 			{
-				ReadFixed(sizeof(ulong));
+				SkipFixed(sizeof(ulong));
 				break;
 			}
 			case ProtobufWireType.LengthDelimited:
@@ -126,7 +126,7 @@ internal ref struct ProtobufReader(ReadOnlySpan<byte> data)
 			}
 			case ProtobufWireType.Fixed32:
 			{
-				ReadFixed(sizeof(uint));
+				SkipFixed(sizeof(uint));
 				break;
 			}
 			default:
@@ -137,15 +137,13 @@ internal ref struct ProtobufReader(ReadOnlySpan<byte> data)
 		}
 	}
 
-	private ReadOnlySpan<byte> ReadFixed(int length)
+	private void SkipFixed(int length)
 	{
 		if (length > _data.Length - _position)
 		{
 			throw new InvalidDataException("Truncated protobuf fixed-width field.");
 		}
 
-		ReadOnlySpan<byte> value = _data.Slice(_position, length);
 		_position += length;
-		return value;
 	}
 }

@@ -1,4 +1,5 @@
 using MediaToolkit.FFmpeg;
+using System.Text;
 
 namespace MediaToolkit.Tests.FFmpeg;
 
@@ -42,14 +43,14 @@ public class FFmpegMetadataTest
 	}
 
 	[Test]
-	public async Task FileHasNoByteOrderMarkAsync()
+	public async Task FileIsUtf8WithoutByteOrderMarkAsync()
 	{
 		using TestDirectory directory = new();
 		string path = directory.Combine(@"chapters.txt");
+		FFmpegChapter[] chapters = [new(TimeSpan.Zero, TimeSpan.FromSeconds(1), @"章节")];
 
-		await FFmpegMetadata.WriteChaptersFileAsync(path, [new FFmpegChapter(TimeSpan.Zero, TimeSpan.FromSeconds(1), @"章节")], CancellationToken.None);
-		byte[] content = await File.ReadAllBytesAsync(path);
+		await FFmpegMetadata.WriteChaptersFileAsync(path, chapters, CancellationToken.None);
 
-		await Assert.That(content is [(byte)';', ..]).IsTrue();
+		await Assert.That(await File.ReadAllBytesAsync(path)).IsEquivalentTo(Encoding.UTF8.GetBytes(FFmpegMetadata.FormatChapters(chapters)), CollectionOrdering.Matching);
 	}
 }

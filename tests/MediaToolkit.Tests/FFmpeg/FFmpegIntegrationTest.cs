@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 namespace MediaToolkit.Tests.FFmpeg;
 
 // 找不到 FFmpeg 时跳过；CI 设 REQUIRE_FFMPEG 改为失败，免得一直跳过没人发现
+[Timeout(TestTimeout)]
 public partial class FFmpegIntegrationTest
 {
 	private const int TestTimeout = 120_000;
@@ -76,7 +77,6 @@ public partial class FFmpegIntegrationTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task GetVersionAsyncReturnsInstalledVersionAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = CreateRunner();
@@ -87,7 +87,6 @@ public partial class FFmpegIntegrationTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task ExtractedStreamsDecodeCompletelyAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = CreateRunner();
@@ -108,8 +107,9 @@ public partial class FFmpegIntegrationTest
 		// FFmpeg 的 ADTS 封装和这里写的头字段相同，可以逐字节对照
 		string referenceAudio = directory.Combine(@"reference.aac");
 		await runner.RunAsync([@"-hide_banner", @"-y", @"-i", flv, @"-map", @"0:a", @"-c", @"copy", @"-f", @"adts", referenceAudio], null, cancellationToken);
-		string audioHex = Convert.ToHexString(await File.ReadAllBytesAsync(audio, cancellationToken));
-		await Assert.That(audioHex).IsEqualTo(Convert.ToHexString(await File.ReadAllBytesAsync(referenceAudio, cancellationToken)));
+		byte[] audioBytes = await File.ReadAllBytesAsync(audio, cancellationToken);
+		byte[] referenceBytes = await File.ReadAllBytesAsync(referenceAudio, cancellationToken);
+		await Assert.That((audioBytes.Length, audioBytes.AsSpan().CommonPrefixLength(referenceBytes))).IsEqualTo((referenceBytes.Length, referenceBytes.Length));
 
 		(_, int videoFrames) = await DecodeAsync(runner, video, cancellationToken);
 		await Assert.That(videoFrames).IsEqualTo((int)(SampleDuration.TotalSeconds * 10));
@@ -127,7 +127,6 @@ public partial class FFmpegIntegrationTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task RemuxKeepsDurationAndCutStopsAtEndAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = CreateRunner();
@@ -152,7 +151,6 @@ public partial class FFmpegIntegrationTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task RemuxWritesChaptersWithSpecialCharactersAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = CreateRunner();
@@ -177,15 +175,13 @@ public partial class FFmpegIntegrationTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(metadata).Contains("title=直播标题\n");
-			await Assert.That(metadata).Contains("title=高能：a\\=b\\;c\\#d\\\\e\n");
-			await Assert.That(metadata.Split(@"[CHAPTER]").Length).IsEqualTo(3);
+			await Assert.That(metadata).Contains("title=直播标题\n").And.Contains("title=高能：a\\=b\\;c\\#d\\\\e\n");
+			await Assert.That(metadata.Split(@"[CHAPTER]")).Count().IsEqualTo(3);
 			await Assert.That(frames).IsEqualTo(20);
 		}
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task ChapterTitlesEndingWithBackslashKeepTheirBoundariesAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = CreateRunner();
@@ -209,14 +205,12 @@ public partial class FFmpegIntegrationTest
 		// 标题末尾多出的空格是为了让 FFmpeg 认出行尾
 		using (Assert.Multiple())
 		{
-			await Assert.That(metadata.Split(@"[CHAPTER]").Length).IsEqualTo(3);
-			await Assert.That(metadata).Contains("START=0\nEND=1000\ntitle=orz\\\\ \n");
-			await Assert.That(metadata).Contains("START=1000\nEND=2000\ntitle=end\\\\ \n");
+			await Assert.That(metadata.Split(@"[CHAPTER]")).Count().IsEqualTo(3);
+			await Assert.That(metadata).Contains("START=0\nEND=1000\ntitle=orz\\\\ \n").And.Contains("START=1000\nEND=2000\ntitle=end\\\\ \n");
 		}
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task RecordSendsHttpHeadersAndSavesStreamAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = CreateRunner();
@@ -233,10 +227,10 @@ public partial class FFmpegIntegrationTest
 			await runner.RunAsync(arguments, stdout => stdout.CopyToAsync(file, cancellationToken), null, cancellationToken);
 		}
 
-		string request = server.RequestHeads.First();
-		await Assert.That(request).StartsWith(@"GET /live.flv?sign=a%2Fb HTTP/1.1");
-		await Assert.That(request).Contains("User-Agent: MediaToolkit-Test/1.0\r\n");
-		await Assert.That(request).Contains("Referer: https://live.bilibili.com/\r\n");
+		await Assert.That(server.RequestHeads.First())
+			.StartsWith(@"GET /live.flv?sign=a%2Fb HTTP/1.1")
+			.And.Contains("User-Agent: MediaToolkit-Test/1.0\r\n")
+			.And.Contains("Referer: https://live.bilibili.com/\r\n");
 
 		(_, int sourceFrames) = await DecodeAsync(runner, flv, cancellationToken);
 		(FFmpegProgress recorded, int recordedFrames) = await DecodeAsync(runner, output, cancellationToken);
@@ -246,7 +240,6 @@ public partial class FFmpegIntegrationTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task CancelledRecordingLeavesPlayableFileAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = CreateRunner();

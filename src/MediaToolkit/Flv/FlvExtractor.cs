@@ -45,13 +45,12 @@ public static class FlvExtractor
 		FlvTrack video = new(videoPath, new AvcAnnexBConverter());
 		FlvTrack audio = new(audioPath, new AacAdtsConverter());
 
-		double? frameRate;
-
 		try
 		{
-			frameRate = await ExtractTagsAsync(input, video, audio, progress, cancellationToken);
+			double? frameRate = await ExtractTagsAsync(input, video, audio, progress, cancellationToken);
 			await video.DisposeAsync();
 			await audio.DisposeAsync();
+			return new FlvExtractResult(video.OutputPath, audio.OutputPath, frameRate);
 		}
 		catch
 		{
@@ -59,8 +58,6 @@ public static class FlvExtractor
 			await audio.DiscardAsync();
 			throw;
 		}
-
-		return new FlvExtractResult(video.OutputPath, audio.OutputPath, video.OutputPath is null ? null : frameRate);
 	}
 
 	private static async Task<double?> ExtractTagsAsync(FileStream input, FlvTrack video, FlvTrack audio, IProgress<double>? progress, CancellationToken cancellationToken)
@@ -103,30 +100,30 @@ public static class FlvExtractor
 					break;
 				}
 
+				// 遇到转换不了的 tag 不能静默返回残缺结果，调用方删除源文件后就找不回来了
 				switch (tag.Type)
 				{
 					case FlvTagType.Video:
 					{
-						if (await video.WriteAsync(tagData, cancellationToken))
+						FlvTagConversion conversion = await video.WriteAsync(tagData, cancellationToken);
+
+						if (conversion is FlvTagConversion.Unsupported)
 						{
-							AddFrame(tag.Timestamp);
+							throw new NotSupportedException(@"The video stream is not H.264 throughout or cannot be parsed.");
 						}
 
-						// 不能静默返回残缺结果，调用方删除源文件后就找不回来了
-						if (video.HasUnsupportedInput)
+						if (conversion is FlvTagConversion.Frame)
 						{
-							throw UnsupportedVideo();
+							AddFrame(tag.Timestamp);
 						}
 
 						break;
 					}
 					case FlvTagType.Audio:
 					{
-						await audio.WriteAsync(tagData, cancellationToken);
-
-						if (audio.HasUnsupportedInput)
+						if (await audio.WriteAsync(tagData, cancellationToken) is FlvTagConversion.Unsupported)
 						{
-							throw UnsupportedAudio();
+							throw new NotSupportedException(@"The audio stream is not AAC throughout or cannot be parsed.");
 						}
 
 						break;
@@ -176,16 +173,6 @@ public static class FlvExtractor
 			reportedStep = step;
 			progress.Report((double)position / length);
 		}
-	}
-
-	private static NotSupportedException UnsupportedVideo()
-	{
-		return new NotSupportedException(@"The video stream is not H.264 throughout or cannot be parsed.");
-	}
-
-	private static NotSupportedException UnsupportedAudio()
-	{
-		return new NotSupportedException(@"The audio stream is not AAC throughout or cannot be parsed.");
 	}
 
 	private static async ValueTask<bool> TryReadExactlyAsync(Stream stream, Memory<byte> buffer, CancellationToken cancellationToken)

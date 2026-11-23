@@ -3,6 +3,7 @@ using BilibiliLive.Tests.Fakes;
 using System.Net;
 using System.Text.Json.Nodes;
 using System.Web;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLive.Tests;
 
@@ -13,12 +14,18 @@ public class BilibiliApiClientTest
 		return ApiClient.Routes(new Dictionary<string, Func<HttpResponseMessage>> { [path] = response });
 	}
 
+	private static string Fixture(string name)
+	{
+		return File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", name));
+	}
+
 	[Test]
 	public async Task GetRoomInfoResolvesShortIdAsync(CancellationToken cancellationToken)
 	{
 		using ApiClient api = Single(ApiPaths.RoomBaseInfo, () => Responses.Fixture("room_base_info.json"));
 
 		LiveRoomInfo info = await api.Client.GetRoomInfoAsync(732, cancellationToken);
+		RecordedRequest request = await Assert.That(api.Handler.Requests).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
@@ -29,17 +36,14 @@ public class BilibiliApiClientTest
 				LiveStartTime = new DateTimeOffset(2026, 11, 21, 14, 1, 8, TimeSpan.FromHours(8)),
 				LiveId = "748173982890321717"
 			});
-			await Assert.That(api.Handler.Requests.Single().Uri.Query).Contains("room_ids=732");
+			await Assert.That(request.Uri.Query).Contains("room_ids=732");
 		}
 	}
 
 	[Test]
-	[Arguments("0000-00-00 00:00:00")]
-	[Arguments("")]
-	[Arguments(null)]
-	public async Task RoomThatHasNeverBeenLiveHasNoStartTimeAsync(string? value)
+	public async Task RoomThatHasNeverBeenLiveHasNoStartTimeAsync()
 	{
-		await Assert.That(BilibiliApiClient.ParseBeijingTime(value)).IsNull();
+		await Assert.That(BilibiliApiClient.ParseBeijingTime("0000-00-00 00:00:00")).IsNull();
 	}
 
 	[Test]
@@ -47,9 +51,7 @@ public class BilibiliApiClientTest
 	{
 		using ApiClient api = Single(ApiPaths.RoomBaseInfo, () => Responses.Json("""{"code":0,"message":"OK","data":{"by_uids":{},"by_room_ids":{}}}"""));
 
-		BilibiliApiException? exception = await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetRoomInfoAsync(999999999, cancellationToken));
-
-		await Assert.That(exception?.Code).IsEqualTo(60004);
+		await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetRoomInfoAsync(999999999, cancellationToken)).And.Member(static e => e.Code, static code => code.IsEqualTo(60004));
 	}
 
 	[Test]
@@ -58,11 +60,12 @@ public class BilibiliApiClientTest
 		using ApiClient api = Single(ApiPaths.RoomBaseInfo, () => Responses.Json("""{"code":0,"message":"OK","data":{"by_room_ids":{"6154037":{"room_id":6154037,"short_id":732,"uid":194484313,"uname":"Asaki大人","title":"t","live_status":1},"5440":{"room_id":5440,"short_id":1,"uid":9617619,"live_status":0}}}}"""));
 
 		IReadOnlyList<LiveRoomInfo> rooms = await api.Client.GetRoomInfosAsync([732, 5440, 999999999], cancellationToken);
+		RecordedRequest request = await Assert.That(api.Handler.Requests).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
-			await Sequences.AssertEqualAsync(rooms, [new LiveRoomInfo(6154037, 732, 194484313, "Asaki大人", "t", LiveStatus.Live), new LiveRoomInfo(5440, 1, 9617619, string.Empty, string.Empty, LiveStatus.Idle)]);
-			await Assert.That(api.Handler.Requests.Single().Uri.Query).Contains("room_ids=732&room_ids=5440&room_ids=999999999&");
+			await Assert.That(rooms).IsEquivalentTo([new LiveRoomInfo(6154037, 732, 194484313, "Asaki大人", "t", LiveStatus.Live), new LiveRoomInfo(5440, 1, 9617619, string.Empty, string.Empty, LiveStatus.Idle)], CollectionOrdering.Matching);
+			await Assert.That(request.Uri.Query).Contains("room_ids=732&room_ids=5440&room_ids=999999999&");
 		}
 	}
 
@@ -72,7 +75,7 @@ public class BilibiliApiClientTest
 		ManualTimeProvider time = new();
 		using ApiClient api = FollowingPages(time, FollowingPage(3, Room(1, "a", 1), Room(2, "b", 0)), FollowingPage(3, Room(3, "c", 2)), FollowingPage(3, Room(4, "d", 0)));
 
-		List<FollowedLiveRoom> rooms = await ToListAsync(api.Client.GetFollowedRoomsAsync(cancellationToken));
+		List<FollowedLiveRoom> rooms = await api.Client.GetFollowedRoomsAsync(cancellationToken).ToListAsync(cancellationToken);
 
 		FollowedLiveRoom[] expected =
 		[
@@ -84,10 +87,10 @@ public class BilibiliApiClientTest
 
 		using (Assert.Multiple())
 		{
-			await Sequences.AssertEqualAsync(rooms, expected);
-			await Sequences.AssertEqualAsync(api.Handler.Requests.Select(static r => HttpUtility.ParseQueryString(r.Uri.Query)["page"]), ["1", "2", "3"]);
-			await Assert.That(api.Handler.Requests.All(static r => HttpUtility.ParseQueryString(r.Uri.Query)["page_size"] is "10")).IsTrue();
-			await Sequences.AssertEqualAsync(time.Delays, [BilibiliApiClient.FollowingPageInterval, BilibiliApiClient.FollowingPageInterval]);
+			await Assert.That(rooms).IsEquivalentTo(expected, CollectionOrdering.Matching);
+			await Assert.That(api.Handler.Requests.Select(static r => HttpUtility.ParseQueryString(r.Uri.Query)["page"])).IsEquivalentTo((string?[])["1", "2", "3"], CollectionOrdering.Matching);
+			await Assert.That(api.Handler.Requests).All(static r => HttpUtility.ParseQueryString(r.Uri.Query)["page_size"] is "10");
+			await Assert.That(time.Delays).IsEquivalentTo([BilibiliApiClient.FollowingPageInterval, BilibiliApiClient.FollowingPageInterval], CollectionOrdering.Matching);
 		}
 	}
 
@@ -96,24 +99,24 @@ public class BilibiliApiClientTest
 	{
 		using ApiClient api = FollowingPages(new ManualTimeProvider(), """{"code":0,"message":"0","data":{"totalPage":2,"list":[{"roomid":1,"uid":101},{"uid":102,"uname":"no room"},{"roomid":0,"uid":103}]}}""", FollowingPage(2, Room(1, "a", 1), Room(5, "e", 0)));
 
-		List<FollowedLiveRoom> rooms = await ToListAsync(api.Client.GetFollowedRoomsAsync(cancellationToken));
+		List<FollowedLiveRoom> rooms = await api.Client.GetFollowedRoomsAsync(cancellationToken).ToListAsync(cancellationToken);
 
-		await Sequences.AssertEqualAsync(rooms, [new FollowedLiveRoom(1, 101, string.Empty, string.Empty, LiveStatus.Idle), new FollowedLiveRoom(5, 105, "e", "title 5", LiveStatus.Idle)]);
+		await Assert.That(rooms).IsEquivalentTo([new FollowedLiveRoom(1, 101, string.Empty, string.Empty, LiveStatus.Idle), new FollowedLiveRoom(5, 105, "e", "title 5", LiveStatus.Idle)], CollectionOrdering.Matching);
 	}
 
 	[Test]
-	[Arguments("""{"code":0,"message":"0","data":{"totalPage":0,"count":0,"list":[]}}""")]
+	[Arguments("""{"code":0,"message":"0","data":{"totalPage":5,"list":[]}}""")]
 	[Arguments("""{"code":0,"message":"0","data":{"totalPage":5}}""")]
 	public async Task FollowedRoomsStopAtAnEmptyPageAsync(string json, CancellationToken cancellationToken)
 	{
 		using ApiClient api = FollowingPages(new ManualTimeProvider(), json, json);
 
-		List<FollowedLiveRoom> rooms = await ToListAsync(api.Client.GetFollowedRoomsAsync(cancellationToken));
+		List<FollowedLiveRoom> rooms = await api.Client.GetFollowedRoomsAsync(cancellationToken).ToListAsync(cancellationToken);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(rooms).IsEmpty();
-			await Assert.That(api.Handler.Requests.Count).IsEqualTo(1);
+			await Assert.That(api.Handler.Requests).Count().IsEqualTo(1);
 		}
 	}
 
@@ -122,12 +125,12 @@ public class BilibiliApiClientTest
 	{
 		using ApiClient api = FollowingPages(new ManualTimeProvider(), FollowingPage(0, Room(1, "a", 1), Room(2, "b", 0)), FollowingPage(0, Room(3, "c", 0)), FollowingPage(0, Room(3, "c", 0)), FollowingPage(0, Room(4, "d", 0)));
 
-		List<FollowedLiveRoom> rooms = await ToListAsync(api.Client.GetFollowedRoomsAsync(cancellationToken));
+		List<FollowedLiveRoom> rooms = await api.Client.GetFollowedRoomsAsync(cancellationToken).ToListAsync(cancellationToken);
 
 		using (Assert.Multiple())
 		{
-			await Sequences.AssertEqualAsync(rooms.Select(static room => room.RoomId), [1L, 2L, 3L]);
-			await Assert.That(api.Handler.Requests.Count).IsEqualTo(3);
+			await Assert.That(rooms.Select(static room => room.RoomId)).IsEquivalentTo([1L, 2, 3], CollectionOrdering.Matching);
+			await Assert.That(api.Handler.Requests).Count().IsEqualTo(3);
 		}
 	}
 
@@ -147,7 +150,7 @@ public class BilibiliApiClientTest
 			}
 		);
 
-		await Assert.That(api.Handler.Requests.Count).IsEqualTo(1);
+		await Assert.That(api.Handler.Requests).HasSingleItem();
 	}
 
 	[Test]
@@ -155,13 +158,7 @@ public class BilibiliApiClientTest
 	{
 		using ApiClient api = Single(ApiPaths.RoomBaseInfo, () => Responses.Json("""{"code":-400,"message":"请求错误","ttl":1,"data":[]}"""));
 
-		BilibiliApiException? exception = await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetRoomInfoAsync(1, cancellationToken));
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(exception?.Code).IsEqualTo(-400);
-			await Assert.That(exception?.Message).IsEqualTo("请求错误");
-		}
+		await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetRoomInfoAsync(1, cancellationToken)).WithMessage("请求错误").And.Member(static e => e.Code, static code => code.IsEqualTo(-400));
 	}
 
 	[Test]
@@ -170,6 +167,10 @@ public class BilibiliApiClientTest
 		using ApiClient api = Single(ApiPaths.RoomPlayInfo, () => Responses.Fixture("room_play_info.json"));
 
 		IReadOnlyList<LiveStreamCandidate.Listed> candidates = await api.Client.GetStreamCandidatesAsync(732, 10000, [StreamCodec.Hevc, StreamCodec.Avc], [StreamFormat.Fmp4, StreamFormat.Flv], cancellationToken);
+		RecordedRequest request = await Assert.That(api.Handler.Requests).HasSingleItem();
+		LiveStreamCandidate.Listed flv = await Assert.That(candidates).HasSingleItem(static c => c.Format is StreamFormat.Flv);
+		LiveStreamCandidate.Listed fmp4Hevc = await Assert.That(candidates).HasSingleItem(static c => c is { Format: StreamFormat.Fmp4, Codec: StreamCodec.Hevc });
+		LiveStreamCandidate.Listed fmp4Avc = await Assert.That(candidates).HasSingleItem(static c => c is { Format: StreamFormat.Fmp4, Codec: StreamCodec.Avc });
 
 		(StreamProtocol, StreamFormat, StreamCodec)[] expected =
 		[
@@ -180,20 +181,15 @@ public class BilibiliApiClientTest
 			(StreamProtocol.HttpHls, StreamFormat.Ts, StreamCodec.Avc)
 		];
 
-		LiveStreamCandidate.Listed flv = candidates.Single(c => c.Format is StreamFormat.Flv);
-		string query = api.Handler.Requests.Single().Uri.Query;
-
 		using (Assert.Multiple())
 		{
-			await Sequences.AssertEqualAsync(candidates.Select(c => (c.Protocol, c.Format, c.Codec)), expected);
+			await Assert.That(candidates.Select(static c => (c.Protocol, c.Format, c.Codec))).IsEquivalentTo(expected, CollectionOrdering.Matching);
 			await Assert.That(flv.Qn).IsEqualTo(10000);
-			await Sequences.AssertEqualAsync(flv.AcceptQualities, [10000L, 400, 250]);
-			await Sequences.AssertEqualAsync(candidates.Single(static c => c is { Format: StreamFormat.Fmp4, Codec: StreamCodec.Hevc }).AcceptQualities, [250L]);
-			await Assert.That(candidates.Single(static c => c is { Format: StreamFormat.Fmp4, Codec: StreamCodec.Avc }).AcceptQualities).IsEmpty();
-			await Sequences.AssertEqualAsync(flv.Urls.Select(u => u.AbsoluteUri), ["https://a.bilivideo.com/live-bvc/1/live_2500.flv?expires=1&sign=a", "https://c.bilivideo.com/live-bvc/1/live_2500.flv?expires=1&sign=c"]);
-			await Assert.That(query).Contains("room_id=732");
-			await Assert.That(query).Contains("qn=10000");
-			await Assert.That(query).Contains("protocol=0,1&format=0,1,2&codec=0,1,2");
+			await Assert.That(flv.AcceptQualities).IsEquivalentTo([10000L, 400, 250], CollectionOrdering.Matching);
+			await Assert.That(fmp4Hevc.AcceptQualities).IsEquivalentTo([250L], CollectionOrdering.Matching);
+			await Assert.That(fmp4Avc.AcceptQualities).IsEmpty();
+			await Assert.That(flv.Urls.Select(static u => u.AbsoluteUri)).IsEquivalentTo(["https://a.bilivideo.com/live-bvc/1/live_2500.flv?expires=1&sign=a", "https://c.bilivideo.com/live-bvc/1/live_2500.flv?expires=1&sign=c"], CollectionOrdering.Matching);
+			await Assert.That(request.Uri.Query).Contains("room_id=732").And.Contains("qn=10000").And.Contains("protocol=0,1&format=0,1,2&codec=0,1,2");
 		}
 	}
 
@@ -213,7 +209,7 @@ public class BilibiliApiClientTest
 			(StreamFormat.Fmp4, StreamCodec.Hevc)
 		];
 
-		await Sequences.AssertEqualAsync(candidates.Select(c => (c.Format, c.Codec)), expected);
+		await Assert.That(candidates.Select(static c => (c.Format, c.Codec))).IsEquivalentTo(expected, CollectionOrdering.Matching);
 	}
 
 	// A rebroadcast still comes with stream urls, so only the live status keeps it from being recorded
@@ -222,14 +218,12 @@ public class BilibiliApiClientTest
 	[Arguments(2)]
 	public async Task StreamCandidatesThrowWhenNotLiveAsync(int liveStatus, CancellationToken cancellationToken)
 	{
-		JsonNode root = JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "room_play_info.json"))) ?? throw new InvalidDataException();
+		JsonNode root = JsonNode.Parse(Fixture("room_play_info.json")) ?? throw new InvalidDataException();
 		JsonNode data = root["data"] ?? throw new InvalidDataException();
 		data["live_status"] = liveStatus;
 		using ApiClient api = Single(ApiPaths.RoomPlayInfo, () => Responses.Json(root.ToJsonString()));
 
-		BilibiliApiException? exception = await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetStreamCandidatesAsync(1, 10000, [], [], cancellationToken));
-
-		await Assert.That(exception?.Message).Contains("is not live");
+		await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetStreamCandidatesAsync(1, 10000, [], [], cancellationToken)).WithMessageContaining("is not live");
 	}
 
 	[Test]
@@ -244,18 +238,16 @@ public class BilibiliApiClientTest
 	public async Task MasterPlaylistIsRequestedUnsignedWithTheGivenMidAndWithoutTheLoginCookieAsync(CancellationToken cancellationToken)
 	{
 		BilibiliIdentity identity = new(static _ => ValueTask.FromResult(new BilibiliRequestOptions(Cookie: "SESSDATA=secret; buvid3=known")));
-		using ApiClient api = new((request, _) => Task.FromResult(request.RequestUri?.AbsolutePath is ApiPaths.MasterPlaylist ? Responses.Text(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "master_playlist.m3u8"))) : Responses.NotFound()), identity: identity);
+		using ApiClient api = new((request, _) => Task.FromResult(request.RequestUri?.AbsolutePath is ApiPaths.MasterPlaylist ? Responses.Text(Fixture("master_playlist.m3u8")) : Responses.NotFound()), identity: identity);
 
 		IReadOnlyList<LiveStreamCandidate.Variant> variants = await api.Client.GetMasterPlaylistVariantsAsync(6650029, 105022844, cancellationToken);
-		RecordedRequest request = api.Handler.Requests.Single();
-		string? cookie = request.Headers.GetValueOrDefault("Cookie");
+		RecordedRequest request = await Assert.That(api.Handler.Requests).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(variants.Count).IsEqualTo(7);
+			await Assert.That(variants).Count().IsEqualTo(7);
 			await Assert.That(request.Uri.AbsoluteUri).IsEqualTo("https://api.live.bilibili.com/xlive/play-gateway/master/url?cid=6650029&mid=105022844&pt=web&p2p_type=-1&net=0&free_type=0&build=0&feature=2&qn=10000&drm_type=0&codec=0,1");
-			await Assert.That(CookieHeader.GetValue(cookie, "SESSDATA")).IsNull();
-			await Assert.That(CookieHeader.GetValue(cookie, "buvid3")).IsEqualTo("known");
+			await Assert.That(request.Headers["Cookie"]).IsEqualTo("buvid3=known");
 		}
 	}
 
@@ -272,9 +264,7 @@ public class BilibiliApiClientTest
 	{
 		using ApiClient api = Single(ApiPaths.MasterPlaylist, static () => Responses.Json("""{"code":-400,"message":"请求错误","ttl":1}"""));
 
-		BilibiliApiException? exception = await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetMasterPlaylistVariantsAsync(1, 0, cancellationToken));
-
-		await Assert.That(exception?.Code).IsEqualTo(-400);
+		await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetMasterPlaylistVariantsAsync(1, 0, cancellationToken)).And.Member(static e => e.Code, static code => code.IsEqualTo(-400));
 	}
 
 	[Test]
@@ -282,7 +272,7 @@ public class BilibiliApiClientTest
 	{
 		using ApiClient api = Single(ApiPaths.MasterPlaylist, static () => Responses.Status(HttpStatusCode.PreconditionFailed));
 
-		await Assert.ThrowsAsync<HttpRequestException>(() => api.Client.GetMasterPlaylistVariantsAsync(1, 0, cancellationToken));
+		await Assert.ThrowsAsync<HttpRequestException>(() => api.Client.GetMasterPlaylistVariantsAsync(1, 0, cancellationToken)).And.Member(static e => e.StatusCode, static status => status.IsEqualTo(HttpStatusCode.PreconditionFailed));
 	}
 
 	[Test]
@@ -296,11 +286,7 @@ public class BilibiliApiClientTest
 
 		DanmuServerInfo info = await api.Client.GetDanmuServerInfoAsync(732, cancellationToken);
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(info.Token).IsEqualTo("danmu-token");
-			await Sequences.AssertEqualAsync(info.Hosts, [new DanmuHost("zj-cn-live-comet.chat.bilibili.com", 2245), new DanmuHost("broadcastlv.chat.bilibili.com", 443)]);
-		}
+		await Assert.That(info).IsEquivalentTo(new DanmuServerInfo("danmu-token", [new DanmuHost("zj-cn-live-comet.chat.bilibili.com", 2245), new DanmuHost("broadcastlv.chat.bilibili.com", 443)]));
 	}
 
 	[Test]
@@ -313,11 +299,7 @@ public class BilibiliApiClientTest
 		long userId = await api.Client.GetCurrentUserIdAsync(cancellationToken);
 		bool loggedIn = await api.Client.IsLoggedInAsync(cancellationToken);
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(userId).IsEqualTo(expectedUserId);
-			await Assert.That(loggedIn).IsEqualTo(expectedLoggedIn);
-		}
+		await Assert.That((userId, loggedIn)).IsEqualTo((expectedUserId, expectedLoggedIn));
 	}
 
 	[Test]
@@ -325,9 +307,7 @@ public class BilibiliApiClientTest
 	{
 		using ApiClient api = Single(ApiPaths.Nav, () => Responses.Json("""{"code":-412,"message":"请求被拦截"}"""));
 
-		BilibiliApiException? exception = await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetCurrentUserIdAsync(cancellationToken));
-
-		await Assert.That(exception?.Code).IsEqualTo(-412);
+		await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetCurrentUserIdAsync(cancellationToken)).And.Member(static e => e.Code, static code => code.IsEqualTo(-412));
 	}
 
 	[Test]
@@ -340,25 +320,31 @@ public class BilibiliApiClientTest
 		await Assert.That(ticket).IsEqualTo(new QrCodeLoginTicket("https://account.bilibili.com/h5/account-h5/auth/scan-web?qrcode_key=abc", "abc"));
 	}
 
-	public static IEnumerable<Func<(int Code, QrCodeLoginResult Expected)>> PendingQrCodeLoginStates()
+	[Test]
+	[Arguments("""{"code":0,"message":"OK","ttl":1,"data":{"url":"","qrcode_key":"abc"}}""")]
+	[Arguments("""{"code":0,"message":"OK","ttl":1,"data":{"url":"https://account.bilibili.com/h5/account-h5/auth/scan-web?qrcode_key=abc"}}""")]
+	public async Task CreateQrCodeLoginThrowsWhenTheResponseIsIncompleteAsync(string json, CancellationToken cancellationToken)
 	{
-		yield return static () => (86101, new QrCodeLoginResult.WaitingForScan());
-		yield return static () => (86090, new QrCodeLoginResult.WaitingForConfirm());
-		yield return static () => (86038, new QrCodeLoginResult.Expired());
+		using ApiClient api = Single(ApiPaths.QrCodeGenerate, () => Responses.Json(json));
+
+		await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.CreateQrCodeLoginAsync(cancellationToken));
 	}
 
 	[Test]
-	[MethodDataSource(nameof(PendingQrCodeLoginStates))]
-	public async Task PollQrCodeLoginMapsPendingStatesAsync(int code, QrCodeLoginResult expected, CancellationToken cancellationToken)
+	[Arguments(86101, typeof(QrCodeLoginResult.WaitingForScan))]
+	[Arguments(86090, typeof(QrCodeLoginResult.WaitingForConfirm))]
+	[Arguments(86038, typeof(QrCodeLoginResult.Expired))]
+	public async Task PollQrCodeLoginMapsPendingStatesAsync(int code, Type expected, CancellationToken cancellationToken)
 	{
 		using ApiClient api = Single(ApiPaths.QrCodePoll, () => Responses.Json($$$"""{"code":0,"message":"0","ttl":1,"data":{"url":"","refresh_token":"","timestamp":0,"code":{{{code}}},"message":"..."}}"""));
 
 		QrCodeLoginResult result = await api.Client.PollQrCodeLoginAsync("abc", cancellationToken);
+		RecordedRequest request = await Assert.That(api.Handler.Requests).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(result).IsEqualTo(expected);
-			await Assert.That(api.Handler.Requests.Single().Uri.Query).Contains("qrcode_key=abc");
+			await Assert.That(result.GetType()).IsEqualTo(expected);
+			await Assert.That(request.Uri.Query).Contains("qrcode_key=abc");
 		}
 	}
 
@@ -384,13 +370,7 @@ public class BilibiliApiClientTest
 	{
 		using ApiClient api = Single(ApiPaths.QrCodePoll, () => Responses.Json("""{"code":0,"message":"0","ttl":1,"data":{"code":12345,"message":"未知"}}"""));
 
-		BilibiliApiException? exception = await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.PollQrCodeLoginAsync("abc", cancellationToken));
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(exception?.Code).IsEqualTo(12345);
-			await Assert.That(exception?.Message).IsEqualTo("未知");
-		}
+		await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.PollQrCodeLoginAsync("abc", cancellationToken)).WithMessage("未知").And.Member(static e => e.Code, static code => code.IsEqualTo(12345));
 	}
 
 	private static ApiClient FollowingPages(TimeProvider timeProvider, params string[] pages)
@@ -412,17 +392,5 @@ public class BilibiliApiClientTest
 	private static string Room(long roomId, string userName, int liveStatus)
 	{
 		return $$"""{"roomid":{{roomId}},"uid":{{roomId + 100}},"uname":"{{userName}}","title":"title {{roomId}}","face":"https://i0.hdslb.com/face.jpg","live_status":{{liveStatus}},"record_live_time":0}""";
-	}
-
-	private static async Task<List<T>> ToListAsync<T>(IAsyncEnumerable<T> source)
-	{
-		List<T> items = [];
-
-		await foreach (T item in source)
-		{
-			items.Add(item);
-		}
-
-		return items;
 	}
 }

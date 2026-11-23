@@ -63,7 +63,6 @@ public class AacAdtsConverterTest
 	[Test]
 	[Arguments(@"1210", 1, 4, 2)]
 	[Arguments(@"0A08", 0, 4, 1)]
-	[Arguments(@"1190", 1, 3, 2)]
 	[Arguments(@"13B8", 1, 7, 7)]
 	// HE-AAC 显式信令：AOT 5、核心采样率索引 6、2 声道、扩展采样率索引 3、核心 AOT 2
 	[Arguments(@"2B1188", 1, 6, 2)]

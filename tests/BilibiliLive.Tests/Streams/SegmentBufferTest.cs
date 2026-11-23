@@ -4,44 +4,42 @@ namespace BilibiliLive.Tests.Streams;
 
 public class SegmentBufferTest
 {
-	[Test]
-	public async Task GrowsPastItsFirstRentalAndKeepsEveryByteAsync(CancellationToken cancellationToken)
+	private static byte[] Content(int length)
 	{
-		byte[] content = [.. Enumerable.Range(0, SegmentBuffer.MinimumCapacity * 5 + 7).Select(i => (byte)(i * 31))];
-		using SegmentBuffer buffer = new(0);
+		return [.. Enumerable.Range(0, length).Select(static i => (byte)(i * 31))];
+	}
+
+	// 第二行的正文比声明的长度还长
+	[Test]
+	[Arguments(SegmentBuffer.MinimumCapacity * 5 + 7, 0, null)]
+	[Arguments(SegmentBuffer.MinimumCapacity * 2 + 3, SegmentBuffer.MinimumCapacity, SegmentBuffer.MinimumCapacity)]
+	public async Task GrowsPastItsFirstRentalAndKeepsEveryByteAsync(int length, int capacity, long? expectedLength, CancellationToken cancellationToken)
+	{
+		byte[] content = Content(length);
+		using SegmentBuffer buffer = new(capacity, expectedLength);
 		using MemoryStream source = new(content);
 
 		await buffer.ReadFromAsync(source, cancellationToken);
+		byte[] read = buffer.Memory.ToArray();
 
-		await Assert.That(buffer.Memory.ToArray().AsSpan().SequenceEqual(content)).IsTrue();
+		await Assert.That((read.Length, read.AsSpan().CommonPrefixLength(content))).IsEqualTo((content.Length, content.Length));
 	}
 
 	[Test]
 	public async Task BodyOfTheAnnouncedLengthThatFillsTheRentalDoesNotGrowItAsync(CancellationToken cancellationToken)
 	{
-		byte[] content = [.. Enumerable.Range(0, SegmentBuffer.MinimumCapacity).Select(i => (byte)(i * 31))];
+		byte[] content = Content(SegmentBuffer.MinimumCapacity);
 		using SegmentBuffer buffer = new(content.Length, content.Length);
 		using MemoryStream source = new(content);
 
 		await buffer.ReadFromAsync(source, cancellationToken);
+		byte[] read = buffer.Memory.ToArray();
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(buffer.Memory.ToArray().AsSpan().SequenceEqual(content)).IsTrue();
+			await Assert.That((read.Length, read.AsSpan().CommonPrefixLength(content))).IsEqualTo((content.Length, content.Length));
 			await Assert.That(buffer.Capacity).IsEqualTo(content.Length);
 		}
-	}
-
-	[Test]
-	public async Task BodyLongerThanAnnouncedKeepsEveryByteAsync(CancellationToken cancellationToken)
-	{
-		byte[] content = [.. Enumerable.Range(0, SegmentBuffer.MinimumCapacity * 2 + 3).Select(i => (byte)(i * 31))];
-		using SegmentBuffer buffer = new(SegmentBuffer.MinimumCapacity, SegmentBuffer.MinimumCapacity);
-		using MemoryStream source = new(content);
-
-		await buffer.ReadFromAsync(source, cancellationToken);
-
-		await Assert.That(buffer.Memory.ToArray().AsSpan().SequenceEqual(content)).IsTrue();
 	}
 
 	[Test]

@@ -12,12 +12,9 @@ internal static class MasterPlaylistVariants
 	/// <exception cref="FormatException">The content is not an HLS playlist.</exception>
 	public static LiveStreamCandidate.Variant[] Parse(string content, Uri playlistUri)
 	{
-		ArgumentNullException.ThrowIfNull(content);
-		ArgumentNullException.ThrowIfNull(playlistUri);
-
 		bool hasHeader = false;
 		(StreamCodec Codec, long Qn)? pending = null;
-		List<(StreamCodec Codec, long Qn, List<Uri> Urls)> variants = [];
+		List<((StreamCodec Codec, long Qn) Key, Uri Url)> entries = [];
 
 		foreach (ReadOnlySpan<char> rawLine in content.AsSpan().EnumerateLines())
 		{
@@ -43,9 +40,9 @@ internal static class MasterPlaylistVariants
 			}
 			else if (line[0] is not '#')
 			{
-				if (pending is { } key && Uri.TryCreate(playlistUri, line.ToString(), out Uri? uri) && uri.Scheme == Uri.UriSchemeHttps)
+				if (pending is { } key && Uri.TryCreate(playlistUri, line.ToString(), out Uri? uri) && uri.Scheme == Uri.UriSchemeHttps && !entries.Contains((key, uri)))
 				{
-					Add(variants, key, uri);
+					entries.Add((key, uri));
 				}
 
 				pending = null;
@@ -57,48 +54,19 @@ internal static class MasterPlaylistVariants
 			throw new FormatException("The response is empty.");
 		}
 
-		return [.. variants.Select(static variant => new LiveStreamCandidate.Variant(variant.Codec, variant.Qn, variant.Urls))];
-	}
-
-	private static void Add(List<(StreamCodec Codec, long Qn, List<Uri> Urls)> variants, (StreamCodec Codec, long Qn) key, Uri uri)
-	{
-		foreach ((StreamCodec codec, long qn, List<Uri> urls) in variants)
-		{
-			if (codec == key.Codec && qn == key.Qn)
-			{
-				if (!urls.Contains(uri))
-				{
-					urls.Add(uri);
-				}
-
-				return;
-			}
-		}
-
-		variants.Add((key.Codec, key.Qn, [uri]));
+		return [.. entries.GroupBy(static entry => entry.Key, static entry => entry.Url).Select(static variant => new LiveStreamCandidate.Variant(variant.Key.Codec, variant.Key.Qn, [.. variant]))];
 	}
 
 	private static (StreamCodec Codec, long Qn)? ParseStreamInf(ReadOnlySpan<char> attributes)
 	{
-		if (!long.TryParse(HlsPlaylist.GetAttribute(attributes, "BILI-QN"), NumberStyles.None, CultureInfo.InvariantCulture, out long qn) || ParseVideoCodec(HlsPlaylist.GetAttribute(attributes, "CODECS")) is not { } codec)
-		{
-			return null;
-		}
-
-		return (codec, qn);
+		return long.TryParse(HlsPlaylist.GetAttribute(attributes, "BILI-QN"), NumberStyles.None, CultureInfo.InvariantCulture, out long qn) && ParseVideoCodec(HlsPlaylist.GetAttribute(attributes, "CODECS")) is { } codec ? (codec, qn) : null;
 	}
 
 	// Some entries name the video codec twice and no audio codec, although their init segments carry both tracks, so only the first codec counts
-	private static StreamCodec? ParseVideoCodec(string? codecs)
+	private static StreamCodec? ParseVideoCodec(ReadOnlySpan<char> codecs)
 	{
-		if (codecs is null)
-		{
-			return null;
-		}
-
-		ReadOnlySpan<char> first = codecs.AsSpan();
-		int comma = first.IndexOf(',');
-		first = (comma < 0 ? first : first.Slice(0, comma)).Trim();
+		int comma = codecs.IndexOf(',');
+		ReadOnlySpan<char> first = (comma < 0 ? codecs : codecs.Slice(0, comma)).Trim();
 		int dot = first.IndexOf('.');
 
 		return (dot < 0 ? first : first.Slice(0, dot)) switch

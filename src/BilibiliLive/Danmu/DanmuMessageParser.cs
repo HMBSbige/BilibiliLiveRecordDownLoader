@@ -114,7 +114,7 @@ internal static class DanmuMessageParser
 		try
 		{
 			using JsonDocument document = JsonDocument.Parse(json);
-			return document.RootElement is { ValueKind: JsonValueKind.Object } root && root.TryGetProperty("code", out JsonElement code) && code is { ValueKind: JsonValueKind.Number } && code.TryGetInt64(out long value) ? value : null;
+			return Get(document.RootElement, "code") is { ValueKind: JsonValueKind.Number } code && code.TryGetInt64(out long value) ? value : null;
 		}
 		catch (JsonException)
 		{

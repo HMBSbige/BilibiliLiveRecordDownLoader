@@ -19,10 +19,10 @@ public class WbiSignerTest
 	}
 
 	[Test]
-	public async Task SignMatchesKnownVectorAsync()
+	public async Task SignMatchesKnownVectorAndReplacesStaleSignatureAsync()
 	{
-		// Example from the public Wbi signing documentation
-		KeyValuePair<string, string>[] parameters = [new("foo", "114"), new("bar", "514"), new("zab", "1919810")];
+		// 公开的 Wbi 签名文档里的例子，另加上一次签名留下的 wts 和 w_rid，它们不能参与签名
+		KeyValuePair<string, string>[] parameters = [new("foo", "114"), new("bar", "514"), new("zab", "1919810"), new("wts", "0"), new("w_rid", "stale")];
 
 		string query = WbiSigner.Sign(parameters, MixinKey(ImgKey, SubKey), 1702204169);
 
@@ -37,15 +37,5 @@ public class WbiSignerTest
 		string query = WbiSigner.Sign(parameters, MixinKey(ImgKey, SubKey), 1);
 
 		await Assert.That(query).StartsWith("q=a%20b%26c%3D%E4%B8%AD&wts=1&w_rid=");
-	}
-
-	[Test]
-	public async Task SignReplacesExistingSignatureParametersAsync()
-	{
-		KeyValuePair<string, string>[] parameters = [new("foo", "114"), new("bar", "514"), new("zab", "1919810"), new("wts", "0"), new("w_rid", "stale")];
-
-		string query = WbiSigner.Sign(parameters, MixinKey(ImgKey, SubKey), 1702204169);
-
-		await Assert.That(query).IsEqualTo("bar=514&foo=114&wts=1702204169&zab=1919810&w_rid=8f6f2b5b3d485fe1886cec6a0be8c5d4");
 	}
 }

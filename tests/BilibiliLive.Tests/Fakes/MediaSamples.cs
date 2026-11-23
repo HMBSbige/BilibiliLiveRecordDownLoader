@@ -9,11 +9,6 @@ internal static partial class MediaSamples
 {
 	private const int PacketSize = 188;
 
-	public static byte[] Flv(string marker)
-	{
-		return [.. "FLV"u8, .. Marker(marker)];
-	}
-
 	public static byte[] TransportStream(string marker, int packets = 3)
 	{
 		byte[] data = new byte[PacketSize * packets];

@@ -1,7 +1,6 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.IO.Compression;
-using System.Runtime.InteropServices;
 
 namespace BilibiliLive.Danmu;
 
@@ -77,14 +76,9 @@ internal readonly record struct DanmuPacket(ushort ProtocolVersion, DanmuOperati
 				{
 					throw new InvalidDataException($"Danmu packets are compressed deeper than {MaxCompressionDepth} levels.");
 				}
-				case ZlibVersion:
+				case ZlibVersion or BrotliVersion:
 				{
-					DecodeInto(Decompress(body, static s => new ZLibStream(s, CompressionMode.Decompress), ref budget), packets, depth + 1, ref budget);
-					break;
-				}
-				case BrotliVersion:
-				{
-					DecodeInto(Decompress(body, static s => new BrotliStream(s, CompressionMode.Decompress), ref budget), packets, depth + 1, ref budget);
+					DecodeInto(Decompress(body, version, ref budget), packets, depth + 1, ref budget);
 					break;
 				}
 				default:
@@ -97,12 +91,10 @@ internal readonly record struct DanmuPacket(ushort ProtocolVersion, DanmuOperati
 	}
 
 	// The budget is shared by every packet of a message, so many small bombs cannot add up either
-	private static ReadOnlyMemory<byte> Decompress(ReadOnlyMemory<byte> body, Func<Stream, Stream> createDecompressor, ref int budget)
+	private static ReadOnlyMemory<byte> Decompress(ReadOnlyMemory<byte> body, ushort version, ref int budget)
 	{
-		using MemoryStream input = MemoryMarshal.TryGetArray(body, out ArraySegment<byte> segment) && segment.Array is { } array
-			? new MemoryStream(array, segment.Offset, segment.Count, false)
-			: new MemoryStream(body.ToArray(), false);
-		using Stream decompressor = createDecompressor(input);
+		using ReadOnlyMemoryStream input = new(body);
+		using Stream decompressor = version is ZlibVersion ? new ZLibStream(input, CompressionMode.Decompress) : new BrotliStream(input, CompressionMode.Decompress);
 		long ratioLimit = (long)body.Length * MaxCompressionRatio;
 		ArrayBufferWriter<byte> output = new();
 
