@@ -1,20 +1,26 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Encodings.Web;
 using System.Text.Json.Serialization.Metadata;
 
 namespace BilibiliLiveRecordDownLoader.Configuration;
 
-public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> storageOptions, ILogger<AppConfigManager> logger) : IAppConfigManager, IDisposable, IAsyncDisposable
+internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> storageOptions, TimeProvider timeProvider, ILogger<AppConfigManager> logger) : IAppConfigManager, IDisposable, IAsyncDisposable
 {
 	private const int ReadAttempts = 3;
+	private const int SaveAttempts = 3;
 	private const UnixFileMode PrivateFileMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
 	private const UnixFileMode PrivateDirectoryMode = PrivateFileMode | UnixFileMode.UserExecute;
 
 	private static readonly TimeSpan ReadRetryDelay = TimeSpan.FromMilliseconds(200);
+	private static readonly TimeSpan SaveRetryDelay = TimeSpan.FromSeconds(1);
 
 	// 逐项清理用的 JsonObject 遇到重复的键会抛 ArgumentException，解析时就拒绝
 	private static readonly JsonDocumentOptions DocumentOptions = new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true, AllowDuplicateProperties = false };
 	private static readonly JsonObject DefaultNode = SerializeToJsonObject(AppConfig.CreateDefault(), AppConfigJsonContext.Default.AppConfig);
 	private static readonly JsonObject DefaultRoomNode = SerializeToJsonObject(new RoomConfig(), AppConfigJsonContext.Default.RoomConfig);
+
+	// 配置允许手改，中文路径等原样写出，不转义成 \uXXXX；文件不会嵌进网页，用不着 HTML 转义
+	private static readonly JsonWriterOptions WriterOptions = new() { Indented = true, IndentCharacter = '\t', IndentSize = 1, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
 	private readonly string _configPath = storageOptions.Value.FilePath;
 	private readonly string? _legacyPath = storageOptions.Value.LegacyFilePath;
@@ -62,12 +68,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 			update(config);
 			config.ApplyDefaults();
 			_isDirty = true;
-
-			if (!_isSaveScheduled)
-			{
-				_isSaveScheduled = true;
-				_ = SaveAfterDelayAsync(_disposal.Token);
-			}
+			ScheduleSave();
 		}
 		finally
 		{
@@ -85,8 +86,8 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		{
 			if (!_disposed)
 			{
-				_disposed = true;
 				SaveCore();
+				_disposed = true;
 			}
 		}
 		finally
@@ -101,21 +102,42 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		return ValueTask.CompletedTask;
 	}
 
+	private void ScheduleSave()
+	{
+		if (!_isSaveScheduled)
+		{
+			_isSaveScheduled = true;
+			_ = SaveAfterDelayAsync(_disposal.Token);
+		}
+	}
+
+	// 杀毒或同步软件可能短暂占用文件，写失败时稍后重试；一直写不进去就留给下一次修改或 Dispose
 	private async Task SaveAfterDelayAsync(CancellationToken cancellationToken)
 	{
 		try
 		{
-			await Task.Delay(_saveDelay, cancellationToken).ConfigureAwait(false);
-			await _lock.WaitAsync(cancellationToken).ConfigureAwait(false);
+			for (int attempt = 1; attempt <= SaveAttempts; ++attempt)
+			{
+				await Task.Delay(attempt is 1 ? _saveDelay : SaveRetryDelay, timeProvider, cancellationToken).ConfigureAwait(false);
+				await _lock.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-			try
-			{
-				_isSaveScheduled = false;
-				SaveCore();
-			}
-			finally
-			{
-				_lock.Release();
+				try
+				{
+					// 先清掉标记：SaveCore 抛异常时之后的修改还能重新排程
+					_isSaveScheduled = false;
+
+					if (SaveCore())
+					{
+						return;
+					}
+
+					// 还要重试时仍算已排程：等待期间的修改不另起一轮，下次重试会一并写入
+					_isSaveScheduled = attempt < SaveAttempts;
+				}
+				finally
+				{
+					_lock.Release();
+				}
 			}
 		}
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -134,7 +156,11 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		{
 			// 恢复或导入的内容要立即写回
 			(_config, _isDirty) = await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
-			SaveCore();
+
+			if (!SaveCore())
+			{
+				ScheduleSave();
+			}
 		}
 
 		return _config;
@@ -152,8 +178,17 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 			// 上次保存在替换文件时中断，新内容还留在临时文件里；只剩备份时视为用户删除配置来重置
 			if (config is null && File.Exists(TempPath))
 			{
-				config = await TryRestoreAsync(TempPath, cancellationToken).ConfigureAwait(false) ?? await TryRestoreAsync(BackupPath, cancellationToken).ConfigureAwait(false);
-				unsaved = config is not null;
+				if (await TryRestoreTempFileAsync(cancellationToken).ConfigureAwait(false) is { } restored)
+				{
+					config = restored;
+					// 临时文件已经完整写好，放回原处就行；重写要先删掉这份唯一的最新内容，写不成就只剩更旧的备份
+					unsaved = !TryMoveTempFileBack();
+				}
+				else
+				{
+					config = await TryRestoreAsync(BackupPath, cancellationToken).ConfigureAwait(false);
+					unsaved = config is not null;
+				}
 			}
 
 			// 没有备份才算第一次运行；用户删配置文件来重置时备份还在，不导入旧版
@@ -191,7 +226,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		return (config, unsaved);
 	}
 
-	private static async ValueTask<AppConfig?> ReadWithRetryAsync(string path, CancellationToken cancellationToken)
+	private async ValueTask<AppConfig?> ReadWithRetryAsync(string path, CancellationToken cancellationToken)
 	{
 		for (int attempt = 1; ; ++attempt)
 		{
@@ -202,7 +237,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 			catch (IOException) when (attempt < ReadAttempts)
 			{
 				// 杀毒或同步软件可能短暂占用文件
-				await Task.Delay(ReadRetryDelay, cancellationToken).ConfigureAwait(false);
+				await Task.Delay(ReadRetryDelay, timeProvider, cancellationToken).ConfigureAwait(false);
 			}
 		}
 	}
@@ -215,7 +250,9 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		}
 
 		await using FileStream stream = File.OpenRead(path);
-		return await JsonSerializer.DeserializeAsync(stream, AppConfigJsonContext.Default.AppConfig, cancellationToken).ConfigureAwait(false);
+		// 顶层的 null 反序列化不报错；不按损坏处理就会当成没有配置，下次保存还会拿它替换掉好的备份
+		return await JsonSerializer.DeserializeAsync(stream, AppConfigJsonContext.Default.AppConfig, cancellationToken).ConfigureAwait(false)
+			?? throw new JsonException("The config is not a JSON object.");
 	}
 
 	// 新版本可能新增了枚举名，手改也可能写错一个值；只让读不出来的值回到默认值，不让整份配置作废
@@ -353,11 +390,46 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		}
 	}
 
+	// 只有内容损坏才退回备份；暂时读不到时按配置读不到处理，退回备份再写盘会先删掉这份唯一的最新内容
+	private async ValueTask<AppConfig?> TryRestoreTempFileAsync(CancellationToken cancellationToken)
+	{
+		try
+		{
+			AppConfig? config = await ReadWithRetryAsync(TempPath, cancellationToken).ConfigureAwait(false);
+
+			if (config is not null)
+			{
+				LogRestored(logger, TempPath);
+			}
+
+			return config;
+		}
+		catch (JsonException exception)
+		{
+			LogConfigCorrupted(logger, exception, TempPath);
+			return null;
+		}
+	}
+
+	private bool TryMoveTempFileBack()
+	{
+		try
+		{
+			File.Move(TempPath, _configPath);
+			return true;
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+		{
+			LogSaveFailed(logger, exception, _configPath);
+			return false;
+		}
+	}
+
 	// 恢复出配置时只复制，写回前损坏的文件留在原处：取消或写回失败时下次照样从备份恢复，移走的话只剩备份会被当成用户删了配置
 	// 没有可恢复的就移走：这时不立即写盘，留在原处每次启动都会再当成损坏处理一遍
 	private void PreserveCorruptedFile(bool isRestored)
 	{
-		string target = $"{_configPath}.corrupt-{DateTimeOffset.Now.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture)}";
+		string target = $"{_configPath}.corrupt-{timeProvider.GetLocalNow().ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture)}";
 
 		try
 		{
@@ -385,17 +457,19 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		}
 	}
 
-	private void SaveCore()
+	// 写盘失败时返回 false；没有要写的也算成功
+	// Dispose 已经做过最后一次写盘，之后才第一次加载时恢复或导入的内容也不再写，下次启动会重新来过
+	private bool SaveCore()
 	{
-		if (_config is null || _isReadOnly || !_isDirty)
+		if (_config is null || _isReadOnly || !_isDirty || _disposed)
 		{
-			return;
+			return true;
 		}
 
+		// 不写默认值，以后调整默认值对老房间同样生效
 		JsonObject node = SerializeToJsonObject(_config, AppConfigJsonContext.Default.AppConfig);
 		RemoveDefaults(node, DefaultNode);
 
-		// 不写默认值，以后调整默认值对老房间同样生效
 		if (node[nameof(AppConfig.Rooms)] is JsonArray rooms)
 		{
 			foreach (JsonObject room in rooms.OfType<JsonObject>())
@@ -408,12 +482,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		{
 			CreateConfigDirectory();
 			File.Delete(TempPath);
-
-			using (FileStream stream = new(TempPath, CreateTempFileOptions()))
-			{
-				JsonSerializer.Serialize(stream, node, AppConfigJsonContext.Default.JsonObject);
-				stream.Flush(true);
-			}
+			WriteTempFile(node);
 
 			if (File.Exists(_configPath))
 			{
@@ -427,11 +496,22 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 
 			_isDirty = false;
 			_isCorruptFileInPlace = false;
+			return true;
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
 			LogSaveFailed(logger, exception, _configPath);
+			return false;
 		}
+	}
+
+	private void WriteTempFile(JsonObject node)
+	{
+		using FileStream stream = new(TempPath, CreateTempFileOptions());
+		using Utf8JsonWriter writer = new(stream, WriterOptions);
+		node.WriteTo(writer);
+		writer.Flush();
+		stream.Flush(true);
 	}
 
 	private static void RemoveDefaults(JsonObject node, JsonObject defaults)
@@ -505,7 +585,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
-			LogSaveFailed(logger, exception, path);
+			LogPermissionsNotRestricted(logger, exception, path);
 		}
 	}
 
@@ -534,4 +614,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 
 	[LoggerMessage(Level = LogLevel.Error, Message = "Failed to save config file {Path}")]
 	private static partial void LogSaveFailed(ILogger logger, Exception exception, string path);
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Cannot restrict the permissions of {Path}")]
+	private static partial void LogPermissionsNotRestricted(ILogger logger, Exception exception, string path);
 }

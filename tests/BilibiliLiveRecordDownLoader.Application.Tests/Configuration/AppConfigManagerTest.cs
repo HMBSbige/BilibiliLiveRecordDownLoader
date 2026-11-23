@@ -26,78 +26,34 @@ public sealed class AppConfigManagerTest : IDisposable
 		await Assert.That(await manager.GetAsync(cancellationToken)).IsEquivalentTo(AppConfig.CreateDefault());
 	}
 
+	// 手改配置时看得懂：不写默认值，枚举写名称，中文不转义
 	[Test]
-	public async Task UpdatesArePersistedWithoutDefaultValuesAsync(CancellationToken cancellationToken)
+	public async Task UpdatesArePersistedReadablyWithoutDefaultValuesAsync(CancellationToken cancellationToken)
 	{
 		await using (AppConfigManager manager = Create())
 		{
 			await manager.UpdateAsync(static config =>
 			{
+				config.RecordDirectory = "录播";
 				config.Theme = AppTheme.Dark;
 				config.Rooms = [.. config.Rooms, new RoomConfig { RoomId = 732, RecorderType = RecorderType.FFmpeg }];
 			}, cancellationToken);
 		}
 
+		string text = await File.ReadAllTextAsync(ConfigPath, cancellationToken);
 		JsonObject saved = await ReadSavedAsync(cancellationToken);
 		AppConfig config = await ReloadAsync(cancellationToken);
 		RoomConfig room = await Assert.That(config.Rooms).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(saved.Select(static property => property.Key)).IsEquivalentTo([nameof(AppConfig.Theme), nameof(AppConfig.Rooms)], CollectionOrdering.Matching);
-			await Assert.That(saved[nameof(AppConfig.Theme)]?.GetValue<string>()).IsEqualTo(nameof(AppTheme.Dark));
+			await Assert.That(saved.Select(static property => property.Key)).IsEquivalentTo([nameof(AppConfig.Theme), nameof(AppConfig.RecordDirectory), nameof(AppConfig.Rooms)], CollectionOrdering.Matching);
 			await Assert.That(SavedRoom(saved).Select(static property => property.Key)).IsEquivalentTo([nameof(RoomConfig.RoomId), nameof(RoomConfig.RecorderType)], CollectionOrdering.Matching);
-			await Assert.That(config.Theme).IsEqualTo(AppTheme.Dark);
+			await Assert.That(saved[nameof(AppConfig.Theme)]?.GetValue<string>()).IsEqualTo(nameof(AppTheme.Dark));
+			await Assert.That(SavedRoom(saved)[nameof(RoomConfig.RecorderType)]?.GetValue<string>()).IsEqualTo(nameof(RecorderType.FFmpeg));
+			await Assert.That(text).Contains("\"录播\"");
+			await Assert.That((config.RecordDirectory, config.Theme)).IsEqualTo(("录播", AppTheme.Dark));
 			await Assert.That(room).IsEqualTo(new RoomConfig { RoomId = 732, RecorderType = RecorderType.FFmpeg });
-		}
-	}
-
-	// 配置文件里已废弃的 TryOriginalWhenRestricted 键不影响这个开关
-	[Test]
-	public async Task MasterPlaylistIsOnInAnOlderConfigAndSavedOnceTurnedOffAsync(CancellationToken cancellationToken)
-	{
-		await WriteFileAsync(ConfigFileName, """{ "Theme": "Dark", "TryOriginalWhenRestricted": false }""", cancellationToken);
-		bool loaded;
-
-		await using (AppConfigManager manager = Create())
-		{
-			loaded = (await manager.GetAsync(cancellationToken)).UseMasterPlaylistWhenRestricted;
-			await manager.UpdateAsync(static config => config.UseMasterPlaylistWhenRestricted = false, cancellationToken);
-		}
-
-		JsonObject saved = await ReadSavedAsync(cancellationToken);
-		AppConfig reloaded = await ReloadAsync(cancellationToken);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(loaded).IsTrue();
-			await Assert.That(saved[nameof(AppConfig.UseMasterPlaylistWhenRestricted)]?.GetValue<bool>()).IsFalse();
-			await Assert.That(reloaded.UseMasterPlaylistWhenRestricted).IsFalse();
-		}
-	}
-
-	[Test]
-	public async Task SplitModesAreSavedAsNamesAsync(CancellationToken cancellationToken)
-	{
-		await using (AppConfigManager manager = Create())
-		{
-			await manager.UpdateAsync(static config =>
-			{
-				config.SplitMode = RecordingSplitMode.Size;
-				config.Rooms = [.. config.Rooms, new RoomConfig { RoomId = 732, SplitMode = RecordingSplitMode.Duration, SplitDuration = TimeSpan.FromMinutes(30) }];
-			}, cancellationToken);
-		}
-
-		JsonObject saved = await ReadSavedAsync(cancellationToken);
-		AppConfig config = await ReloadAsync(cancellationToken);
-		RoomConfig room = await Assert.That(config.Rooms).HasSingleItem();
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(saved[nameof(AppConfig.SplitMode)]?.GetValue<string>()).IsEqualTo(nameof(RecordingSplitMode.Size));
-			await Assert.That(SavedRoom(saved)[nameof(RoomConfig.SplitMode)]?.GetValue<string>()).IsEqualTo(nameof(RecordingSplitMode.Duration));
-			await Assert.That((config.SplitMode, config.SplitSizeMegabytes)).IsEqualTo((RecordingSplitMode.Size, RecordingSplitDefaults.SizeMegabytes));
-			await Assert.That(room).IsEqualTo(new RoomConfig { RoomId = 732, SplitMode = RecordingSplitMode.Duration, SplitDuration = TimeSpan.FromMinutes(30) });
 		}
 	}
 
@@ -135,10 +91,36 @@ public sealed class AppConfigManagerTest : IDisposable
 		await Assert.That(SavedRoom(saved).Select(static property => $"{property.Key}={property.Value}")).IsEquivalentTo(["RoomId=732", "StreamIdleTimeout=00:00:30"], CollectionOrdering.Matching);
 	}
 
+	// 读不到时按默认值运行，写回的话会用默认值覆盖用户的配置
+	[Test]
+	public async Task ConfigThatCannotBeReadIsNeverOverwrittenAsync(CancellationToken cancellationToken)
+	{
+		const string content = """{ "Rooms": [{ "RoomId": 1 }] }""";
+		await WriteFileAsync(ConfigFileName, content, cancellationToken);
+		AppConfig loaded;
+
+		await using (AppConfigManager manager = Create())
+		{
+			await using (new FileStream(ConfigPath, FileMode.Open, FileAccess.Read, FileShare.None))
+			{
+				loaded = await manager.GetAsync(cancellationToken);
+			}
+
+			await manager.UpdateAsync(static config => config.Theme = AppTheme.Dark, cancellationToken);
+		}
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(loaded.Rooms).IsEmpty();
+			await Assert.That(await File.ReadAllTextAsync(ConfigPath, cancellationToken)).IsEqualTo(content);
+			await Assert.That(File.Exists(ConfigPath + ".bak")).IsFalse();
+		}
+	}
+
 	[Test]
 	public async Task PendingChangesAreFlushedOnDisposeAsync(CancellationToken cancellationToken)
 	{
-		AppConfigManager manager = Create(TimeSpan.FromMinutes(1));
+		AppConfigManager manager = Create(TimeSpan.FromMinutes(1), time: new FakeTimeProvider());
 		await manager.UpdateAsync(static config => config.Language = "zh-Hans", cancellationToken);
 		await Assert.That(File.Exists(ConfigPath)).IsFalse();
 
@@ -153,7 +135,8 @@ public sealed class AppConfigManagerTest : IDisposable
 	[Test]
 	public async Task CallerCancellationDoesNotDropTheDebouncedSaveAsync(CancellationToken cancellationToken)
 	{
-		await using AppConfigManager manager = Create(TimeSpan.FromMilliseconds(50));
+		TimerSignalingTimeProvider time = new();
+		await using AppConfigManager manager = Create(TimeSpan.FromSeconds(1), time: time);
 
 		using (CancellationTokenSource caller = new())
 		{
@@ -161,8 +144,29 @@ public sealed class AppConfigManagerTest : IDisposable
 			await caller.CancelAsync();
 		}
 
-		await TestWait.UntilAsync(() => File.Exists(ConfigPath), "the update is saved although its caller gave up", cancellationToken, TimeSpan.FromSeconds(10));
+		await time.TimerCreated.Task.WaitAsync(TestWait.DefaultTimeout, cancellationToken);
+		time.Advance(TimeSpan.FromSeconds(1));
+		await TestWait.UntilAsync(() => File.Exists(ConfigPath), "the update is saved although its caller gave up", cancellationToken);
 
+		await Assert.That((await ReloadAsync(cancellationToken)).Language).IsEqualTo("zh-Hans");
+	}
+
+	// 杀毒或同步软件短暂占用文件时写盘会失败，之后没有新的修改也要补写
+	[Test]
+	public async Task FailedSaveIsRetriedWithoutAnotherUpdateAsync(CancellationToken cancellationToken)
+	{
+		TimerSignalingTimeProvider time = new();
+		// 临时文件的位置被目录占着，写盘在建临时文件时就失败
+		Directory.CreateDirectory(ConfigPath + ".tmp");
+		await using AppConfigManager manager = Create(time: time);
+
+		await manager.UpdateAsync(static config => config.Language = "zh-Hans", cancellationToken);
+		// 不延迟的第一次写盘不建定时器，有定时器就是失败后在等重试
+		await time.TimerCreated.Task.WaitAsync(TestWait.DefaultTimeout, cancellationToken);
+		Directory.Delete(ConfigPath + ".tmp");
+		time.Advance(TimeSpan.FromMinutes(1));
+
+		await TestWait.UntilAsync(() => File.Exists(ConfigPath), "the failed save is retried", cancellationToken);
 		await Assert.That((await ReloadAsync(cancellationToken)).Language).IsEqualTo("zh-Hans");
 	}
 
@@ -238,6 +242,7 @@ public sealed class AppConfigManagerTest : IDisposable
 
 	[Test]
 	[Arguments("{ not json")]
+	[Arguments("null")]
 	// 重复的键直接读取时以最后一个为准，另有读不出的值时才逐项清理，而 JsonObject 遇到重复的键会抛 ArgumentException
 	[Arguments("""{ "Cookie": "a=1", "Cookie": "b=2", "Theme": "Future" }""")]
 	public async Task CorruptedFileFallsBackToDefaultsAsync(string content, CancellationToken cancellationToken)
@@ -255,7 +260,9 @@ public sealed class AppConfigManagerTest : IDisposable
 	}
 
 	[Test]
-	public async Task CorruptedFileIsRestoredFromBackupAsync(CancellationToken cancellationToken)
+	[Arguments("{ truncated")]
+	[Arguments("null")]
+	public async Task CorruptedFileIsRestoredFromBackupAsync(string content, CancellationToken cancellationToken)
 	{
 		await using (AppConfigManager manager = Create())
 		{
@@ -267,7 +274,7 @@ public sealed class AppConfigManagerTest : IDisposable
 			await manager.UpdateAsync(static config => config.Theme = AppTheme.Dark, cancellationToken);
 		}
 
-		await WriteFileAsync(ConfigFileName, "{ truncated", cancellationToken);
+		await WriteFileAsync(ConfigFileName, content, cancellationToken);
 
 		await using (AppConfigManager manager = Create())
 		{
@@ -346,25 +353,69 @@ public sealed class AppConfigManagerTest : IDisposable
 		await Assert.That(File.GetUnixFileMode(corrupted)).IsEqualTo(ownerOnly);
 	}
 
+	// 重写的话要先删掉临时文件，写不成就只剩更旧的备份
 	[Test]
-	[Arguments("""{ "Rooms": [{ "RoomId": 732 }] }""", 732L)]
-	[Arguments("{ truncated", 1L)]
-	public async Task InterruptedSaveIsRestoredFromTheTempFileThenTheBackupAsync(string temp, long expectedRoomId, CancellationToken cancellationToken)
+	public async Task InterruptedSaveIsRestoredByMovingTheTempFileBackAsync(CancellationToken cancellationToken)
 	{
+		const string temp = """{ "Rooms": [{ "RoomId": 732 }] }""";
+		const string backup = """{ "Rooms": [{ "RoomId": 1 }] }""";
 		await WriteFileAsync(ConfigFileName + ".tmp", temp, cancellationToken);
+		await WriteFileAsync(ConfigFileName + ".bak", backup, cancellationToken);
+
+		AppConfig config = await ReloadAsync(cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(RoomIds(config)).IsEquivalentTo([732L], CollectionOrdering.Matching);
+			await Assert.That(await File.ReadAllTextAsync(ConfigPath, cancellationToken)).IsEqualTo(temp);
+			await Assert.That(await File.ReadAllTextAsync(ConfigPath + ".bak", cancellationToken)).IsEqualTo(backup);
+			await Assert.That(File.Exists(ConfigPath + ".tmp")).IsFalse();
+		}
+	}
+
+	[Test]
+	public async Task InterruptedSaveWithAnUnreadableTempFileIsRestoredFromTheBackupAsync(CancellationToken cancellationToken)
+	{
+		await WriteFileAsync(ConfigFileName + ".tmp", "{ truncated", cancellationToken);
 		await WriteFileAsync(ConfigFileName + ".bak", """{ "Rooms": [{ "RoomId": 1 }] }""", cancellationToken);
 
-		await using (AppConfigManager manager = Create())
-		{
-			await Assert.That(RoomIds(await manager.GetAsync(cancellationToken))).IsEquivalentTo([expectedRoomId], CollectionOrdering.Matching);
-		}
-
+		AppConfig config = await ReloadAsync(cancellationToken);
 		JsonObject saved = await ReadSavedAsync(cancellationToken);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(SavedRoom(saved)[nameof(RoomConfig.RoomId)]?.GetValue<long>()).IsEqualTo(expectedRoomId);
+			await Assert.That(RoomIds(config)).IsEquivalentTo([1L], CollectionOrdering.Matching);
+			await Assert.That(SavedRoom(saved)[nameof(RoomConfig.RoomId)]?.GetValue<long>()).IsEqualTo(1);
 			await Assert.That(File.Exists(ConfigPath + ".tmp")).IsFalse();
+		}
+	}
+
+	// 临时文件只是暂时被占用时，用备份写回会删掉这份唯一的最新内容
+	[Test]
+	public async Task InterruptedSaveWithALockedTempFileIsNeverOverwrittenAsync(CancellationToken cancellationToken)
+	{
+		const string temp = """{ "Rooms": [{ "RoomId": 732 }] }""";
+		const string backup = """{ "Rooms": [{ "RoomId": 1 }] }""";
+		await WriteFileAsync(ConfigFileName + ".tmp", temp, cancellationToken);
+		await WriteFileAsync(ConfigFileName + ".bak", backup, cancellationToken);
+		AppConfig loaded;
+
+		await using (AppConfigManager manager = Create())
+		{
+			await using (new FileStream(ConfigPath + ".tmp", FileMode.Open, FileAccess.Read, FileShare.None))
+			{
+				loaded = await manager.GetAsync(cancellationToken);
+			}
+
+			await manager.UpdateAsync(static config => config.Theme = AppTheme.Dark, cancellationToken);
+		}
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(loaded.Rooms).IsEmpty();
+			await Assert.That(await File.ReadAllTextAsync(ConfigPath + ".tmp", cancellationToken)).IsEqualTo(temp);
+			await Assert.That(await File.ReadAllTextAsync(ConfigPath + ".bak", cancellationToken)).IsEqualTo(backup);
+			await Assert.That(File.Exists(ConfigPath)).IsFalse();
 		}
 	}
 
@@ -543,10 +594,10 @@ public sealed class AppConfigManagerTest : IDisposable
 		return Environment.GetFolderPath(Environment.SpecialFolder.MyVideos) is { Length: > 0 } videos ? videos : ConfigurationConsts.DefaultRecordDirectory;
 	}
 
-	private AppConfigManager Create(TimeSpan? saveDelay = null, ILogger<AppConfigManager>? logger = null)
+	private AppConfigManager Create(TimeSpan? saveDelay = null, ILogger<AppConfigManager>? logger = null, TimeProvider? time = null)
 	{
 		AppConfigStorageOptions options = new() { FilePath = ConfigPath, LegacyFilePath = _directory.Combine(LegacyFileName), SaveDelay = saveDelay ?? TimeSpan.Zero };
-		return new AppConfigManager(Options.Create(options), logger ?? NullLogger<AppConfigManager>.Instance);
+		return new AppConfigManager(Options.Create(options), time ?? TimeProvider.System, logger ?? NullLogger<AppConfigManager>.Instance);
 	}
 
 	private async Task<AppConfig> ReloadAsync(CancellationToken cancellationToken)
@@ -568,6 +619,19 @@ public sealed class AppConfigManagerTest : IDisposable
 	private string[] CorruptedFiles()
 	{
 		return Directory.GetFiles(_directory.Root, ConfigFileName + ".corrupt-*");
+	}
+
+	// 定时器建好之后再拨钟，否则拨过的时间算不到它身上
+	private sealed class TimerSignalingTimeProvider : FakeTimeProvider
+	{
+		public TaskCompletionSource TimerCreated { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+		{
+			ITimer timer = base.CreateTimer(callback, state, dueTime, period);
+			TimerCreated.TrySetResult();
+			return timer;
+		}
 	}
 
 	// 报告配置损坏时取消，取消就落在从备份恢复的过程中

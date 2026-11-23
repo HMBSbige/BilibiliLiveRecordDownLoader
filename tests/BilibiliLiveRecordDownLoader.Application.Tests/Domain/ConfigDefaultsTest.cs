@@ -67,8 +67,7 @@ public sealed class ConfigDefaultsTest
 			StreamIdleTimeout = TimeSpan.MaxValue
 		}.Normalize();
 
-		TimeSpan max = TimeSpan.FromSeconds((double)RoomDefaults.MaxIntervalSeconds);
-		await Assert.That([room.StatusCheckInterval, room.DanmuReconnectDelay, room.StreamReconnectDelay, room.StreamConnectTimeout, room.StreamIdleTimeout]).All(value => value == max);
+		await Assert.That([room.StatusCheckInterval, room.DanmuReconnectDelay, room.StreamReconnectDelay, room.StreamConnectTimeout, room.StreamIdleTimeout]).All(static value => value == RoomDefaults.MaxInterval);
 	}
 
 	[Test]

@@ -2,4 +2,7 @@
   <ItemGroup>
     <ProjectReference Include="..\BilibiliLiveRecordDownLoader.Domain\BilibiliLiveRecordDownLoader.Domain.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="BilibiliLiveRecordDownLoader.Application.Tests" />
+  </ItemGroup>
 </Project>

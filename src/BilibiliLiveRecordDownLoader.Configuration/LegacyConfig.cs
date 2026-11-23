@@ -87,7 +87,7 @@ internal static class LegacyConfig
 		if (from[fromName] is JsonValue value && value.TryGetValue(out double seconds) && double.IsFinite(seconds))
 		{
 			// 加载时还会按设置的范围限制，这里只防转换溢出
-			to[toName] = JsonValue.Create(TimeSpan.FromSeconds(Math.Clamp(seconds, 0, (double)RoomDefaults.MaxIntervalSeconds)).ToString("c", CultureInfo.InvariantCulture));
+			to[toName] = JsonValue.Create(TimeSpan.FromSeconds(Math.Clamp(seconds, 0, RoomDefaults.MaxInterval.TotalSeconds)).ToString("c", CultureInfo.InvariantCulture));
 		}
 	}
 

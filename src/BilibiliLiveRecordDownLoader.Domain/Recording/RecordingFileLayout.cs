@@ -114,7 +114,7 @@ public static class RecordingFileLayout
 			return null;
 		}
 
-		string cleaned = string.Concat(title.Trim().EnumerateRunes().Select(static rune => Rune.IsControl(rune) || rune.IsBmp && InvalidFileNameChars.Contains((char)rune.Value) ? "_" : rune.ToString()));
+		string cleaned = string.Concat(title.Trim().EnumerateRunes().Select(static rune => Rune.IsControl(rune) || (rune.IsBmp && InvalidFileNameChars.Contains((char)rune.Value)) ? "_" : rune.ToString()));
 
 		// 按完整的字符截断，不把 emoji 拆开
 		int length = 0;

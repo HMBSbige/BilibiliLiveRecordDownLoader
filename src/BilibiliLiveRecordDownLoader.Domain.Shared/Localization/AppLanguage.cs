@@ -11,7 +11,7 @@ public static partial class AppLanguage
 {
 	public static event EventHandler? CurrentChanged;
 
-	// 系统的区域格式，要在 SetCurrent 改掉当前区域性之前取
+	// 系统的区域格式，要在 SetCurrent 改掉当前区域性之前取；生成的部分带静态构造函数，第一次调用 SetCurrent 时会先初始化
 	public static CultureInfo SystemCulture { get; } = CultureInfo.CurrentCulture;
 
 	public static void SetCurrent(CultureInfo uiCulture, CultureInfo formatCulture)

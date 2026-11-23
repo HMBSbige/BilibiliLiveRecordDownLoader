@@ -27,7 +27,7 @@ public static class ConfigValues
 
 	public static TimeSpan ClampRoomInterval(TimeSpan interval, decimal minimumSeconds)
 	{
-		return Clamp(interval, TimeSpan.FromSeconds((double)minimumSeconds), TimeSpan.FromSeconds((double)RoomDefaults.MaxIntervalSeconds));
+		return Clamp(interval, TimeSpan.FromSeconds((double)minimumSeconds), RoomDefaults.MaxInterval);
 	}
 
 	public static string? NormalizeText(string? value)

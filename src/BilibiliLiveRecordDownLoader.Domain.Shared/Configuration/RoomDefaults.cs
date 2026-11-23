@@ -21,6 +21,8 @@ public static class RoomDefaults
 	// 只为挡住输错的大数，太大时定时器和等待会抛异常
 	public const decimal MaxIntervalSeconds = 24 * 60 * 60;
 
+	public static TimeSpan MaxInterval { get; } = TimeSpan.FromSeconds((double)MaxIntervalSeconds);
+
 	public static TimeSpan StatusCheckInterval { get; } = TimeSpan.FromMinutes(5);
 
 	public static TimeSpan DanmuReconnectDelay { get; } = TimeSpan.FromSeconds(2);
