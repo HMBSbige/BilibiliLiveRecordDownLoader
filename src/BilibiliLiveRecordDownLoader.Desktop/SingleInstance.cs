@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace BilibiliLiveRecordDownLoader.Desktop;
 
 internal sealed partial class SingleInstance : IDisposable
@@ -13,7 +15,9 @@ internal sealed partial class SingleInstance : IDisposable
 	public SingleInstance(string id)
 	{
 		// 按用户隔离；用哈希缩短名称，Unix 域套接字路径有长度限制
-		_name = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"{id}\0{Environment.UserName}")).AsSpan(0, 12));
+		// Windows 上互斥量按会话隔离，命名管道却不分会话；名称不带会话时，后启动的会话建不了管道，激活请求还会发到别的会话
+		string scope = OperatingSystem.IsWindows() ? $"{id}\0{Environment.UserName}\0{GetSessionId()}" : $"{id}\0{Environment.UserName}";
+		_name = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(scope)).AsSpan(0, 12));
 
 		// Unix 上的“会话”是进程会话，不同终端启动的进程互不相同
 		_mutex = new Mutex(false, _name, new NamedWaitHandleOptions { CurrentUserOnly = true, CurrentSessionOnly = OperatingSystem.IsWindows() });
@@ -89,11 +93,18 @@ internal sealed partial class SingleInstance : IDisposable
 			{
 				return;
 			}
-			catch (IOException)
+			// 同名管道被别的进程占着时创建会被拒绝，等它释放再建，不让监听就此结束
+			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 			{
 				await Task.Delay(RetryDelay, cancellationToken).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 			}
 		}
+	}
+
+	private static int GetSessionId()
+	{
+		using Process process = Process.GetCurrentProcess();
+		return process.SessionId;
 	}
 
 	[LibraryImport("kernel32.dll")]
