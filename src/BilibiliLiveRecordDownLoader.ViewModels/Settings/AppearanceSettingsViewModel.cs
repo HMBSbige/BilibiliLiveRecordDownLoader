@@ -2,7 +2,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.Settings;
 
 public sealed partial class AppearanceSettingsViewModel(IAppConfigManager configManager, IThemeService themeService) : ViewModelBase
 {
-	public IReadOnlyList<AppTheme> ThemeOptions { get; } = Enum.GetValues<AppTheme>();
+	public IReadOnlyList<ChoiceOption> ThemeOptions { get; } = ChoiceOption.Of(Enum.GetValues<AppTheme>());
 
 	// 语言名为空的一项表示跟随系统
 	public ObservableCollection<LanguageOptionViewModel> Languages { get; } =

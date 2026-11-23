@@ -54,13 +54,13 @@
                     <Grid Classes="form" ColumnDefinitions="*,*">
                         <StackPanel Grid.Column="0" Classes="field">
                             <TextBlock Text="{Binding RecorderType, Source={x:Static l:AppLanguage.Current}}" />
-                            <ComboBox ItemsSource="{Binding RecorderTypeOptions}" SelectedItem="{Binding RecorderType}"
-                                      ItemTemplate="{StaticResource LocalizedLabel}" />
+                            <ComboBox ItemsSource="{Binding RecorderTypeOptions}" SelectedValue="{Binding RecorderType}"
+                                      SelectedValueBinding="{Binding Value}" ItemTemplate="{StaticResource LocalizedLabel}" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Classes="field">
                             <TextBlock Text="{Binding StreamHostSelection, Source={x:Static l:AppLanguage.Current}}" />
-                            <ComboBox ItemsSource="{Binding HostSelectionOptions}" SelectedItem="{Binding HostSelection}"
-                                      ItemTemplate="{StaticResource LocalizedLabel}" />
+                            <ComboBox ItemsSource="{Binding HostSelectionOptions}" SelectedValue="{Binding HostSelection}"
+                                      SelectedValueBinding="{Binding Value}" ItemTemplate="{StaticResource LocalizedLabel}" />
                         </StackPanel>
                     </Grid>
                     <StackPanel Classes="field">
@@ -85,8 +85,8 @@
                     <Grid Classes="form" ColumnDefinitions="*,*">
                         <StackPanel Grid.Column="0" Classes="field">
                             <TextBlock Text="{Binding RecordingSplit, Source={x:Static l:AppLanguage.Current}}" />
-                            <ComboBox ItemsSource="{Binding SplitModeOptions}" SelectedItem="{Binding SplitMode}"
-                                      ItemTemplate="{StaticResource LocalizedLabel}" />
+                            <ComboBox ItemsSource="{Binding SplitModeOptions}" SelectedValue="{Binding SplitMode}"
+                                      SelectedValueBinding="{Binding Value}" ItemTemplate="{StaticResource LocalizedLabel}" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Classes="field" IsVisible="{Binding IsSplitByDuration}">
                             <TextBlock Text="{Binding SplitDuration, Source={x:Static l:AppLanguage.Current}}" />
@@ -118,8 +118,8 @@
                     <Grid Classes="form" ColumnDefinitions="*,*">
                         <StackPanel Grid.Column="0" Classes="field">
                             <TextBlock Text="{Binding RecordGifts, Source={x:Static l:AppLanguage.Current}}" />
-                            <ComboBox ItemsSource="{Binding GiftModeOptions}" SelectedItem="{Binding GiftMode}"
-                                      ItemTemplate="{StaticResource LocalizedLabel}" />
+                            <ComboBox ItemsSource="{Binding GiftModeOptions}" SelectedValue="{Binding GiftMode}"
+                                      SelectedValueBinding="{Binding Value}" ItemTemplate="{StaticResource LocalizedLabel}" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Classes="field">
                             <TextBlock Text="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}" />
@@ -196,23 +196,13 @@
                     <Grid Classes="form" ColumnDefinitions="*,*">
                         <StackPanel Grid.Column="0" Classes="field">
                             <TextBlock Text="{Binding Theme, Source={x:Static l:AppLanguage.Current}}" />
-                            <ComboBox ItemsSource="{Binding ThemeOptions}" SelectedItem="{Binding Theme}"
-                                      ItemTemplate="{StaticResource LocalizedLabel}" />
+                            <ComboBox ItemsSource="{Binding ThemeOptions}" SelectedValue="{Binding Theme}"
+                                      SelectedValueBinding="{Binding Value}" ItemTemplate="{StaticResource LocalizedLabel}" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Classes="field">
                             <TextBlock Text="{Binding Language, Source={x:Static l:AppLanguage.Current}}" />
-                            <ComboBox ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage}">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate x:DataType="settings:LanguageOptionViewModel">
-                                        <Panel>
-                                            <TextBlock Text="{Binding DisplayName}"
-                                                       IsVisible="{Binding CultureName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                            <TextBlock Text="{Binding FollowSystem, Source={x:Static l:AppLanguage.Current}}"
-                                                       IsVisible="{Binding CultureName, Converter={x:Static StringConverters.IsNullOrEmpty}}" />
-                                        </Panel>
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
+                            <ComboBox ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage}"
+                                      ItemTemplate="{StaticResource LocalizedLabel}" />
                         </StackPanel>
                     </Grid>
                 </StackPanel>

@@ -20,4 +20,9 @@ public sealed record ChoiceOption(object? Value)
 	{
 		return Value is T value ? value : null;
 	}
+
+	public override string ToString()
+	{
+		return Labels.Of(Value);
+	}
 }

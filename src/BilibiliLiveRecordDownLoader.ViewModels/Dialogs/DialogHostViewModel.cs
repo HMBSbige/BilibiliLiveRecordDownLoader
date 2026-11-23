@@ -25,7 +25,7 @@ public sealed partial class DialogHostViewModel : ViewModelBase
 		}
 	}
 
-	public Task<bool> ConfirmAsync(string title, string message, string? confirmText = null, bool isDestructive = false)
+	public Task<bool> ConfirmAsync(string title, string message, string confirmText, bool isDestructive)
 	{
 		return ShowAsync(new ConfirmDialogViewModel(title, message, confirmText, isDestructive));
 	}

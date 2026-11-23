@@ -3,7 +3,6 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ic="using:FluentIcons.Avalonia"
     xmlns:logs="using:BilibiliLiveRecordDownLoader.ViewModels.Logs"
-    xmlns:common="using:BilibiliLiveRecordDownLoader.ViewModels.Common"
     xmlns:logging="using:BilibiliLiveRecordDownLoader.Application.Contracts.Logging"
     xmlns:ctl="using:BilibiliLiveRecordDownLoader.Views.Controls"
     xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
@@ -56,19 +55,9 @@
             </Button>
             <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="8">
                 <ComboBox Grid.Column="0" MinWidth="120" ItemsSource="{Binding LevelOptions}" SelectedItem="{Binding MinimumLevel}"
+                          ItemTemplate="{StaticResource LocalizedLabel}"
                           ToolTip.Tip="{Binding MinimumLevel, Source={x:Static l:AppLanguage.Current}}"
-                          AutomationProperties.Name="{Binding MinimumLevel, Source={x:Static l:AppLanguage.Current}}">
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate x:DataType="common:ChoiceOption">
-                            <Panel>
-                                <TextBlock Text="{Binding AllLevels, Source={x:Static l:AppLanguage.Current}}"
-                                           IsVisible="{Binding Value, Converter={x:Static ObjectConverters.IsNull}}" />
-                                <ContentControl Content="{Binding}" ContentTemplate="{StaticResource LocalizedLabel}"
-                                                IsVisible="{Binding Value, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                            </Panel>
-                        </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
+                          AutomationProperties.Name="{Binding MinimumLevel, Source={x:Static l:AppLanguage.Current}}" />
                 <TextBox Grid.Column="1" Width="120" Text="{Binding RoomFilter}"
                          PlaceholderText="{Binding RoomId, Source={x:Static l:AppLanguage.Current}}"
                          AutomationProperties.Name="{Binding RoomId, Source={x:Static l:AppLanguage.Current}}" />

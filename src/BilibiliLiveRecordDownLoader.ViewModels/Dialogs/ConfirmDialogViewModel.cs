@@ -2,11 +2,11 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
 
 public sealed partial class ConfirmDialogViewModel : DialogViewModel<bool>
 {
-	public ConfirmDialogViewModel(string title, string message, string? confirmText = null, bool isDestructive = false)
+	public ConfirmDialogViewModel(string title, string message, string confirmText, bool isDestructive)
 	{
 		Title = title;
 		Message = message;
-		ConfirmText = confirmText ?? AppLanguage.Current.Ok;
+		ConfirmText = confirmText;
 		IsDestructive = isDestructive;
 		ConfirmCommand.DisposeWith(Disposables);
 	}

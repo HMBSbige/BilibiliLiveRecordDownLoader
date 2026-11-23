@@ -59,7 +59,8 @@
                 </StackPanel>
                 <Grid Classes="form" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="4">
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Quality, Source={x:Static l:AppLanguage.Current}}" />
-                    <ComboBox Grid.Row="1" Grid.Column="0" ItemsSource="{Binding QualityOptions}" SelectedItem="{Binding Quality}"
+                    <ComboBox Grid.Row="1" Grid.Column="0" ItemsSource="{Binding QualityOptions}" SelectedValue="{Binding Quality}"
+                              SelectedValueBinding="{Binding Value}"
                               AutomationProperties.Name="{Binding Quality, Source={x:Static l:AppLanguage.Current}}" />
                     <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding RecorderType, Source={x:Static l:AppLanguage.Current}}" />
                     <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding RecorderTypeOptions}" SelectedItem="{Binding RecorderType}"

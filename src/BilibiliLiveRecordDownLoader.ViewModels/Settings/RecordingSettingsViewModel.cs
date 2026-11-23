@@ -5,11 +5,11 @@ public sealed partial class RecordingSettingsViewModel(IAppConfigManager configM
 	// 数字框每按一个键就改一次值，录制中途会读分段设置，不能存输到一半的数
 	internal static readonly TimeSpan NumberInputQuietPeriod = TimeSpan.FromSeconds(1);
 
-	public IReadOnlyList<RecorderType> RecorderTypeOptions { get; } = Enum.GetValues<RecorderType>();
+	public IReadOnlyList<ChoiceOption> RecorderTypeOptions { get; } = ChoiceOption.Of(Enum.GetValues<RecorderType>());
 
-	public IReadOnlyList<StreamHostSelection> HostSelectionOptions { get; } = Enum.GetValues<StreamHostSelection>();
+	public IReadOnlyList<ChoiceOption> HostSelectionOptions { get; } = ChoiceOption.Of(Enum.GetValues<StreamHostSelection>());
 
-	public IReadOnlyList<RecordingSplitMode> SplitModeOptions { get; } = Enum.GetValues<RecordingSplitMode>();
+	public IReadOnlyList<ChoiceOption> SplitModeOptions { get; } = ChoiceOption.Of(Enum.GetValues<RecordingSplitMode>());
 
 	public PriorityListViewModel CodecPriority { get; } = new();
 

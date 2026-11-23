@@ -12,4 +12,7 @@ public sealed record BackgroundTaskSnapshot
 	double? Progress,
 	double? Speed,
 	string? Message
-);
+)
+{
+	public bool IsActive => Status is BackgroundTaskStatus.Queued or BackgroundTaskStatus.Running;
+}

@@ -34,7 +34,7 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 		start = start > TimeSpan.Zero ? start : TimeSpan.Zero;
 		TimeSpan end = highlight.End + DanmakuConsts.HighlightExportMargin;
 		// 排着队的剪辑还没写出文件，也要避开它的输出，否则两段写进同一个文件，后写完的覆盖先写完的
-		string[] pending = [.. tasks.GetTasks().Where(static task => task.Status is BackgroundTaskStatus.Queued or BackgroundTaskStatus.Running).Select(static task => task.TargetPath).OfType<string>()];
+		string[] pending = [.. tasks.GetTasks().Where(static task => task.IsActive).Select(static task => task.TargetPath).OfType<string>()];
 		string destination = GetHighlightPath(RecordingFileLayout.GetStem(danmakuPath), video, start, path => File.Exists(path) || pending.Any(target => FileOperations.IsSamePath(target, path)));
 		await mediaTools.QueueCutAsync(new CutInput(video, destination, start, end), cancellationToken);
 		return destination;

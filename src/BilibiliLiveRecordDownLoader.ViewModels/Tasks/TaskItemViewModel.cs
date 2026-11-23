@@ -45,7 +45,7 @@ public sealed partial class TaskItemViewModel : ReactiveObject
 	{
 		Status = snapshot.Status;
 		Progress = (snapshot.Progress ?? 0) * 100;
-		IsActive = snapshot.Status is BackgroundTaskStatus.Queued or BackgroundTaskStatus.Running;
+		IsActive = snapshot.IsActive;
 		IsIndeterminate = snapshot is { Status: BackgroundTaskStatus.Running, Progress: null };
 		Details = snapshot.Status is BackgroundTaskStatus.Running ? FormatDetails(snapshot.Progress, snapshot.Speed) : null;
 		Message = snapshot.Status is BackgroundTaskStatus.Failed ? snapshot.Message : null;

@@ -235,7 +235,7 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 
 	private HashSet<string> GetPendingOutputs()
 	{
-		IEnumerable<string> outputs = _tasks.GetTasks().Where(static task => task.Status is BackgroundTaskStatus.Queued or BackgroundTaskStatus.Running).Select(static task => task.TargetPath).OfType<string>();
+		IEnumerable<string> outputs = _tasks.GetTasks().Where(static task => task.IsActive).Select(static task => task.TargetPath).OfType<string>();
 		return new HashSet<string>(outputs.Select(Path.GetFullPath), PathComparer);
 	}
 

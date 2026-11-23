@@ -23,7 +23,7 @@ public sealed partial class LogViewModel : ViewModelBase
 			static viewModel => viewModel.MinimumLevel,
 			static viewModel => viewModel.RoomFilter,
 			static viewModel => viewModel.SearchText,
-			static (level, room, search) => level != ChoiceOption.Inherit || !string.IsNullOrWhiteSpace(room) || !string.IsNullOrWhiteSpace(search)
+			static (level, room, search) => level != LogLevelOption.All || !string.IsNullOrWhiteSpace(room) || !string.IsNullOrWhiteSpace(search)
 		);
 
 		Signal.Merge
@@ -45,12 +45,12 @@ public sealed partial class LogViewModel : ViewModelBase
 
 	public ObservableCollection<LogEntry> Entries { get; } = [];
 
-	public IReadOnlyList<ChoiceOption> LevelOptions { get; } = [ChoiceOption.Inherit, .. ChoiceOption.Of(LogLevel.Information, LogLevel.Warning, LogLevel.Error)];
+	public IReadOnlyList<LogLevelOption> LevelOptions { get; } = [LogLevelOption.All, new(LogLevel.Information), new(LogLevel.Warning), new(LogLevel.Error)];
 
 	public IObservable<bool> CanResetFilters { get; }
 
 	[Reactive]
-	public partial ChoiceOption MinimumLevel { get; set; } = ChoiceOption.Inherit;
+	public partial LogLevelOption MinimumLevel { get; set; } = LogLevelOption.All;
 
 	[Reactive]
 	public partial string? RoomFilter { get; set; }
@@ -108,7 +108,7 @@ public sealed partial class LogViewModel : ViewModelBase
 	[ReactiveCommand(CanExecute = nameof(CanResetFilters))]
 	private void ResetFilters()
 	{
-		MinimumLevel = ChoiceOption.Inherit;
+		MinimumLevel = LogLevelOption.All;
 		RoomFilter = null;
 		SearchText = null;
 	}
@@ -139,7 +139,7 @@ public sealed partial class LogViewModel : ViewModelBase
 
 	private bool Matches(LogEntry entry)
 	{
-		if (MinimumLevel.As<LogLevel>() is { } level && entry.Level < level)
+		if (MinimumLevel.Minimum is { } level && entry.Level < level)
 		{
 			return false;
 		}

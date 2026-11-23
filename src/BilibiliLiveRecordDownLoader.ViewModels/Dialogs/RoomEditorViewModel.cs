@@ -59,7 +59,7 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 
 	public override string Title => IsNew ? AppLanguage.Current.AddRoom : AppLanguage.Current.EditRoom;
 
-	public IReadOnlyList<StreamQuality> QualityOptions { get; } = [StreamQuality.Dolby, StreamQuality.UltraHd4K, StreamQuality.Original, StreamQuality.BluRay, StreamQuality.SuperHigh, StreamQuality.High, StreamQuality.Smooth];
+	public IReadOnlyList<ChoiceOption> QualityOptions { get; } = ChoiceOption.Of(StreamQuality.Dolby, StreamQuality.UltraHd4K, StreamQuality.Original, StreamQuality.BluRay, StreamQuality.SuperHigh, StreamQuality.High, StreamQuality.Smooth);
 
 	public IReadOnlyList<ChoiceOption> RecorderTypeOptions { get; } = ChoiceOption.InheritOr<RecorderType>();
 
