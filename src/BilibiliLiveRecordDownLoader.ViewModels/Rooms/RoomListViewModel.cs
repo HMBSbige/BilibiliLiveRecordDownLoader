@@ -10,6 +10,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	private readonly IAppConfigManager _configManager;
 	private readonly Dictionary<long, RoomItemViewModel> _rooms = [];
 	private AppConfig? _config;
+	private string? _cookie;
 	private bool _isArranging;
 
 	public RoomListViewModel(IRoomAppService roomAppService, IAppConfigManager configManager, IDanmakuAppService danmakuAppService)
@@ -119,6 +120,10 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	{
 		PollChanges(() => _roomAppService.Version, Sync, RefreshInterval);
 		OnLanguageChanged(Sync);
+
+		// 在账号页登录、粘贴或清除 Cookie 都不经过这里，房间的版本也不变
+		_cookie = _config?.Cookie;
+		Poll(() => _config?.Cookie, OnCookieChanged, RefreshInterval);
 	}
 
 	[ReactiveCommand]
@@ -250,6 +255,23 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		Sync();
 		Danmaku.OnLoggedIn();
 		return true;
+	}
+
+	// 从这里登录时 LoginAndSyncAsync 已经处理过，再处理一次结果相同
+	private void OnCookieChanged(string? cookie)
+	{
+		if (cookie == _cookie)
+		{
+			return;
+		}
+
+		_cookie = cookie;
+		Sync();
+
+		if (!string.IsNullOrWhiteSpace(cookie))
+		{
+			Danmaku.OnLoggedIn();
+		}
 	}
 
 	[ReactiveCommand]

@@ -95,6 +95,10 @@ public sealed class MediaToolsViewModelTest
 	[Arguments("00:00:00.000", "01:00:00.000", 0d, 3600d)]
 	[Arguments("1:30", "2:00", 90d, 120d)]
 	[Arguments("0:00:10.5", "00:01:00", 10.5d, 60d)]
+	// 不分段的录像可能超过一天，只给分和秒时分钟也可能超过一小时
+	[Arguments("25:00:00", "25:10:00", 90_000d, 90_600d)]
+	[Arguments("123:59:59.5", "124:00:00", 446_399.5d, 446_400d)]
+	[Arguments("90:00", "1500:00.5", 5400d, 90_000.5d)]
 	public async Task CutTimesAreReadInTheShownFormatAsync(string start, string end, double startSeconds, double endSeconds)
 	{
 		bool parsed = MediaToolsViewModel.TryParseTimeRange(start, end, out TimeSpan parsedStart, out TimeSpan parsedEnd);
@@ -107,6 +111,8 @@ public sealed class MediaToolsViewModelTest
 	[Arguments("0", "90")]
 	[Arguments("00:02:00", "00:01:00")]
 	[Arguments("00:01:00", "abc")]
+	[Arguments("1:60:00", "2:00:00")]
+	[Arguments("1:00", "1:60")]
 	public async Task InvalidCutTimesAreReportedBeforeQueuingAsync(string start, string end)
 	{
 		using MediaToolsViewModel viewModel = Create(new FakeMediaTools(), new RecordingNotifications());

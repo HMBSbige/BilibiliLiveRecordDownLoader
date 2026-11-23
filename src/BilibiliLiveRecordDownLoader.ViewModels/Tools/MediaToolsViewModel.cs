@@ -1,11 +1,11 @@
+using System.Text.RegularExpressions;
+
 namespace BilibiliLiveRecordDownLoader.ViewModels.Tools;
 
 public sealed partial class MediaToolsViewModel : ViewModelBase
 {
 	// .mp4 只有本程序录的 fMP4 需要转换，由 GetMp4ConversionPath 识别
 	private static readonly string[] RemuxableExtensions = [".flv", ".ts", ".mkv", ".m4s", ".mp4"];
-
-	private static readonly string[] TimeFormats = [@"h\:mm\:ss\.FFF", @"h\:mm\:ss", @"m\:ss\.FFF", @"m\:ss"];
 
 	// 用户配错 FFmpeg 路径时，指向的程序可能不会自行退出
 	private static readonly TimeSpan FFmpegCheckTimeout = TimeSpan.FromSeconds(10);
@@ -261,11 +261,29 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 		return TryParseTime(startText, out start) && TryParseTime(endText, out end) && end > start;
 	}
 
-	// 宽松解析会把纯数字当作天数
 	private static bool TryParseTime(string text, out TimeSpan time)
 	{
-		return TimeSpan.TryParseExact(text.Trim(), TimeFormats, CultureInfo.InvariantCulture, out time);
+		if (TimePattern().Match(text.Trim()) is not { Success: true, Groups: var groups })
+		{
+			time = default;
+			return false;
+		}
+
+		Group hours = groups["hours"];
+		Group fraction = groups["fraction"];
+		time = TimeSpan.FromHours
+		(
+			hours.Success ? int.Parse(hours.ValueSpan, CultureInfo.InvariantCulture) : 0,
+			long.Parse(groups["minutes"].ValueSpan, CultureInfo.InvariantCulture),
+			long.Parse(groups["seconds"].ValueSpan, CultureInfo.InvariantCulture),
+			fraction.Success ? long.Parse(fraction.Value.PadRight(3, '0'), CultureInfo.InvariantCulture) : 0
+		);
+		return true;
 	}
+
+	// TimeSpan 的 h、m 格式只认 0–23 时、0–59 分，而不分段的录像可能超过一天；只有一个数时分不清单位，至少要写出分和秒；位数上限只为换算时不溢出
+	[GeneratedRegex(@"^(?:(?<hours>[0-9]{1,6}):(?<minutes>[0-5][0-9])|(?<minutes>[0-9]{1,8})):(?<seconds>[0-5][0-9])(?:\.(?<fraction>[0-9]{1,3}))?$", RegexOptions.CultureInvariant)]
+	private static partial Regex TimePattern();
 
 	private static string? GetDirectory(string path)
 	{

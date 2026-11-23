@@ -291,6 +291,35 @@ public sealed class RoomListViewModelTest
 		await Assert.That(before).IsTrue();
 	}
 
+	// 在账号页登录、粘贴或清除 Cookie 都不经过房间列表，房间的版本也不变
+	[Test]
+	[Timeout(30_000)]
+	public async Task CookieChangedOnTheAccountPageUpdatesTheBannerAndTheDanmakuPanelAsync(CancellationToken cancellationToken)
+	{
+		AppConfig config = AppConfig.CreateDefault();
+		config.Cookie = null;
+		FakeRoomAppService rooms = new(InitialOrder);
+		rooms.Change(1, static snapshot => snapshot with { Danmaku = new RoomDanmakuSnapshot(true) });
+		using RoomListViewModel viewModel = new(rooms, new FakeConfigManager(config), new FakeDanmakuAppService());
+		viewModel.ApplyConfig(config);
+		viewModel.StartMonitoring();
+		viewModel.Danmaku.IsOpen = true;
+		Select(viewModel, [1]);
+		(string? anonymousBanner, bool couldLogin) = (viewModel.LoginBannerText, viewModel.Danmaku.Live?.CanLogin is true);
+
+		config.Cookie = "a=b";
+		await TestWait.UntilAsync(() => viewModel.LoginBannerText is null && viewModel.Danmaku.Live is { CanLogin: false } live && live.IdentityText == AppLanguage.Current.DanmakuLoginPending, "the login is picked up without a room change", cancellationToken);
+
+		config.Cookie = null;
+		await TestWait.UntilAsync(() => viewModel.LoginBannerText == AppLanguage.Current.DanmakuMaskedBanner, "the logout is picked up without a room change", cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(anonymousBanner).IsEqualTo(AppLanguage.Current.DanmakuMaskedBanner);
+			await Assert.That(couldLogin).IsTrue();
+		}
+	}
+
 	private static RoomListViewModel Create(FakeRoomAppService rooms, FakeDanmakuAppService? danmaku = null, FakeConfigManager? configManager = null, Action<Exception>? reportSaveFailure = null)
 	{
 		RoomListViewModel viewModel = new(rooms, configManager ?? new FakeConfigManager(), danmaku ?? new FakeDanmakuAppService()) { ReportSaveFailure = reportSaveFailure };
