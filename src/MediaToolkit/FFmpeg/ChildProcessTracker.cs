@@ -2,8 +2,7 @@ using System.Runtime.Versioning;
 
 namespace MediaToolkit.FFmpeg;
 
-// 保证子进程不会在本进程退出后残留：Windows 和 Linux 由系统结束子进程，本进程崩溃或被强制结束时也一样
-// macOS 不支持 KillOnParentExit，设了也会被忽略，只能在正常退出时逐个结束
+// macOS 不支持 KillOnParentExit，只能在正常退出时逐个结束
 internal static class ChildProcessTracker
 {
 	private static readonly Lock Gate = new();
@@ -102,7 +101,6 @@ internal static class ChildProcessTracker
 			}
 			catch (InvalidOperationException)
 			{
-				// 已经退出或已释放
 			}
 		}
 	}

@@ -8,7 +8,7 @@ using System.Text;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
-// 用真实的 SocketsHttpHandler 请求本机回环服务器，所有主机名都连到这台服务器
+// 所有主机名都连到本机回环服务器
 public sealed class BilibiliHttpClientsTest
 {
 	private const string LoginCookie = "SESSDATA=secret";
@@ -63,7 +63,6 @@ public sealed class BilibiliHttpClientsTest
 
 	private sealed record ReceivedRequest(string Host, string? Cookie);
 
-	// 收到 /redirect 时重定向到另一个主机，其余请求返回空的 200
 	private sealed class LoopbackServer : IAsyncDisposable
 	{
 		private readonly TcpListener _listener = new(IPAddress.Loopback, 0);

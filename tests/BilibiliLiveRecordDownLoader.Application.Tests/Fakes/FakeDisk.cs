@@ -1,6 +1,5 @@
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 
-// 写满之前和腾出空间之后一切正常
 internal sealed class FakeDisk
 {
 	private volatile bool _isFull;

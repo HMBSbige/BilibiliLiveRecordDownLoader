@@ -45,7 +45,6 @@ internal static class MediaProbe
 		}
 	}
 
-	/// <summary>Walks the top-level ISO-BMFF boxes, which must cover the data exactly and include moov for an init segment or moof for a fragment.</summary>
 	public static bool IsIsoBmff(ReadOnlySpan<byte> data, bool initialization)
 	{
 		ReadOnlySpan<byte> requiredBox = initialization ? "moov"u8 : "moof"u8;

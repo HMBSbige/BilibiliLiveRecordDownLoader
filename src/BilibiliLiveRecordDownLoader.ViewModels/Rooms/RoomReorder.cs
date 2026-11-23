@@ -1,7 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.ViewModels.Rooms;
 
-// 由列表中的位置算出应用服务需要的目标：移动的房间放到返回的房间之前，null 表示末尾。
-// 选中的房间不连续时会合并到一起，保持原有的相对顺序
+// 移动的房间放到返回的房间之前，null 表示末尾
 internal static class RoomReorder
 {
 	public static long? Top(IReadOnlyList<long> order, IReadOnlySet<long> moving)

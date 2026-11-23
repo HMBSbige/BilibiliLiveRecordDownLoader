@@ -4,8 +4,7 @@ using System.IO.Pipelines;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-// 网络端按单元决定换文件的位置，写盘端照着标记关闭旧文件、建新文件；关闭旧文件时网络端照常收进缓冲
-// openNext 建下一段的文件，建不了时抛 RecordingWriteException；completed 收到已经关闭的一段
+// 换文件在写盘端照着标记做，关闭旧文件时网络端照常收进缓冲；openNext 建不了文件时抛 RecordingWriteException
 internal sealed class SegmentedOutput(Stream firstFile, string firstPath, Func<PipeWriter, ConcurrentQueue<SegmentStart>, RecordingSegmenter> createSegmenter, Func<SegmentStart, (string Path, Stream File)> openNext, Action<string> completed) : RecordingOutput
 {
 	private readonly ConcurrentQueue<SegmentStart> _starts = new();
@@ -24,7 +23,6 @@ internal sealed class SegmentedOutput(Stream firstFile, string firstPath, Func<P
 		}
 		finally
 		{
-			// 停止录制和断流时攒着的数据也要写出去
 			segmenter.Complete();
 		}
 	}

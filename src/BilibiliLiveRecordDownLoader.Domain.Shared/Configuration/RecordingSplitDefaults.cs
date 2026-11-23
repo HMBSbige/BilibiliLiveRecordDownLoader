@@ -2,7 +2,6 @@ namespace BilibiliLiveRecordDownLoader.Domain.Shared.Configuration;
 
 public static class RecordingSplitDefaults
 {
-	// 上下限以界面的单位表示，数值输入框直接引用
 	public const decimal MinDurationMinutes = 1;
 
 	public const decimal MaxDurationMinutes = 24 * 60;

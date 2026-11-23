@@ -7,7 +7,6 @@ public sealed class BilibiliIdentity(Func<CancellationToken, ValueTask<BilibiliR
 
 	internal string GeneratedBuvid3 { get; } = Guid.NewGuid().ToString().ToUpperInvariant() + "infoc";
 
-	// Anonymous requests drop the login cookie but keep the buvid3, so the danmu auth packet still matches
 	internal async ValueTask<(string? UserAgent, string Cookie)> ResolveAsync(bool anonymous, CancellationToken cancellationToken)
 	{
 		BilibiliRequestOptions options = await optionsProvider(cancellationToken);
@@ -20,7 +19,7 @@ public sealed class BilibiliIdentity(Func<CancellationToken, ValueTask<BilibiliR
 		return GetBuvid3(await optionsProvider(cancellationToken));
 	}
 
-	// Same precedence as EnsureCookie: a buvid3 in the user's cookie wins over the generated one
+	// Same precedence as EnsureCookie
 	private string GetBuvid3(BilibiliRequestOptions options)
 	{
 		return CookieHeader.GetValue(options.Cookie, Buvid3CookieName) ?? GeneratedBuvid3;

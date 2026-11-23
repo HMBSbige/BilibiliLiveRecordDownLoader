@@ -1,12 +1,12 @@
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-// 编码器以固定码率输出时插入填充数据 NAL（H.264 类型 12，HEVC 类型 38）凑码率，里面没有画面，解码器直接丢弃
+// 固定码率编码器为凑码率插入的填充 NAL，里面没有画面，解码器直接丢弃
 internal static class FillerNalUnits
 {
 	private const int AvcFillerType = 12;
 	private const int HevcFillerType = 38;
 
-	// 解码器配置记录里 NAL 长度字段的宽度：AVCDecoderConfigurationRecord 第 5 字节、HEVCDecoderConfigurationRecord 第 22 字节的低 2 位加 1；记录不完整时返回 0
+	// 解码器配置记录里的 lengthSizeMinusOne 加 1；记录不完整时返回 0
 	public static int ReadLengthSize(ReadOnlySpan<byte> record, NalSyntax syntax)
 	{
 		return syntax switch
@@ -17,7 +17,7 @@ internal static class FillerNalUnits
 		};
 	}
 
-	// 样本由带长度前缀的 NAL 组成。返回去掉填充之后的长度；长度加起来不等于样本长度时返回 -1。全是填充的样本去掉之后就不是合法的样本了，保留原样
+	// 长度前缀加起来不等于样本长度时返回 -1；全是填充的样本去掉之后就不是合法的样本了，保留原样
 	public static int Measure(ReadOnlySpan<byte> sample, int lengthSize, NalSyntax syntax)
 	{
 		int kept = 0;
@@ -49,7 +49,7 @@ internal static class FillerNalUnits
 		return hasKept ? kept : sample.Length;
 	}
 
-	// 把 buffer 里 source 处的样本去掉填充后移到 destination，keptLength 是 Measure 的结果。destination 不在 source 之后，前面已经写出的数据不会被后面的读取覆盖
+	// keptLength 是 Measure 的结果；destination 不能在 source 之后，否则写出会覆盖还没读的数据
 	public static void Move(Span<byte> buffer, int source, int length, int destination, int keptLength, int lengthSize, NalSyntax syntax)
 	{
 		if (keptLength == length)
@@ -99,7 +99,6 @@ internal static class FillerNalUnits
 	}
 }
 
-// H.264 和 HEVC 的 NAL 头不一样，类型的位置也不同
 internal enum NalSyntax
 {
 	Avc,

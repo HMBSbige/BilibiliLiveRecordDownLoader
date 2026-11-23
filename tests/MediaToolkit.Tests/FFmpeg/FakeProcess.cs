@@ -2,7 +2,6 @@ using System.Text;
 
 namespace MediaToolkit.Tests.FFmpeg;
 
-// 用系统自带的脚本解释器扮演 FFmpeg，只模拟 stdin、stderr 和退出码上的行为
 internal static class FakeProcess
 {
 	public static string Executable => OperatingSystem.IsWindows() ? @"powershell.exe" : @"/bin/sh";

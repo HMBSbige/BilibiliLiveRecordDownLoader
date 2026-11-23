@@ -7,7 +7,6 @@ using System.Text;
 
 namespace BilibiliLive.Tests.Fakes;
 
-/// <summary>Answers a WebSocket upgrade request with a loopback connection whose other end is a server-side <see cref="WebSocket"/>.</summary>
 internal static class LoopbackWebSocket
 {
 	private const string AcceptGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";

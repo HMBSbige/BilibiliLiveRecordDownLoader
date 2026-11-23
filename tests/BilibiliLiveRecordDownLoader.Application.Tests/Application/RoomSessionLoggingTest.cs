@@ -24,7 +24,6 @@ public sealed class RoomSessionLoggingTest
 			.BuildServiceProvider();
 		await using RoomSession session = services.GetRequiredService<RoomSessionFactory>().Create(new RoomConfig { RoomId = RoomId }, static () => { });
 
-		// 添加房间时由应用服务直接套用首次查询到的房间信息，不在会话的任何循环里
 		session.Apply(new LiveRoomInfo(RoomId, 0, 1, "streamer", "title", LiveStatus.Idle));
 
 		using (Assert.Multiple())

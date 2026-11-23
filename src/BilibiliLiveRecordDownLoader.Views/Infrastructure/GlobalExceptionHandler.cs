@@ -1,6 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.Views.Infrastructure;
 
-// 文件日志是异步写的，进程因异常结束前要刷出缓冲，否则崩溃现场会丢失
+// 文件日志是异步写的，进程因异常结束前要刷出缓冲
 internal sealed partial class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger)
 {
 	public void Install()

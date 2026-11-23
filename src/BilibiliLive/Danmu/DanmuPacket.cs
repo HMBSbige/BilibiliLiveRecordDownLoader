@@ -34,7 +34,6 @@ internal readonly record struct DanmuPacket(ushort ProtocolVersion, DanmuOperati
 		return packet;
 	}
 
-	/// <summary>Splits a buffer into packets, expanding compressed packets into the packets they carry.</summary>
 	public static List<DanmuPacket> Decode(ReadOnlyMemory<byte> data)
 	{
 		List<DanmuPacket> packets = [];

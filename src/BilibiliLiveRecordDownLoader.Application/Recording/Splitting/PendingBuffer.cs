@@ -2,7 +2,6 @@ using System.Buffers;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-// 还没决定写进哪一段的数据
 internal sealed class PendingBuffer : IDisposable
 {
 	private const int MinimumCapacity = 64 << 10;

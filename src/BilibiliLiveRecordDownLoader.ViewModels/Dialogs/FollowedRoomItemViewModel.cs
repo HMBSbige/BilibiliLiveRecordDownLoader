@@ -30,7 +30,6 @@ public sealed partial class FollowedRoomItemViewModel : ReactiveObject
 	[Reactive]
 	public partial bool IsAdded { get; private set; }
 
-	// 已添加的房间不能选中
 	public bool IsSelected
 	{
 		get;

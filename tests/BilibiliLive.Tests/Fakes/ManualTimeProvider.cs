@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 
 namespace BilibiliLive.Tests.Fakes;
 
-/// <summary>A clock that only moves when told to, and whose timers fire at once while recording the requested delay.</summary>
 internal sealed class ManualTimeProvider(DateTimeOffset start) : TimeProvider
 {
 	private DateTimeOffset _now = start;

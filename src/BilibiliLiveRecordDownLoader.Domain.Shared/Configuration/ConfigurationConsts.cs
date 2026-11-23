@@ -16,7 +16,7 @@ public static class ConfigurationConsts
 		{
 			string videos = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
 
-			// XDG 用户目录未配置时 MyVideos 为空
+			// 视频目录不存在时 MyVideos 为空
 			return string.IsNullOrEmpty(videos)
 				? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Videos", AppConsts.Name)
 				: Path.Combine(videos, AppConsts.Name);

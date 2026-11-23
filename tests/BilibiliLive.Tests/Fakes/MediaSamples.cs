@@ -38,7 +38,6 @@ internal static partial class MediaSamples
 		return [.. Box("moof", Marker(marker)), .. Box("mdat", [])];
 	}
 
-	/// <summary>Init segments are named h*.m4s, fragments *.m4s and everything else is MPEG-TS.</summary>
 	public static byte[] ForPath(string path, string marker)
 	{
 		return Path.GetExtension(path) is ".m4s" ? Path.GetFileName(path).StartsWith('h') ? Fmp4Init(marker) : Fmp4Fragment(marker) : TransportStream(marker);

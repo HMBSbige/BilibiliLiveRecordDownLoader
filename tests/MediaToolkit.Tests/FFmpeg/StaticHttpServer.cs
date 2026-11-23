@@ -51,7 +51,6 @@ internal sealed class StaticHttpServer : IAsyncDisposable
 			}
 			catch (IOException)
 			{
-				// 客户端读够了就会提前断开
 			}
 		}
 	}

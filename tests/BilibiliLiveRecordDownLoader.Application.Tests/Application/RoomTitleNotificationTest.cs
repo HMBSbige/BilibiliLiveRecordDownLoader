@@ -71,7 +71,7 @@ public sealed class RoomTitleNotificationTest
 		}
 	}
 
-	// 未开播时不会开始录制，只检查标题
+	// 未开播，刷新时不会开始录制
 	private static RecordingLoopHarness Create(CancellationToken cancellationToken, bool isRoomNotificationEnabled = true, bool isTitleNotificationEnabled = true)
 	{
 		RecordingLoopHarness loop = new(cancellationToken, isNotificationEnabled: isRoomNotificationEnabled);
