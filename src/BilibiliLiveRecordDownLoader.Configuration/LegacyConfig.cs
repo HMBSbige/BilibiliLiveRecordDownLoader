@@ -35,15 +35,7 @@ internal static class LegacyConfig
 
 		if (legacy["Rooms"] is JsonArray rooms)
 		{
-			JsonArray converted = [];
-
-			foreach (JsonObject room in rooms.OfType<JsonObject>())
-			{
-				// 泛型的 Add 不能裁剪
-				converted.Add((JsonNode)ToCurrentRoom(room));
-			}
-
-			config[nameof(AppConfig.Rooms)] = converted;
+			config[nameof(AppConfig.Rooms)] = new JsonArray([.. rooms.OfType<JsonObject>().Select(ToCurrentRoom)]);
 		}
 
 		return config;
@@ -130,6 +122,7 @@ internal static class LegacyConfig
 		{
 			if (Array.Find(names, candidate => candidate.Equals(item, StringComparison.OrdinalIgnoreCase)) is { } matched)
 			{
+				// 泛型的 Add 不能裁剪
 				priority.Add((JsonNode?)JsonValue.Create(matched));
 			}
 		}

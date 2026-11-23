@@ -71,8 +71,6 @@ public static class RecordingFileLayout
 
 	public static bool IsStemAvailable(string stem, Func<string, bool> fileExists)
 	{
-		ArgumentNullException.ThrowIfNull(fileExists);
-
 		return !StemSuffixes.Any(suffix => fileExists(stem + suffix));
 	}
 

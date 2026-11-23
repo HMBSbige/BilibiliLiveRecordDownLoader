@@ -9,17 +9,18 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 	private const UnixFileMode PrivateDirectoryMode = PrivateFileMode | UnixFileMode.UserExecute;
 
 	private static readonly TimeSpan ReadRetryDelay = TimeSpan.FromMilliseconds(200);
-	private static readonly JsonDocumentOptions DocumentOptions = new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
-	private static readonly JsonObject DefaultNode = SerializeToJsonObject(AppConfig.CreateDefault());
-	private static readonly JsonObject DefaultRoomNode = JsonSerializer.SerializeToNode(new RoomConfig(), AppConfigJsonContext.Default.RoomConfig) as JsonObject ?? throw new InvalidOperationException("Serialized room config is not a JSON object.");
+
+	// 逐项清理要用 JsonObject，它遇到重复的键会抛 ArgumentException；解析时就拒绝，和其他读不出的文件一样处理
+	private static readonly JsonDocumentOptions DocumentOptions = new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true, AllowDuplicateProperties = false };
+	private static readonly JsonObject DefaultNode = SerializeToJsonObject(AppConfig.CreateDefault(), AppConfigJsonContext.Default.AppConfig);
+	private static readonly JsonObject DefaultRoomNode = SerializeToJsonObject(new RoomConfig(), AppConfigJsonContext.Default.RoomConfig);
 
 	private readonly string _configPath = storageOptions.Value.FilePath;
 	private readonly string? _legacyPath = storageOptions.Value.LegacyFilePath;
 	private readonly TimeSpan _saveDelay = storageOptions.Value.SaveDelay;
 	private readonly SemaphoreSlim _lock = new(1, 1);
 	private readonly CancellationTokenSource _disposal = new();
-	private long _saveVersion;
-	private long _savedVersion;
+	private bool _isDirty;
 	private bool _isSaveScheduled;
 	private bool _isReadOnly;
 	private bool _disposed;
@@ -56,7 +57,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 			AppConfig config = await GetOrLoadCoreAsync(cancellationToken).ConfigureAwait(false);
 			update(config);
 			config.ApplyDefaults();
-			++_saveVersion;
+			_isDirty = true;
 
 			if (!_isSaveScheduled)
 			{
@@ -78,17 +79,11 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 
 		try
 		{
-			if (_disposed)
+			if (!_disposed)
 			{
-				return;
+				_disposed = true;
+				SaveCore();
 			}
-
-			_disposed = true;
-			SaveCore();
-		}
-		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-		{
-			LogSaveFailed(logger, exception, _configPath);
 		}
 		finally
 		{
@@ -131,31 +126,16 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 
 	private async ValueTask<AppConfig> GetOrLoadCoreAsync(CancellationToken cancellationToken)
 	{
-		if (_config is not null)
+		if (_config is null)
 		{
-			return _config;
-		}
-
-		(_config, bool unsaved) = await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
-
-		if (unsaved)
-		{
-			++_saveVersion;
-
-			try
-			{
-				SaveCore();
-			}
-			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-			{
-				LogSaveFailed(logger, exception, _configPath);
-			}
+			// 恢复或导入的内容要立即写回
+			(_config, _isDirty) = await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+			SaveCore();
 		}
 
 		return _config;
 	}
 
-	// 恢复或导入的内容要立即写回
 	private async ValueTask<(AppConfig Config, bool Unsaved)> LoadCoreAsync(CancellationToken cancellationToken)
 	{
 		AppConfig? config = null;
@@ -171,8 +151,9 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 				config = await TryRestoreAsync(TempPath, cancellationToken).ConfigureAwait(false) ?? await TryRestoreAsync(BackupPath, cancellationToken).ConfigureAwait(false);
 				unsaved = config is not null;
 			}
-			// 只删了配置文件来重置时备份还在，不再导入
-			else if (config is null && !File.Exists(BackupPath) && await TryImportLegacyAsync(cancellationToken).ConfigureAwait(false) is { } legacy)
+
+			// 没有备份就是第一次运行，临时文件读不出时也是；只删了配置文件来重置时备份还在，不再导入
+			if (config is null && !File.Exists(BackupPath) && await TryImportLegacyAsync(cancellationToken).ConfigureAwait(false) is { } legacy)
 			{
 				config = legacy;
 				unsaved = true;
@@ -186,8 +167,9 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 			if (config is null)
 			{
 				LogConfigCorrupted(logger, exception, _configPath);
-				PreserveCorruptedFile();
+				// 先读备份再移走损坏的文件：恢复中途取消时它还在原处；先移走的话下次加载只剩备份，会被当成用户删了配置
 				config = await TryRestoreAsync(BackupPath, cancellationToken).ConfigureAwait(false);
+				PreserveCorruptedFile();
 			}
 
 			unsaved = config is not null;
@@ -238,20 +220,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 	{
 		try
 		{
-			JsonNode? node;
-
-			using (FileStream stream = File.OpenRead(_configPath))
-			{
-				node = await JsonNode.ParseAsync(stream, documentOptions: DocumentOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
-			}
-
-			if (node is not JsonObject root)
-			{
-				return null;
-			}
-
-			RemoveInvalidValues(root, AppConfigJsonContext.Default.AppConfig, string.Empty, _configPath);
-			return root.Deserialize(AppConfigJsonContext.Default.AppConfig);
+			return await ReadObjectAsync(_configPath, cancellationToken).ConfigureAwait(false) is { } root ? DeserializeSkippingInvalidValues(root, _configPath) : null;
 		}
 		catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
 		{
@@ -288,21 +257,8 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 				return null;
 			}
 
-			JsonNode? node;
-
-			using (FileStream stream = File.OpenRead(path))
-			{
-				node = await JsonNode.ParseAsync(stream, documentOptions: DocumentOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
-			}
-
-			if (node is not JsonObject legacy)
-			{
-				throw new JsonException("The legacy config is not a JSON object.");
-			}
-
-			JsonObject root = LegacyConfig.ToCurrent(legacy);
-			RemoveInvalidValues(root, AppConfigJsonContext.Default.AppConfig, string.Empty, path);
-			return root.Deserialize(AppConfigJsonContext.Default.AppConfig);
+			JsonObject legacy = await ReadObjectAsync(path, cancellationToken).ConfigureAwait(false) ?? throw new JsonException("The legacy config is not a JSON object.");
+			return DeserializeSkippingInvalidValues(LegacyConfig.ToCurrent(legacy), path);
 		}
 		catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
 		{
@@ -311,50 +267,46 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		}
 	}
 
+	private static async ValueTask<JsonObject?> ReadObjectAsync(string path, CancellationToken cancellationToken)
+	{
+		using FileStream stream = File.OpenRead(path);
+		return await JsonNode.ParseAsync(stream, documentOptions: DocumentOptions, cancellationToken: cancellationToken).ConfigureAwait(false) as JsonObject;
+	}
+
+	private AppConfig? DeserializeSkippingInvalidValues(JsonObject root, string path)
+	{
+		RemoveInvalidValues(root, AppConfigJsonContext.Default.AppConfig, string.Empty, path);
+		return root.Deserialize(AppConfigJsonContext.Default.AppConfig);
+	}
+
 	private void RemoveInvalidValues(JsonObject node, JsonTypeInfo typeInfo, string prefix, string path)
 	{
 		foreach ((string key, JsonNode? value) in node.ToArray())
 		{
 			// 未知的属性读取时本来就会忽略
-			if (typeInfo.Properties.FirstOrDefault(property => string.Equals(property.Name, key, StringComparison.OrdinalIgnoreCase)) is not { } property)
+			if (typeInfo.Properties.FirstOrDefault(property => string.Equals(property.Name, key, StringComparison.OrdinalIgnoreCase)) is not { } property
+				|| AppConfigJsonContext.Default.GetTypeInfo(property.PropertyType) is not { } propertyTypeInfo)
 			{
 				continue;
 			}
 
 			string name = prefix + property.Name;
 
-			if (property.PropertyType == typeof(List<RoomConfig>) && value is JsonArray rooms)
-			{
-				for (int i = rooms.Count - 1; i >= 0; i--)
-				{
-					if (rooms[i] is JsonObject room)
-					{
-						RemoveInvalidValues(room, AppConfigJsonContext.Default.RoomConfig, $"{name}[{i}].", path);
-					}
-					else
-					{
-						LogInvalidValue(logger, $"{name}[{i}]", path);
-						rooms.RemoveAt(i);
-					}
-				}
-			}
-
-			// 编码和格式的优先级里一个值读不出时只丢这一个，其余的顺序还是用户排的
-			if (value is JsonArray items && GetEnumListElementType(property.PropertyType) is { } elementType && AppConfigJsonContext.Default.GetTypeInfo(elementType) is { } elementTypeInfo)
+			// 列表里读不出的项只丢这一项：房间逐个清理，编码和格式的优先级保留用户排好的其余顺序
+			if (value is JsonArray items && propertyTypeInfo is { Kind: JsonTypeInfoKind.Enumerable, ElementType: { } elementType } && AppConfigJsonContext.Default.GetTypeInfo(elementType) is { } elementTypeInfo)
 			{
 				for (int i = items.Count - 1; i >= 0; i--)
 				{
-					if (!CanRead(items[i], elementTypeInfo))
+					if (items[i] is JsonObject item && elementTypeInfo.Kind is JsonTypeInfoKind.Object)
+					{
+						RemoveInvalidValues(item, elementTypeInfo, $"{name}[{i}].", path);
+					}
+					else if (items[i] is null || !CanRead(items[i], elementTypeInfo))
 					{
 						LogInvalidValue(logger, $"{name}[{i}]", path);
 						items.RemoveAt(i);
 					}
 				}
-			}
-
-			if (AppConfigJsonContext.Default.GetTypeInfo(property.PropertyType) is not { } propertyTypeInfo)
-			{
-				continue;
 			}
 
 			if (!CanRead(value, propertyTypeInfo))
@@ -363,11 +315,6 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 				node.Remove(key);
 			}
 		}
-	}
-
-	private static Type? GetEnumListElementType(Type type)
-	{
-		return type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>) && type.GetGenericArguments()[0] is { IsEnum: true } elementType ? elementType : null;
 	}
 
 	private static bool CanRead(JsonNode? value, JsonTypeInfo typeInfo)
@@ -420,13 +367,12 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 
 	private void SaveCore()
 	{
-		if (_config is null || _isReadOnly || _savedVersion == _saveVersion)
+		if (_config is null || _isReadOnly || !_isDirty)
 		{
 			return;
 		}
 
-		long version = _saveVersion;
-		JsonObject node = SerializeToJsonObject(_config);
+		JsonObject node = SerializeToJsonObject(_config, AppConfigJsonContext.Default.AppConfig);
 		RemoveDefaults(node, DefaultNode);
 
 		// 不写默认值，以后调整默认值对老房间同样生效
@@ -438,26 +384,32 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 			}
 		}
 
-		CreateConfigDirectory();
-
-		File.Delete(TempPath);
-
-		using (FileStream stream = new(TempPath, CreateTempFileOptions()))
+		try
 		{
-			JsonSerializer.Serialize(stream, node, AppConfigJsonContext.Default.JsonObject);
-			stream.Flush(true);
-		}
+			CreateConfigDirectory();
+			File.Delete(TempPath);
 
-		if (File.Exists(_configPath))
-		{
-			File.Replace(TempPath, _configPath, BackupPath);
-		}
-		else
-		{
-			File.Move(TempPath, _configPath);
-		}
+			using (FileStream stream = new(TempPath, CreateTempFileOptions()))
+			{
+				JsonSerializer.Serialize(stream, node, AppConfigJsonContext.Default.JsonObject);
+				stream.Flush(true);
+			}
 
-		_savedVersion = version;
+			if (File.Exists(_configPath))
+			{
+				File.Replace(TempPath, _configPath, BackupPath);
+			}
+			else
+			{
+				File.Move(TempPath, _configPath);
+			}
+
+			_isDirty = false;
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+		{
+			LogSaveFailed(logger, exception, _configPath);
+		}
 	}
 
 	private static void RemoveDefaults(JsonObject node, JsonObject defaults)
@@ -535,10 +487,9 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		}
 	}
 
-	private static JsonObject SerializeToJsonObject(AppConfig config)
+	private static JsonObject SerializeToJsonObject<T>(T value, JsonTypeInfo<T> typeInfo)
 	{
-		return JsonSerializer.SerializeToNode(config, AppConfigJsonContext.Default.AppConfig) as JsonObject
-				?? throw new InvalidOperationException("Serialized app config is not a JSON object.");
+		return JsonSerializer.SerializeToNode(value, typeInfo) as JsonObject ?? throw new InvalidOperationException($"Serialized {typeof(T).Name} is not a JSON object.");
 	}
 
 	[LoggerMessage(Level = LogLevel.Error, Message = "Config file {Path} is corrupted")]

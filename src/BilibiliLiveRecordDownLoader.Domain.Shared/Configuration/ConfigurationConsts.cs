@@ -10,16 +10,8 @@ public static class ConfigurationConsts
 
 	public static string LogDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppConsts.Name, "Logs");
 
-	public static string DefaultRecordDirectory
-	{
-		get
-		{
-			string videos = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
-
-			// 视频目录不存在时 MyVideos 为空
-			return string.IsNullOrEmpty(videos)
-				? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Videos", AppConsts.Name)
-				: Path.Combine(videos, AppConsts.Name);
-		}
-	}
+	// 视频目录不存在时 MyVideos 为空
+	public static string DefaultRecordDirectory => Environment.GetFolderPath(Environment.SpecialFolder.MyVideos) is { Length: > 0 } videos
+		? Path.Combine(videos, AppConsts.Name)
+		: Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Videos", AppConsts.Name);
 }

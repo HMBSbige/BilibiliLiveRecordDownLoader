@@ -1,3 +1,5 @@
+using TUnit.Assertions.Enums;
+
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Domain;
 
 public sealed class ConfigDefaultsTest
@@ -21,27 +23,15 @@ public sealed class ConfigDefaultsTest
 	}
 
 	[Test]
-	public async Task UndefinedRoomOverridesInheritTheAppSettingsAsync()
+	[Arguments((RecorderType)99, (RecordingSplitMode)99, null, null)]
+	[Arguments(RecorderType.FFmpeg, RecordingSplitMode.None, RecorderType.FFmpeg, RecordingSplitMode.None)]
+	public async Task RoomEnumOverridesInheritTheAppSettingsOnlyWhenUndefinedAsync(RecorderType recorderType, RecordingSplitMode splitMode, RecorderType? expectedRecorderType, RecordingSplitMode? expectedSplitMode)
 	{
-		RoomConfig room = new() { RoomId = 1, RecorderType = (RecorderType)99, SplitMode = (RecordingSplitMode)99 };
+		RoomConfig room = new() { RoomId = 1, RecorderType = recorderType, SplitMode = splitMode };
 
 		room.ApplyDefaults();
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(room.RecorderType).IsNull();
-			await Assert.That(room.SplitMode).IsNull();
-		}
-	}
-
-	[Test]
-	public async Task RoomDefaultsKeepDefinedOverridesAsync()
-	{
-		RoomConfig room = new() { RoomId = 1, RecorderType = RecorderType.FFmpeg, SplitMode = RecordingSplitMode.None };
-
-		room.ApplyDefaults();
-
-		await Assert.That((room.RecorderType, room.SplitMode)).IsEqualTo(((RecorderType?)RecorderType.FFmpeg, (RecordingSplitMode?)RecordingSplitMode.None));
+		await Assert.That((room.RecorderType, room.SplitMode)).IsEqualTo((expectedRecorderType, expectedSplitMode));
 	}
 
 	[Test]
@@ -59,11 +49,14 @@ public sealed class ConfigDefaultsTest
 
 		room.ApplyDefaults();
 
-		await Assert.That(room.StatusCheckInterval).IsEqualTo(TimeSpan.FromSeconds(10));
-		await Assert.That(room.DanmuReconnectDelay).IsEqualTo(TimeSpan.FromSeconds(1));
-		await Assert.That(room.StreamReconnectDelay).IsEqualTo(TimeSpan.FromSeconds(1));
-		await Assert.That(room.StreamConnectTimeout).IsEqualTo(TimeSpan.FromSeconds(1));
-		await Assert.That(room.StreamIdleTimeout).IsEqualTo(TimeSpan.FromSeconds(3));
+		using (Assert.Multiple())
+		{
+			await Assert.That(room.StatusCheckInterval).IsEqualTo(TimeSpan.FromSeconds(10));
+			await Assert.That(room.DanmuReconnectDelay).IsEqualTo(TimeSpan.FromSeconds(1));
+			await Assert.That(room.StreamReconnectDelay).IsEqualTo(TimeSpan.FromSeconds(1));
+			await Assert.That(room.StreamConnectTimeout).IsEqualTo(TimeSpan.FromSeconds(1));
+			await Assert.That(room.StreamIdleTimeout).IsEqualTo(TimeSpan.FromSeconds(3));
+		}
 	}
 
 	[Test]
@@ -83,7 +76,7 @@ public sealed class ConfigDefaultsTest
 		room.ApplyDefaults();
 
 		TimeSpan max = TimeSpan.FromSeconds((double)RoomDefaults.MaxIntervalSeconds);
-		await Assert.That(new[] { room.StatusCheckInterval, room.DanmuReconnectDelay, room.StreamReconnectDelay, room.StreamConnectTimeout, room.StreamIdleTimeout }.All(value => value == max)).IsTrue();
+		await Assert.That([room.StatusCheckInterval, room.DanmuReconnectDelay, room.StreamReconnectDelay, room.StreamConnectTimeout, room.StreamIdleTimeout]).All(value => value == max);
 	}
 
 	[Test]
@@ -98,8 +91,11 @@ public sealed class ConfigDefaultsTest
 
 		room.ApplyDefaults();
 
-		await Assert.That(room.CodecPriority).IsNull();
-		await Assert.That(room.FormatPriority).IsNull();
+		using (Assert.Multiple())
+		{
+			await Assert.That(room.CodecPriority).IsNull();
+			await Assert.That(room.FormatPriority).IsNull();
+		}
 	}
 
 	[Test]
@@ -120,11 +116,13 @@ public sealed class ConfigDefaultsTest
 
 		config.ApplyDefaults();
 
-		await Assert.That(config.RecordDirectory).IsEqualTo(ConfigurationConsts.DefaultRecordDirectory);
-		await Assert.That(config.CodecPriority.SequenceEqual([StreamCodec.Hevc])).IsTrue();
-		await Assert.That(config.FormatPriority.SequenceEqual(StreamPriority.DefaultFormats)).IsTrue();
-		await Assert.That(config.Rooms.Select(static room => room.RoomId).SequenceEqual([2L, 3L])).IsTrue();
-		await Assert.That(config.Rooms[0].Quality).IsEqualTo(StreamQuality.High);
+		using (Assert.Multiple())
+		{
+			await Assert.That(config.RecordDirectory).IsEqualTo(ConfigurationConsts.DefaultRecordDirectory);
+			await Assert.That(config.CodecPriority).IsEquivalentTo([StreamCodec.Hevc], CollectionOrdering.Matching);
+			await Assert.That(config.FormatPriority).IsEquivalentTo(StreamPriority.DefaultFormats, CollectionOrdering.Matching);
+			await Assert.That(config.Rooms.Select(static room => (room.RoomId, room.Quality))).IsEquivalentTo([(2L, StreamQuality.High), (3L, RoomDefaults.Quality)], CollectionOrdering.Matching);
+		}
 	}
 
 	[Test]

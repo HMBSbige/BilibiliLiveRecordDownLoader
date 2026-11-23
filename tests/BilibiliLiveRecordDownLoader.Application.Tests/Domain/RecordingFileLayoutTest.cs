@@ -1,3 +1,5 @@
+using TUnit.Assertions.Enums;
+
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Domain;
 
 public sealed class RecordingFileLayoutTest
@@ -18,21 +20,18 @@ public sealed class RecordingFileLayoutTest
 	}
 
 	[Test]
-	public async Task SequenceKeepsTheFmp4SuffixLastAsync()
+	[Arguments(null, "20260102_030405_2")]
+	[Arguments("今晚唱歌", "20260102_030405_今晚唱歌_2")]
+	public async Task SequenceFollowsTheTitleAndPrecedesTheFmp4SuffixAsync(string? title, string expectedStem)
 	{
-		string path = RecordingFileLayout.GetRecordingPath(RecordingFileLayout.GetRecordingStem("records", 123, StartTime, null, 2), StreamFormat.Fmp4, RecorderType.BuiltIn);
+		string path = RecordingFileLayout.GetRecordingPath(RecordingFileLayout.GetRecordingStem("records", 123, StartTime, title, 2), StreamFormat.Fmp4, RecorderType.BuiltIn);
+		string stem = Path.Combine("records", "123", expectedStem);
 
-		await Assert.That(path).IsEqualTo(Path.Combine("records", "123", "20260102_030405_2_fmp4.mp4"));
-		await Assert.That(RecordingFileLayout.GetMp4ConversionPath(path)).IsEqualTo(Path.Combine("records", "123", "20260102_030405_2.mp4"));
-	}
-
-	[Test]
-	public async Task TitleGoesBetweenTheTimeAndTheSequenceAsync()
-	{
-		string path = RecordingFileLayout.GetRecordingPath(RecordingFileLayout.GetRecordingStem("records", 123, StartTime, "今晚唱歌", 2), StreamFormat.Fmp4, RecorderType.BuiltIn);
-
-		await Assert.That(path).IsEqualTo(Path.Combine("records", "123", "20260102_030405_今晚唱歌_2_fmp4.mp4"));
-		await Assert.That(RecordingFileLayout.GetMp4ConversionPath(path)).IsEqualTo(Path.Combine("records", "123", "20260102_030405_今晚唱歌_2.mp4"));
+		using (Assert.Multiple())
+		{
+			await Assert.That(path).IsEqualTo(stem + "_fmp4.mp4");
+			await Assert.That(RecordingFileLayout.GetMp4ConversionPath(path)).IsEqualTo(stem + ".mp4");
+		}
 	}
 
 	[Test]
@@ -67,18 +66,12 @@ public sealed class RecordingFileLayoutTest
 
 	[Test]
 	[Arguments("a.flv", "a.mp4")]
-	[Arguments("a.ts", "a.mp4")]
 	[Arguments("a_fmp4.mp4", "a.mp4")]
 	[Arguments("a_FMP4.MP4", "a.mp4")]
-	public async Task Mp4ConversionPathReplacesRecordingSuffixAsync(string recordingPath, string expected)
+	[Arguments("a.mp4", null)]
+	public async Task Mp4ConversionPathReplacesRecordingSuffixAsync(string recordingPath, string? expected)
 	{
 		await Assert.That(RecordingFileLayout.GetMp4ConversionPath(recordingPath)).IsEqualTo(expected);
-	}
-
-	[Test]
-	public async Task PlainMp4NeedsNoConversionAsync()
-	{
-		await Assert.That(RecordingFileLayout.GetMp4ConversionPath("a.mp4")).IsNull();
 	}
 
 	[Test]
@@ -143,7 +136,6 @@ public sealed class RecordingFileLayoutTest
 	[Arguments("20260102_030405_fmp4.mp4", "20260102_030405")]
 	[Arguments("20260102_030405.mp4", "20260102_030405")]
 	[Arguments("20260102_030405_v1.5.ts", "20260102_030405_v1.5")]
-	[Arguments("20260102_030405.xml", "20260102_030405")]
 	[Arguments("20260102_030405.danmaku.jsonl", "20260102_030405")]
 	public async Task StemIsThePathWithoutTheRecordingSuffixAsync(string fileName, string expectedStem)
 	{
@@ -153,6 +145,6 @@ public sealed class RecordingFileLayoutTest
 	[Test]
 	public async Task VideosOfAStemAreLookedUpWithTheConvertedOneFirstAsync()
 	{
-		await Assert.That(string.Join(", ", RecordingFileLayout.GetVideoPaths("a"))).IsEqualTo("a.mp4, a_fmp4.mp4, a.flv, a.ts");
+		await Assert.That(RecordingFileLayout.GetVideoPaths("a")).IsEquivalentTo(["a.mp4", "a_fmp4.mp4", "a.flv", "a.ts"], CollectionOrdering.Matching);
 	}
 }

@@ -2,6 +2,15 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Domain;
 
 public sealed class RecordingSplitPolicyTest
 {
+	public static IEnumerable<Func<(RecordingSplitMode Mode, TimeSpan? Duration, long? SizeMegabytes, RecordingSplit Expected)>> RoomSplitOverrides()
+	{
+		yield return () => (RecordingSplitMode.None, null, null, new RecordingSplit.None());
+		yield return () => (RecordingSplitMode.Duration, TimeSpan.FromMinutes(20), null, new RecordingSplit.ByDuration(TimeSpan.FromMinutes(20)));
+		yield return () => (RecordingSplitMode.Duration, null, null, new RecordingSplit.ByDuration(TimeSpan.FromMinutes(45)));
+		yield return () => (RecordingSplitMode.Size, null, 100, new RecordingSplit.BySize(100L << 20));
+		yield return () => (RecordingSplitMode.Size, null, null, new RecordingSplit.BySize(2000L << 20));
+	}
+
 	[Test]
 	public async Task RoomFollowingTheGlobalSplitIgnoresItsLeftoverValuesAsync()
 	{
@@ -13,24 +22,13 @@ public sealed class RecordingSplitPolicyTest
 	}
 
 	[Test]
-	[Arguments(RecordingSplitMode.None, null, null, "None")]
-	[Arguments(RecordingSplitMode.Duration, 20, null, "ByDuration:00:20:00")]
-	[Arguments(RecordingSplitMode.Duration, null, null, "ByDuration:00:45:00")]
-	[Arguments(RecordingSplitMode.Size, null, 100L, "BySize:104857600")]
-	[Arguments(RecordingSplitMode.Size, null, null, "BySize:2097152000")]
-	public async Task RoomSplitOverrideTakesMissingValuesFromTheGlobalSettingsAsync(RecordingSplitMode mode, int? minutes, long? megabytes, string expected)
+	[MethodDataSource(nameof(RoomSplitOverrides))]
+	public async Task RoomSplitOverrideTakesMissingValuesFromTheGlobalSettingsAsync(RecordingSplitMode mode, TimeSpan? duration, long? sizeMegabytes, RecordingSplit expected)
 	{
 		AppConfig global = new() { SplitMode = RecordingSplitMode.Size, SplitDuration = TimeSpan.FromMinutes(45), SplitSizeMegabytes = 2000 };
-		RoomConfig room = new() { RoomId = 1, SplitMode = mode, SplitDuration = minutes is { } value ? TimeSpan.FromMinutes(value) : null, SplitSizeMegabytes = megabytes };
+		RoomConfig room = new() { RoomId = 1, SplitMode = mode, SplitDuration = duration, SplitSizeMegabytes = sizeMegabytes };
 
-		string actual = RecordingSplitPolicy.Create(global, room).Split switch
-		{
-			RecordingSplit.None => "None",
-			RecordingSplit.ByDuration duration => $"ByDuration:{duration.Duration}",
-			RecordingSplit.BySize size => $"BySize:{size.MaxBytes}"
-		};
-
-		await Assert.That(actual).IsEqualTo(expected);
+		await Assert.That(RecordingSplitPolicy.Create(global, room).Split).IsEqualTo(expected);
 	}
 
 	[Test]
