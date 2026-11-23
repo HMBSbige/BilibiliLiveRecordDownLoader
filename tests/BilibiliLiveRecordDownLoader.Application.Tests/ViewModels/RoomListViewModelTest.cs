@@ -3,7 +3,6 @@ using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels.Rooms;
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Signals;
-using Splat;
 using System.Collections.Concurrent;
 using System.Windows.Input;
 using TUnit.Assertions.Enums;
@@ -13,13 +12,6 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 public sealed class RoomListViewModelTest
 {
 	private static readonly long[] InitialOrder = [1, 2, 3, 4, 5];
-
-	// 列表项读取 TimeProvider 时走全局定位器
-	[Before(Class)]
-	public static void RegisterServices()
-	{
-		AppLocator.CurrentMutable.RegisterConstant(TimeProvider.System);
-	}
 
 	[Test]
 	[Arguments(RoomSortOrder.Custom, RoomFilter.All, true)]
@@ -205,7 +197,7 @@ public sealed class RoomListViewModelTest
 	[Timeout(30_000)]
 	public async Task ShowingDanmakuSwitchesFromTheOpenFileToTheSelectedRoomAsync(CancellationToken cancellationToken)
 	{
-		FakeDanmakuAppService danmaku = new() { OpenFile = static _ => DanmakuFileViewModelTest.CreateFile(seconds: [1]) };
+		FakeDanmakuAppService danmaku = new() { OpenFile = static (_, _) => Task.FromResult(DanmakuFileViewModelTest.CreateFile(seconds: [1])) };
 		using RoomListViewModel viewModel = Create(new FakeRoomAppService(InitialOrder), danmaku);
 
 		Select(viewModel, [1]);
@@ -224,7 +216,7 @@ public sealed class RoomListViewModelTest
 	{
 		FakeConfigManager configManager = new();
 		string recordDirectory = (await configManager.GetAsync(cancellationToken)).RecordDirectory;
-		FakeDanmakuAppService danmaku = new() { OpenFile = static _ => DanmakuFileViewModelTest.CreateFile(seconds: [1]) };
+		FakeDanmakuAppService danmaku = new() { OpenFile = static (_, _) => Task.FromResult(DanmakuFileViewModelTest.CreateFile(seconds: [1])) };
 		using RoomListViewModel viewModel = Create(new FakeRoomAppService(InitialOrder), danmaku, configManager);
 		TaskCompletionSource<string> picked = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		viewModel.Danmaku.PickDanmakuFile = directory =>

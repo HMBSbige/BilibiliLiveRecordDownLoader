@@ -15,15 +15,15 @@ public sealed class SegmentedOutputTest
 	public async Task FinishedSegmentIsClosedAndHandedOverBeforeTheNextOneOpensAsync(CancellationToken cancellationToken)
 	{
 		ConcurrentQueue<string> handOvers = new();
-		SplitRecording? recording = null;
-		recording = new SplitRecording { SegmentCompleted = path => handOvers.Enqueue($"{path}: {RecordingSegmenterTest.Describe(recording!.Files)}") };
+		SplitRecording recording = new();
+		recording.SegmentCompleted = path => handOvers.Enqueue($"{path}: {FakeSplitter.Describe(recording.Files)}");
 
 		await recording.RunAsync(new FakeSplitter(), ThreeUnits, session => WriteUnitsAsync(session, 7), cancellationToken);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(handOvers).IsEquivalentTo(["0: 012", "1: 012 | H0:345"], CollectionOrdering.Matching);
-			await Assert.That(RecordingSegmenterTest.Describe(recording.Files)).IsEqualTo("012 | H0:345 | H0:6");
+			await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("012 | H0:345 | H0:6");
 		}
 	}
 
@@ -38,7 +38,7 @@ public sealed class SegmentedOutputTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(recording.Completed).IsEquivalentTo(["0"], CollectionOrdering.Matching);
-			await Assert.That(RecordingSegmenterTest.Describe(recording.Files)).IsEqualTo("012");
+			await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("012");
 		}
 	}
 

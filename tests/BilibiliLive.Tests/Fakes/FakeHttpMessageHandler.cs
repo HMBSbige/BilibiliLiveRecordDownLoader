@@ -22,7 +22,7 @@ internal sealed class FakeHttpMessageHandler(Func<HttpRequestMessage, Cancellati
 	protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 	{
 		Uri uri = request.RequestUri ?? throw new InvalidOperationException("The request has no uri.");
-		Requests.Enqueue(new RecordedRequest(uri, request.Headers.NonValidated.ToDictionary(h => h.Key, h => h.Value.ToString(), StringComparer.OrdinalIgnoreCase)));
+		Requests.Enqueue(new RecordedRequest(uri, request.Headers.NonValidated.ToDictionary(static h => h.Key, static h => h.Value.ToString(), StringComparer.OrdinalIgnoreCase)));
 
 		HttpResponseMessage response = await respond(request, cancellationToken);
 		response.RequestMessage ??= request;
@@ -39,7 +39,12 @@ internal static class Responses
 
 	public static HttpResponseMessage Fixture(string name)
 	{
-		return Json(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", name)));
+		return Json(FixtureText(name));
+	}
+
+	public static string FixtureText(string name)
+	{
+		return File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", name));
 	}
 
 	public static HttpResponseMessage Text(string text)

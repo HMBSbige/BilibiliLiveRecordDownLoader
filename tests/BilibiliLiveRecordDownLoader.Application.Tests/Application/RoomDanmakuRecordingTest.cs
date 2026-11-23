@@ -182,7 +182,7 @@ public sealed class RoomDanmakuRecordingTest
 		await danmu.SendAsync(Comment("换标题之后"));
 
 		danmu.Close();
-		(FakeDanmuConnection reconnected, TimeSpan disconnected) = await AdvanceUntilReconnectedAsync(loop);
+		(FakeDanmuConnection reconnected, TimeSpan disconnected) = await loop.AdvanceUntilDanmuReconnectedAsync();
 		await reconnected.SendAsync(new DanmuMessage.Connected(0));
 		string reconnectedAt = Seconds(TimeSpan.FromSeconds(2) + disconnected);
 		await reconnected.SendAsync(Comment("重连之后"));
@@ -242,6 +242,9 @@ public sealed class RoomDanmakuRecordingTest
 		// 开播之后才开始记录，文件开头补记之前的连接
 		loop.GoOffline();
 		FakeDanmuConnection danmu = await ConnectAsync(loop, masked: true);
+
+		// 首次状态查询的应答晚于开播到达时，会把房间改回未开播
+		await loop.WaitUntilAsync(static snapshot => snapshot.LiveStatus is LiveStatus.Idle);
 		loop.GoLive();
 		await loop.WaitUntilAsync(static snapshot => snapshot.Danmaku.IsRecording);
 		await loop.WaitUntilAsync(() => loop.Danmu.Options?.IncludeRaw is true, "raw messages are parsed");
@@ -251,7 +254,7 @@ public sealed class RoomDanmakuRecordingTest
 		await danmu.SendAsync(new DanmuMessage.RoomChanged("new title", null, null));
 		await danmu.SendAsync(new DanmuMessage.Raw("SEND_GIFT", """{"cmd":"SEND_GIFT"}"""u8.ToArray()));
 		danmu.Close();
-		(FakeDanmuConnection reconnected, TimeSpan disconnected) = await AdvanceUntilReconnectedAsync(loop);
+		(FakeDanmuConnection reconnected, TimeSpan disconnected) = await loop.AdvanceUntilDanmuReconnectedAsync();
 		await reconnected.SendAsync(new DanmuMessage.Connected(0));
 		await reconnected.SendAsync(new DanmuMessage.LiveStopped(false));
 		await loop.WaitUntilAsync(static snapshot => !snapshot.Danmaku.IsRecording);
@@ -370,29 +373,6 @@ public sealed class RoomDanmakuRecordingTest
 		}
 
 		return danmu;
-	}
-
-	// 重连等待带随机抖动，按秒推进直到重新连接；推进的总时长即断开的时长
-	private static async Task<(FakeDanmuConnection Connection, TimeSpan Advanced)> AdvanceUntilReconnectedAsync(RecordingLoopHarness loop)
-	{
-		Task<FakeDanmuConnection> next = loop.Danmu.NextConnectionAsync();
-		TimeSpan advanced = TimeSpan.Zero;
-
-		// 断开的时刻取房间察觉断开时的时钟，先等它察觉再推进，不然断开会记晚
-		await loop.WaitUntilAsync(() => loop.Session.Danmaku.Feed.Status.DisconnectedAt is not null, "the room notices the disconnection");
-
-		for (int step = 0; step < 20 && !next.IsCompleted; ++step)
-		{
-			await Task.Delay(50);
-
-			if (!next.IsCompleted)
-			{
-				loop.Time.Advance(TimeSpan.FromSeconds(1));
-				advanced += TimeSpan.FromSeconds(1);
-			}
-		}
-
-		return (await next, advanced);
 	}
 
 	private static DanmuMessage.Comment Comment(string text)

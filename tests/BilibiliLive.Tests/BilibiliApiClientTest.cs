@@ -10,14 +10,9 @@ namespace BilibiliLive.Tests;
 
 public class BilibiliApiClientTest
 {
-	private static ApiClient Single(string path, Func<HttpResponseMessage> response)
+	private static ApiClient Single(string path, Func<HttpResponseMessage> response, BilibiliIdentity? identity = null)
 	{
-		return ApiClient.Routes(new Dictionary<string, Func<HttpResponseMessage>> { [path] = response });
-	}
-
-	private static string Fixture(string name)
-	{
-		return File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", name));
+		return ApiClient.Routes(new Dictionary<string, Func<HttpResponseMessage>> { [path] = response }, identity: identity);
 	}
 
 	[Test]
@@ -219,7 +214,7 @@ public class BilibiliApiClientTest
 	[Arguments(2)]
 	public async Task StreamCandidatesThrowWhenNotLiveAsync(int liveStatus, CancellationToken cancellationToken)
 	{
-		JsonNode root = JsonNode.Parse(Fixture("room_play_info.json")) ?? throw new InvalidDataException();
+		JsonNode root = JsonNode.Parse(Responses.FixtureText("room_play_info.json")) ?? throw new InvalidDataException();
 		JsonNode data = root["data"] ?? throw new InvalidDataException();
 		data["live_status"] = liveStatus;
 		using ApiClient api = Single(ApiPaths.RoomPlayInfo, () => Responses.Json(root.ToJsonString()));
@@ -239,7 +234,7 @@ public class BilibiliApiClientTest
 	public async Task MasterPlaylistIsRequestedUnsignedWithTheGivenMidAndWithoutTheLoginCookieAsync(CancellationToken cancellationToken)
 	{
 		BilibiliIdentity identity = new(static _ => ValueTask.FromResult(new BilibiliRequestOptions(Cookie: "SESSDATA=secret; buvid3=known")));
-		using ApiClient api = new((request, _) => Task.FromResult(request.RequestUri?.AbsolutePath is ApiPaths.MasterPlaylist ? Responses.Text(Fixture("master_playlist.m3u8")) : Responses.NotFound()), identity: identity);
+		using ApiClient api = Single(ApiPaths.MasterPlaylist, static () => Responses.Text(Responses.FixtureText("master_playlist.m3u8")), identity);
 
 		IReadOnlyList<LiveStreamCandidate.Variant> variants = await api.Client.GetMasterPlaylistVariantsAsync(6650029, 105022844, cancellationToken);
 		RecordedRequest request = await Assert.That(api.Handler.Requests).HasSingleItem();

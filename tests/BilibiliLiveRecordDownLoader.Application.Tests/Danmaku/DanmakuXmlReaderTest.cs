@@ -18,7 +18,7 @@ public sealed class DanmakuXmlReaderTest
 	public async Task ReadsBackEverythingItWroteAsync(bool canSeek, CancellationToken cancellationToken)
 	{
 		DanmakuRecord[] records = DanmakuSamples.AllKinds();
-		byte[] content = await DanmakuSamples.WriteAsync(records);
+		byte[] content = await DanmakuSamples.WriteAsync(records, cancellationToken);
 		await using Stream stream = canSeek ? new MemoryStream(content) : new ForwardOnlyStream(new MemoryStream(content));
 
 		DanmakuFile file = await DanmakuXmlReader.ReadAsync(stream, cancellationToken);
@@ -32,16 +32,16 @@ public sealed class DanmakuXmlReaderTest
 	}
 
 	[Test]
-	public async Task TruncatedFilesYieldTheRecordsBeforeTheCutAsync()
+	public async Task TruncatedFilesYieldTheRecordsBeforeTheCutAsync(CancellationToken cancellationToken)
 	{
 		DanmakuRecord[] records = DanmakuSamples.AllKinds();
-		byte[] content = await DanmakuSamples.WriteAsync(records);
+		byte[] content = await DanmakuSamples.WriteAsync(records, cancellationToken);
 		int previousCount = 0;
 
 		// 最后一个字节是 </i> 后的换行，少了它文件仍然完整
 		for (int length = 0; length < content.Length - 1; ++length)
 		{
-			DanmakuFile file = await DanmakuSamples.ReadAsync(content.AsSpan(0, length).ToArray());
+			DanmakuFile file = await DanmakuSamples.ReadAsync(content.AsSpan(0, length).ToArray(), cancellationToken);
 
 			await Assert.That(file.IsComplete).IsFalse();
 			await Assert.That(file.Records.Count).IsGreaterThanOrEqualTo(previousCount);
@@ -53,13 +53,13 @@ public sealed class DanmakuXmlReaderTest
 	}
 
 	[Test]
-	public async Task ReadsBilibiliVideoDanmakuAsync()
+	public async Task ReadsBilibiliVideoDanmakuAsync(CancellationToken cancellationToken)
 	{
 		const string xml = """
 			<?xml version="1.0" encoding="UTF-8"?><i><chatserver>chat.bilibili.com</chatserver><chatid>1</chatid><mission>0</mission><maxlimit>1000</maxlimit><state>0</state><real_name>0</real_name><source>k-v</source><d p="0.60100,4,25,15138834,1604742895,0,9e5adeaa,40685126698926083,10">底部弹幕</d><d p="9.41600,5,25,16755202,1611378869,0,14f71d3,44164288244350983,10">顶部弹幕</d></i>
 			""";
 
-		DanmakuFile file = await DanmakuSamples.ReadAsync(xml);
+		DanmakuFile file = await DanmakuSamples.ReadAsync(xml, cancellationToken);
 
 		using (Assert.Multiple())
 		{
@@ -75,7 +75,7 @@ public sealed class DanmakuXmlReaderTest
 
 	// 其他程序的扩展元素含义和单位各不相同；内嵌的 XSL 里的 HTML 元素也叫 title 之类
 	[Test]
-	public async Task OtherFilesYieldOnlyCommentsAsync()
+	public async Task OtherFilesYieldOnlyCommentsAsync(CancellationToken cancellationToken)
 	{
 		const string xml = """
 			<?xml version="1.0" encoding="utf-8"?>
@@ -93,7 +93,7 @@ public sealed class DanmakuXmlReaderTest
 			</i>
 			""";
 
-		DanmakuFile file = await DanmakuSamples.ReadAsync(xml);
+		DanmakuFile file = await DanmakuSamples.ReadAsync(xml, cancellationToken);
 
 		using (Assert.Multiple())
 		{
@@ -108,7 +108,7 @@ public sealed class DanmakuXmlReaderTest
 	[Arguments("</d>", 0)]
 	[Arguments("</sc>", 1)]
 	[Arguments("</title>", 2)]
-	public async Task RecordEndingRightAtTheCutIsKeptAsync(string closingTag, int index)
+	public async Task RecordEndingRightAtTheCutIsKeptAsync(string closingTag, int index, CancellationToken cancellationToken)
 	{
 		DanmakuRecord[] records =
 		[
@@ -116,11 +116,11 @@ public sealed class DanmakuXmlReaderTest
 			new DanmakuRecord.SuperChat(TimeSpan.FromSeconds(2), 456, @"老板", 30000, TimeSpan.FromSeconds(60), @"醒目留言") { Id = 1 },
 			new DanmakuRecord.TitleChange(TimeSpan.FromSeconds(3), @"新标题")
 		];
-		byte[] content = await DanmakuSamples.WriteAsync(records);
+		byte[] content = await DanmakuSamples.WriteAsync(records, cancellationToken);
 		byte[] tag = Encoding.UTF8.GetBytes(closingTag);
 		int cut = content.AsSpan().IndexOf(tag) + tag.Length;
 
-		DanmakuFile file = await DanmakuSamples.ReadAsync(content.AsSpan(0, cut).ToArray());
+		DanmakuFile file = await DanmakuSamples.ReadAsync(content.AsSpan(0, cut).ToArray(), cancellationToken);
 
 		using (Assert.Multiple())
 		{
@@ -130,7 +130,7 @@ public sealed class DanmakuXmlReaderTest
 	}
 
 	[Test]
-	public async Task CommentWithChildElementsDoesNotStopTheFileAsync()
+	public async Task CommentWithChildElementsDoesNotStopTheFileAsync(CancellationToken cancellationToken)
 	{
 		const string xml = """
 			<?xml version="1.0" encoding="utf-8"?>
@@ -140,7 +140,7 @@ public sealed class DanmakuXmlReaderTest
 			</i>
 			""";
 
-		DanmakuFile file = await DanmakuSamples.ReadAsync(xml);
+		DanmakuFile file = await DanmakuSamples.ReadAsync(xml, cancellationToken);
 
 		using (Assert.Multiple())
 		{
@@ -151,7 +151,7 @@ public sealed class DanmakuXmlReaderTest
 
 	// 按坏数据分格会抛异常或分配巨大的数组；自己的文件来自不分段的仅弹幕录制时可能超过一天
 	[Test]
-	public async Task ImplausibleTimesAreSkippedAsync()
+	public async Task ImplausibleTimesAreSkippedAsync(CancellationToken cancellationToken)
 	{
 		const string other = """
 			<?xml version="1.0" encoding="utf-8"?>
@@ -173,8 +173,8 @@ public sealed class DanmakuXmlReaderTest
 			</i>
 			""";
 
-		DanmakuFile standardFile = await DanmakuSamples.ReadAsync(other);
-		DanmakuFile nativeFile = await DanmakuSamples.ReadAsync(native);
+		DanmakuFile standardFile = await DanmakuSamples.ReadAsync(other, cancellationToken);
+		DanmakuFile nativeFile = await DanmakuSamples.ReadAsync(native, cancellationToken);
 
 		using (Assert.Multiple())
 		{
@@ -190,7 +190,7 @@ public sealed class DanmakuXmlReaderTest
 	[Arguments("3", GuardLevel.Captain)]
 	[Arguments("7", GuardLevel.None)]
 	[Arguments("x", GuardLevel.None)]
-	public async Task UnknownGuardLevelsAreReadAsNoneAsync(string level, GuardLevel expected)
+	public async Task UnknownGuardLevelsAreReadAsNoneAsync(string level, GuardLevel expected, CancellationToken cancellationToken)
 	{
 		string xml = $"""
 			<?xml version="1.0" encoding="utf-8"?>
@@ -200,13 +200,13 @@ public sealed class DanmakuXmlReaderTest
 			</i>
 			""";
 
-		DanmakuFile file = await DanmakuSamples.ReadAsync(xml);
+		DanmakuFile file = await DanmakuSamples.ReadAsync(xml, cancellationToken);
 
 		await Assert.That(file.Records.OfType<DanmakuRecord.Guard>().Select(static guard => guard.Level)).IsEquivalentTo([expected]);
 	}
 
 	[Test]
-	public async Task SkipsUnknownAndMalformedElementsAsync()
+	public async Task SkipsUnknownAndMalformedElementsAsync(CancellationToken cancellationToken)
 	{
 		const string xml = """
 			<?xml version="1.0" encoding="utf-8"?>
@@ -219,7 +219,7 @@ public sealed class DanmakuXmlReaderTest
 			</i>
 			""";
 
-		DanmakuFile file = await DanmakuSamples.ReadAsync(xml);
+		DanmakuFile file = await DanmakuSamples.ReadAsync(xml, cancellationToken);
 
 		using (Assert.Multiple())
 		{
@@ -230,9 +230,9 @@ public sealed class DanmakuXmlReaderTest
 	}
 
 	[Test]
-	public async Task GarbageIsAnIncompleteEmptyFileAsync()
+	public async Task GarbageIsAnIncompleteEmptyFileAsync(CancellationToken cancellationToken)
 	{
-		DanmakuFile file = await DanmakuSamples.ReadAsync(@"not xml at all");
+		DanmakuFile file = await DanmakuSamples.ReadAsync(@"not xml at all", cancellationToken);
 
 		using (Assert.Multiple())
 		{
@@ -244,7 +244,7 @@ public sealed class DanmakuXmlReaderTest
 
 	// id 为 0 表示没有 id，留着会对上所有没记 id 的 SC
 	[Test]
-	public async Task SuperChatDeletionsKeepOnlyValidIdsAsync()
+	public async Task SuperChatDeletionsKeepOnlyValidIdsAsync(CancellationToken cancellationToken)
 	{
 		const string xml = """
 			<?xml version="1.0" encoding="utf-8"?>
@@ -257,7 +257,7 @@ public sealed class DanmakuXmlReaderTest
 			</i>
 			""";
 
-		DanmakuFile file = await DanmakuSamples.ReadAsync(xml);
+		DanmakuFile file = await DanmakuSamples.ReadAsync(xml, cancellationToken);
 
 		await Assert.That(file.Records).IsEquivalentTo(
 		[

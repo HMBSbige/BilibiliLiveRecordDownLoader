@@ -3,7 +3,6 @@ using BilibiliLiveRecordDownLoader.Application.Accounts;
 using BilibiliLiveRecordDownLoader.Application.Contracts.Accounts;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
-using System.Diagnostics;
 using System.Text;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
@@ -58,15 +57,6 @@ public sealed class AccountAppServiceTest
 		await accounts.SetCookieAsync("  ", cancellationToken);
 
 		await Assert.That((saved, await accounts.GetCookieAsync(cancellationToken))).IsEqualTo(("SESSDATA=x", null));
-	}
-
-	private sealed class HangingHandler : HttpMessageHandler
-	{
-		protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-		{
-			await Task.Delay(Timeout.Infinite, cancellationToken);
-			throw new UnreachableException();
-		}
 	}
 
 	private sealed class LoginSucceededHandler : HttpMessageHandler

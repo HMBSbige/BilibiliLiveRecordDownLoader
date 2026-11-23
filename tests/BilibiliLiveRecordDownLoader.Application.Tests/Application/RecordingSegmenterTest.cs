@@ -4,7 +4,6 @@ using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.IO.Pipelines;
-using System.Text;
 using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
@@ -30,7 +29,7 @@ public sealed class RecordingSegmenterTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(Describe(recording.Files)).IsEqualTo("abc | H0:def | H0:g");
+			await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("abc | H0:def | H0:g");
 			await Assert.That(recording.Files).All(static file => file.Length <= 100);
 			await Assert.That(recording.Starts.Select(static start => start.Reason)).IsEquivalentTo([SplitReason.Size, SplitReason.Size], CollectionOrdering.Matching);
 			await Assert.That(recording.Completed).IsEquivalentTo(["0", "1"], CollectionOrdering.Matching);
@@ -57,7 +56,7 @@ public sealed class RecordingSegmenterTest
 		using (Assert.Multiple())
 		{
 			// 换文件的位置按写出的字节记，偏一个字节都会把元素切开
-			await Assert.That(Describe(recording.Files)).IsEqualTo(expected);
+			await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo(expected);
 			await Assert.That(recording.Files).All(static file => file.Length <= 50);
 			await Assert.That(recording.Files.Sum(static file => file.Count(static value => value is (byte)'F'))).IsEqualTo(removeFiller ? 0 : 7 * 15);
 		}
@@ -76,7 +75,7 @@ public sealed class RecordingSegmenterTest
 			await session.WriteAsync(FakeSplitter.Unit("c", 30));
 		}, cancellationToken);
 
-		await Assert.That(Describe(recording.Files)).IsEqualTo("a | H0:b | H0:c");
+		await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("a | H0:b | H0:c");
 	}
 
 	[Test]
@@ -105,7 +104,7 @@ public sealed class RecordingSegmenterTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(Describe(recording.Files)).IsEqualTo("abxy | H0:cd | H0:ef");
+			await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("abxy | H0:cd | H0:ef");
 			await Assert.That(recording.Starts.Select(segment => (segment.Reason, segment.StartTime - start))).IsEquivalentTo([(SplitReason.Duration, TimeSpan.FromSeconds(61)), (SplitReason.Duration, TimeSpan.FromSeconds(122))], CollectionOrdering.Matching);
 		}
 	}
@@ -149,7 +148,7 @@ public sealed class RecordingSegmenterTest
 		}, cancellationToken);
 
 		// 第一个单元之前只有流头，算不上媒体数据
-		await Assert.That(Describe(recording.Files)).IsEqualTo("xa | H0:bc");
+		await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("xa | H0:bc");
 	}
 
 	[Test]
@@ -169,7 +168,7 @@ public sealed class RecordingSegmenterTest
 		}, cancellationToken);
 
 		// 序列头总是排在用到它的关键帧前面，属于上一个单元
-		await Assert.That(Describe(recording.Files)).IsEqualTo("as | H1:bxt | H2:c");
+		await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("as | H1:bxt | H2:c");
 	}
 
 	[Test]
@@ -181,7 +180,7 @@ public sealed class RecordingSegmenterTest
 
 		await recording.RunAsync(new FakeSplitter(), new RecordingSplit.BySize(70), session => session.WriteInChunksAsync(stream, 7), cancellationToken);
 
-		await Assert.That(Describe(recording.Files)).IsEqualTo("ab | H0:cd");
+		await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("ab | H0:cd");
 	}
 
 	// 攒到上限还等不到切分点就先写出去，接在当前文件后面，单元剩下的部分随到随写；下一个切分点照常判断
@@ -239,7 +238,7 @@ public sealed class RecordingSegmenterTest
 		await Assert.ThrowsAsync<OperationCanceledException>(() => run);
 
 		// 末尾只收到 3 字节的元素解码不了，不写
-		await Assert.That(Describe(recording.Files)).IsEqualTo("ab");
+		await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("ab");
 	}
 
 	[Test]
@@ -262,7 +261,7 @@ public sealed class RecordingSegmenterTest
 			await session.WriteAsync(FakeSplitter.Unit("c", 20));
 		}, cancellationToken);
 
-		await Assert.That(Describe(recording.Files)).IsEqualTo("a | H0:bwxyzc");
+		await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("a | H0:bwxyzc");
 	}
 
 	// 时长到了、标题也改了，只开着其中一种分段；收流结束时把最后半个单元切出去只会得到一个太短的文件
@@ -284,7 +283,7 @@ public sealed class RecordingSegmenterTest
 			await session.WriteAsync(FakeSplitter.Data("x", 10));
 		}, cancellationToken);
 
-		await Assert.That(Describe(recording.Files)).IsEqualTo("abx");
+		await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("abx");
 	}
 
 	[Test]
@@ -299,7 +298,7 @@ public sealed class RecordingSegmenterTest
 			await session.WriteAsync(FakeSplitter.Unit("b", 30));
 		}, cancellationToken);
 
-		await Assert.That(Describe(recording.Files)).IsEqualTo("a | H0:b");
+		await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("a | H0:b");
 	}
 
 	// 每写一次之后交给写盘端的数据：分段时攒到下一个切分点才知道单元要不要换文件；不分段时只攒分割器定时间起点要的第一个单元
@@ -342,7 +341,7 @@ public sealed class RecordingSegmenterTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(Describe(recording.Files)).IsEqualTo("abx | H0:cd");
+			await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("abx | H0:cd");
 			await Assert.That(recording.Starts.Select(static start => start.Reason)).IsEquivalentTo([SplitReason.Title], CollectionOrdering.Matching);
 		}
 	}
@@ -364,7 +363,7 @@ public sealed class RecordingSegmenterTest
 			await session.WriteAsync(FakeSplitter.Unit("c", 10));
 		}, cancellationToken);
 
-		await Assert.That(Describe(recording.Files)).IsEqualTo("xabc");
+		await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("xabc");
 	}
 
 	[Test]
@@ -389,7 +388,7 @@ public sealed class RecordingSegmenterTest
 		}, cancellationToken);
 
 		// 打开时当前文件已经超过一分钟
-		await Assert.That(Describe(recording.Files)).IsEqualTo("ab | H0:cdef");
+		await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("ab | H0:cdef");
 	}
 
 	[Test]
@@ -414,12 +413,7 @@ public sealed class RecordingSegmenterTest
 			await session.WriteAsync(FakeSplitter.Unit("g", 10));
 		}, cancellationToken);
 
-		await Assert.That(Describe(recording.Files)).IsEqualTo("abcde | H0:fg");
-	}
-
-	internal static string Describe(IEnumerable<byte[]> files)
-	{
-		return string.Join(" | ", files.Select(FakeSplitter.Describe));
+		await Assert.That(FakeSplitter.Describe(recording.Files)).IsEqualTo("abcde | H0:fg");
 	}
 
 	// FakeTimeProvider.AdjustTime 会连单调时钟一起挪，不像改系统时间
@@ -453,111 +447,5 @@ public sealed class RecordingSegmenterTest
 		string written = FakeSplitter.Describe(result.Buffer.ToArray());
 		reader.AdvanceTo(result.Buffer.Start);
 		return written;
-	}
-}
-
-/// <summary>
-/// 元素是 [类型][长度][标记][填充]：K 是切分点，S 是序列头，D 是普通数据。新段的头是 "H" 加上已经过去的序列头个数和冒号。填充里的 F 是可以去掉的填充数据。
-/// </summary>
-internal sealed class FakeSplitter(bool holdsFirstUnit = false) : MediaSplitter
-{
-	private int _sequences;
-
-	public override bool HoldsFirstUnit => holdsFirstUnit;
-
-	public static byte[] Unit(string marker, int length, int filler = 0)
-	{
-		byte[] unit = Element('K', marker, length);
-		unit.AsSpan(length - filler).Fill((byte)'F');
-		return unit;
-	}
-
-	public static byte[] Data(string marker, int length)
-	{
-		return Element('D', marker, length);
-	}
-
-	public static byte[] Sequence(string marker, int length)
-	{
-		return Element('S', marker, length);
-	}
-
-	public static string Describe(byte[] file)
-	{
-		StringBuilder builder = new();
-		ReadOnlySpan<byte> data = file;
-
-		while (!data.IsEmpty)
-		{
-			if (data[0] is (byte)'H')
-			{
-				int end = data.IndexOf((byte)':') + 1;
-				builder.Append(Encoding.ASCII.GetString(data.Slice(0, end)));
-				data = data.Slice(end);
-				continue;
-			}
-
-			builder.Append((char)data[2]);
-			data = data.Slice(Math.Min(data[1], data.Length));
-		}
-
-		return builder.ToString();
-	}
-
-	public override int RemoveFiller(Span<byte> elements, bool isEnabled)
-	{
-		int read = 0;
-		int write = 0;
-
-		while (isEnabled && elements.Length - read >= 2 && elements[read + 1] <= elements.Length - read)
-		{
-			int length = elements[read + 1];
-			int start = write;
-			elements.Slice(read, 3).CopyTo(elements.Slice(write));
-			write += 3;
-
-			foreach (byte value in elements.Slice(read + 3, length - 3))
-			{
-				if (value is not (byte)'F')
-				{
-					elements[write++] = value;
-				}
-			}
-
-			elements[start + 1] = (byte)(write - start);
-			read += length;
-		}
-
-		elements.Slice(read).CopyTo(elements.Slice(write));
-		return write + elements.Length - read;
-	}
-
-	protected override int Measure(ReadOnlySpan<byte> data, out bool isSplit)
-	{
-		isSplit = data is [(byte)'K', ..];
-		return data.Length < 2 ? 0 : data[1];
-	}
-
-	protected override void Accept(ReadOnlySpan<byte> element)
-	{
-		if (element[0] is (byte)'S')
-		{
-			++_sequences;
-		}
-	}
-
-	protected override ReadOnlyMemory<byte> CaptureHeader()
-	{
-		return Encoding.ASCII.GetBytes($"H{_sequences}:");
-	}
-
-	private static byte[] Element(char type, string marker, int length)
-	{
-		byte[] element = new byte[length];
-		element.AsSpan().Fill((byte)'.');
-		element[0] = (byte)type;
-		element[1] = (byte)length;
-		element[2] = (byte)marker[0];
-		return element;
 	}
 }

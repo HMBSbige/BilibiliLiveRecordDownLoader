@@ -21,7 +21,7 @@ internal static class Fmp4Samples
 		}
 
 		moov.Add(Track(AudioTrack, "soun", tkhdVersion));
-		moov.Add(Box("mvex", [.. Trex(AudioTrack, SyncFlags), .. hasVideo ? Trex(VideoTrack, videoTrexFlags) : []]));
+		moov.Add(Box("mvex", [.. Trex(AudioTrack, defaultFlags: SyncFlags), .. hasVideo ? Trex(VideoTrack, defaultFlags: videoTrexFlags) : []]));
 
 		return [.. Box("ftyp", "isom"u8.ToArray()), .. Box("moov", [.. moov.SelectMany(static box => box)])];
 	}
@@ -46,23 +46,15 @@ internal static class Fmp4Samples
 	// 带时间信息的 init 段：视频轨 mdhd 的 timescale、avc1 样本项的宽高、trex 的默认样本时长，后面跟一条音频轨
 	public static byte[] TimedInit(uint timescale, ushort width, ushort height, uint defaultDuration = 0, byte mdhdVersion = 0)
 	{
-		byte[] tkhd = new byte[24];
-		BinaryPrimitives.WriteUInt32BigEndian(tkhd.AsSpan(12), VideoTrack);
 		byte[] mdhd = new byte[mdhdVersion is 1 ? 36 : 24];
 		mdhd[0] = mdhdVersion;
 		BinaryPrimitives.WriteUInt32BigEndian(mdhd.AsSpan(mdhdVersion is 1 ? 20 : 12), timescale);
-		byte[] hdlr = new byte[24];
-		Encoding.ASCII.GetBytes("vide", hdlr.AsSpan(8));
 		byte[] entry = new byte[78];
 		BinaryPrimitives.WriteUInt16BigEndian(entry.AsSpan(24), width);
 		BinaryPrimitives.WriteUInt16BigEndian(entry.AsSpan(26), height);
 		byte[] stsd = [0, 0, 0, 0, 0, 0, 0, 1, .. Box("avc1", entry)];
-		byte[] video = Box("trak", [.. Box("tkhd", tkhd), .. Box("mdia", [.. Box("mdhd", mdhd), .. Box("hdlr", hdlr), .. Box("minf", Box("stbl", Box("stsd", stsd)))])]);
-		byte[] trex = new byte[24];
-		BinaryPrimitives.WriteUInt32BigEndian(trex.AsSpan(4), VideoTrack);
-		BinaryPrimitives.WriteUInt32BigEndian(trex.AsSpan(12), defaultDuration);
-		BinaryPrimitives.WriteUInt32BigEndian(trex.AsSpan(20), NonSyncFlags);
-		return [.. Box("ftyp", "isom"u8.ToArray()), .. Box("moov", [.. Track(AudioTrack, "soun", 0), .. video, .. Box("mvex", [.. Trex(AudioTrack, SyncFlags), .. Box("trex", trex)])])];
+		byte[] video = Box("trak", [.. Tkhd(VideoTrack), .. Box("mdia", [.. Box("mdhd", mdhd), .. Hdlr("vide"), .. Box("minf", Box("stbl", Box("stsd", stsd)))])]);
+		return [.. Box("ftyp", "isom"u8.ToArray()), .. Box("moov", [.. Track(AudioTrack, "soun"), .. video, .. Box("mvex", [.. Trex(AudioTrack, defaultFlags: SyncFlags), .. Trex(VideoTrack, defaultDuration: defaultDuration, defaultFlags: NonSyncFlags)])])];
 	}
 
 	// 音频 traf 在前；视频 traf 的 tfdt 给出第一个样本的解码时间，sampleCount 个样本各 sampleDuration，为 0 时用 trex 的默认值
@@ -114,24 +106,35 @@ internal static class Fmp4Samples
 		return box;
 	}
 
-	private static byte[] Track(uint trackId, string handler, byte tkhdVersion)
+	public static byte[] Tkhd(uint trackId, byte version = 0)
 	{
-		byte[] tkhd = new byte[tkhdVersion is 1 ? 36 : 24];
-		tkhd[0] = tkhdVersion;
-		BinaryPrimitives.WriteUInt32BigEndian(tkhd.AsSpan(tkhdVersion is 1 ? 20 : 12), trackId);
-
-		byte[] hdlr = new byte[24];
-		Encoding.ASCII.GetBytes(handler, hdlr.AsSpan(8));
-
-		return Box("trak", [.. Box("tkhd", tkhd), .. Box("mdia", Box("hdlr", hdlr))]);
+		byte[] tkhd = new byte[version is 1 ? 36 : 24];
+		tkhd[0] = version;
+		BinaryPrimitives.WriteUInt32BigEndian(tkhd.AsSpan(version is 1 ? 20 : 12), trackId);
+		return Box("tkhd", tkhd);
 	}
 
-	private static byte[] Trex(uint trackId, uint flags)
+	public static byte[] Hdlr(string handler)
+	{
+		byte[] hdlr = new byte[24];
+		Encoding.ASCII.GetBytes(handler, hdlr.AsSpan(8));
+		return Box("hdlr", hdlr);
+	}
+
+	// default_sample_size 总是 0，分片要在 tfhd 或 trun 里给出样本大小
+	public static byte[] Trex(uint trackId, uint defaultDescriptionIndex = 0, uint defaultDuration = 0, uint defaultFlags = 0)
 	{
 		byte[] trex = new byte[24];
 		BinaryPrimitives.WriteUInt32BigEndian(trex.AsSpan(4), trackId);
-		BinaryPrimitives.WriteUInt32BigEndian(trex.AsSpan(20), flags);
+		BinaryPrimitives.WriteUInt32BigEndian(trex.AsSpan(8), defaultDescriptionIndex);
+		BinaryPrimitives.WriteUInt32BigEndian(trex.AsSpan(12), defaultDuration);
+		BinaryPrimitives.WriteUInt32BigEndian(trex.AsSpan(20), defaultFlags);
 		return Box("trex", trex);
+	}
+
+	public static byte[] Track(uint trackId, string handler, byte tkhdVersion = 0)
+	{
+		return Box("trak", [.. Tkhd(trackId, tkhdVersion), .. Box("mdia", Hdlr(handler))]);
 	}
 
 	// 带上 default_sample_duration，确认会跳过 default_sample_flags 前面的可选字段

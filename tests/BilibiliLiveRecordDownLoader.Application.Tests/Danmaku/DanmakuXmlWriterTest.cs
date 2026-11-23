@@ -68,7 +68,7 @@ public sealed class DanmakuXmlWriterTest
 		}
 
 		byte[] content = inner.ToArray();
-		DanmakuFile file = await DanmakuSamples.ReadAsync(content);
+		DanmakuFile file = await DanmakuSamples.ReadAsync(content, cancellationToken);
 
 		using (Assert.Multiple())
 		{
@@ -136,21 +136,21 @@ public sealed class DanmakuXmlWriterTest
 
 	// 毫秒部分截掉，uid 为 0 时哈希写 0，没有 dmid 写 0
 	[Test]
-	public async Task CommentFieldsFollowTheBilibiliLayoutAsync()
+	public async Task CommentFieldsFollowTheBilibiliLayoutAsync(CancellationToken cancellationToken)
 	{
 		byte[] content = await DanmakuSamples.WriteAsync(
 		[
 			new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(12345), 1, 25, 16777215, DanmakuSamples.SentAt, 123, @"昵称", @"文本", 40685126698926083),
 			new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(500), 5, 36, 0xFF0000, DanmakuSamples.SentAt.AddMilliseconds(999), 0, @"淡***", @"匿名", 0)
-		]);
+		], cancellationToken);
 
 		await Assert.That(DanmakuSamples.Lines(content).Where(static line => line.StartsWith(@"  <d ", StringComparison.Ordinal))).IsEquivalentTo(["  <d p=\"12.345,1,25,16777215,1795343190,0,884863d2,40685126698926083\" uid=\"123\" user=\"昵称\">文本</d>", "  <d p=\"0.500,5,36,16711680,1795343190,0,0,0\" uid=\"0\" user=\"淡***\">匿名</d>"], CollectionOrdering.Matching);
 	}
 
 	[Test]
-	public async Task PricesAreWrittenInThousandthsOfAYuanAsync()
+	public async Task PricesAreWrittenInThousandthsOfAYuanAsync(CancellationToken cancellationToken)
 	{
-		byte[] content = await DanmakuSamples.WriteAsync(DanmakuSamples.AllKinds());
+		byte[] content = await DanmakuSamples.WriteAsync(DanmakuSamples.AllKinds(), cancellationToken);
 		string[] lines = DanmakuSamples.Lines(content);
 
 		using (Assert.Multiple())
@@ -168,10 +168,10 @@ public sealed class DanmakuXmlWriterTest
 	}
 
 	[Test]
-	public async Task OffsetIsAddedAndNegativeTimesBecomeZeroAsync()
+	public async Task OffsetIsAddedAndNegativeTimesBecomeZeroAsync(CancellationToken cancellationToken)
 	{
-		byte[] later = await DanmakuSamples.WriteAsync([DanmakuSamples.Comment(1), new DanmakuRecord.Gap(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2))], DanmakuSamples.Header with { Offset = TimeSpan.FromMilliseconds(2500) });
-		byte[] earlier = await DanmakuSamples.WriteAsync([DanmakuSamples.Comment(1), DanmakuSamples.Comment(10)], DanmakuSamples.Header with { Offset = TimeSpan.FromSeconds(-5) });
+		byte[] later = await DanmakuSamples.WriteAsync([DanmakuSamples.Comment(1), new DanmakuRecord.Gap(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2))], cancellationToken, DanmakuSamples.Header with { Offset = TimeSpan.FromMilliseconds(2500) });
+		byte[] earlier = await DanmakuSamples.WriteAsync([DanmakuSamples.Comment(1), DanmakuSamples.Comment(10)], cancellationToken, DanmakuSamples.Header with { Offset = TimeSpan.FromSeconds(-5) });
 
 		using (Assert.Multiple())
 		{
@@ -183,11 +183,11 @@ public sealed class DanmakuXmlWriterTest
 	}
 
 	[Test]
-	public async Task InvalidCharactersAreDroppedAndEachElementStaysOnOneLineAsync()
+	public async Task InvalidCharactersAreDroppedAndEachElementStaysOnOneLineAsync(CancellationToken cancellationToken)
 	{
 		string text = "a\u0001b\nc\uD800d\uFFFE<&>\"\U0001F600";
-		byte[] content = await DanmakuSamples.WriteAsync([DanmakuSamples.Comment(1, text), new DanmakuRecord.TitleChange(TimeSpan.Zero, "第一行\r\n第二行")]);
-		DanmakuFile file = await DanmakuSamples.ReadAsync(content);
+		byte[] content = await DanmakuSamples.WriteAsync([DanmakuSamples.Comment(1, text), new DanmakuRecord.TitleChange(TimeSpan.Zero, "第一行\r\n第二行")], cancellationToken);
+		DanmakuFile file = await DanmakuSamples.ReadAsync(content, cancellationToken);
 
 		using (Assert.Multiple())
 		{
@@ -199,15 +199,15 @@ public sealed class DanmakuXmlWriterTest
 	}
 
 	[Test]
-	public async Task QuotesInAttributeValuesAreEscapedAsync()
+	public async Task QuotesInAttributeValuesAreEscapedAsync(CancellationToken cancellationToken)
 	{
 		DanmakuRecord[] records =
 		[
 			new DanmakuRecord.Comment(TimeSpan.FromSeconds(1), 1, 25, 0xFFFFFF, DanmakuSamples.SentAt, 123, "\"引号\"昵称", @"文本", 0),
 			new DanmakuRecord.Gift(TimeSpan.FromSeconds(2), 789, @"观众", "\"礼物\"", 1, 1000)
 		];
-		byte[] content = await DanmakuSamples.WriteAsync(records);
-		DanmakuFile file = await DanmakuSamples.ReadAsync(content);
+		byte[] content = await DanmakuSamples.WriteAsync(records, cancellationToken);
+		DanmakuFile file = await DanmakuSamples.ReadAsync(content, cancellationToken);
 
 		using (Assert.Multiple())
 		{
@@ -217,15 +217,15 @@ public sealed class DanmakuXmlWriterTest
 	}
 
 	[Test]
-	public async Task NumbersDoNotDependOnTheCurrentCultureAsync()
+	public async Task NumbersDoNotDependOnTheCurrentCultureAsync(CancellationToken cancellationToken)
 	{
 		CultureInfo original = CultureInfo.CurrentCulture;
 		CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(@"de-DE");
 
 		try
 		{
-			byte[] content = await DanmakuSamples.WriteAsync([DanmakuSamples.Comment(12.345)], DanmakuSamples.Header with { Offset = TimeSpan.FromMilliseconds(250) });
-			DanmakuFile file = await DanmakuSamples.ReadAsync(content);
+			byte[] content = await DanmakuSamples.WriteAsync([DanmakuSamples.Comment(12.345)], cancellationToken, DanmakuSamples.Header with { Offset = TimeSpan.FromMilliseconds(250) });
+			DanmakuFile file = await DanmakuSamples.ReadAsync(content, cancellationToken);
 
 			using (Assert.Multiple())
 			{

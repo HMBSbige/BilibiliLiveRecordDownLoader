@@ -17,30 +17,30 @@ internal static class ApiPaths
 
 internal sealed class ApiClient : IDisposable
 {
+	private readonly HttpClient _httpClient;
+
 	public ApiClient(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> respond, TimeProvider? timeProvider = null, BilibiliIdentity? identity = null)
 	{
 		Handler = new FakeHttpMessageHandler(respond);
-		HttpClient = new HttpClient(identity is null ? Handler : new BilibiliRequestHandler(identity) { InnerHandler = Handler });
-		Client = new BilibiliApiClient(HttpClient, timeProvider);
+		_httpClient = new HttpClient(identity is null ? Handler : new BilibiliRequestHandler(identity) { InnerHandler = Handler });
+		Client = new BilibiliApiClient(_httpClient, timeProvider);
 	}
 
-	public ApiClient(Func<HttpRequestMessage, HttpResponseMessage> respond, TimeProvider? timeProvider = null) : this((request, _) => Task.FromResult(respond(request)), timeProvider)
+	public ApiClient(Func<HttpRequestMessage, HttpResponseMessage> respond, TimeProvider? timeProvider = null, BilibiliIdentity? identity = null) : this((request, _) => Task.FromResult(respond(request)), timeProvider, identity)
 	{
 	}
 
 	public FakeHttpMessageHandler Handler { get; }
 
-	public HttpClient HttpClient { get; }
-
 	public BilibiliApiClient Client { get; }
 
-	public static ApiClient Routes(IReadOnlyDictionary<string, Func<HttpResponseMessage>> routes, TimeProvider? timeProvider = null)
+	public static ApiClient Routes(IReadOnlyDictionary<string, Func<HttpResponseMessage>> routes, TimeProvider? timeProvider = null, BilibiliIdentity? identity = null)
 	{
-		return new ApiClient(request => routes.TryGetValue(request.RequestUri?.AbsolutePath ?? string.Empty, out Func<HttpResponseMessage>? route) ? route() : Responses.NotFound(), timeProvider);
+		return new ApiClient(request => routes.TryGetValue(request.RequestUri?.AbsolutePath ?? string.Empty, out Func<HttpResponseMessage>? route) ? route() : Responses.NotFound(), timeProvider, identity);
 	}
 
 	public void Dispose()
 	{
-		HttpClient.Dispose();
+		_httpClient.Dispose();
 	}
 }

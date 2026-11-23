@@ -1,6 +1,6 @@
+using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.Application.Updates;
 using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
-using System.Diagnostics;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -47,23 +47,6 @@ public sealed class UpdateAppServiceTest
 		public HttpClient CreateClient(string name)
 		{
 			return new HttpClient(new OfflineHandler());
-		}
-	}
-
-	private sealed class HangingHttpClientFactory : IHttpClientFactory
-	{
-		public HttpClient CreateClient(string name)
-		{
-			return new HttpClient(new HangingHandler()) { Timeout = TimeSpan.FromMilliseconds(100) };
-		}
-	}
-
-	private sealed class HangingHandler : HttpMessageHandler
-	{
-		protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-		{
-			await Task.Delay(Timeout.Infinite, cancellationToken);
-			throw new UnreachableException();
 		}
 	}
 

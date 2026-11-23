@@ -1,4 +1,5 @@
 using BilibiliLive.Api;
+using BilibiliLive.Tests.Fakes;
 using TUnit.Assertions.Enums;
 
 namespace BilibiliLive.Tests.Api;
@@ -6,11 +7,6 @@ namespace BilibiliLive.Tests.Api;
 public class MasterPlaylistVariantsTest
 {
 	private static readonly Uri PlaylistUri = new("https://api.live.bilibili.com/xlive/play-gateway/master/url?cid=1");
-
-	private static string Fixture(string name)
-	{
-		return File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", name));
-	}
 
 	private static string Hosts(LiveStreamCandidate.Variant variant)
 	{
@@ -20,7 +16,7 @@ public class MasterPlaylistVariantsTest
 	[Test]
 	public async Task EntriesOfTheSameQualityAndCodecAreMergedAcrossPathwaysAsync()
 	{
-		LiveStreamCandidate.Variant[] variants = MasterPlaylistVariants.Parse(Fixture("master_playlist.m3u8"), PlaylistUri);
+		LiveStreamCandidate.Variant[] variants = MasterPlaylistVariants.Parse(Responses.FixtureText("master_playlist.m3u8"), PlaylistUri);
 
 		(StreamCodec, long)[] expected = [(StreamCodec.Hevc, 10000), (StreamCodec.Avc, 10000), (StreamCodec.Hevc, 400), (StreamCodec.Avc, 400), (StreamCodec.Hevc, 250), (StreamCodec.Avc, 250), (StreamCodec.Hevc, 25000)];
 		LiveStreamCandidate.Variant trueOriginal = variants[^1];
@@ -37,7 +33,7 @@ public class MasterPlaylistVariantsTest
 	[Test]
 	public async Task SingleCodecPlaylistGivesOneVariantAsync()
 	{
-		LiveStreamCandidate.Variant variant = await Assert.That(MasterPlaylistVariants.Parse(Fixture("master_playlist_avc.m3u8"), PlaylistUri)).HasSingleItem();
+		LiveStreamCandidate.Variant variant = await Assert.That(MasterPlaylistVariants.Parse(Responses.FixtureText("master_playlist_avc.m3u8"), PlaylistUri)).HasSingleItem();
 
 		await Assert.That((variant.Codec, variant.Qn, Hosts(variant))).IsEqualTo((StreamCodec.Avc, 10000, "cn-jsyz-ct-03-101.bilivideo.com d1--cn-gotcha204b.bilivideo.com"));
 	}

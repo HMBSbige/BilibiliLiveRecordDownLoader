@@ -10,7 +10,7 @@ internal sealed class FakeDanmakuAppService : IDanmakuAppService
 
 	public HashSet<long> MissingRooms { get; } = [];
 
-	public Func<string, DanmakuFileDto> OpenFile { get; set; } = static path => throw new FileNotFoundException(null, path);
+	public Func<string, CancellationToken, Task<DanmakuFileDto>> OpenFile { get; set; } = static (path, _) => throw new FileNotFoundException(null, path);
 
 	public Func<string, TimeSpan, DanmakuOffsetResult> ChangeOffset { get; set; } = static (_, _) => throw new NotSupportedException();
 
@@ -30,7 +30,7 @@ internal sealed class FakeDanmakuAppService : IDanmakuAppService
 
 	public Task<DanmakuFileDto> OpenFileAsync(string path, CancellationToken cancellationToken = default)
 	{
-		return Task.FromResult(OpenFile(path));
+		return OpenFile(path, cancellationToken);
 	}
 
 	public Task<DanmakuOffsetResult> ChangeOffsetAsync(string path, TimeSpan offset, CancellationToken cancellationToken = default)

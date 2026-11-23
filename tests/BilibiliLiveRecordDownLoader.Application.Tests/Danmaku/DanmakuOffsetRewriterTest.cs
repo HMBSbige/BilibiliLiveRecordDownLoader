@@ -11,7 +11,7 @@ public sealed class DanmakuOffsetRewriterTest
 		using TestDirectory directory = new();
 		string path = directory.Combine(@"弹幕.xml");
 		DanmakuRecord[] records = DanmakuSamples.AllKinds();
-		await File.WriteAllBytesAsync(path, await DanmakuSamples.WriteAsync(records, DanmakuSamples.Header with { Offset = TimeSpan.FromSeconds(1) }), cancellationToken);
+		await File.WriteAllBytesAsync(path, await DanmakuSamples.WriteAsync(records, cancellationToken, DanmakuSamples.Header with { Offset = TimeSpan.FromSeconds(1) }), cancellationToken);
 
 		await DanmakuOffsetRewriter.RewriteAsync(path, TimeSpan.FromMilliseconds(3500), cancellationToken);
 		DanmakuFile file = await DanmakuXmlReader.ReadFileAsync(path, cancellationToken);
@@ -29,7 +29,7 @@ public sealed class DanmakuOffsetRewriterTest
 	{
 		using TestDirectory directory = new();
 		string path = directory.Combine(@"弹幕.xml");
-		await File.WriteAllBytesAsync(path, await DanmakuSamples.WriteAsync([DanmakuSamples.Comment(1), DanmakuSamples.Comment(10)]), cancellationToken);
+		await File.WriteAllBytesAsync(path, await DanmakuSamples.WriteAsync([DanmakuSamples.Comment(1), DanmakuSamples.Comment(10)], cancellationToken), cancellationToken);
 
 		await DanmakuOffsetRewriter.RewriteAsync(path, TimeSpan.FromSeconds(-2), cancellationToken);
 		DanmakuFile file = await DanmakuXmlReader.ReadFileAsync(path, cancellationToken);
@@ -45,7 +45,7 @@ public sealed class DanmakuOffsetRewriterTest
 	{
 		using TestDirectory directory = new();
 		string path = directory.Combine(@"弹幕.xml");
-		await File.WriteAllBytesAsync(path, await DanmakuSamples.WriteAsync([.. DanmakuSamples.AllKinds(), new DanmakuRecord.Gap(TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(1500))]), cancellationToken);
+		await File.WriteAllBytesAsync(path, await DanmakuSamples.WriteAsync([.. DanmakuSamples.AllKinds(), new DanmakuRecord.Gap(TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(1500))], cancellationToken), cancellationToken);
 
 		IReadOnlyList<DanmakuRecord> records = await DanmakuOffsetRewriter.RewriteAsync(path, TimeSpan.FromTicks(offsetTicks), cancellationToken);
 		DanmakuFile file = await DanmakuXmlReader.ReadFileAsync(path, cancellationToken);

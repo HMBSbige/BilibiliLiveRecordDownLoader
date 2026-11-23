@@ -93,7 +93,7 @@ public sealed class DanmakuFileViewModelTest
 			requested = offset;
 			return result;
 		};
-		danmaku.OpenFile = static _ => CreateFile(TimeSpan.FromSeconds(2), seconds: [12, 22]);
+		danmaku.OpenFile = static (_, _) => Task.FromResult(CreateFile(TimeSpan.FromSeconds(2), seconds: [12, 22]));
 		using DanmakuFileViewModel viewModel = new(CreateFile(seconds: [10, 20]), danmaku);
 
 		viewModel.OffsetSeconds = 2;

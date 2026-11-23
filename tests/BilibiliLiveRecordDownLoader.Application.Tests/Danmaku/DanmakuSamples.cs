@@ -47,29 +47,29 @@ internal static class DanmakuSamples
 		];
 	}
 
-	public static async Task<byte[]> WriteAsync(IEnumerable<DanmakuRecord> records, DanmakuFileHeader? header = null)
+	public static async Task<byte[]> WriteAsync(IEnumerable<DanmakuRecord> records, CancellationToken cancellationToken, DanmakuFileHeader? header = null)
 	{
 		MemoryStream stream = new();
-		await using (DanmakuXmlWriter writer = await DanmakuXmlWriter.CreateAsync(new NonClosingStream(stream), header ?? Header, DanmakuFlushPolicy.Default, TimeProvider.System, CancellationToken.None))
+		await using (DanmakuXmlWriter writer = await DanmakuXmlWriter.CreateAsync(new NonClosingStream(stream), header ?? Header, DanmakuFlushPolicy.Default, TimeProvider.System, cancellationToken))
 		{
 			foreach (DanmakuRecord record in records)
 			{
-				await writer.WriteAsync(record, CancellationToken.None);
+				await writer.WriteAsync(record, cancellationToken);
 			}
 		}
 
 		return stream.ToArray();
 	}
 
-	public static async Task<DanmakuFile> ReadAsync(byte[] content)
+	public static async Task<DanmakuFile> ReadAsync(byte[] content, CancellationToken cancellationToken)
 	{
 		using MemoryStream stream = new(content);
-		return await DanmakuXmlReader.ReadAsync(stream, CancellationToken.None);
+		return await DanmakuXmlReader.ReadAsync(stream, cancellationToken);
 	}
 
-	public static Task<DanmakuFile> ReadAsync(string xml)
+	public static Task<DanmakuFile> ReadAsync(string xml, CancellationToken cancellationToken)
 	{
-		return ReadAsync(Encoding.UTF8.GetBytes(xml));
+		return ReadAsync(Encoding.UTF8.GetBytes(xml), cancellationToken);
 	}
 
 	// 任何不合法的地方都会抛异常

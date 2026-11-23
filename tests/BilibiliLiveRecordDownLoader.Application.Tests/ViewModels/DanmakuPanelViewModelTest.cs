@@ -3,7 +3,6 @@ using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels.Danmaku;
 using BilibiliLiveRecordDownLoader.ViewModels.Rooms;
-using Splat;
 using System.Windows.Input;
 using TUnit.Assertions.Enums;
 
@@ -11,13 +10,6 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 
 public sealed class DanmakuPanelViewModelTest
 {
-	// 列表项读取 TimeProvider 时走全局定位器
-	[Before(Class)]
-	public static void RegisterServices()
-	{
-		AppLocator.CurrentMutable.RegisterConstant(TimeProvider.System);
-	}
-
 	private static DanmakuPanelViewModel Create(IDanmakuAppService danmaku, IAppConfigManager? configManager = null)
 	{
 		return new DanmakuPanelViewModel(danmaku, configManager ?? new FakeConfigManager(), static _ => Task.FromResult(false)) { AutoRefresh = false };
@@ -26,6 +18,15 @@ public sealed class DanmakuPanelViewModelTest
 	private static RoomItemViewModel Room(long roomId)
 	{
 		return new RoomItemViewModel(new RoomSnapshot(new RoomSettingsDto { RoomId = roomId }, 0, $"主播{roomId}", null, LiveStatus.Live, RecordStatus.Idle, 0, null, null), false);
+	}
+
+	private static Func<string, CancellationToken, Task<DanmakuFileDto>> OpenFileAfter(Task gate)
+	{
+		return async (_, cancellationToken) =>
+		{
+			await gate.WaitAsync(cancellationToken);
+			return DanmakuFileViewModelTest.CreateFile(seconds: [1]);
+		};
 	}
 
 	[Test]
@@ -125,7 +126,7 @@ public sealed class DanmakuPanelViewModelTest
 	[Timeout(30_000)]
 	public async Task OpeningAFileReplacesTheLiveFeedUntilItIsClosedAsync(CancellationToken cancellationToken)
 	{
-		FakeDanmakuAppService danmaku = new() { OpenFile = static _ => DanmakuFileViewModelTest.CreateFile(seconds: [1]) };
+		FakeDanmakuAppService danmaku = new() { OpenFile = static (_, _) => Task.FromResult(DanmakuFileViewModelTest.CreateFile(seconds: [1])) };
 		using DanmakuPanelViewModel panel = Create(danmaku);
 		using RoomItemViewModel room = Room(1);
 
@@ -145,7 +146,7 @@ public sealed class DanmakuPanelViewModelTest
 	[Timeout(30_000)]
 	public async Task ShowingLiveDanmakuClosesTheOpenFileAsync(CancellationToken cancellationToken)
 	{
-		FakeDanmakuAppService danmaku = new() { OpenFile = static _ => DanmakuFileViewModelTest.CreateFile(seconds: [1]) };
+		FakeDanmakuAppService danmaku = new() { OpenFile = static (_, _) => Task.FromResult(DanmakuFileViewModelTest.CreateFile(seconds: [1])) };
 		using DanmakuPanelViewModel panel = Create(danmaku);
 		using RoomItemViewModel first = Room(1);
 		using RoomItemViewModel second = Room(2);
@@ -166,8 +167,8 @@ public sealed class DanmakuPanelViewModelTest
 	public async Task LoadingAFileShowsThePanelRightAwayAsync(CancellationToken cancellationToken)
 	{
 		TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		FakeDanmakuAppService danmaku = new() { OpenFile = static _ => DanmakuFileViewModelTest.CreateFile(seconds: [1]) };
-		using DanmakuPanelViewModel panel = Create(new GatedDanmakuAppService(danmaku, gate.Task));
+		FakeDanmakuAppService danmaku = new() { OpenFile = OpenFileAfter(gate.Task) };
+		using DanmakuPanelViewModel panel = Create(danmaku);
 		using RoomItemViewModel room = Room(1);
 
 		panel.Follow(room);
@@ -188,8 +189,7 @@ public sealed class DanmakuPanelViewModelTest
 	public async Task ClosingThePanelWhileLoadingDiscardsTheFileAsync(CancellationToken cancellationToken)
 	{
 		TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		FakeDanmakuAppService danmaku = new() { OpenFile = static _ => DanmakuFileViewModelTest.CreateFile(seconds: [1]) };
-		using DanmakuPanelViewModel panel = Create(new GatedDanmakuAppService(danmaku, gate.Task));
+		using DanmakuPanelViewModel panel = Create(new FakeDanmakuAppService { OpenFile = OpenFileAfter(gate.Task) });
 
 		Task loading = panel.LoadFileAsync("a.xml", cancellationToken);
 		((ICommand)panel.CloseCommand).Execute(null);
@@ -205,7 +205,7 @@ public sealed class DanmakuPanelViewModelTest
 	{
 		FakeConfigManager configManager = new();
 		string recordDirectory = (await configManager.GetAsync(cancellationToken)).RecordDirectory;
-		FakeDanmakuAppService danmaku = new() { OpenFile = static _ => DanmakuFileViewModelTest.CreateFile(seconds: [1]) };
+		FakeDanmakuAppService danmaku = new() { OpenFile = static (_, _) => Task.FromResult(DanmakuFileViewModelTest.CreateFile(seconds: [1])) };
 		using DanmakuPanelViewModel panel = Create(danmaku, configManager);
 		using RoomItemViewModel first = Room(1);
 		using RoomItemViewModel second = Room(2);
@@ -239,35 +239,11 @@ public sealed class DanmakuPanelViewModelTest
 	[MethodDataSource(nameof(OpenFailures))]
 	public async Task FilesThatCannotBeOpenedAreReportedInThePanelAsync(Exception failure, string message, CancellationToken cancellationToken)
 	{
-		FakeDanmakuAppService danmaku = new() { OpenFile = _ => throw failure };
+		FakeDanmakuAppService danmaku = new() { OpenFile = (_, _) => throw failure };
 		using DanmakuPanelViewModel panel = Create(danmaku);
 
 		await panel.LoadFileAsync("a.xml", cancellationToken);
 
 		await Assert.That((panel.IsOpen, panel.ErrorMessage, panel.File, panel.IsLoadingFile)).IsEqualTo((true, message, null, false));
-	}
-
-	private sealed class GatedDanmakuAppService(FakeDanmakuAppService inner, Task gate) : IDanmakuAppService
-	{
-		public IDanmakuFeed Subscribe(long roomId)
-		{
-			return inner.Subscribe(roomId);
-		}
-
-		public async Task<DanmakuFileDto> OpenFileAsync(string path, CancellationToken cancellationToken = default)
-		{
-			await gate.WaitAsync(cancellationToken);
-			return await inner.OpenFileAsync(path, cancellationToken);
-		}
-
-		public Task<DanmakuOffsetResult> ChangeOffsetAsync(string path, TimeSpan offset, CancellationToken cancellationToken = default)
-		{
-			return inner.ChangeOffsetAsync(path, offset, cancellationToken);
-		}
-
-		public Task<string> QueueHighlightExportAsync(string danmakuPath, DanmakuHighlightDto highlight, CancellationToken cancellationToken = default)
-		{
-			return inner.QueueHighlightExportAsync(danmakuPath, highlight, cancellationToken);
-		}
 	}
 }

@@ -34,10 +34,10 @@ public sealed class DanmakuAppServiceTest
 			.BuildServiceProvider();
 	}
 
-	private static async Task<string> WriteDanmakuAsync(TestDirectory directory, IEnumerable<DanmakuRecord> records, string name = "20260102_030405.xml")
+	private static async Task<string> WriteDanmakuAsync(TestDirectory directory, IEnumerable<DanmakuRecord> records, CancellationToken cancellationToken, string name = "20260102_030405.xml")
 	{
 		string path = directory.Combine(name);
-		await File.WriteAllBytesAsync(path, await DanmakuSamples.WriteAsync(records));
+		await File.WriteAllBytesAsync(path, await DanmakuSamples.WriteAsync(records, cancellationToken), cancellationToken);
 		return path;
 	}
 
@@ -53,7 +53,7 @@ public sealed class DanmakuAppServiceTest
 		await using ServiceProvider services = CreateServices();
 		List<DanmakuRecord> records = [.. Enumerable.Range(0, 600).Select(static i => (DanmakuRecord)DanmakuSamples.Comment(i * 3, $@"日常{i}", i % 4 + 1))];
 		records.AddRange(Enumerable.Range(0, 40).Select(static i => (DanmakuRecord)DanmakuSamples.Comment(900 + i * 0.01, i % 2 is 0 ? @"好耶" : $@"不同的话{i}", 1000 + i)));
-		string path = await WriteDanmakuAsync(directory, records);
+		string path = await WriteDanmakuAsync(directory, records, cancellationToken);
 		await File.WriteAllBytesAsync(directory.Combine("20260102_030405.flv"), [1], cancellationToken);
 
 		DanmakuFileDto file = await services.GetRequiredService<IDanmakuAppService>().OpenFileAsync(path, cancellationToken);
@@ -79,7 +79,7 @@ public sealed class DanmakuAppServiceTest
 	{
 		using TestDirectory directory = new();
 		await using ServiceProvider services = CreateServices();
-		byte[] content = await DanmakuSamples.WriteAsync([]);
+		byte[] content = await DanmakuSamples.WriteAsync([], cancellationToken);
 		int headerEnd = content.AsSpan().IndexOf("/>\n"u8) + 3;
 		string path = directory.Combine("20260102_030405.xml");
 		await File.WriteAllBytesAsync(path, content.AsSpan(0, headerEnd).ToArray(), cancellationToken);
@@ -127,7 +127,7 @@ public sealed class DanmakuAppServiceTest
 		AppConfig config = AppConfig.CreateDefault();
 		config.ShowPaidMessagesInSubtitle = showPaidMessages;
 		await using ServiceProvider services = CreateServices(config: config);
-		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10), new DanmakuRecord.SuperChat(TimeSpan.FromSeconds(20), 1, "老板", 30000, TimeSpan.FromSeconds(60), "醒目留言")]);
+		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10), new DanmakuRecord.SuperChat(TimeSpan.FromSeconds(20), 1, "老板", 30000, TimeSpan.FromSeconds(60), "醒目留言")], cancellationToken);
 		await File.WriteAllBytesAsync(directory.Combine("20260102_030405.flv"), Flv(1280, 720), cancellationToken);
 
 		IDanmakuAppService danmaku = services.GetRequiredService<IDanmakuAppService>();
@@ -150,7 +150,7 @@ public sealed class DanmakuAppServiceTest
 	{
 		using TestDirectory directory = new();
 		await using ServiceProvider services = CreateServices();
-		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)]);
+		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)], cancellationToken);
 		await File.WriteAllBytesAsync(directory.Combine("20260102_030405_fmp4.mp4"), Fmp4Samples.TimedInit(1000, 1920, 1080), cancellationToken);
 		string subtitle = directory.Combine("20260102_030405.ass");
 		await File.WriteAllTextAsync(subtitle, "old", cancellationToken);
@@ -182,7 +182,7 @@ public sealed class DanmakuAppServiceTest
 	{
 		using TestDirectory directory = new();
 		await using ServiceProvider services = CreateServices();
-		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)]);
+		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)], cancellationToken);
 		await File.WriteAllBytesAsync(directory.Combine("20260102_030405.mp4"), [0, 0, 0, 16, .. "ftypisom"u8, 0, 0, 0, 0, 0, 0, 0, 0, .. "mdat"u8], cancellationToken);
 		await File.WriteAllBytesAsync(directory.Combine("20260102_030405.flv"), Flv(720, 1280), cancellationToken);
 
@@ -197,7 +197,7 @@ public sealed class DanmakuAppServiceTest
 	{
 		using TestDirectory directory = new();
 		await using ServiceProvider services = CreateServices();
-		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(100)]);
+		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(100)], cancellationToken);
 
 		IDanmakuAppService danmaku = services.GetRequiredService<IDanmakuAppService>();
 		DanmakuOffsetResult result = await danmaku.ChangeOffsetAsync(path, TimeSpan.FromMinutes(10), cancellationToken);
@@ -228,7 +228,7 @@ public sealed class DanmakuAppServiceTest
 		using TestDirectory directory = new();
 		CutRecorder cuts = new();
 		await using ServiceProvider services = CreateServices(cuts);
-		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)]);
+		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)], cancellationToken);
 		string video = directory.Combine("20260102_030405.mp4");
 		await File.WriteAllBytesAsync(video, [1], cancellationToken);
 		await File.WriteAllBytesAsync(directory.Combine("20260102_030405.flv"), [1], cancellationToken);
@@ -250,7 +250,7 @@ public sealed class DanmakuAppServiceTest
 		string queued = directory.Combine("20260102_030405.highlight-010150.mp4");
 		FakeBackgroundTasks tasks = new([new BackgroundTaskSnapshot(Guid.NewGuid(), "cut", null, queued, BackgroundTaskStatus.Queued, null, null, null), new BackgroundTaskSnapshot(Guid.NewGuid(), "cut", null, directory.Combine("20260102_030405.highlight-010150-2.mp4"), BackgroundTaskStatus.Failed, null, null, null)]);
 		await using ServiceProvider services = CreateServices(tasks: tasks);
-		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)]);
+		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)], cancellationToken);
 		await File.WriteAllBytesAsync(directory.Combine("20260102_030405.mp4"), [1], cancellationToken);
 
 		string destination = await services.GetRequiredService<IDanmakuAppService>().QueueHighlightExportAsync(path, Highlight, cancellationToken);
@@ -263,7 +263,7 @@ public sealed class DanmakuAppServiceTest
 	{
 		using TestDirectory directory = new();
 		await using ServiceProvider services = CreateServices();
-		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)], "20260102_030405_a_fmp4.xml");
+		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)], cancellationToken, "20260102_030405_a_fmp4.xml");
 		await File.WriteAllBytesAsync(directory.Combine("20260102_030405_a_fmp4.mp4"), [1], cancellationToken);
 
 		string destination = await services.GetRequiredService<IDanmakuAppService>().QueueHighlightExportAsync(path, Highlight, cancellationToken);
@@ -276,7 +276,7 @@ public sealed class DanmakuAppServiceTest
 	{
 		using TestDirectory directory = new();
 		await using ServiceProvider services = CreateServices();
-		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)]);
+		string path = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)], cancellationToken);
 
 		await Assert.ThrowsAsync<FileNotFoundException>(() => services.GetRequiredService<IDanmakuAppService>().QueueHighlightExportAsync(path, Highlight, cancellationToken));
 	}

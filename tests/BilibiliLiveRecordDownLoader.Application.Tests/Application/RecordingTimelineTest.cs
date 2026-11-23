@@ -258,17 +258,13 @@ public sealed class RecordingTimelineTest
 	[Timeout(10_000)]
 	public async Task SegmentIsSettledBeforeItsFileIsReportedCompleteAsync(CancellationToken cancellationToken)
 	{
-		RecordingTimeline? timeline = null;
+		SplitRecording recording = new();
+		long beforeBoundary = recording.Time.GetTimestamp() + 395 * recording.Time.TimestampFrequency / 100;
 		bool? settled = null;
 		TimelinePosition? last = null;
-		long beforeBoundary = 0;
-		SplitRecording recording = new()
-		{
-			// 下一段从第 40 帧开始，它之前一刻收到的弹幕这时已经确定
-			SegmentCompleted = _ => settled = timeline?.TryPlace(beforeBoundary, out last)
-		};
-		timeline = recording.Timeline;
-		beforeBoundary = recording.Time.GetTimestamp() + 395 * recording.Time.TimestampFrequency / 100;
+
+		// 下一段从第 40 帧开始，它之前一刻收到的弹幕这时已经确定
+		recording.SegmentCompleted = _ => settled = recording.Timeline.TryPlace(beforeBoundary, out last);
 
 		await recording.RunAsync(new FlvSplitter(), new RecordingSplit.ByDuration(TimeSpan.FromSeconds(3)), async session =>
 		{

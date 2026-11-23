@@ -35,8 +35,8 @@ internal sealed class SplitRecording
 
 	public TimeSpan DrainTimeout { get; init; } = TimeSpan.FromSeconds(5);
 
-	// 写盘端关闭一段之后、建下一段之前调用
-	public Action<string>? SegmentCompleted { get; init; }
+	// 写盘端关闭一段之后、建下一段之前调用；回调要读这个实例时在构造之后设置
+	public Action<string>? SegmentCompleted { get; set; }
 
 	public IReadOnlyList<byte[]> Files => [.. _files.Select(static file => file.Data)];
 

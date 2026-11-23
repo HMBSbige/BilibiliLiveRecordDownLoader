@@ -103,16 +103,16 @@ internal static class FillerSamples
 		byte[] entry = new byte[78];
 		byte[] config = Fmp4Samples.Box(codec is FillerCodec.Avc ? "avcC" : "hvcC", DecoderConfiguration(codec, lengthSize));
 		byte[] stsd = [0, 0, 0, 0, 0, 0, 0, 1, .. Fmp4Samples.Box(sampleEntry ?? (codec is FillerCodec.Avc ? "avc1" : "hvc1"), [.. entry, .. config])];
-		byte[] videoMedia = [.. Handler("vide"), .. Fmp4Samples.Box("minf", Fmp4Samples.Box("stbl", Fmp4Samples.Box("stsd", stsd)))];
+		byte[] videoMedia = [.. Fmp4Samples.Hdlr("vide"), .. Fmp4Samples.Box("minf", Fmp4Samples.Box("stbl", Fmp4Samples.Box("stsd", stsd)))];
 
 		return
 		[
 			.. Fmp4Samples.Box("ftyp", "isom"u8.ToArray()),
 			.. Fmp4Samples.Box("moov",
 			[
-				.. Fmp4Samples.Box("trak", [.. TrackHeader(Fmp4Samples.VideoTrack), .. Fmp4Samples.Box("mdia", videoMedia)]),
-				.. Fmp4Samples.Box("trak", [.. TrackHeader(Fmp4Samples.AudioTrack), .. Fmp4Samples.Box("mdia", Handler("soun"))]),
-				.. Fmp4Samples.Box("mvex", [.. Trex(Fmp4Samples.VideoTrack), .. Trex(Fmp4Samples.AudioTrack)])
+				.. Fmp4Samples.Box("trak", [.. Fmp4Samples.Tkhd(Fmp4Samples.VideoTrack), .. Fmp4Samples.Box("mdia", videoMedia)]),
+				.. Fmp4Samples.Track(Fmp4Samples.AudioTrack, "soun"),
+				.. Fmp4Samples.Box("mvex", [.. Fmp4Samples.Trex(Fmp4Samples.VideoTrack, defaultDescriptionIndex: 1), .. Fmp4Samples.Trex(Fmp4Samples.AudioTrack, defaultDescriptionIndex: 1)])
 			])
 		];
 	}
@@ -233,29 +233,6 @@ internal static class FillerSamples
 		]);
 
 		return Fmp4Samples.Box("moof", [.. Fmp4Samples.Box("mfhd", [.. Word(0), .. Word(1)]), .. videoTraf, .. audioTraf]);
-	}
-
-	private static byte[] TrackHeader(uint trackId)
-	{
-		byte[] tkhd = new byte[24];
-		BinaryPrimitives.WriteUInt32BigEndian(tkhd.AsSpan(12), trackId);
-		return Fmp4Samples.Box("tkhd", tkhd);
-	}
-
-	private static byte[] Handler(string handler)
-	{
-		byte[] hdlr = new byte[24];
-		Encoding.ASCII.GetBytes(handler, hdlr.AsSpan(8));
-		return Fmp4Samples.Box("hdlr", hdlr);
-	}
-
-	// default_sample_size 是 0，音视频 trun 里都要有样本大小
-	private static byte[] Trex(uint trackId)
-	{
-		byte[] trex = new byte[24];
-		BinaryPrimitives.WriteUInt32BigEndian(trex.AsSpan(4), trackId);
-		BinaryPrimitives.WriteUInt32BigEndian(trex.AsSpan(8), 1);
-		return Fmp4Samples.Box("trex", trex);
 	}
 
 	private static byte[] Word(uint value)

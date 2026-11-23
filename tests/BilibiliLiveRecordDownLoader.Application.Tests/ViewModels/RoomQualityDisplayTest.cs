@@ -2,20 +2,12 @@ using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels.Rooms;
 using ReactiveUI.Primitives.Signals;
-using Splat;
 using System.Globalization;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 
 public sealed class RoomQualityDisplayTest
 {
-	// 列表项读取 TimeProvider 时走全局定位器
-	[Before(Class)]
-	public static void RegisterServices()
-	{
-		AppLocator.CurrentMutable.RegisterConstant(TimeProvider.System);
-	}
-
 	private static RoomSnapshot Recording(long roomId, QualityRestriction? restriction, StreamCodec codec = StreamCodec.Avc, long quality = 250)
 	{
 		return new RoomSnapshot(new RoomSettingsDto { RoomId = roomId }, 0, $"主播{roomId}", null, LiveStatus.Live, RecordStatus.Recording, 0, new ActiveRecordingDto(StreamFormat.Fmp4, codec, quality, restriction, DateTimeOffset.UtcNow), null);

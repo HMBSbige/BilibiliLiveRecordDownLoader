@@ -152,11 +152,11 @@ public sealed class RecordingPostProcessorTest
 	}
 
 	[Test]
-	public async Task SubtitleIsGeneratedAtTheVideoSizeAndChaptersGoIntoTheConversionAsync()
+	public async Task SubtitleIsGeneratedAtTheVideoSizeAndChaptersGoIntoTheConversionAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
 		string path = CreateRecording(directory, RecordingPostProcessor.MinimumLength);
-		string danmaku = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10), new DanmakuRecord.TitleChange(TimeSpan.FromSeconds(100), "新标题")]);
+		string danmaku = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10), new DanmakuRecord.TitleChange(TimeSpan.FromSeconds(100), "新标题")], cancellationToken);
 		RecordingMediaTools mediaTools = new();
 
 		await Create(mediaTools).ProcessAsync(path, CreateProfile(directory), Streamer, new DanmakuSegment(danmaku, new VideoResolution(1280, 720), TimeSpan.FromSeconds(200)), CreateDanmakuProfile(writeChapters: true));
@@ -173,11 +173,11 @@ public sealed class RecordingPostProcessorTest
 	}
 
 	[Test]
-	public async Task NothingExtraIsWrittenWhenTurnedOffAsync()
+	public async Task NothingExtraIsWrittenWhenTurnedOffAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
 		string path = CreateRecording(directory, RecordingPostProcessor.MinimumLength);
-		string danmaku = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)]);
+		string danmaku = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)], cancellationToken);
 		RecordingMediaTools mediaTools = new();
 
 		await Create(mediaTools).ProcessAsync(path, CreateProfile(directory), Streamer, new DanmakuSegment(danmaku, null, null), CreateDanmakuProfile(generateSubtitle: false));
@@ -194,11 +194,11 @@ public sealed class RecordingPostProcessorTest
 	[Test]
 	[Arguments(true)]
 	[Arguments(false)]
-	public async Task PaidMessagesInTheSubtitleFollowTheSettingAsync(bool show)
+	public async Task PaidMessagesInTheSubtitleFollowTheSettingAsync(bool show, CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
 		string path = CreateRecording(directory, RecordingPostProcessor.MinimumLength);
-		string danmaku = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10), new DanmakuRecord.Guard(TimeSpan.FromSeconds(20), 1, "舰长", GuardLevel.Captain, 3, 594000)]);
+		string danmaku = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10), new DanmakuRecord.Guard(TimeSpan.FromSeconds(20), 1, "舰长", GuardLevel.Captain, 3, 594000)], cancellationToken);
 
 		await Create(new RecordingMediaTools()).ProcessAsync(path, CreateProfile(directory), Streamer, new DanmakuSegment(danmaku, null, null), CreateDanmakuProfile(showPaidMessages: show));
 
@@ -212,11 +212,11 @@ public sealed class RecordingPostProcessorTest
 	}
 
 	[Test]
-	public async Task ChaptersNeedTheConversionAsync()
+	public async Task ChaptersNeedTheConversionAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
 		string path = CreateRecording(directory, RecordingPostProcessor.MinimumLength);
-		string danmaku = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)]);
+		string danmaku = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)], cancellationToken);
 		RecordingMediaTools mediaTools = new();
 		AppConfig config = AppConfig.CreateDefault();
 		config.RecordDirectory = directory.Root;
@@ -232,11 +232,11 @@ public sealed class RecordingPostProcessorTest
 	}
 
 	[Test]
-	public async Task ChaptersThatCannotBeWrittenAreLeftOutOfTheConversionAsync()
+	public async Task ChaptersThatCannotBeWrittenAreLeftOutOfTheConversionAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
 		string path = CreateRecording(directory, RecordingPostProcessor.MinimumLength);
-		string danmaku = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)]);
+		string danmaku = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)], cancellationToken);
 		RecordingMediaTools mediaTools = new();
 		RecordingNotifications notifications = new();
 		RecordingPostProcessor processor = new(mediaTools, new FakeConfigManager(), notifications, NullLogger<RecordingPostProcessor>.Instance)
@@ -271,10 +271,10 @@ public sealed class RecordingPostProcessorTest
 		return new DanmakuProfile(true, true, DanmakuGiftMode.None, true, TimeSpan.Zero, generateSubtitle, showPaidMessages, false, writeChapters);
 	}
 
-	private static async Task<string> WriteDanmakuAsync(TestDirectory directory, IEnumerable<DanmakuRecord> records)
+	private static async Task<string> WriteDanmakuAsync(TestDirectory directory, IEnumerable<DanmakuRecord> records, CancellationToken cancellationToken)
 	{
 		string path = directory.Combine(Stem + ".xml");
-		await File.WriteAllBytesAsync(path, await DanmakuSamples.WriteAsync(records));
+		await File.WriteAllBytesAsync(path, await DanmakuSamples.WriteAsync(records, cancellationToken), cancellationToken);
 		return path;
 	}
 

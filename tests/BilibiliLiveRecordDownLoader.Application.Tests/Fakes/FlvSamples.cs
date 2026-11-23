@@ -16,10 +16,9 @@ internal static class FlvSamples
 	// 带音视频标志，DataOffset 为 9，后面跟 PreviousTagSize0
 	public static byte[] Header => [.. "FLV"u8, 1, 0x05, 0, 0, 0, 9, 0, 0, 0, 0];
 
-	public static byte[] Metadata(uint timestamp = 0, string marker = "meta")
+	public static byte[] Metadata(uint timestamp = 0)
 	{
-		byte[] name = [2, 0, 10, .. "onMetaData"u8];
-		return Tag(ScriptTag, timestamp, [.. name, .. Encoding.ASCII.GetBytes(marker)]);
+		return Tag(ScriptTag, timestamp, [2, 0, 10, .. "onMetaData"u8, .. "meta"u8]);
 	}
 
 	// ECMA 数组里 width 和 height 排在字符串、布尔值和嵌套对象后面，确认会跳过不认识的值
