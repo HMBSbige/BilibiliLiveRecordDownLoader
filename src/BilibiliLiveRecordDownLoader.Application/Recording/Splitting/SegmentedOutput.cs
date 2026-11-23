@@ -8,8 +8,12 @@ namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 internal sealed class SegmentedOutput(Stream firstFile, string firstPath, Func<PipeWriter, ConcurrentQueue<SegmentStart>, RecordingSegmenter> createSegmenter, Func<SegmentStart, (string Path, Stream File)> openNext, Action<string> completed) : RecordingOutput
 {
 	private readonly ConcurrentQueue<SegmentStart> _starts = new();
+	private readonly TaskCompletionSource _closed = new(TaskCreationOptions.RunContinuationsAsynchronously);
 	private Stream? _file = firstFile;
 	private string _path = firstPath;
+
+	// 写盘端不再碰文件时完成；排空超时后会晚于这次录制尝试结束
+	public Task Closed => _closed.Task;
 
 	public override async Task<StreamEndReason> ReceiveAsync(LiveStreamSession session, PipeWriter writer, IProgress<long> progress, CancellationToken cancellationToken)
 	{
@@ -58,11 +62,22 @@ internal sealed class SegmentedOutput(Stream firstFile, string firstPath, Func<P
 		}
 
 		await CloseAsync();
+		_closed.TrySetResult();
 	}
 
-	public override ValueTask AbandonAsync()
+	public override async ValueTask AbandonAsync()
 	{
-		return _file is { } file ? AbandonAsync(file) : ValueTask.CompletedTask;
+		try
+		{
+			if (_file is { } file)
+			{
+				await AbandonAsync(file);
+			}
+		}
+		finally
+		{
+			_closed.TrySetResult();
+		}
 	}
 
 	private async ValueTask WriteAsync(ReadOnlySequence<byte> data, CancellationToken cancellationToken)

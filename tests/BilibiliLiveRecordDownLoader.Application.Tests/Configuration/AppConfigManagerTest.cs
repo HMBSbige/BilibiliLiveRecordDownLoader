@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
+using System.Runtime.Versioning;
 using TUnit.Assertions.Enums;
+using OS = TUnit.Core.Enums.OS;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Configuration;
 
@@ -295,6 +297,51 @@ public sealed class AppConfigManagerTest : IDisposable
 		}
 
 		await Assert.That(RoomIds(await ReloadAsync(cancellationToken))).IsEquivalentTo([1L], CollectionOrdering.Matching);
+	}
+
+	// 写回恢复出的配置失败、又没留下临时文件时，只剩备份的话下次加载会当成用户删了配置来重置
+	[Test]
+	public async Task CorruptedFileIsStillRestoredAfterSavingTheRestoredConfigFailedAsync(CancellationToken cancellationToken)
+	{
+		const string backup = """{ "Rooms": [{ "RoomId": 1 }] }""";
+		await WriteFileAsync(ConfigFileName, "{ truncated", cancellationToken);
+		await WriteFileAsync(ConfigFileName + ".bak", backup, cancellationToken);
+
+		// 临时文件的位置被目录占着，写回在建临时文件时就失败
+		Directory.CreateDirectory(ConfigPath + ".tmp");
+		AppConfig restored = await ReloadAsync(cancellationToken);
+		Directory.Delete(ConfigPath + ".tmp");
+		AppConfig reloaded = await ReloadAsync(cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(RoomIds(restored)).IsEquivalentTo([1L], CollectionOrdering.Matching);
+			await Assert.That(RoomIds(reloaded)).IsEquivalentTo([1L], CollectionOrdering.Matching);
+			await Assert.That(await File.ReadAllTextAsync(ConfigPath + ".bak", cancellationToken)).IsEqualTo(backup).Because("写回时损坏的文件不能替换掉备份");
+		}
+	}
+
+	// 旧版本写的或手动放进来的配置可能别人也能读，留下的损坏文件里同样有 Cookie
+	[Test]
+	[Arguments(true)]
+	[Arguments(false)]
+	[ExcludeOn(OS.Windows)]
+	[UnsupportedOSPlatform("windows")]
+	public async Task CorruptedFileIsOnlyReadableByTheOwnerAsync(bool hasBackup, CancellationToken cancellationToken)
+	{
+		const UnixFileMode ownerOnly = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+		await WriteFileAsync(ConfigFileName, """{ "Cookie": "SESSDATA=1", truncated""", cancellationToken);
+		File.SetUnixFileMode(ConfigPath, ownerOnly | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
+
+		if (hasBackup)
+		{
+			await WriteFileAsync(ConfigFileName + ".bak", "{}", cancellationToken);
+		}
+
+		await ReloadAsync(cancellationToken);
+		string corrupted = await Assert.That(CorruptedFiles()).HasSingleItem();
+
+		await Assert.That(File.GetUnixFileMode(corrupted)).IsEqualTo(ownerOnly);
 	}
 
 	[Test]

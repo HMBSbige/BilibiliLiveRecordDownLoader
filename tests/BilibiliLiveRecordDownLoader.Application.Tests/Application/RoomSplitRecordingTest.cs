@@ -2,6 +2,7 @@ using BilibiliLive.Danmu;
 using BilibiliLiveRecordDownLoader.Application.Contracts.Media;
 using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
+using Microsoft.Extensions.Logging;
 using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
@@ -127,7 +128,7 @@ public sealed class RoomSplitRecordingTest
 
 	[Test]
 	[Timeout(30_000)]
-	public async Task FileStillClosingWhenTheAttemptEndsIsPostProcessedOnlyOnceAndNothingFollowsAsync(CancellationToken cancellationToken)
+	public async Task FileStillClosingWhenTheAttemptEndsIsPostProcessedOnceAfterClosingAndNothingFollowsAsync(CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();
 		TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -138,21 +139,61 @@ public sealed class RoomSplitRecordingTest
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 61_000));
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 63_000));
 
-		// 换文件时关旧文件卡住，下播后排空超时，录制循环把旧文件交给后处理
+		// 换文件时关旧文件卡住，下播后排空超时，录制循环把旧文件交给后处理；还没关掉时转封装会漏掉末尾
 		loop.GoOffline();
 		await stream.EndAsync();
-		RemuxInput finished = await WaitForRemuxAsync(loop, mediaTools, 1);
+		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Idle);
+		await Task.Delay(200, cancellationToken);
+		int remuxedWhileClosing = mediaTools.Remuxes.Count;
 		DateTimeOffset? startedAt = loop.Snapshot.Recording?.StartedAt;
 		release.SetResult();
 		StuckClosingFile stuck = await Assert.That(first).IsNotNull();
 		await stuck.Closed.WaitAsync(cancellationToken);
+		RemuxInput finished = await WaitForRemuxAsync(loop, mediaTools, 1);
 		await Task.Delay(200, cancellationToken);
 
 		using (Assert.Multiple())
 		{
+			await Assert.That(remuxedWhileClosing).IsEqualTo(0);
 			await Assert.That(mediaTools.Remuxes).Count().IsEqualTo(1);
 			await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.flv")).IsEquivalentTo([finished.Source]);
 			await Assert.That(loop.Snapshot.Recording?.StartedAt).IsEqualTo(startedAt);
+		}
+	}
+
+	// 磁盘一直不恢复时，退出也在等这次后处理，不能一直等下去
+	[Test]
+	[Timeout(30_000)]
+	public async Task FileThatStaysOpenIsLeftWithoutPostProcessingAsync(CancellationToken cancellationToken)
+	{
+		RecordingMediaTools mediaTools = new();
+		TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		StuckClosingFile? first = null;
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools, path => first is null ? first = new StuckClosingFile(path, release.Task) : LiveRecorder.CreateRecordingFile(path));
+		StreamRequest stream = await StartRecordingAsync(loop);
+		loop.Time.Advance(TimeSpan.FromSeconds(61));
+		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 61_000));
+		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 63_000));
+		loop.GoOffline();
+		await stream.EndAsync();
+		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Idle);
+		StuckClosingFile stuck = await Assert.That(first).IsNotNull();
+		string skipped = $"{stuck.Name} is still being written, leaving it without post-processing";
+
+		// 后处理开始等文件关闭时才计时，按步推进
+		for (int step = 0; step < 10 && !loop.Logs.Any(log => log.Message == skipped); ++step)
+		{
+			loop.Time.Advance(TimeSpan.FromMinutes(1));
+			await Task.Delay(50, cancellationToken);
+		}
+
+		release.SetResult();
+		await stuck.Closed.WaitAsync(cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(loop.Logs).Contains(log => log is { Level: LogLevel.Warning } && log.Message == skipped);
+			await Assert.That(mediaTools.Remuxes).IsEmpty();
 		}
 	}
 

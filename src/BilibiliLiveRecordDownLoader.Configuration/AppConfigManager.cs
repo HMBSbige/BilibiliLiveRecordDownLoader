@@ -23,6 +23,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 	private bool _isDirty;
 	private bool _isSaveScheduled;
 	private bool _isReadOnly;
+	private bool _isCorruptFileInPlace;
 	private bool _disposed;
 	private AppConfig? _config;
 
@@ -167,9 +168,9 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 			if (config is null)
 			{
 				LogConfigCorrupted(logger, exception, _configPath);
-				// 先读备份再移走损坏的文件：恢复中途取消时它还在原处；先移走的话下次加载只剩备份，会被当成用户删了配置
+				// 恢复出的配置写回之前损坏的文件一直留在原处，恢复中途取消或写回失败时下次加载照样从备份恢复；只剩备份的话会被当成用户删了配置
 				config = await TryRestoreAsync(BackupPath, cancellationToken).ConfigureAwait(false);
-				PreserveCorruptedFile();
+				PreserveCorruptedFile(config is not null);
 			}
 
 			unsaved = config is not null;
@@ -350,18 +351,34 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		}
 	}
 
-	private void PreserveCorruptedFile()
+	// 恢复出配置时复制一份，原处的文件留给写回覆盖；没有可恢复的就移走：这时不立即写盘，留在原处的话每次启动都会再当成损坏处理一遍
+	private void PreserveCorruptedFile(bool isRestored)
 	{
 		string target = $"{_configPath}.corrupt-{DateTimeOffset.Now.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture)}";
 
 		try
 		{
-			File.Move(_configPath, target, true);
+			if (isRestored)
+			{
+				File.Copy(_configPath, target, true);
+				_isCorruptFileInPlace = true;
+			}
+			else
+			{
+				File.Move(_configPath, target, true);
+			}
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
 			LogConfigUnreadable(logger, exception, _configPath);
 			_isReadOnly = true;
+			return;
+		}
+
+		// 损坏的文件可能是旧版本写的或手动放进来的，权限没收紧过，里面同样有 Cookie
+		if (!OperatingSystem.IsWindows())
+		{
+			RestrictPermissions(target);
 		}
 	}
 
@@ -397,7 +414,8 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 
 			if (File.Exists(_configPath))
 			{
-				File.Replace(TempPath, _configPath, BackupPath);
+				// 原处还是损坏的文件时不拿它替换备份
+				File.Replace(TempPath, _configPath, _isCorruptFileInPlace ? null : BackupPath);
 			}
 			else
 			{
@@ -405,6 +423,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 			}
 
 			_isDirty = false;
+			_isCorruptFileInPlace = false;
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{

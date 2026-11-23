@@ -55,7 +55,7 @@ public sealed class RecordingPostProcessorTest
 		}
 	}
 
-	// 排空超时后写盘端还开着录像；Windows 上这时删不掉它，留下的录像不能没了弹幕和字幕
+	// 录像被别的程序开着时 Windows 上删不掉它，留下的录像不能没了弹幕和字幕
 	[Test]
 	public async Task TooSmallRecordingThatCannotBeDeletedKeepsItsDanmakuAndSubtitleAsync()
 	{

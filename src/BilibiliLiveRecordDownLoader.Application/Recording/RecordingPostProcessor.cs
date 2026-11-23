@@ -78,7 +78,7 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 
 			if (file.Length < MinimumLength)
 			{
-				// 录像删不掉时（写盘端排空超时后还开着它）弹幕和字幕跟着留下
+				// 录像删不掉时（比如正被别的程序打开）弹幕和字幕跟着留下
 				if (FileOperations.TryDelete(path, logger))
 				{
 					FileOperations.TryDelete(stem + RecordingFileLayout.DanmakuExtension, logger);

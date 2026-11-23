@@ -238,13 +238,13 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		Stream file = CreateOnDisk(() => CreateFile(path));
 
 		RecordingTimeline timeline = new(path, timeProvider, idleTimeout);
-		observer.OnRecordingStarted(path, stream, timeline);
 		TransferMeter meter = new();
 		AttemptGate gate = new();
 
 		// 录制中途也可能打开分段，所以不分段时同样按容器解析
 		MediaSplitter splitter = CreateSplitter(candidate, recorderType);
 		SegmentedOutput output = new(file, path, (writer, starts) => new RecordingSegmenter(writer, splitter, split, starts, timeProvider, logger, timeline), OpenNext, completed => gate.TryRun(() => observer.OnSegmentCompleted(completed)));
+		observer.OnRecordingStarted(path, stream, timeline, output.Closed);
 
 		return await TransferAsync(CopyAsync, meter, idleTimeout, observer, cancellationToken);
 

@@ -4,6 +4,9 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 {
 	private static readonly TimeSpan DanmakuCloseTimeout = TimeSpan.FromMinutes(2);
 
+	// 网络盘断开时卡住的写入常常等到会话超时才以 IO 错误结束；退出时也在等后处理，不能一直等下去
+	private static readonly TimeSpan RecordingCloseTimeout = TimeSpan.FromMinutes(2);
+
 	private readonly Lock _lock = new();
 	private readonly CancellationTokenSource _lifetime = new();
 	private readonly ILogger _logger = services.Logger.WithRoomScope(settings.RoomId);
@@ -22,6 +25,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	private RecordStatus _recordStatus;
 	private double _bytesPerSecond;
 	private string? _recordingPath;
+	private Task _recordingClosed = Task.CompletedTask;
 	private SplitControl? _split;
 	private ActiveRecordingDto? _activeRecording;
 	private string? _lastError;
@@ -214,11 +218,12 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		_lifetime.Dispose();
 	}
 
-	void IRecordingObserver.OnRecordingStarted(string path, RecordingStream stream, IRecordingTimeline timeline)
+	void IRecordingObserver.OnRecordingStarted(string path, RecordingStream stream, IRecordingTimeline timeline, Task closed)
 	{
 		lock (_lock)
 		{
 			_recordingPath = path;
+			_recordingClosed = closed;
 			_activeRecording = new ActiveRecordingDto(stream.Format, stream.Codec, stream.Quality, stream.Restriction, services.TimeProvider.GetUtcNow());
 			_recordStatus = RecordStatus.Recording;
 			Danmaku.OnVideoStarted(timeline, path, CreateDanmakuRun());
@@ -241,7 +246,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 
 		// 在录制任务里同步登记，会话释放时等录制任务结束就不会漏掉这一段的后处理
-		services.PostProcessor.Track(PostProcessAsync(path, Danmaku.CompleteSegment(path)));
+		services.PostProcessor.Track(PostProcessAsync(path, Task.CompletedTask, Danmaku.CompleteSegment(path)));
 	}
 
 	// 分段只换文件，录制时长接着这次连接算
@@ -597,8 +602,15 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 					}
 					finally
 					{
-						// 之后的刷新和重连等待都不算在录制
+						// 之后的刷新和重连等待都不算在录制，最后一段的后处理和弹幕收尾也不等它们
 						SetConnecting();
+
+						if (TakeRecording() is (var path, var closed))
+						{
+							services.PostProcessor.Track(PostProcessAsync(path, closed, Danmaku.CompleteSegment(path)));
+						}
+
+						Danmaku.OnVideoEnded();
 					}
 
 					// 流结束时尽快确认是否已下播，下播造成的断流不算线路故障
@@ -689,15 +701,6 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 					}
 
 					await WaitAfterFailureAsync(exception, profile.StreamReconnectDelay, cancellationToken);
-				}
-				finally
-				{
-					if (TakeRecordingPath() is { } path)
-					{
-						services.PostProcessor.Track(PostProcessAsync(path, Danmaku.CompleteSegment(path)));
-					}
-
-					Danmaku.OnVideoEnded();
 				}
 			}
 		}
@@ -809,7 +812,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		return split;
 	}
 
-	private async Task PostProcessAsync(string path, Task<DanmakuSegment?> danmaku)
+	private async Task PostProcessAsync(string path, Task closed, Task<DanmakuSegment?> danmaku)
 	{
 		try
 		{
@@ -817,6 +820,17 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 			RecordingProfile profile = RecordingProfile.Create(config, Settings);
 			DanmakuProfile danmakuProfile = DanmakuProfile.Create(config, Settings);
 			DanmakuSegment? segment;
+
+			// 写盘端还开着它时，转封装读不到还没写出的末尾，按大小判断要不要删也不准
+			try
+			{
+				await closed.WaitAsync(RecordingCloseTimeout, services.TimeProvider);
+			}
+			catch (TimeoutException)
+			{
+				LogRecordingCloseTimedOut(_logger, path);
+				return;
+			}
 
 			try
 			{
@@ -837,18 +851,25 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 	}
 
-	private string? TakeRecordingPath()
+	private (string Path, Task Closed)? TakeRecording()
 	{
 		lock (_lock)
 		{
-			string? path = _recordingPath;
+			if (_recordingPath is not { } path)
+			{
+				return null;
+			}
+
 			_recordingPath = null;
-			return path;
+			return (path, _recordingClosed);
 		}
 	}
 
 	[LoggerMessage(Level = LogLevel.Error, Message = "Failed to post-process {Path}")]
 	private static partial void LogPostProcessFailed(ILogger logger, Exception exception, string path);
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "{Path} is still being written, leaving it without post-processing")]
+	private static partial void LogRecordingCloseTimedOut(ILogger logger, string path);
 
 	[LoggerMessage(Level = LogLevel.Warning, Message = "The danmaku file of {Path} is still being written, post-processing it without danmaku")]
 	private static partial void LogDanmakuCloseTimedOut(ILogger logger, string path);

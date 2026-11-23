@@ -57,6 +57,26 @@ public sealed class RoomRecordingLoopTest
 		}
 	}
 
+	// 重连间隔最长可以设到一天，最后一个文件的转封装和弹幕收尾不能跟着等
+	[Test]
+	[Timeout(30_000)]
+	public async Task LastFileIsPostProcessedWithoutWaitingForTheReconnectDelayAsync(CancellationToken cancellationToken)
+	{
+		await using RecordingLoopHarness loop = new(cancellationToken);
+		loop.GoLive();
+
+		for (int i = 0; i < 3; ++i)
+		{
+			await EndImmediatelyAsync(await loop.NextStreamAsync());
+		}
+
+		// 所有线路都失败之后在等重连间隔，时钟不推进就一直停在这里；文件都只有几 KB，后处理会删掉它们
+		await loop.WaitUntilAsync(static snapshot => snapshot.LastError?.Contains("c.test", StringComparison.Ordinal) is true);
+		await loop.WaitUntilAsync(() => Directory.GetFiles(loop.RoomDirectory, "*.flv").Length is 0, "every recording is post-processed");
+
+		await Assert.That(loop.Snapshot.RecordStatus).IsEqualTo(RecordStatus.Connecting);
+	}
+
 	[Test]
 	[Timeout(30_000)]
 	public async Task EveryStreamFailingToOpenWaitsTheReconnectDelayBeforeRequestingAgainAsync(CancellationToken cancellationToken)
