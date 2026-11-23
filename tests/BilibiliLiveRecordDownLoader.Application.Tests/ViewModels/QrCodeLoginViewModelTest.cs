@@ -27,6 +27,16 @@ public sealed class QrCodeLoginViewModelTest
 
 	private sealed class FailingAccountAppService(Exception failure) : IAccountAppService
 	{
+		public Task<string?> GetCookieAsync(CancellationToken cancellationToken = default)
+		{
+			throw new NotSupportedException();
+		}
+
+		public Task SetCookieAsync(string? cookie, CancellationToken cancellationToken = default)
+		{
+			throw new NotSupportedException();
+		}
+
 		public Task<bool> IsLoggedInAsync(CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException();

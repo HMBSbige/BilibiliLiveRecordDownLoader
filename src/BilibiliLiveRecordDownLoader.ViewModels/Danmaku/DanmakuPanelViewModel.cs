@@ -164,7 +164,7 @@ public sealed partial class DanmakuPanelViewModel : ViewModelBase
 		IsOpen = false;
 	}
 
-	// 登录都走房间列表的入口，由它在成功后调用，LoginAsync 不要自己调
+	// 账号页的 Cookie 换成新的时由房间列表调用，LoginAsync 不要自己调
 	internal void OnLoggedIn()
 	{
 		Live?.OnLoggedIn();

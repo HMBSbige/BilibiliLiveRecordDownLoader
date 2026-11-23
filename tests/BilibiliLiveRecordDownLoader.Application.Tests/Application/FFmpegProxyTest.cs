@@ -12,7 +12,7 @@ public sealed class FFmpegProxyTest
 	public async Task FFmpegRecordsThroughTheSystemProxyWhenTurnedOnAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken, recorderType: RecorderType.FFmpeg, systemProxy: new WebProxy(HttpProxy));
-		loop.Proxy.Enabled = true;
+		loop.Config.UseSystemProxy = true;
 
 		string[] arguments = await StartFFmpegAsync(loop);
 		int proxy = Array.IndexOf(arguments, "-http_proxy");
@@ -42,7 +42,7 @@ public sealed class FFmpegProxyTest
 	public async Task FFmpegConnectsDirectlyToABypassedHostAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken, recorderType: RecorderType.FFmpeg, systemProxy: new WebProxy(HttpProxy, false, [@"a\.test"]));
-		loop.Proxy.Enabled = true;
+		loop.Config.UseSystemProxy = true;
 
 		string[] arguments = await StartFFmpegAsync(loop);
 
@@ -55,7 +55,7 @@ public sealed class FFmpegProxyTest
 	public async Task FFmpegConnectsDirectlyAndSaysSoWhenTheSystemProxyIsNotHttpAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken, recorderType: RecorderType.FFmpeg, systemProxy: new WebProxy("socks5://proxy.test:1080"));
-		loop.Proxy.Enabled = true;
+		loop.Config.UseSystemProxy = true;
 
 		string[] arguments = await StartFFmpegAsync(loop);
 

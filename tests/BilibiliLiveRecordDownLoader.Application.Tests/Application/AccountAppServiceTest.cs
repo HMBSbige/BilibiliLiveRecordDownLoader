@@ -43,6 +43,23 @@ public sealed class AccountAppServiceTest
 		await Assert.That((state, config.Cookie)).IsEqualTo((QrCodeLoginState.Succeeded, "SESSDATA=s"));
 	}
 
+	// 扫码登录、退出和在账号页编辑都经这里保存，读取方只需判断 null
+	[Test]
+	[Timeout(30_000)]
+	public async Task SavedCookieIsTrimmedAndABlankOneClearsItAsync(CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		await using AppConfigManager configManager = new(Options.Create(new AppConfigStorageOptions { FilePath = directory.Combine("config.json"), LegacyFilePath = null }), NullLogger<AppConfigManager>.Instance);
+		using HttpClient httpClient = new();
+		AccountAppService accounts = new(new BilibiliApiClient(httpClient), configManager);
+
+		await accounts.SetCookieAsync(" SESSDATA=x ", cancellationToken);
+		string? saved = await accounts.GetCookieAsync(cancellationToken);
+		await accounts.SetCookieAsync("  ", cancellationToken);
+
+		await Assert.That((saved, await accounts.GetCookieAsync(cancellationToken))).IsEqualTo(("SESSDATA=x", null));
+	}
+
 	private sealed class HangingHandler : HttpMessageHandler
 	{
 		protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

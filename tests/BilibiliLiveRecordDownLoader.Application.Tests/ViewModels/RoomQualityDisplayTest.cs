@@ -1,6 +1,7 @@
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels.Rooms;
+using ReactiveUI.Primitives.Signals;
 using Splat;
 using System.Globalization;
 
@@ -25,10 +26,10 @@ public sealed class RoomQualityDisplayTest
 		return new RoomSnapshot(new RoomSettingsDto { RoomId = roomId }, 0, $"主播{roomId}", null, LiveStatus.Live, RecordStatus.Idle, 0, null, null);
 	}
 
-	private static RoomListViewModel CreateList(FakeRoomAppService rooms, AppConfig config)
+	private static RoomListViewModel CreateList(FakeRoomAppService rooms, IObservable<string?> cookie)
 	{
-		RoomListViewModel viewModel = new(rooms, new FakeConfigManager(config), new FakeDanmakuAppService());
-		viewModel.ApplyConfig(config);
+		RoomListViewModel viewModel = new(rooms, new FakeConfigManager(), new FakeDanmakuAppService());
+		viewModel.ApplyConfig(AppConfig.CreateDefault(), cookie);
 		viewModel.Sync();
 		return viewModel;
 	}
@@ -99,13 +100,12 @@ public sealed class RoomQualityDisplayTest
 	[Test]
 	public async Task NotLoggedInAfterConfiguringACookieAsksForAReconnectAsync()
 	{
-		AppConfig config = AppConfig.CreateDefault();
+		using BehaviorSignal<string?> cookie = new(null);
 		FakeRoomAppService rooms = new(Recording(1, new QualityRestriction.NotLoggedIn(10000)));
-		using RoomListViewModel viewModel = CreateList(rooms, config);
+		using RoomListViewModel viewModel = CreateList(rooms, cookie);
 		string? before = viewModel.Rooms.Single().QualityRestrictionTip;
 
-		config.Cookie = "SESSDATA=x";
-		viewModel.Sync();
+		cookie.OnNext("SESSDATA=x");
 		RoomItemViewModel room = viewModel.Rooms.Single();
 
 		using (Assert.Multiple())
@@ -143,9 +143,7 @@ public sealed class RoomQualityDisplayTest
 	[MethodDataSource(nameof(BannerCases))]
 	public async Task BannerOnlyShowsWhatLoggingInWouldFixAsync(RoomSnapshot[] rooms, string? cookie, string? expected)
 	{
-		AppConfig config = AppConfig.CreateDefault();
-		config.Cookie = cookie;
-		using RoomListViewModel viewModel = CreateList(new FakeRoomAppService(rooms), config);
+		using RoomListViewModel viewModel = CreateList(new FakeRoomAppService(rooms), Signal.Return(cookie));
 
 		await Assert.That(viewModel.LoginBannerText).IsEqualTo(expected);
 	}

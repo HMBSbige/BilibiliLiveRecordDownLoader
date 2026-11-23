@@ -2,6 +2,17 @@ namespace BilibiliLiveRecordDownLoader.Application.Accounts;
 
 internal sealed class AccountAppService(BilibiliApiClient apiClient, IAppConfigManager configManager) : IAccountAppService
 {
+	public async Task<string?> GetCookieAsync(CancellationToken cancellationToken = default)
+	{
+		return (await configManager.GetAsync(cancellationToken)).Cookie;
+	}
+
+	// 规范化由 UpdateAsync 执行的 ApplyDefaults 负责
+	public async Task SetCookieAsync(string? cookie, CancellationToken cancellationToken = default)
+	{
+		await configManager.UpdateAsync(config => config.Cookie = cookie, cancellationToken);
+	}
+
 	public Task<bool> IsLoggedInAsync(CancellationToken cancellationToken = default)
 	{
 		return RequestTimeout.ReportAsync(apiClient.IsLoggedInAsync(cancellationToken));
@@ -18,7 +29,7 @@ internal sealed class AccountAppService(BilibiliApiClient apiClient, IAppConfigM
 
 		if (result is QrCodeLoginResult.Succeeded { Cookie: var cookie })
 		{
-			await configManager.UpdateAsync(config => config.Cookie = cookie, cancellationToken);
+			await SetCookieAsync(cookie, cancellationToken);
 		}
 
 		return result switch
@@ -30,8 +41,8 @@ internal sealed class AccountAppService(BilibiliApiClient apiClient, IAppConfigM
 		};
 	}
 
-	public async Task LogoutAsync(CancellationToken cancellationToken = default)
+	public Task LogoutAsync(CancellationToken cancellationToken = default)
 	{
-		await configManager.UpdateAsync(static config => config.Cookie = null, cancellationToken);
+		return SetCookieAsync(null, cancellationToken);
 	}
 }

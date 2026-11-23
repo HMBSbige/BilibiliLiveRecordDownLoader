@@ -9,8 +9,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	private readonly IRoomAppService _roomAppService;
 	private readonly IAppConfigManager _configManager;
 	private readonly Dictionary<long, RoomItemViewModel> _rooms = [];
-	private AppConfig? _config;
-	private string? _cookie;
+	private bool _hasCookie;
 	private bool _isArranging;
 
 	public RoomListViewModel(IRoomAppService roomAppService, IAppConfigManager configManager, IDanmakuAppService danmakuAppService)
@@ -108,22 +107,22 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	// 返回是否登录成功
 	internal Func<CancellationToken, Task<bool>> ShowLogin { get; init; } = static cancellationToken => AppLocator.Current.GetRequiredService<AccountViewModel>().LoginWithQrCodeAsync(cancellationToken);
 
-	internal void ApplyConfig(AppConfig config)
+	// cookie 是账号页的 Cookie：扫码登录、退出和手动编辑都会改它，房间的版本不变
+	internal void ApplyConfig(AppConfig config, IObservable<string?> cookie)
 	{
-		// 配置管理器一直返回同一个实例，Cookie 的改动也在它上面
-		_config = config;
 		SortOrder = config.RoomSortOrder;
 		PersistToConfig(_configManager, this.WhenChanged(static viewModel => viewModel.SortOrder), static (appConfig, value) => appConfig.RoomSortOrder = value);
+
+		// 和保存时一样规范化，只差首尾空白不算换了 Cookie；订阅时先收到的是当前值
+		IObservable<string?> cookies = cookie.Map(ConfigValues.NormalizeText).Unique();
+		cookies.Take(1).Subscribe(value => _hasCookie = value is not null).DisposeWith(Disposables);
+		cookies.Skip(1).Subscribe(OnCookieChanged).DisposeWith(Disposables);
 	}
 
 	internal void StartMonitoring()
 	{
 		PollChanges(() => _roomAppService.Version, Sync, RefreshInterval);
 		OnLanguageChanged(Sync);
-
-		// 在账号页登录、粘贴或清除 Cookie 都不经过这里，房间的版本也不变
-		_cookie = _config?.Cookie;
-		Poll(() => _config?.Cookie, OnCookieChanged, RefreshInterval);
 	}
 
 	[ReactiveCommand]
@@ -238,32 +237,20 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		await Danmaku.PickFileAsync(room, cancellationToken);
 	}
 
-	// 在录的直播间和弹幕连接都要等重连才用上登录身份，横幅按 Cookie 立即收起，面板先显示等重连
+	// 登录成功时账号页的 Cookie 跟着变，横幅和面板由 OnCookieChanged 更新
 	[ReactiveCommand]
-	private async Task<bool> LoginAsync(CancellationToken cancellationToken)
+	private Task<bool> LoginAsync(CancellationToken cancellationToken)
 	{
-		if (!await ShowLogin(cancellationToken))
-		{
-			return false;
-		}
-
-		Sync();
-		Danmaku.OnLoggedIn();
-		return true;
+		return ShowLogin(cancellationToken);
 	}
 
-	// 从这里登录时 LoginAsync 已经处理过，再处理一次结果相同
+	// 在录的直播间和弹幕连接都要等重连才用上登录身份，横幅按 Cookie 立即收起，面板先显示等重连
 	private void OnCookieChanged(string? cookie)
 	{
-		if (cookie == _cookie)
-		{
-			return;
-		}
-
-		_cookie = cookie;
+		_hasCookie = cookie is not null;
 		Sync();
 
-		if (!string.IsNullOrWhiteSpace(cookie))
+		if (_hasCookie)
 		{
 			Danmaku.OnLoggedIn();
 		}
@@ -374,19 +361,17 @@ public sealed partial class RoomListViewModel : ViewModelBase
 			removed.Dispose();
 		}
 
-		bool hasCookie = !string.IsNullOrWhiteSpace(_config?.Cookie);
-
 		for (int order = 0; order < snapshots.Count; ++order)
 		{
 			RoomSnapshot snapshot = snapshots[order];
 
 			if (_rooms.TryGetValue(snapshot.RoomId, out RoomItemViewModel? room))
 			{
-				room.Apply(snapshot, hasCookie);
+				room.Apply(snapshot, _hasCookie);
 			}
 			else
 			{
-				room = new RoomItemViewModel(snapshot, hasCookie) { RoomAppService = _roomAppService, ReportSaveFailure = ReportSaveFailure };
+				room = new RoomItemViewModel(snapshot, _hasCookie) { RoomAppService = _roomAppService, ReportSaveFailure = ReportSaveFailure };
 				_rooms.Add(snapshot.RoomId, room);
 			}
 
@@ -396,7 +381,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		HasRooms = _rooms.Count > 0;
 		RoomSnapshot[] recording = [.. snapshots.Where(static snapshot => snapshot.RecordStatus is RecordStatus.Recording)];
 		Summarize(recording);
-		UpdateLoginBanner(snapshots, recording, hasCookie);
+		UpdateLoginBanner(snapshots, recording);
 		Arrange();
 	}
 
@@ -488,10 +473,10 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	}
 
 	// 编码原因和登录可能失效都不是登录能解决的；仅录弹幕时视频不在录，所以弹幕看全部直播间
-	private void UpdateLoginBanner(IEnumerable<RoomSnapshot> rooms, RoomSnapshot[] recording, bool hasCookie)
+	private void UpdateLoginBanner(IEnumerable<RoomSnapshot> rooms, RoomSnapshot[] recording)
 	{
-		int restricted = hasCookie ? 0 : recording.Count(static snapshot => snapshot.Recording?.Restriction is QualityRestriction.NotLoggedIn);
-		bool isDanmakuMasked = !hasCookie && rooms.Any(static snapshot => snapshot.Danmaku.IsRecording);
+		int restricted = _hasCookie ? 0 : recording.Count(static snapshot => snapshot.Recording?.Restriction is QualityRestriction.NotLoggedIn);
+		bool isDanmakuMasked = !_hasCookie && rooms.Any(static snapshot => snapshot.Danmaku.IsRecording);
 		string count = restricted.ToString(CultureInfo.CurrentCulture);
 
 		LoginBannerText = (restricted, isDanmakuMasked) switch

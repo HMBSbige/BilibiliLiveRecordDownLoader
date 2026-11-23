@@ -4,15 +4,17 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 {
 	private readonly IApplicationShell _shell;
 	private readonly IAppLifecycleService _lifecycle;
+	private readonly IAppConfigManager _configManager;
 	private readonly IRoomAppService _roomAppService;
 	private readonly IBackgroundTaskAppService _backgroundTasks;
 	private bool _startupTasksStarted;
 
-	public MainWindowViewModel(DialogHostViewModel dialogs, IApplicationShell shell, IAppLifecycleService lifecycle, IRoomAppService roomAppService, IBackgroundTaskAppService backgroundTasks)
+	public MainWindowViewModel(DialogHostViewModel dialogs, IApplicationShell shell, IAppLifecycleService lifecycle, IAppConfigManager configManager, IRoomAppService roomAppService, IBackgroundTaskAppService backgroundTasks)
 	{
 		Dialogs = dialogs;
 		_shell = shell;
 		_lifecycle = lifecycle;
+		_configManager = configManager;
 		_roomAppService = roomAppService;
 		_backgroundTasks = backgroundTasks;
 
@@ -81,17 +83,15 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 		WindowWidth = width;
 		WindowHeight = height;
 
-		IAppConfigManager configManager = AppLocator.Current.GetRequiredService<IAppConfigManager>();
-		Forget(cancellationToken => configManager.UpdateAsync(config => (config.WindowWidth, config.WindowHeight) = (width, height), cancellationToken).AsTask());
+		Forget(cancellationToken => _configManager.UpdateAsync(config => (config.WindowWidth, config.WindowHeight) = (width, height), cancellationToken).AsTask());
 	}
 
 	private async Task RunStartupTasksAsync(CancellationToken cancellationToken)
 	{
-		IAppConfigManager configManager = AppLocator.Current.GetRequiredService<IAppConfigManager>();
-		AppConfig config = await configManager.GetAsync(cancellationToken);
+		AppConfig config = await _configManager.GetAsync(cancellationToken);
 
 		// 要在设置页读开机启动状态之前；没导入配置时接管，开机就只会启动一个空列表的新版
-		if (configManager.IsLegacyConfigImported)
+		if (_configManager.IsLegacyConfigImported)
 		{
 			AppLocator.Current.GetRequiredService<IAutoStartService>().TakeOverExisting();
 		}
@@ -99,8 +99,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 		WindowWidth = config.WindowWidth;
 		WindowHeight = config.WindowHeight;
 		Settings.ApplyConfig(config);
-		Account.ApplyConfig(config);
-		Rooms.ApplyConfig(config);
+		// 房间列表的登录提示跟随账号页的 Cookie，要等它读好
+		await Account.LoadAsync(cancellationToken);
+		Rooms.ApplyConfig(config, Account.WhenChanged(static account => account.Cookie));
 		IsInitialized = true;
 
 		if (!_shell.StartMinimized)

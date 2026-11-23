@@ -51,10 +51,11 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 	/// <param name="streams">其中的 $SIGN 换成第几次请求候选流</param>
 	/// <param name="respondStream">给出时直接应答全部拉流请求，NextStreamAsync 收不到</param>
-	/// <param name="systemProxy">只影响交给 FFmpeg 的参数，假的拉流不经代理</param>
+	/// <param name="systemProxy">Config.UseSystemProxy 打开时才用；只影响交给 FFmpeg 的参数，假的拉流不经代理</param>
 	public RecordingLoopHarness(CancellationToken cancellationToken, Func<string, Stream>? createFile = null, RecorderType recorderType = RecorderType.BuiltIn, bool isNotificationEnabled = false, IMediaToolAppService? mediaTools = null, string streams = DefaultStreams, Func<HttpRequestMessage, HttpResponseMessage>? respondStream = null, IWebProxy? systemProxy = null)
 	{
-		Proxy = new SwitchableWebProxy(systemProxy ?? new WebProxy());
+		SwitchableWebProxy proxy = new(systemProxy ?? new WebProxy());
+		proxy.Follow(Config);
 		_lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		_streamsTemplate = streams;
 		_respondStream = respondStream;
@@ -69,7 +70,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		FakeConfigManager configManager = new(Config);
 
 		BilibiliApiClient apiClient = new(new HttpClient(new Handler(RespondApiAsync)), Time);
-		LiveRecorder recorder = new(apiClient, new StreamClientFactory(new Handler(RespondStreamAsync)), Proxy, new FFmpegProvider(configManager), configManager, Time, new CapturingLogger<LiveRecorder>(Logs, RecorderLogs))
+		LiveRecorder recorder = new(apiClient, new StreamClientFactory(new Handler(RespondStreamAsync)), proxy, new FFmpegProvider(configManager), configManager, Time, new CapturingLogger<LiveRecorder>(Logs, RecorderLogs))
 		{
 			CreateFile = createFile ?? LiveRecorder.CreateRecordingFile,
 			CreateFFmpegSession = (ffmpeg, arguments, source) =>
@@ -101,9 +102,6 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	}
 
 	public FakeTimeProvider Time { get; } = new();
-
-	// 对应“使用系统代理”，默认关闭
-	public SwitchableWebProxy Proxy { get; }
 
 	// 录制循环每次重连都会重新读取
 	public AppConfig Config { get; } = AppConfig.CreateDefault();

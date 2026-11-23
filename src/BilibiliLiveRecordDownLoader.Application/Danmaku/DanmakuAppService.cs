@@ -105,7 +105,7 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 
 		try
 		{
-			records = await DanmakuOffsetRewriter.RewriteAsync(path, DanmakuDefaults.ClampOffset(offset), cancellationToken);
+			records = await DanmakuOffsetRewriter.RewriteAsync(path, ConfigValues.ClampDanmakuOffset(offset), cancellationToken);
 		}
 		catch (InvalidDataException exception)
 		{

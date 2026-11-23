@@ -2,6 +2,7 @@ using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels.Rooms;
 using ReactiveUI.Primitives;
+using ReactiveUI.Primitives.Signals;
 using Splat;
 using System.Collections.Concurrent;
 using System.Windows.Input;
@@ -110,7 +111,7 @@ public sealed class RoomListViewModelTest
 		FakeConfigManager configManager = new(config);
 		using RoomListViewModel viewModel = new(new FakeRoomAppService(InitialOrder), configManager, new FakeDanmakuAppService());
 
-		viewModel.ApplyConfig(config);
+		viewModel.ApplyConfig(config, Signal.Return<string?>(null));
 		(RoomSortOrder restored, bool canReorder, int updates) = (viewModel.SortOrder, viewModel.CanReorder, configManager.UpdateCount);
 		((ICommand)viewModel.SortByCommand).Execute(RoomSortOrder.Custom);
 
@@ -248,10 +249,10 @@ public sealed class RoomListViewModelTest
 	[Arguments(true)]
 	public async Task LoggingInDismissesTheBannerAndMarksTheDanmakuConnectionAsPendingAsync(bool fromPanel, CancellationToken cancellationToken)
 	{
-		AppConfig config = AppConfig.CreateDefault();
-		using RoomListViewModel viewModel = CreateAnonymous(config, _ =>
+		using BehaviorSignal<string?> cookie = new(null);
+		using RoomListViewModel viewModel = CreateAnonymous(cookie, _ =>
 		{
-			config.Cookie = "a=b";
+			cookie.OnNext("a=b");
 			return Task.FromResult(true);
 		});
 		(string? banner, bool couldLogin) = (viewModel.LoginBannerText, viewModel.Danmaku.Live?.CanLogin is true);
@@ -268,27 +269,26 @@ public sealed class RoomListViewModelTest
 	[Timeout(30_000)]
 	public async Task FailedLoginKeepsTheBannerAndTheLoginButtonAsync(CancellationToken cancellationToken)
 	{
-		using RoomListViewModel viewModel = CreateAnonymous(AppConfig.CreateDefault(), static _ => Task.FromResult(false));
+		using RoomListViewModel viewModel = CreateAnonymous(Signal.Return<string?>(null), static _ => Task.FromResult(false));
 
 		bool loggedIn = await viewModel.LoginCommand.Execute().ToTask(cancellationToken);
 
 		await Assert.That((loggedIn, viewModel.LoginBannerText, viewModel.Danmaku.Live?.CanLogin)).IsEqualTo((false, AppLanguage.Current.DanmakuMaskedBanner, true));
 	}
 
-	// 在账号页登录、粘贴或清除 Cookie 都不经过房间列表，房间的版本也不变
+	// 在账号页登录、粘贴或清除 Cookie 都不经过房间列表，房间的版本也不变；只有空白的 Cookie 和没有一样
 	[Test]
 	[Timeout(30_000)]
 	public async Task CookieChangedOnTheAccountPageUpdatesTheBannerAndTheDanmakuPanelAsync(CancellationToken cancellationToken)
 	{
-		AppConfig config = AppConfig.CreateDefault();
-		using RoomListViewModel viewModel = CreateAnonymous(config, static _ => Task.FromResult(false));
+		using BehaviorSignal<string?> cookie = new(null);
+		using RoomListViewModel viewModel = CreateAnonymous(cookie, static _ => Task.FromResult(false));
 		(string? banner, bool couldLogin) = (viewModel.LoginBannerText, viewModel.Danmaku.Live?.CanLogin is true);
-		viewModel.StartMonitoring();
 
-		config.Cookie = "a=b";
+		cookie.OnNext(" a=b ");
 		await TestWait.UntilAsync(() => viewModel.LoginBannerText is null && IsWaitingForReconnection(viewModel), "the login is picked up without a room change", cancellationToken);
 
-		config.Cookie = null;
+		cookie.OnNext("  ");
 		await TestWait.UntilAsync(() => viewModel.LoginBannerText == AppLanguage.Current.DanmakuMaskedBanner, "the logout is picked up without a room change", cancellationToken);
 
 		await Assert.That((banner, couldLogin)).IsEqualTo((AppLanguage.Current.DanmakuMaskedBanner, true));
@@ -302,13 +302,13 @@ public sealed class RoomListViewModelTest
 		return viewModel;
 	}
 
-	// 没配 Cookie，1 号直播间在录弹幕，横幅提示弹幕昵称被隐去；面板开着并跟随 1 号直播间
-	private static RoomListViewModel CreateAnonymous(AppConfig config, Func<CancellationToken, Task<bool>> showLogin)
+	// cookie 一开始为 null，1 号直播间在录弹幕，横幅提示弹幕昵称被隐去；面板开着并跟随 1 号直播间
+	private static RoomListViewModel CreateAnonymous(IObservable<string?> cookie, Func<CancellationToken, Task<bool>> showLogin)
 	{
 		FakeRoomAppService rooms = new(InitialOrder);
 		rooms.Change(1, static snapshot => snapshot with { Danmaku = new RoomDanmakuSnapshot(true) });
-		RoomListViewModel viewModel = new(rooms, new FakeConfigManager(config), new FakeDanmakuAppService()) { ShowLogin = showLogin };
-		viewModel.ApplyConfig(config);
+		RoomListViewModel viewModel = new(rooms, new FakeConfigManager(), new FakeDanmakuAppService()) { ShowLogin = showLogin };
+		viewModel.ApplyConfig(AppConfig.CreateDefault(), cookie);
 		viewModel.Sync();
 		viewModel.Danmaku.IsOpen = true;
 		Select(viewModel, [1]);

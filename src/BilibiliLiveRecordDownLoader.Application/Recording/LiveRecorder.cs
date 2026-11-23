@@ -28,7 +28,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		}
 
 		AppConfig config = await configManager.GetAsync(cancellationToken);
-		(LiveStreamSession session, LiveStreamCandidate candidate, CandidateBatch batch) = await OpenAsync(roomId, streamerUid, profile, QualityRestrictions.HasCookie(config), liveSession, cancellationToken);
+		(LiveStreamSession session, LiveStreamCandidate candidate, CandidateBatch batch) = await OpenAsync(roomId, streamerUid, profile, config.Cookie is not null, liveSession, cancellationToken);
 		Uri endpoint = session.Source;
 
 		try

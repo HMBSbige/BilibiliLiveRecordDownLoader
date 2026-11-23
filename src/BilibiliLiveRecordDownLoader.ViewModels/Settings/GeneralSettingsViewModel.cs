@@ -45,11 +45,11 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 		// 输入框显示的就是实际保存的目录
 		this.WhenChanged(static viewModel => viewModel.RecordDirectory)
 			.Skip(1)
-			.Subscribe(directory => RecordDirectory = NormalizeRecordDirectory(directory))
+			.Subscribe(directory => RecordDirectory = ConfigValues.NormalizeRecordDirectory(directory))
 			.DisposeWith(Disposables);
 
-		PersistToConfig(_configManager, this.WhenChanged(static viewModel => viewModel.RecordDirectory), static (appConfig, value) => appConfig.RecordDirectory = NormalizeRecordDirectory(value));
-		PersistToConfig(_configManager, this.WhenChanged(static viewModel => viewModel.FFmpegPath), static (appConfig, value) => appConfig.FFmpegPath = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
+		PersistToConfig(_configManager, this.WhenChanged(static viewModel => viewModel.RecordDirectory), static (appConfig, value) => appConfig.RecordDirectory = value);
+		PersistToConfig(_configManager, this.WhenChanged(static viewModel => viewModel.FFmpegPath), static (appConfig, value) => appConfig.FFmpegPath = value);
 
 		Poll(() => _diskSpaceService.GetDiskSpace(RecordDirectory), ApplyDiskSpace, DiskSpaceRefreshInterval);
 
@@ -85,11 +85,6 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 		{
 			FFmpegPath = path;
 		}
-	}
-
-	private static string NormalizeRecordDirectory(string directory)
-	{
-		return directory.Trim() is { Length: > 0 } trimmed ? trimmed : ConfigurationConsts.DefaultRecordDirectory;
 	}
 
 	private void ApplyAutoStart(bool enabled)

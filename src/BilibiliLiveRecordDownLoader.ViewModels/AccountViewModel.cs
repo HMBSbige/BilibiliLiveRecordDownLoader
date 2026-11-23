@@ -3,14 +3,12 @@ namespace BilibiliLiveRecordDownLoader.ViewModels;
 public sealed partial class AccountViewModel : ViewModelBase
 {
 	private readonly IAccountAppService _accountAppService;
-	private readonly IAppConfigManager _configManager;
 	private bool _isReloadingCookie;
 	private int _loginCheckGeneration;
 
-	public AccountViewModel(IAccountAppService accountAppService, IAppConfigManager configManager)
+	public AccountViewModel(IAccountAppService accountAppService)
 	{
 		_accountAppService = accountAppService;
-		_configManager = configManager;
 
 		CanLogout = this.WhenChanged(static viewModel => viewModel.IsLoggedIn).Map(static isLoggedIn => isLoggedIn is true);
 
@@ -27,9 +25,9 @@ public sealed partial class AccountViewModel : ViewModelBase
 	[Reactive]
 	public partial string? Cookie { get; set; }
 
-	internal void ApplyConfig(AppConfig config)
+	internal async Task LoadAsync(CancellationToken cancellationToken)
 	{
-		Cookie = config.Cookie;
+		Cookie = await _accountAppService.GetCookieAsync(cancellationToken);
 
 		RunLatest(this.WhenChanged(static viewModel => viewModel.Cookie).Skip(1).Unique().Keep(_ => !_isReloadingCookie), SaveCookieAsync);
 	}
@@ -92,22 +90,22 @@ public sealed partial class AccountViewModel : ViewModelBase
 		IsLoggedIn = false;
 	}
 
-	// 请求从配置读 Cookie，要等写完再查
+	// 要等保存完再查，查的请求才会带上新的 Cookie
 	private async Task SaveCookieAsync(string? cookie, CancellationToken cancellationToken)
 	{
-		await _configManager.UpdateAsync(config => config.Cookie = cookie, cancellationToken);
+		await _accountAppService.SetCookieAsync(cookie, cancellationToken);
 		await CheckLoginAsync(cancellationToken);
 	}
 
-	// 配置已经写好，读回时不再保存和检查
+	// 服务里已经保存好，读回时不再保存和检查
 	private async Task ReloadCookieAsync(CancellationToken cancellationToken)
 	{
-		AppConfig config = await _configManager.GetAsync(cancellationToken);
+		string? cookie = await _accountAppService.GetCookieAsync(cancellationToken);
 		_isReloadingCookie = true;
 
 		try
 		{
-			Cookie = config.Cookie;
+			Cookie = cookie;
 		}
 		finally
 		{

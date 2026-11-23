@@ -204,13 +204,4 @@ public sealed class QualityRestrictionsTest
 
 		await Assert.That(QualityRestrictions.Evaluate(avc, response, Profile(StreamQuality.Original, StreamCodec.Hevc), false)).IsEqualTo(expected);
 	}
-
-	[Test]
-	[Arguments(null, false)]
-	[Arguments("  ", false)]
-	[Arguments("SESSDATA=x", true)]
-	public async Task OnlyAConfiguredCookieCountsAsLoggedInAsync(string? cookie, bool expected)
-	{
-		await Assert.That(QualityRestrictions.HasCookie(AppConfig.CreateDefault() with { Cookie = cookie })).IsEqualTo(expected);
-	}
 }

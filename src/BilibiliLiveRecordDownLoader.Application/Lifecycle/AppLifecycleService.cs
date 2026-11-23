@@ -5,7 +5,7 @@ internal sealed partial class AppLifecycleService(IAppConfigManager configManage
 	public async Task StartAsync(CancellationToken cancellationToken = default)
 	{
 		AppConfig config = await configManager.GetAsync(cancellationToken);
-		proxy.Enabled = config.UseSystemProxy;
+		proxy.Follow(config);
 		LogStarting(logger, updateAppService.CurrentVersion, config.Rooms.Count);
 
 		await roomAppService.StartAsync(cancellationToken);
@@ -19,11 +19,6 @@ internal sealed partial class AppLifecycleService(IAppConfigManager configManage
 
 		// 房间都停了之后最后几段的后处理才都已登记
 		await postProcessor.WhenIdleAsync();
-	}
-
-	public void SetUseSystemProxy(bool enabled)
-	{
-		proxy.Enabled = enabled;
 	}
 
 	[LoggerMessage(Level = LogLevel.Information, Message = "Starting {Version} with {RoomCount} rooms")]

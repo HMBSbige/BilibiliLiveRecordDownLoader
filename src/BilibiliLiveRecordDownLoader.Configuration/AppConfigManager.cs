@@ -47,7 +47,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		}
 	}
 
-	// 写盘延迟合并，调用方取消不会丢掉已做的修改；取值范围在这里统一限制
+	// 写盘延迟合并，调用方取消不会丢掉已做的修改
 	public async ValueTask UpdateAsync(Action<AppConfig> update, CancellationToken cancellationToken = default)
 	{
 		await _lock.WaitAsync(cancellationToken).ConfigureAwait(false);

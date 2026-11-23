@@ -12,9 +12,4 @@ public static class DanmakuDefaults
 	public static TimeSpan MinOffset { get; } = TimeSpan.FromSeconds((double)MinOffsetSeconds);
 
 	public static TimeSpan MaxOffset { get; } = TimeSpan.FromSeconds((double)MaxOffsetSeconds);
-
-	public static TimeSpan ClampOffset(TimeSpan offset)
-	{
-		return offset < MinOffset ? MinOffset : offset > MaxOffset ? MaxOffset : offset;
-	}
 }

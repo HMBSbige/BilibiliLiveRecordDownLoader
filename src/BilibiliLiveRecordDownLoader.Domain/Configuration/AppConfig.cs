@@ -86,11 +86,11 @@ public record AppConfig
 
 	public void ApplyDefaults()
 	{
-		if (string.IsNullOrWhiteSpace(RecordDirectory))
-		{
-			RecordDirectory = ConfigurationConsts.DefaultRecordDirectory;
-		}
-
+		Language = ConfigValues.NormalizeText(Language);
+		RecordDirectory = ConfigValues.NormalizeRecordDirectory(RecordDirectory);
+		FFmpegPath = ConfigValues.NormalizeText(FFmpegPath);
+		UserAgent = ConfigValues.NormalizeText(UserAgent);
+		Cookie = ConfigValues.NormalizeText(Cookie);
 		// 枚举在配置里也能写成数字；按值分支的地方不认识未定义的值
 		Theme = DefinedOrDefault(Theme);
 		RoomSortOrder = DefinedOrDefault(RoomSortOrder);
@@ -100,9 +100,9 @@ public record AppConfig
 		GiftMode = DefinedOrDefault(GiftMode);
 		CodecPriority = StreamPriority.Normalize(CodecPriority, StreamPriority.DefaultCodecs);
 		FormatPriority = StreamPriority.Normalize(FormatPriority, StreamPriority.DefaultFormats);
-		SplitDuration = RecordingSplitLimits.ClampDuration(SplitDuration);
-		SplitSizeMegabytes = RecordingSplitLimits.ClampSize(SplitSizeMegabytes);
-		DanmakuOffset = DanmakuDefaults.ClampOffset(DanmakuOffset);
+		SplitDuration = ConfigValues.ClampSplitDuration(SplitDuration);
+		SplitSizeMegabytes = ConfigValues.ClampSplitSize(SplitSizeMegabytes);
+		DanmakuOffset = ConfigValues.ClampDanmakuOffset(DanmakuOffset);
 		// 手改的配置里 Rooms 或其中的元素可能是 null
 		Rooms = [.. (Rooms ?? []).Where(static room => room is { RoomId: > 0 }).DistinctBy(static room => room.RoomId)];
 		Rooms.ForEach(static room => room.ApplyDefaults());

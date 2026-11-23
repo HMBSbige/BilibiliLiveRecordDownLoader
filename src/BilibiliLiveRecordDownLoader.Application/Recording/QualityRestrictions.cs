@@ -44,11 +44,6 @@ internal static class QualityRestrictions
 		return Array.FindIndex(candidates, candidate => (candidate.Protocol, candidate.Format, candidate.Codec) == (stream.Protocol, stream.Format, stream.Codec));
 	}
 
-	public static bool HasCookie(AppConfig config)
-	{
-		return !string.IsNullOrWhiteSpace(config.Cookie);
-	}
-
 	// 要和接口候选流的排序一致
 	internal static int Rank(IReadOnlyList<StreamCodec> priority, StreamCodec codec)
 	{

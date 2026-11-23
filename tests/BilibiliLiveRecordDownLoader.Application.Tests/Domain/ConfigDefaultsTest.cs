@@ -125,6 +125,23 @@ public sealed class ConfigDefaultsTest
 		}
 	}
 
+	// 输入框和手改的配置里多出的空白不算数，只有空白时等于没填；读的地方只判断 null
+	[Test]
+	public async Task TextSettingsAreTrimmedAndBlankOnesClearedAsync()
+	{
+		AppConfig padded = new() { Language = " en ", RecordDirectory = " records ", FFmpegPath = " ffmpeg ", UserAgent = " ua ", Cookie = " SESSDATA=x " };
+		AppConfig blank = new() { Language = "", FFmpegPath = " ", UserAgent = "\t", Cookie = "  " };
+
+		padded.ApplyDefaults();
+		blank.ApplyDefaults();
+
+		using (Assert.Multiple())
+		{
+			await Assert.That((padded.Language, padded.RecordDirectory, padded.FFmpegPath, padded.UserAgent, padded.Cookie)).IsEqualTo(("en", "records", "ffmpeg", "ua", "SESSDATA=x"));
+			await Assert.That([blank.Language, blank.FFmpegPath, blank.UserAgent, blank.Cookie]).All(static value => value is null);
+		}
+	}
+
 	[Test]
 	public async Task SplitValuesAreClampedToTheirBoundsAsync()
 	{

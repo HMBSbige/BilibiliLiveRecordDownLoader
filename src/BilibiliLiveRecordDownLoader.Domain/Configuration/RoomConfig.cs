@@ -44,26 +44,21 @@ public record RoomConfig
 
 	public void ApplyDefaults()
 	{
-		StatusCheckInterval = Clamp(StatusCheckInterval, RoomDefaults.MinStatusCheckIntervalSeconds);
-		DanmuReconnectDelay = Clamp(DanmuReconnectDelay, RoomDefaults.MinDanmuReconnectDelaySeconds);
-		StreamReconnectDelay = Clamp(StreamReconnectDelay, RoomDefaults.MinStreamReconnectDelaySeconds);
-		StreamConnectTimeout = Clamp(StreamConnectTimeout, RoomDefaults.MinStreamConnectTimeoutSeconds);
-		StreamIdleTimeout = Clamp(StreamIdleTimeout, RoomDefaults.MinStreamIdleTimeoutSeconds);
+		StatusCheckInterval = ConfigValues.ClampRoomInterval(StatusCheckInterval, RoomDefaults.MinStatusCheckIntervalSeconds);
+		DanmuReconnectDelay = ConfigValues.ClampRoomInterval(DanmuReconnectDelay, RoomDefaults.MinDanmuReconnectDelaySeconds);
+		StreamReconnectDelay = ConfigValues.ClampRoomInterval(StreamReconnectDelay, RoomDefaults.MinStreamReconnectDelaySeconds);
+		StreamConnectTimeout = ConfigValues.ClampRoomInterval(StreamConnectTimeout, RoomDefaults.MinStreamConnectTimeoutSeconds);
+		StreamIdleTimeout = ConfigValues.ClampRoomInterval(StreamIdleTimeout, RoomDefaults.MinStreamIdleTimeoutSeconds);
 		CodecPriority = NormalizeOverride(CodecPriority);
 		FormatPriority = NormalizeOverride(FormatPriority);
-		SplitDuration = SplitDuration is { } duration ? RecordingSplitLimits.ClampDuration(duration) : null;
-		SplitSizeMegabytes = SplitSizeMegabytes is { } size ? RecordingSplitLimits.ClampSize(size) : null;
-		DanmakuOffset = DanmakuOffset is { } offset ? DanmakuDefaults.ClampOffset(offset) : null;
+		SplitDuration = SplitDuration is { } duration ? ConfigValues.ClampSplitDuration(duration) : null;
+		SplitSizeMegabytes = SplitSizeMegabytes is { } size ? ConfigValues.ClampSplitSize(size) : null;
+		DanmakuOffset = DanmakuOffset is { } offset ? ConfigValues.ClampDanmakuOffset(offset) : null;
 		// 枚举在配置里也能写成数字；覆盖值无效时和没覆盖一样继承全局设置
 		RecorderType = DefinedOrInherit(RecorderType);
 		SplitMode = DefinedOrInherit(SplitMode);
 
 		return;
-
-		static TimeSpan Clamp(TimeSpan value, decimal minimumSeconds)
-		{
-			return TimeSpan.FromTicks(Math.Clamp(value.Ticks, TimeSpan.FromSeconds((double)minimumSeconds).Ticks, TimeSpan.FromSeconds((double)RoomDefaults.MaxIntervalSeconds).Ticks));
-		}
 
 		static T? DefinedOrInherit<T>(T? value) where T : struct, Enum
 		{

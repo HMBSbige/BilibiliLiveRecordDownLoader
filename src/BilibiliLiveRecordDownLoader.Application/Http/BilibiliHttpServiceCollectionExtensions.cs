@@ -47,13 +47,8 @@ internal static class BilibiliHttpServiceCollectionExtensions
 		(async cancellationToken =>
 			{
 				AppConfig config = await configManager.GetAsync(cancellationToken);
-				return new BilibiliRequestOptions(NullIfWhiteSpace(config.UserAgent), NullIfWhiteSpace(config.Cookie));
+				return new BilibiliRequestOptions(config.UserAgent, config.Cookie);
 			}
 		);
-
-		static string? NullIfWhiteSpace(string? value)
-		{
-			return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-		}
 	}
 }

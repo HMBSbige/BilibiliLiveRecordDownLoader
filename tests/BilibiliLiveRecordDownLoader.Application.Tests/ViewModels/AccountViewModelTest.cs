@@ -1,6 +1,5 @@
 using BilibiliLive.Models;
 using BilibiliLiveRecordDownLoader.Application.Contracts.Accounts;
-using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using ReactiveUI.Primitives;
 using System.Collections.Concurrent;
@@ -22,8 +21,8 @@ public sealed class AccountViewModelTest
 	[MethodDataSource(nameof(CheckFailures))]
 	public async Task FailedCheckLeavesTheCheckingStateAsync(Exception failure, CancellationToken cancellationToken)
 	{
-		FakeAccountAppService accounts = new() { IsLoggedIn = OnThreadPool(() => throw failure) };
-		using AccountViewModel viewModel = new(accounts, new FakeConfigManager());
+		FakeAccountAppService accounts = new() { IsLoggedIn = OnThreadPool(_ => throw failure) };
+		using AccountViewModel viewModel = new(accounts);
 		ConcurrentQueue<Exception> thrown = new();
 		using IDisposable subscription = viewModel.CheckLoginCommand.ThrownExceptions.Subscribe(thrown.Enqueue);
 
@@ -43,20 +42,18 @@ public sealed class AccountViewModelTest
 	[Timeout(30_000)]
 	public async Task EditedCookieIsCheckedAfterItIsSavedAsync(CancellationToken cancellationToken)
 	{
-		AppConfig config = AppConfig.CreateDefault();
-		config.Cookie = "old";
-		FakeConfigManager configManager = new(config);
 		ConcurrentQueue<string> checkedCookies = new();
 		FakeAccountAppService accounts = new()
 		{
-			IsLoggedIn = OnThreadPool(() =>
+			Cookie = "old",
+			IsLoggedIn = OnThreadPool(cookie =>
 			{
-				checkedCookies.Enqueue(config.Cookie ?? string.Empty);
+				checkedCookies.Enqueue(cookie ?? string.Empty);
 				return true;
 			})
 		};
-		using AccountViewModel viewModel = new(accounts, configManager);
-		viewModel.ApplyConfig(config);
+		using AccountViewModel viewModel = new(accounts);
+		await viewModel.LoadAsync(cancellationToken);
 
 		viewModel.Cookie = "new";
 		await TestWait.UntilAsync(() => viewModel.IsLoggedIn is true, "the new cookie is checked as logged in", cancellationToken);
@@ -68,19 +65,18 @@ public sealed class AccountViewModelTest
 	[Test]
 	public async Task OlderCheckFinishingLastDoesNotOverrideTheNewerResultAsync()
 	{
-		AppConfig config = AppConfig.CreateDefault();
 		ConcurrentQueue<TaskCompletionSource<bool>> checks = new();
 		FakeAccountAppService accounts = new()
 		{
-			IsLoggedIn = _ =>
+			IsLoggedIn = (_, _) =>
 			{
 				TaskCompletionSource<bool> check = new();
 				checks.Enqueue(check);
 				return check.Task;
 			}
 		};
-		using AccountViewModel viewModel = new(accounts, new FakeConfigManager(config));
-		viewModel.ApplyConfig(config);
+		using AccountViewModel viewModel = new(accounts);
+		await viewModel.LoadAsync(CancellationToken.None);
 
 		viewModel.RefreshLoginStatus();
 		viewModel.Cookie = "new";
@@ -96,24 +92,21 @@ public sealed class AccountViewModelTest
 	[Timeout(30_000)]
 	public async Task CookieReloadedAfterLogoutIsNotSavedOrCheckedAgainAsync(CancellationToken cancellationToken)
 	{
-		AppConfig config = AppConfig.CreateDefault();
-		config.Cookie = "old";
-		FakeConfigManager configManager = new(config);
 		int checks = 0;
 		FakeAccountAppService accounts = new()
 		{
-			IsLoggedIn = OnThreadPool(() =>
+			Cookie = "old",
+			IsLoggedIn = OnThreadPool(_ =>
 			{
 				Interlocked.Increment(ref checks);
 				return true;
-			}),
-			Logout = () => config.Cookie = null
+			})
 		};
-		using AccountViewModel viewModel = new(accounts, configManager);
-		viewModel.ApplyConfig(config);
+		using AccountViewModel viewModel = new(accounts);
+		await viewModel.LoadAsync(cancellationToken);
 		((ICommand)viewModel.CheckLoginCommand).Execute(null);
 		await TestWait.UntilAsync(() => viewModel.IsLoggedIn is true, "the login check reports logged in", cancellationToken);
-		int updates = configManager.UpdateCount;
+		int saves = accounts.Saves;
 
 		((ICommand)viewModel.LogoutCommand).Execute(null);
 		await TestWait.UntilAsync(() => viewModel.IsLoggedIn is false, "the logout is shown", cancellationToken);
@@ -122,25 +115,41 @@ public sealed class AccountViewModelTest
 		{
 			await Assert.That(viewModel.Cookie).IsNull();
 			await Assert.That(Volatile.Read(ref checks)).IsEqualTo(1);
-			await Assert.That(configManager.UpdateCount).IsEqualTo(updates);
+			await Assert.That(accounts.Saves).IsEqualTo(saves);
 		}
 	}
 
-	// 和真实的请求一样，结果在别的线程上返回
-	private static Func<CancellationToken, Task<bool>> OnThreadPool(Func<bool> isLoggedIn)
+	// 和真实的请求一样，结果在别的线程上返回；参数是检查时服务里的 Cookie
+	private static Func<string?, CancellationToken, Task<bool>> OnThreadPool(Func<string?, bool> isLoggedIn)
 	{
-		return cancellationToken => Task.Run(isLoggedIn, cancellationToken);
+		return (cookie, cancellationToken) => Task.Run(() => isLoggedIn(cookie), cancellationToken);
 	}
 
 	private sealed class FakeAccountAppService : IAccountAppService
 	{
-		public required Func<CancellationToken, Task<bool>> IsLoggedIn { get; init; }
+		private int _saves;
 
-		public Action Logout { get; init; } = static () => { };
+		public required Func<string?, CancellationToken, Task<bool>> IsLoggedIn { get; init; }
+
+		public string? Cookie { get; set; }
+
+		public int Saves => Volatile.Read(ref _saves);
+
+		public Task<string?> GetCookieAsync(CancellationToken cancellationToken = default)
+		{
+			return Task.FromResult(Cookie);
+		}
+
+		public Task SetCookieAsync(string? cookie, CancellationToken cancellationToken = default)
+		{
+			Cookie = cookie;
+			Interlocked.Increment(ref _saves);
+			return Task.CompletedTask;
+		}
 
 		public Task<bool> IsLoggedInAsync(CancellationToken cancellationToken = default)
 		{
-			return IsLoggedIn(cancellationToken);
+			return IsLoggedIn(Cookie, cancellationToken);
 		}
 
 		public Task<QrCodeLoginTicket> CreateQrCodeLoginAsync(CancellationToken cancellationToken = default)
@@ -155,7 +164,7 @@ public sealed class AccountViewModelTest
 
 		public Task LogoutAsync(CancellationToken cancellationToken = default)
 		{
-			Logout();
+			Cookie = null;
 			return Task.CompletedTask;
 		}
 	}

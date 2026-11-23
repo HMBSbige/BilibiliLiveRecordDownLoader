@@ -22,7 +22,7 @@ public sealed partial class AppearanceSettingsViewModel(IAppConfigManager config
 		SelectedLanguage = Languages.FirstOrDefault(language => language.CultureName == config.Language) ?? Languages[0];
 		Theme = config.Theme;
 
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.SelectedLanguage).Map(static language => language?.CultureName), static (appConfig, value) => appConfig.Language = string.IsNullOrEmpty(value) ? null : value);
+		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.SelectedLanguage).Map(static language => language?.CultureName), static (appConfig, value) => appConfig.Language = value);
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.Theme), static (appConfig, value) => appConfig.Theme = value);
 
 		this.WhenChanged(static viewModel => viewModel.SelectedLanguage)
