@@ -1,6 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.ViewModels.Settings;
 
-public sealed partial class NotificationSettingsViewModel(IAppConfigManager configManager) : ViewModelBase
+public sealed partial class NotificationSettingsViewModel(ISettingsAppService settingsAppService) : ViewModelBase
 {
 	[Reactive]
 	public partial bool NotifyOnRecordingError { get; set; }
@@ -8,12 +8,12 @@ public sealed partial class NotificationSettingsViewModel(IAppConfigManager conf
 	[Reactive]
 	public partial bool NotifyOnTitleChange { get; set; }
 
-	internal void ApplyConfig(AppConfig config)
+	internal void ApplySettings(AppSettingsDto settings)
 	{
-		NotifyOnRecordingError = config.NotifyOnRecordingError;
-		NotifyOnTitleChange = config.NotifyOnTitleChange;
+		NotifyOnRecordingError = settings.NotifyOnRecordingError;
+		NotifyOnTitleChange = settings.NotifyOnTitleChange;
 
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.NotifyOnRecordingError), static (appConfig, value) => appConfig.NotifyOnRecordingError = value);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.NotifyOnTitleChange), static (appConfig, value) => appConfig.NotifyOnTitleChange = value);
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.NotifyOnRecordingError), static (current, value) => current with { NotifyOnRecordingError = value });
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.NotifyOnTitleChange), static (current, value) => current with { NotifyOnTitleChange = value });
 	}
 }

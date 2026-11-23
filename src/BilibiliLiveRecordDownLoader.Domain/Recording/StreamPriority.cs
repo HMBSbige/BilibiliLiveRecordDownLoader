@@ -6,9 +6,9 @@ public static class StreamPriority
 
 	public static IReadOnlyList<StreamFormat> DefaultFormats { get; } = [StreamFormat.Fmp4, StreamFormat.Ts, StreamFormat.Flv];
 
-	public static List<T> Normalize<T>(IEnumerable<T>? priority, IReadOnlyList<T> fallback) where T : struct, Enum
+	public static IReadOnlyList<T> Normalize<T>(IEnumerable<T>? priority, IReadOnlyList<T> fallback) where T : struct, Enum
 	{
-		List<T> result = [.. (priority ?? []).Where(Enum.IsDefined).Distinct()];
-		return result.Count > 0 ? result : [.. fallback];
+		IReadOnlyList<T> result = [.. (priority ?? []).Where(Enum.IsDefined).Distinct()];
+		return result.Count > 0 ? result : fallback;
 	}
 }

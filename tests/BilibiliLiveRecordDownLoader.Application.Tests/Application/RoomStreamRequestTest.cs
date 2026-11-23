@@ -15,7 +15,7 @@ public sealed class RoomStreamRequestTest
 
 		StreamRequest first = await loop.NextStreamAsync();
 		string? original = RequestedQuality(loop);
-		loop.Session.UpdateSettings(loop.Settings with { Quality = StreamQuality.BluRay });
+		loop.Settings = loop.Settings with { Quality = StreamQuality.BluRay };
 		await loop.RecordForAsync(first, TimeSpan.FromSeconds(1));
 		StreamRequest next = await loop.NextStreamAsync();
 

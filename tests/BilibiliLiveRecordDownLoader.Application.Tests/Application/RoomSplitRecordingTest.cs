@@ -25,7 +25,7 @@ public sealed class RoomSplitRecordingTest
 
 		// 开始录制之后才打开的设置同样生效
 		loop.Config.SplitOnTitleChange = global;
-		loop.Settings.SplitOnTitleChange = room;
+		loop.Settings = loop.Settings with { SplitOnTitleChange = room };
 		loop.Session.Handle(new DanmuMessage.RoomChanged("new title", null, null));
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 2000));
 		await stream.SendAndWaitAsync(Frame(VideoPacket.InterFrame, 2033));

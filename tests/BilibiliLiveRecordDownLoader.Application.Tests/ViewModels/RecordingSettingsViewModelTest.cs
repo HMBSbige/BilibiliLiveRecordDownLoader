@@ -16,9 +16,9 @@ public sealed class RecordingSettingsViewModelTest
 		config.SplitOnTitleChange = true;
 		config.IncludeTitleInFileName = false;
 		FakeConfigManager configManager = new(config);
-		using RecordingSettingsViewModel viewModel = new(configManager);
+		using RecordingSettingsViewModel viewModel = new(new SettingsAppService(configManager));
 
-		viewModel.ApplyConfig(config);
+		viewModel.ApplySettings(config.ToSettingsDto());
 		(RecordingSplitMode mode, decimal minutes, decimal megabytes, bool onTitle, bool titleInName, bool isBySize, bool isByDuration) = (viewModel.SplitMode, viewModel.SplitDurationMinutes, viewModel.SplitSizeMegabytes, viewModel.SplitOnTitleChange, viewModel.IncludeTitleInFileName, viewModel.IsSplitBySize, viewModel.IsSplitByDuration);
 		int updates = configManager.UpdateCount;
 		viewModel.SplitMode = RecordingSplitMode.Duration;
@@ -50,8 +50,8 @@ public sealed class RecordingSettingsViewModelTest
 		config.SplitMode = RecordingSplitMode.Duration;
 		config.SplitDuration = TimeSpan.FromMinutes(60);
 		FakeConfigManager configManager = new(config);
-		using RecordingSettingsViewModel viewModel = new(configManager);
-		viewModel.ApplyConfig(config);
+		using RecordingSettingsViewModel viewModel = new(new SettingsAppService(configManager));
+		viewModel.ApplySettings(config.ToSettingsDto());
 
 		// 把 60 改成 90：先删成 6，再敲出 9 和 90
 		viewModel.SplitDurationMinutes = 6;
@@ -77,8 +77,8 @@ public sealed class RecordingSettingsViewModelTest
 	{
 		AppConfig config = AppConfig.CreateDefault();
 		GatedConfigManager configManager = new(config);
-		using RecordingSettingsViewModel viewModel = new(configManager);
-		viewModel.ApplyConfig(config);
+		using RecordingSettingsViewModel viewModel = new(new SettingsAppService(configManager));
+		viewModel.ApplySettings(config.ToSettingsDto());
 
 		((ICommand)viewModel.CodecPriority.MoveUpCommand).Execute(viewModel.CodecPriority.Items[1]);
 		StreamCodec[] changed = [.. viewModel.CodecPriority.Values.OfType<StreamCodec>()];
@@ -93,9 +93,9 @@ public sealed class RecordingSettingsViewModelTest
 	[Test]
 	public async Task NoValueIsShownWithoutSplittingAsync()
 	{
-		using RecordingSettingsViewModel viewModel = new(new FakeConfigManager());
+		using RecordingSettingsViewModel viewModel = new(new SettingsAppService(new FakeConfigManager()));
 
-		viewModel.ApplyConfig(AppConfig.CreateDefault());
+		viewModel.ApplySettings(AppConfig.CreateDefault().ToSettingsDto());
 
 		await Assert.That((viewModel.IsSplitBySize, viewModel.IsSplitByDuration)).IsEqualTo((false, false));
 	}

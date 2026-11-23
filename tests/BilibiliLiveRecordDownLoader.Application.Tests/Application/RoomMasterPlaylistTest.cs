@@ -136,7 +136,7 @@ public sealed class RoomMasterPlaylistTest
 	public async Task RestrictionBelowTheOriginalTakesTheTargetFromTheMasterPlaylistAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Loop(cancellationToken, Fmp4Streams(250, 10000, 400, 250));
-		loop.Settings.Quality = StreamQuality.BluRay;
+		loop.Settings = loop.Settings with { Quality = StreamQuality.BluRay };
 		loop.GoLive();
 
 		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Recording);

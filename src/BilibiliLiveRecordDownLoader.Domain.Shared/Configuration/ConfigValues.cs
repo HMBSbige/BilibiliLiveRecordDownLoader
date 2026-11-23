@@ -1,14 +1,14 @@
-namespace BilibiliLiveRecordDownLoader.Domain.Configuration;
+namespace BilibiliLiveRecordDownLoader.Domain.Shared.Configuration;
 
 // ApplyDefaults 在加载和每次修改之后执行；界面要立即显示规范后的值时也调这里
 public static class ConfigValues
 {
-	internal static TimeSpan ClampSplitDuration(TimeSpan duration)
+	public static TimeSpan ClampSplitDuration(TimeSpan duration)
 	{
 		return Clamp(duration, RecordingSplitDefaults.MinDuration, RecordingSplitDefaults.MaxDuration);
 	}
 
-	internal static long ClampSplitSize(long sizeMegabytes)
+	public static long ClampSplitSize(long sizeMegabytes)
 	{
 		return Math.Clamp(sizeMegabytes, (long)RecordingSplitDefaults.MinSizeMegabytes, (long)RecordingSplitDefaults.MaxSizeMegabytes);
 	}
@@ -25,7 +25,7 @@ public static class ConfigValues
 		return FromMilliseconds(seconds * 1000);
 	}
 
-	internal static TimeSpan ClampRoomInterval(TimeSpan interval, decimal minimumSeconds)
+	public static TimeSpan ClampRoomInterval(TimeSpan interval, decimal minimumSeconds)
 	{
 		return Clamp(interval, TimeSpan.FromSeconds((double)minimumSeconds), TimeSpan.FromSeconds((double)RoomDefaults.MaxIntervalSeconds));
 	}

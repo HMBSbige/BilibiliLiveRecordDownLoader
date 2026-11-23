@@ -162,7 +162,7 @@ public sealed class RoomDanmakuRecordingTest
 	public async Task DanmakuOnlyFollowsTheLiveStatusAndSplitsOnTitleChangesAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Create(new RecordingMediaTools(), cancellationToken);
-		loop.Settings.IsRecordingEnabled = false;
+		loop.Settings = loop.Settings with { IsRecordingEnabled = false };
 		loop.Config.SplitOnTitleChange = true;
 		loop.Config.DanmakuOffset = TimeSpan.FromSeconds(3);
 		FakeDanmuConnection danmu = await ConnectAsync(loop, masked: true);
@@ -207,7 +207,7 @@ public sealed class RoomDanmakuRecordingTest
 	public async Task TitleChangeIsRecordedWhenDanmakuOnlyDoesNotSplitAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Create(new RecordingMediaTools(), cancellationToken);
-		loop.Settings.IsRecordingEnabled = false;
+		loop.Settings = loop.Settings with { IsRecordingEnabled = false };
 		FakeDanmuConnection danmu = await ConnectAsync(loop);
 		await loop.WaitUntilAsync(static snapshot => snapshot.Danmaku.IsRecording);
 
@@ -227,7 +227,7 @@ public sealed class RoomDanmakuRecordingTest
 	public async Task RawMessagesOfTheWholeLiveGoToOneFileAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Create(new RecordingMediaTools(), cancellationToken);
-		loop.Settings.IsRecordingEnabled = false;
+		loop.Settings = loop.Settings with { IsRecordingEnabled = false };
 		loop.Config.SaveRawDanmaku = true;
 		loop.Config.SplitOnTitleChange = true;
 
@@ -280,7 +280,7 @@ public sealed class RoomDanmakuRecordingTest
 	public async Task ParsingIsOnOnlyWhileRecordingDanmakuOrSubscribedAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Create(new RecordingMediaTools(), cancellationToken);
-		loop.Settings.IsDanmakuEnabled = false;
+		loop.Settings = loop.Settings with { IsDanmakuEnabled = false };
 		FakeDanmuConnection danmu = await ConnectAsync(loop);
 		_ = await loop.NextStreamAsync();
 		DanmuReceiveOptions options = await Assert.That(loop.Danmu.Options).IsNotNull();
@@ -294,15 +294,15 @@ public sealed class RoomDanmakuRecordingTest
 		bool unsubscribed = options.IncludeChat;
 		int cleared = loop.Session.Danmaku.Feed.GetEntries(0).Count;
 
-		loop.Session.UpdateSettings(loop.Settings with { IsDanmakuEnabled = true });
+		loop.Settings = loop.Settings with { IsDanmakuEnabled = true };
 		bool recording = options.IncludeChat;
 		bool raw = options.IncludeRaw;
 
-		loop.Session.UpdateSettings(loop.Settings with { IsDanmakuEnabled = true, IsRecordingEnabled = false });
+		loop.Settings = loop.Settings with { IsDanmakuEnabled = true, IsRecordingEnabled = false };
 		await loop.WaitUntilAsync(static snapshot => snapshot.Danmaku.IsRecording);
 		bool textOnly = options.IncludeChat;
 
-		loop.Session.UpdateSettings(loop.Settings with { IsDanmakuEnabled = false, IsRecordingEnabled = false });
+		loop.Settings = loop.Settings with { IsDanmakuEnabled = false, IsRecordingEnabled = false };
 		await loop.WaitUntilAsync(static snapshot => !snapshot.Danmaku.IsRecording);
 
 		using (Assert.Multiple())
@@ -323,7 +323,7 @@ public sealed class RoomDanmakuRecordingTest
 	public async Task FeedKeepsRecentEntriesWhileRecordingAndReportsTheConnectionAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Create(new RecordingMediaTools(), cancellationToken);
-		loop.Settings.IsRecordingEnabled = false;
+		loop.Settings = loop.Settings with { IsRecordingEnabled = false };
 		FakeDanmuConnection danmu = await ConnectAsync(loop, masked: true);
 		await loop.WaitUntilAsync(static snapshot => snapshot.Danmaku.IsRecording);
 
@@ -347,7 +347,7 @@ public sealed class RoomDanmakuRecordingTest
 	private static RecordingLoopHarness Create(RecordingMediaTools mediaTools, CancellationToken cancellationToken)
 	{
 		RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(mediaTools, cancellationToken);
-		loop.Settings.IsDanmakuEnabled = true;
+		loop.Settings = loop.Settings with { IsDanmakuEnabled = true };
 		return loop;
 	}
 

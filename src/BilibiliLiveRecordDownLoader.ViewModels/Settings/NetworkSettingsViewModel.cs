@@ -1,6 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.ViewModels.Settings;
 
-public sealed partial class NetworkSettingsViewModel(IAppConfigManager configManager) : ViewModelBase
+public sealed partial class NetworkSettingsViewModel(ISettingsAppService settingsAppService) : ViewModelBase
 {
 	[Reactive]
 	public partial string? UserAgent { get; set; }
@@ -8,12 +8,12 @@ public sealed partial class NetworkSettingsViewModel(IAppConfigManager configMan
 	[Reactive]
 	public partial bool UseSystemProxy { get; set; }
 
-	internal void ApplyConfig(AppConfig config)
+	internal void ApplySettings(AppSettingsDto settings)
 	{
-		UserAgent = config.UserAgent;
-		UseSystemProxy = config.UseSystemProxy;
+		UserAgent = settings.UserAgent;
+		UseSystemProxy = settings.UseSystemProxy;
 
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.UserAgent), static (appConfig, value) => appConfig.UserAgent = value);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.UseSystemProxy), static (appConfig, value) => appConfig.UseSystemProxy = value);
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.UserAgent), static (current, value) => current with { UserAgent = value });
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.UseSystemProxy), static (current, value) => current with { UseSystemProxy = value });
 	}
 }

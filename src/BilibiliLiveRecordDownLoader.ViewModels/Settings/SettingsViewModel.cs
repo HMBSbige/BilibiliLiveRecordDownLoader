@@ -21,15 +21,15 @@ public sealed class SettingsViewModel : ViewModelBase
 	public UpdateSettingsViewModel Update => AppLocator.Current.GetRequiredService<UpdateSettingsViewModel>();
 #pragma warning restore CA1822
 
-	public void ApplyConfig(AppConfig config)
+	public void ApplySettings(AppSettingsDto settings)
 	{
-		Appearance.ApplyConfig(config);
-		General.ApplyConfig(config);
-		Recording.ApplyConfig(config);
-		Danmaku.ApplyConfig(config);
-		Network.ApplyConfig(config);
-		Notification.ApplyConfig(config);
-		Experimental.ApplyConfig(config);
-		Update.ApplyConfig(config);
+		Appearance.ApplySettings(settings);
+		General.ApplySettings(settings);
+		Recording.ApplySettings(settings);
+		Danmaku.ApplySettings(settings);
+		Network.ApplySettings(settings);
+		Notification.ApplySettings(settings);
+		Experimental.ApplySettings(settings);
+		Update.ApplySettings(settings);
 	}
 }

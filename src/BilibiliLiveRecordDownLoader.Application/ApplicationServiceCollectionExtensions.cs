@@ -12,6 +12,7 @@ public static class ApplicationServiceCollectionExtensions
 		services.TryAddSingleton<LowDiskSpaceMonitor>();
 		services.TryAddSingleton<IUpdateAppService, UpdateAppService>();
 		services.TryAddSingleton<IAccountAppService, AccountAppService>();
+		services.TryAddSingleton<ISettingsAppService, SettingsAppService>();
 
 		services.TryAddSingleton<FFmpegProvider>();
 		services.TryAddSingleton<BackgroundTaskAppService>();

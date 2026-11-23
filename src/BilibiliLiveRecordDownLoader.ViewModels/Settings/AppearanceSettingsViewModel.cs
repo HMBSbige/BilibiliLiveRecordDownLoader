@@ -1,6 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.ViewModels.Settings;
 
-public sealed partial class AppearanceSettingsViewModel(IAppConfigManager configManager, IThemeService themeService, ISystemLanguageService systemLanguage) : ViewModelBase
+public sealed partial class AppearanceSettingsViewModel(ISettingsAppService settingsAppService, IThemeService themeService, ISystemLanguageService systemLanguage) : ViewModelBase
 {
 	public IReadOnlyList<ChoiceOption> ThemeOptions { get; } = ChoiceOption.Of(Enum.GetValues<AppTheme>());
 
@@ -17,13 +17,13 @@ public sealed partial class AppearanceSettingsViewModel(IAppConfigManager config
 	[Reactive]
 	public partial LanguageOptionViewModel? SelectedLanguage { get; set; }
 
-	internal void ApplyConfig(AppConfig config)
+	internal void ApplySettings(AppSettingsDto settings)
 	{
-		SelectedLanguage = Languages.FirstOrDefault(language => language.CultureName == config.Language) ?? Languages[0];
-		Theme = config.Theme;
+		SelectedLanguage = Languages.FirstOrDefault(language => language.CultureName == settings.Language) ?? Languages[0];
+		Theme = settings.Theme;
 
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.SelectedLanguage).Map(static language => language?.CultureName), static (appConfig, value) => appConfig.Language = value);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.Theme), static (appConfig, value) => appConfig.Theme = value);
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.SelectedLanguage).Map(static language => language?.CultureName), static (current, value) => current with { Language = value });
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.Theme), static (current, value) => current with { Theme = value });
 
 		Signal.Switch(this.WhenChanged(static viewModel => viewModel.SelectedLanguage).KeepNotNull().Map(ResolveCultures))
 			.Subscribe(static cultures => AppLanguage.SetCurrent(cultures.Ui, cultures.Format))

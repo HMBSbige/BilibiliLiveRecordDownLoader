@@ -1,6 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.Domain.Configuration;
 
-public record AppConfig
+public sealed record AppConfig
 {
 	public string? Language { get; set; }
 
@@ -28,9 +28,9 @@ public record AppConfig
 
 	public RecorderType RecorderType { get; set; }
 
-	public List<StreamCodec> CodecPriority { get; set; } = [];
+	public IReadOnlyList<StreamCodec> CodecPriority { get; set; } = [];
 
-	public List<StreamFormat> FormatPriority { get; set; } = [];
+	public IReadOnlyList<StreamFormat> FormatPriority { get; set; } = [];
 
 	public StreamHostSelection StreamHostSelection { get; set; }
 
@@ -75,7 +75,7 @@ public record AppConfig
 
 	public bool WriteChaptersOnConvert { get; set; }
 
-	public List<RoomConfig> Rooms { get; set; } = [];
+	public IReadOnlyList<RoomConfig> Rooms { get; set; } = [];
 
 	public static AppConfig CreateDefault()
 	{
@@ -105,8 +105,7 @@ public record AppConfig
 		DanmakuOffset = ConfigValues.ClampDanmakuOffset(DanmakuOffset);
 		// 手改的配置里 Rooms 或其中的元素可能是 null
 		// ReSharper disable once NullCoalescingConditionIsAlwaysNotNullAccordingToAPIContract
-		Rooms = [.. (Rooms ?? []).Where(static room => room is { RoomId: > 0 }).DistinctBy(static room => room.RoomId)];
-		Rooms.ForEach(static room => room.ApplyDefaults());
+		Rooms = [.. (Rooms ?? []).Where(static room => room is { RoomId: > 0 }).DistinctBy(static room => room.RoomId).Select(static room => room.Normalize())];
 	}
 
 	private static T DefinedOrDefault<T>(T value) where T : struct, Enum

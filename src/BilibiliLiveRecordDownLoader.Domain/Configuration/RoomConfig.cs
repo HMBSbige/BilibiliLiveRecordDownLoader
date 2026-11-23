@@ -1,73 +1,75 @@
 namespace BilibiliLiveRecordDownLoader.Domain.Configuration;
 
-public record RoomConfig
+// 同一个实例既在 AppConfig.Rooms 里也在房间会话里，会话读取时不持配置锁，所以不可变，规范化也返回新实例
+public sealed record RoomConfig
 {
-	public long RoomId { get; set; }
+	public long RoomId { get; init; }
 
-	public bool IsRecordingEnabled { get; set; } = RoomDefaults.IsRecordingEnabled;
+	public bool IsRecordingEnabled { get; init; } = RoomDefaults.IsRecordingEnabled;
 
-	public bool IsNotificationEnabled { get; set; }
+	public bool IsNotificationEnabled { get; init; }
 
-	public bool IsDanmakuEnabled { get; set; } = DanmakuDefaults.IsEnabled;
+	public bool IsDanmakuEnabled { get; init; } = DanmakuDefaults.IsEnabled;
 
-	public TimeSpan? DanmakuOffset { get; set; }
+	public TimeSpan? DanmakuOffset { get; init; }
 
-	public StreamQuality Quality { get; set; } = RoomDefaults.Quality;
+	public StreamQuality Quality { get; init; } = RoomDefaults.Quality;
 
-	public RecorderType? RecorderType { get; set; }
+	public RecorderType? RecorderType { get; init; }
 
-	public List<StreamCodec>? CodecPriority { get; set; }
+	public IReadOnlyList<StreamCodec>? CodecPriority { get; init; }
 
-	public List<StreamFormat>? FormatPriority { get; set; }
+	public IReadOnlyList<StreamFormat>? FormatPriority { get; init; }
 
-	public bool? ConvertToMp4 { get; set; }
+	public bool? ConvertToMp4 { get; init; }
 
-	public bool? DeleteAfterConvert { get; set; }
+	public bool? DeleteAfterConvert { get; init; }
 
-	public RecordingSplitMode? SplitMode { get; set; }
+	public RecordingSplitMode? SplitMode { get; init; }
 
-	public TimeSpan? SplitDuration { get; set; }
+	public TimeSpan? SplitDuration { get; init; }
 
-	public long? SplitSizeMegabytes { get; set; }
+	public long? SplitSizeMegabytes { get; init; }
 
-	public bool? SplitOnTitleChange { get; set; }
+	public bool? SplitOnTitleChange { get; init; }
 
-	public TimeSpan StatusCheckInterval { get; set; } = RoomDefaults.StatusCheckInterval;
+	public TimeSpan StatusCheckInterval { get; init; } = RoomDefaults.StatusCheckInterval;
 
-	public TimeSpan DanmuReconnectDelay { get; set; } = RoomDefaults.DanmuReconnectDelay;
+	public TimeSpan DanmuReconnectDelay { get; init; } = RoomDefaults.DanmuReconnectDelay;
 
-	public TimeSpan StreamReconnectDelay { get; set; } = RoomDefaults.StreamReconnectDelay;
+	public TimeSpan StreamReconnectDelay { get; init; } = RoomDefaults.StreamReconnectDelay;
 
-	public TimeSpan StreamConnectTimeout { get; set; } = RoomDefaults.StreamConnectTimeout;
+	public TimeSpan StreamConnectTimeout { get; init; } = RoomDefaults.StreamConnectTimeout;
 
-	public TimeSpan StreamIdleTimeout { get; set; } = RoomDefaults.StreamIdleTimeout;
+	public TimeSpan StreamIdleTimeout { get; init; } = RoomDefaults.StreamIdleTimeout;
 
-	public void ApplyDefaults()
+	public RoomConfig Normalize()
 	{
-		StatusCheckInterval = ConfigValues.ClampRoomInterval(StatusCheckInterval, RoomDefaults.MinStatusCheckIntervalSeconds);
-		DanmuReconnectDelay = ConfigValues.ClampRoomInterval(DanmuReconnectDelay, RoomDefaults.MinDanmuReconnectDelaySeconds);
-		StreamReconnectDelay = ConfigValues.ClampRoomInterval(StreamReconnectDelay, RoomDefaults.MinStreamReconnectDelaySeconds);
-		StreamConnectTimeout = ConfigValues.ClampRoomInterval(StreamConnectTimeout, RoomDefaults.MinStreamConnectTimeoutSeconds);
-		StreamIdleTimeout = ConfigValues.ClampRoomInterval(StreamIdleTimeout, RoomDefaults.MinStreamIdleTimeoutSeconds);
-		CodecPriority = NormalizeOverride(CodecPriority);
-		FormatPriority = NormalizeOverride(FormatPriority);
-		SplitDuration = SplitDuration is { } duration ? ConfigValues.ClampSplitDuration(duration) : null;
-		SplitSizeMegabytes = SplitSizeMegabytes is { } size ? ConfigValues.ClampSplitSize(size) : null;
-		DanmakuOffset = DanmakuOffset is { } offset ? ConfigValues.ClampDanmakuOffset(offset) : null;
-		// 枚举在配置里也能写成数字；覆盖值无效时和没覆盖一样继承全局设置
-		RecorderType = DefinedOrInherit(RecorderType);
-		SplitMode = DefinedOrInherit(SplitMode);
-
-		return;
+		return this with
+		{
+			StatusCheckInterval = ConfigValues.ClampRoomInterval(StatusCheckInterval, RoomDefaults.MinStatusCheckIntervalSeconds),
+			DanmuReconnectDelay = ConfigValues.ClampRoomInterval(DanmuReconnectDelay, RoomDefaults.MinDanmuReconnectDelaySeconds),
+			StreamReconnectDelay = ConfigValues.ClampRoomInterval(StreamReconnectDelay, RoomDefaults.MinStreamReconnectDelaySeconds),
+			StreamConnectTimeout = ConfigValues.ClampRoomInterval(StreamConnectTimeout, RoomDefaults.MinStreamConnectTimeoutSeconds),
+			StreamIdleTimeout = ConfigValues.ClampRoomInterval(StreamIdleTimeout, RoomDefaults.MinStreamIdleTimeoutSeconds),
+			CodecPriority = NormalizeOverride(CodecPriority),
+			FormatPriority = NormalizeOverride(FormatPriority),
+			SplitDuration = SplitDuration is { } duration ? ConfigValues.ClampSplitDuration(duration) : null,
+			SplitSizeMegabytes = SplitSizeMegabytes is { } size ? ConfigValues.ClampSplitSize(size) : null,
+			DanmakuOffset = DanmakuOffset is { } offset ? ConfigValues.ClampDanmakuOffset(offset) : null,
+			// 枚举在配置里也能写成数字；覆盖值无效时和没覆盖一样继承全局设置
+			RecorderType = DefinedOrInherit(RecorderType),
+			SplitMode = DefinedOrInherit(SplitMode)
+		};
 
 		static T? DefinedOrInherit<T>(T? value) where T : struct, Enum
 		{
 			return value is { } defined && Enum.IsDefined(defined) ? defined : null;
 		}
 
-		static List<T>? NormalizeOverride<T>(List<T>? priority) where T : struct, Enum
+		static IReadOnlyList<T>? NormalizeOverride<T>(IReadOnlyList<T>? priority) where T : struct, Enum
 		{
-			List<T> normalized = StreamPriority.Normalize(priority, []);
+			IReadOnlyList<T> normalized = StreamPriority.Normalize(priority, []);
 			return normalized.Count > 0 ? normalized : null;
 		}
 	}

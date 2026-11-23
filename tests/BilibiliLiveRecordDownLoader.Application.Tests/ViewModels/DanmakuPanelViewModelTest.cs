@@ -9,9 +9,9 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 
 public sealed class DanmakuPanelViewModelTest
 {
-	private static DanmakuPanelViewModel Create(IDanmakuAppService danmaku, IAppConfigManager? configManager = null)
+	private static DanmakuPanelViewModel Create(IDanmakuAppService danmaku, IRoomAppService? rooms = null, ISettingsAppService? settings = null)
 	{
-		return new DanmakuPanelViewModel(danmaku, configManager ?? new FakeConfigManager(), static _ => Task.FromResult(false)) { AutoRefresh = false };
+		return new DanmakuPanelViewModel(danmaku, rooms ?? new NoRooms(), settings ?? new SettingsAppService(new FakeConfigManager()), static _ => Task.FromResult(false)) { AutoRefresh = false };
 	}
 
 	private static RoomItemViewModel Room(long roomId)
@@ -197,10 +197,10 @@ public sealed class DanmakuPanelViewModelTest
 	[Test]
 	public async Task FilePickerStartsInTheExpectedDirectoryAsync(CancellationToken cancellationToken)
 	{
-		FakeConfigManager configManager = new();
-		string recordDirectory = (await configManager.GetAsync(cancellationToken)).RecordDirectory;
+		NoRooms rooms = new();
+		SettingsAppService settings = new(new FakeConfigManager());
 		FakeDanmakuAppService danmaku = new() { OpenFile = static (_, _) => Task.FromResult(DanmakuFileViewModelTest.CreateFile(seconds: [1])) };
-		using DanmakuPanelViewModel panel = Create(danmaku, configManager);
+		using DanmakuPanelViewModel panel = Create(danmaku, rooms, settings);
 		using RoomItemViewModel first = Room(1);
 		using RoomItemViewModel second = Room(2);
 		List<string> directories = [];
@@ -210,15 +210,17 @@ public sealed class DanmakuPanelViewModelTest
 			return Task.FromResult<string?>(null);
 		};
 
+		await panel.PickFileAsync(null, cancellationToken);
 		panel.Follow(first);
 		await panel.PickFileAsync(null, cancellationToken);
 		await panel.LoadFileAsync("a.xml", cancellationToken);
 		await panel.PickFileAsync(null, cancellationToken);
 		await panel.PickFileAsync(second, cancellationToken);
 
+		string recordDirectory = (await settings.GetAsync(cancellationToken)).RecordDirectory;
 		string fileDirectory = Path.GetDirectoryName(DanmakuFileViewModelTest.CreateFile(seconds: [1]).Path) ?? string.Empty;
 
-		await Assert.That(directories).IsEquivalentTo([RecordingFileLayout.GetRoomDirectory(recordDirectory, 1), fileDirectory, RecordingFileLayout.GetRoomDirectory(recordDirectory, 2)], CollectionOrdering.Matching);
+		await Assert.That(directories).IsEquivalentTo([recordDirectory, await rooms.GetDirectoryAsync(1, cancellationToken), fileDirectory, await rooms.GetDirectoryAsync(2, cancellationToken)], CollectionOrdering.Matching);
 	}
 
 	// 失败的类别由 DanmakuFileViewModelTest 逐一覆盖，面板和它共用同一套判断
@@ -239,4 +241,6 @@ public sealed class DanmakuPanelViewModelTest
 
 		await Assert.That((panel.IsOpen, panel.ErrorMessage, panel.File, panel.IsLoadingFile)).IsEqualTo((true, message, null, false));
 	}
+
+	private sealed class NoRooms : RoomAppServiceStub;
 }

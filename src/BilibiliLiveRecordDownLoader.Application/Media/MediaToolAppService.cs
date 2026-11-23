@@ -4,6 +4,9 @@ internal sealed partial class MediaToolAppService(FFmpegProvider ffmpegProvider,
 {
 	private const string WorkDirectoryPrefix = ".remux-";
 
+	// .mp4 只有本程序录的 fMP4 需要转换，由 GetMp4ConversionPath 识别
+	private static readonly string[] RemuxableExtensions = [".flv", ".ts", ".mkv", ".m4s", ".mp4"];
+
 	// 目录的修改时间只在增删条目时更新，阈值要远长于一次转封装
 	private static readonly TimeSpan StaleWorkDirectoryAge = TimeSpan.FromDays(1);
 
@@ -72,6 +75,42 @@ internal sealed partial class MediaToolAppService(FFmpegProvider ffmpegProvider,
 			input.Source,
 			input.Destination
 		);
+	}
+
+	public string? SuggestRemuxDestination(string source)
+	{
+		if (!RemuxableExtensions.Contains(Path.GetExtension(source), StringComparer.OrdinalIgnoreCase) || RecordingFileLayout.GetMp4ConversionPath(source) is not { } destination)
+		{
+			return null;
+		}
+
+		return FirstAvailable(Numbered(destination).Prepend(destination));
+	}
+
+	public string? SuggestCutDestination(string source)
+	{
+		return string.IsNullOrWhiteSpace(source) ? null : FirstAvailable(Numbered(source));
+	}
+
+	// 排队的任务还没写出文件，建议的输出也要跳过它们
+	private string FirstAvailable(IEnumerable<string> candidates)
+	{
+		IEnumerable<string> pending = backgroundTasks.GetTasks().Where(static task => task.IsActive).Select(static task => task.TargetPath).OfType<string>();
+		HashSet<string> reserved = [with(StringComparer.FromComparison(FileOperations.PathComparison)), .. pending.Select(Path.GetFullPath)];
+
+		return candidates.First(candidate => !File.Exists(candidate) && !reserved.Contains(Path.GetFullPath(candidate)));
+	}
+
+	private static IEnumerable<string> Numbered(string path)
+	{
+		string withoutExtension = Path.ChangeExtension(path, null);
+		string extension = Path.GetExtension(path);
+
+		for (int index = 1; ; ++index)
+		{
+			yield return string.Create(CultureInfo.InvariantCulture, $"{withoutExtension}_{index}{extension}");
+		}
+		// ReSharper disable once IteratorNeverReturns
 	}
 
 	// 拆出的裸流和输出分开放，裸流的文件名才不会和输出撞上

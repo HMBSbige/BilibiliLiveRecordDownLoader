@@ -19,9 +19,9 @@ public sealed class DanmakuSettingsViewModelTest
 		config.SaveRawDanmaku = true;
 		config.WriteChaptersOnConvert = true;
 		FakeConfigManager configManager = new(config);
-		using DanmakuSettingsViewModel viewModel = new(configManager);
+		using DanmakuSettingsViewModel viewModel = new(new SettingsAppService(configManager));
 
-		viewModel.ApplyConfig(config);
+		viewModel.ApplySettings(config.ToSettingsDto());
 		(bool, DanmakuGiftMode, bool, decimal, bool, bool, bool, bool) restored = (viewModel.RecordSuperChats, viewModel.GiftMode, viewModel.RecordGuards, viewModel.OffsetSeconds, viewModel.GenerateSubtitle, viewModel.ShowPaidMessagesInSubtitle, viewModel.SaveRawMessages, viewModel.WriteChaptersOnConvert);
 		int updates = configManager.UpdateCount;
 
@@ -54,8 +54,8 @@ public sealed class DanmakuSettingsViewModelTest
 	{
 		AppConfig config = AppConfig.CreateDefault();
 		FakeConfigManager configManager = new(config);
-		using DanmakuSettingsViewModel viewModel = new(configManager);
-		viewModel.ApplyConfig(config);
+		using DanmakuSettingsViewModel viewModel = new(new SettingsAppService(configManager));
+		viewModel.ApplySettings(config.ToSettingsDto());
 
 		viewModel.OffsetSeconds = milliseconds / 1000m;
 		await TestWait.UntilAsync(() => configManager.UpdateCount >= 1, "the offset is saved", cancellationToken);

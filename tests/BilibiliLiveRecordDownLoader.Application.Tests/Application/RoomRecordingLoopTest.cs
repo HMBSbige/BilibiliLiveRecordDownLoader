@@ -254,7 +254,7 @@ public sealed class RoomRecordingLoopTest
 		StreamRequest request = await loop.NextStreamAsync();
 		await request.AcceptAsync();
 		await request.CopyStarted;
-		loop.Session.UpdateSettings(loop.Settings with { IsRecordingEnabled = false });
+		loop.Settings = loop.Settings with { IsRecordingEnabled = false };
 		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Idle);
 
 		using (Assert.Multiple())
@@ -314,7 +314,7 @@ public sealed class RoomRecordingLoopTest
 		Task streaming = stuck.StreamUntilClosedAsync();
 
 		// 收到的数据在排空时限内写不完，收尾抛出写盘失败
-		loop.Session.UpdateSettings(loop.Settings with { IsRecordingEnabled = false });
+		loop.Settings = loop.Settings with { IsRecordingEnabled = false };
 		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Idle);
 		await streaming;
 
@@ -330,7 +330,7 @@ public sealed class RoomRecordingLoopTest
 	public async Task OnlyRecordingDanmakuCountsAsRecordingAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
-		loop.Session.UpdateSettings(loop.Settings with { IsDanmakuEnabled = true, IsRecordingEnabled = false });
+		loop.Settings = loop.Settings with { IsDanmakuEnabled = true, IsRecordingEnabled = false };
 
 		loop.GoLive();
 
@@ -355,7 +355,7 @@ public sealed class RoomRecordingLoopTest
 		StreamRequest request = await loop.NextStreamAsync();
 		await request.AcceptAsync();
 		await request.CopyStarted;
-		ui.Run(() => loop.Session.UpdateSettings(loop.Settings with { IsRecordingEnabled = false }));
+		ui.Run(() => loop.Settings = loop.Settings with { IsRecordingEnabled = false });
 		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Idle);
 
 		// 循环的续体投回已经停止的 UI 线程时，释放会一直等下去

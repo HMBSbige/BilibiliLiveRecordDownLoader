@@ -1,7 +1,6 @@
 using BilibiliLive.Danmu;
 using BilibiliLiveRecordDownLoader.Application.Contracts.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Contracts.Media;
-using BilibiliLiveRecordDownLoader.Application.Contracts.Platform;
 using BilibiliLiveRecordDownLoader.Application.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using Microsoft.Extensions.DependencyInjection;
@@ -331,6 +330,16 @@ public sealed class DanmakuAppServiceTest
 		{
 			Cuts.Enqueue(input);
 			return Task.CompletedTask;
+		}
+
+		public string? SuggestRemuxDestination(string source)
+		{
+			throw new NotSupportedException();
+		}
+
+		public string? SuggestCutDestination(string source)
+		{
+			throw new NotSupportedException();
 		}
 	}
 

@@ -4,7 +4,7 @@
     xmlns:ic="using:FluentIcons.Avalonia"
     xmlns:tasks="using:BilibiliLiveRecordDownLoader.ViewModels.Tasks"
     xmlns:ctl="using:BilibiliLiveRecordDownLoader.Views.Controls"
-    xmlns:shared="using:BilibiliLiveRecordDownLoader.Domain.Shared"
+    xmlns:taskContracts="using:BilibiliLiveRecordDownLoader.Application.Contracts.Tasks"
     xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.TasksView"
     x:DataType="tasks:TaskListViewModel">
@@ -61,7 +61,7 @@
                                            IsVisible="{Binding Paths, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 <ProgressBar Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Classes="thin" Margin="0,6,0,2"
                                              Value="{Binding Progress}" Maximum="100" IsIndeterminate="{Binding IsIndeterminate}"
-                                             IsVisible="{Binding Status, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static shared:BackgroundTaskStatus.Running}}" />
+                                             IsVisible="{Binding Status, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static taskContracts:BackgroundTaskStatus.Running}}" />
                                 <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Classes="error" Text="{Binding Message}"
                                            MaxLines="2" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Message}"
                                            IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />

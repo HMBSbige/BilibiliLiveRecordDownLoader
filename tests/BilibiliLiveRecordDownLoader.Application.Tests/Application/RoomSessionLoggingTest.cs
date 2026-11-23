@@ -1,6 +1,5 @@
 using BilibiliLive.Models;
 using BilibiliLiveRecordDownLoader.Application.Contracts.Logging;
-using BilibiliLiveRecordDownLoader.Application.Contracts.Platform;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

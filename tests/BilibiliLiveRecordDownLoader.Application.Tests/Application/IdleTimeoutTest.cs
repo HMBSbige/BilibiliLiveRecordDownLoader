@@ -37,8 +37,7 @@ public sealed class IdleTimeoutTest
 		}
 
 		// 分片间隔 2 秒加 1 秒刷新；请求超时 2 秒、正文超时 4 秒，用满两段超时再重试一次要 13 秒：MaxSilence 是 16 秒，空闲超时 17 秒
-		loop.Settings.StreamConnectTimeout = TimeSpan.FromSeconds(2);
-		loop.Settings.StreamIdleTimeout = TimeSpan.FromSeconds(3);
+		loop.Settings = loop.Settings with { StreamConnectTimeout = TimeSpan.FromSeconds(2), StreamIdleTimeout = TimeSpan.FromSeconds(3) };
 		loop.GoLive();
 		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Recording);
 

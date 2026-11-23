@@ -286,11 +286,60 @@ public sealed class MediaToolAppServiceTest
 		}
 	}
 
+	[Test]
+	[Arguments("a.flv", "a.mp4")]
+	[Arguments("a.TS", "a.mp4")]
+	[Arguments("20260102_030405_fmp4.mp4", "20260102_030405.mp4")]
+	[Arguments("a.mp4", null)]
+	[Arguments("a.txt", null)]
+	public async Task RemuxDestinationFollowsTheRecordingConversionRuleAsync(string fileName, string? expected, CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string source = directory.Combine(fileName);
+		await File.WriteAllTextAsync(source, "source", cancellationToken);
+		MediaToolAppService service = CreateServiceWithoutFFmpeg(CreateTasks());
+
+		string? suggested = service.SuggestRemuxDestination(source);
+
+		await Assert.That(suggested).IsEqualTo(expected is null ? null : directory.Combine(expected));
+	}
+
+	// 结束了的任务不再占用
+	[Test]
+	public async Task SuggestedDestinationsSkipExistingFilesAndOutputsOfActiveTasksAsync(CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		await File.WriteAllTextAsync(directory.Combine("a.mp4"), "user", cancellationToken);
+		await File.WriteAllTextAsync(directory.Combine("a_1.flv"), "user", cancellationToken);
+		BackgroundTaskAppService tasks = CreateTasks();
+		// 同一队列里前一个一直在运行，后一个就一直在排队
+		_ = tasks.Enqueue("running", "active", static (_, token) => Task.Delay(Timeout.InfiniteTimeSpan, token), targetPath: directory.Combine("a_1.mp4"));
+		_ = tasks.Enqueue("queued", "active", static (_, _) => Task.CompletedTask, targetPath: directory.Combine("a_2.flv"));
+		await tasks.Enqueue("failed", "finished", static (_, _) => Task.FromException(new InvalidOperationException()), targetPath: directory.Combine("a_2.mp4"));
+		MediaToolAppService service = CreateServiceWithoutFFmpeg(tasks);
+
+		try
+		{
+			(string? remux, string? cut) = (service.SuggestRemuxDestination(directory.Combine("a.flv")), service.SuggestCutDestination(directory.Combine("a.flv")));
+
+			await Assert.That((remux, cut)).IsEqualTo((directory.Combine("a_2.mp4"), directory.Combine("a_3.flv")));
+		}
+		finally
+		{
+			await tasks.StopAsync();
+		}
+	}
+
 	private static MediaToolAppService CreateService(TestDirectory directory, int exitCode, BackgroundTaskAppService? tasks = null, bool hangs = false)
 	{
 		AppConfig config = AppConfig.CreateDefault();
 		config.FFmpegPath = CreateFakeFFmpeg(directory, exitCode, hangs);
 		return new MediaToolAppService(new FFmpegProvider(new FakeConfigManager(config)), tasks ?? CreateTasks(), NullLogger<MediaToolAppService>.Instance);
+	}
+
+	private static MediaToolAppService CreateServiceWithoutFFmpeg(BackgroundTaskAppService tasks)
+	{
+		return new MediaToolAppService(new FFmpegProvider(new FakeConfigManager()), tasks, NullLogger<MediaToolAppService>.Instance);
 	}
 
 	private static BackgroundTaskAppService CreateTasks()

@@ -1,4 +1,3 @@
-using BilibiliLiveRecordDownLoader.Application.Contracts.Logging;
 using BilibiliLiveRecordDownLoader.ViewModels.Logs;
 using System.Windows.Input;
 using LogLevel = Microsoft.Extensions.Logging.LogLevel;

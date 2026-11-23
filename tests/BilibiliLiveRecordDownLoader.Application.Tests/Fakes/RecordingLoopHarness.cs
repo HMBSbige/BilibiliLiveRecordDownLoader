@@ -48,6 +48,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	private volatile bool _isLive = true;
 	private volatile string _title = "title";
 	private volatile string? _playInfoQuery;
+	private RoomConfig _settings;
 
 	/// <param name="streams">其中的 $SIGN 换成第几次请求候选流</param>
 	/// <param name="respondStream">给出时直接应答全部拉流请求，NextStreamAsync 收不到</param>
@@ -97,8 +98,8 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 			new CapturingLogger<RoomSession>(Logs)
 		);
 
-		Settings = new RoomConfig { RoomId = RoomId, IsNotificationEnabled = isNotificationEnabled, StreamReconnectDelay = ReconnectDelay };
-		Session = new RoomSession(Settings, services, static () => { });
+		_settings = new RoomConfig { RoomId = RoomId, IsNotificationEnabled = isNotificationEnabled, StreamReconnectDelay = ReconnectDelay };
+		Session = new RoomSession(_settings, services, static () => { });
 	}
 
 	public FakeTimeProvider Time { get; } = new();
@@ -126,7 +127,16 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 	public string RoomDirectory => RecordingFileLayout.GetRoomDirectory(Config.RecordDirectory, RoomId);
 
-	public RoomConfig Settings { get; }
+	// 和界面上改房间设置一样整个换掉，经过 RoomSession.UpdateSettings 生效
+	public RoomConfig Settings
+	{
+		get => _settings;
+		set
+		{
+			_settings = value;
+			Session.UpdateSettings(value);
+		}
+	}
 
 	public RoomSession Session { get; }
 
@@ -194,7 +204,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		loop.Config.IncludeTitleInFileName = false;
 
 		// 一次推进一分多钟，不能被当成空闲
-		loop.Settings.StreamIdleTimeout = TimeSpan.FromHours(1);
+		loop.Settings = loop.Settings with { StreamIdleTimeout = TimeSpan.FromHours(1) };
 		return loop;
 	}
 
@@ -419,6 +429,16 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		}
 
 		public Task QueueCutAsync(CutInput input, CancellationToken cancellationToken = default)
+		{
+			throw new NotSupportedException();
+		}
+
+		public string? SuggestRemuxDestination(string source)
+		{
+			throw new NotSupportedException();
+		}
+
+		public string? SuggestCutDestination(string source)
 		{
 			throw new NotSupportedException();
 		}

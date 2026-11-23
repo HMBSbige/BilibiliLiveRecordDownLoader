@@ -34,7 +34,7 @@ public sealed class AppConfigManagerTest : IDisposable
 			await manager.UpdateAsync(static config =>
 			{
 				config.Theme = AppTheme.Dark;
-				config.Rooms.Add(new RoomConfig { RoomId = 732, RecorderType = RecorderType.FFmpeg });
+				config.Rooms = [.. config.Rooms, new RoomConfig { RoomId = 732, RecorderType = RecorderType.FFmpeg }];
 			}, cancellationToken);
 		}
 
@@ -84,7 +84,7 @@ public sealed class AppConfigManagerTest : IDisposable
 			await manager.UpdateAsync(static config =>
 			{
 				config.SplitMode = RecordingSplitMode.Size;
-				config.Rooms.Add(new RoomConfig { RoomId = 732, SplitMode = RecordingSplitMode.Duration, SplitDuration = TimeSpan.FromMinutes(30) });
+				config.Rooms = [.. config.Rooms, new RoomConfig { RoomId = 732, SplitMode = RecordingSplitMode.Duration, SplitDuration = TimeSpan.FromMinutes(30) }];
 			}, cancellationToken);
 		}
 
@@ -259,7 +259,7 @@ public sealed class AppConfigManagerTest : IDisposable
 	{
 		await using (AppConfigManager manager = Create())
 		{
-			await manager.UpdateAsync(static config => config.Rooms.Add(new RoomConfig { RoomId = 732 }), cancellationToken);
+			await manager.UpdateAsync(static config => config.Rooms = [.. config.Rooms, new RoomConfig { RoomId = 732 }], cancellationToken);
 		}
 
 		await using (AppConfigManager manager = Create())

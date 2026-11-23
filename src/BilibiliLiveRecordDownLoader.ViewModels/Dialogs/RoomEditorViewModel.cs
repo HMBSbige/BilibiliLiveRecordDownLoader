@@ -5,7 +5,7 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 	private readonly RoomSettingsDto _original;
 	private readonly Func<RoomSettingsDto, CancellationToken, Task> _submit;
 
-	public RoomEditorViewModel(RoomSettingsDto? existing, AppConfig globalConfig, Func<RoomSettingsDto, CancellationToken, Task> submit)
+	public RoomEditorViewModel(RoomSettingsDto? existing, AppSettingsDto globalSettings, Func<RoomSettingsDto, CancellationToken, Task> submit)
 	{
 		_submit = submit;
 		IsNew = existing is null;
@@ -16,7 +16,7 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 		IsNotificationEnabled = _original.IsNotificationEnabled;
 		IsDanmakuEnabled = _original.IsDanmakuEnabled;
 		DanmakuOffsetSeconds = _original.DanmakuOffset is { } offset ? (decimal)offset.TotalSeconds : null;
-		DanmakuOffsetPlaceholder = AppLanguage.Current.InheritValue.ToString(((decimal)globalConfig.DanmakuOffset.TotalSeconds).ToString("0.###", CultureInfo.CurrentCulture));
+		DanmakuOffsetPlaceholder = AppLanguage.Current.InheritValue.ToString(((decimal)globalSettings.DanmakuOffset.TotalSeconds).ToString("0.###", CultureInfo.CurrentCulture));
 		Quality = _original.Quality;
 		RecorderType = _original.RecorderType is { } recorderType ? new ChoiceOption(recorderType) : ChoiceOption.Inherit;
 		ConvertToMp4 = new ChoiceOption(_original.ConvertToMp4);
@@ -24,12 +24,12 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 		SplitMode = _original.SplitMode is { } splitMode ? new ChoiceOption(splitMode) : ChoiceOption.Inherit;
 		SplitOnTitleChange = new ChoiceOption(_original.SplitOnTitleChange);
 
-		SplitDurationMinutes = (decimal)(_original.SplitDuration ?? globalConfig.SplitDuration).TotalMinutes;
-		SplitSizeMegabytes = _original.SplitSizeMegabytes ?? globalConfig.SplitSizeMegabytes;
+		SplitDurationMinutes = (decimal)(_original.SplitDuration ?? globalSettings.SplitDuration).TotalMinutes;
+		SplitSizeMegabytes = _original.SplitSizeMegabytes ?? globalSettings.SplitSizeMegabytes;
 		OverrideCodecPriority = _original.CodecPriority is not null;
 		OverrideFormatPriority = _original.FormatPriority is not null;
-		CodecPriority = PriorityListViewModel.Create(_original.CodecPriority ?? globalConfig.CodecPriority).DisposeWith(Disposables);
-		FormatPriority = PriorityListViewModel.Create(_original.FormatPriority ?? globalConfig.FormatPriority).DisposeWith(Disposables);
+		CodecPriority = PriorityListViewModel.Create(_original.CodecPriority ?? globalSettings.CodecPriority).DisposeWith(Disposables);
+		FormatPriority = PriorityListViewModel.Create(_original.FormatPriority ?? globalSettings.FormatPriority).DisposeWith(Disposables);
 		StatusCheckIntervalSeconds = (decimal)_original.StatusCheckInterval.TotalSeconds;
 		DanmuReconnectDelaySeconds = (decimal)_original.DanmuReconnectDelay.TotalSeconds;
 		StreamReconnectDelaySeconds = (decimal)_original.StreamReconnectDelay.TotalSeconds;

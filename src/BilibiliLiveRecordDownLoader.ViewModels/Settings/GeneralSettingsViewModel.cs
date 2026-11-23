@@ -4,14 +4,14 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 {
 	private static readonly TimeSpan DiskSpaceRefreshInterval = TimeSpan.FromSeconds(2);
 
-	private readonly IAppConfigManager _configManager;
+	private readonly ISettingsAppService _settingsAppService;
 	private readonly IDiskSpaceService _diskSpaceService;
 	private readonly IAutoStartService _autoStartService;
 	private bool _isRevertingAutoStart;
 
-	public GeneralSettingsViewModel(IAppConfigManager configManager, IDiskSpaceService diskSpaceService, IAutoStartService autoStartService)
+	public GeneralSettingsViewModel(ISettingsAppService settingsAppService, IDiskSpaceService diskSpaceService, IAutoStartService autoStartService)
 	{
-		_configManager = configManager;
+		_settingsAppService = settingsAppService;
 		_diskSpaceService = diskSpaceService;
 		_autoStartService = autoStartService;
 
@@ -37,10 +37,10 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 	[Reactive]
 	public partial bool IsAutoStartEnabled { get; set; }
 
-	internal void ApplyConfig(AppConfig config)
+	internal void ApplySettings(AppSettingsDto settings)
 	{
-		RecordDirectory = config.RecordDirectory;
-		FFmpegPath = config.FFmpegPath;
+		RecordDirectory = settings.RecordDirectory;
+		FFmpegPath = settings.FFmpegPath;
 
 		// 输入框显示的就是实际保存的目录
 		this.WhenChanged(static viewModel => viewModel.RecordDirectory)
@@ -48,8 +48,8 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 			.Subscribe(directory => RecordDirectory = ConfigValues.NormalizeRecordDirectory(directory))
 			.DisposeWith(Disposables);
 
-		PersistToConfig(_configManager, this.WhenChanged(static viewModel => viewModel.RecordDirectory), static (appConfig, value) => appConfig.RecordDirectory = value);
-		PersistToConfig(_configManager, this.WhenChanged(static viewModel => viewModel.FFmpegPath), static (appConfig, value) => appConfig.FFmpegPath = value);
+		PersistSetting(_settingsAppService, this.WhenChanged(static viewModel => viewModel.RecordDirectory), static (current, value) => current with { RecordDirectory = value });
+		PersistSetting(_settingsAppService, this.WhenChanged(static viewModel => viewModel.FFmpegPath), static (current, value) => current with { FFmpegPath = value });
 
 		Poll(() => _diskSpaceService.GetDiskSpace(RecordDirectory), ApplyDiskSpace, DiskSpaceRefreshInterval);
 

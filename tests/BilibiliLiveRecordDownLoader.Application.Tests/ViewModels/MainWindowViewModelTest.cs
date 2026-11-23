@@ -76,7 +76,7 @@ public sealed class MainWindowViewModelTest
 	private static MainWindowViewModel Create(Events events, bool isRecording, FakeLifecycle lifecycle, out DialogHostViewModel dialogs)
 	{
 		dialogs = new DialogHostViewModel();
-		return new MainWindowViewModel(dialogs, new FakeShell(events), lifecycle, new FakeConfigManager(), new FakeRoomAppService(isRecording), new IdleTasks());
+		return new MainWindowViewModel(dialogs, new FakeShell(events), lifecycle, new SettingsAppService(new FakeConfigManager()), new FakeRoomAppService(isRecording), new IdleTasks());
 	}
 
 	private sealed class Events : ConcurrentQueue<string>;

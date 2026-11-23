@@ -1,6 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.ViewModels.Settings;
 
-public sealed partial class RecordingSettingsViewModel(IAppConfigManager configManager) : ViewModelBase
+public sealed partial class RecordingSettingsViewModel(ISettingsAppService settingsAppService) : ViewModelBase
 {
 	// 数字框每按一个键就改一次值，录制中途会读分段设置，不能存输到一半的数
 	internal static readonly TimeSpan NumberInputQuietPeriod = TimeSpan.FromSeconds(1);
@@ -48,19 +48,19 @@ public sealed partial class RecordingSettingsViewModel(IAppConfigManager configM
 	[Reactive]
 	public partial bool IsSplitBySize { get; private set; }
 
-	internal void ApplyConfig(AppConfig config)
+	internal void ApplySettings(AppSettingsDto settings)
 	{
-		RecorderType = config.RecorderType;
-		HostSelection = config.StreamHostSelection;
-		ConvertToMp4 = config.ConvertToMp4;
-		DeleteAfterConvert = config.DeleteAfterConvert;
-		SplitMode = config.SplitMode;
-		SplitDurationMinutes = (decimal)config.SplitDuration.TotalMinutes;
-		SplitSizeMegabytes = config.SplitSizeMegabytes;
-		SplitOnTitleChange = config.SplitOnTitleChange;
-		IncludeTitleInFileName = config.IncludeTitleInFileName;
-		CodecPriority.Reset(config.CodecPriority);
-		FormatPriority.Reset(config.FormatPriority);
+		RecorderType = settings.RecorderType;
+		HostSelection = settings.StreamHostSelection;
+		ConvertToMp4 = settings.ConvertToMp4;
+		DeleteAfterConvert = settings.DeleteAfterConvert;
+		SplitMode = settings.SplitMode;
+		SplitDurationMinutes = (decimal)settings.SplitDuration.TotalMinutes;
+		SplitSizeMegabytes = settings.SplitSizeMegabytes;
+		SplitOnTitleChange = settings.SplitOnTitleChange;
+		IncludeTitleInFileName = settings.IncludeTitleInFileName;
+		CodecPriority.Reset(settings.CodecPriority);
+		FormatPriority.Reset(settings.FormatPriority);
 
 		this.WhenChanged(static viewModel => viewModel.SplitMode)
 			.Subscribe
@@ -72,17 +72,17 @@ public sealed partial class RecordingSettingsViewModel(IAppConfigManager configM
 			)
 			.DisposeWith(Disposables);
 
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.RecorderType), static (appConfig, value) => appConfig.RecorderType = value);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.HostSelection), static (appConfig, value) => appConfig.StreamHostSelection = value);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.ConvertToMp4), static (appConfig, value) => appConfig.ConvertToMp4 = value);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.DeleteAfterConvert), static (appConfig, value) => appConfig.DeleteAfterConvert = value);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.SplitMode), static (appConfig, value) => appConfig.SplitMode = value);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.SplitDurationMinutes), static (appConfig, value) => appConfig.SplitDuration = TimeSpan.FromMinutes((double)value), NumberInputQuietPeriod);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.SplitSizeMegabytes), static (appConfig, value) => appConfig.SplitSizeMegabytes = (long)value, NumberInputQuietPeriod);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.SplitOnTitleChange), static (appConfig, value) => appConfig.SplitOnTitleChange = value);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.IncludeTitleInFileName), static (appConfig, value) => appConfig.IncludeTitleInFileName = value);
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.RecorderType), static (current, value) => current with { RecorderType = value });
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.HostSelection), static (current, value) => current with { StreamHostSelection = value });
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.ConvertToMp4), static (current, value) => current with { ConvertToMp4 = value });
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.DeleteAfterConvert), static (current, value) => current with { DeleteAfterConvert = value });
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.SplitMode), static (current, value) => current with { SplitMode = value });
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.SplitDurationMinutes), static (current, value) => current with { SplitDuration = TimeSpan.FromMinutes((double)value) }, NumberInputQuietPeriod);
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.SplitSizeMegabytes), static (current, value) => current with { SplitSizeMegabytes = (long)value }, NumberInputQuietPeriod);
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.SplitOnTitleChange), static (current, value) => current with { SplitOnTitleChange = value });
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.IncludeTitleInFileName), static (current, value) => current with { IncludeTitleInFileName = value });
 		// 保存可能在线程池上执行，用发出的快照，不去读界面正在改的列表
-		PersistToConfig(configManager, CodecPriority.WhenChanged(static list => list.Values), static (appConfig, values) => appConfig.CodecPriority = [.. values.OfType<StreamCodec>()]);
-		PersistToConfig(configManager, FormatPriority.WhenChanged(static list => list.Values), static (appConfig, values) => appConfig.FormatPriority = [.. values.OfType<StreamFormat>()]);
+		PersistSetting(settingsAppService, CodecPriority.WhenChanged(static list => list.Values), static (current, values) => current with { CodecPriority = [.. values.OfType<StreamCodec>()] });
+		PersistSetting(settingsAppService, FormatPriority.WhenChanged(static list => list.Values), static (current, values) => current with { FormatPriority = [.. values.OfType<StreamFormat>()] });
 	}
 }

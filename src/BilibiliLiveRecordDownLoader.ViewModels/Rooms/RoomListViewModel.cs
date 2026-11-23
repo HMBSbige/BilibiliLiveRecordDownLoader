@@ -7,16 +7,16 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	private static readonly TimeSpan RefreshInterval = TimeSpan.FromMilliseconds(500);
 
 	private readonly IRoomAppService _roomAppService;
-	private readonly IAppConfigManager _configManager;
+	private readonly ISettingsAppService _settingsAppService;
 	private readonly Dictionary<long, RoomItemViewModel> _rooms = [];
 	private bool _hasCookie;
 	private bool _isArranging;
 
-	public RoomListViewModel(IRoomAppService roomAppService, IAppConfigManager configManager, IDanmakuAppService danmakuAppService)
+	public RoomListViewModel(IRoomAppService roomAppService, ISettingsAppService settingsAppService, IDanmakuAppService danmakuAppService)
 	{
 		_roomAppService = roomAppService;
-		_configManager = configManager;
-		Danmaku = new DanmakuPanelViewModel(danmakuAppService, configManager, LoginAsync).DisposeWith(Disposables);
+		_settingsAppService = settingsAppService;
+		Danmaku = new DanmakuPanelViewModel(danmakuAppService, roomAppService, settingsAppService, LoginAsync).DisposeWith(Disposables);
 		HasSelection = this.WhenChanged(static viewModel => viewModel.SelectedCount).Map(static count => count > 0);
 		HasSingleSelection = this.WhenChanged(static viewModel => viewModel.SelectedCount).Map(static count => count is 1);
 		CanMoveSelection = this.WhenChanged(static viewModel => viewModel.CanReorder, static viewModel => viewModel.SelectedCount, static (canReorder, count) => canReorder && count > 0);
@@ -108,10 +108,10 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	internal Func<CancellationToken, Task<bool>> ShowLogin { get; init; } = static cancellationToken => AppLocator.Current.GetRequiredService<AccountViewModel>().LoginWithQrCodeAsync(cancellationToken);
 
 	// cookie 是账号页的 Cookie：扫码登录、退出和手动编辑都会改它，房间的版本不变
-	internal void ApplyConfig(AppConfig config, IObservable<string?> cookie)
+	internal void ApplySettings(AppSettingsDto settings, IObservable<string?> cookie)
 	{
-		SortOrder = config.RoomSortOrder;
-		PersistToConfig(_configManager, this.WhenChanged(static viewModel => viewModel.SortOrder), static (appConfig, value) => appConfig.RoomSortOrder = value);
+		SortOrder = settings.RoomSortOrder;
+		PersistSetting(_settingsAppService, this.WhenChanged(static viewModel => viewModel.SortOrder), static (current, value) => current with { RoomSortOrder = value });
 
 		// 和保存时一样规范化，只差首尾空白不算换了 Cookie；订阅时先收到的是当前值
 		IObservable<string?> cookies = cookie.Map(ConfigValues.NormalizeText).Unique();
@@ -128,9 +128,9 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	[ReactiveCommand]
 	private async Task AddRoomAsync(CancellationToken cancellationToken)
 	{
-		AppConfig config = await _configManager.GetAsync(cancellationToken);
+		AppSettingsDto settings = await _settingsAppService.GetAsync(cancellationToken);
 
-		if (await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ShowAsync(new RoomEditorViewModel(null, config, _roomAppService.AddAsync)) is not null)
+		if (await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ShowAsync(new RoomEditorViewModel(null, settings, _roomAppService.AddAsync)) is not null)
 		{
 			Sync();
 		}
@@ -152,10 +152,10 @@ public sealed partial class RoomListViewModel : ViewModelBase
 			return;
 		}
 
-		AppConfig config = await _configManager.GetAsync(cancellationToken);
+		AppSettingsDto settings = await _settingsAppService.GetAsync(cancellationToken);
 
 		// 行内开关要基于最新设置修改
-		if (await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ShowAsync(new RoomEditorViewModel(room.Settings, config, _roomAppService.UpdateAsync)) is not null)
+		if (await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ShowAsync(new RoomEditorViewModel(room.Settings, settings, _roomAppService.UpdateAsync)) is not null)
 		{
 			Sync();
 		}
@@ -201,8 +201,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 			return;
 		}
 
-		AppConfig config = await _configManager.GetAsync(cancellationToken);
-		string directory = RecordingFileLayout.GetRoomDirectory(config.RecordDirectory, room.RoomId);
+		string directory = await _roomAppService.GetDirectoryAsync(room.RoomId, cancellationToken);
 
 		await AppLocator.Current.GetRequiredService<ILauncherService>().OpenFolderAsync(directory);
 	}

@@ -3,7 +3,6 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ic="using:FluentIcons.Avalonia"
     xmlns:logs="using:BilibiliLiveRecordDownLoader.ViewModels.Logs"
-    xmlns:logging="using:BilibiliLiveRecordDownLoader.Application.Contracts.Logging"
     xmlns:ctl="using:BilibiliLiveRecordDownLoader.Views.Controls"
     xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.LogsView"
@@ -117,7 +116,7 @@
                              KeyDown="OnLogListKeyDown" IsVisible="{Binding HasVisibleEntries}">
                         <ListBox.Styles>
                             <!-- 列表项的内容是日志记录，不设名称时读屏念的是记录的 ToString -->
-                            <Style Selector="ListBoxItem" x:DataType="logging:LogEntry">
+                            <Style Selector="ListBoxItem" x:DataType="logs:LogEntry">
                                 <Setter Property="AutomationProperties.Name" Value="{Binding Message}" />
                             </Style>
                         </ListBox.Styles>
@@ -131,7 +130,7 @@
                             </ContextMenu>
                         </ListBox.ContextMenu>
                         <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="logging:LogEntry">
+                            <DataTemplate x:DataType="logs:LogEntry">
                                 <Grid ColumnSpacing="16">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="Time" />

@@ -1,5 +1,4 @@
 using BilibiliLive.Danmu;
-using BilibiliLiveRecordDownLoader.Application.Contracts.Platform;
 using BilibiliLiveRecordDownLoader.Application.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Http;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
@@ -70,7 +69,7 @@ public sealed class RoomDanmuLoopTest
 		await using RecordingLoopHarness loop = new(cancellationToken);
 		FakeDanmuConnection danmu = await ConnectAsync(loop);
 
-		loop.Session.UpdateSettings(loop.Settings with { StatusCheckInterval = loop.Settings.StatusCheckInterval * 2, DanmuReconnectDelay = loop.Settings.DanmuReconnectDelay * 2 });
+		loop.Settings = loop.Settings with { StatusCheckInterval = loop.Settings.StatusCheckInterval * 2, DanmuReconnectDelay = loop.Settings.DanmuReconnectDelay * 2 };
 
 		// 连接被断开时这条消息不会再被处理，发送会超时
 		await danmu.SendAsync(Comment(Viewer, "改设置之后"));
@@ -106,7 +105,7 @@ public sealed class RoomDanmuLoopTest
 	public async Task LiveStartedFromDanmuDoesNotRecordThePreviousLiveIdAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
-		loop.Settings.IsDanmakuEnabled = true;
+		loop.Settings = loop.Settings with { IsDanmakuEnabled = true };
 
 		// 未开播时查到的 live_id 是上一场的
 		loop.GoOffline();
@@ -131,7 +130,7 @@ public sealed class RoomDanmuLoopTest
 	public async Task StoppingWaitsForThePostProcessingOfTheLastSegmentAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
-		loop.Settings.IsDanmakuEnabled = true;
+		loop.Settings = loop.Settings with { IsDanmakuEnabled = true };
 		FakeDanmuConnection danmu = await ConnectAsync(loop);
 		await StartRecordingAsync(loop);
 		await danmu.SendAsync(Comment(Viewer, "最后一段"));
@@ -160,7 +159,7 @@ public sealed class RoomDanmuLoopTest
 	public async Task DanmakuContentAndViewersStayOutOfTheLogsAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
-		loop.Settings.IsDanmakuEnabled = true;
+		loop.Settings = loop.Settings with { IsDanmakuEnabled = true };
 		FakeDanmuConnection danmu = await ConnectAsync(loop);
 		await StartRecordingAsync(loop);
 

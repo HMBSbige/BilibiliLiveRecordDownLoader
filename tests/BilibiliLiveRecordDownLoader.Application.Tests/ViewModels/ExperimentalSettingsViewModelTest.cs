@@ -24,9 +24,9 @@ public sealed class ExperimentalSettingsViewModelTest
 		bool configured = !readConfig(config);
 		writeConfig(config, configured);
 		FakeConfigManager configManager = new(config);
-		using ExperimentalSettingsViewModel viewModel = new(configManager);
+		using ExperimentalSettingsViewModel viewModel = new(new SettingsAppService(configManager));
 
-		viewModel.ApplyConfig(config);
+		viewModel.ApplySettings(config.ToSettingsDto());
 		(bool restored, int updates) = (readViewModel(viewModel), configManager.UpdateCount);
 		writeViewModel(viewModel, !configured);
 

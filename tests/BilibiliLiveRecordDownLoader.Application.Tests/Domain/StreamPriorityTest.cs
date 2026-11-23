@@ -5,7 +5,7 @@ public sealed class StreamPriorityTest
 	[Test]
 	public async Task NormalizeKeepsOrderAndDropsDuplicatesAndUndefinedValuesAsync()
 	{
-		List<StreamCodec> result = StreamPriority.Normalize([StreamCodec.Hevc, (StreamCodec)42, StreamCodec.Avc, StreamCodec.Hevc], StreamPriority.DefaultCodecs);
+		IReadOnlyList<StreamCodec> result = StreamPriority.Normalize([StreamCodec.Hevc, (StreamCodec)42, StreamCodec.Avc, StreamCodec.Hevc], StreamPriority.DefaultCodecs);
 
 		await Assert.That(result).IsEquivalentTo([StreamCodec.Hevc, StreamCodec.Avc], CollectionOrdering.Matching);
 	}
@@ -13,8 +13,8 @@ public sealed class StreamPriorityTest
 	[Test]
 	public async Task NormalizeFallsBackWhenNothingIsLeftAsync()
 	{
-		List<StreamFormat> fromNull = StreamPriority.Normalize(null, StreamPriority.DefaultFormats);
-		List<StreamFormat> fromInvalid = StreamPriority.Normalize([(StreamFormat)42], StreamPriority.DefaultFormats);
+		IReadOnlyList<StreamFormat> fromNull = StreamPriority.Normalize(null, StreamPriority.DefaultFormats);
+		IReadOnlyList<StreamFormat> fromInvalid = StreamPriority.Normalize([(StreamFormat)42], StreamPriority.DefaultFormats);
 
 		using (Assert.Multiple())
 		{

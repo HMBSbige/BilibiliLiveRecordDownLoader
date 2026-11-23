@@ -5,7 +5,8 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.Danmaku;
 public sealed partial class DanmakuPanelViewModel : ViewModelBase
 {
 	private readonly IDanmakuAppService _danmaku;
-	private readonly IAppConfigManager _configManager;
+	private readonly IRoomAppService _roomAppService;
+	private readonly ISettingsAppService _settingsAppService;
 	private readonly Func<CancellationToken, Task> _showLogin;
 
 	// 切换直播间时不重置
@@ -15,10 +16,11 @@ public sealed partial class DanmakuPanelViewModel : ViewModelBase
 	// 读完时编号变了就丢掉结果
 	private int _fileRequest;
 
-	public DanmakuPanelViewModel(IDanmakuAppService danmaku, IAppConfigManager configManager, Func<CancellationToken, Task> showLogin)
+	public DanmakuPanelViewModel(IDanmakuAppService danmaku, IRoomAppService roomAppService, ISettingsAppService settingsAppService, Func<CancellationToken, Task> showLogin)
 	{
 		_danmaku = danmaku;
-		_configManager = configManager;
+		_roomAppService = roomAppService;
+		_settingsAppService = settingsAppService;
 		_showLogin = showLogin;
 		_liveFilter = new DanmakuFilterViewModel().DisposeWith(Disposables);
 
@@ -135,10 +137,13 @@ public sealed partial class DanmakuPanelViewModel : ViewModelBase
 		{
 			directory = Path.GetDirectoryName(file.Path) ?? string.Empty;
 		}
+		else if ((room ?? Room) is { } target)
+		{
+			directory = await _roomAppService.GetDirectoryAsync(target.RoomId, cancellationToken);
+		}
 		else
 		{
-			AppConfig config = await _configManager.GetAsync(cancellationToken);
-			directory = (room ?? Room) is { } target ? RecordingFileLayout.GetRoomDirectory(config.RecordDirectory, target.RoomId) : config.RecordDirectory;
+			directory = (await _settingsAppService.GetAsync(cancellationToken)).RecordDirectory;
 		}
 
 		if (await PickDanmakuFile(directory) is { } path)

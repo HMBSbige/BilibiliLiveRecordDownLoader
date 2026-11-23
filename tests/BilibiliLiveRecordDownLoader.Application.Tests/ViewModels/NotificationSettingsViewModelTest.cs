@@ -12,9 +12,9 @@ public sealed class NotificationSettingsViewModelTest
 		config.NotifyOnRecordingError = false;
 		config.NotifyOnTitleChange = true;
 		FakeConfigManager configManager = new(config);
-		using NotificationSettingsViewModel viewModel = new(configManager);
+		using NotificationSettingsViewModel viewModel = new(new SettingsAppService(configManager));
 
-		viewModel.ApplyConfig(config);
+		viewModel.ApplySettings(config.ToSettingsDto());
 		(bool recordingError, bool titleChange, int updates) = (viewModel.NotifyOnRecordingError, viewModel.NotifyOnTitleChange, configManager.UpdateCount);
 		viewModel.NotifyOnRecordingError = true;
 		viewModel.NotifyOnTitleChange = false;

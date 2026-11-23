@@ -97,9 +97,9 @@ public sealed class RoomListViewModelTest
 		AppConfig config = AppConfig.CreateDefault();
 		config.RoomSortOrder = RoomSortOrder.Name;
 		FakeConfigManager configManager = new(config);
-		using RoomListViewModel viewModel = new(new FakeRoomAppService(InitialOrder), configManager, new FakeDanmakuAppService());
+		using RoomListViewModel viewModel = new(new FakeRoomAppService(InitialOrder), new SettingsAppService(configManager), new FakeDanmakuAppService());
 
-		viewModel.ApplyConfig(config, Signal.Return<string?>(null));
+		viewModel.ApplySettings(config.ToSettingsDto(), Signal.Return<string?>(null));
 		(RoomSortOrder restored, bool canReorder, int updates) = (viewModel.SortOrder, viewModel.CanReorder, configManager.UpdateCount);
 		((ICommand)viewModel.SortByCommand).Execute(RoomSortOrder.Custom);
 
@@ -206,10 +206,9 @@ public sealed class RoomListViewModelTest
 	[Test]
 	public async Task OpeningADanmakuFileFromTheRoomMenuStartsInTheRoomDirectoryAsync(CancellationToken cancellationToken)
 	{
-		FakeConfigManager configManager = new();
-		string recordDirectory = (await configManager.GetAsync(cancellationToken)).RecordDirectory;
+		FakeRoomAppService rooms = new(InitialOrder);
 		FakeDanmakuAppService danmaku = new() { OpenFile = static (_, _) => Task.FromResult(DanmakuFileViewModelTest.CreateFile(seconds: [1])) };
-		using RoomListViewModel viewModel = Create(new FakeRoomAppService(InitialOrder), danmaku, configManager);
+		using RoomListViewModel viewModel = Create(rooms, danmaku);
 		TaskCompletionSource<string> picked = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		viewModel.Danmaku.PickDanmakuFile = directory =>
 		{
@@ -223,7 +222,7 @@ public sealed class RoomListViewModelTest
 		Select(viewModel, [5]);
 		((ICommand)viewModel.OpenDanmakuFileCommand).Execute(null);
 
-		await Assert.That(await picked.Task.WaitAsync(cancellationToken)).IsEqualTo(RecordingFileLayout.GetRoomDirectory(recordDirectory, 5));
+		await Assert.That(await picked.Task.WaitAsync(cancellationToken)).IsEqualTo(await rooms.GetDirectoryAsync(5, cancellationToken));
 	}
 
 	[Test]
@@ -273,9 +272,9 @@ public sealed class RoomListViewModelTest
 		await Assert.That((banner, couldLogin)).IsEqualTo((AppLanguage.Current.DanmakuMaskedBanner, true));
 	}
 
-	private static RoomListViewModel Create(FakeRoomAppService rooms, FakeDanmakuAppService? danmaku = null, FakeConfigManager? configManager = null, Action<Exception>? reportSaveFailure = null)
+	private static RoomListViewModel Create(FakeRoomAppService rooms, FakeDanmakuAppService? danmaku = null, Action<Exception>? reportSaveFailure = null)
 	{
-		RoomListViewModel viewModel = new(rooms, configManager ?? new FakeConfigManager(), danmaku ?? new FakeDanmakuAppService()) { ReportSaveFailure = reportSaveFailure };
+		RoomListViewModel viewModel = new(rooms, new SettingsAppService(new FakeConfigManager()), danmaku ?? new FakeDanmakuAppService()) { ReportSaveFailure = reportSaveFailure };
 		((ICommand)viewModel.SortByCommand).Execute(RoomSortOrder.Custom);
 		viewModel.Sync();
 		return viewModel;
@@ -286,8 +285,8 @@ public sealed class RoomListViewModelTest
 	{
 		FakeRoomAppService rooms = new(InitialOrder);
 		rooms.Change(1, static snapshot => snapshot with { Danmaku = new RoomDanmakuSnapshot(true) });
-		RoomListViewModel viewModel = new(rooms, new FakeConfigManager(), new FakeDanmakuAppService()) { ShowLogin = showLogin };
-		viewModel.ApplyConfig(AppConfig.CreateDefault(), cookie);
+		RoomListViewModel viewModel = new(rooms, new SettingsAppService(new FakeConfigManager()), new FakeDanmakuAppService()) { ShowLogin = showLogin };
+		viewModel.ApplySettings(AppConfig.CreateDefault().ToSettingsDto(), cookie);
 		viewModel.Sync();
 		viewModel.Danmaku.IsOpen = true;
 		Select(viewModel, [1]);

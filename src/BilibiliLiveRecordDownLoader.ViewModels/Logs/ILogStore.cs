@@ -1,4 +1,4 @@
-namespace BilibiliLiveRecordDownLoader.Application.Contracts.Logging;
+namespace BilibiliLiveRecordDownLoader.ViewModels.Logs;
 
 public interface ILogStore
 {

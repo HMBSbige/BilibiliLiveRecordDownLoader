@@ -6,7 +6,7 @@ internal static class RoomSettingsMapper
 	{
 		public RoomConfig ToConfig()
 		{
-			RoomConfig config = new()
+			return new RoomConfig
 			{
 				RoomId = settings.RoomId,
 				IsRecordingEnabled = settings.IsRecordingEnabled,
@@ -15,8 +15,8 @@ internal static class RoomSettingsMapper
 				DanmakuOffset = settings.DanmakuOffset,
 				Quality = settings.Quality,
 				RecorderType = settings.RecorderType,
-				CodecPriority = settings.CodecPriority is { } codecs ? [.. codecs] : null,
-				FormatPriority = settings.FormatPriority is { } formats ? [.. formats] : null,
+				CodecPriority = settings.CodecPriority,
+				FormatPriority = settings.FormatPriority,
 				ConvertToMp4 = settings.ConvertToMp4,
 				DeleteAfterConvert = settings.DeleteAfterConvert,
 				SplitMode = settings.SplitMode,
@@ -28,9 +28,7 @@ internal static class RoomSettingsMapper
 				StreamReconnectDelay = settings.StreamReconnectDelay,
 				StreamConnectTimeout = settings.StreamConnectTimeout,
 				StreamIdleTimeout = settings.StreamIdleTimeout
-			};
-			config.ApplyDefaults();
-			return config;
+			}.Normalize();
 		}
 	}
 

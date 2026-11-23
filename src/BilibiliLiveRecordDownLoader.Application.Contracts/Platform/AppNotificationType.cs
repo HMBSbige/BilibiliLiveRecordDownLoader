@@ -1,4 +1,4 @@
-namespace BilibiliLiveRecordDownLoader.Domain.Shared;
+namespace BilibiliLiveRecordDownLoader.Application.Contracts.Platform;
 
 public enum AppNotificationType
 {

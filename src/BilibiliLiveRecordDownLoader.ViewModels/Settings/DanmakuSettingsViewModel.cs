@@ -1,6 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.ViewModels.Settings;
 
-public sealed partial class DanmakuSettingsViewModel(IAppConfigManager configManager) : ViewModelBase
+public sealed partial class DanmakuSettingsViewModel(ISettingsAppService settingsAppService) : ViewModelBase
 {
 	public IReadOnlyList<ChoiceOption> GiftModeOptions { get; } = ChoiceOption.Of(Enum.GetValues<DanmakuGiftMode>());
 
@@ -28,24 +28,24 @@ public sealed partial class DanmakuSettingsViewModel(IAppConfigManager configMan
 	[Reactive]
 	public partial bool WriteChaptersOnConvert { get; set; }
 
-	internal void ApplyConfig(AppConfig config)
+	internal void ApplySettings(AppSettingsDto settings)
 	{
-		RecordSuperChats = config.RecordSuperChats;
-		GiftMode = config.GiftMode;
-		RecordGuards = config.RecordGuards;
-		OffsetSeconds = (decimal)config.DanmakuOffset.TotalSeconds;
-		GenerateSubtitle = config.GenerateDanmakuSubtitle;
-		ShowPaidMessagesInSubtitle = config.ShowPaidMessagesInSubtitle;
-		SaveRawMessages = config.SaveRawDanmaku;
-		WriteChaptersOnConvert = config.WriteChaptersOnConvert;
+		RecordSuperChats = settings.RecordSuperChats;
+		GiftMode = settings.GiftMode;
+		RecordGuards = settings.RecordGuards;
+		OffsetSeconds = (decimal)settings.DanmakuOffset.TotalSeconds;
+		GenerateSubtitle = settings.GenerateDanmakuSubtitle;
+		ShowPaidMessagesInSubtitle = settings.ShowPaidMessagesInSubtitle;
+		SaveRawMessages = settings.SaveRawDanmaku;
+		WriteChaptersOnConvert = settings.WriteChaptersOnConvert;
 
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.RecordSuperChats), static (appConfig, value) => appConfig.RecordSuperChats = value);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.GiftMode), static (appConfig, value) => appConfig.GiftMode = value);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.RecordGuards), static (appConfig, value) => appConfig.RecordGuards = value);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.OffsetSeconds), static (appConfig, value) => appConfig.DanmakuOffset = ConfigValues.DanmakuOffsetFromSeconds(value), RecordingSettingsViewModel.NumberInputQuietPeriod);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.GenerateSubtitle), static (appConfig, value) => appConfig.GenerateDanmakuSubtitle = value);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.ShowPaidMessagesInSubtitle), static (appConfig, value) => appConfig.ShowPaidMessagesInSubtitle = value);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.SaveRawMessages), static (appConfig, value) => appConfig.SaveRawDanmaku = value);
-		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.WriteChaptersOnConvert), static (appConfig, value) => appConfig.WriteChaptersOnConvert = value);
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.RecordSuperChats), static (current, value) => current with { RecordSuperChats = value });
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.GiftMode), static (current, value) => current with { GiftMode = value });
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.RecordGuards), static (current, value) => current with { RecordGuards = value });
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.OffsetSeconds), static (current, value) => current with { DanmakuOffset = ConfigValues.DanmakuOffsetFromSeconds(value) }, RecordingSettingsViewModel.NumberInputQuietPeriod);
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.GenerateSubtitle), static (current, value) => current with { GenerateDanmakuSubtitle = value });
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.ShowPaidMessagesInSubtitle), static (current, value) => current with { ShowPaidMessagesInSubtitle = value });
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.SaveRawMessages), static (current, value) => current with { SaveRawDanmaku = value });
+		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.WriteChaptersOnConvert), static (current, value) => current with { WriteChaptersOnConvert = value });
 	}
 }

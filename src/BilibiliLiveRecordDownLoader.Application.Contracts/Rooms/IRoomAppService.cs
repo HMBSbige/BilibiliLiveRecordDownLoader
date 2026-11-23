@@ -24,4 +24,7 @@ public interface IRoomAppService
 	Task RemoveAsync(IReadOnlyCollection<long> roomIds, CancellationToken cancellationToken = default);
 
 	Task RefreshAsync(IReadOnlyCollection<long> roomIds, CancellationToken cancellationToken = default);
+
+	// 房间的录制文件放在这个目录里，目录不一定已经创建
+	Task<string> GetDirectoryAsync(long roomId, CancellationToken cancellationToken = default);
 }

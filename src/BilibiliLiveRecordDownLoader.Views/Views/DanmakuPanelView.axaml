@@ -3,7 +3,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ic="using:FluentIcons.Avalonia"
     xmlns:danmaku="using:BilibiliLiveRecordDownLoader.ViewModels.Danmaku"
-    xmlns:shared="using:BilibiliLiveRecordDownLoader.Domain.Shared"
+    xmlns:platform="using:BilibiliLiveRecordDownLoader.Application.Contracts.Platform"
     xmlns:cfg="using:BilibiliLiveRecordDownLoader.Domain.Shared.Configuration"
     xmlns:ctl="using:BilibiliLiveRecordDownLoader.Views.Controls"
     xmlns:conv="using:BilibiliLiveRecordDownLoader.Views.Converters"
@@ -303,9 +303,9 @@
 
                     <StackPanel DockPanel.Dock="Bottom" Margin="12,8" Spacing="8">
                         <Border Classes="messageBanner"
-                                Classes.successBanner="{Binding MessageType, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static shared:AppNotificationType.Success}}"
-                                Classes.warningBanner="{Binding MessageType, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static shared:AppNotificationType.Warning}}"
-                                Classes.errorBanner="{Binding MessageType, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static shared:AppNotificationType.Error}}"
+                                Classes.successBanner="{Binding MessageType, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static platform:AppNotificationType.Success}}"
+                                Classes.warningBanner="{Binding MessageType, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static platform:AppNotificationType.Warning}}"
+                                Classes.errorBanner="{Binding MessageType, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static platform:AppNotificationType.Error}}"
                                 IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                             <SelectableTextBlock Text="{Binding Message}" TextWrapping="Wrap" />
                         </Border>

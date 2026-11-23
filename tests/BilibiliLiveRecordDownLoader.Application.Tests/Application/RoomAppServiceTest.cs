@@ -1,5 +1,4 @@
 using BilibiliLiveRecordDownLoader.Application.Contracts.Accounts;
-using BilibiliLiveRecordDownLoader.Application.Contracts.Platform;
 using BilibiliLiveRecordDownLoader.Application.Http;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
@@ -219,7 +218,7 @@ public sealed class RoomAppServiceTest
 	public async Task RoomChangesReplaceTheRoomListInsteadOfChangingItAsync(Func<IRoomAppService, CancellationToken, Task> change, RoomSettingsDto[] expected, CancellationToken cancellationToken)
 	{
 		await using Harness harness = await Harness.CreateWithRoomsAsync(cancellationToken);
-		List<RoomConfig> listed = harness.AppConfig.Rooms;
+		IReadOnlyList<RoomConfig> listed = harness.AppConfig.Rooms;
 		RoomConfig[] original = [.. listed];
 
 		await change(harness.Rooms, cancellationToken);
@@ -304,6 +303,18 @@ public sealed class RoomAppServiceTest
 		yield return static () => ([], null);
 	}
 
+	// 界面打开的就是录制写入的目录
+	[Test]
+	public async Task RoomDirectoryIsWhereItsRecordingsAreWrittenAsync(CancellationToken cancellationToken)
+	{
+		await using Harness harness = await Harness.CreateAsync();
+		string stem = RecordingFileLayout.GetRecordingStem(harness.AppConfig.RecordDirectory, FirstRoomId, DateTimeOffset.UnixEpoch, "标题");
+
+		string directory = await harness.Rooms.GetDirectoryAsync(FirstRoomId, cancellationToken);
+
+		await Assert.That(directory).IsEqualTo(Path.GetDirectoryName(stem));
+	}
+
 	private static RoomSettingsDto Room(long roomId)
 	{
 		return new RoomSettingsDto { RoomId = roomId };
@@ -344,7 +355,7 @@ public sealed class RoomAppServiceTest
 		public static async Task<Harness> CreateAsync(bool rejectBatch = false)
 		{
 			AppConfig config = AppConfig.CreateDefault();
-			config.Rooms.Add(new RoomConfig { RoomId = ExistingRoomId });
+			config.Rooms = [new RoomConfig { RoomId = ExistingRoomId }];
 			FakeConfigManager configManager = new(config);
 			FakeBilibiliHandler handler = new() { RejectBatch = rejectBatch };
 

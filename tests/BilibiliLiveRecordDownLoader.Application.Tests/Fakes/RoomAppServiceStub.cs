@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.CompilerServices;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
@@ -47,5 +48,11 @@ internal abstract class RoomAppServiceStub : IRoomAppService
 	public virtual Task RefreshAsync(IReadOnlyCollection<long> roomIds, CancellationToken cancellationToken = default)
 	{
 		throw new NotSupportedException();
+	}
+
+	// 不是真实的录制目录，测试只比较界面拿到的是不是这个目录
+	public virtual Task<string> GetDirectoryAsync(long roomId, CancellationToken cancellationToken = default)
+	{
+		return Task.FromResult(Path.Combine("rooms", roomId.ToString(CultureInfo.InvariantCulture)));
 	}
 }

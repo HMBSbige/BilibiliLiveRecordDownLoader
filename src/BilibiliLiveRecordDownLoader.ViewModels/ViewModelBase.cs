@@ -9,7 +9,7 @@ public abstract class ViewModelBase : ReactiveObject, IDisposable
 
 	protected MultipleDisposable Disposables { get; } = [];
 
-	protected void PersistToConfig<T>(IAppConfigManager configManager, IObservable<T> source, Action<AppConfig, T> updateAction, TimeSpan quietPeriod = default)
+	protected void PersistSetting<T>(ISettingsAppService settingsAppService, IObservable<T> source, Func<AppSettingsDto, T, AppSettingsDto> update, TimeSpan quietPeriod = default)
 	{
 		IObservable<T> changes = source.Skip(1);
 
@@ -18,7 +18,7 @@ public abstract class ViewModelBase : ReactiveObject, IDisposable
 			changes = changes.Calm(quietPeriod, RxSchedulers.TaskpoolScheduler);
 		}
 
-		RunLatest(changes.Unique(), (value, cancellationToken) => configManager.UpdateAsync(config => updateAction(config, value), cancellationToken).AsTask());
+		RunLatest(changes.Unique(), (value, cancellationToken) => settingsAppService.UpdateAsync(settings => update(settings, value), cancellationToken));
 	}
 
 	protected void RunLatest<T>(IObservable<T> source, Func<T, CancellationToken, Task> action)

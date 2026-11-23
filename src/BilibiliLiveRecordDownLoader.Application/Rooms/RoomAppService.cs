@@ -41,7 +41,7 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 
 		lock (_lock)
 		{
-			// 不持配置锁也能枚举：房间列表只会整个换掉，见 UpdateConfiguredRoomsAsync
+			// 不持配置锁也能枚举：房间列表是只读的，修改时整个换掉
 			foreach (RoomConfig room in config.Rooms.Where(room => Find(room.RoomId) is null))
 			{
 				RoomSession session = sessionFactory.Create(room, Touch);
@@ -301,6 +301,12 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 		await Task.WhenAll(targets.Select(session => session.RefreshAsync(cancellationToken)));
 	}
 
+	public async Task<string> GetDirectoryAsync(long roomId, CancellationToken cancellationToken = default)
+	{
+		AppConfig config = await configManager.GetAsync(cancellationToken);
+		return RecordingFileLayout.GetRoomDirectory(config.RecordDirectory, roomId);
+	}
+
 	internal RoomSession? FindSession(long roomId)
 	{
 		lock (_lock)
@@ -388,7 +394,6 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 		return resolved;
 	}
 
-	// 配置管理器一直返回同一个配置实例，StartAsync 在配置锁外枚举它的房间列表，所以只能换上新列表，不能在原列表上改
 	// 会话已经改好了，配置不能因为调用方取消而跟它对不上
 	private ValueTask UpdateConfiguredRoomsAsync(Func<IEnumerable<RoomConfig>, IEnumerable<RoomConfig>> change)
 	{

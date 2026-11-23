@@ -1,4 +1,3 @@
-using BilibiliLiveRecordDownLoader.Application.Contracts.Platform;
 using System.Collections.Concurrent;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;

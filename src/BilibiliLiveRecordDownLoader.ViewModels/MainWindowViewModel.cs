@@ -4,17 +4,17 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 {
 	private readonly IApplicationShell _shell;
 	private readonly IAppLifecycleService _lifecycle;
-	private readonly IAppConfigManager _configManager;
+	private readonly ISettingsAppService _settingsAppService;
 	private readonly IRoomAppService _roomAppService;
 	private readonly IBackgroundTaskAppService _backgroundTasks;
 	private bool _startupTasksStarted;
 
-	public MainWindowViewModel(DialogHostViewModel dialogs, IApplicationShell shell, IAppLifecycleService lifecycle, IAppConfigManager configManager, IRoomAppService roomAppService, IBackgroundTaskAppService backgroundTasks)
+	public MainWindowViewModel(DialogHostViewModel dialogs, IApplicationShell shell, IAppLifecycleService lifecycle, ISettingsAppService settingsAppService, IRoomAppService roomAppService, IBackgroundTaskAppService backgroundTasks)
 	{
 		Dialogs = dialogs;
 		_shell = shell;
 		_lifecycle = lifecycle;
-		_configManager = configManager;
+		_settingsAppService = settingsAppService;
 		_roomAppService = roomAppService;
 		_backgroundTasks = backgroundTasks;
 
@@ -86,25 +86,25 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 		WindowWidth = width;
 		WindowHeight = height;
 
-		Forget(cancellationToken => _configManager.UpdateAsync(config => (config.WindowWidth, config.WindowHeight) = (width, height), cancellationToken).AsTask());
+		Forget(cancellationToken => _settingsAppService.UpdateAsync(settings => settings with { WindowWidth = width, WindowHeight = height }, cancellationToken));
 	}
 
 	private async Task RunStartupTasksAsync(CancellationToken cancellationToken)
 	{
-		AppConfig config = await _configManager.GetAsync(cancellationToken);
+		AppSettingsDto settings = await _settingsAppService.GetAsync(cancellationToken);
 
 		// 要在设置页读开机启动状态之前；没导入配置时接管，开机就只会启动一个空列表的新版
-		if (_configManager.IsLegacyConfigImported)
+		if (_settingsAppService.IsLegacyConfigImported)
 		{
 			AppLocator.Current.GetRequiredService<IAutoStartService>().TakeOverExisting();
 		}
 
-		WindowWidth = config.WindowWidth;
-		WindowHeight = config.WindowHeight;
-		Settings.ApplyConfig(config);
+		WindowWidth = settings.WindowWidth;
+		WindowHeight = settings.WindowHeight;
+		Settings.ApplySettings(settings);
 		// 房间列表的登录提示跟随账号页的 Cookie，要等它读好
 		await Account.LoadAsync(cancellationToken);
-		Rooms.ApplyConfig(config, Account.WhenChanged(static account => account.Cookie));
+		Rooms.ApplySettings(settings, Account.WhenChanged(static account => account.Cookie));
 		IsInitialized = true;
 
 		if (!_shell.StartMinimized)
@@ -120,7 +120,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 		Tools.RefreshFFmpegStatus();
 		Account.RefreshLoginStatus();
 
-		await Settings.Update.CheckForUpdateOnStartupAsync(config, cancellationToken);
+		await Settings.Update.CheckForUpdateOnStartupAsync(cancellationToken);
 	}
 
 	[ReactiveCommand]

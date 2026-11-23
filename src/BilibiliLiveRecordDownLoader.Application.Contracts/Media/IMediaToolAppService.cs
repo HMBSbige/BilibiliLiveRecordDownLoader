@@ -10,4 +10,10 @@ public interface IMediaToolAppService
 	Task<Task<BackgroundTaskSnapshot>> QueueRemuxAsync(RemuxInput input, CancellationToken cancellationToken = default);
 
 	Task QueueCutAsync(CutInput input, CancellationToken cancellationToken = default);
+
+	// 建议的输出跳过已有的文件和排队中任务的输出；source 不能转封装时为 null
+	string? SuggestRemuxDestination(string source);
+
+	// 建议的输出跳过已有的文件和排队中任务的输出；source 为空时为 null
+	string? SuggestCutDestination(string source);
 }

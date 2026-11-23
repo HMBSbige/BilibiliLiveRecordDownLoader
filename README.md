@@ -42,7 +42,6 @@ flowchart TD
     Application --> MediaToolkit["MediaToolkit"]
     Configuration --> Domain
     ViewModels --> ApplicationContracts
-    ViewModels --> Domain
 
     ApplicationContracts --> DomainShared["Domain.Shared"]
     ApplicationContracts --> BilibiliLive

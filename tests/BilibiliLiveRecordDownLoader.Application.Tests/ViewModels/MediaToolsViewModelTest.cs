@@ -3,92 +3,56 @@ using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels.Tools;
 using System.Collections.Concurrent;
-using System.Collections.Frozen;
+using System.Globalization;
 using System.Windows.Input;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 
 public sealed class MediaToolsViewModelTest
 {
-	private static readonly FrozenSet<string> NothingReserved = FrozenSet<string>.Empty;
-
 	[Test]
-	public async Task RemuxOutputSkipsExistingAndQueuedFilesAsync()
+	public async Task OutputsSuggestedByTheServiceAreShownForTheTrimmedInputAsync()
 	{
-		using TestDirectory directory = new();
-		await File.WriteAllTextAsync(directory.Combine("a.mp4"), "user");
-		HashSet<string> reserved = [Path.GetFullPath(directory.Combine("a_1.mp4"))];
+		FakeMediaTools tools = new() { SuggestRemux = static source => source is "a.flv" ? "a.mp4" : null, SuggestCut = static source => source is "a.flv" ? "a_1.flv" : null };
+		using MediaToolsViewModel viewModel = Create(tools, new RecordingNotifications());
 
-		string suggested = MediaToolsViewModel.SuggestRemuxOutput(directory.Combine("a.flv"), reserved);
+		viewModel.RemuxInput = " a.flv ";
+		viewModel.CutInput = " a.flv ";
+		(string remux, string cut) = (viewModel.RemuxOutput, viewModel.CutOutput);
+		viewModel.RemuxInput = "a.txt";
 
-		await Assert.That(suggested).IsEqualTo(directory.Combine("a_2.mp4"));
+		await Assert.That((remux, cut, viewModel.RemuxOutput)).IsEqualTo(("a.mp4", "a_1.flv", string.Empty));
 	}
 
 	[Test]
-	[Arguments("a.flv", "a.mp4")]
-	[Arguments("a.TS", "a.mp4")]
-	[Arguments("20260102_030405_fmp4.mp4", "20260102_030405.mp4")]
-	[Arguments("a.mp4", null)]
-	[Arguments("a.txt", null)]
-	public async Task RemuxOutputFollowsTheRecordingConversionRuleAsync(string fileName, string? expected)
+	public async Task QueuedRemuxUsesTheSuggestedOutputAndClearsTheInputAsync(CancellationToken cancellationToken)
 	{
-		using TestDirectory directory = new();
-
-		string suggested = MediaToolsViewModel.SuggestRemuxOutput(directory.Combine(fileName), NothingReserved);
-
-		await Assert.That(suggested).IsEqualTo(expected is null ? string.Empty : directory.Combine(expected));
-	}
-
-	[Test]
-	public async Task CutOutputSkipsExistingAndQueuedFilesAsync()
-	{
-		using TestDirectory directory = new();
-		await File.WriteAllTextAsync(directory.Combine("a_1.flv"), "user");
-		HashSet<string> reserved = [Path.GetFullPath(directory.Combine("a_2.flv"))];
-
-		string suggested = MediaToolsViewModel.SuggestCutOutput(directory.Combine("a.flv"), reserved);
-
-		await Assert.That(suggested).IsEqualTo(directory.Combine("a_3.flv"));
-	}
-
-	[Test]
-	public async Task QueuedRemuxOutputIsNotSuggestedAgainAsync(CancellationToken cancellationToken)
-	{
-		using TestDirectory directory = new();
 		FakeMediaTools tools = new();
 		using MediaToolsViewModel viewModel = await CreateWithFFmpegAsync(tools, new RecordingNotifications(), cancellationToken);
 
-		viewModel.RemuxInput = directory.Combine("a.flv");
-		string first = viewModel.RemuxOutput;
+		viewModel.RemuxInput = "a.flv";
+		string suggested = viewModel.RemuxOutput;
 		((ICommand)viewModel.QueueRemuxCommand).Execute(null);
 		await TestWait.UntilAsync(() => viewModel.RemuxInput.Length is 0, "the queued remux clears its input", cancellationToken);
-		viewModel.RemuxInput = directory.Combine("a.flv");
 		RemuxInput queued = await Assert.That(tools.Remuxes).HasSingleItem();
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(first).IsEqualTo(directory.Combine("a.mp4"));
-			await Assert.That(queued.Destination).IsEqualTo(first);
-			await Assert.That(viewModel.RemuxOutput).IsEqualTo(directory.Combine("a_1.mp4"));
-		}
+		await Assert.That(queued.Destination).IsEqualTo(suggested);
 	}
 
-	// 结束了的任务不再占用
+	// 输入不变，刚排队的输出已被占用，要重新问一次
 	[Test]
-	public async Task OutputsOfOtherPendingTasksAreNotSuggestedAsync(CancellationToken cancellationToken)
+	public async Task QueuedCutGetsTheNextOutputSuggestedAsync(CancellationToken cancellationToken)
 	{
-		using TestDirectory directory = new();
-		FakeTasks tasks = new();
-		tasks.Add(directory.Combine("a.mp4"), BackgroundTaskStatus.Queued);
-		tasks.Add(directory.Combine("a_1.mp4"), BackgroundTaskStatus.Running);
-		tasks.Add(directory.Combine("a_2.mp4"), BackgroundTaskStatus.Failed);
-		tasks.Add(directory.Combine("a_1.flv"), BackgroundTaskStatus.Queued);
-		using MediaToolsViewModel viewModel = await CreateWithFFmpegAsync(new FakeMediaTools(tasks), new RecordingNotifications(), cancellationToken);
+		int suggestions = 0;
+		FakeMediaTools tools = new() { SuggestCut = source => string.Create(CultureInfo.InvariantCulture, $"{source}.{++suggestions}") };
+		using MediaToolsViewModel viewModel = await CreateWithFFmpegAsync(tools, new RecordingNotifications(), cancellationToken);
 
-		viewModel.RemuxInput = directory.Combine("a.flv");
-		viewModel.CutInput = directory.Combine("a.flv");
+		viewModel.CutInput = "a.flv";
+		((ICommand)viewModel.QueueCutCommand).Execute(null);
+		await TestWait.UntilAsync(() => viewModel.CutOutput is "a.flv.2", "the next output is suggested", cancellationToken);
+		CutInput queued = await Assert.That(tools.Cuts).HasSingleItem();
 
-		await Assert.That((viewModel.RemuxOutput, viewModel.CutOutput)).IsEqualTo((directory.Combine("a_2.mp4"), directory.Combine("a_2.flv")));
+		await Assert.That(queued.Destination).IsEqualTo("a.flv.1");
 	}
 
 	[Test]
@@ -164,7 +128,7 @@ public sealed class MediaToolsViewModelTest
 
 	private static MediaToolsViewModel Create(FakeMediaTools tools, RecordingNotifications notifications)
 	{
-		return new MediaToolsViewModel(tools, tools.Tasks, notifications);
+		return new MediaToolsViewModel(tools, notifications);
 	}
 
 	private static async Task<MediaToolsViewModel> CreateWithFFmpegAsync(FakeMediaTools tools, RecordingNotifications notifications, CancellationToken cancellationToken)
@@ -175,16 +139,19 @@ public sealed class MediaToolsViewModelTest
 		return viewModel;
 	}
 
-	// 和真实的服务一样，排进去的任务立即出现在任务列表里
-	private sealed class FakeMediaTools(FakeTasks? tasks = null) : IMediaToolAppService
+	private sealed class FakeMediaTools : IMediaToolAppService
 	{
-		public FakeTasks Tasks { get; } = tasks ?? new FakeTasks();
-
 		public Func<CancellationToken, Task<string?>> GetVersion { get; init; } = static _ => Task.FromResult<string?>("7.1");
+
+		public Func<string, string?> SuggestRemux { get; init; } = static source => source + ".mp4";
+
+		public Func<string, string?> SuggestCut { get; init; } = static source => source + ".cut";
 
 		public Exception? CutFailure { get; init; }
 
 		public ConcurrentQueue<RemuxInput> Remuxes { get; } = new();
+
+		public ConcurrentQueue<CutInput> Cuts { get; } = new();
 
 		public Task<string?> GetFFmpegVersionAsync(CancellationToken cancellationToken = default)
 		{
@@ -194,7 +161,6 @@ public sealed class MediaToolsViewModelTest
 		public Task<Task<BackgroundTaskSnapshot>> QueueRemuxAsync(RemuxInput input, CancellationToken cancellationToken = default)
 		{
 			Remuxes.Enqueue(input);
-			Tasks.Add(input.Destination, BackgroundTaskStatus.Queued);
 			return Task.FromResult(new TaskCompletionSource<BackgroundTaskSnapshot>().Task);
 		}
 
@@ -205,39 +171,18 @@ public sealed class MediaToolsViewModelTest
 				return Task.FromException(failure);
 			}
 
-			Tasks.Add(input.Destination, BackgroundTaskStatus.Queued);
+			Cuts.Enqueue(input);
 			return Task.CompletedTask;
 		}
-	}
 
-	private sealed class FakeTasks : IBackgroundTaskAppService
-	{
-		private readonly ConcurrentQueue<BackgroundTaskSnapshot> _tasks = new();
-
-		public long Version => _tasks.Count;
-
-		public bool HasActiveTasks => !_tasks.IsEmpty;
-
-		public void Add(string targetPath, BackgroundTaskStatus status)
+		public string? SuggestRemuxDestination(string source)
 		{
-			_tasks.Enqueue(new BackgroundTaskSnapshot(Guid.NewGuid(), Path.GetFileName(targetPath), null, targetPath, status, null, null, null));
+			return SuggestRemux(source);
 		}
 
-		public IReadOnlyList<BackgroundTaskSnapshot> GetTasks()
+		public string? SuggestCutDestination(string source)
 		{
-			return [.. _tasks];
-		}
-
-		public void Cancel(Guid id)
-		{
-		}
-
-		public void CancelAll()
-		{
-		}
-
-		public void RemoveFinished()
-		{
+			return SuggestCut(source);
 		}
 	}
 }

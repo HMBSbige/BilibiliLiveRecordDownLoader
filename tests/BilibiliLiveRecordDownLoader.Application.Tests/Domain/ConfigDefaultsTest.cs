@@ -25,9 +25,7 @@ public sealed class ConfigDefaultsTest
 	[Arguments(RecorderType.FFmpeg, RecordingSplitMode.None, RecorderType.FFmpeg, RecordingSplitMode.None)]
 	public async Task RoomEnumOverridesInheritTheAppSettingsOnlyWhenUndefinedAsync(RecorderType recorderType, RecordingSplitMode splitMode, RecorderType? expectedRecorderType, RecordingSplitMode? expectedSplitMode)
 	{
-		RoomConfig room = new() { RoomId = 1, RecorderType = recorderType, SplitMode = splitMode };
-
-		room.ApplyDefaults();
+		RoomConfig room = new RoomConfig { RoomId = 1, RecorderType = recorderType, SplitMode = splitMode }.Normalize();
 
 		await Assert.That((room.RecorderType, room.SplitMode)).IsEqualTo((expectedRecorderType, expectedSplitMode));
 	}
@@ -35,7 +33,7 @@ public sealed class ConfigDefaultsTest
 	[Test]
 	public async Task RoomDefaultsClampTimingsToLowerBoundsAsync()
 	{
-		RoomConfig room = new()
+		RoomConfig room = new RoomConfig
 		{
 			RoomId = 1,
 			StatusCheckInterval = TimeSpan.FromSeconds(1),
@@ -43,9 +41,7 @@ public sealed class ConfigDefaultsTest
 			StreamReconnectDelay = TimeSpan.FromSeconds(-5),
 			StreamConnectTimeout = TimeSpan.FromMilliseconds(10),
 			StreamIdleTimeout = TimeSpan.FromSeconds(1)
-		};
-
-		room.ApplyDefaults();
+		}.Normalize();
 
 		using (Assert.Multiple())
 		{
@@ -61,7 +57,7 @@ public sealed class ConfigDefaultsTest
 	public async Task RoomDefaultsClampTimingsToTheUpperBoundAsync()
 	{
 		TimeSpan huge = TimeSpan.FromDays(100);
-		RoomConfig room = new()
+		RoomConfig room = new RoomConfig
 		{
 			RoomId = 1,
 			StatusCheckInterval = huge,
@@ -69,9 +65,7 @@ public sealed class ConfigDefaultsTest
 			StreamReconnectDelay = huge,
 			StreamConnectTimeout = huge,
 			StreamIdleTimeout = TimeSpan.MaxValue
-		};
-
-		room.ApplyDefaults();
+		}.Normalize();
 
 		TimeSpan max = TimeSpan.FromSeconds((double)RoomDefaults.MaxIntervalSeconds);
 		await Assert.That([room.StatusCheckInterval, room.DanmuReconnectDelay, room.StreamReconnectDelay, room.StreamConnectTimeout, room.StreamIdleTimeout]).All(value => value == max);
@@ -80,14 +74,12 @@ public sealed class ConfigDefaultsTest
 	[Test]
 	public async Task RoomDefaultsTurnUnusablePriorityOverridesIntoInheritanceAsync()
 	{
-		RoomConfig room = new()
+		RoomConfig room = new RoomConfig
 		{
 			RoomId = 1,
 			CodecPriority = [],
 			FormatPriority = [(StreamFormat)42]
-		};
-
-		room.ApplyDefaults();
+		}.Normalize();
 
 		using (Assert.Multiple())
 		{
@@ -121,6 +113,18 @@ public sealed class ConfigDefaultsTest
 			await Assert.That(config.FormatPriority).IsEquivalentTo(StreamPriority.DefaultFormats, CollectionOrdering.Matching);
 			await Assert.That(config.Rooms.Select(static room => (room.RoomId, room.Quality))).IsEquivalentTo([(2L, StreamQuality.High), (3L, RoomDefaults.Quality)], CollectionOrdering.Matching);
 		}
+	}
+
+	// 房间会话不持配置锁读取它拿到的实例，规范化不能改那个实例
+	[Test]
+	public async Task AppDefaultsNormalizeCopiesOfTheRoomsAsync()
+	{
+		RoomConfig room = new() { RoomId = 1, StatusCheckInterval = TimeSpan.FromSeconds(1) };
+		AppConfig config = new() { Rooms = [room] };
+
+		config.ApplyDefaults();
+
+		await Assert.That((room.StatusCheckInterval, config.Rooms[0].StatusCheckInterval)).IsEqualTo((TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(10)));
 	}
 
 	// 输入框和手改的配置里多出的空白不算数，只有空白时等于没填；读的地方只判断 null

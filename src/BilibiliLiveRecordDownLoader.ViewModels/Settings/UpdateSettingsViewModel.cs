@@ -2,12 +2,12 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.Settings;
 
 public sealed partial class UpdateSettingsViewModel : ViewModelBase
 {
-	private readonly IAppConfigManager _configManager;
+	private readonly ISettingsAppService _settingsAppService;
 	private readonly IUpdateAppService _updateAppService;
 
-	public UpdateSettingsViewModel(IAppConfigManager configManager, IUpdateAppService updateAppService)
+	public UpdateSettingsViewModel(ISettingsAppService settingsAppService, IUpdateAppService updateAppService)
 	{
-		_configManager = configManager;
+		_settingsAppService = settingsAppService;
 		_updateAppService = updateAppService;
 
 		CheckUpdateCommand.DisposeWith(Disposables);
@@ -34,18 +34,18 @@ public sealed partial class UpdateSettingsViewModel : ViewModelBase
 	[Reactive]
 	public partial string VersionText { get; private set; } = string.Empty;
 
-	internal void ApplyConfig(AppConfig config)
+	internal void ApplySettings(AppSettingsDto settings)
 	{
-		AutoCheckUpdate = config.AutoCheckUpdate;
-		IncludePreRelease = config.IncludePreRelease;
+		AutoCheckUpdate = settings.AutoCheckUpdate;
+		IncludePreRelease = settings.IncludePreRelease;
 
-		PersistToConfig(_configManager, this.WhenChanged(static viewModel => viewModel.AutoCheckUpdate), static (appConfig, value) => appConfig.AutoCheckUpdate = value);
-		PersistToConfig(_configManager, this.WhenChanged(static viewModel => viewModel.IncludePreRelease), static (appConfig, value) => appConfig.IncludePreRelease = value);
+		PersistSetting(_settingsAppService, this.WhenChanged(static viewModel => viewModel.AutoCheckUpdate), static (current, value) => current with { AutoCheckUpdate = value });
+		PersistSetting(_settingsAppService, this.WhenChanged(static viewModel => viewModel.IncludePreRelease), static (current, value) => current with { IncludePreRelease = value });
 	}
 
-	internal async Task CheckForUpdateOnStartupAsync(AppConfig config, CancellationToken cancellationToken = default)
+	internal async Task CheckForUpdateOnStartupAsync(CancellationToken cancellationToken = default)
 	{
-		if (!config.AutoCheckUpdate)
+		if (!AutoCheckUpdate)
 		{
 			return;
 		}

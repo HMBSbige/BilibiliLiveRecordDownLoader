@@ -1,7 +1,10 @@
 global using BilibiliLive.Enums;
+global using BilibiliLiveRecordDownLoader.Application.Contracts.Platform;
 global using BilibiliLiveRecordDownLoader.Application.Contracts.Rooms;
+global using BilibiliLiveRecordDownLoader.Application.Contracts.Settings;
 global using BilibiliLiveRecordDownLoader.Application.Contracts.Tasks;
 global using BilibiliLiveRecordDownLoader.Application.Rooms;
+global using BilibiliLiveRecordDownLoader.Application.Settings;
 global using BilibiliLiveRecordDownLoader.Application.Tasks;
 global using BilibiliLiveRecordDownLoader.Configuration;
 global using BilibiliLiveRecordDownLoader.Domain.Configuration;

@@ -8,7 +8,7 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 
 public sealed class RoomEditorViewModelTest
 {
-	private static readonly AppConfig Global = new() { SplitMode = RecordingSplitMode.Size, SplitDuration = TimeSpan.FromMinutes(45), SplitSizeMegabytes = 2000, SplitOnTitleChange = true };
+	private static readonly AppSettingsDto Global = AppConfig.CreateDefault().ToSettingsDto() with { SplitMode = RecordingSplitMode.Size, SplitDuration = TimeSpan.FromMinutes(45), SplitSizeMegabytes = 2000, SplitOnTitleChange = true };
 
 	[Test]
 	public async Task RoomFollowingTheGlobalSplitStartsItsValuesFromTheGlobalOnesAsync()
@@ -63,7 +63,7 @@ public sealed class RoomEditorViewModelTest
 	[Test]
 	public async Task EmptyDanmakuOffsetFollowsTheGlobalOneAsync(CancellationToken cancellationToken)
 	{
-		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1 }, out Task<RoomSettingsDto> submitted, new AppConfig { DanmakuOffset = TimeSpan.FromSeconds(0.5) });
+		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1 }, out Task<RoomSettingsDto> submitted, Global with { DanmakuOffset = TimeSpan.FromSeconds(0.5) });
 
 		(decimal? offset, string placeholder) = (editor.DanmakuOffsetSeconds, editor.DanmakuOffsetPlaceholder);
 		RoomSettingsDto settings = await SaveAsync(editor, submitted, cancellationToken);
@@ -94,7 +94,7 @@ public sealed class RoomEditorViewModelTest
 	}
 
 	// 检查交给保存的设置，而不是对话框的结果
-	private static RoomEditorViewModel Open(RoomSettingsDto existing, out Task<RoomSettingsDto> submitted, AppConfig? global = null)
+	private static RoomEditorViewModel Open(RoomSettingsDto existing, out Task<RoomSettingsDto> submitted, AppSettingsDto? global = null)
 	{
 		TaskCompletionSource<RoomSettingsDto> submission = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		submitted = submission.Task;

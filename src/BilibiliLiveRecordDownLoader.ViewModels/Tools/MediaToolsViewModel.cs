@@ -4,25 +4,17 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.Tools;
 
 public sealed partial class MediaToolsViewModel : ViewModelBase
 {
-	// .mp4 只有本程序录的 fMP4 需要转换，由 GetMp4ConversionPath 识别
-	private static readonly string[] RemuxableExtensions = [".flv", ".ts", ".mkv", ".m4s", ".mp4"];
-
 	// 用户配错 FFmpeg 路径时，指向的程序可能不会自行退出
 	private static readonly TimeSpan FFmpegCheckTimeout = TimeSpan.FromSeconds(10);
 
-	// Windows、macOS 的路径默认不区分大小写
-	private static readonly StringComparer PathComparer = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-
 	private readonly IMediaToolAppService _mediaTools;
-	private readonly IBackgroundTaskAppService _tasks;
 	private readonly INotificationService _notifications;
 	private string? _ffmpegVersion;
 	private int _ffmpegCheckGeneration;
 
-	public MediaToolsViewModel(IMediaToolAppService mediaTools, IBackgroundTaskAppService tasks, INotificationService notifications)
+	public MediaToolsViewModel(IMediaToolAppService mediaTools, INotificationService notifications)
 	{
 		_mediaTools = mediaTools;
-		_tasks = tasks;
 		_notifications = notifications;
 
 		CanQueueRemux = this.WhenChanged(static viewModel => viewModel.IsFFmpegAvailable, static viewModel => viewModel.RemuxInput, static viewModel => viewModel.RemuxOutput, CanQueue);
@@ -47,12 +39,12 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 
 		this.WhenChanged(static viewModel => viewModel.RemuxInput)
 			.Skip(1)
-			.Subscribe(input => RemuxOutput = SuggestRemuxOutput(input, GetPendingOutputs()))
+			.Subscribe(input => RemuxOutput = SuggestRemuxOutput(input))
 			.DisposeWith(Disposables);
 
 		this.WhenChanged(static viewModel => viewModel.CutInput)
 			.Skip(1)
-			.Subscribe(input => CutOutput = SuggestCutOutput(input, GetPendingOutputs()))
+			.Subscribe(input => CutOutput = SuggestCutOutput(input))
 			.DisposeWith(Disposables);
 
 		this.WhenChanged(static viewModel => viewModel.RemuxInput, static viewModel => viewModel.RemuxOutput, static (_, _) => RxVoid.Default)
@@ -225,18 +217,12 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 		}
 
 		NotifyQueued();
-		CutOutput = SuggestCutOutput(CutInput, GetPendingOutputs());
+		CutOutput = SuggestCutOutput(CutInput);
 	}
 
 	private void UpdateFFmpegVersionText()
 	{
 		FFmpegVersion = _ffmpegVersion is null ? null : AppLanguage.Current.FFmpegVersion.ToString(_ffmpegVersion);
-	}
-
-	private HashSet<string> GetPendingOutputs()
-	{
-		IEnumerable<string> outputs = _tasks.GetTasks().Where(static task => task.IsActive).Select(static task => task.TargetPath).OfType<string>();
-		return [with(PathComparer), .. outputs.Select(Path.GetFullPath)];
 	}
 
 	private void NotifyQueued()
@@ -290,40 +276,13 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 		return string.IsNullOrWhiteSpace(path) ? null : Path.GetDirectoryName(path);
 	}
 
-	internal static string SuggestRemuxOutput(string input, IReadOnlySet<string> reserved)
+	private string SuggestRemuxOutput(string input)
 	{
-		input = input.Trim();
-
-		if (!RemuxableExtensions.Contains(Path.GetExtension(input), StringComparer.OrdinalIgnoreCase) || RecordingFileLayout.GetMp4ConversionPath(input) is not { } output)
-		{
-			return string.Empty;
-		}
-
-		return Numbered(output).Prepend(output).First(candidate => IsAvailable(candidate, reserved));
+		return _mediaTools.SuggestRemuxDestination(input.Trim()) ?? string.Empty;
 	}
 
-	internal static string SuggestCutOutput(string input, IReadOnlySet<string> reserved)
+	private string SuggestCutOutput(string input)
 	{
-		input = input.Trim();
-
-		return input.Length is 0 ? string.Empty : Numbered(input).First(candidate => IsAvailable(candidate, reserved));
-	}
-
-	// 排队的任务还没写出文件，建议的输出也要跳过它们
-	private static bool IsAvailable(string path, IReadOnlySet<string> reserved)
-	{
-		return !File.Exists(path) && !reserved.Contains(Path.GetFullPath(path));
-	}
-
-	private static IEnumerable<string> Numbered(string path)
-	{
-		string withoutExtension = Path.ChangeExtension(path, null);
-		string extension = Path.GetExtension(path);
-
-		for (int index = 1; ; ++index)
-		{
-			yield return string.Create(CultureInfo.InvariantCulture, $"{withoutExtension}_{index}{extension}");
-		}
-		// ReSharper disable once IteratorNeverReturns
+		return _mediaTools.SuggestCutDestination(input.Trim()) ?? string.Empty;
 	}
 }

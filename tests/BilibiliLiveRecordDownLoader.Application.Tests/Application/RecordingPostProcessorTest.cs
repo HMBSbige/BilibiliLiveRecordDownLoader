@@ -325,5 +325,15 @@ public sealed class RecordingPostProcessorTest
 		{
 			throw new NotSupportedException();
 		}
+
+		public string? SuggestRemuxDestination(string source)
+		{
+			throw new NotSupportedException();
+		}
+
+		public string? SuggestCutDestination(string source)
+		{
+			throw new NotSupportedException();
+		}
 	}
 }

@@ -62,9 +62,9 @@ public sealed class RoomRecordingNotificationTest
 				loop.GoLive();
 				break;
 			case StallReset.RecordingDisabled:
-				loop.Session.UpdateSettings(loop.Settings with { IsRecordingEnabled = false });
+				loop.Settings = loop.Settings with { IsRecordingEnabled = false };
 				await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Idle);
-				loop.Session.UpdateSettings(loop.Settings);
+				loop.Settings = loop.Settings with { IsRecordingEnabled = true };
 				break;
 			default:
 				throw new UnreachableException();
