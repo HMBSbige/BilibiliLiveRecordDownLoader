@@ -37,7 +37,7 @@ public sealed class LogViewModelTest
 		};
 		long[] expected = [.. (viewModel.Sort.IsDescending ? ordered.Reverse() : ordered).Select(static entry => entry.Sequence)];
 
-		await Assert.That(viewModel.Entries.Select(static entry => entry.Sequence)).IsEquivalentTo(expected, EqualityComparer<long>.Default, CollectionOrdering.Matching);
+		await Assert.That(viewModel.Entries.Select(static entry => entry.Sequence)).IsEquivalentTo(expected, CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -53,7 +53,7 @@ public sealed class LogViewModelTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(viewModel.Entries.Count).IsEqualTo(1000);
+			await Assert.That(viewModel.Entries).Count().IsEqualTo(1000);
 			await Assert.That((viewModel.Entries.Min(static entry => entry.Sequence), viewModel.Entries.Max(static entry => entry.Sequence))).IsEqualTo((6L, 1005L));
 		}
 	}

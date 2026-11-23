@@ -9,7 +9,7 @@
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.QrCodeLoginView"
     x:DataType="dialogs:QrCodeLoginViewModel">
     <DockPanel>
-        <StackPanel DockPanel.Dock="Bottom" Classes="toolbar" HorizontalAlignment="Right" Margin="0,24,0,0">
+        <StackPanel Classes="toolbar dialogFooter" HorizontalAlignment="Right">
             <Button Command="{Binding RefreshCommand}"
                     IsVisible="{Binding State, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static bl:QrCodeLoginState.Expired}}">
                 <StackPanel Classes="iconText">
@@ -21,7 +21,7 @@
         </StackPanel>
 
         <StackPanel Spacing="16" HorizontalAlignment="Center">
-            <Border Width="240" Height="240" CornerRadius="8" Background="White" Padding="8" HorizontalAlignment="Center">
+            <Border Width="240" Height="240" CornerRadius="{DynamicResource SemiBorderRadiusMedium}" Background="White" Padding="8" HorizontalAlignment="Center">
                 <Panel>
                     <Image Source="{Binding QrCodeUrl, Converter={x:Static c:QrCodeImageConverter.Instance}}"
                            RenderOptions.BitmapInterpolationMode="None" />

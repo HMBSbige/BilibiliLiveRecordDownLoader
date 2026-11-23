@@ -10,8 +10,7 @@
         <StackPanel Classes="page">
             <Border Classes="warningBanner" IsVisible="{Binding IsFFmpegAvailable, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}">
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                    <ic:FluentIcon Grid.Column="0" Icon="Warning" IconVariant="Filled" FontSize="18" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource SemiColorWarning}" />
+                    <ic:FluentIcon Grid.Column="0" Icon="Warning" />
                     <TextBlock Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap"
                                Text="{Binding FFmpegNotFound, Source={x:Static l:AppLanguage.Current}}" />
                     <StackPanel Grid.Column="2" Classes="toolbar">
@@ -25,7 +24,7 @@
                     </StackPanel>
                 </Grid>
             </Border>
-            <StackPanel Classes="iconText" Margin="4,0" IsVisible="{Binding IsFFmpegAvailable, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:True}}">
+            <StackPanel Classes="iconText" IsVisible="{Binding IsFFmpegAvailable, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:True}}">
                 <ic:FluentIcon Icon="CheckmarkCircle" IconVariant="Filled" FontSize="14" Foreground="{DynamicResource SemiColorSuccess}" />
                 <TextBlock Classes="caption" Text="{Binding FFmpegVersion}" />
                 <Button Classes="icon" Padding="2" Command="{Binding CheckFFmpegCommand}"
@@ -34,7 +33,7 @@
                     <ic:FluentIcon Icon="ArrowSync" FontSize="14" />
                 </Button>
             </StackPanel>
-            <StackPanel Classes="iconText" Margin="4,0" IsVisible="{Binding IsFFmpegAvailable, Converter={x:Static ObjectConverters.IsNull}}">
+            <StackPanel Classes="iconText" IsVisible="{Binding IsFFmpegAvailable, Converter={x:Static ObjectConverters.IsNull}}">
                 <ProgressBar Theme="{DynamicResource ProgressRing}" IsIndeterminate="True" Width="14" Height="14" />
                 <TextBlock Classes="caption" Text="{Binding Checking, Source={x:Static l:AppLanguage.Current}}" />
             </StackPanel>
@@ -45,7 +44,7 @@
                     <StackPanel Classes="field">
                         <TextBlock Text="{Binding InputFile, Source={x:Static l:AppLanguage.Current}}" />
                         <DockPanel>
-                            <Button DockPanel.Dock="Right" Margin="8,0,0,0" Command="{Binding BrowseRemuxInputCommand}"
+                            <Button DockPanel.Dock="Right" Command="{Binding BrowseRemuxInputCommand}"
                                     Content="{Binding Browse, Source={x:Static l:AppLanguage.Current}}" />
                             <TextBox Text="{Binding RemuxInput}" />
                         </DockPanel>
@@ -53,7 +52,7 @@
                     <StackPanel Classes="field">
                         <TextBlock Text="{Binding OutputFile, Source={x:Static l:AppLanguage.Current}}" />
                         <DockPanel>
-                            <Button DockPanel.Dock="Right" Margin="8,0,0,0" Command="{Binding BrowseRemuxOutputCommand}"
+                            <Button DockPanel.Dock="Right" Command="{Binding BrowseRemuxOutputCommand}"
                                     Content="{Binding Browse, Source={x:Static l:AppLanguage.Current}}" />
                             <TextBox Text="{Binding RemuxOutput}" />
                         </DockPanel>
@@ -77,7 +76,7 @@
                     <StackPanel Classes="field">
                         <TextBlock Text="{Binding InputFile, Source={x:Static l:AppLanguage.Current}}" />
                         <DockPanel>
-                            <Button DockPanel.Dock="Right" Margin="8,0,0,0" Command="{Binding BrowseCutInputCommand}"
+                            <Button DockPanel.Dock="Right" Command="{Binding BrowseCutInputCommand}"
                                     Content="{Binding Browse, Source={x:Static l:AppLanguage.Current}}" />
                             <TextBox Text="{Binding CutInput}" />
                         </DockPanel>
@@ -85,12 +84,12 @@
                     <StackPanel Classes="field">
                         <TextBlock Text="{Binding OutputFile, Source={x:Static l:AppLanguage.Current}}" />
                         <DockPanel>
-                            <Button DockPanel.Dock="Right" Margin="8,0,0,0" Command="{Binding BrowseCutOutputCommand}"
+                            <Button DockPanel.Dock="Right" Command="{Binding BrowseCutOutputCommand}"
                                     Content="{Binding Browse, Source={x:Static l:AppLanguage.Current}}" />
                             <TextBox Text="{Binding CutOutput}" />
                         </DockPanel>
                     </StackPanel>
-                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <Grid Classes="form" ColumnDefinitions="*,*">
                         <StackPanel Grid.Column="0" Classes="field">
                             <TextBlock Text="{Binding StartTime, Source={x:Static l:AppLanguage.Current}}" />
                             <TextBox Text="{Binding CutStart}" PlaceholderText="hh:mm:ss.fff" />

@@ -75,7 +75,28 @@ public sealed partial class LogViewModel : ViewModelBase
 	// 测试不启动定时刷新，改为直接调用
 	internal void Refresh()
 	{
-		Append(_logStore.GetEntries());
+		foreach (LogEntry entry in _logStore.GetEntries().Where(entry => entry.Sequence > _lastSequence))
+		{
+			_all.Add(entry);
+			_lastSequence = entry.Sequence;
+
+			if (Matches(entry))
+			{
+				Entries.Insert(FindInsertIndex(entry), entry);
+			}
+		}
+
+		if (_all.Count > Capacity)
+		{
+			foreach (LogEntry removed in _all.Take(_all.Count - Capacity))
+			{
+				Entries.Remove(removed);
+			}
+
+			_all.RemoveRange(0, _all.Count - Capacity);
+		}
+
+		UpdateState();
 	}
 
 	[ReactiveCommand]
@@ -96,33 +117,6 @@ public sealed partial class LogViewModel : ViewModelBase
 	private void SortBy(LogSortColumn column)
 	{
 		Sort = new LogSort(column, column == Sort.Column ? !Sort.IsDescending : column is not LogSortColumn.Room);
-	}
-
-	private void Append(IReadOnlyList<LogEntry> entries)
-	{
-		foreach (LogEntry entry in entries.Where(entry => entry.Sequence > _lastSequence))
-		{
-			_all.Add(entry);
-			_lastSequence = entry.Sequence;
-
-			if (Matches(entry))
-			{
-				int index = BinarySearch(entry);
-				Entries.Insert(index < 0 ? ~index : index, entry);
-			}
-		}
-
-		if (_all.Count > Capacity)
-		{
-			foreach (LogEntry removed in _all.Take(_all.Count - Capacity))
-			{
-				Entries.Remove(removed);
-			}
-
-			_all.RemoveRange(0, _all.Count - Capacity);
-		}
-
-		UpdateState();
 	}
 
 	private void Rebuild()
@@ -150,7 +144,7 @@ public sealed partial class LogViewModel : ViewModelBase
 			return false;
 		}
 
-		if (!string.IsNullOrWhiteSpace(RoomFilter) && !(entry.RoomId?.ToString(CultureInfo.InvariantCulture).Contains(RoomFilter.Trim(), StringComparison.Ordinal) ?? false))
+		if (!string.IsNullOrWhiteSpace(RoomFilter) && entry.RoomId?.ToString(CultureInfo.InvariantCulture).Contains(RoomFilter.Trim(), StringComparison.Ordinal) is not true)
 		{
 			return false;
 		}
@@ -158,32 +152,27 @@ public sealed partial class LogViewModel : ViewModelBase
 		return string.IsNullOrWhiteSpace(SearchText) || entry.Message.Contains(SearchText.Trim(), StringComparison.CurrentCultureIgnoreCase);
 	}
 
-	private int BinarySearch(LogEntry entry)
+	// 比较器最后按序号比，新条目不会和已有的相等，插在第一个排在它后面的条目前
+	private int FindInsertIndex(LogEntry entry)
 	{
 		int low = 0;
-		int high = Entries.Count - 1;
+		int high = Entries.Count;
 
-		while (low <= high)
+		while (low < high)
 		{
 			int middle = low + (high - low) / 2;
-			int result = _comparer.Compare(Entries[middle], entry);
 
-			if (result is 0)
-			{
-				return middle;
-			}
-
-			if (result < 0)
+			if (_comparer.Compare(Entries[middle], entry) < 0)
 			{
 				low = middle + 1;
 			}
 			else
 			{
-				high = middle - 1;
+				high = middle;
 			}
 		}
 
-		return ~low;
+		return low;
 	}
 
 	private int Compare(LogEntry x, LogEntry y)

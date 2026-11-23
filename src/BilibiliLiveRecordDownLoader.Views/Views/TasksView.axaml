@@ -16,23 +16,20 @@
     </UserControl.Styles>
 
     <DockPanel Classes="page">
-        <DockPanel Classes="toolbar">
-            <StackPanel DockPanel.Dock="Right" Classes="toolbar">
-                <Button Command="{Binding ClearFinishedTasksCommand}">
-                    <StackPanel Classes="iconText">
-                        <ic:FluentIcon Icon="Broom" />
-                        <TextBlock Text="{Binding ClearFinishedTasks, Source={x:Static l:AppLanguage.Current}}" />
-                    </StackPanel>
-                </Button>
-                <Button Classes="Danger" Command="{Binding CancelAllTasksCommand}">
-                    <StackPanel Classes="iconText">
-                        <ic:FluentIcon Icon="DismissCircle" />
-                        <TextBlock Text="{Binding CancelAllTasks, Source={x:Static l:AppLanguage.Current}}" />
-                    </StackPanel>
-                </Button>
-            </StackPanel>
-            <Panel />
-        </DockPanel>
+        <StackPanel DockPanel.Dock="Top" Classes="toolbar" HorizontalAlignment="Right">
+            <Button Command="{Binding ClearFinishedTasksCommand}">
+                <StackPanel Classes="iconText">
+                    <ic:FluentIcon Icon="Broom" />
+                    <TextBlock Text="{Binding ClearFinishedTasks, Source={x:Static l:AppLanguage.Current}}" />
+                </StackPanel>
+            </Button>
+            <Button Classes="Danger" Command="{Binding CancelAllTasksCommand}">
+                <StackPanel Classes="iconText">
+                    <ic:FluentIcon Icon="DismissCircle" />
+                    <TextBlock Text="{Binding CancelAllTasks, Source={x:Static l:AppLanguage.Current}}" />
+                </StackPanel>
+            </Button>
+        </StackPanel>
 
         <Border Classes="table" Grid.IsSharedSizeScope="True">
             <Panel>
@@ -52,7 +49,7 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                                            ToolTip.Tip="{Binding Title}" />
-                                <StackPanel Grid.Row="0" Grid.Column="1" Classes="toolbar" Spacing="6" HorizontalAlignment="Right">
+                                <StackPanel Grid.Row="0" Grid.Column="1" Classes="toolbar" HorizontalAlignment="Right">
                                     <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding Details}"
                                                IsVisible="{Binding Details, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                     <ContentControl Content="{Binding Status}" ContentTemplate="{StaticResource LocalizedLabel}"

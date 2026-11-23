@@ -12,23 +12,20 @@ public sealed class DanmakuEntryViewModelTest
 
 	private static DanmakuEntryViewModel File(DanmakuEntryDto entry, double seconds = 0)
 	{
-		return DanmakuEntryViewModel.FromFile(0, new DanmakuFileEntryDto(TimeSpan.FromSeconds(seconds), entry));
+		return DanmakuEntryViewModel.FromFile(new DanmakuFileEntryDto(TimeSpan.FromSeconds(seconds), entry));
 	}
 
+	// 价格分档由 SuperChatTierTest 覆盖，这里只看取的是不是这条 SC 价格的那一档
 	[Test]
-	[Arguments(30_000L)]
-	[Arguments(100_000L)]
-	[Arguments(2_500_000L)]
-	public async Task SuperChatIsColoredByItsTierAsync(long price)
+	public async Task SuperChatIsColoredByItsTierAsync()
 	{
-		DanmakuEntryViewModel entry = File(new DanmakuEntryDto.SuperChat(1, Viewer, "加油", price, TimeSpan.FromMinutes(1)));
-		SuperChatTier tier = SuperChatTier.For(price);
+		DanmakuEntryViewModel entry = File(new DanmakuEntryDto.SuperChat(1, Viewer, "加油", 100_000, TimeSpan.FromMinutes(1)));
+		SuperChatTier tier = SuperChatTier.For(100_000);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(entry.IsSuperChat).IsTrue();
 			await Assert.That((entry.SuperChatBackground, entry.SuperChatPriceColor, entry.SuperChatBottomBackground, entry.SuperChatTextColor)).IsEqualTo((tier.Background, tier.PriceColor, tier.BottomBackground, tier.TextColor));
-			await Assert.That(entry.PriceText).IsEqualTo(DanmakuEntryViewModel.FormatPrice(price));
 		}
 	}
 
@@ -44,19 +41,53 @@ public sealed class DanmakuEntryViewModelTest
 		await Assert.That(DanmakuEntryViewModel.FormatPrice(price)).IsEqualTo(AppLanguage.Current.DanmakuPrice.ToString(expected));
 	}
 
-	// 银瓜子礼物不花钱
-	[Test]
-	public async Task FreeGiftsHaveNoPriceAsync()
+	public static IEnumerable<Func<(DanmakuEntryDto Entry, long? Price)>> Prices()
 	{
-		DanmakuEntryViewModel free = File(new DanmakuEntryDto.Gift(Viewer, "辣条", 10, 0));
-		DanmakuEntryViewModel paid = File(new DanmakuEntryDto.Gift(Viewer, "小花花", 2, 200));
+		yield return static () => (new DanmakuEntryDto.SuperChat(1, Viewer, "加油", 30_000, TimeSpan.FromMinutes(1)), 30_000);
+		yield return static () => (new DanmakuEntryDto.Gift(Viewer, "小花花", 2, 200), 200);
+		// 银瓜子礼物不花钱
+		yield return static () => (new DanmakuEntryDto.Gift(Viewer, "辣条", 10, 0), null);
+		yield return static () => (new DanmakuEntryDto.Guard(Viewer, GuardLevel.Captain, 1, 138_000, false), 138_000);
+		yield return static () => (new DanmakuEntryDto.Guard(Viewer, GuardLevel.Captain, 1, 0, false), null);
+		yield return static () => (Comment(), null);
+		yield return static () => (new DanmakuEntryDto.Connection(true, false), null);
+	}
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(free.PriceText).IsNull();
-			await Assert.That(free.Text).IsEqualTo(AppLanguage.Current.DanmakuGiftText.ToString("辣条", "10"));
-			await Assert.That(paid.PriceText).IsEqualTo(DanmakuEntryViewModel.FormatPrice(200));
-		}
+	[Test]
+	[MethodDataSource(nameof(Prices))]
+	public async Task OnlyPaidMessagesHaveAPriceAsync(DanmakuEntryDto entry, long? price)
+	{
+		await Assert.That(File(entry).PriceText).IsEqualTo(price is { } value ? DanmakuEntryViewModel.FormatPrice(value) : null);
+	}
+
+	public static IEnumerable<Func<(DanmakuEntryDto Entry, string Text)>> Texts()
+	{
+		yield return static () => (new DanmakuEntryDto.Gift(Viewer, "辣条", 10, 0), AppLanguage.Current.DanmakuGiftText.ToString("辣条", "10"));
+		// 只在多于一个月时写出月数
+		yield return static () => (new DanmakuEntryDto.Guard(Viewer, GuardLevel.Admiral, 1, 1_998_000, false), AppLanguage.Current.DanmakuGuardText.ToString(AppLanguage.Current.GuardLevelAdmiral));
+		yield return static () => (new DanmakuEntryDto.Guard(Viewer, GuardLevel.Captain, 3, 594_000, false), AppLanguage.Current.DanmakuGuardMonthsText.ToString(AppLanguage.Current.GuardLevelCaptain, "3"));
+		yield return static () => (new DanmakuEntryDto.Guard(Viewer, GuardLevel.Captain, 1, 138_000, true), AppLanguage.Current.DanmakuGuardRenewalText.ToString(AppLanguage.Current.GuardLevelCaptain));
+		yield return static () => (new DanmakuEntryDto.Guard(Viewer, GuardLevel.Captain, 3, 414_000, true), AppLanguage.Current.DanmakuGuardRenewalMonthsText.ToString(AppLanguage.Current.GuardLevelCaptain, "3"));
+		yield return static () => (new DanmakuEntryDto.TitleChange("新标题"), AppLanguage.Current.DanmakuTitleText.ToString("新标题"));
+		yield return static () => (new DanmakuEntryDto.Gap(TimeSpan.FromSeconds(105)), AppLanguage.Current.DanmakuGapText.ToString("0:01:45"));
+		yield return static () => (new DanmakuEntryDto.Connection(false, false), AppLanguage.Current.DanmakuConnectionText.ToString(AppLanguage.Current.DanmakuLoggedIn));
+		yield return static () => (new DanmakuEntryDto.Connection(true, true), AppLanguage.Current.DanmakuConnectionText.ToString(AppLanguage.Current.DanmakuAnonymousMasked));
+		yield return static () => (new DanmakuEntryDto.Connection(true, false), AppLanguage.Current.DanmakuConnectionText.ToString(AppLanguage.Current.DanmakuAnonymous));
+	}
+
+	[Test]
+	[MethodDataSource(nameof(Texts))]
+	public async Task GiftsGuardsAndNoticesAreDescribedInTheCurrentLanguageAsync(DanmakuEntryDto entry, string text)
+	{
+		await Assert.That(File(entry).Text).IsEqualTo(text);
+	}
+
+	[Test]
+	public async Task NoticesHaveNoSenderAsync()
+	{
+		DanmakuEntryViewModel title = File(new DanmakuEntryDto.TitleChange("新标题"));
+
+		await Assert.That((title.Kind, title.Name, title.Badge, title.NameSeparator)).IsEqualTo((DanmakuEntryKind.Notice, null, null, null));
 	}
 
 	[Test]
@@ -69,10 +100,9 @@ public sealed class DanmakuEntryViewModelTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That((guard.Badge, guard.IsGuardBadge, guard.MedalColor)).IsEqualTo((AppLanguage.Current.GuardLevelCaptain, true, null));
-			await Assert.That((fan.Badge, fan.IsGuardBadge, fan.MedalColor)).IsEqualTo(("粉丝团 21", false, 0x1A2B3C));
+			await Assert.That((guard.Badge, guard.IsGuardBadge, guard.MedalColor, guard.IsUnlitMedal)).IsEqualTo((AppLanguage.Current.GuardLevelCaptain, true, null, false));
+			await Assert.That((fan.Badge, fan.IsGuardBadge, fan.MedalColor, fan.IsUnlitMedal)).IsEqualTo(("粉丝团 21", false, 0x1A2B3C, false));
 			await Assert.That((unlit.MedalColor, unlit.IsUnlitMedal)).IsEqualTo((null, true));
-			await Assert.That((guard.IsUnlitMedal, fan.IsUnlitMedal)).IsEqualTo((false, false));
 		}
 	}
 
@@ -98,18 +128,6 @@ public sealed class DanmakuEntryViewModelTest
 	}
 
 	[Test]
-	public async Task OnlyPaidMessagesHaveAPriceAsync()
-	{
-		using (Assert.Multiple())
-		{
-			await Assert.That(File(FakeComment()).PriceText).IsNull();
-			await Assert.That(File(new DanmakuEntryDto.Guard(Viewer, GuardLevel.Captain, 1, 0, false)).PriceText).IsNull();
-			await Assert.That(File(new DanmakuEntryDto.Connection(true, false)).PriceText).IsNull();
-			await Assert.That(File(new DanmakuEntryDto.Guard(Viewer, GuardLevel.Captain, 1, 138_000, false)).PriceText).IsEqualTo(DanmakuEntryViewModel.FormatPrice(138_000));
-		}
-	}
-
-	[Test]
 	public async Task SearchIgnoresCaseInNamesAndTextAsync()
 	{
 		DanmakuEntryViewModel entry = File(new DanmakuEntryDto.Comment(new DanmuSender(1, "Viewer", GuardLevel.None, null), "Hello 世界", 0xFFFFFF, false));
@@ -120,33 +138,6 @@ public sealed class DanmakuEntryViewModelTest
 			await Assert.That(entry.Contains("VIEW")).IsTrue();
 			await Assert.That(entry.Contains("世界")).IsTrue();
 			await Assert.That(entry.Contains("再见")).IsFalse();
-		}
-	}
-
-	[Test]
-	public async Task GuardMonthsAreShownOnlyForMoreThanOneMonthAsync()
-	{
-		DanmakuEntryViewModel one = File(new DanmakuEntryDto.Guard(Viewer, GuardLevel.Admiral, 1, 1_998_000, false));
-		DanmakuEntryViewModel three = File(new DanmakuEntryDto.Guard(Viewer, GuardLevel.Captain, 3, 594_000, false));
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(one.Text).IsEqualTo(AppLanguage.Current.DanmakuGuardText.ToString(AppLanguage.Current.GuardLevelAdmiral));
-			await Assert.That(three.Text).IsEqualTo(AppLanguage.Current.DanmakuGuardMonthsText.ToString(AppLanguage.Current.GuardLevelCaptain, "3"));
-		}
-	}
-
-	[Test]
-	public async Task RenewalsAreToldApartFromNewGuardsAsync()
-	{
-		DanmakuEntryViewModel one = File(new DanmakuEntryDto.Guard(Viewer, GuardLevel.Captain, 1, 138_000, true));
-		DanmakuEntryViewModel three = File(new DanmakuEntryDto.Guard(Viewer, GuardLevel.Captain, 3, 414_000, true));
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(one.Text).IsEqualTo(AppLanguage.Current.DanmakuGuardRenewalText.ToString(AppLanguage.Current.GuardLevelCaptain));
-			await Assert.That(three.Text).IsEqualTo(AppLanguage.Current.DanmakuGuardRenewalMonthsText.ToString(AppLanguage.Current.GuardLevelCaptain, "3"));
-			await Assert.That(one.Text).IsNotEqualTo(File(new DanmakuEntryDto.Guard(Viewer, GuardLevel.Captain, 1, 138_000, false)).Text);
 		}
 	}
 
@@ -163,35 +154,18 @@ public sealed class DanmakuEntryViewModelTest
 	}
 
 	[Test]
-	public async Task FileEntriesShowTheirTimeInTheFileAsync()
+	[Arguments(65.4, "0:01:05")]
+	[Arguments(3 * 3600 + 2 * 60 + 1d, "3:02:01")]
+	// 写入者把时间截到 0，负值只会来自坏数据
+	[Arguments(-1.5, "0:00:00")]
+	public async Task FileEntriesShowTheirTimeInTheFileAsync(double seconds, string text)
 	{
-		DanmakuEntryViewModel early = File(FakeComment(), 65.4);
-		DanmakuEntryViewModel late = File(FakeComment(), 3 * 3600 + 2 * 60 + 1);
+		DanmakuEntryViewModel entry = File(Comment(), seconds);
 
-		using (Assert.Multiple())
-		{
-			await Assert.That((early.TimeText, early.Time)).IsEqualTo(("0:01:05", (TimeSpan?)TimeSpan.FromSeconds(65.4)));
-			await Assert.That(late.TimeText).IsEqualTo("3:02:01");
-		}
+		await Assert.That((entry.TimeText, entry.Time)).IsEqualTo((text, (TimeSpan?)TimeSpan.FromSeconds(seconds)));
 	}
 
-	[Test]
-	public async Task NoticesFromTheFileHaveNoSenderAsync()
-	{
-		DanmakuEntryViewModel title = File(new DanmakuEntryDto.TitleChange("新标题"));
-		DanmakuEntryViewModel gap = File(new DanmakuEntryDto.Gap(TimeSpan.FromSeconds(105)));
-		DanmakuEntryViewModel connection = File(new DanmakuEntryDto.Connection(true, true));
-
-		using (Assert.Multiple())
-		{
-			await Assert.That((title.Kind, title.Name, title.Badge)).IsEqualTo((DanmakuEntryKind.Notice, null, null));
-			await Assert.That(title.Text).IsEqualTo(AppLanguage.Current.DanmakuTitleText.ToString("新标题"));
-			await Assert.That(gap.Text).IsEqualTo(AppLanguage.Current.DanmakuGapText.ToString("0:01:45"));
-			await Assert.That(connection.Text).IsEqualTo(AppLanguage.Current.DanmakuConnectionText.ToString(AppLanguage.Current.DanmakuAnonymousMasked));
-		}
-	}
-
-	private static DanmakuEntryDto.Comment FakeComment()
+	private static DanmakuEntryDto.Comment Comment()
 	{
 		return new DanmakuEntryDto.Comment(Viewer, "hi", 0xFFFFFF, false);
 	}

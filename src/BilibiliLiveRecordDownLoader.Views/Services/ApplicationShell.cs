@@ -17,7 +17,7 @@ internal sealed class ApplicationShell(IServiceProvider serviceProvider, AppStar
 		{
 			if (field is null)
 			{
-				field = serviceProvider.GetRequiredService<MainWindow>();
+				field = new MainWindow { DataContext = serviceProvider.GetRequiredService<MainWindowViewModel>() };
 				field.Closing += OnWindowClosing;
 			}
 
@@ -70,13 +70,13 @@ internal sealed class ApplicationShell(IServiceProvider serviceProvider, AppStar
 	// 注销和关机时要放行，否则会拦住系统
 	private void OnWindowClosing(object? sender, WindowClosingEventArgs e)
 	{
-		if (_isShuttingDown || e.CloseReason is not WindowCloseReason.WindowClosing || sender is not Window window)
+		if (_isShuttingDown || e.CloseReason is not WindowCloseReason.WindowClosing)
 		{
 			return;
 		}
 
 		e.Cancel = true;
-		window.Hide();
+		Window.Hide();
 	}
 
 	// macOS 的应用菜单、Cmd+Q 和 Dock 的“退出”不经过托盘菜单，要改走同一个退出命令先确认

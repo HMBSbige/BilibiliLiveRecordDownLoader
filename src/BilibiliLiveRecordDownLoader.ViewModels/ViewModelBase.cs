@@ -6,11 +6,6 @@ public abstract class ViewModelBase : ReactiveObject, IDisposable
 
 	protected MultipleDisposable Disposables { get; } = new();
 
-	protected void PersistToConfig<T>(IObservable<T> source, Action<AppConfig, T> updateAction)
-	{
-		PersistToConfig(AppLocator.Current.GetRequiredService<IAppConfigManager>(), source, updateAction);
-	}
-
 	// quietPeriod 为正时，值停下来这么久之后才保存
 	protected void PersistToConfig<T>(IAppConfigManager configManager, IObservable<T> source, Action<AppConfig, T> updateAction, TimeSpan quietPeriod = default)
 	{
@@ -21,44 +16,21 @@ public abstract class ViewModelBase : ReactiveObject, IDisposable
 			changes = changes.Calm(quietPeriod, RxSchedulers.TaskpoolScheduler);
 		}
 
-		changes
-			.Unique()
-			.Map
-			(value => HandleErrors
-				(
-					Signal.FromAsync
-					(async cancellationToken =>
-						{
-							await configManager.UpdateAsync(config => updateAction(config, value), cancellationToken);
-							return RxVoid.Default;
-						}
-					)
-				)
-			)
-			.SwitchTo()
+		RunLatest(changes.Unique(), (value, cancellationToken) => configManager.UpdateAsync(config => updateAction(config, value), cancellationToken).AsTask());
+	}
+
+	// 新值到来时取消上一个值还没做完的操作；出错和 Forget 一样交给全局处理
+	protected void RunLatest<T>(IObservable<T> source, Func<T, CancellationToken, Task> action)
+	{
+		source
+			.SwitchMap(value => Signal.FromAsync(cancellationToken => RunAsync(token => action(value, token), cancellationToken)))
 			.Subscribe()
 			.DisposeWith(Disposables);
 	}
 
-	// 不是由释放引起的取消异常（例如请求超时）也交给全局处理
 	protected void Forget(Func<CancellationToken, Task> taskFactory)
 	{
 		_ = RunAsync(taskFactory, _lifetime.Token);
-
-		static async Task RunAsync(Func<CancellationToken, Task> taskFactory, CancellationToken cancellationToken)
-		{
-			try
-			{
-				await taskFactory(cancellationToken);
-			}
-			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-			{
-			}
-			catch (Exception exception)
-			{
-				RxState.DefaultExceptionHandler.OnNext(exception);
-			}
-		}
 	}
 
 	protected void PollChanges(Func<long> getVersion, Action apply, TimeSpan interval)
@@ -90,20 +62,22 @@ public abstract class ViewModelBase : ReactiveObject, IDisposable
 			.DisposeWith(Disposables);
 	}
 
-	private static IObservable<T> HandleErrors<T>(IObservable<T> source)
+	// 不是由自身取消引起的取消异常（例如请求超时）也交给全局处理
+	private static async Task<RxVoid> RunAsync(Func<CancellationToken, Task> taskFactory, CancellationToken cancellationToken)
 	{
-		return source.Recover
-		(
-			static exception =>
-			{
-				if (exception is not OperationCanceledException)
-				{
-					RxState.DefaultExceptionHandler.OnNext(exception);
-				}
+		try
+		{
+			await taskFactory(cancellationToken);
+		}
+		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+		{
+		}
+		catch (Exception exception)
+		{
+			RxState.DefaultExceptionHandler.OnNext(exception);
+		}
 
-				return Signal.None<T>();
-			}
-		);
+		return RxVoid.Default;
 	}
 
 	public virtual void Dispose()

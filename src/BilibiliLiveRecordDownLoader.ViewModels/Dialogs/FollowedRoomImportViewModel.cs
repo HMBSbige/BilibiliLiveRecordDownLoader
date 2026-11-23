@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
 
 public sealed partial class FollowedRoomImportViewModel : DialogViewModel<bool>
@@ -149,34 +147,26 @@ public sealed partial class FollowedRoomImportViewModel : DialogViewModel<bool>
 			RoomSettingsDto settings = _defaults with { IsRecordingEnabled = IsRecordingEnabled, IsDanmakuEnabled = IsDanmakuEnabled, IsNotificationEnabled = IsNotificationEnabled };
 			IReadOnlyList<RoomAddResult> results = await _roomAppService.AddRangeAsync([.. selected.Select(room => settings with { RoomId = room.RoomId })], cancellationToken);
 			List<string> failures = [];
-			int added = 0;
 
-			for (int index = 0; index < selected.Length; ++index)
+			foreach ((FollowedRoomItemViewModel room, RoomAddResult result) in selected.Zip(results))
 			{
-				switch (results[index])
+				string? error = result switch
 				{
-					case RoomAddResult.Added:
-					{
-						++added;
-						selected[index].MarkAdded();
-						break;
-					}
-					case RoomAddResult.Skipped:
-					{
-						selected[index].MarkAdded();
-						break;
-					}
-					case RoomAddResult.Failed failed:
-					{
-						failures.Add(AppLanguage.Current.NamedReason.ToString(selected[index].DisplayName, failed.Error));
-						break;
-					}
-					default:
-					{
-						throw new UnreachableException();
-					}
+					RoomAddResult.Added or RoomAddResult.Skipped => null,
+					RoomAddResult.Failed failed => failed.Error
+				};
+
+				if (error is null)
+				{
+					room.MarkAdded();
+				}
+				else
+				{
+					failures.Add(AppLanguage.Current.NamedReason.ToString(room.DisplayName, error));
 				}
 			}
+
+			int added = results.Count(static result => result is RoomAddResult.Added);
 
 			if (added > 0)
 			{

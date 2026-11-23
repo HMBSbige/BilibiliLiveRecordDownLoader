@@ -1,6 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.ViewModels.Settings;
 
-public sealed partial class SettingsViewModel : ViewModelBase
+public sealed class SettingsViewModel : ViewModelBase
 {
 	public GeneralSettingsViewModel General => AppLocator.Current.GetRequiredService<GeneralSettingsViewModel>();
 
@@ -18,15 +18,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
 	public UpdateSettingsViewModel Update => AppLocator.Current.GetRequiredService<UpdateSettingsViewModel>();
 
-	private bool _isInitialized;
-
 	public void ApplyConfig(AppConfig config)
 	{
-		if (_isInitialized)
-		{
-			return;
-		}
-
 		Appearance.ApplyConfig(config);
 		General.ApplyConfig(config);
 		Recording.ApplyConfig(config);
@@ -35,7 +28,5 @@ public sealed partial class SettingsViewModel : ViewModelBase
 		Notification.ApplyConfig(config);
 		Experimental.ApplyConfig(config);
 		Update.ApplyConfig(config);
-
-		_isInitialized = true;
 	}
 }

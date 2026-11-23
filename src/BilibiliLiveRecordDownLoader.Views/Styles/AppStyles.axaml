@@ -5,8 +5,7 @@
     <Styles.Resources>
         <Thickness x:Key="PageMargin">16</Thickness>
         <Thickness x:Key="CardPadding">16</Thickness>
-        <Thickness x:Key="ToolbarMargin">0,0,0,12</Thickness>
-        <x:Double x:Key="PageSpacing">16</x:Double>
+        <x:Double x:Key="PageSpacing">24</x:Double>
         <x:Double x:Key="FormSpacing">12</x:Double>
         <x:Double x:Key="FieldSpacing">4</x:Double>
         <x:Double x:Key="ToolbarSpacing">8</x:Double>
@@ -20,8 +19,7 @@
                     <StackPanel Spacing="8" MaxWidth="360">
                         <ic:FluentIcon Icon="{TemplateBinding Icon}" FontSize="40" HorizontalAlignment="Center"
                                        Foreground="{DynamicResource SemiColorText3}" />
-                        <TextBlock Text="{TemplateBinding Title}" HorizontalAlignment="Center"
-                                   FontSize="{DynamicResource SemiFontSizeHeader6}" FontWeight="SemiBold"
+                        <TextBlock Classes="section" Text="{TemplateBinding Title}" HorizontalAlignment="Center"
                                    TextAlignment="Center" TextWrapping="Wrap" />
                         <TextBlock Classes="caption" Text="{TemplateBinding Description}" HorizontalAlignment="Center"
                                    TextAlignment="Center" TextWrapping="Wrap"
@@ -42,13 +40,27 @@
         <Setter Property="Spacing" Value="{StaticResource PageSpacing}" />
         <Setter Property="MaxWidth" Value="900" />
     </Style>
+    <Style Selector="DockPanel.page">
+        <Setter Property="VerticalSpacing" Value="{StaticResource FormSpacing}" />
+    </Style>
     <Style Selector="DockPanel.toolbar">
         <Setter Property="DockPanel.Dock" Value="Top" />
-        <Setter Property="Margin" Value="{StaticResource ToolbarMargin}" />
+        <Setter Property="HorizontalSpacing" Value="{StaticResource ToolbarSpacing}" />
     </Style>
+    <Style Selector="StackPanel.toolbar">
+        <Setter Property="Orientation" Value="Horizontal" />
+        <Setter Property="Spacing" Value="{StaticResource ToolbarSpacing}" />
+    </Style>
+    <Style Selector=":is(Panel).dialogFooter">
+        <Setter Property="DockPanel.Dock" Value="Bottom" />
+        <Setter Property="Margin" Value="0,24,0,0" />
+    </Style>
+
+    <!-- Semi 的卡片主题自带外边距，卡片会比同一页的横幅和状态行缩进一截 -->
     <Style Selector="Border.card">
         <Setter Property="Theme" Value="{DynamicResource CardBorder}" />
         <Setter Property="Padding" Value="{StaticResource CardPadding}" />
+        <Setter Property="Margin" Value="0" />
     </Style>
     <Style Selector="StackPanel.form">
         <Setter Property="Spacing" Value="{StaticResource FormSpacing}" />
@@ -59,6 +71,13 @@
     </Style>
     <Style Selector="StackPanel.field">
         <Setter Property="Spacing" Value="{StaticResource FieldSpacing}" />
+    </Style>
+    <!-- 输入框后面跟着的按钮或单位 -->
+    <Style Selector="StackPanel.field > DockPanel, Grid.form > DockPanel">
+        <Setter Property="HorizontalSpacing" Value="{StaticResource ToolbarSpacing}" />
+    </Style>
+    <Style Selector="StackPanel.field > TextBlock.caption">
+        <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
     <!-- 字段的第一个子元素是标签，读屏时随输入控件一起读出 -->
     <Style Selector="StackPanel.field > TextBox, StackPanel.field > ComboBox, StackPanel.field > NumericUpDown, StackPanel.field > DockPanel > TextBox, StackPanel.field > DockPanel > NumericUpDown">
@@ -73,6 +92,13 @@
     <Style Selector="ToggleSwitch">
         <Setter Property="OffContent" Value="{Binding $self.OnContent}" />
         <Setter Property="AutomationProperties.Name" Value="{Binding $self.OnContent}" />
+    </Style>
+    <Style Selector="TextBox.search">
+        <Setter Property="InnerLeftContent">
+            <Template>
+                <ic:FluentIcon Icon="Search" FontSize="16" Margin="8,0,0,0" Foreground="{DynamicResource SemiColorText2}" />
+            </Template>
+        </Setter>
     </Style>
     <Style Selector="TextBlock.section">
         <Setter Property="FontSize" Value="{DynamicResource SemiFontSizeHeader6}" />
@@ -98,14 +124,15 @@
         <Setter Property="Margin" Value="-8,0" />
     </Style>
 
-    <!-- 警告再加 messageBanner 就变紧凑，靠下面的样式排在后面 -->
+    <!-- 警告再加 messageBanner 就变紧凑，靠后面的样式覆盖内边距 -->
+    <Style Selector="Border.warningBanner, Border.errorBanner, Border.successBanner, Border.messageBanner">
+        <Setter Property="CornerRadius" Value="{DynamicResource SemiBorderRadiusMedium}" />
+    </Style>
     <Style Selector="Border.warningBanner">
         <Setter Property="Background" Value="{DynamicResource SemiColorWarningLight}" />
-        <Setter Property="CornerRadius" Value="8" />
         <Setter Property="Padding" Value="16,12" />
     </Style>
     <Style Selector="Border.errorBanner, Border.successBanner, Border.messageBanner">
-        <Setter Property="CornerRadius" Value="6" />
         <Setter Property="Padding" Value="12,8" />
     </Style>
     <Style Selector="Border.errorBanner">
@@ -114,17 +141,23 @@
     <Style Selector="Border.successBanner">
         <Setter Property="Background" Value="{DynamicResource SemiColorSuccessLight}" />
     </Style>
-    <Style Selector="Border.errorBanner ic|FluentIcon">
+    <Style Selector="Border.warningBanner > Grid > ic|FluentIcon">
+        <Setter Property="IconVariant" Value="Filled" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{DynamicResource SemiColorWarning}" />
+    </Style>
+    <!-- 错误可能有好几行，图标对齐第一行 -->
+    <Style Selector="Border.errorBanner > Grid > ic|FluentIcon">
+        <Setter Property="IconVariant" Value="Filled" />
+        <Setter Property="FontSize" Value="16" />
         <Setter Property="VerticalAlignment" Value="Top" />
         <Setter Property="Margin" Value="0,2,0,0" />
-    </Style>
-    <Style Selector="StackPanel.toolbar">
-        <Setter Property="Orientation" Value="Horizontal" />
-        <Setter Property="Spacing" Value="{StaticResource ToolbarSpacing}" />
+        <Setter Property="Foreground" Value="{DynamicResource SemiColorDanger}" />
     </Style>
     <Style Selector="StackPanel.iconText">
         <Setter Property="Orientation" Value="Horizontal" />
-        <Setter Property="Spacing" Value="6" />
+        <Setter Property="Spacing" Value="{StaticResource ToolbarSpacing}" />
     </Style>
     <Style Selector="StackPanel.iconText > TextBlock">
         <Setter Property="VerticalAlignment" Value="Center" />
@@ -137,7 +170,7 @@
     <Style Selector="Border.table">
         <Setter Property="BorderBrush" Value="{DynamicResource SemiColorBorder}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="CornerRadius" Value="{DynamicResource SemiBorderRadiusMedium}" />
         <Setter Property="ClipToBounds" Value="True" />
     </Style>
     <Style Selector="Border.tableHeader">
@@ -164,13 +197,13 @@
         <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
 
+    <Style Selector=":is(Button) > ic|FluentIcon">
+        <Setter Property="FontSize" Value="16" />
+    </Style>
     <Style Selector="Button.icon">
         <Setter Property="Theme" Value="{DynamicResource BorderlessButton}" />
         <Setter Property="Padding" Value="6" />
         <Setter Property="MinWidth" Value="0" />
         <Setter Property="MinHeight" Value="0" />
-    </Style>
-    <Style Selector="Button.icon > ic|FluentIcon">
-        <Setter Property="FontSize" Value="16" />
     </Style>
 </Styles>

@@ -6,26 +6,14 @@ public sealed record ChoiceOption(object? Value)
 
 	public static IReadOnlyList<ChoiceOption> Toggles { get; } = [Inherit, new(true), new(false)];
 
-	public static IReadOnlyList<ChoiceOption> Of<T>(params ReadOnlySpan<T> values) where T : struct, Enum
+	public static IReadOnlyList<ChoiceOption> Of<T>(params IEnumerable<T> values) where T : struct, Enum
 	{
-		List<ChoiceOption> options = new(values.Length);
-
-		foreach (T value in values)
-		{
-			options.Add(new ChoiceOption(value));
-		}
-
-		return options;
-	}
-
-	public static IReadOnlyList<ChoiceOption> OfAll<T>() where T : struct, Enum
-	{
-		return Of<T>(Enum.GetValues<T>());
+		return [.. values.Select(static value => new ChoiceOption(value))];
 	}
 
 	public static IReadOnlyList<ChoiceOption> InheritOr<T>() where T : struct, Enum
 	{
-		return [Inherit, .. OfAll<T>()];
+		return [Inherit, .. Of(Enum.GetValues<T>())];
 	}
 
 	public T? As<T>() where T : struct

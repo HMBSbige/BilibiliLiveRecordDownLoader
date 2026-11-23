@@ -12,18 +12,19 @@
         <Border Background="{DynamicResource SemiColorOverlayBackground}" PointerPressed="OnOverlayPressed" />
         <Border HorizontalAlignment="Center" VerticalAlignment="Center"
                 MinWidth="380" MaxWidth="720" Margin="32"
-                Padding="24" CornerRadius="12"
+                Padding="24" CornerRadius="{DynamicResource SemiBorderRadiusLarge}"
                 Background="{DynamicResource SemiColorBackground2}"
-                BoxShadow="0 8 32 0 #40000000"
+                BoxShadow="{DynamicResource SemiShadowElevated}"
                 KeyboardNavigation.TabNavigation="Cycle">
-            <DockPanel>
-                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+            <DockPanel VerticalSpacing="16">
+                <DockPanel DockPanel.Dock="Top" HorizontalSpacing="8">
                     <Button DockPanel.Dock="Right" Theme="{DynamicResource BorderlessButton}" Command="{Binding Current.DismissDialogCommand, FallbackValue={x:Null}}"
                             ToolTip.Tip="{Binding Close, Source={x:Static l:AppLanguage.Current}}"
                             AutomationProperties.Name="{Binding Close, Source={x:Static l:AppLanguage.Current}}">
-                        <ic:FluentIcon Icon="Dismiss" FontSize="16" />
+                        <ic:FluentIcon Icon="Dismiss" />
                     </Button>
-                    <TextBlock Classes="H5" Theme="{StaticResource TitleTextBlock}" Text="{Binding Current.Title, FallbackValue={x:Null}}" VerticalAlignment="Center" />
+                    <TextBlock Classes="H5" Theme="{StaticResource TitleTextBlock}" Text="{Binding Current.Title, FallbackValue={x:Null}}" VerticalAlignment="Center"
+                               TextWrapping="Wrap" />
                 </DockPanel>
                 <ContentControl x:Name="DialogContent" Content="{Binding Current}">
                     <ContentControl.DataTemplates>

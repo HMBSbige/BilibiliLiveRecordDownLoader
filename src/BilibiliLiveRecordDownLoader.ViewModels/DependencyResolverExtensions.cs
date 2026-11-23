@@ -6,8 +6,7 @@ public static class DependencyResolverExtensions
 	{
 		public T GetRequiredService<T>() where T : notnull
 		{
-			T? service = resolver.GetService<T>();
-			return service ?? throw new InvalidOperationException($"No service for type '{typeof(T)}' has been registered.");
+			return resolver.GetService<T>() ?? throw new InvalidOperationException($"No service for type '{typeof(T)}' has been registered.");
 		}
 	}
 }

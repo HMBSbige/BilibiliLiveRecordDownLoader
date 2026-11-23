@@ -53,11 +53,11 @@
                     </DockPanel>
 
                     <Expander Classes="inline" Header="{Binding ManualCookie, Source={x:Static l:AppLanguage.Current}}">
-                        <DockPanel>
-                            <ToggleButton x:Name="RevealCookie" DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Top"
+                        <DockPanel HorizontalSpacing="8">
+                            <ToggleButton x:Name="RevealCookie" DockPanel.Dock="Right" VerticalAlignment="Top"
                                           ToolTip.Tip="{Binding ShowCookie, Source={x:Static l:AppLanguage.Current}}"
                                           AutomationProperties.Name="{Binding ShowCookie, Source={x:Static l:AppLanguage.Current}}">
-                                <ic:FluentIcon Icon="Eye" FontSize="16" />
+                                <ic:FluentIcon Icon="Eye" />
                             </ToggleButton>
                             <TextBox Text="{Binding Cookie, UpdateSourceTrigger=LostFocus}" PasswordChar="•" RevealPassword="{Binding #RevealCookie.IsChecked}"
                                      AutomationProperties.Name="{Binding Cookie, Source={x:Static l:AppLanguage.Current}}" />

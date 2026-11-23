@@ -14,9 +14,9 @@ internal sealed class NotificationService(ApplicationShell shell, ILauncherServi
 		MainWindow window = shell.Window;
 		Action? openLink = link is null ? null : () => _ = OpenLinkAsync(link);
 
-		if (window is { IsVisible: true, IsActive: true } && window.WindowState is not WindowState.Minimized)
+		if (window is { IsVisible: true, IsActive: true, WindowState: not WindowState.Minimized })
 		{
-			_manager ??= new WindowNotificationManager(window) { Position = NotificationPosition.TopRight, MaxItems = 3 };
+			_manager ??= new WindowNotificationManager(window) { MaxItems = 3 };
 			_manager.Show(new Notification(title, message, ToNotificationType(type), onClick: openLink));
 			return;
 		}

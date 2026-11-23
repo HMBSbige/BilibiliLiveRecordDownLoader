@@ -6,7 +6,8 @@
     xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.PriorityListView"
     x:DataType="common:PriorityListViewModel">
-    <Border BorderBrush="{DynamicResource SemiColorBorder}" BorderThickness="1" CornerRadius="6" Padding="4">
+    <Border Classes="table" Padding="4">
+        <!-- 行本身没有自动化节点，按钮的说明里带上所属的项，读屏才分得清在移动哪一项 -->
         <ItemsControl x:Name="Items" ItemsSource="{Binding Items}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="common:PriorityItemViewModel">
@@ -16,14 +17,16 @@
                                 Command="{Binding #Items.((common:PriorityListViewModel)DataContext).MoveUpCommand}"
                                 CommandParameter="{Binding}"
                                 ToolTip.Tip="{Binding MoveUp, Source={x:Static l:AppLanguage.Current}}"
-                                AutomationProperties.Name="{Binding MoveUp, Source={x:Static l:AppLanguage.Current}}">
+                                AutomationProperties.Name="{Binding MoveUp, Source={x:Static l:AppLanguage.Current}}"
+                                AutomationProperties.HelpText="{Binding Label}">
                             <ic:FluentIcon Icon="ArrowUp" FontSize="14" />
                         </Button>
                         <Button Grid.Column="2" Theme="{DynamicResource BorderlessButton}" IsEnabled="{Binding CanMoveDown}"
                                 Command="{Binding #Items.((common:PriorityListViewModel)DataContext).MoveDownCommand}"
                                 CommandParameter="{Binding}"
                                 ToolTip.Tip="{Binding MoveDown, Source={x:Static l:AppLanguage.Current}}"
-                                AutomationProperties.Name="{Binding MoveDown, Source={x:Static l:AppLanguage.Current}}">
+                                AutomationProperties.Name="{Binding MoveDown, Source={x:Static l:AppLanguage.Current}}"
+                                AutomationProperties.HelpText="{Binding Label}">
                             <ic:FluentIcon Icon="ArrowDown" FontSize="14" />
                         </Button>
                     </Grid>

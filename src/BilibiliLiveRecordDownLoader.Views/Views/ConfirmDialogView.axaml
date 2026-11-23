@@ -6,7 +6,7 @@
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.ConfirmDialogView"
     x:DataType="dialogs:ConfirmDialogViewModel">
     <DockPanel>
-        <StackPanel DockPanel.Dock="Bottom" Classes="toolbar" HorizontalAlignment="Right" Margin="0,24,0,0">
+        <StackPanel Classes="toolbar dialogFooter" HorizontalAlignment="Right">
             <Button Command="{Binding DismissDialogCommand}" Content="{Binding Cancel, Source={x:Static l:AppLanguage.Current}}" />
             <Button Theme="{DynamicResource SolidButton}" IsDefault="True"
                     Classes.Primary="{Binding !IsDestructive}" Classes.Danger="{Binding IsDestructive}"

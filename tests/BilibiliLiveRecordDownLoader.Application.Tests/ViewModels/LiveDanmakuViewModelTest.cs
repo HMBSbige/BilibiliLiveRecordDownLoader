@@ -3,6 +3,7 @@ using BilibiliLiveRecordDownLoader.Application.Contracts.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels.Danmaku;
+using System.Globalization;
 using System.Windows.Input;
 using TUnit.Assertions.Enums;
 
@@ -25,8 +26,8 @@ public sealed class LiveDanmakuViewModelTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(initial).IsEquivalentTo(["a", "b"], EqualityComparer<string>.Default, CollectionOrdering.Matching);
-			await Assert.That(Texts(viewModel)).IsEquivalentTo(["a", "b", "c"], EqualityComparer<string>.Default, CollectionOrdering.Matching);
+			await Assert.That(initial).IsEquivalentTo(["a", "b"], CollectionOrdering.Matching);
+			await Assert.That(Texts(viewModel)).IsEquivalentTo(["a", "b", "c"], CollectionOrdering.Matching);
 		}
 	}
 
@@ -39,7 +40,7 @@ public sealed class LiveDanmakuViewModelTest
 
 		for (int index = 0; index < DanmakuConsts.MaxFeedEntries + 5; ++index)
 		{
-			feed.Add(FakeDanmakuFeed.Comment(index.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+			feed.Add(FakeDanmakuFeed.Comment(Text(index)));
 
 			// 像界面那样成批加入
 			if (index % 7 is 0)
@@ -50,12 +51,7 @@ public sealed class LiveDanmakuViewModelTest
 
 		viewModel.Refresh();
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(viewModel.Entries.Count).IsEqualTo(DanmakuConsts.MaxFeedEntries);
-			await Assert.That(viewModel.Entries[0].Text).IsEqualTo("5");
-			await Assert.That(viewModel.Entries[^1].Text).IsEqualTo((DanmakuConsts.MaxFeedEntries + 4).ToString(System.Globalization.CultureInfo.InvariantCulture));
-		}
+		await Assert.That(Texts(viewModel)).IsEquivalentTo(Enumerable.Range(5, DanmakuConsts.MaxFeedEntries).Select(Text), CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -69,16 +65,36 @@ public sealed class LiveDanmakuViewModelTest
 		viewModel.IsFollowing = false;
 		feed.Add(FakeDanmakuFeed.Comment("b"), FakeDanmakuFeed.Comment("c"));
 		viewModel.Refresh();
-		(int count, string? text) = (viewModel.NewEntryCount, viewModel.NewEntriesText);
+		(int Count, string? Text) whileReading = (viewModel.NewEntryCount, viewModel.NewEntriesText);
 		((ICommand)viewModel.ScrollToLatestCommand).Execute(null);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(count).IsEqualTo(2);
-			await Assert.That(text).IsEqualTo(AppLanguage.Current.NewDanmakuCount.ToString("2"));
-			await Assert.That(viewModel.IsFollowing).IsTrue();
-			await Assert.That(viewModel.NewEntryCount).IsEqualTo(0);
-			await Assert.That(viewModel.NewEntriesText).IsNull();
+			await Assert.That(whileReading).IsEqualTo((2, AppLanguage.Current.NewDanmakuCount.ToString("2")));
+			await Assert.That((viewModel.IsFollowing, viewModel.NewEntryCount, viewModel.NewEntriesText)).IsEqualTo((true, 0, null));
+		}
+	}
+
+	// 条件变了列表整个重建，原来读到的位置已经不在了
+	[Test]
+	public async Task ChangingTheFilterWhileNotFollowingGoesBackToTheLatestAsync()
+	{
+		FakeDanmakuFeed feed = new(1);
+		feed.Add(FakeDanmakuFeed.Comment("a"));
+		using DanmakuFilterViewModel filter = new();
+		using LiveDanmakuViewModel viewModel = new(feed, filter, false);
+
+		viewModel.IsFollowing = false;
+		feed.Add(FakeDanmakuFeed.Comment("b"), new DanmakuEntryDto.Gift(new DanmuSender(2, "老板", GuardLevel.None, null), "小花花", 1, 100));
+		viewModel.Refresh();
+		int whileReading = viewModel.NewEntryCount;
+		viewModel.Filter.ShowGifts = false;
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(whileReading).IsEqualTo(2);
+			await Assert.That(Texts(viewModel)).IsEquivalentTo(["a", "b"], CollectionOrdering.Matching);
+			await Assert.That((viewModel.IsFollowing, viewModel.NewEntryCount, viewModel.NewEntriesText)).IsEqualTo((true, 0, null));
 		}
 	}
 
@@ -89,13 +105,12 @@ public sealed class LiveDanmakuViewModelTest
 		feed.Add(FakeDanmakuFeed.Comment("a"), FakeDanmakuFeed.Comment("b"));
 		using DanmakuFilterViewModel filter = new();
 		using LiveDanmakuViewModel viewModel = new(feed, filter, false);
-		DanmakuEntryViewModel first = viewModel.Entries[0];
 
 		viewModel.IsFollowing = false;
 
 		for (int index = 0; index < DanmakuConsts.MaxFeedEntries; ++index)
 		{
-			feed.Add(FakeDanmakuFeed.Comment(index.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+			feed.Add(FakeDanmakuFeed.Comment(Text(index)));
 
 			if (index % 50 is 0)
 			{
@@ -104,17 +119,15 @@ public sealed class LiveDanmakuViewModelTest
 		}
 
 		viewModel.Refresh();
-		(string[] whileReading, DanmakuEntryViewModel head, int newEntries) = (Texts(viewModel), viewModel.Entries[0], viewModel.NewEntryCount);
+		(string[] Shown, int NewEntries) whileReading = (Texts(viewModel), viewModel.NewEntryCount);
 		viewModel.IsFollowing = true;
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(whileReading).IsEquivalentTo(["a", "b"], EqualityComparer<string>.Default, CollectionOrdering.Matching);
-			await Assert.That(head).IsSameReferenceAs(first);
-			await Assert.That(newEntries).IsEqualTo(DanmakuConsts.MaxFeedEntries);
-			await Assert.That(viewModel.Entries.Count).IsEqualTo(DanmakuConsts.MaxFeedEntries);
-			await Assert.That(viewModel.Entries[0].Text).IsEqualTo("0");
-			await Assert.That(viewModel.Entries[^1].Text).IsEqualTo((DanmakuConsts.MaxFeedEntries - 1).ToString(System.Globalization.CultureInfo.InvariantCulture));
+			// a 和 b 已经被挤出保留的范围，仍留在列表里说明列表没动过
+			await Assert.That(whileReading.Shown).IsEquivalentTo(["a", "b"], CollectionOrdering.Matching);
+			await Assert.That(whileReading.NewEntries).IsEqualTo(DanmakuConsts.MaxFeedEntries);
+			await Assert.That(Texts(viewModel)).IsEquivalentTo(Enumerable.Range(0, DanmakuConsts.MaxFeedEntries).Select(Text), CollectionOrdering.Matching);
 		}
 	}
 
@@ -134,8 +147,8 @@ public sealed class LiveDanmakuViewModelTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(filtered).IsEquivalentTo(["sc"], EqualityComparer<string>.Default, CollectionOrdering.Matching);
-			await Assert.That(viewModel.Entries.Select(static entry => entry.Kind).ToArray()).IsEquivalentTo([DanmakuEntryKind.SuperChat, DanmakuEntryKind.Gift], EqualityComparer<DanmakuEntryKind>.Default, CollectionOrdering.Matching);
+			await Assert.That(filtered).IsEquivalentTo(["sc"], CollectionOrdering.Matching);
+			await Assert.That(viewModel.Entries.Select(static entry => entry.Kind)).IsEquivalentTo([DanmakuEntryKind.SuperChat, DanmakuEntryKind.Gift], CollectionOrdering.Matching);
 			await Assert.That((viewModel.HasEntries, viewModel.HasVisibleEntries)).IsEqualTo((true, true));
 		}
 	}
@@ -158,7 +171,7 @@ public sealed class LiveDanmakuViewModelTest
 
 		await TestWait.UntilAsync(() => viewModel.Entries is [{ Text: "再见" }], "the search by name is applied", cancellationToken);
 
-		await Assert.That(byText).IsEquivalentTo(["晚上好"], EqualityComparer<string>.Default, CollectionOrdering.Matching);
+		await Assert.That(byText).IsEquivalentTo(["晚上好"], CollectionOrdering.Matching);
 	}
 
 	public static IEnumerable<Func<(DanmakuFeedStatus Status, string? Identity, bool CanLogin)>> IdentityCases()
@@ -177,11 +190,7 @@ public sealed class LiveDanmakuViewModelTest
 		using DanmakuFilterViewModel filter = new();
 		using LiveDanmakuViewModel viewModel = new(feed, filter, false);
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(viewModel.IdentityText).IsEqualTo(identity);
-			await Assert.That(viewModel.CanLogin).IsEqualTo(canLogin);
-		}
+		await Assert.That((viewModel.IdentityText, viewModel.CanLogin)).IsEqualTo((identity, canLogin));
 	}
 
 	// 重连可能快到两次刷新之间看不到连接中
@@ -214,10 +223,10 @@ public sealed class LiveDanmakuViewModelTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(before).IsTrue();
-			await Assert.That(pending).IsEqualTo((false, (string?)AppLanguage.Current.DanmakuLoginPending));
+			await Assert.That(pending).IsEqualTo((false, AppLanguage.Current.DanmakuLoginPending));
 			await Assert.That(unchanged).IsEqualTo(pending);
 			await Assert.That(reconnecting).IsEqualTo(pending);
-			await Assert.That((viewModel.CanLogin, viewModel.IdentityText)).IsEqualTo((true, (string?)AppLanguage.Current.DanmakuAnonymousMasked));
+			await Assert.That((viewModel.CanLogin, viewModel.IdentityText)).IsEqualTo((true, AppLanguage.Current.DanmakuAnonymousMasked));
 		}
 	}
 
@@ -234,10 +243,9 @@ public sealed class LiveDanmakuViewModelTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(viewModel.State).IsEqualTo(DanmakuConnectionState.Disconnected);
-			await Assert.That(viewModel.StateText).IsEqualTo(AppLanguage.Current.DanmakuDisconnected);
+			await Assert.That((viewModel.State, viewModel.StateText)).IsEqualTo((DanmakuConnectionState.Disconnected, AppLanguage.Current.DanmakuDisconnected));
 			await Assert.That(viewModel.RateText).IsEqualTo(AppLanguage.Current.DanmakuRate.ToString("12"));
-			await Assert.That(viewModel.ReconnectingText).IsEqualTo(AppLanguage.Current.DanmakuReconnecting.ToString(disconnectedAt.ToLocalTime().ToString("HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture)));
+			await Assert.That(viewModel.ReconnectingText).IsEqualTo(AppLanguage.Current.DanmakuReconnecting.ToString(disconnectedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture)));
 		}
 	}
 
@@ -258,10 +266,33 @@ public sealed class LiveDanmakuViewModelTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(Texts(viewModel)).IsEquivalentTo(["被删", "留着", "a"], EqualityComparer<string>.Default, CollectionOrdering.Matching);
-			await Assert.That(viewModel.Entries.Select(static entry => entry.IsDeleted).ToArray()).IsEquivalentTo([true, false, false], EqualityComparer<bool>.Default, CollectionOrdering.Matching);
+			await Assert.That(viewModel.Entries.Select(static entry => (entry.Text, entry.IsDeleted))).IsEquivalentTo([("被删", true), ("留着", false), ("a", false)], CollectionOrdering.Matching);
 			await Assert.That(notified).IsTrue();
 		}
+	}
+
+	// 不跟随时列表还显示着已经挤出保留范围的 SC
+	[Test]
+	public async Task SuperChatDeletionMarksTheSuperChatShownWhileNotFollowingAsync()
+	{
+		FakeDanmakuFeed feed = new(1);
+		feed.Add(new DanmakuEntryDto.SuperChat(7, new DanmuSender(2, "老板", GuardLevel.None, null), "被删", 30_000, TimeSpan.FromMinutes(1)));
+		using DanmakuFilterViewModel filter = new();
+		using LiveDanmakuViewModel viewModel = new(feed, filter, false);
+
+		viewModel.IsFollowing = false;
+		feed.Add([.. Enumerable.Range(0, DanmakuConsts.MaxFeedEntries).Select(static index => FakeDanmakuFeed.Comment(Text(index)))]);
+		viewModel.Refresh();
+		feed.Add(new DanmakuEntryDto.SuperChatDeletion([7]));
+		viewModel.Refresh();
+		DanmakuEntryViewModel shown = await Assert.That(viewModel.Entries).HasSingleItem();
+
+		await Assert.That((shown.Text, shown.IsDeleted)).IsEqualTo(("被删", true));
+	}
+
+	private static string Text(int index)
+	{
+		return index.ToString(CultureInfo.InvariantCulture);
 	}
 
 	private static string[] Texts(LiveDanmakuViewModel viewModel)

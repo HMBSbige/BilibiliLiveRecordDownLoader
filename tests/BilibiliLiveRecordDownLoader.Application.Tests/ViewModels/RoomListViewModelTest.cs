@@ -36,8 +36,8 @@ public sealed class RoomListViewModelTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(viewModel.CanReorder).IsEqualTo(expected);
-			await Assert.That(withoutSelection.Any(static canExecute => canExecute)).IsFalse();
-			await Assert.That(CanExecuteMoves(viewModel)).IsEquivalentTo(Enumerable.Repeat(expected, 5), EqualityComparer<bool>.Default);
+			await Assert.That(withoutSelection).DoesNotContain(true);
+			await Assert.That(CanExecuteMoves(viewModel)).All(canExecute => canExecute == expected);
 		}
 	}
 
@@ -118,11 +118,8 @@ public sealed class RoomListViewModelTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(restored).IsEqualTo(RoomSortOrder.Name);
-			await Assert.That(canReorder).IsFalse();
-			await Assert.That(updates).IsEqualTo(0);
-			await Assert.That(configManager.UpdateCount).IsEqualTo(1);
-			await Assert.That(viewModel.CanReorder).IsTrue();
+			await Assert.That((restored, canReorder, updates)).IsEqualTo((RoomSortOrder.Name, false, 0));
+			await Assert.That((configManager.UpdateCount, viewModel.CanReorder)).IsEqualTo((1, true));
 		}
 	}
 
@@ -154,7 +151,7 @@ public sealed class RoomListViewModelTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(danmaku.Feeds.Select(static feed => (feed.RoomId, feed.IsDisposed)).ToArray()).IsEquivalentTo([(2L, true)], EqualityComparer<(long, bool)>.Default, CollectionOrdering.Matching);
+			await Assert.That(danmaku.Feeds.Select(static feed => (feed.RoomId, feed.IsDisposed))).IsEquivalentTo([(2L, true)]);
 			await Assert.That((viewModel.Danmaku.Room, viewModel.Danmaku.Live)).IsEqualTo((null, null));
 		}
 	}
@@ -172,10 +169,9 @@ public sealed class RoomListViewModelTest
 
 		await TestWait.UntilAsync(() => !rooms.Updates.IsEmpty, "the room settings are saved", cancellationToken);
 
-		await Assert.That(rooms.Updates.Single()).IsEqualTo(before with { IsDanmakuEnabled = !before.IsDanmakuEnabled });
+		await Assert.That(rooms.Updates).IsEquivalentTo([before with { IsDanmakuEnabled = !before.IsDanmakuEnabled }], EqualityComparer<RoomSettingsDto>.Default);
 	}
 
-	// 回滚不会把旧值再存一次
 	[Test]
 	[Timeout(30_000)]
 	[Arguments(false)]
@@ -194,11 +190,12 @@ public sealed class RoomListViewModelTest
 
 		// 先回滚再报告，报告到了时回滚已经完成
 		await TestWait.UntilAsync(() => !reported.IsEmpty, "the failed save is reported", cancellationToken);
+		Exception exception = await Assert.That(reported).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(reported.Single()).IsSameReferenceAs(failure);
-			await Assert.That(rooms.Updates.Count).IsEqualTo(1);
+			await Assert.That(exception).IsSameReferenceAs(failure);
+			await Assert.That(rooms.Updates).Count().IsEqualTo(1).Because("回滚不应把旧值再保存一次");
 			await Assert.That((room.IsDanmakuEnabled, room.Settings.IsDanmakuEnabled)).IsEqualTo((original, original));
 		}
 	}
@@ -244,51 +241,38 @@ public sealed class RoomListViewModelTest
 		await Assert.That(await picked.Task.WaitAsync(cancellationToken)).IsEqualTo(RecordingFileLayout.GetRoomDirectory(recordDirectory, 5));
 	}
 
-	[Test]
-	[Timeout(30_000)]
-	public async Task LoggingInFromTheDanmakuPanelUpdatesTheBannerAsync(CancellationToken cancellationToken)
-	{
-		AppConfig config = AppConfig.CreateDefault();
-		config.Cookie = null;
-		FakeRoomAppService rooms = new(InitialOrder);
-		rooms.Change(1, static snapshot => snapshot with { Danmaku = new RoomDanmakuSnapshot(true) });
-		using RoomListViewModel viewModel = new(rooms, new FakeConfigManager(config), new FakeDanmakuAppService())
-		{
-			ShowLogin = _ =>
-			{
-				config.Cookie = "a=b";
-				return Task.FromResult(true);
-			}
-		};
-		viewModel.ApplyConfig(config);
-		viewModel.Sync();
-		string? before = viewModel.LoginBannerText;
-
-		((ICommand)viewModel.Danmaku.LoginCommand).Execute(null);
-
-		await TestWait.UntilAsync(() => viewModel.LoginBannerText is null, "the login banner is dismissed", cancellationToken);
-
-		await Assert.That(before).IsEqualTo(AppLanguage.Current.DanmakuMaskedBanner);
-	}
-
+	// 在录的直播间和弹幕连接都要等重连才用上登录身份，横幅按 Cookie 立即收起，面板先显示等重连
 	[Test]
 	[Timeout(30_000)]
 	[Arguments(false)]
 	[Arguments(true)]
-	public async Task LoggingInMarksTheDanmakuConnectionAsWaitingForTheReconnectionAsync(bool fromPanel, CancellationToken cancellationToken)
+	public async Task LoggingInDismissesTheBannerAndMarksTheDanmakuConnectionAsPendingAsync(bool fromPanel, CancellationToken cancellationToken)
 	{
-		using RoomListViewModel viewModel = new(new FakeRoomAppService(InitialOrder), new FakeConfigManager(), new FakeDanmakuAppService()) { ShowLogin = static _ => Task.FromResult(true) };
-		viewModel.Sync();
-		viewModel.Danmaku.IsOpen = true;
-		Select(viewModel, [1]);
-		bool before = viewModel.Danmaku.Live?.CanLogin is true;
+		AppConfig config = AppConfig.CreateDefault();
+		using RoomListViewModel viewModel = CreateAnonymous(config, _ =>
+		{
+			config.Cookie = "a=b";
+			return Task.FromResult(true);
+		});
+		(string? banner, bool couldLogin) = (viewModel.LoginBannerText, viewModel.Danmaku.Live?.CanLogin is true);
 
 		((ICommand)(fromPanel ? viewModel.Danmaku.LoginCommand : viewModel.LoginCommand)).Execute(null);
 
 		// 面板的定时刷新在别的线程上也会写这两项，等两项都到位，不在中途断言
-		await TestWait.UntilAsync(() => viewModel.Danmaku.Live is { CanLogin: false } live && live.IdentityText == AppLanguage.Current.DanmakuLoginPending, "the panel waits for the reconnection instead of offering login", cancellationToken);
+		await TestWait.UntilAsync(() => viewModel.LoginBannerText is null && IsWaitingForReconnection(viewModel), "the banner is dismissed and the panel waits for the reconnection", cancellationToken);
 
-		await Assert.That(before).IsTrue();
+		await Assert.That((banner, couldLogin)).IsEqualTo((AppLanguage.Current.DanmakuMaskedBanner, true));
+	}
+
+	[Test]
+	[Timeout(30_000)]
+	public async Task FailedLoginKeepsTheBannerAndTheLoginButtonAsync(CancellationToken cancellationToken)
+	{
+		using RoomListViewModel viewModel = CreateAnonymous(AppConfig.CreateDefault(), static _ => Task.FromResult(false));
+
+		bool loggedIn = await viewModel.LoginCommand.Execute().ToTask(cancellationToken);
+
+		await Assert.That((loggedIn, viewModel.LoginBannerText, viewModel.Danmaku.Live?.CanLogin)).IsEqualTo((false, AppLanguage.Current.DanmakuMaskedBanner, true));
 	}
 
 	// 在账号页登录、粘贴或清除 Cookie 都不经过房间列表，房间的版本也不变
@@ -297,27 +281,17 @@ public sealed class RoomListViewModelTest
 	public async Task CookieChangedOnTheAccountPageUpdatesTheBannerAndTheDanmakuPanelAsync(CancellationToken cancellationToken)
 	{
 		AppConfig config = AppConfig.CreateDefault();
-		config.Cookie = null;
-		FakeRoomAppService rooms = new(InitialOrder);
-		rooms.Change(1, static snapshot => snapshot with { Danmaku = new RoomDanmakuSnapshot(true) });
-		using RoomListViewModel viewModel = new(rooms, new FakeConfigManager(config), new FakeDanmakuAppService());
-		viewModel.ApplyConfig(config);
+		using RoomListViewModel viewModel = CreateAnonymous(config, static _ => Task.FromResult(false));
+		(string? banner, bool couldLogin) = (viewModel.LoginBannerText, viewModel.Danmaku.Live?.CanLogin is true);
 		viewModel.StartMonitoring();
-		viewModel.Danmaku.IsOpen = true;
-		Select(viewModel, [1]);
-		(string? anonymousBanner, bool couldLogin) = (viewModel.LoginBannerText, viewModel.Danmaku.Live?.CanLogin is true);
 
 		config.Cookie = "a=b";
-		await TestWait.UntilAsync(() => viewModel.LoginBannerText is null && viewModel.Danmaku.Live is { CanLogin: false } live && live.IdentityText == AppLanguage.Current.DanmakuLoginPending, "the login is picked up without a room change", cancellationToken);
+		await TestWait.UntilAsync(() => viewModel.LoginBannerText is null && IsWaitingForReconnection(viewModel), "the login is picked up without a room change", cancellationToken);
 
 		config.Cookie = null;
 		await TestWait.UntilAsync(() => viewModel.LoginBannerText == AppLanguage.Current.DanmakuMaskedBanner, "the logout is picked up without a room change", cancellationToken);
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(anonymousBanner).IsEqualTo(AppLanguage.Current.DanmakuMaskedBanner);
-			await Assert.That(couldLogin).IsTrue();
-		}
+		await Assert.That((banner, couldLogin)).IsEqualTo((AppLanguage.Current.DanmakuMaskedBanner, true));
 	}
 
 	private static RoomListViewModel Create(FakeRoomAppService rooms, FakeDanmakuAppService? danmaku = null, FakeConfigManager? configManager = null, Action<Exception>? reportSaveFailure = null)
@@ -326,6 +300,24 @@ public sealed class RoomListViewModelTest
 		((ICommand)viewModel.SortByCommand).Execute(RoomSortOrder.Custom);
 		viewModel.Sync();
 		return viewModel;
+	}
+
+	// 没配 Cookie，1 号直播间在录弹幕，横幅提示弹幕昵称被隐去；面板开着并跟随 1 号直播间
+	private static RoomListViewModel CreateAnonymous(AppConfig config, Func<CancellationToken, Task<bool>> showLogin)
+	{
+		FakeRoomAppService rooms = new(InitialOrder);
+		rooms.Change(1, static snapshot => snapshot with { Danmaku = new RoomDanmakuSnapshot(true) });
+		RoomListViewModel viewModel = new(rooms, new FakeConfigManager(config), new FakeDanmakuAppService()) { ShowLogin = showLogin };
+		viewModel.ApplyConfig(config);
+		viewModel.Sync();
+		viewModel.Danmaku.IsOpen = true;
+		Select(viewModel, [1]);
+		return viewModel;
+	}
+
+	private static bool IsWaitingForReconnection(RoomListViewModel viewModel)
+	{
+		return viewModel.Danmaku.Live is { CanLogin: false } live && live.IdentityText == AppLanguage.Current.DanmakuLoginPending;
 	}
 
 	private static void Select(RoomListViewModel viewModel, long[] roomIds)
@@ -353,16 +345,16 @@ public sealed class RoomListViewModelTest
 
 	private static async Task AssertMovedAsync(RoomListViewModel viewModel, FakeRoomAppService rooms, IReadOnlyList<RoomItemViewModel> moved, long[] selected, long? before, long[] expected)
 	{
-		(long[] RoomIds, long? Before) call = rooms.Moves.Single();
+		(long[] RoomIds, long? Before) call = await Assert.That(rooms.Moves).HasSingleItem();
 		long[] selectedInOrder = [.. InitialOrder.Where(selected.Contains)];
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(call.RoomIds).IsEquivalentTo(selected, EqualityComparer<long>.Default);
+			await Assert.That(call.RoomIds).IsEquivalentTo(selected);
 			await Assert.That(call.Before).IsEqualTo(before);
-			await Assert.That(viewModel.Rooms.Select(static room => room.RoomId).ToArray()).IsEquivalentTo(expected, EqualityComparer<long>.Default, CollectionOrdering.Matching);
-			await Assert.That(moved.Select(static room => room.RoomId).ToArray()).IsEquivalentTo(selectedInOrder, EqualityComparer<long>.Default, CollectionOrdering.Matching);
-			await Assert.That(viewModel.SelectedRooms.Select(static room => room.RoomId).ToArray()).IsEquivalentTo(selected, EqualityComparer<long>.Default);
+			await Assert.That(viewModel.Rooms.Select(static room => room.RoomId)).IsEquivalentTo(expected, CollectionOrdering.Matching);
+			await Assert.That(moved.Select(static room => room.RoomId)).IsEquivalentTo(selectedInOrder, CollectionOrdering.Matching);
+			await Assert.That(viewModel.SelectedRooms.Select(static room => room.RoomId)).IsEquivalentTo(selected);
 		}
 	}
 

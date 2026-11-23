@@ -5,6 +5,7 @@ using BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 
@@ -33,9 +34,9 @@ public sealed class FollowedRoomImportViewModelTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(dialog.State).IsEqualTo(FollowedRoomLoadState.Loaded);
-			await Assert.That(byName).IsEquivalentTo([6154037, 22907643], EqualityComparer<long>.Default);
-			await Assert.That(byRoomId).IsEquivalentTo([5440], EqualityComparer<long>.Default);
-			await Assert.That(all.Length).IsEqualTo(Followed.Length);
+			await Assert.That(byName).IsEquivalentTo([6154037L, 22907643]);
+			await Assert.That(byRoomId).IsEquivalentTo([5440L]);
+			await Assert.That(all).Count().IsEqualTo(Followed.Length);
 		}
 	}
 
@@ -56,7 +57,7 @@ public sealed class FollowedRoomImportViewModelTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(selectedAfterSelectAll).IsEquivalentTo([6154037, 22907643], EqualityComparer<long>.Default);
+			await Assert.That(selectedAfterSelectAll).IsEquivalentTo([6154037L, 22907643]);
 			await Assert.That(afterSelectAll).IsTrue();
 			await Assert.That(afterSearch).IsFalse();
 			await Assert.That(withAll).IsNull();
@@ -94,9 +95,7 @@ public sealed class FollowedRoomImportViewModelTest
 		FakeRoomAppService rooms = new(Followed);
 		RecordingNotifications notifications = new();
 		using FollowedRoomImportViewModel dialog = Open(rooms, notifications);
-		bool defaultRecording = dialog.IsRecordingEnabled;
-		bool defaultDanmaku = dialog.IsDanmakuEnabled;
-		bool defaultNotification = dialog.IsNotificationEnabled;
+		(bool Recording, bool Danmaku, bool Notification) defaults = (dialog.IsRecordingEnabled, dialog.IsDanmakuEnabled, dialog.IsNotificationEnabled);
 
 		Select(dialog, 6154037, 22907643);
 		dialog.IsRecordingEnabled = isRecordingEnabled;
@@ -104,22 +103,17 @@ public sealed class FollowedRoomImportViewModelTest
 		dialog.IsNotificationEnabled = isNotificationEnabled;
 		((ICommand)dialog.ImportCommand).Execute(null);
 		bool result = await dialog.Result.WaitAsync(cancellationToken);
+		RoomSettingsDto[] added = await Assert.That(rooms.Added).HasSingleItem();
+		ShownNotification notification = await Assert.That(notifications.Shown).HasSingleItem();
 
-		RoomSettingsDto defaults = new() { RoomId = 0 };
-		RoomSettingsDto[] expected =
-		[
-			defaults with { RoomId = 6154037, IsRecordingEnabled = isRecordingEnabled, IsDanmakuEnabled = isDanmakuEnabled, IsNotificationEnabled = isNotificationEnabled },
-			defaults with { RoomId = 22907643, IsRecordingEnabled = isRecordingEnabled, IsDanmakuEnabled = isDanmakuEnabled, IsNotificationEnabled = isNotificationEnabled }
-		];
+		RoomSettingsDto template = new() { RoomId = 0, IsRecordingEnabled = isRecordingEnabled, IsDanmakuEnabled = isDanmakuEnabled, IsNotificationEnabled = isNotificationEnabled };
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(defaultRecording == RoomDefaults.IsRecordingEnabled).IsTrue();
-			await Assert.That(defaultDanmaku == DanmakuDefaults.IsEnabled).IsTrue();
-			await Assert.That(defaultNotification).IsFalse();
+			await Assert.That(defaults).IsEqualTo((RoomDefaults.IsRecordingEnabled, DanmakuDefaults.IsEnabled, false));
 			await Assert.That(result).IsTrue();
-			await Assert.That(rooms.Added.Single()).IsEquivalentTo(expected, EqualityComparer<RoomSettingsDto>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
-			await Assert.That(notifications.Shown.Single().Type).IsEqualTo(AppNotificationType.Success);
+			await Assert.That(added).IsEquivalentTo([template with { RoomId = 6154037 }, template with { RoomId = 22907643 }], EqualityComparer<RoomSettingsDto>.Default, CollectionOrdering.Matching);
+			await Assert.That(notification.Type).IsEqualTo(AppNotificationType.Success);
 		}
 	}
 
@@ -144,7 +138,7 @@ public sealed class FollowedRoomImportViewModelTest
 			await Assert.That(dialog.Result.IsCompleted).IsFalse();
 			await Assert.That(dialog.ErrorMessage).Contains(AppLanguage.Current.NamedReason.ToString("其他", "boom"));
 			await Assert.That(skipped.IsAdded).IsTrue();
-			await Assert.That(SelectedRoomIds(dialog)).IsEquivalentTo([7777], EqualityComparer<long>.Default);
+			await Assert.That(SelectedRoomIds(dialog)).IsEquivalentTo([7777L]);
 		}
 	}
 
@@ -180,7 +174,7 @@ public sealed class FollowedRoomImportViewModelTest
 			await Assert.That(state).IsEqualTo(FollowedRoomLoadState.Failed);
 			await Assert.That(error).IsEqualTo("加载失败");
 			await Assert.That(dialog.State).IsEqualTo(FollowedRoomLoadState.Loaded);
-			await Assert.That(dialog.VisibleRooms.Count).IsEqualTo(Followed.Length);
+			await Assert.That(dialog.VisibleRooms).Count().IsEqualTo(Followed.Length);
 		}
 	}
 
@@ -189,11 +183,7 @@ public sealed class FollowedRoomImportViewModelTest
 	{
 		using FollowedRoomImportViewModel dialog = Open(new FakeRoomAppService([]));
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(dialog.IsEmpty).IsTrue();
-			await Assert.That(dialog.HasRooms).IsFalse();
-		}
+		await Assert.That((dialog.IsEmpty, dialog.HasRooms)).IsEqualTo((true, false));
 	}
 
 	// 假的应用服务同步返回关注列表，打开后即加载完成

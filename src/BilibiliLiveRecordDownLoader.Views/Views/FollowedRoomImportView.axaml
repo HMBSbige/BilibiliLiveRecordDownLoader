@@ -23,10 +23,10 @@
     </UserControl.Styles>
 
     <DockPanel>
-        <StackPanel DockPanel.Dock="Bottom" Classes="form" Margin="0,16,0,0">
+        <StackPanel Classes="form dialogFooter">
             <Border Classes="errorBanner" IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                    <ic:FluentIcon Grid.Column="0" Icon="ErrorCircle" IconVariant="Filled" FontSize="16" Foreground="{DynamicResource SemiColorDanger}" />
+                    <ic:FluentIcon Grid.Column="0" Icon="ErrorCircle" />
                     <ScrollViewer Grid.Column="1" MaxHeight="96">
                         <SelectableTextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
                     </ScrollViewer>
@@ -50,14 +50,10 @@
             </DockPanel>
         </StackPanel>
 
-        <TextBox DockPanel.Dock="Top" Margin="0,0,0,12" Classes="clearButton" Text="{Binding SearchText}"
+        <TextBox DockPanel.Dock="Top" Margin="0,0,0,12" Classes="search clearButton" Text="{Binding SearchText}"
                  PlaceholderText="{Binding SearchFollowedRooms, Source={x:Static l:AppLanguage.Current}}"
                  AutomationProperties.Name="{Binding SearchFollowedRooms, Source={x:Static l:AppLanguage.Current}}"
-                 IsVisible="{Binding HasRooms}" IsEnabled="{Binding !IsBusy}">
-            <TextBox.InnerLeftContent>
-                <ic:FluentIcon Icon="Search" FontSize="16" Margin="8,0,0,0" Foreground="{DynamicResource SemiColorText2}" />
-            </TextBox.InnerLeftContent>
-        </TextBox>
+                 IsVisible="{Binding HasRooms}" IsEnabled="{Binding !IsBusy}" />
 
         <Border Classes="table" MaxHeight="360">
             <Panel>
@@ -86,7 +82,7 @@
                                     <DataTemplate x:DataType="dialogs:FollowedRoomItemViewModel">
                                         <Border Classes="row">
                                             <CheckBox IsChecked="{Binding IsSelected}" IsEnabled="{Binding !IsAdded}" AutomationProperties.Name="{Binding DisplayName}">
-                                                <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="2" Margin="4,8,0,8">
+                                                <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="2" Margin="4,8,0,8">
                                                     <Ellipse Grid.Row="0" Grid.Column="0" Width="8" Height="8" VerticalAlignment="Center" ctl:StatusColor.Value="{Binding LiveStatus}" />
                                                     <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DisplayName}" FontWeight="SemiBold" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                                                     <TextBlock Grid.Row="1" Grid.Column="1" Classes="caption" Text="{Binding Subtitle}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Subtitle}" />

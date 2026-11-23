@@ -24,9 +24,7 @@ public sealed class DanmakuEntryCollection : ObservableCollection<DanmakuEntryVi
 			Items.Add(item);
 		}
 
-		OnPropertyChanged(CountChanged);
-		OnPropertyChanged(IndexerChanged);
-		OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, items.ToArray(), index));
+		OnChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, items.ToArray(), index));
 	}
 
 	public void RemoveFirst(int count)
@@ -44,9 +42,7 @@ public sealed class DanmakuEntryCollection : ObservableCollection<DanmakuEntryVi
 			Items.RemoveAt(0);
 		}
 
-		OnPropertyChanged(CountChanged);
-		OnPropertyChanged(IndexerChanged);
-		OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, removed, 0));
+		OnChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, removed, 0));
 	}
 
 	public void Reset(IEnumerable<DanmakuEntryViewModel> items)
@@ -59,8 +55,13 @@ public sealed class DanmakuEntryCollection : ObservableCollection<DanmakuEntryVi
 			Items.Add(item);
 		}
 
+		OnChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+	}
+
+	private void OnChanged(NotifyCollectionChangedEventArgs e)
+	{
 		OnPropertyChanged(CountChanged);
 		OnPropertyChanged(IndexerChanged);
-		OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+		OnCollectionChanged(e);
 	}
 }

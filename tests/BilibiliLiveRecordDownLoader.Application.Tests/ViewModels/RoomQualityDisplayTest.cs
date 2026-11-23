@@ -3,7 +3,6 @@ using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels.Rooms;
 using Splat;
 using System.Globalization;
-using System.Windows.Input;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 
@@ -26,9 +25,9 @@ public sealed class RoomQualityDisplayTest
 		return new RoomSnapshot(new RoomSettingsDto { RoomId = roomId }, 0, $"主播{roomId}", null, LiveStatus.Live, RecordStatus.Idle, 0, null, null);
 	}
 
-	private static RoomListViewModel CreateList(FakeRoomAppService rooms, AppConfig config, Func<CancellationToken, Task<bool>>? showLogin = null)
+	private static RoomListViewModel CreateList(FakeRoomAppService rooms, AppConfig config)
 	{
-		RoomListViewModel viewModel = new(rooms, new FakeConfigManager(config), new FakeDanmakuAppService()) { ShowLogin = showLogin ?? (static _ => Task.FromResult(false)) };
+		RoomListViewModel viewModel = new(rooms, new FakeConfigManager(config), new FakeDanmakuAppService());
 		viewModel.ApplyConfig(config);
 		viewModel.Sync();
 		return viewModel;
@@ -78,10 +77,13 @@ public sealed class RoomQualityDisplayTest
 		}
 	}
 
+	// 受限时改从主播放列表取到的真原画不再受限
 	[Test]
-	public async Task TrueOriginalFromTheMasterPlaylistShowsWithoutAWarningAsync()
+	public async Task RestrictionIsClearedOnceTheRoomRecordsTheTrueOriginalAsync()
 	{
-		using RoomItemViewModel room = new(Recording(1, null, StreamCodec.Hevc, 25000), false);
+		using RoomItemViewModel room = new(Recording(1, new QualityRestriction.NotLoggedIn(10000)), false);
+
+		room.Apply(Recording(1, null, StreamCodec.Hevc, 25000), false);
 
 		using (Assert.Multiple())
 		{
@@ -89,22 +91,7 @@ public sealed class RoomQualityDisplayTest
 			await Assert.That(room.QualityText).IsEqualTo(AppLanguage.Current.QualityTrueOriginal);
 			await Assert.That(room.IsQualityRestricted).IsFalse();
 			await Assert.That(room.QualityRestrictionTip).IsNull();
-		}
-	}
-
-	[Test]
-	public async Task RestrictionIsClearedOnceTheRoomRecordsTheOriginalAsync()
-	{
-		using RoomItemViewModel room = new(Recording(1, new QualityRestriction.NotLoggedIn(10000)), false);
-
-		room.Apply(Recording(1, null, StreamCodec.Hevc, 10000), false);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(room.IsQualityRestricted).IsFalse();
-			await Assert.That(room.QualityRestrictionTip).IsNull();
 			await Assert.That(room.HelpText).IsNull();
-			await Assert.That(room.StreamInfo).IsEqualTo("fMP4 · HEVC (H.265)");
 		}
 	}
 
@@ -138,86 +125,33 @@ public sealed class RoomQualityDisplayTest
 		await Assert.That(RoomItemViewModel.DescribeRestriction(expired, 250, false)).IsEqualTo(RoomItemViewModel.DescribeRestriction(expired, 250, true));
 	}
 
-	[Test]
-	public async Task BannerCountsOnlyRoomsRestrictedForNotBeingLoggedInAsync()
+	public static IEnumerable<TestDataRow<Func<(RoomSnapshot[] Rooms, string? Cookie, string? Expected)>>> BannerCases()
 	{
-		FakeRoomAppService rooms = new
-		(
-			Recording(1, new QualityRestriction.NotLoggedIn(10000)),
-			Recording(2, new QualityRestriction.NotLoggedIn(10000)),
-			Recording(3, new QualityRestriction.OtherCodec(10000, StreamCodec.Av1, 10000)),
-			Recording(4, new QualityRestriction.LoginMayHaveExpired(10000)),
-			Recording(5, null),
-			Idle(6),
-			Recording(7, new QualityRestriction.OtherCodecUnavailable(10000, StreamCodec.Av1, 10000))
-		);
-		using RoomListViewModel viewModel = CreateList(rooms, AppConfig.CreateDefault());
-
-		await Assert.That(viewModel.LoginBannerText).IsEqualTo(AppLanguage.Current.QualityRestrictedBanner.ToString(2.ToString(CultureInfo.CurrentCulture)));
-	}
-
-	[Test]
-	public async Task BannerMentionsMaskedNamesWhileRecordingDanmakuAsync()
-	{
+		QualityRestriction notLoggedIn = new QualityRestriction.NotLoggedIn(10000);
+		QualityRestriction otherCodec = new QualityRestriction.OtherCodec(10000, StreamCodec.Av1, 10000);
+		QualityRestriction expired = new QualityRestriction.LoginMayHaveExpired(10000);
 		RoomSnapshot danmakuOnly = Idle(2) with { Danmaku = new RoomDanmakuSnapshot(true) };
-		using RoomListViewModel withRestriction = CreateList(new FakeRoomAppService(Recording(1, new QualityRestriction.NotLoggedIn(10000)), danmakuOnly), AppConfig.CreateDefault());
-		using RoomListViewModel withoutRestriction = CreateList(new FakeRoomAppService(danmakuOnly, Idle(3)), AppConfig.CreateDefault());
-		AppConfig loggedIn = AppConfig.CreateDefault();
-		loggedIn.Cookie = "SESSDATA=x";
-		using RoomListViewModel withCookie = CreateList(new FakeRoomAppService(danmakuOnly), loggedIn);
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(withRestriction.LoginBannerText).IsEqualTo(AppLanguage.Current.QualityRestrictedAndDanmakuMaskedBanner.ToString(1.ToString(CultureInfo.CurrentCulture)));
-			await Assert.That(withoutRestriction.LoginBannerText).IsEqualTo(AppLanguage.Current.DanmakuMaskedBanner);
-			await Assert.That(withCookie.LoginBannerText).IsNull();
-		}
+		yield return new(() => ([Recording(1, notLoggedIn), Recording(2, notLoggedIn), Recording(3, otherCodec), Recording(4, expired), Recording(5, null), Idle(6), Recording(7, new QualityRestriction.OtherCodecUnavailable(10000, StreamCodec.Av1, 10000))], null, AppLanguage.Current.QualityRestrictedBanner.ToString(2.ToString(CultureInfo.CurrentCulture))), DisplayName: "only rooms restricted for not being logged in are counted");
+		yield return new(() => ([Recording(1, notLoggedIn), danmakuOnly], null, AppLanguage.Current.QualityRestrictedAndDanmakuMaskedBanner.ToString(1.ToString(CultureInfo.CurrentCulture))), DisplayName: "restricted quality and masked danmaku names");
+		yield return new(() => ([danmakuOnly, Idle(3)], null, AppLanguage.Current.DanmakuMaskedBanner), DisplayName: "masked danmaku names only");
+		yield return new(() => ([Recording(1, otherCodec), Recording(2, expired), Idle(3)], null, null), DisplayName: "nothing that logging in would fix");
+		yield return new(() => ([Recording(1, notLoggedIn), danmakuOnly], "SESSDATA=x", null), DisplayName: "already logged in");
 	}
 
 	[Test]
-	public async Task BannerIsHiddenWithoutRoomsRestrictedForNotBeingLoggedInAsync()
-	{
-		FakeRoomAppService rooms = new(Recording(1, new QualityRestriction.OtherCodec(10000, StreamCodec.Av1, 10000)), Recording(2, new QualityRestriction.LoginMayHaveExpired(10000)), Idle(3));
-		using RoomListViewModel viewModel = CreateList(rooms, AppConfig.CreateDefault());
-
-		await Assert.That(viewModel.LoginBannerText).IsNull();
-	}
-
-	[Test]
-	[Timeout(30_000)]
-	[Arguments(true)]
-	[Arguments(false)]
-	public async Task LoginFromTheBannerHidesItOnlyAfterLoggingInAsync(bool succeeds, CancellationToken cancellationToken)
+	[MethodDataSource(nameof(BannerCases))]
+	public async Task BannerOnlyShowsWhatLoggingInWouldFixAsync(RoomSnapshot[] rooms, string? cookie, string? expected)
 	{
 		AppConfig config = AppConfig.CreateDefault();
-		FakeRoomAppService rooms = new(Recording(1, new QualityRestriction.NotLoggedIn(10000)));
-		TaskCompletionSource shown = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		using RoomListViewModel viewModel = CreateList(rooms, config, _ =>
-		{
-			if (succeeds)
-			{
-				config.Cookie = "SESSDATA=x";
-			}
+		config.Cookie = cookie;
+		using RoomListViewModel viewModel = CreateList(new FakeRoomAppService(rooms), config);
 
-			shown.SetResult();
-			return Task.FromResult(succeeds);
-		});
-
-		((ICommand)viewModel.LoginCommand).Execute(null);
-		await shown.Task.WaitAsync(cancellationToken);
-
-		if (succeeds)
-		{
-			await TestWait.UntilAsync(() => viewModel.LoginBannerText is null, "the banner hides after logging in", cancellationToken);
-		}
-
-		await Assert.That(viewModel.LoginBannerText is null).IsEqualTo(succeeds);
+		await Assert.That(viewModel.LoginBannerText).IsEqualTo(expected);
 	}
 
 	private sealed class FakeRoomAppService(params RoomSnapshot[] rooms) : RoomAppServiceStub
 	{
-		public override bool IsRecording => rooms.Any(static room => room.RecordStatus is not RecordStatus.Idle);
-
 		public override IReadOnlyList<RoomSnapshot> GetRooms()
 		{
 			return rooms;

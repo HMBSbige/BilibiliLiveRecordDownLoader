@@ -41,7 +41,34 @@ public sealed partial class TaskListViewModel : ViewModelBase
 	// 测试不启动定时刷新，改为直接调用
 	internal void Refresh()
 	{
-		Sync(_taskAppService.GetTasks());
+		IReadOnlyList<BackgroundTaskSnapshot> snapshots = _taskAppService.GetTasks();
+		HashSet<Guid> ids = [.. snapshots.Select(static snapshot => snapshot.Id)];
+
+		for (int index = Tasks.Count - 1; index >= 0; --index)
+		{
+			if (!ids.Contains(Tasks[index].Id))
+			{
+				Tasks.RemoveAt(index);
+			}
+		}
+
+		Dictionary<Guid, TaskItemViewModel> existing = Tasks.ToDictionary(static task => task.Id);
+
+		foreach (BackgroundTaskSnapshot snapshot in snapshots)
+		{
+			if (existing.TryGetValue(snapshot.Id, out TaskItemViewModel? task))
+			{
+				task.Apply(snapshot);
+			}
+			else
+			{
+				Tasks.Add(new TaskItemViewModel(snapshot));
+			}
+		}
+
+		HasTasks = Tasks.Count > 0;
+		HasActiveTasks = Tasks.Any(static task => task.IsActive);
+		HasFinishedTasks = Tasks.Any(static task => !task.IsActive);
 	}
 
 	[ReactiveCommand]
@@ -72,34 +99,5 @@ public sealed partial class TaskListViewModel : ViewModelBase
 	private void ClearFinishedTasks()
 	{
 		_taskAppService.RemoveFinished();
-	}
-
-	private void Sync(IReadOnlyList<BackgroundTaskSnapshot> snapshots)
-	{
-		HashSet<Guid> ids = [.. snapshots.Select(static snapshot => snapshot.Id)];
-
-		for (int index = Tasks.Count - 1; index >= 0; --index)
-		{
-			if (!ids.Contains(Tasks[index].Id))
-			{
-				Tasks.RemoveAt(index);
-			}
-		}
-
-		foreach (BackgroundTaskSnapshot snapshot in snapshots)
-		{
-			if (Tasks.FirstOrDefault(task => task.Id == snapshot.Id) is { } task)
-			{
-				task.Apply(snapshot);
-			}
-			else
-			{
-				Tasks.Add(new TaskItemViewModel(snapshot));
-			}
-		}
-
-		HasTasks = Tasks.Count > 0;
-		HasActiveTasks = Tasks.Any(static task => task.IsActive);
-		HasFinishedTasks = Tasks.Any(static task => !task.IsActive);
 	}
 }

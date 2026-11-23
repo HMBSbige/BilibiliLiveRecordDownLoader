@@ -23,7 +23,7 @@ public sealed class TaskListViewModelTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(wasActive).IsTrue();
-			await Assert.That(viewModel.Tasks.Select(static task => task.Title)).IsEquivalentTo(["a", "c"], StringComparer.Ordinal, CollectionOrdering.Matching);
+			await Assert.That(viewModel.Tasks.Select(static task => task.Title)).IsEquivalentTo(["a", "c"], CollectionOrdering.Matching);
 			await Assert.That(viewModel.Tasks[0]).IsSameReferenceAs(first);
 			await Assert.That(first.Status).IsEqualTo(BackgroundTaskStatus.Completed);
 			await Assert.That((viewModel.HasTasks, viewModel.HasActiveTasks, viewModel.HasFinishedTasks)).IsEqualTo((true, true, true));

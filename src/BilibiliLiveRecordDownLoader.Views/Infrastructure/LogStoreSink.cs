@@ -38,7 +38,7 @@ internal sealed class LogStoreSink : ILogEventSink
 
 	private static void Write(ILogStore store, LogEvent logEvent)
 	{
-		long? roomId = logEvent.Properties.TryGetValue(LogProperties.RoomId, out LogEventPropertyValue? value) && value is ScalarValue { Value: long id } ? id : null;
+		long? roomId = logEvent.Properties.GetValueOrDefault(LogProperties.RoomId) is ScalarValue { Value: long id } ? id : null;
 		string message = logEvent.RenderMessage(CultureInfo.CurrentCulture);
 
 		if (logEvent.Exception is { } exception)

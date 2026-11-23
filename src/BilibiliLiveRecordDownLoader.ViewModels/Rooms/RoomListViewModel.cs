@@ -17,7 +17,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	{
 		_roomAppService = roomAppService;
 		_configManager = configManager;
-		Danmaku = new DanmakuPanelViewModel(danmakuAppService, configManager, LoginAndSyncAsync).DisposeWith(Disposables);
+		Danmaku = new DanmakuPanelViewModel(danmakuAppService, configManager, LoginAsync).DisposeWith(Disposables);
 		HasSelection = this.WhenChanged(static viewModel => viewModel.SelectedCount).Map(static count => count > 0);
 		HasSingleSelection = this.WhenChanged(static viewModel => viewModel.SelectedCount).Map(static count => count is 1);
 		CanMoveSelection = this.WhenChanged(static viewModel => viewModel.CanReorder, static viewModel => viewModel.SelectedCount, static (canReorder, count) => canReorder && count > 0);
@@ -238,14 +238,9 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		await Danmaku.PickFileAsync(room, cancellationToken);
 	}
 
-	[ReactiveCommand]
-	private Task LoginAsync(CancellationToken cancellationToken)
-	{
-		return LoginAndSyncAsync(cancellationToken);
-	}
-
 	// 在录的直播间和弹幕连接都要等重连才用上登录身份，横幅按 Cookie 立即收起，面板先显示等重连
-	private async Task<bool> LoginAndSyncAsync(CancellationToken cancellationToken)
+	[ReactiveCommand]
+	private async Task<bool> LoginAsync(CancellationToken cancellationToken)
 	{
 		if (!await ShowLogin(cancellationToken))
 		{
@@ -257,7 +252,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		return true;
 	}
 
-	// 从这里登录时 LoginAndSyncAsync 已经处理过，再处理一次结果相同
+	// 从这里登录时 LoginAsync 已经处理过，再处理一次结果相同
 	private void OnCookieChanged(string? cookie)
 	{
 		if (cookie == _cookie)
@@ -366,14 +361,10 @@ public sealed partial class RoomListViewModel : ViewModelBase
 
 	internal void Sync()
 	{
-		Dictionary<long, RoomSnapshot> latest = [];
+		IReadOnlyList<RoomSnapshot> snapshots = _roomAppService.GetRooms();
+		HashSet<long> roomIds = [.. snapshots.Select(static snapshot => snapshot.RoomId)];
 
-		foreach (RoomSnapshot snapshot in _roomAppService.GetRooms())
-		{
-			latest.TryAdd(snapshot.RoomId, snapshot);
-		}
-
-		foreach (RoomItemViewModel removed in _rooms.Values.Where(room => !latest.ContainsKey(room.RoomId)).ToArray())
+		foreach (RoomItemViewModel removed in _rooms.Values.Where(room => !roomIds.Contains(room.RoomId)).ToArray())
 		{
 			_rooms.Remove(removed.RoomId);
 			Rooms.Remove(removed);
@@ -383,11 +374,12 @@ public sealed partial class RoomListViewModel : ViewModelBase
 			removed.Dispose();
 		}
 
-		int order = 0;
 		bool hasCookie = !string.IsNullOrWhiteSpace(_config?.Cookie);
 
-		foreach (RoomSnapshot snapshot in latest.Values)
+		for (int order = 0; order < snapshots.Count; ++order)
 		{
+			RoomSnapshot snapshot = snapshots[order];
+
 			if (_rooms.TryGetValue(snapshot.RoomId, out RoomItemViewModel? room))
 			{
 				room.Apply(snapshot, hasCookie);
@@ -398,13 +390,13 @@ public sealed partial class RoomListViewModel : ViewModelBase
 				_rooms.Add(snapshot.RoomId, room);
 			}
 
-			room.Order = order++;
+			room.Order = order;
 		}
 
 		HasRooms = _rooms.Count > 0;
-		RoomSnapshot[] recording = [.. latest.Values.Where(static snapshot => snapshot.RecordStatus is RecordStatus.Recording)];
+		RoomSnapshot[] recording = [.. snapshots.Where(static snapshot => snapshot.RecordStatus is RecordStatus.Recording)];
 		Summarize(recording);
-		UpdateLoginBanner(latest.Values, recording, hasCookie);
+		UpdateLoginBanner(snapshots, recording, hasCookie);
 		Arrange();
 	}
 

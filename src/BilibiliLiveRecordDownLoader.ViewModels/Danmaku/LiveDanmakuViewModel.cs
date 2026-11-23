@@ -1,16 +1,18 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace BilibiliLiveRecordDownLoader.ViewModels.Danmaku;
 
 // 释放时退订，房间不录弹幕时就不再为它解析
 public sealed partial class LiveDanmakuViewModel : ViewModelBase
 {
 	// 再快滚动跟不上，再慢看起来一顿一顿的
-	internal static readonly TimeSpan RefreshInterval = TimeSpan.FromMilliseconds(150);
+	private static readonly TimeSpan RefreshInterval = TimeSpan.FromMilliseconds(150);
 
 	private readonly IDanmakuFeed _feed;
 	private readonly List<DanmakuEntryViewModel> _all = [];
 	private long _lastSequence;
 	private long? _lastVersion;
-	private DanmakuFeedStatus? _status;
+	private DanmakuFeedStatus _status;
 
 	// 不跟随时 Entries 不动：虚拟化列表不做滚动锚定，从头部删条目会让正在读的行滑走
 	private bool _isStale;
@@ -21,20 +23,16 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 	// autoRefresh 为 false 时由测试调用 Refresh
 	public LiveDanmakuViewModel(IDanmakuFeed feed, DanmakuFilterViewModel filter, bool autoRefresh = true)
 	{
-		_feed = feed;
+		_feed = feed.DisposeWith(Disposables);
 		Filter = filter;
 		Filter.CriteriaChanged.Subscribe(_ => Rebuild()).DisposeWith(Disposables);
 		ScrollToLatestCommand.DisposeWith(Disposables);
 
 		this.WhenChanged(static viewModel => viewModel.IsFollowing)
+			.Keep(static isFollowing => isFollowing)
 			.Subscribe
-			(isFollowing =>
+			(_ =>
 				{
-					if (!isFollowing)
-					{
-						return;
-					}
-
 					NewEntryCount = 0;
 
 					if (_isStale)
@@ -49,8 +47,8 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 			.Subscribe(_ => UpdateNewEntriesText())
 			.DisposeWith(Disposables);
 
-		OnLanguageChanged(UpdateTexts);
 		Refresh();
+		OnLanguageChanged(UpdateTexts);
 
 		if (autoRefresh)
 		{
@@ -104,6 +102,7 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 	public partial string? NewEntriesText { get; private set; }
 
 	// 接收速率随时间变化但不计入版本号
+	[MemberNotNull(nameof(_status))]
 	internal void Refresh()
 	{
 		long version = _feed.Version;
@@ -115,17 +114,14 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 		}
 
 		_status = _feed.Status;
-		UpdateStatus(_status);
+		UpdateStatus();
 	}
 
 	// 连接换掉之前状态里还是匿名，先显示正在等重连
 	internal void OnLoggedIn()
 	{
-		if (_status is { } status)
-		{
-			_loginConnection = status.Connection;
-			UpdateStatus(status);
-		}
+		_loginConnection = _status.Connection;
+		UpdateStatus();
 	}
 
 	[ReactiveCommand]
@@ -141,16 +137,12 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 
 		foreach (LiveDanmakuEntryDto entry in entries)
 		{
-			if (entry.Sequence <= _lastSequence)
-			{
-				continue;
-			}
-
 			_lastSequence = entry.Sequence;
 
 			if (entry.Entry is DanmakuEntryDto.SuperChatDeletion deletion)
 			{
-				DanmakuEntryViewModel.MarkDeleted(_all, deletion.Ids);
+				// 不跟随时列表可能还显示着已经挤出 _all 的 SC
+				DanmakuEntryViewModel.MarkDeleted(_isStale ? _all.Union(Entries) : _all, deletion.Ids);
 				continue;
 			}
 
@@ -210,7 +202,6 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 	{
 		Reset();
 		IsFollowing = true;
-		NewEntryCount = 0;
 	}
 
 	private void Reset()
@@ -226,21 +217,25 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 		HasVisibleEntries = Entries.Count > 0;
 	}
 
-	private void UpdateStatus(DanmakuFeedStatus status)
+	private void UpdateStatus()
 	{
-		State = status.State;
-		StateText = status.State switch
+		State = _status.State;
+		StateText = _status.State switch
 		{
+			DanmakuConnectionState.Connecting => AppLanguage.Current.DanmakuConnecting,
 			DanmakuConnectionState.Connected => AppLanguage.Current.DanmakuConnected,
-			DanmakuConnectionState.Disconnected => AppLanguage.Current.DanmakuDisconnected,
-			_ => AppLanguage.Current.DanmakuConnecting
+			DanmakuConnectionState.Disconnected => AppLanguage.Current.DanmakuDisconnected
 		};
-		bool isMaskedAnonymous = status is { UserId: 0, IsMasked: true };
-		bool isLoginPending = isMaskedAnonymous && status.Connection == _loginConnection;
-		IdentityText = isLoginPending ? AppLanguage.Current.DanmakuLoginPending : DanmakuEntryViewModel.FormatIdentity(status.UserId, status.IsMasked);
-		CanLogin = isMaskedAnonymous && !isLoginPending;
-		RateText = AppLanguage.Current.DanmakuRate.ToString(Math.Round(status.MessagesPerMinute).ToString("0", CultureInfo.CurrentCulture));
-		ReconnectingText = status.DisconnectedAt is { } disconnectedAt ? AppLanguage.Current.DanmakuReconnecting.ToString(disconnectedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture)) : null;
+		(IdentityText, CanLogin) = _status switch
+		{
+			{ UserId: null } => ((string?)null, false),
+			{ UserId: > 0 } => (AppLanguage.Current.DanmakuLoggedIn, false),
+			{ IsMasked: false } => (AppLanguage.Current.DanmakuAnonymous, false),
+			_ when _status.Connection == _loginConnection => (AppLanguage.Current.DanmakuLoginPending, false),
+			_ => (AppLanguage.Current.DanmakuAnonymousMasked, true)
+		};
+		RateText = AppLanguage.Current.DanmakuRate.ToString(Math.Round(_status.MessagesPerMinute).ToString("0", CultureInfo.CurrentCulture));
+		ReconnectingText = _status.DisconnectedAt is { } disconnectedAt ? AppLanguage.Current.DanmakuReconnecting.ToString(disconnectedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.InvariantCulture)) : null;
 	}
 
 	private void UpdateNewEntriesText()
@@ -250,17 +245,7 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 
 	private void UpdateTexts()
 	{
-		if (_status is { } status)
-		{
-			UpdateStatus(status);
-		}
-
+		UpdateStatus();
 		UpdateNewEntriesText();
-	}
-
-	public override void Dispose()
-	{
-		base.Dispose();
-		_feed.Dispose();
 	}
 }

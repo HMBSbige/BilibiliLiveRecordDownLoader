@@ -7,7 +7,6 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 	private readonly IAppConfigManager _configManager;
 	private readonly IDiskSpaceService _diskSpaceService;
 	private readonly IAutoStartService _autoStartService;
-	private bool _isInitialized;
 	private bool _isRevertingAutoStart;
 
 	public GeneralSettingsViewModel(IAppConfigManager configManager, IDiskSpaceService diskSpaceService, IAutoStartService autoStartService)
@@ -40,11 +39,6 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 
 	internal void ApplyConfig(AppConfig config)
 	{
-		if (_isInitialized)
-		{
-			return;
-		}
-
 		RecordDirectory = config.RecordDirectory;
 		FFmpegPath = config.FFmpegPath;
 
@@ -65,8 +59,6 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 			.Skip(1)
 			.Subscribe(ApplyAutoStart)
 			.DisposeWith(Disposables);
-
-		_isInitialized = true;
 	}
 
 	[ReactiveCommand]

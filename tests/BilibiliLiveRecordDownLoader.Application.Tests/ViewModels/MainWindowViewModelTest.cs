@@ -25,11 +25,12 @@ public sealed class MainWindowViewModelTest
 		((ICommand)viewModel.ExitCommand).Execute(null);
 		// 异常是异步交给订阅者的，等它到了再结束，否则会落到全局处理
 		await TestWait.UntilAsync(() => !thrown.IsEmpty, "the exception reaches the subscriber", cancellationToken);
+		Exception exception = await Assert.That(thrown).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(events).IsEquivalentTo(["BeginShutdown", "Stop", "Shutdown"], StringComparer.Ordinal, CollectionOrdering.Matching);
-			await Assert.That(thrown.Single()).IsSameReferenceAs(failure);
+			await Assert.That(events).IsEquivalentTo(["BeginShutdown", "Stop", "Shutdown"], CollectionOrdering.Matching);
+			await Assert.That(exception).IsSameReferenceAs(failure);
 		}
 	}
 
@@ -50,7 +51,7 @@ public sealed class MainWindowViewModelTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(editingResult).IsFalse();
-			await Assert.That(events).IsEquivalentTo(["ShowMainWindow"], StringComparer.Ordinal, CollectionOrdering.Matching);
+			await Assert.That(events).IsEquivalentTo(["ShowMainWindow"]);
 		}
 	}
 
@@ -70,7 +71,7 @@ public sealed class MainWindowViewModelTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(dialogs.Current).IsSameReferenceAs(submitting);
-			await Assert.That(events).IsEquivalentTo(["ShowMainWindow"], StringComparer.Ordinal, CollectionOrdering.Matching);
+			await Assert.That(events).IsEquivalentTo(["ShowMainWindow"]);
 		}
 
 		submitting.Dismiss();

@@ -27,7 +27,7 @@ public sealed class StatusColor
 		control.SetValue(ValueProperty, value);
 	}
 
-	public static string? GetResourceKey(object? status)
+	private static string? GetResourceKey(object? status)
 	{
 		return status switch
 		{

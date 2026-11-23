@@ -22,7 +22,7 @@
                     <StackPanel Classes="field">
                         <TextBlock Text="{Binding RecordDirectory, Source={x:Static l:AppLanguage.Current}}" />
                         <DockPanel>
-                            <StackPanel DockPanel.Dock="Right" Classes="toolbar" Margin="8,0,0,0">
+                            <StackPanel DockPanel.Dock="Right" Classes="toolbar">
                                 <Button Command="{Binding BrowseRecordDirectoryCommand}" Content="{Binding Browse, Source={x:Static l:AppLanguage.Current}}" />
                                 <Button Command="{Binding OpenRecordDirectoryCommand}" Content="{Binding Open, Source={x:Static l:AppLanguage.Current}}" />
                             </StackPanel>
@@ -37,7 +37,7 @@
                     <StackPanel Classes="field">
                         <TextBlock Text="{Binding FFmpegPath, Source={x:Static l:AppLanguage.Current}}" />
                         <DockPanel>
-                            <Button DockPanel.Dock="Right" Margin="8,0,0,0" Command="{Binding BrowseFFmpegPathCommand}"
+                            <Button DockPanel.Dock="Right" Command="{Binding BrowseFFmpegPathCommand}"
                                     Content="{Binding Browse, Source={x:Static l:AppLanguage.Current}}" />
                             <TextBox Text="{Binding FFmpegPath, UpdateSourceTrigger=LostFocus}" PlaceholderText="{Binding AutoDetect, Source={x:Static l:AppLanguage.Current}}" />
                         </DockPanel>
@@ -63,17 +63,19 @@
                                       ItemTemplate="{StaticResource LocalizedLabel}" />
                         </StackPanel>
                     </Grid>
-                    <Grid Classes="form" ColumnDefinitions="*,*">
-                        <StackPanel Grid.Column="0" Classes="field">
-                            <TextBlock Text="{Binding CodecPriority, Source={x:Static l:AppLanguage.Current}}" />
-                            <views:PriorityListView DataContext="{Binding CodecPriority}" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Classes="field">
-                            <TextBlock Text="{Binding FormatPriority, Source={x:Static l:AppLanguage.Current}}" />
-                            <views:PriorityListView DataContext="{Binding FormatPriority}" />
-                        </StackPanel>
-                    </Grid>
-                    <TextBlock Classes="caption" Margin="0,-8,0,0" Text="{Binding PriorityHint, Source={x:Static l:AppLanguage.Current}}" />
+                    <StackPanel Classes="field">
+                        <Grid Classes="form" ColumnDefinitions="*,*">
+                            <StackPanel Grid.Column="0" Classes="field">
+                                <TextBlock Text="{Binding CodecPriority, Source={x:Static l:AppLanguage.Current}}" />
+                                <views:PriorityListView DataContext="{Binding CodecPriority}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Classes="field">
+                                <TextBlock Text="{Binding FormatPriority, Source={x:Static l:AppLanguage.Current}}" />
+                                <views:PriorityListView DataContext="{Binding FormatPriority}" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Classes="caption" Text="{Binding PriorityHint, Source={x:Static l:AppLanguage.Current}}" />
+                    </StackPanel>
                     <StackPanel Spacing="8">
                         <ToggleSwitch IsChecked="{Binding ConvertToMp4}"
                                       OnContent="{Binding ConvertToMp4, Source={x:Static l:AppLanguage.Current}}" />
@@ -89,15 +91,15 @@
                         <StackPanel Grid.Column="1" Classes="field" IsVisible="{Binding IsSplitByDuration}">
                             <TextBlock Text="{Binding SplitDuration, Source={x:Static l:AppLanguage.Current}}" />
                             <DockPanel>
-                                <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding Minutes, Source={x:Static l:AppLanguage.Current}}" />
-                                <NumericUpDown Value="{Binding SplitDurationMinutes}" Increment="1" FormatString="0" HorizontalAlignment="Stretch"
+                                <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Text="{Binding Minutes, Source={x:Static l:AppLanguage.Current}}" />
+                                <NumericUpDown Value="{Binding SplitDurationMinutes}" FormatString="0" HorizontalAlignment="Stretch"
                                                Minimum="{x:Static cfg:RecordingSplitDefaults.MinDurationMinutes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxDurationMinutes}" />
                             </DockPanel>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Classes="field" IsVisible="{Binding IsSplitBySize}">
                             <TextBlock Text="{Binding SplitSize, Source={x:Static l:AppLanguage.Current}}" />
                             <DockPanel>
-                                <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding Megabytes, Source={x:Static l:AppLanguage.Current}}" />
+                                <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Text="{Binding Megabytes, Source={x:Static l:AppLanguage.Current}}" />
                                 <NumericUpDown Value="{Binding SplitSizeMegabytes}" Increment="100" FormatString="0" HorizontalAlignment="Stretch"
                                                Minimum="{x:Static cfg:RecordingSplitDefaults.MinSizeMegabytes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxSizeMegabytes}" />
                             </DockPanel>
@@ -124,9 +126,9 @@
                             <NumericUpDown Value="{Binding OffsetSeconds}" Increment="0.1" FormatString="0.###" HorizontalAlignment="Stretch"
                                            Minimum="{x:Static cfg:DanmakuDefaults.MinOffsetSeconds}" Maximum="{x:Static cfg:DanmakuDefaults.MaxOffsetSeconds}"
                                            AutomationProperties.HelpText="{Binding DanmakuOffsetHint, Source={x:Static l:AppLanguage.Current}}" />
+                            <TextBlock Classes="caption" Text="{Binding DanmakuOffsetHint, Source={x:Static l:AppLanguage.Current}}" />
                         </StackPanel>
                     </Grid>
-                    <TextBlock Classes="caption" Margin="0,-8,0,0" TextWrapping="Wrap" Text="{Binding DanmakuOffsetHint, Source={x:Static l:AppLanguage.Current}}" />
                     <StackPanel Spacing="8">
                         <ToggleSwitch IsChecked="{Binding RecordSuperChats}"
                                       OnContent="{Binding RecordSuperChats, Source={x:Static l:AppLanguage.Current}}" />
@@ -141,19 +143,19 @@
                             <ToggleSwitch IsChecked="{Binding ShowPaidMessagesInSubtitle}" IsEnabled="{Binding GenerateSubtitle}" Margin="24,0,0,0"
                                           OnContent="{Binding ShowPaidMessagesInSubtitle, Source={x:Static l:AppLanguage.Current}}" />
                         </StackPanel>
-                        <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding GenerateDanmakuSubtitleHint, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock Classes="caption" Text="{Binding GenerateDanmakuSubtitleHint, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                     <StackPanel Classes="field">
                         <ToggleSwitch IsChecked="{Binding SaveRawMessages}"
                                       AutomationProperties.HelpText="{Binding SaveRawDanmakuHint, Source={x:Static l:AppLanguage.Current}}"
                                       OnContent="{Binding SaveRawDanmaku, Source={x:Static l:AppLanguage.Current}}" />
-                        <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding SaveRawDanmakuHint, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock Classes="caption" Text="{Binding SaveRawDanmakuHint, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                     <StackPanel Classes="field">
                         <ToggleSwitch IsChecked="{Binding WriteChaptersOnConvert}"
                                       AutomationProperties.HelpText="{Binding WriteChaptersOnConvertHint, Source={x:Static l:AppLanguage.Current}}"
                                       OnContent="{Binding WriteChaptersOnConvert, Source={x:Static l:AppLanguage.Current}}" />
-                        <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding WriteChaptersOnConvertHint, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock Classes="caption" Text="{Binding WriteChaptersOnConvertHint, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                 </StackPanel>
             </Border>
@@ -177,13 +179,13 @@
                         <ToggleSwitch IsChecked="{Binding NotifyOnRecordingError}"
                                       AutomationProperties.HelpText="{Binding NotifyOnRecordingErrorHint, Source={x:Static l:AppLanguage.Current}}"
                                       OnContent="{Binding NotifyOnRecordingError, Source={x:Static l:AppLanguage.Current}}" />
-                        <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding NotifyOnRecordingErrorHint, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock Classes="caption" Text="{Binding NotifyOnRecordingErrorHint, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                     <StackPanel Classes="field">
                         <ToggleSwitch IsChecked="{Binding NotifyOnTitleChange}"
                                       AutomationProperties.HelpText="{Binding NotifyOnTitleChangeHint, Source={x:Static l:AppLanguage.Current}}"
                                       OnContent="{Binding NotifyOnTitleChange, Source={x:Static l:AppLanguage.Current}}" />
-                        <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding NotifyOnTitleChangeHint, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock Classes="caption" Text="{Binding NotifyOnTitleChangeHint, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                 </StackPanel>
             </Border>
@@ -223,19 +225,19 @@
                         <ToggleSwitch IsChecked="{Binding RemoveFillerData}"
                                       AutomationProperties.HelpText="{Binding RemoveFillerDataHint, Source={x:Static l:AppLanguage.Current}}"
                                       OnContent="{Binding RemoveFillerData, Source={x:Static l:AppLanguage.Current}}" />
-                        <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding RemoveFillerDataHint, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock Classes="caption" Text="{Binding RemoveFillerDataHint, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                     <StackPanel Classes="field">
                         <ToggleSwitch IsChecked="{Binding RequestTrueOriginal}"
                                       AutomationProperties.HelpText="{Binding RequestTrueOriginalHint, Source={x:Static l:AppLanguage.Current}}"
                                       OnContent="{Binding RequestTrueOriginal, Source={x:Static l:AppLanguage.Current}}" />
-                        <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding RequestTrueOriginalHint, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock Classes="caption" Text="{Binding RequestTrueOriginalHint, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                     <StackPanel Classes="field">
                         <ToggleSwitch IsChecked="{Binding UseMasterPlaylistWhenRestricted}"
                                       AutomationProperties.HelpText="{Binding UseMasterPlaylistWhenRestrictedHint, Source={x:Static l:AppLanguage.Current}}"
                                       OnContent="{Binding UseMasterPlaylistWhenRestricted, Source={x:Static l:AppLanguage.Current}}" />
-                        <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding UseMasterPlaylistWhenRestrictedHint, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock Classes="caption" Text="{Binding UseMasterPlaylistWhenRestrictedHint, Source={x:Static l:AppLanguage.Current}}" />
                     </StackPanel>
                 </StackPanel>
             </Border>
@@ -243,8 +245,8 @@
             <Border Classes="card" DataContext="{Binding Update}">
                 <StackPanel Classes="form" x:DataType="settings:UpdateSettingsViewModel">
                     <TextBlock Classes="section" Text="{Binding About, Source={x:Static l:AppLanguage.Current}}" />
-                    <DockPanel>
-                        <Button DockPanel.Dock="Right" Margin="12,0,0,0" Command="{Binding CheckUpdateCommand}">
+                    <DockPanel HorizontalSpacing="12">
+                        <Button DockPanel.Dock="Right" Command="{Binding CheckUpdateCommand}">
                             <StackPanel Classes="iconText">
                                 <ic:FluentIcon Icon="ArrowSync" />
                                 <TextBlock Text="{Binding CheckUpdate, Source={x:Static l:AppLanguage.Current}}" />

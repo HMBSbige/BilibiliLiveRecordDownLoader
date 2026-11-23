@@ -1,5 +1,4 @@
 using Microsoft.Win32;
-using System.Runtime.Versioning;
 using System.Security;
 using System.Text;
 
@@ -39,7 +38,17 @@ internal sealed partial class AutoStartService(ILogger<AutoStartService> logger)
 	{
 		if (OperatingSystem.IsWindows())
 		{
-			SetWindowsEnabled(enabled);
+			using RegistryKey key = Registry.CurrentUser.CreateSubKey(WindowsRunKey);
+
+			if (enabled)
+			{
+				key.SetValue(AppConsts.Name, WindowsCommand);
+			}
+			else
+			{
+				key.DeleteValue(AppConsts.Name, false);
+			}
+
 			return;
 		}
 
@@ -96,34 +105,17 @@ internal sealed partial class AutoStartService(ILogger<AutoStartService> logger)
 		return OperatingSystem.IsMacOS() ? CreateLaunchAgent() : CreateDesktopEntry();
 	}
 
-	[SupportedOSPlatform("windows")]
-	private static void SetWindowsEnabled(bool enabled)
-	{
-		using RegistryKey key = Registry.CurrentUser.CreateSubKey(WindowsRunKey);
-
-		if (enabled)
-		{
-			key.SetValue(AppConsts.Name, WindowsCommand);
-		}
-		else
-		{
-			key.DeleteValue(AppConsts.Name, false);
-		}
-	}
-
 	private static string? GetStartupFilePath()
 	{
-		string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-
 		if (OperatingSystem.IsMacOS())
 		{
-			return Path.Combine(home, "Library", "LaunchAgents", $"{MacLaunchAgentLabel}.plist");
+			return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "LaunchAgents", $"{MacLaunchAgentLabel}.plist");
 		}
 
 		if (OperatingSystem.IsLinux())
 		{
-			string configHome = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME") is { Length: > 0 } xdg ? xdg : Path.Combine(home, ".config");
-			return Path.Combine(configHome, "autostart", $"{AppConsts.Name}.desktop");
+			// ApplicationData 在 Linux 上按 XDG 规范取 XDG_CONFIG_HOME，未设置或不是绝对路径时用 ~/.config；目录可能还没建，写入时再创建
+			return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.DoNotVerify), "autostart", $"{AppConsts.Name}.desktop");
 		}
 
 		return null;

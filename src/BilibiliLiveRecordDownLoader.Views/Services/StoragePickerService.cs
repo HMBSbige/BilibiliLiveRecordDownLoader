@@ -2,9 +2,6 @@ namespace BilibiliLiveRecordDownLoader.Views.Services;
 
 internal sealed class StoragePickerService(ApplicationShell shell) : IStoragePickerService
 {
-	private static readonly string[] VideoPatterns = ["*.flv", "*.mp4", "*.ts", "*.mkv", "*.m4s"];
-	private static readonly string[] DanmakuPatterns = ["*.xml"];
-
 	private IStorageProvider StorageProvider => shell.Window.StorageProvider;
 
 	public async Task<string?> PickFolderAsync(string? initialDirectory = null)
@@ -43,7 +40,7 @@ internal sealed class StoragePickerService(ApplicationShell shell) : IStoragePic
 		(
 			new FilePickerSaveOptions
 			{
-				SuggestedStartLocation = hasSuggestion ? await TryGetFolderAsync(Path.GetDirectoryName(suggestedPath)) : null,
+				SuggestedStartLocation = await TryGetFolderAsync(Path.GetDirectoryName(suggestedPath)),
 				SuggestedFileName = hasSuggestion ? Path.GetFileName(suggestedPath) : null,
 				DefaultExtension = hasSuggestion ? Path.GetExtension(suggestedPath) : ".mp4",
 				FileTypeChoices = [VideoFileType, AllFileType]
@@ -53,9 +50,9 @@ internal sealed class StoragePickerService(ApplicationShell shell) : IStoragePic
 		return file?.TryGetLocalPath();
 	}
 
-	private static FilePickerFileType VideoFileType => new(AppLanguage.Current.VideoFiles) { Patterns = VideoPatterns };
+	private static FilePickerFileType VideoFileType => new(AppLanguage.Current.VideoFiles) { Patterns = ["*.flv", "*.mp4", "*.ts", "*.mkv", "*.m4s"] };
 
-	private static FilePickerFileType DanmakuFileType => new(AppLanguage.Current.DanmakuFiles) { Patterns = DanmakuPatterns };
+	private static FilePickerFileType DanmakuFileType => new(AppLanguage.Current.DanmakuFiles) { Patterns = ["*.xml"] };
 
 	// "*" 才能匹配 Unix 上没有扩展名的 ffmpeg
 	private static FilePickerFileType AllFileType => new(AppLanguage.Current.AllFiles) { Patterns = ["*"] };

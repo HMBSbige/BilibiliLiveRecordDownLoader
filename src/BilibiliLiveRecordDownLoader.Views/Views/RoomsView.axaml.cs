@@ -99,7 +99,7 @@ public partial class RoomsView : UserControl
 	// 双击手势按连击数另外触发，按钮处理了按下也拦不住
 	private void OnRoomDoubleTapped(object? sender, TappedEventArgs e)
 	{
-		if (IsOnRow(e.Source) && DataContext is RoomListViewModel { EditRoomCommand: ICommand command } && command.CanExecute(null))
+		if (IsOnRow(e.Source) && _viewModel?.EditRoomCommand is ICommand command && command.CanExecute(null))
 		{
 			command.Execute(null);
 		}

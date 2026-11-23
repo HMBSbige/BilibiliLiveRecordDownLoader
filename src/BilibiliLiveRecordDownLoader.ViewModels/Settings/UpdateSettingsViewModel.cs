@@ -2,10 +2,14 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.Settings;
 
 public sealed partial class UpdateSettingsViewModel : ViewModelBase
 {
-	private bool _isInitialized;
+	private readonly IAppConfigManager _configManager;
+	private readonly IUpdateAppService _updateAppService;
 
-	public UpdateSettingsViewModel()
+	public UpdateSettingsViewModel(IAppConfigManager configManager, IUpdateAppService updateAppService)
 	{
+		_configManager = configManager;
+		_updateAppService = updateAppService;
+
 		CheckUpdateCommand.DisposeWith(Disposables);
 		OpenHomepageCommand.DisposeWith(Disposables);
 		OpenConfigDirectoryCommand.DisposeWith(Disposables);
@@ -16,7 +20,7 @@ public sealed partial class UpdateSettingsViewModel : ViewModelBase
 		OnLanguageChanged(UpdateVersionText);
 	}
 
-	public string CurrentVersion => AppLocator.Current.GetRequiredService<IUpdateAppService>().CurrentVersion;
+	public string CurrentVersion => _updateAppService.CurrentVersion;
 
 	[Reactive]
 	public partial bool AutoCheckUpdate { get; set; }
@@ -32,18 +36,11 @@ public sealed partial class UpdateSettingsViewModel : ViewModelBase
 
 	internal void ApplyConfig(AppConfig config)
 	{
-		if (_isInitialized)
-		{
-			return;
-		}
-
 		AutoCheckUpdate = config.AutoCheckUpdate;
 		IncludePreRelease = config.IncludePreRelease;
 
-		PersistToConfig(this.WhenChanged(static viewModel => viewModel.AutoCheckUpdate), static (appConfig, value) => appConfig.AutoCheckUpdate = value);
-		PersistToConfig(this.WhenChanged(static viewModel => viewModel.IncludePreRelease), static (appConfig, value) => appConfig.IncludePreRelease = value);
-
-		_isInitialized = true;
+		PersistToConfig(_configManager, this.WhenChanged(static viewModel => viewModel.AutoCheckUpdate), static (appConfig, value) => appConfig.AutoCheckUpdate = value);
+		PersistToConfig(_configManager, this.WhenChanged(static viewModel => viewModel.IncludePreRelease), static (appConfig, value) => appConfig.IncludePreRelease = value);
 	}
 
 	internal async Task CheckForUpdateOnStartupAsync(AppConfig config, CancellationToken cancellationToken = default)
@@ -54,7 +51,7 @@ public sealed partial class UpdateSettingsViewModel : ViewModelBase
 		}
 
 		// 开机自启时网络可能还没就绪，失败不打扰用户
-		if (await AppLocator.Current.GetRequiredService<IUpdateAppService>().TryCheckForUpdateAsync(IncludePreRelease, cancellationToken) is { } result)
+		if (await _updateAppService.TryCheckForUpdateAsync(IncludePreRelease, cancellationToken) is { } result)
 		{
 			ShowResult(result, silentOnLatest: true);
 		}
@@ -63,7 +60,7 @@ public sealed partial class UpdateSettingsViewModel : ViewModelBase
 	[ReactiveCommand]
 	private async Task CheckUpdateAsync(CancellationToken cancellationToken)
 	{
-		ShowResult(await AppLocator.Current.GetRequiredService<IUpdateAppService>().CheckForUpdateAsync(IncludePreRelease, cancellationToken), silentOnLatest: false);
+		ShowResult(await _updateAppService.CheckForUpdateAsync(IncludePreRelease, cancellationToken), silentOnLatest: false);
 	}
 
 	[ReactiveCommand]

@@ -22,7 +22,7 @@ public sealed class AccountViewModelTest
 	[MethodDataSource(nameof(CheckFailures))]
 	public async Task FailedCheckLeavesTheCheckingStateAsync(Exception failure, CancellationToken cancellationToken)
 	{
-		FakeAccountAppService accounts = new() { IsLoggedIn = _ => throw failure };
+		FakeAccountAppService accounts = new() { IsLoggedIn = OnThreadPool(() => throw failure) };
 		using AccountViewModel viewModel = new(accounts, new FakeConfigManager());
 		ConcurrentQueue<Exception> thrown = new();
 		using IDisposable subscription = viewModel.CheckLoginCommand.ThrownExceptions.Subscribe(thrown.Enqueue);
@@ -30,11 +30,12 @@ public sealed class AccountViewModelTest
 		((ICommand)viewModel.CheckLoginCommand).Execute(null);
 		// 异常是异步交给订阅者的，等它到了再结束，否则会落到全局处理
 		await TestWait.UntilAsync(() => !thrown.IsEmpty, "the exception reaches the subscriber", cancellationToken);
+		Exception reported = await Assert.That(thrown).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(viewModel.IsLoggedIn).IsFalse();
-			await Assert.That(thrown.Single()).IsSameReferenceAs(failure);
+			await Assert.That(reported).IsSameReferenceAs(failure);
 		}
 	}
 
@@ -46,7 +47,14 @@ public sealed class AccountViewModelTest
 		config.Cookie = "old";
 		FakeConfigManager configManager = new(config);
 		ConcurrentQueue<string> checkedCookies = new();
-		FakeAccountAppService accounts = new() { IsLoggedIn = _ => { checkedCookies.Enqueue(config.Cookie ?? string.Empty); return true; } };
+		FakeAccountAppService accounts = new()
+		{
+			IsLoggedIn = OnThreadPool(() =>
+			{
+				checkedCookies.Enqueue(config.Cookie ?? string.Empty);
+				return true;
+			})
+		};
 		using AccountViewModel viewModel = new(accounts, configManager);
 		viewModel.ApplyConfig(config);
 
@@ -54,6 +62,34 @@ public sealed class AccountViewModelTest
 		await TestWait.UntilAsync(() => viewModel.IsLoggedIn is true, "the new cookie is checked as logged in", cancellationToken);
 
 		await Assert.That(checkedCookies).IsEquivalentTo(["new"], StringComparer.Ordinal);
+	}
+
+	// 启动时的检查还没返回，用户就粘贴了新的 Cookie；用旧 Cookie 的那次后返回，不能盖掉新 Cookie 的结果
+	[Test]
+	public async Task OlderCheckFinishingLastDoesNotOverrideTheNewerResultAsync()
+	{
+		AppConfig config = AppConfig.CreateDefault();
+		ConcurrentQueue<TaskCompletionSource<bool>> checks = new();
+		FakeAccountAppService accounts = new()
+		{
+			IsLoggedIn = _ =>
+			{
+				TaskCompletionSource<bool> check = new();
+				checks.Enqueue(check);
+				return check.Task;
+			}
+		};
+		using AccountViewModel viewModel = new(accounts, new FakeConfigManager(config));
+		viewModel.ApplyConfig(config);
+
+		viewModel.RefreshLoginStatus();
+		viewModel.Cookie = "new";
+		TaskCompletionSource<bool>[] pending = [.. checks];
+		await Assert.That(pending).Count().IsEqualTo(2);
+		pending[1].SetResult(true);
+		pending[0].SetResult(false);
+
+		await Assert.That(viewModel.IsLoggedIn).IsTrue();
 	}
 
 	[Test]
@@ -66,11 +102,11 @@ public sealed class AccountViewModelTest
 		int checks = 0;
 		FakeAccountAppService accounts = new()
 		{
-			IsLoggedIn = _ =>
+			IsLoggedIn = OnThreadPool(() =>
 			{
 				Interlocked.Increment(ref checks);
 				return true;
-			},
+			}),
 			Logout = () => config.Cookie = null
 		};
 		using AccountViewModel viewModel = new(accounts, configManager);
@@ -90,15 +126,21 @@ public sealed class AccountViewModelTest
 		}
 	}
 
+	// 和真实的请求一样，结果在别的线程上返回
+	private static Func<CancellationToken, Task<bool>> OnThreadPool(Func<bool> isLoggedIn)
+	{
+		return cancellationToken => Task.Run(isLoggedIn, cancellationToken);
+	}
+
 	private sealed class FakeAccountAppService : IAccountAppService
 	{
-		public Func<CancellationToken, bool> IsLoggedIn { get; init; } = static _ => false;
+		public required Func<CancellationToken, Task<bool>> IsLoggedIn { get; init; }
 
 		public Action Logout { get; init; } = static () => { };
 
 		public Task<bool> IsLoggedInAsync(CancellationToken cancellationToken = default)
 		{
-			return Task.Run(() => IsLoggedIn(cancellationToken), cancellationToken);
+			return IsLoggedIn(cancellationToken);
 		}
 
 		public Task<QrCodeLoginTicket> CreateQrCodeLoginAsync(CancellationToken cancellationToken = default)

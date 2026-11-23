@@ -63,11 +63,12 @@ public sealed class MediaToolsViewModelTest
 		((ICommand)viewModel.QueueRemuxCommand).Execute(null);
 		await TestWait.UntilAsync(() => viewModel.RemuxInput.Length is 0, "the queued remux clears its input", cancellationToken);
 		viewModel.RemuxInput = directory.Combine("a.flv");
+		RemuxInput queued = await Assert.That(tools.Remuxes).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(first).IsEqualTo(directory.Combine("a.mp4"));
-			await Assert.That(tools.Remuxes.Single().Destination).IsEqualTo(first);
+			await Assert.That(queued.Destination).IsEqualTo(first);
 			await Assert.That(viewModel.RemuxOutput).IsEqualTo(directory.Combine("a_1.mp4"));
 		}
 	}

@@ -3,6 +3,7 @@ using BilibiliLiveRecordDownLoader.Application.Contracts.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels.Danmaku;
+using System.Globalization;
 using System.Windows.Input;
 using TUnit.Assertions.Enums;
 
@@ -19,7 +20,7 @@ public sealed class DanmakuFileViewModelTest
 		DanmakuFileSourceDto source = isNative
 			? new DanmakuFileSourceDto.Native("主播", "标题", offset)
 			: new DanmakuFileSourceDto.Standard();
-		DanmakuFileEntryDto[] entries = [.. seconds.Select(static second => new DanmakuFileEntryDto(TimeSpan.FromSeconds(second), FakeDanmakuFeed.Comment(second.ToString(System.Globalization.CultureInfo.InvariantCulture))))];
+		DanmakuFileEntryDto[] entries = [.. seconds.Select(static second => new DanmakuFileEntryDto(TimeSpan.FromSeconds(second), FakeDanmakuFeed.Comment(second.ToString(CultureInfo.InvariantCulture))))];
 
 		return new DanmakuFileDto(DanmakuPath, source, entries, true, new DanmakuDensityDto(TimeSpan.FromSeconds(5), [1, 2, 3]), [Highlight], video);
 	}
@@ -68,23 +69,31 @@ public sealed class DanmakuFileViewModelTest
 		using (Assert.Multiple())
 		{
 			await Assert.That((native.CanAdjustOffset, native.OffsetSeconds, native.Notice)).IsEqualTo((true, 1.5m, null));
-			await Assert.That((standard.CanAdjustOffset, standard.Notice)).IsEqualTo((false, (string?)AppLanguage.Current.DanmakuFileReadOnly));
+			await Assert.That((standard.CanAdjustOffset, standard.Notice)).IsEqualTo((false, AppLanguage.Current.DanmakuFileReadOnly));
 			await Assert.That(((ICommand)standard.RegenerateCommand).CanExecute(null)).IsFalse();
 		}
 	}
 
+	public static IEnumerable<Func<(DanmakuOffsetResult Result, string Message, AppNotificationType Type)>> RewriteResults()
+	{
+		yield return static () => (new DanmakuOffsetResult.Updated(null), AppLanguage.Current.DanmakuOffsetSaved, AppNotificationType.Success);
+		yield return static () => (new DanmakuOffsetResult.Updated("room/20261122-200000_标题_001.ass"), AppLanguage.Current.DanmakuSubtitleRegenerated, AppNotificationType.Success);
+		yield return static () => (new DanmakuOffsetResult.SubtitleNotWritten("room/a.ass", "locked"), AppLanguage.Current.DanmakuSubtitleNotWritten.ToString("a.ass", "locked"), AppNotificationType.Warning);
+	}
+
 	[Test]
 	[Timeout(30_000)]
-	public async Task RegeneratingReloadsTheFileWithTheNewOffsetAsync(CancellationToken cancellationToken)
+	[MethodDataSource(nameof(RewriteResults))]
+	public async Task RegeneratingReloadsTheFileWithTheNewOffsetAsync(DanmakuOffsetResult result, string message, AppNotificationType type, CancellationToken cancellationToken)
 	{
 		FakeDanmakuAppService danmaku = new();
 		TimeSpan? requested = null;
 		danmaku.ChangeOffset = (_, offset) =>
 		{
 			requested = offset;
-			return new DanmakuOffsetResult.Updated("room/20261122-200000_标题_001.ass");
+			return result;
 		};
-		danmaku.OpenFile = _ => CreateFile(TimeSpan.FromSeconds(2), seconds: [12, 22]);
+		danmaku.OpenFile = static _ => CreateFile(TimeSpan.FromSeconds(2), seconds: [12, 22]);
 		using DanmakuFileViewModel viewModel = new(CreateFile(seconds: [10, 20]), danmaku);
 
 		viewModel.OffsetSeconds = 2;
@@ -94,43 +103,24 @@ public sealed class DanmakuFileViewModelTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(requested).IsEqualTo(TimeSpan.FromSeconds(2));
-			await Assert.That(viewModel.Entries.Select(static entry => entry.Text).ToArray()).IsEquivalentTo(["12", "22"], EqualityComparer<string>.Default, CollectionOrdering.Matching);
-			await Assert.That((viewModel.Message, viewModel.MessageType)).IsEqualTo(((string?)AppLanguage.Current.DanmakuSubtitleRegenerated, AppNotificationType.Success));
+			await Assert.That(viewModel.Entries.Select(static entry => entry.Text)).IsEquivalentTo(["12", "22"], CollectionOrdering.Matching);
+			await Assert.That((viewModel.Message, viewModel.MessageType)).IsEqualTo((message, type));
 		}
 	}
 
-	[Test]
-	[Timeout(30_000)]
-	public async Task SubtitleNotWrittenShowsTheReasonAsync(CancellationToken cancellationToken)
+	public static IEnumerable<Func<(Exception Failure, string Message)>> RewriteFailures()
 	{
-		FakeDanmakuAppService danmaku = new()
-		{
-			ChangeOffset = static (_, _) => new DanmakuOffsetResult.SubtitleNotWritten("room/a.ass", "locked"),
-			OpenFile = static _ => CreateFile(seconds: [1])
-		};
-		using DanmakuFileViewModel viewModel = new(CreateFile(seconds: [1]), danmaku);
-
-		((ICommand)viewModel.RegenerateCommand).Execute(null);
-		await WaitForMessageAsync(viewModel, cancellationToken);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That((viewModel.Message, viewModel.MessageType)).IsEqualTo(((string?)AppLanguage.Current.DanmakuSubtitleNotWritten.ToString("a.ass", "locked"), AppNotificationType.Warning));
-			await Assert.That(viewModel.IsBusy).IsFalse();
-		}
-	}
-
-	public static IEnumerable<Func<Exception>> RewriteFailures()
-	{
-		yield return static () => new IOException("正在录制");
-		yield return static () => new InvalidDataException("不是本程序写的");
-		yield return static () => new UnauthorizedAccessException("只读");
+		yield return static () => (new IOException("正在录制"), "正在录制");
+		yield return static () => (new InvalidDataException("不是本程序写的"), "不是本程序写的");
+		yield return static () => (new UnauthorizedAccessException("只读"), "只读");
+		// 系统给的原因没有本地化
+		yield return static () => (new FileNotFoundException(null, DanmakuPath), AppLanguage.Current.FileNotFound.ToString(DanmakuPath));
 	}
 
 	[Test]
 	[Timeout(30_000)]
 	[MethodDataSource(nameof(RewriteFailures))]
-	public async Task RewriteFailuresAreShownWithTheirReasonAsync(Exception failure, CancellationToken cancellationToken)
+	public async Task RewriteFailuresAreShownWithTheirReasonAsync(Exception failure, string message, CancellationToken cancellationToken)
 	{
 		FakeDanmakuAppService danmaku = new() { ChangeOffset = (_, _) => throw failure };
 		using DanmakuFileViewModel viewModel = new(CreateFile(seconds: [1]), danmaku);
@@ -138,11 +128,7 @@ public sealed class DanmakuFileViewModelTest
 		((ICommand)viewModel.RegenerateCommand).Execute(null);
 		await WaitForMessageAsync(viewModel, cancellationToken);
 
-		using (Assert.Multiple())
-		{
-			await Assert.That((viewModel.Message, viewModel.MessageType)).IsEqualTo(((string?)failure.Message, AppNotificationType.Error));
-			await Assert.That(viewModel.IsBusy).IsFalse();
-		}
+		await Assert.That((viewModel.Message, viewModel.MessageType)).IsEqualTo((message, AppNotificationType.Error));
 	}
 
 	[Test]
@@ -151,7 +137,7 @@ public sealed class DanmakuFileViewModelTest
 	{
 		FakeDanmakuAppService danmaku = new();
 		DanmakuHighlightDto? exported = null;
-		danmaku.QueueHighlightExport = (path, highlight) =>
+		danmaku.QueueHighlightExport = (_, highlight) =>
 		{
 			exported = highlight;
 			return "room/20261122-200000_标题_001.highlight-000045.flv";
@@ -164,50 +150,30 @@ public sealed class DanmakuFileViewModelTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(exported).IsEqualTo(Highlight);
-			await Assert.That((viewModel.Message, viewModel.MessageType)).IsEqualTo(((string?)AppLanguage.Current.HighlightExportQueued.ToString("20261122-200000_标题_001.highlight-000045.flv"), AppNotificationType.Success));
+			await Assert.That((viewModel.Message, viewModel.MessageType)).IsEqualTo((AppLanguage.Current.HighlightExportQueued.ToString("20261122-200000_标题_001.highlight-000045.flv"), AppNotificationType.Success));
 		}
 	}
 
-	// 没有 FFmpeg 时剪辑抛 InvalidOperationException
+	public static IEnumerable<Func<(Exception Failure, string Message)>> ExportFailures()
+	{
+		// 没有 FFmpeg 时剪辑抛 InvalidOperationException
+		yield return static () => (new InvalidOperationException(AppLanguage.Current.FFmpegNotFound), AppLanguage.Current.FFmpegNotFound);
+		// 视频在打开文件之后被移走时，应用服务说的是找不到同名视频，不能当成找不到弹幕文件
+		yield return static () => (new FileNotFoundException(VideoNotFound, DanmakuPath), VideoNotFound);
+	}
+
 	[Test]
 	[Timeout(30_000)]
-	public async Task ExportFailuresAreShownWithTheirReasonAsync(CancellationToken cancellationToken)
+	[MethodDataSource(nameof(ExportFailures))]
+	public async Task ExportFailuresAreShownWithTheirReasonAsync(Exception failure, string message, CancellationToken cancellationToken)
 	{
-		FakeDanmakuAppService danmaku = new() { QueueHighlightExport = static (_, _) => throw new InvalidOperationException(AppLanguage.Current.FFmpegNotFound) };
+		FakeDanmakuAppService danmaku = new() { QueueHighlightExport = (_, _) => throw failure };
 		using DanmakuFileViewModel viewModel = new(CreateFile(seconds: [1]), danmaku);
 
 		((ICommand)viewModel.ExportHighlightCommand).Execute(viewModel.Highlights.Single());
 		await WaitForMessageAsync(viewModel, cancellationToken);
 
-		await Assert.That((viewModel.Message, viewModel.MessageType)).IsEqualTo(((string?)AppLanguage.Current.FFmpegNotFound, AppNotificationType.Error));
-	}
-
-	// 视频在打开文件之后被移走时，应用服务说的是找不到同名视频
-	[Test]
-	[Timeout(30_000)]
-	public async Task MissingVideoIsNotReportedAsAMissingDanmakuFileAsync(CancellationToken cancellationToken)
-	{
-		string reason = AppLanguage.Current.DanmakuVideoNotFound.ToString(Path.GetFileName(DanmakuPath));
-		FakeDanmakuAppService danmaku = new() { QueueHighlightExport = (path, _) => throw new FileNotFoundException(reason, path) };
-		using DanmakuFileViewModel viewModel = new(CreateFile(seconds: [1]), danmaku);
-
-		((ICommand)viewModel.ExportHighlightCommand).Execute(viewModel.Highlights.Single());
-		await WaitForMessageAsync(viewModel, cancellationToken);
-
-		await Assert.That((viewModel.Message, viewModel.MessageType)).IsEqualTo(((string?)reason, AppNotificationType.Error));
-	}
-
-	[Test]
-	[Timeout(30_000)]
-	public async Task MissingDanmakuFileIsReportedWithItsPathAsync(CancellationToken cancellationToken)
-	{
-		FakeDanmakuAppService danmaku = new() { ChangeOffset = static (path, _) => throw new FileNotFoundException(null, path) };
-		using DanmakuFileViewModel viewModel = new(CreateFile(seconds: [1]), danmaku);
-
-		((ICommand)viewModel.RegenerateCommand).Execute(null);
-		await WaitForMessageAsync(viewModel, cancellationToken);
-
-		await Assert.That((viewModel.Message, viewModel.MessageType)).IsEqualTo(((string?)AppLanguage.Current.FileNotFound.ToString(DanmakuPath), AppNotificationType.Error));
+		await Assert.That((viewModel.Message, viewModel.MessageType)).IsEqualTo((message, AppNotificationType.Error));
 	}
 
 	[Test]
@@ -227,18 +193,10 @@ public sealed class DanmakuFileViewModelTest
 	{
 		DanmakuHighlightViewModel highlight = new(Highlight with { Phrase = "" });
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(highlight.Phrase).IsEqualTo(AppLanguage.Current.ChapterHighlightWithoutPhrase);
-			await Assert.That(highlight.TimeText).IsEqualTo("0:01:00");
-		}
+		await Assert.That((highlight.Phrase, highlight.TimeText)).IsEqualTo((AppLanguage.Current.ChapterHighlightWithoutPhrase, "0:01:00"));
 	}
 
-	private static async Task WaitForMessageAsync(DanmakuFileViewModel viewModel, CancellationToken cancellationToken)
-	{
-		await TestWait.UntilAsync(() => viewModel.Message is not null && !viewModel.IsBusy, "the file has been read and a message is shown", cancellationToken);
-	}
-
+	// 文件按时间排序，删除可能排在被删的 SC 之前
 	[Test]
 	public async Task SuperChatDeletionsMarkTheSuperChatInsteadOfBeingListedAsync()
 	{
@@ -247,17 +205,20 @@ public sealed class DanmakuFileViewModelTest
 		{
 			Entries =
 			[
+				new DanmakuFileEntryDto(TimeSpan.FromSeconds(10), new DanmakuEntryDto.SuperChatDeletion([7])),
 				new DanmakuFileEntryDto(TimeSpan.FromSeconds(10), new DanmakuEntryDto.SuperChat(7, sender, "被删", 30_000, TimeSpan.FromMinutes(1))),
-				new DanmakuFileEntryDto(TimeSpan.FromSeconds(20), new DanmakuEntryDto.SuperChat(8, sender, "留着", 30_000, TimeSpan.FromMinutes(1))),
-				new DanmakuFileEntryDto(TimeSpan.FromSeconds(30), new DanmakuEntryDto.SuperChatDeletion([7]))
+				new DanmakuFileEntryDto(TimeSpan.FromSeconds(20), new DanmakuEntryDto.SuperChat(8, sender, "留着", 30_000, TimeSpan.FromMinutes(1)))
 			]
 		};
 		using DanmakuFileViewModel viewModel = new(file, new FakeDanmakuAppService());
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(viewModel.Entries.Select(static entry => entry.Text).ToArray()).IsEquivalentTo(["被删", "留着"], EqualityComparer<string>.Default, CollectionOrdering.Matching);
-			await Assert.That(viewModel.Entries.Select(static entry => entry.IsDeleted).ToArray()).IsEquivalentTo([true, false], EqualityComparer<bool>.Default, CollectionOrdering.Matching);
-		}
+		await Assert.That(viewModel.Entries.Select(static entry => (entry.Text, entry.IsDeleted))).IsEquivalentTo([("被删", true), ("留着", false)], CollectionOrdering.Matching);
+	}
+
+	private static string VideoNotFound => AppLanguage.Current.DanmakuVideoNotFound.ToString(Path.GetFileName(DanmakuPath));
+
+	private static async Task WaitForMessageAsync(DanmakuFileViewModel viewModel, CancellationToken cancellationToken)
+	{
+		await TestWait.UntilAsync(() => viewModel.Message is not null && !viewModel.IsBusy, "the file has been read and a message is shown", cancellationToken);
 	}
 }

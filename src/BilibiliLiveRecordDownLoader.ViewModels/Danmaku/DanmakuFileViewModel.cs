@@ -2,11 +2,10 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace BilibiliLiveRecordDownLoader.ViewModels.Danmaku;
 
-// 列表按文件内时间排序
 public sealed partial class DanmakuFileViewModel : ViewModelBase
 {
 	private readonly IDanmakuAppService _danmaku;
-	private DanmakuEntryViewModel[] _all = [];
+	private DanmakuEntryViewModel[] _all;
 
 	// 不留整份文件，原始条目在行建好后就不再需要
 	private DanmakuFileSourceDto _source;
@@ -88,6 +87,7 @@ public sealed partial class DanmakuFileViewModel : ViewModelBase
 	[Reactive]
 	public partial AppNotificationType MessageType { get; private set; }
 
+	// 应用服务按文件内时间排好了序，可以二分查找
 	[ReactiveCommand]
 	private void JumpTo(TimeSpan time)
 	{
@@ -178,13 +178,13 @@ public sealed partial class DanmakuFileViewModel : ViewModelBase
 		(Message, MessageType) = (message, AppNotificationType.Error);
 	}
 
-	[MemberNotNull(nameof(_source), nameof(_highlights))]
+	[MemberNotNull(nameof(_all), nameof(_source), nameof(_highlights))]
 	private void Load(DanmakuFileDto file)
 	{
 		(_source, _isComplete, _highlights) = (file.Source, file.IsComplete, file.Highlights);
 		// 先收齐所有删除再标，文件里删除不一定排在 SC 之后
 		HashSet<long> deleted = [.. file.Entries.Select(static entry => entry.Entry).OfType<DanmakuEntryDto.SuperChatDeletion>().SelectMany(static deletion => deletion.Ids)];
-		_all = [.. file.Entries.Select(static (entry, index) => (Entry: entry, Index: index)).Where(static item => item.Entry.Entry is not DanmakuEntryDto.SuperChatDeletion).Select(static item => DanmakuEntryViewModel.FromFile(item.Index, item.Entry))];
+		_all = [.. file.Entries.Where(static entry => entry.Entry is not DanmakuEntryDto.SuperChatDeletion).Select(DanmakuEntryViewModel.FromFile)];
 		DanmakuEntryViewModel.MarkDeleted(_all, deleted);
 		Density = file.Density;
 		Duration = TimeSpan.FromTicks(Math.Max(file.Entries is [.., var last] ? last.Time.Ticks : 0, file.Density.BinWidth.Ticks * file.Density.Counts.Count));

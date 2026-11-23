@@ -18,11 +18,14 @@ internal static class Program
 			return 0;
 		}
 
-		PosixSignalRegistration[] signals = OperatingSystem.IsWindows() ? [] : [.. TerminationSignals.Select(static signal => PosixSignalRegistration.Create(signal, OnTerminationSignal))];
+		PosixSignalRegistration[] signals = [];
 
 		try
 		{
-			return BuildAvaloniaApp(AppStartupOptions.Parse(args), singleInstance).StartWithClassicDesktopLifetime(args);
+			return BuildAvaloniaApp(AppStartupOptions.Parse(args))
+				// 平台初始化之后才能往 UI 线程投递，容器也在那时建好
+				.AfterSetup(_ => signals = ListenForRequests(singleInstance))
+				.StartWithClassicDesktopLifetime(args);
 		}
 		finally
 		{
@@ -36,25 +39,34 @@ internal static class Program
 		}
 	}
 
-	private static AppBuilder BuildAvaloniaApp(AppStartupOptions startupOptions, SingleInstance singleInstance)
+	private static AppBuilder BuildAvaloniaApp(AppStartupOptions startupOptions)
 	{
 		return AppBuilder.Configure<App>()
 			.UsePlatformDetect()
 			.UseBilibiliLiveRecordDownLoader(startupOptions)
-			// 平台初始化之后才能把激活请求投递到 UI 线程，容器也在那时建好
-			.AfterSetup(_ => ListenForActivation(singleInstance))
 			.LogToTrace()
 			.With(new Win32PlatformOptions { RenderingMode = [Win32RenderingMode.AngleEgl, Win32RenderingMode.Vulkan, Win32RenderingMode.Wgl, Win32RenderingMode.Software] })
 			.With(new X11PlatformOptions { RenderingMode = [X11RenderingMode.Vulkan, X11RenderingMode.Egl, X11RenderingMode.Glx, X11RenderingMode.Software] })
-			// Skia requires the entry points of the loader's Vulkan version, up to 1.4, not the instance's
+			// Skia 按加载器的 Vulkan 版本（最高 1.4）检查函数入口，不看实例的版本，Avalonia 默认建的 1.1 实例不够
 			.With(new VulkanOptions { VulkanInstanceCreationOptions = { VulkanVersion = new Version(1, 4, 0) } });
 	}
 
-	private static void ListenForActivation(SingleInstance singleInstance)
+	private static PosixSignalRegistration[] ListenForRequests(SingleInstance singleInstance)
 	{
 		IApplicationShell shell = AppLocator.Current.GetRequiredService<IApplicationShell>();
 		_ = shell.ShuttingDown.Register(singleInstance.StopListening);
 		singleInstance.StartListening(() => Dispatcher.UIThread.Post(shell.ShowMainWindow));
+
+		// 信号处理程序在别的线程上运行，平台初始化前它首次访问 Dispatcher.UIThread 会把 UI 线程定成那个线程，平台初始化随即失败；
+		// 所以到这里才接管，在此之前收到的终止信号按默认处理结束进程，那时还没有要收尾的东西
+		return OperatingSystem.IsWindows() ? [] : [.. TerminationSignals.Select(signal => PosixSignalRegistration.Create(signal, OnTerminationSignal))];
+
+		// 拦下默认的结束进程，正常关闭程序，退出前停止录制并收尾
+		void OnTerminationSignal(PosixSignalContext context)
+		{
+			context.Cancel = true;
+			Dispatcher.UIThread.Post(shell.Shutdown);
+		}
 	}
 
 	private static void Shutdown()
@@ -108,12 +120,5 @@ internal static class Program
 		{
 			AppLocator.GetLocator().Dispose();
 		}
-	}
-
-	// 与托盘退出走同一条路径，让录制正常收尾
-	private static void OnTerminationSignal(PosixSignalContext context)
-	{
-		context.Cancel = true;
-		Dispatcher.UIThread.Post(static () => AppLocator.Current.GetRequiredService<IApplicationShell>().Shutdown());
 	}
 }

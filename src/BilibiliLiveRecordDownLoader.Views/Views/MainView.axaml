@@ -13,9 +13,9 @@
             <Setter Property="Padding" Value="0" />
         </Style>
         <Style Selector="ListBox.nav > ListBoxItem">
-            <Setter Property="Padding" Value="12,9" />
+            <Setter Property="Padding" Value="12,8" />
             <Setter Property="Margin" Value="0,2" />
-            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="CornerRadius" Value="{DynamicResource SemiBorderRadiusMedium}" />
         </Style>
         <Style Selector="ListBox.nav > ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource SemiColorPrimaryLight}" />
@@ -34,7 +34,7 @@
             <Setter Property="IconVariant" Value="Filled" />
         </Style>
         <Style Selector="ListBox.nav StackPanel.iconText">
-            <Setter Property="Spacing" Value="10" />
+            <Setter Property="Spacing" Value="12" />
         </Style>
     </UserControl.Styles>
 
@@ -44,7 +44,7 @@
                     Background="{DynamicResource SemiColorBackground1}"
                     BorderBrush="{DynamicResource SemiColorBorder}" BorderThickness="0,0,1,0">
                 <DockPanel>
-                    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="20,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="2" Margin="12,8"
+                    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="20,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="2" Margin="12,8"
                           IsVisible="{Binding Rooms.RecordingSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                         <Ellipse Grid.Row="0" Grid.Column="0" Width="8" Height="8" Fill="{DynamicResource SemiColorDanger}" />
                         <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Rooms.RecordingSummary}" TextTrimming="CharacterEllipsis"

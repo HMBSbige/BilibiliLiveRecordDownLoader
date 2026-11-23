@@ -5,8 +5,6 @@ public sealed partial class RecordingSettingsViewModel(IAppConfigManager configM
 	// 数字框每按一个键就改一次值，录制中途会读分段设置，不能存输到一半的数
 	internal static readonly TimeSpan NumberInputQuietPeriod = TimeSpan.FromSeconds(1);
 
-	private bool _isInitialized;
-
 	public IReadOnlyList<RecorderType> RecorderTypeOptions { get; } = Enum.GetValues<RecorderType>();
 
 	public IReadOnlyList<StreamHostSelection> HostSelectionOptions { get; } = Enum.GetValues<StreamHostSelection>();
@@ -18,10 +16,10 @@ public sealed partial class RecordingSettingsViewModel(IAppConfigManager configM
 	public PriorityListViewModel FormatPriority { get; } = new();
 
 	[Reactive]
-	public partial RecorderType RecorderType { get; set; } = RecorderType.BuiltIn;
+	public partial RecorderType RecorderType { get; set; }
 
 	[Reactive]
-	public partial StreamHostSelection HostSelection { get; set; } = StreamHostSelection.FirstResponse;
+	public partial StreamHostSelection HostSelection { get; set; }
 
 	[Reactive]
 	public partial bool ConvertToMp4 { get; set; }
@@ -30,7 +28,7 @@ public sealed partial class RecordingSettingsViewModel(IAppConfigManager configM
 	public partial bool DeleteAfterConvert { get; set; }
 
 	[Reactive]
-	public partial RecordingSplitMode SplitMode { get; set; } = RecordingSplitMode.None;
+	public partial RecordingSplitMode SplitMode { get; set; }
 
 	[Reactive]
 	public partial decimal SplitDurationMinutes { get; set; }
@@ -52,11 +50,6 @@ public sealed partial class RecordingSettingsViewModel(IAppConfigManager configM
 
 	internal void ApplyConfig(AppConfig config)
 	{
-		if (_isInitialized)
-		{
-			return;
-		}
-
 		RecorderType = config.RecorderType;
 		HostSelection = config.StreamHostSelection;
 		ConvertToMp4 = config.ConvertToMp4;
@@ -91,7 +84,5 @@ public sealed partial class RecordingSettingsViewModel(IAppConfigManager configM
 		// 保存可能在线程池上执行，用发出的快照，不去读界面正在改的列表
 		PersistToConfig(configManager, CodecPriority.WhenChanged(static list => list.Values), static (appConfig, values) => appConfig.CodecPriority = [.. values.OfType<StreamCodec>()]);
 		PersistToConfig(configManager, FormatPriority.WhenChanged(static list => list.Values), static (appConfig, values) => appConfig.FormatPriority = [.. values.OfType<StreamFormat>()]);
-
-		_isInitialized = true;
 	}
 }

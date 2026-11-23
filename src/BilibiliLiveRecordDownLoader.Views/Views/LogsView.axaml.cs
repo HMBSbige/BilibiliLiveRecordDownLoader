@@ -11,37 +11,12 @@ public partial class LogsView : UserControl
 	private const double EdgeTolerance = 4;
 	private const double MinColumnWidth = 40;
 
-	// NaN 表示按内容自适应
-	public static readonly StyledProperty<double> TimeColumnWidthProperty = AvaloniaProperty.Register<LogsView, double>(nameof(TimeColumnWidth), double.NaN);
-
-	public static readonly StyledProperty<double> LevelColumnWidthProperty = AvaloniaProperty.Register<LogsView, double>(nameof(LevelColumnWidth), double.NaN);
-
-	public static readonly StyledProperty<double> RoomColumnWidthProperty = AvaloniaProperty.Register<LogsView, double>(nameof(RoomColumnWidth), double.NaN);
-
 	private LogViewModel? _viewModel;
 	private bool _isScrollPending;
 
 	public LogsView()
 	{
 		InitializeComponent();
-	}
-
-	public double TimeColumnWidth
-	{
-		get => GetValue(TimeColumnWidthProperty);
-		set => SetValue(TimeColumnWidthProperty, value);
-	}
-
-	public double LevelColumnWidth
-	{
-		get => GetValue(LevelColumnWidthProperty);
-		set => SetValue(LevelColumnWidthProperty, value);
-	}
-
-	public double RoomColumnWidth
-	{
-		get => GetValue(RoomColumnWidthProperty);
-		set => SetValue(RoomColumnWidthProperty, value);
 	}
 
 	protected override void OnDataContextChanged(EventArgs e)
@@ -86,26 +61,12 @@ public partial class LogsView : UserControl
 			: scroll.Offset.Y + scroll.Viewport.Height >= scroll.Extent.Height - EdgeTolerance;
 	}
 
-	private void OnTimeColumnResize(object? sender, VectorEventArgs e)
-	{
-		ResizeColumn(sender, e, TimeColumnWidthProperty);
-	}
-
-	private void OnLevelColumnResize(object? sender, VectorEventArgs e)
-	{
-		ResizeColumn(sender, e, LevelColumnWidthProperty);
-	}
-
-	private void OnRoomColumnResize(object? sender, VectorEventArgs e)
-	{
-		ResizeColumn(sender, e, RoomColumnWidthProperty);
-	}
-
-	private void ResizeColumn(object? sender, VectorEventArgs e, StyledProperty<double> property)
+	// 表头单元格的宽度一开始是 NaN，按内容自适应；各行的单元格绑定它
+	private void OnColumnResize(object? sender, VectorEventArgs e)
 	{
 		if (sender is Thumb { Parent: Control cell })
 		{
-			SetValue(property, Math.Max(MinColumnWidth, cell.Bounds.Width + e.Vector.X));
+			cell.Width = Math.Max(MinColumnWidth, cell.Bounds.Width + e.Vector.X);
 		}
 	}
 

@@ -9,59 +9,39 @@ public sealed class RecordingSettingsViewModelTest
 {
 	[Test]
 	[Timeout(30_000)]
-	public async Task SplitSettingsAreRestoredFromAndSavedToTheConfigAsync(CancellationToken cancellationToken)
+	public async Task SplitAndFileNameSettingsAreRestoredFromAndSavedToTheConfigAsync(CancellationToken cancellationToken)
 	{
 		AppConfig config = AppConfig.CreateDefault();
 		config.SplitMode = RecordingSplitMode.Size;
 		config.SplitDuration = TimeSpan.FromMinutes(30);
 		config.SplitSizeMegabytes = 2000;
 		config.SplitOnTitleChange = true;
+		config.IncludeTitleInFileName = false;
 		FakeConfigManager configManager = new(config);
 		using RecordingSettingsViewModel viewModel = new(configManager);
 
 		viewModel.ApplyConfig(config);
-		(RecordingSplitMode mode, decimal minutes, decimal megabytes, bool onTitle, bool isBySize, bool isByDuration) = (viewModel.SplitMode, viewModel.SplitDurationMinutes, viewModel.SplitSizeMegabytes, viewModel.SplitOnTitleChange, viewModel.IsSplitBySize, viewModel.IsSplitByDuration);
+		(RecordingSplitMode mode, decimal minutes, decimal megabytes, bool onTitle, bool titleInName, bool isBySize, bool isByDuration) = (viewModel.SplitMode, viewModel.SplitDurationMinutes, viewModel.SplitSizeMegabytes, viewModel.SplitOnTitleChange, viewModel.IncludeTitleInFileName, viewModel.IsSplitBySize, viewModel.IsSplitByDuration);
 		int updates = configManager.UpdateCount;
 		viewModel.SplitMode = RecordingSplitMode.Duration;
 		viewModel.SplitDurationMinutes = 90;
 		viewModel.SplitSizeMegabytes = 512;
 		viewModel.SplitOnTitleChange = false;
+		viewModel.IncludeTitleInFileName = true;
 
-		await TestWait.UntilAsync(() => configManager.UpdateCount >= 4, "all four changes are saved", cancellationToken);
+		await TestWait.UntilAsync(() => configManager.UpdateCount >= 5, "all five changes are saved", cancellationToken);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(mode).IsEqualTo(RecordingSplitMode.Size);
-			await Assert.That((minutes, megabytes, onTitle)).IsEqualTo((30m, 2000m, true));
+			await Assert.That((minutes, megabytes, onTitle, titleInName)).IsEqualTo((30m, 2000m, true, false));
 			await Assert.That((isBySize, isByDuration)).IsEqualTo((true, false));
 			await Assert.That(updates).IsEqualTo(0);
 			await Assert.That((viewModel.IsSplitBySize, viewModel.IsSplitByDuration)).IsEqualTo((false, true));
 			await Assert.That(config.SplitMode).IsEqualTo(RecordingSplitMode.Duration);
 			await Assert.That(config.SplitDuration).IsEqualTo(TimeSpan.FromMinutes(90));
 			await Assert.That(config.SplitSizeMegabytes).IsEqualTo(512);
-			await Assert.That(config.SplitOnTitleChange).IsFalse();
-		}
-	}
-
-	[Test]
-	[Timeout(30_000)]
-	public async Task TitleInFileNameIsRestoredFromAndSavedToTheConfigAsync(CancellationToken cancellationToken)
-	{
-		AppConfig config = AppConfig.CreateDefault();
-		config.IncludeTitleInFileName = false;
-		FakeConfigManager configManager = new(config);
-		using RecordingSettingsViewModel viewModel = new(configManager);
-
-		viewModel.ApplyConfig(config);
-		bool restored = viewModel.IncludeTitleInFileName;
-		viewModel.IncludeTitleInFileName = true;
-
-		await TestWait.UntilAsync(() => configManager.UpdateCount >= 1, "the change is saved", cancellationToken);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(restored).IsFalse();
-			await Assert.That(config.IncludeTitleInFileName).IsTrue();
+			await Assert.That((config.SplitOnTitleChange, config.IncludeTitleInFileName)).IsEqualTo((false, true));
 		}
 	}
 
@@ -111,7 +91,7 @@ public sealed class RecordingSettingsViewModelTest
 		configManager.Gate.SetResult();
 		await configManager.Updated.Task.WaitAsync(cancellationToken);
 
-		await Assert.That(config.CodecPriority).IsEquivalentTo(changed, EqualityComparer<StreamCodec>.Default, CollectionOrdering.Matching);
+		await Assert.That(config.CodecPriority).IsEquivalentTo(changed, CollectionOrdering.Matching);
 	}
 
 	[Test]

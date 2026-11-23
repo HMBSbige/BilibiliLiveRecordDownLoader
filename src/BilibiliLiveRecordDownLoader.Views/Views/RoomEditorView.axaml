@@ -11,22 +11,25 @@
     Width="560">
     <UserControl.Styles>
         <Style Selector="NumericUpDown">
-            <Setter Property="Increment" Value="1" />
             <Setter Property="FormatString" Value="0.#" />
-            <Setter Property="Maximum" Value="86400" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
         </Style>
         <Style Selector="ComboBox">
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="ItemTemplate" Value="{StaticResource LocalizedLabel}" />
         </Style>
+        <!-- 标签和输入框分行，同一行的两个标签有一个换行时，下面的输入框仍然对齐 -->
+        <Style Selector="Grid.form > TextBlock">
+            <Setter Property="VerticalAlignment" Value="Bottom" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
     </UserControl.Styles>
 
     <DockPanel>
-        <StackPanel DockPanel.Dock="Bottom" Classes="form" Margin="0,20,0,0">
+        <StackPanel Classes="form dialogFooter">
             <Border Classes="errorBanner" IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                    <ic:FluentIcon Grid.Column="0" Icon="ErrorCircle" IconVariant="Filled" FontSize="16" Foreground="{DynamicResource SemiColorDanger}" />
+                    <ic:FluentIcon Grid.Column="0" Icon="ErrorCircle" />
                     <SelectableTextBlock Grid.Column="1" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
                 </Grid>
             </Border>
@@ -61,46 +64,41 @@
                     <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding RecorderType, Source={x:Static l:AppLanguage.Current}}" />
                     <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding RecorderTypeOptions}" SelectedItem="{Binding RecorderType}"
                               AutomationProperties.Name="{Binding RecorderType, Source={x:Static l:AppLanguage.Current}}" />
-                    <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap"
-                               Text="{Binding ConvertToMp4, Source={x:Static l:AppLanguage.Current}}" />
+                    <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,8,0,0" Text="{Binding ConvertToMp4, Source={x:Static l:AppLanguage.Current}}" />
                     <ComboBox Grid.Row="3" Grid.Column="0" ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding ConvertToMp4}"
                               AutomationProperties.Name="{Binding ConvertToMp4, Source={x:Static l:AppLanguage.Current}}" />
-                    <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap"
-                               Text="{Binding DeleteAfterConvert, Source={x:Static l:AppLanguage.Current}}" />
+                    <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,8,0,0" Text="{Binding DeleteAfterConvert, Source={x:Static l:AppLanguage.Current}}" />
                     <ComboBox Grid.Row="3" Grid.Column="1" ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding DeleteAfterConvert}"
                               AutomationProperties.Name="{Binding DeleteAfterConvert, Source={x:Static l:AppLanguage.Current}}" />
-                    <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap"
-                               Text="{Binding RecordingSplit, Source={x:Static l:AppLanguage.Current}}" />
+                    <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,8,0,0" Text="{Binding RecordingSplit, Source={x:Static l:AppLanguage.Current}}" />
                     <ComboBox Grid.Row="5" Grid.Column="0" ItemsSource="{Binding SplitModeOptions}" SelectedItem="{Binding SplitMode}"
                               AutomationProperties.Name="{Binding RecordingSplit, Source={x:Static l:AppLanguage.Current}}" />
-                    <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap" IsVisible="{Binding IsSplitByDuration}"
+                    <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,8,0,0" IsVisible="{Binding IsSplitByDuration}"
                                Text="{Binding SplitDuration, Source={x:Static l:AppLanguage.Current}}" />
                     <DockPanel Grid.Row="5" Grid.Column="1" IsVisible="{Binding IsSplitByDuration}">
-                        <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding Minutes, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Text="{Binding Minutes, Source={x:Static l:AppLanguage.Current}}" />
                         <NumericUpDown Value="{Binding SplitDurationMinutes}" FormatString="0"
                                        Minimum="{x:Static cfg:RecordingSplitDefaults.MinDurationMinutes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxDurationMinutes}"
                                        AutomationProperties.Name="{Binding SplitDuration, Source={x:Static l:AppLanguage.Current}}" />
                     </DockPanel>
-                    <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap" IsVisible="{Binding IsSplitBySize}"
+                    <TextBlock Grid.Row="4" Grid.Column="1" Margin="0,8,0,0" IsVisible="{Binding IsSplitBySize}"
                                Text="{Binding SplitSize, Source={x:Static l:AppLanguage.Current}}" />
                     <DockPanel Grid.Row="5" Grid.Column="1" IsVisible="{Binding IsSplitBySize}">
-                        <TextBlock DockPanel.Dock="Right" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding Megabytes, Source={x:Static l:AppLanguage.Current}}" />
+                        <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Text="{Binding Megabytes, Source={x:Static l:AppLanguage.Current}}" />
                         <NumericUpDown Value="{Binding SplitSizeMegabytes}" Increment="100" FormatString="0"
                                        Minimum="{x:Static cfg:RecordingSplitDefaults.MinSizeMegabytes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxSizeMegabytes}"
                                        AutomationProperties.Name="{Binding SplitSize, Source={x:Static l:AppLanguage.Current}}" />
                     </DockPanel>
-                    <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap"
-                               Text="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}" />
+                    <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,8,0,0" Text="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}" />
                     <ComboBox Grid.Row="7" Grid.Column="0" ItemsSource="{Binding ToggleOptions}" SelectedItem="{Binding SplitOnTitleChange}"
                               AutomationProperties.Name="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}" />
-                    <TextBlock Grid.Row="6" Grid.Column="1" Margin="0,8,0,0" VerticalAlignment="Bottom" TextWrapping="Wrap"
-                               Text="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}" />
+                    <TextBlock Grid.Row="6" Grid.Column="1" Margin="0,8,0,0" Text="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}" />
                     <NumericUpDown Grid.Row="7" Grid.Column="1" Value="{Binding DanmakuOffsetSeconds}" Increment="0.1" FormatString="0.###"
                                    Minimum="{x:Static cfg:DanmakuDefaults.MinOffsetSeconds}" Maximum="{x:Static cfg:DanmakuDefaults.MaxOffsetSeconds}"
                                    PlaceholderText="{Binding DanmakuOffsetPlaceholder}"
                                    AutomationProperties.Name="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}" />
                 </Grid>
-                <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                <Grid Classes="form" ColumnDefinitions="*,*">
                     <StackPanel Grid.Column="0" Classes="field">
                         <CheckBox IsChecked="{Binding OverrideCodecPriority}" Content="{Binding CustomCodecPriority, Source={x:Static l:AppLanguage.Current}}" />
                         <views:PriorityListView DataContext="{Binding CodecPriority}" IsEnabled="{Binding $parent[UserControl].((dialogs:RoomEditorViewModel)DataContext).OverrideCodecPriority}" />
@@ -111,7 +109,7 @@
                     </StackPanel>
                 </Grid>
                 <Expander Classes="inline" Header="{Binding Advanced, Source={x:Static l:AppLanguage.Current}}">
-                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="12">
+                    <Grid Classes="form" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto">
                         <StackPanel Grid.Row="0" Grid.Column="0" Classes="field">
                             <TextBlock Text="{Binding StatusCheckInterval, Source={x:Static l:AppLanguage.Current}}" />
                             <NumericUpDown Value="{Binding StatusCheckIntervalSeconds}" Minimum="{x:Static cfg:RoomDefaults.MinStatusCheckIntervalSeconds}" Maximum="{x:Static cfg:RoomDefaults.MaxIntervalSeconds}" />

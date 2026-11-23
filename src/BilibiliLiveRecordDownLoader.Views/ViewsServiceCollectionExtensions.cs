@@ -22,7 +22,6 @@ public static class ViewsServiceCollectionExtensions
 		services.TryAddSingleton<IAutoStartService, AutoStartService>();
 		services.TryAddSingleton<NotificationExceptionHandler>();
 		services.TryAddSingleton<GlobalExceptionHandler>();
-		services.TryAddSingleton(static provider => new MainWindow { DataContext = provider.GetRequiredService<MainWindowViewModel>() });
 
 		return services;
 	}

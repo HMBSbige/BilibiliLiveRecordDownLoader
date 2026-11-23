@@ -13,7 +13,7 @@ public sealed class RoomEditorViewModelTest
 	[Test]
 	public async Task RoomFollowingTheGlobalSplitStartsItsValuesFromTheGlobalOnesAsync()
 	{
-		using RoomEditorViewModel editor = new(new RoomSettingsDto { RoomId = 1 }, Global, static (_, _) => Task.CompletedTask);
+		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1 }, out _);
 
 		using (Assert.Multiple())
 		{
@@ -28,24 +28,19 @@ public sealed class RoomEditorViewModelTest
 	[Timeout(10_000)]
 	public async Task OnlyTheValueOfTheChosenModeIsSavedAsync(CancellationToken cancellationToken)
 	{
-		TaskCompletionSource<RoomSettingsDto> saved = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1 }, saved);
+		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1 }, out Task<RoomSettingsDto> submitted);
 
 		editor.SplitMode = new ChoiceOption(RecordingSplitMode.Duration);
 		bool isByDuration = editor.IsSplitByDuration;
 		editor.SplitDurationMinutes = 30;
 		editor.SplitSizeMegabytes = 100;
 		editor.SplitOnTitleChange = new ChoiceOption(false);
-		((ICommand)editor.SaveCommand).Execute(null);
-		RoomSettingsDto settings = await saved.Task.WaitAsync(cancellationToken);
+		RoomSettingsDto settings = await SaveAsync(editor, submitted, cancellationToken);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(isByDuration).IsTrue();
-			await Assert.That(settings.SplitMode).IsEqualTo(RecordingSplitMode.Duration);
-			await Assert.That(settings.SplitDuration).IsEqualTo(TimeSpan.FromMinutes(30));
-			await Assert.That(settings.SplitSizeMegabytes).IsNull();
-			await Assert.That(settings.SplitOnTitleChange).IsFalse();
+			await Assert.That((settings.SplitMode, settings.SplitDuration, settings.SplitSizeMegabytes, settings.SplitOnTitleChange)).IsEqualTo((RecordingSplitMode.Duration, TimeSpan.FromMinutes(30), null, false));
 		}
 	}
 
@@ -53,21 +48,16 @@ public sealed class RoomEditorViewModelTest
 	[Timeout(10_000)]
 	public async Task OverriddenSplitIsShownAndClearedWhenFollowingTheGlobalAgainAsync(CancellationToken cancellationToken)
 	{
-		TaskCompletionSource<RoomSettingsDto> saved = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1, SplitMode = RecordingSplitMode.Size, SplitSizeMegabytes = 1000, SplitOnTitleChange = true }, saved);
+		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1, SplitMode = RecordingSplitMode.Size, SplitSizeMegabytes = 1000, SplitOnTitleChange = true }, out Task<RoomSettingsDto> submitted);
 
 		(ChoiceOption mode, bool isBySize, decimal megabytes, ChoiceOption onTitle) = (editor.SplitMode, editor.IsSplitBySize, editor.SplitSizeMegabytes, editor.SplitOnTitleChange);
 		editor.SplitMode = ChoiceOption.Inherit;
 		editor.SplitOnTitleChange = ChoiceOption.Inherit;
-		((ICommand)editor.SaveCommand).Execute(null);
-		RoomSettingsDto settings = await saved.Task.WaitAsync(cancellationToken);
+		RoomSettingsDto settings = await SaveAsync(editor, submitted, cancellationToken);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(mode).IsEqualTo(new ChoiceOption(RecordingSplitMode.Size));
-			await Assert.That(isBySize).IsTrue();
-			await Assert.That(megabytes).IsEqualTo(1000m);
-			await Assert.That(onTitle).IsEqualTo(new ChoiceOption(true));
+			await Assert.That((mode, isBySize, megabytes, onTitle)).IsEqualTo((new ChoiceOption(RecordingSplitMode.Size), true, 1000m, new ChoiceOption(true)));
 			await Assert.That((settings.SplitMode, settings.SplitDuration, settings.SplitSizeMegabytes, settings.SplitOnTitleChange)).IsEqualTo((null, null, null, null));
 		}
 	}
@@ -76,17 +66,10 @@ public sealed class RoomEditorViewModelTest
 	[Timeout(10_000)]
 	public async Task EmptyDanmakuOffsetFollowsTheGlobalOneAsync(CancellationToken cancellationToken)
 	{
-		TaskCompletionSource<RoomSettingsDto> saved = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		AppConfig global = new() { DanmakuOffset = TimeSpan.FromSeconds(0.5) };
-		using RoomEditorViewModel editor = new(new RoomSettingsDto { RoomId = 1 }, global, (settings, _) =>
-		{
-			saved.TrySetResult(settings);
-			return Task.CompletedTask;
-		});
+		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1 }, out Task<RoomSettingsDto> submitted, new AppConfig { DanmakuOffset = TimeSpan.FromSeconds(0.5) });
 
 		(decimal? offset, string placeholder) = (editor.DanmakuOffsetSeconds, editor.DanmakuOffsetPlaceholder);
-		((ICommand)editor.SaveCommand).Execute(null);
-		RoomSettingsDto settings = await saved.Task.WaitAsync(cancellationToken);
+		RoomSettingsDto settings = await SaveAsync(editor, submitted, cancellationToken);
 
 		using (Assert.Multiple())
 		{
@@ -100,29 +83,36 @@ public sealed class RoomEditorViewModelTest
 	[Timeout(10_000)]
 	public async Task DanmakuSettingsOfTheRoomAreSavedAsync(CancellationToken cancellationToken)
 	{
-		TaskCompletionSource<RoomSettingsDto> saved = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1, DanmakuOffset = TimeSpan.FromSeconds(-1) }, saved);
+		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1, DanmakuOffset = TimeSpan.FromSeconds(-1) }, out Task<RoomSettingsDto> submitted);
 
 		decimal? restored = editor.DanmakuOffsetSeconds;
 		editor.IsDanmakuEnabled = true;
 		editor.DanmakuOffsetSeconds = 1.25m;
-		((ICommand)editor.SaveCommand).Execute(null);
-		RoomSettingsDto settings = await saved.Task.WaitAsync(cancellationToken);
+		RoomSettingsDto settings = await SaveAsync(editor, submitted, cancellationToken);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(restored).IsEqualTo(-1m);
-			await Assert.That(settings.IsDanmakuEnabled).IsTrue();
-			await Assert.That(settings.DanmakuOffset).IsEqualTo(TimeSpan.FromSeconds(1.25));
+			await Assert.That((settings.IsDanmakuEnabled, settings.DanmakuOffset)).IsEqualTo((true, TimeSpan.FromSeconds(1.25)));
 		}
 	}
 
-	private static RoomEditorViewModel Open(RoomSettingsDto existing, TaskCompletionSource<RoomSettingsDto> saved)
+	// 检查交给保存的设置，而不是对话框的结果
+	private static RoomEditorViewModel Open(RoomSettingsDto existing, out Task<RoomSettingsDto> submitted, AppConfig? global = null)
 	{
-		return new RoomEditorViewModel(existing, Global, (settings, _) =>
+		TaskCompletionSource<RoomSettingsDto> submission = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		submitted = submission.Task;
+
+		return new RoomEditorViewModel(existing, global ?? Global, (settings, _) =>
 		{
-			saved.TrySetResult(settings);
+			submission.TrySetResult(settings);
 			return Task.CompletedTask;
 		});
+	}
+
+	private static async Task<RoomSettingsDto> SaveAsync(RoomEditorViewModel editor, Task<RoomSettingsDto> submitted, CancellationToken cancellationToken)
+	{
+		((ICommand)editor.SaveCommand).Execute(null);
+		return await submitted.WaitAsync(cancellationToken);
 	}
 }

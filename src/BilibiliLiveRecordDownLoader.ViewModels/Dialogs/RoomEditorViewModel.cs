@@ -40,13 +40,8 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 		SaveCommand.DisposeWith(Disposables);
 
 		this.WhenChanged(static viewModel => viewModel.SplitMode)
-			.Subscribe
-			(mode =>
-				{
-					IsSplitByDuration = mode.As<RecordingSplitMode>() is RecordingSplitMode.Duration;
-					IsSplitBySize = mode.As<RecordingSplitMode>() is RecordingSplitMode.Size;
-				}
-			)
+			.Map(static mode => mode.As<RecordingSplitMode>())
+			.Subscribe(mode => (IsSplitByDuration, IsSplitBySize) = (mode is RecordingSplitMode.Duration, mode is RecordingSplitMode.Size))
 			.DisposeWith(Disposables);
 
 		this.WhenChanged(static viewModel => viewModel.RoomIdText)

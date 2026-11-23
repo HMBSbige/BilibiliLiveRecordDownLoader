@@ -2,15 +2,13 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.Settings;
 
 public sealed partial class DanmakuSettingsViewModel(IAppConfigManager configManager) : ViewModelBase
 {
-	private bool _isInitialized;
-
 	public IReadOnlyList<DanmakuGiftMode> GiftModeOptions { get; } = Enum.GetValues<DanmakuGiftMode>();
 
 	[Reactive]
 	public partial bool RecordSuperChats { get; set; }
 
 	[Reactive]
-	public partial DanmakuGiftMode GiftMode { get; set; } = DanmakuGiftMode.None;
+	public partial DanmakuGiftMode GiftMode { get; set; }
 
 	[Reactive]
 	public partial bool RecordGuards { get; set; }
@@ -32,11 +30,6 @@ public sealed partial class DanmakuSettingsViewModel(IAppConfigManager configMan
 
 	internal void ApplyConfig(AppConfig config)
 	{
-		if (_isInitialized)
-		{
-			return;
-		}
-
 		RecordSuperChats = config.RecordSuperChats;
 		GiftMode = config.GiftMode;
 		RecordGuards = config.RecordGuards;
@@ -54,7 +47,5 @@ public sealed partial class DanmakuSettingsViewModel(IAppConfigManager configMan
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.ShowPaidMessagesInSubtitle), static (appConfig, value) => appConfig.ShowPaidMessagesInSubtitle = value);
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.SaveRawMessages), static (appConfig, value) => appConfig.SaveRawDanmaku = value);
 		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.WriteChaptersOnConvert), static (appConfig, value) => appConfig.WriteChaptersOnConvert = value);
-
-		_isInitialized = true;
 	}
 }

@@ -18,9 +18,9 @@ public sealed class DanmakuPanelViewModelTest
 		AppLocator.CurrentMutable.RegisterConstant(TimeProvider.System);
 	}
 
-	private static DanmakuPanelViewModel Create(IDanmakuAppService danmaku, IAppConfigManager? configManager = null, Func<CancellationToken, Task<bool>>? showLogin = null)
+	private static DanmakuPanelViewModel Create(IDanmakuAppService danmaku, IAppConfigManager? configManager = null)
 	{
-		return new DanmakuPanelViewModel(danmaku, configManager ?? new FakeConfigManager(), showLogin ?? (static _ => Task.FromResult(false))) { AutoRefresh = false };
+		return new DanmakuPanelViewModel(danmaku, configManager ?? new FakeConfigManager(), static _ => Task.FromResult(false)) { AutoRefresh = false };
 	}
 
 	private static RoomItemViewModel Room(long roomId)
@@ -36,17 +36,17 @@ public sealed class DanmakuPanelViewModelTest
 		using RoomItemViewModel room = Room(1);
 
 		panel.Follow(room);
-		int whileClosed = danmaku.Feeds.Count;
+		FakeDanmakuFeed[] whileClosed = [.. danmaku.Feeds];
 		panel.IsOpen = true;
-		LiveDanmakuViewModel? live = panel.Live;
+		long? whileOpen = panel.Live?.RoomId;
 		((ICommand)panel.CloseCommand).Execute(null);
+		FakeDanmakuFeed feed = await Assert.That(danmaku.Feeds).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(whileClosed).IsEqualTo(0);
-			await Assert.That(live?.RoomId).IsEqualTo(1);
-			await Assert.That(danmaku.Feeds.Single().IsDisposed).IsTrue();
-			await Assert.That(panel.Live).IsNull();
+			await Assert.That(whileClosed).IsEmpty();
+			await Assert.That(whileOpen).IsEqualTo(1);
+			await Assert.That((feed.IsDisposed, panel.Live)).IsEqualTo((true, null));
 		}
 	}
 
@@ -62,12 +62,10 @@ public sealed class DanmakuPanelViewModelTest
 		panel.Follow(first);
 		panel.Follow(first);
 		panel.Follow(second);
-		(long RoomId, bool IsDisposed)[] feeds = [.. danmaku.Feeds.Select(static feed => (feed.RoomId, feed.IsDisposed))];
 
 		using (Assert.Multiple())
 		{
-			// 同一房间跟随两次也只订阅一次
-			await Assert.That(feeds).IsEquivalentTo([(1L, true), (2L, false)], EqualityComparer<(long, bool)>.Default, CollectionOrdering.Matching);
+			await Assert.That(danmaku.Feeds.Select(static feed => (feed.RoomId, feed.IsDisposed))).IsEquivalentTo([(1L, true), (2L, false)], CollectionOrdering.Matching).Because("同一房间跟随两次也只订阅一次");
 			await Assert.That(panel.Live?.RoomId).IsEqualTo(2);
 		}
 	}
@@ -104,12 +102,9 @@ public sealed class DanmakuPanelViewModelTest
 		panel.IsOpen = true;
 		panel.Follow(room);
 		panel.OnRoomRemoved(room);
+		FakeDanmakuFeed feed = await Assert.That(danmaku.Feeds).HasSingleItem();
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(danmaku.Feeds.Single().IsDisposed).IsTrue();
-			await Assert.That((panel.Room, panel.Live)).IsEqualTo((null, null));
-		}
+		await Assert.That((feed.IsDisposed, panel.Room, panel.Live)).IsEqualTo((true, null, null));
 	}
 
 	[Test]
@@ -136,14 +131,13 @@ public sealed class DanmakuPanelViewModelTest
 
 		panel.Follow(room);
 		await panel.LoadFileAsync("a.xml", cancellationToken);
-		(bool isOpen, bool hasFile, int feeds) = (panel.IsOpen, panel.File is not null, danmaku.Feeds.Count(static feed => !feed.IsDisposed));
+		(bool IsOpen, bool HasFile, int Feeds) withFile = (panel.IsOpen, panel.File is not null, danmaku.Feeds.Count(static feed => !feed.IsDisposed));
 		((ICommand)panel.CloseFileCommand).Execute(null);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That((isOpen, hasFile, feeds)).IsEqualTo((true, true, 0));
-			await Assert.That(panel.File).IsNull();
-			await Assert.That(panel.Live?.RoomId).IsEqualTo(1);
+			await Assert.That(withFile).IsEqualTo((true, true, 0));
+			await Assert.That((panel.File, panel.Live?.RoomId)).IsEqualTo((null, 1));
 		}
 	}
 
@@ -163,7 +157,7 @@ public sealed class DanmakuPanelViewModelTest
 		using (Assert.Multiple())
 		{
 			await Assert.That((panel.IsOpen, panel.File, panel.Room)).IsEqualTo((true, null, second));
-			await Assert.That(danmaku.Feeds.Select(static feed => (feed.RoomId, feed.IsDisposed)).ToArray()).IsEquivalentTo([(2L, false)], EqualityComparer<(long, bool)>.Default, CollectionOrdering.Matching);
+			await Assert.That(danmaku.Feeds.Select(static feed => (feed.RoomId, feed.IsDisposed))).IsEquivalentTo([(2L, false)], CollectionOrdering.Matching);
 		}
 	}
 
@@ -229,35 +223,28 @@ public sealed class DanmakuPanelViewModelTest
 		await panel.PickFileAsync(second, cancellationToken);
 
 		string fileDirectory = Path.GetDirectoryName(DanmakuFileViewModelTest.CreateFile(seconds: [1]).Path) ?? string.Empty;
-		string[] expected = [RecordingFileLayout.GetRoomDirectory(recordDirectory, 1), fileDirectory, RecordingFileLayout.GetRoomDirectory(recordDirectory, 2)];
 
-		await Assert.That(directories).IsEquivalentTo(expected, EqualityComparer<string>.Default, CollectionOrdering.Matching);
+		await Assert.That(directories).IsEquivalentTo([RecordingFileLayout.GetRoomDirectory(recordDirectory, 1), fileDirectory, RecordingFileLayout.GetRoomDirectory(recordDirectory, 2)], CollectionOrdering.Matching);
 	}
 
-	public static IEnumerable<Func<(Exception Failure, string Expected)>> OpenFailures()
+	// 失败的类别由 DanmakuFileViewModelTest 逐一覆盖，面板和它共用同一套判断
+	public static IEnumerable<Func<(Exception Failure, string Message)>> OpenFailures()
 	{
 		yield return static () => (new FileNotFoundException(null, "a.xml"), AppLanguage.Current.FileNotFound.ToString("a.xml"));
 		yield return static () => (new InvalidDataException("不是弹幕文件"), "不是弹幕文件");
-		yield return static () => (new IOException("被占用"), "被占用");
 	}
 
 	[Test]
 	[Timeout(30_000)]
 	[MethodDataSource(nameof(OpenFailures))]
-	public async Task FilesThatCannotBeOpenedAreReportedInThePanelAsync(Exception failure, string expected, CancellationToken cancellationToken)
+	public async Task FilesThatCannotBeOpenedAreReportedInThePanelAsync(Exception failure, string message, CancellationToken cancellationToken)
 	{
 		FakeDanmakuAppService danmaku = new() { OpenFile = _ => throw failure };
 		using DanmakuPanelViewModel panel = Create(danmaku);
 
 		await panel.LoadFileAsync("a.xml", cancellationToken);
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(panel.IsOpen).IsTrue();
-			await Assert.That(panel.ErrorMessage).IsEqualTo(expected);
-			await Assert.That(panel.File).IsNull();
-			await Assert.That(panel.IsLoadingFile).IsFalse();
-		}
+		await Assert.That((panel.IsOpen, panel.ErrorMessage, panel.File, panel.IsLoadingFile)).IsEqualTo((true, message, null, false));
 	}
 
 	private sealed class GatedDanmakuAppService(FakeDanmakuAppService inner, Task gate) : IDanmakuAppService

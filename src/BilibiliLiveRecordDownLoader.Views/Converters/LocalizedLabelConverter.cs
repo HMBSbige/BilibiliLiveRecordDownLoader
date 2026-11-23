@@ -1,22 +1,13 @@
 namespace BilibiliLiveRecordDownLoader.Views.Converters;
 
-public sealed class LocalizedLabelConverter : IValueConverter, IMultiValueConverter
+// 只用第一个值；其余的绑定只用于在切换语言时触发刷新
+public sealed class LocalizedLabelConverter : IMultiValueConverter
 {
 	public static LocalizedLabelConverter Instance { get; } = new();
 
-	public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-	{
-		return GetLabel(value is ChoiceOption option ? option.Value : value);
-	}
-
 	public object Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
 	{
-		return Convert(values.Count > 0 ? values[0] : null, targetType, parameter, culture);
-	}
-
-	public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-	{
-		throw new NotSupportedException();
+		return GetLabel(values[0] is ChoiceOption option ? option.Value : values[0]);
 	}
 
 	private static string GetLabel(object? value)

@@ -1,9 +1,7 @@
 namespace BilibiliLiveRecordDownLoader.ViewModels.Settings;
 
-public sealed partial class NetworkSettingsViewModel : ViewModelBase
+public sealed partial class NetworkSettingsViewModel(IAppConfigManager configManager, IAppLifecycleService lifecycle) : ViewModelBase
 {
-	private bool _isInitialized;
-
 	[Reactive]
 	public partial string? UserAgent { get; set; }
 
@@ -12,22 +10,15 @@ public sealed partial class NetworkSettingsViewModel : ViewModelBase
 
 	internal void ApplyConfig(AppConfig config)
 	{
-		if (_isInitialized)
-		{
-			return;
-		}
-
 		UserAgent = config.UserAgent;
 		UseSystemProxy = config.UseSystemProxy;
 
-		PersistToConfig(this.WhenChanged(static viewModel => viewModel.UserAgent), static (appConfig, value) => appConfig.UserAgent = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
-		PersistToConfig(this.WhenChanged(static viewModel => viewModel.UseSystemProxy), static (appConfig, value) => appConfig.UseSystemProxy = value);
+		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.UserAgent), static (appConfig, value) => appConfig.UserAgent = string.IsNullOrWhiteSpace(value) ? null : value.Trim());
+		PersistToConfig(configManager, this.WhenChanged(static viewModel => viewModel.UseSystemProxy), static (appConfig, value) => appConfig.UseSystemProxy = value);
 
 		this.WhenChanged(static viewModel => viewModel.UseSystemProxy)
 			.Skip(1)
-			.Subscribe(static enabled => AppLocator.Current.GetRequiredService<IAppLifecycleService>().SetUseSystemProxy(enabled))
+			.Subscribe(lifecycle.SetUseSystemProxy)
 			.DisposeWith(Disposables);
-
-		_isInitialized = true;
 	}
 }

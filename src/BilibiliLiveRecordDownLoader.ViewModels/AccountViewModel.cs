@@ -4,8 +4,8 @@ public sealed partial class AccountViewModel : ViewModelBase
 {
 	private readonly IAccountAppService _accountAppService;
 	private readonly IAppConfigManager _configManager;
-	private bool _isInitialized;
 	private bool _isReloadingCookie;
+	private int _loginCheckGeneration;
 
 	public AccountViewModel(IAccountAppService accountAppService, IAppConfigManager configManager)
 	{
@@ -29,24 +29,9 @@ public sealed partial class AccountViewModel : ViewModelBase
 
 	internal void ApplyConfig(AppConfig config)
 	{
-		if (_isInitialized)
-		{
-			return;
-		}
-
 		Cookie = config.Cookie;
 
-		// 请求从配置读 Cookie，要等写完再查
-		this.WhenChanged(static viewModel => viewModel.Cookie)
-			.Skip(1)
-			.Unique()
-			.Keep(_ => !_isReloadingCookie)
-			.Map(cookie => Signal.FromAsync(cancellationToken => SaveCookieAsync(cookie, cancellationToken)))
-			.SwitchTo()
-			.Subscribe()
-			.DisposeWith(Disposables);
-
-		_isInitialized = true;
+		RunLatest(this.WhenChanged(static viewModel => viewModel.Cookie).Skip(1).Unique().Keep(_ => !_isReloadingCookie), SaveCookieAsync);
 	}
 
 	internal void RefreshLoginStatus()
@@ -54,19 +39,29 @@ public sealed partial class AccountViewModel : ViewModelBase
 		Forget(CheckLoginAsync);
 	}
 
+	// 启动时、手动检查、改 Cookie 和扫码登录都会发起检查，可能同时在查；以最后发起的为准
 	[ReactiveCommand]
 	private async Task CheckLoginAsync(CancellationToken cancellationToken)
 	{
+		int generation = ++_loginCheckGeneration;
 		IsLoggedIn = null;
 
 		try
 		{
-			IsLoggedIn = await _accountAppService.IsLoggedInAsync(cancellationToken);
+			ShowIfLatest(await _accountAppService.IsLoggedInAsync(cancellationToken));
 		}
 		catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
 		{
-			IsLoggedIn = false;
+			ShowIfLatest(false);
 			throw;
+		}
+
+		void ShowIfLatest(bool isLoggedIn)
+		{
+			if (generation == _loginCheckGeneration)
+			{
+				IsLoggedIn = isLoggedIn;
+			}
 		}
 	}
 
@@ -97,22 +92,11 @@ public sealed partial class AccountViewModel : ViewModelBase
 		IsLoggedIn = false;
 	}
 
-	private async Task<RxVoid> SaveCookieAsync(string? cookie, CancellationToken cancellationToken)
+	// 请求从配置读 Cookie，要等写完再查
+	private async Task SaveCookieAsync(string? cookie, CancellationToken cancellationToken)
 	{
-		try
-		{
-			await _configManager.UpdateAsync(config => config.Cookie = cookie, cancellationToken);
-			await CheckLoginAsync(cancellationToken);
-		}
-		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-		{
-		}
-		catch (Exception exception)
-		{
-			RxState.DefaultExceptionHandler.OnNext(exception);
-		}
-
-		return RxVoid.Default;
+		await _configManager.UpdateAsync(config => config.Cookie = cookie, cancellationToken);
+		await CheckLoginAsync(cancellationToken);
 	}
 
 	// 配置已经写好，读回时不再保存和检查
