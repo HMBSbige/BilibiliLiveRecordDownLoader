@@ -371,14 +371,169 @@ public sealed class AppConfigManagerTest
 		}
 	}
 
+	[Test]
+	public async Task LegacyConfigIsImportedAndSavedWithoutTouchingTheOldFileAsync(CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string path = directory.Combine("config.json");
+		string legacyPath = directory.Combine("BilibiliLiveRecordDownLoader.json");
+		const string legacy = """
+			{
+			  "MainDir": "D:\\Records",
+			  "IsCheckUpdateOnStart": false,
+			  "IsCheckPreRelease": true,
+			  "MainWindowsWidth": 1600.0,
+			  "MainWindowsHeight": 900.0,
+			  "Cookie": "SESSDATA=x",
+			  "Rooms": [
+			    {
+			      "RoomId": 732,
+			      "IsNotify": true,
+			      "HttpCheckLatency": 60.0,
+			      "StreamTimeout": 30.5,
+			      "ClientType": 1,
+			      "Qn": 400,
+			      "RecorderType": 3,
+			      "IsAutoConvertMp4": true,
+			      "AutoRecordCodecOrder": "hevc;unknown;avc"
+			    },
+			    {
+			      "IsEnable": false,
+			      "RoomId": 6,
+			      "Qn": 12345,
+			      "RecorderType": 1,
+			      "AutoRecordFormatOrder": "unknown"
+			    },
+			    {
+			      "RoomId": 7,
+			      "RecorderType": 0,
+			      "StreamReconnectLatency": "6"
+			    }
+			  ],
+			  "IsAutoConvertMp4": true,
+			  "IsDeleteAfterConvert": true,
+			  "IsUseProxy": true,
+			  "Theme": 2,
+			  "RecorderType": 3,
+			  "AutoRecordFormatOrder": " flv ; ts ",
+			  "StreamHostRule": 2
+			}
+			""";
+		await File.WriteAllTextAsync(legacyPath, legacy, cancellationToken);
+
+		await using (AppConfigManager manager = Create(path, legacyPath: legacyPath))
+		{
+			AppConfig config = await manager.GetAsync(cancellationToken);
+			RoomConfig room = config.Rooms[0];
+			RoomConfig disabled = config.Rooms[1];
+			RoomConfig inheriting = config.Rooms[2];
+
+			using (Assert.Multiple())
+			{
+				await Assert.That(manager.IsLegacyConfigImported).IsTrue();
+				await Assert.That(config.RecordDirectory).IsEqualTo(@"D:\Records");
+				await Assert.That((config.AutoCheckUpdate, config.IncludePreRelease, config.UseSystemProxy, config.ConvertToMp4, config.DeleteAfterConvert)).IsEqualTo((false, true, true, true, true));
+				await Assert.That((config.WindowWidth, config.WindowHeight)).IsEqualTo((1600d, 900d));
+				await Assert.That(config.Cookie).IsEqualTo("SESSDATA=x");
+				await Assert.That(config.Theme).IsEqualTo(AppTheme.Dark);
+				await Assert.That(config.RecorderType).IsEqualTo(RecorderType.FFmpeg);
+				await Assert.That(config.StreamHostSelection).IsEqualTo(StreamHostSelection.Random);
+				await Assert.That(config.CodecPriority).IsEquivalentTo(StreamPriority.DefaultCodecs, CollectionOrdering.Matching);
+				await Assert.That(config.FormatPriority).IsEquivalentTo([StreamFormat.Flv, StreamFormat.Ts], CollectionOrdering.Matching);
+				await Assert.That(config.Rooms.Select(static room => room.RoomId)).IsEquivalentTo([732L, 6L, 7L], CollectionOrdering.Matching);
+
+				await Assert.That((room.IsRecordingEnabled, room.IsNotificationEnabled, room.ConvertToMp4, room.DeleteAfterConvert)).IsEqualTo((true, true, true, null));
+				await Assert.That(room.Quality).IsEqualTo(StreamQuality.BluRay);
+				await Assert.That(room.RecorderType).IsEqualTo(RecorderType.FFmpeg);
+				await Assert.That(room.CodecPriority).IsEquivalentTo([StreamCodec.Hevc, StreamCodec.Avc], CollectionOrdering.Matching);
+				await Assert.That(room.StatusCheckInterval).IsEqualTo(TimeSpan.FromSeconds(60));
+				await Assert.That(room.StreamIdleTimeout).IsEqualTo(TimeSpan.FromSeconds(30.5));
+				await Assert.That(room.DanmuReconnectDelay).IsEqualTo(RoomDefaults.DanmuReconnectDelay);
+
+				await Assert.That(disabled.IsRecordingEnabled).IsFalse();
+				await Assert.That(disabled.Quality).IsEqualTo(RoomDefaults.Quality);
+				await Assert.That(disabled.RecorderType).IsEqualTo(RecorderType.BuiltIn);
+				await Assert.That(disabled.FormatPriority).IsNull();
+
+				await Assert.That(inheriting.RecorderType).IsNull();
+				await Assert.That(inheriting.StreamReconnectDelay).IsEqualTo(RoomDefaults.StreamReconnectDelay);
+			}
+		}
+
+		await using AppConfigManager reloaded = Create(path, legacyPath: legacyPath);
+		AppConfig saved = await reloaded.GetAsync(cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(reloaded.IsLegacyConfigImported).IsFalse();
+			await Assert.That(saved.Cookie).IsEqualTo("SESSDATA=x");
+			await Assert.That(saved.Rooms.Count).IsEqualTo(3);
+			await Assert.That(await File.ReadAllTextAsync(legacyPath, cancellationToken)).IsEqualTo(legacy);
+		}
+	}
+
+	[Test]
+	[Arguments("config.json")]
+	[Arguments("config.json.bak")]
+	public async Task LegacyConfigIsOnlyImportedOnTheFirstRunAsync(string existing, CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string path = directory.Combine("config.json");
+		string legacyPath = directory.Combine("BilibiliLiveRecordDownLoader.json");
+		await File.WriteAllTextAsync(directory.Combine(existing), "{}", cancellationToken);
+		await File.WriteAllTextAsync(legacyPath, """{ "Rooms": [{ "RoomId": 732 }] }""", cancellationToken);
+
+		await using AppConfigManager manager = Create(path, legacyPath: legacyPath);
+		AppConfig config = await manager.GetAsync(cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(manager.IsLegacyConfigImported).IsFalse();
+			await Assert.That(config.Rooms).IsEmpty();
+		}
+	}
+
+	[Test]
+	[Arguments("{ truncated", """{ "Rooms": [{ "RoomId": 5 }] }""", 5L)]
+	[Arguments("[]", null, null)]
+	public async Task UnreadableLegacyConfigFallsBackToItsBackupAsync(string legacy, string? backup, long? expectedRoomId, CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string path = directory.Combine("config.json");
+		string legacyPath = directory.Combine("BilibiliLiveRecordDownLoader.json");
+		await File.WriteAllTextAsync(legacyPath, legacy, cancellationToken);
+
+		if (backup is not null)
+		{
+			await File.WriteAllTextAsync(directory.Combine("BilibiliLiveRecordDownLoader.backup.json"), backup, cancellationToken);
+		}
+
+		await using AppConfigManager manager = Create(path, legacyPath: legacyPath);
+		AppConfig config = await manager.GetAsync(cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(manager.IsLegacyConfigImported).IsEqualTo(expectedRoomId is not null);
+			await Assert.That(File.Exists(path)).IsEqualTo(expectedRoomId is not null);
+			await Assert.That(config.Rooms.Select(static room => (long?)room.RoomId).SingleOrDefault()).IsEqualTo(expectedRoomId);
+			// 旧版没写录制目录时录到“视频”文件夹本身
+			await Assert.That(config.RecordDirectory).IsEqualTo(expectedRoomId is null ? ConfigurationConsts.DefaultRecordDirectory : LegacyDefaultRecordDirectory());
+		}
+	}
+
 	private static JsonObject SavedRoom(JsonObject saved)
 	{
 		return saved[nameof(AppConfig.Rooms)]?[0] as JsonObject ?? [];
 	}
 
-	private static AppConfigManager Create(string path, TimeSpan? saveDelay = null)
+	private static AppConfigManager Create(string path, TimeSpan? saveDelay = null, string? legacyPath = null)
 	{
-		return new AppConfigManager(Options.Create(new AppConfigStorageOptions { FilePath = path, SaveDelay = saveDelay ?? TimeSpan.Zero }), NullLogger<AppConfigManager>.Instance);
+		return new AppConfigManager(Options.Create(new AppConfigStorageOptions { FilePath = path, LegacyFilePath = legacyPath, SaveDelay = saveDelay ?? TimeSpan.Zero }), NullLogger<AppConfigManager>.Instance);
+	}
+
+	private static string LegacyDefaultRecordDirectory()
+	{
+		return Environment.GetFolderPath(Environment.SpecialFolder.MyVideos) is { Length: > 0 } videos ? videos : ConfigurationConsts.DefaultRecordDirectory;
 	}
 
 	private static bool AreEquivalent(AppConfig x, AppConfig y)

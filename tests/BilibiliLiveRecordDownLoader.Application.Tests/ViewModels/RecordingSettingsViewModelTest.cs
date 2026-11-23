@@ -132,6 +132,8 @@ public sealed class RecordingSettingsViewModelTest
 
 		public TaskCompletionSource Updated { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+		public bool IsLegacyConfigImported => false;
+
 		public ValueTask<AppConfig> GetAsync(CancellationToken cancellationToken = default)
 		{
 			return ValueTask.FromResult(config);

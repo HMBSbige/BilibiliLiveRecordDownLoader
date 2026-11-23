@@ -7,6 +7,8 @@ internal sealed class FakeConfigManager(AppConfig? config = null) : IAppConfigMa
 
 	public int UpdateCount => Volatile.Read(ref _updateCount);
 
+	public bool IsLegacyConfigImported => false;
+
 	public ValueTask<AppConfig> GetAsync(CancellationToken cancellationToken = default)
 	{
 		return ValueTask.FromResult(_config);

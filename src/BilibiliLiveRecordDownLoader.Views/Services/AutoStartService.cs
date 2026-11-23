@@ -19,11 +19,11 @@ internal sealed partial class AutoStartService(ILogger<AutoStartService> logger)
 	{
 		try
 		{
-			// 程序换了目录后旧的登记已经失效
+			// 程序换了目录后旧的登记已经失效；旧版参数不同的登记指向当前程序时照样按最小化启动
 			if (OperatingSystem.IsWindows())
 			{
 				using RegistryKey? key = Registry.CurrentUser.OpenSubKey(WindowsRunKey);
-				return key?.GetValue(AppConsts.Name) is string command && command.Equals(WindowsCommand, StringComparison.OrdinalIgnoreCase);
+				return key?.GetValue(AppConsts.Name) is string command && (command.Equals(WindowsCommand, StringComparison.OrdinalIgnoreCase) || command.Equals(LegacyWindowsCommand, StringComparison.OrdinalIgnoreCase));
 			}
 
 			return GetStartupFilePath() is { } path && File.Exists(path) && File.ReadAllText(path) == CreateStartupFile();
@@ -55,7 +55,41 @@ internal sealed partial class AutoStartService(ILogger<AutoStartService> logger)
 		File.WriteAllText(path, CreateStartupFile());
 	}
 
+	public void TakeOverExisting()
+	{
+		if (!IsSupported)
+		{
+			return;
+		}
+
+		try
+		{
+			if (IsRegistered() && !IsEnabled())
+			{
+				SetEnabled(true);
+				LogTakenOver();
+			}
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SecurityException)
+		{
+			LogTakeOverFailed(exception);
+		}
+	}
+
+	private static bool IsRegistered()
+	{
+		if (OperatingSystem.IsWindows())
+		{
+			using RegistryKey? key = Registry.CurrentUser.OpenSubKey(WindowsRunKey);
+			return key?.GetValue(AppConsts.Name) is not null;
+		}
+
+		return GetStartupFilePath() is { } path && File.Exists(path);
+	}
+
 	private static string WindowsCommand => $"\"{ExecutablePath}\" {AppStartupOptions.MinimizedArgument}";
+
+	private static string LegacyWindowsCommand => $"\"{ExecutablePath}\" {AppStartupOptions.LegacySilentArgument}";
 
 	private static string CreateStartupFile()
 	{
@@ -149,4 +183,10 @@ internal sealed partial class AutoStartService(ILogger<AutoStartService> logger)
 
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to read the auto start registration")]
 	private partial void LogReadFailed(Exception exception);
+
+	[LoggerMessage(Level = LogLevel.Information, Message = "The existing auto start registration now starts this program")]
+	private partial void LogTakenOver();
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to take over the auto start registration")]
+	private partial void LogTakeOverFailed(Exception exception);
 }

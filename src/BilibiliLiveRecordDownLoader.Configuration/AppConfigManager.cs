@@ -14,6 +14,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 	private static readonly JsonObject DefaultRoomNode = JsonSerializer.SerializeToNode(new RoomConfig(), AppConfigJsonContext.Default.RoomConfig) as JsonObject ?? throw new InvalidOperationException("Serialized room config is not a JSON object.");
 
 	private readonly string _configPath = storageOptions.Value.FilePath;
+	private readonly string? _legacyPath = storageOptions.Value.LegacyFilePath;
 	private readonly TimeSpan _saveDelay = storageOptions.Value.SaveDelay;
 	private readonly SemaphoreSlim _lock = new(1, 1);
 	private readonly CancellationTokenSource _disposal = new();
@@ -23,6 +24,8 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 	private bool _isReadOnly;
 	private bool _disposed;
 	private AppConfig? _config;
+
+	public bool IsLegacyConfigImported { get; private set; }
 
 	private string BackupPath => _configPath + ".bak";
 
@@ -133,9 +136,9 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 			return _config;
 		}
 
-		(_config, bool restored) = await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+		(_config, bool unsaved) = await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
 
-		if (restored)
+		if (unsaved)
 		{
 			++_saveVersion;
 
@@ -152,10 +155,11 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		return _config;
 	}
 
-	private async ValueTask<(AppConfig Config, bool Restored)> LoadCoreAsync(CancellationToken cancellationToken)
+	// 恢复或导入的内容要立即写回
+	private async ValueTask<(AppConfig Config, bool Unsaved)> LoadCoreAsync(CancellationToken cancellationToken)
 	{
 		AppConfig? config = null;
-		bool restored = false;
+		bool unsaved = false;
 
 		try
 		{
@@ -165,7 +169,14 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 			if (config is null && File.Exists(TempPath))
 			{
 				config = await TryRestoreAsync(TempPath, cancellationToken).ConfigureAwait(false) ?? await TryRestoreAsync(BackupPath, cancellationToken).ConfigureAwait(false);
-				restored = config is not null;
+				unsaved = config is not null;
+			}
+			// 只删了配置文件来重置时备份还在，不再导入
+			else if (config is null && !File.Exists(BackupPath) && await TryImportLegacyAsync(cancellationToken).ConfigureAwait(false) is { } legacy)
+			{
+				config = legacy;
+				unsaved = true;
+				IsLegacyConfigImported = true;
 			}
 		}
 		catch (JsonException exception)
@@ -179,7 +190,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 				config = await TryRestoreAsync(BackupPath, cancellationToken).ConfigureAwait(false);
 			}
 
-			restored = config is not null;
+			unsaved = config is not null;
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
@@ -192,7 +203,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		config.ApplyDefaults();
 		RestrictPermissions();
 
-		return (config, restored);
+		return (config, unsaved);
 	}
 
 	private static async ValueTask<AppConfig?> ReadWithRetryAsync(string path, CancellationToken cancellationToken)
@@ -239,7 +250,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 				return null;
 			}
 
-			RemoveInvalidValues(root, AppConfigJsonContext.Default.AppConfig, string.Empty);
+			RemoveInvalidValues(root, AppConfigJsonContext.Default.AppConfig, string.Empty, _configPath);
 			return root.Deserialize(AppConfigJsonContext.Default.AppConfig);
 		}
 		catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
@@ -248,7 +259,59 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		}
 	}
 
-	private void RemoveInvalidValues(JsonObject node, JsonTypeInfo typeInfo, string prefix)
+	private async ValueTask<AppConfig?> TryImportLegacyAsync(CancellationToken cancellationToken)
+	{
+		if (_legacyPath is null)
+		{
+			return null;
+		}
+
+		foreach (string path in (string[])[_legacyPath, LegacyConfig.GetBackupPath(_legacyPath)])
+		{
+			if (await TryReadLegacyAsync(path, cancellationToken).ConfigureAwait(false) is { } config)
+			{
+				LogLegacyImported(logger, path);
+				return config;
+			}
+		}
+
+		return null;
+	}
+
+	// 旧版的文件只读不改，退回旧版时还能接着用
+	private async ValueTask<AppConfig?> TryReadLegacyAsync(string path, CancellationToken cancellationToken)
+	{
+		try
+		{
+			if (!File.Exists(path))
+			{
+				return null;
+			}
+
+			JsonNode? node;
+
+			using (FileStream stream = File.OpenRead(path))
+			{
+				node = await JsonNode.ParseAsync(stream, documentOptions: DocumentOptions, cancellationToken: cancellationToken).ConfigureAwait(false);
+			}
+
+			if (node is not JsonObject legacy)
+			{
+				throw new JsonException("The legacy config is not a JSON object.");
+			}
+
+			JsonObject root = LegacyConfig.ToCurrent(legacy);
+			RemoveInvalidValues(root, AppConfigJsonContext.Default.AppConfig, string.Empty, path);
+			return root.Deserialize(AppConfigJsonContext.Default.AppConfig);
+		}
+		catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
+		{
+			LogLegacyUnreadable(logger, exception, path);
+			return null;
+		}
+	}
+
+	private void RemoveInvalidValues(JsonObject node, JsonTypeInfo typeInfo, string prefix, string path)
 	{
 		foreach ((string key, JsonNode? value) in node.ToArray())
 		{
@@ -266,11 +329,11 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 				{
 					if (rooms[i] is JsonObject room)
 					{
-						RemoveInvalidValues(room, AppConfigJsonContext.Default.RoomConfig, $"{name}[{i}].");
+						RemoveInvalidValues(room, AppConfigJsonContext.Default.RoomConfig, $"{name}[{i}].", path);
 					}
 					else
 					{
-						LogInvalidValue(logger, $"{name}[{i}]", _configPath);
+						LogInvalidValue(logger, $"{name}[{i}]", path);
 						rooms.RemoveAt(i);
 					}
 				}
@@ -283,7 +346,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 				{
 					if (!CanRead(items[i], elementTypeInfo))
 					{
-						LogInvalidValue(logger, $"{name}[{i}]", _configPath);
+						LogInvalidValue(logger, $"{name}[{i}]", path);
 						items.RemoveAt(i);
 					}
 				}
@@ -296,7 +359,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 
 			if (!CanRead(value, propertyTypeInfo))
 			{
-				LogInvalidValue(logger, name, _configPath);
+				LogInvalidValue(logger, name, path);
 				node.Remove(key);
 			}
 		}
@@ -489,6 +552,12 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Config restored from {Path}")]
 	private static partial void LogRestored(ILogger logger, string path);
+
+	[LoggerMessage(Level = LogLevel.Information, Message = "Imported the legacy config from {Path}")]
+	private static partial void LogLegacyImported(ILogger logger, string path);
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Legacy config file {Path} cannot be imported")]
+	private static partial void LogLegacyUnreadable(ILogger logger, Exception exception, string path);
 
 	[LoggerMessage(Level = LogLevel.Error, Message = "Failed to save config file {Path}")]
 	private static partial void LogSaveFailed(ILogger logger, Exception exception, string path);

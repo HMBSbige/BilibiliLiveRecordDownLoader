@@ -90,6 +90,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 		IAppConfigManager configManager = AppLocator.Current.GetRequiredService<IAppConfigManager>();
 		AppConfig config = await configManager.GetAsync(cancellationToken);
 
+		// 要在设置页读开机启动状态之前；没导入配置时接管，开机就只会启动一个空列表的新版
+		if (configManager.IsLegacyConfigImported)
+		{
+			AppLocator.Current.GetRequiredService<IAutoStartService>().TakeOverExisting();
+		}
+
 		WindowWidth = config.WindowWidth;
 		WindowHeight = config.WindowHeight;
 		Settings.ApplyConfig(config);

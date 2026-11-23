@@ -48,5 +48,9 @@ public sealed class GeneralSettingsViewModelTest
 		{
 			throw new NotSupportedException();
 		}
+
+		public void TakeOverExisting()
+		{
+		}
 	}
 }
