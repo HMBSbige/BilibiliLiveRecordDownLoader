@@ -142,7 +142,10 @@ public sealed class AppConfigManagerTest : IDisposable
 		await manager.UpdateAsync(static config => config.Language = "zh-Hans", cancellationToken);
 		await Assert.That(File.Exists(ConfigPath)).IsFalse();
 
+		// 测的就是同步 Dispose
+#pragma warning disable CA1849
 		manager.Dispose();
+#pragma warning restore CA1849
 
 		await Assert.That((await ReloadAsync(cancellationToken)).Language).IsEqualTo("zh-Hans");
 	}

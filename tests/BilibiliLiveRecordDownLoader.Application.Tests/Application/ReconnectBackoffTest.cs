@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
 public sealed class ReconnectBackoffTest
@@ -67,7 +69,7 @@ public sealed class ReconnectBackoffTest
 	public async Task ChangedInitialDelayAppliesToTheNextDelayAsync()
 	{
 		TimeSpan initial = InitialDelay;
-		ReconnectBackoff backoff = new(() => initial, new FakeTimeProvider(), new FixedRandom(0.5));
+		ReconnectBackoff backoff = new([SuppressMessage("ReSharper", "AccessToModifiedClosure")] () => initial, new FakeTimeProvider(), new FixedRandom(0.5));
 		_ = Fail(backoff, 6).ToArray();
 
 		// 已经退避到 2 分钟的上限

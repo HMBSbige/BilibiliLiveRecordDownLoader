@@ -12,7 +12,8 @@ public sealed class AccountAppServiceTest
 	[Test]
 	public async Task RequestTimeoutIsReportedAsATimeoutAsync(CancellationToken cancellationToken)
 	{
-		using HttpClient httpClient = new(new HangingHandler()) { Timeout = TimeSpan.FromMilliseconds(100) };
+		using HttpClient httpClient = new(new HangingHandler());
+		httpClient.Timeout = TimeSpan.FromMilliseconds(100);
 		AccountAppService accounts = new(new BilibiliApiClient(httpClient), new FakeConfigManager());
 
 		await Assert.ThrowsAsync<TimeoutException>(() => accounts.IsLoggedInAsync(cancellationToken)).WithMessage(AppLanguage.Current.RequestTimedOut);

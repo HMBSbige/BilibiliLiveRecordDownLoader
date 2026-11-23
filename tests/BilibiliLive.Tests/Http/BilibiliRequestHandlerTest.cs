@@ -1,5 +1,6 @@
 using BilibiliLive.Http;
 using BilibiliLive.Tests.Fakes;
+using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
 
@@ -24,7 +25,7 @@ public partial class BilibiliRequestHandlerTest
 			Client = new HttpClient(new BilibiliRequestHandler(identity) { IncludeCookie = includeCookie, InnerHandler = Inner });
 		}
 
-		public FakeHttpMessageHandler Inner { get; } = new(_ => Responses.Text("ok"));
+		public FakeHttpMessageHandler Inner { get; } = new(static _ => Responses.Text("ok"));
 
 		public BilibiliIdentity Identity { get; }
 
@@ -45,7 +46,7 @@ public partial class BilibiliRequestHandlerTest
 	[Test]
 	public async Task EmptyOptionsUseDefaultsAndGenerateBuvid3Async(CancellationToken cancellationToken)
 	{
-		using TestClient test = new(() => new BilibiliRequestOptions());
+		using TestClient test = new(static () => new BilibiliRequestOptions());
 
 		await test.Client.GetAsync(Url, cancellationToken);
 		IReadOnlyDictionary<string, string> headers = await test.SingleRequestHeadersAsync();
@@ -65,7 +66,7 @@ public partial class BilibiliRequestHandlerTest
 	{
 		string userAgent = "agent/1";
 		string cookie = "SESSDATA=first";
-		using TestClient test = new(() => new BilibiliRequestOptions(userAgent, cookie));
+		using TestClient test = new([SuppressMessage("ReSharper", "AccessToModifiedClosure")] () => new BilibiliRequestOptions(userAgent, cookie));
 		string buvid3 = test.Identity.GeneratedBuvid3;
 
 		await test.Client.GetAsync(Url, cancellationToken);
@@ -82,7 +83,7 @@ public partial class BilibiliRequestHandlerTest
 	[Arguments(Url, false)]
 	public async Task CookieIsNotSentOutsideBilibiliDomainsOrWhenExcludedAsync(string url, bool includeCookie, CancellationToken cancellationToken)
 	{
-		using TestClient test = new(() => new BilibiliRequestOptions("agent/1", "SESSDATA=secret"), includeCookie);
+		using TestClient test = new(static () => new BilibiliRequestOptions("agent/1", "SESSDATA=secret"), includeCookie);
 
 		await test.Client.GetAsync(url, cancellationToken);
 		IReadOnlyDictionary<string, string> headers = await test.SingleRequestHeadersAsync();
@@ -109,7 +110,7 @@ public partial class BilibiliRequestHandlerTest
 		BilibiliIdentity identity = new(static _ => ValueTask.FromResult(new BilibiliRequestOptions()));
 		using TestClient first = new(identity);
 		using TestClient sameIdentity = new(identity);
-		using TestClient otherIdentity = new(() => new BilibiliRequestOptions());
+		using TestClient otherIdentity = new(static () => new BilibiliRequestOptions());
 
 		await first.Client.GetAsync(Url, cancellationToken);
 		await first.Client.GetAsync(Url, cancellationToken);
@@ -146,7 +147,7 @@ public partial class BilibiliRequestHandlerTest
 	[Test]
 	public async Task AnonymousHeaderSendsOnlyBuvid3AndIsNotForwardedAsync(CancellationToken cancellationToken)
 	{
-		using TestClient test = new(() => new BilibiliRequestOptions(Cookie: "SESSDATA=secret"));
+		using TestClient test = new(static () => new BilibiliRequestOptions(Cookie: "SESSDATA=secret"));
 		using HttpRequestMessage request = new(HttpMethod.Get, Url);
 		request.Headers.TryAddWithoutValidation(BilibiliRequestHandler.AnonymousHeader, "1");
 
@@ -163,7 +164,7 @@ public partial class BilibiliRequestHandlerTest
 	[Test]
 	public async Task RequestAcceptIsNotOverriddenAsync(CancellationToken cancellationToken)
 	{
-		using TestClient test = new(() => new BilibiliRequestOptions());
+		using TestClient test = new(static () => new BilibiliRequestOptions());
 		using HttpRequestMessage request = new(HttpMethod.Get, Url);
 		request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("video/x-flv"));
 
@@ -177,7 +178,7 @@ public partial class BilibiliRequestHandlerTest
 	[Test]
 	public async Task RequestCookieAndUserAgentAreReplacedAsync(CancellationToken cancellationToken)
 	{
-		using TestClient test = new(() => new BilibiliRequestOptions("agent/1", "SESSDATA=x; buvid3=OPTION"));
+		using TestClient test = new(static () => new BilibiliRequestOptions("agent/1", "SESSDATA=x; buvid3=OPTION"));
 		using HttpRequestMessage request = new(HttpMethod.Get, Url);
 		request.Headers.TryAddWithoutValidation("Cookie", "stale=1");
 		request.Headers.UserAgent.ParseAdd("stale/1");

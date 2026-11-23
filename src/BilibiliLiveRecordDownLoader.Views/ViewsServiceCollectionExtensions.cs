@@ -55,9 +55,9 @@ public static class ViewsServiceCollectionExtensions
 					Path.Combine(ConfigurationConsts.LogDirectory, $"{AppConsts.Name}.log"),
 					outputTemplate: OutputTemplate,
 					formatProvider: CultureInfo.InvariantCulture,
+					fileSizeLimitBytes: 10 * 1024 * 1024,
 					rollingInterval: RollingInterval.Day,
 					rollOnFileSizeLimit: true,
-					fileSizeLimitBytes: 10 * 1024 * 1024,
 					retainedFileCountLimit: 31
 				)
 			)

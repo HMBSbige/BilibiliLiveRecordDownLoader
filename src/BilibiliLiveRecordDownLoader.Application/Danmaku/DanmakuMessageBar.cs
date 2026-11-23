@@ -168,7 +168,7 @@ internal static class DanmakuMessageBar
 		return false;
 	}
 
-	private sealed class Entry(int request, DanmakuMessageRequest first, TimeSpan shownAt)
+	private sealed class Entry(int requestIndex, DanmakuMessageRequest first, TimeSpan shownAt)
 	{
 		private readonly List<DanmakuMessageSpan> _spans = [];
 		private TimeSpan _spanStart = shownAt;
@@ -176,6 +176,7 @@ internal static class DanmakuMessageBar
 		private double _to = double.NaN;
 		private TimeSpan _moveEnd = shownAt;
 		private int _spanCount = first.Count;
+		private int _count = first.Count;
 		private bool _countChanged;
 
 		public DanmakuMessageKind Kind { get; } = first.Kind;
@@ -192,11 +193,9 @@ internal static class DanmakuMessageBar
 
 		public TimeSpan End { get; private set; } = shownAt + first.Duration;
 
-		public int Count { get; private set; } = first.Count;
-
 		public void Merge(DanmakuMessageRequest request, TimeSpan now)
 		{
-			Count += request.Count;
+			_count += request.Count;
 			LastArrival = now;
 			End = now + request.Duration;
 			_countChanged = true;
@@ -208,7 +207,7 @@ internal static class DanmakuMessageBar
 			if (double.IsNaN(_to))
 			{
 				(_from, _to, _moveEnd) = (target, target, now);
-				_spanCount = Count;
+				_spanCount = _count;
 				_countChanged = false;
 				return;
 			}
@@ -224,14 +223,23 @@ internal static class DanmakuMessageBar
 			double position = PositionAt(now);
 			Close(now);
 			(_from, _to) = (position, target);
-			_moveEnd = moved ? now + Transition : _moveEnd > now ? _moveEnd : now;
+
+			if (moved)
+			{
+				_moveEnd = now + Transition;
+			}
+			else if (_moveEnd < now)
+			{
+				_moveEnd = now;
+			}
+
 			_countChanged = false;
 		}
 
 		public DanmakuMessagePlacement Finish(TimeSpan fadeOutStart, TimeSpan removedAt)
 		{
 			Close(removedAt);
-			return new DanmakuMessagePlacement(request, ShownAt, fadeOutStart, removedAt, _spans);
+			return new DanmakuMessagePlacement(requestIndex, ShownAt, fadeOutStart, removedAt, _spans);
 		}
 
 		public DanmakuMessagePlacement Evict(TimeSpan now)
@@ -265,7 +273,7 @@ internal static class DanmakuMessageBar
 			}
 
 			_spanStart = end;
-			_spanCount = Count;
+			_spanCount = _count;
 		}
 	}
 }

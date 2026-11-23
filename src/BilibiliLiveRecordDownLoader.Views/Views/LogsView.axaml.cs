@@ -77,7 +77,7 @@ public partial class LogsView : UserControl
 
 	private async void OnLogListKeyDown(object? sender, KeyEventArgs e)
 	{
-		if (Avalonia.Application.Current?.PlatformSettings?.HotkeyConfiguration.Copy is { } gestures && gestures.Any(gesture => gesture.Matches(e)))
+		if (Avalonia.Application.Current?.PlatformSettings?.HotkeyConfiguration.Copy is { } gestures && gestures.Exists(gesture => gesture.Matches(e)))
 		{
 			e.Handled = true;
 			await CopySelectionAsync();

@@ -3,13 +3,14 @@ using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels.Tools;
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Windows.Input;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 
 public sealed class MediaToolsViewModelTest
 {
-	private static readonly HashSet<string> NothingReserved = [];
+	private static readonly FrozenSet<string> NothingReserved = FrozenSet<string>.Empty;
 
 	[Test]
 	public async Task RemuxOutputSkipsExistingAndQueuedFilesAsync()

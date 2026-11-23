@@ -288,7 +288,7 @@ public partial class RoomsView : UserControl
 
 		double height = RoomList.Bounds.Height;
 		double y = drag.Position.Y;
-		double depth = y < AutoScrollEdge ? y - AutoScrollEdge : y > height - AutoScrollEdge ? y - (height - AutoScrollEdge) : 0;
+		double depth = y < AutoScrollEdge ? y - AutoScrollEdge : Math.Max(0, y - (height - AutoScrollEdge));
 		double maxOffset = Math.Max(0, viewer.Extent.Height - viewer.Viewport.Height);
 
 		viewer.Offset = viewer.Offset.WithY(Math.Clamp(viewer.Offset.Y + depth / AutoScrollEdge * AutoScrollMaxStep, 0, maxOffset));

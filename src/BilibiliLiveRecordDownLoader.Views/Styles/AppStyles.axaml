@@ -44,7 +44,7 @@
         <Setter Property="VerticalSpacing" Value="{StaticResource FormSpacing}" />
     </Style>
     <Style Selector="DockPanel.toolbar">
-        <Setter Property="DockPanel.Dock" Value="Top" />
+        <Setter Property="Dock" Value="Top" />
         <Setter Property="HorizontalSpacing" Value="{StaticResource ToolbarSpacing}" />
     </Style>
     <Style Selector="StackPanel.toolbar">

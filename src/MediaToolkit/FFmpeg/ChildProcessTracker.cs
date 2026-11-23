@@ -12,7 +12,7 @@ internal static class ChildProcessTracker
 	{
 		if (!IsEndedBySystem)
 		{
-			AppDomain.CurrentDomain.ProcessExit += (_, _) => KillAll();
+			AppDomain.CurrentDomain.ProcessExit += static (_, _) => KillAll();
 		}
 	}
 

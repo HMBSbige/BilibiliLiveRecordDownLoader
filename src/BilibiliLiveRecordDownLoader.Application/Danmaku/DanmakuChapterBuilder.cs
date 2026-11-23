@@ -7,13 +7,13 @@ internal static class DanmakuChapterBuilder
 	// MP4 的 Nero chpl 盒子最多 255 个章节
 	public const int MaxChapters = 255;
 
+	private const string MergedSeparator = @" / ";
+
 	// 高能开始前留一点铺垫，跳过去不会正好错过开头
-	public static readonly TimeSpan HighlightLead = TimeSpan.FromSeconds(10);
+	private static readonly TimeSpan HighlightLead = TimeSpan.FromSeconds(10);
 
 	// 播放器的章节列表里不要挤着几个几乎同一时间的条目
-	public static readonly TimeSpan MinimumSpacing = TimeSpan.FromSeconds(15);
-
-	private const string MergedSeparator = @" / ";
+	private static readonly TimeSpan MinimumSpacing = TimeSpan.FromSeconds(15);
 
 	// duration 为空时最后一章结束于最后一条记录之后一秒
 	public static IReadOnlyList<FFmpegChapter> Build(string liveTitle, IEnumerable<DanmakuRecord> records, IEnumerable<DanmakuHighlight> highlights, TimeSpan? duration, DanmakuChapterNames names)

@@ -235,7 +235,7 @@ internal sealed partial class RoomDanmaku : IAsyncDisposable
 
 		try
 		{
-			await _writer.WaitAsync(TimeSpan.FromSeconds(30));
+			await _writer.WaitAsync(TimeSpan.FromSeconds(30), _timeProvider);
 		}
 		catch (TimeoutException)
 		{

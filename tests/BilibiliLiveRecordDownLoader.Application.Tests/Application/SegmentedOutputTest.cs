@@ -16,7 +16,7 @@ public sealed class SegmentedOutputTest
 		SplitRecording recording = new();
 		recording.SegmentCompleted = path => handOvers.Enqueue($"{path}: {FakeSplitter.Describe(recording.Files)}");
 
-		await recording.RunAsync(new FakeSplitter(), ThreeUnits, session => WriteUnitsAsync(session, 7), cancellationToken);
+		await recording.RunAsync(new FakeSplitter(), ThreeUnits, static session => WriteUnitsAsync(session, 7), cancellationToken);
 
 		using (Assert.Multiple())
 		{
@@ -30,7 +30,7 @@ public sealed class SegmentedOutputTest
 	{
 		SplitRecording recording = new() { FailOpeningFile = 1 };
 
-		await Assert.ThrowsAsync<RecordingWriteException>(() => recording.RunAsync(new FakeSplitter(), ThreeUnits, session => WriteUnitsAsync(session, int.MaxValue), cancellationToken)).WithInnerException().WithMessage("cannot create");
+		await Assert.ThrowsAsync<RecordingWriteException>(() => recording.RunAsync(new FakeSplitter(), ThreeUnits, static session => WriteUnitsAsync(session, int.MaxValue), cancellationToken)).WithInnerException().WithMessage("cannot create");
 
 		using (Assert.Multiple())
 		{
@@ -44,7 +44,7 @@ public sealed class SegmentedOutputTest
 	{
 		SplitRecording recording = new() { FailClosingFile = 0 };
 
-		await Assert.ThrowsAsync<RecordingWriteException>(() => recording.RunAsync(new FakeSplitter(), ThreeUnits, session => WriteUnitsAsync(session, int.MaxValue), cancellationToken)).WithInnerException().WithMessage("cannot flush");
+		await Assert.ThrowsAsync<RecordingWriteException>(() => recording.RunAsync(new FakeSplitter(), ThreeUnits, static session => WriteUnitsAsync(session, int.MaxValue), cancellationToken)).WithInnerException().WithMessage("cannot flush");
 
 		// 没有交出去的一段由录制循环最后处理
 		using (Assert.Multiple())
@@ -60,7 +60,7 @@ public sealed class SegmentedOutputTest
 		TaskCompletionSource closing = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		SplitRecording recording = new() { BlockClosingFile = (0, closing.Task), DrainTimeout = TimeSpan.FromMilliseconds(200) };
 
-		await Assert.ThrowsExactlyAsync<RecordingWriteException>(() => recording.RunAsync(new FakeSplitter(), ThreeUnits, session => WriteUnitsAsync(session, 7), cancellationToken));
+		await Assert.ThrowsExactlyAsync<RecordingWriteException>(() => recording.RunAsync(new FakeSplitter(), ThreeUnits, static session => WriteUnitsAsync(session, 7), cancellationToken));
 		closing.SetResult();
 		await recording.WaitForClosingAsync(cancellationToken);
 		await Task.Delay(200, cancellationToken);

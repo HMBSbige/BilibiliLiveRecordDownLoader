@@ -2,6 +2,7 @@ using BilibiliLiveRecordDownLoader.Application.Http;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -76,6 +77,7 @@ public sealed class BilibiliHttpClientsTest
 
 		public ConcurrentQueue<ReceivedRequest> Requests { get; } = new();
 
+		[SuppressMessage("Style", "IDE0060", Justification = "签名要对上 SocketsHttpHandler.ConnectCallback")]
 		public async ValueTask<Stream> ConnectAsync(SocketsHttpConnectionContext context, CancellationToken cancellationToken)
 		{
 			Socket socket = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
@@ -95,14 +97,14 @@ public sealed class BilibiliHttpClientsTest
 		public async ValueTask DisposeAsync()
 		{
 			await _stop.CancelAsync();
-			_listener.Stop();
+			_listener.Dispose();
 			await _serving.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 			_stop.Dispose();
 		}
 
 		private async Task ServeAsync(CancellationToken cancellationToken)
 		{
-			while (true)
+			while (!cancellationToken.IsCancellationRequested)
 			{
 				using TcpClient client = await _listener.AcceptTcpClientAsync(cancellationToken);
 				await using NetworkStream stream = client.GetStream();

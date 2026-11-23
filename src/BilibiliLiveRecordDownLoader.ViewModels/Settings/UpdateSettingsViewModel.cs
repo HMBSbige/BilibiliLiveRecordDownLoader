@@ -20,7 +20,7 @@ public sealed partial class UpdateSettingsViewModel : ViewModelBase
 		OnLanguageChanged(UpdateVersionText);
 	}
 
-	public string CurrentVersion => _updateAppService.CurrentVersion;
+	private string CurrentVersion => _updateAppService.CurrentVersion;
 
 	[Reactive]
 	public partial bool AutoCheckUpdate { get; set; }

@@ -5,18 +5,16 @@ internal sealed class SegmentHistory(int capacity)
 	private readonly HashSet<string> _set = new(capacity, StringComparer.Ordinal);
 	private readonly Queue<string> _order = new(capacity);
 
-	public int Count => _set.Count;
-
 	public bool Contains(string item)
 	{
 		return _set.Contains(item);
 	}
 
-	public bool Add(string item)
+	public void Add(string item)
 	{
 		if (!_set.Add(item))
 		{
-			return false;
+			return;
 		}
 
 		_order.Enqueue(item);
@@ -25,7 +23,5 @@ internal sealed class SegmentHistory(int capacity)
 		{
 			_set.Remove(_order.Dequeue());
 		}
-
-		return true;
 	}
 }

@@ -2,6 +2,7 @@ using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Buffers.Binary;
+using System.Globalization;
 using System.Text;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
@@ -79,7 +80,7 @@ public sealed class RecordingTimestampTest
 	{
 		SplitRecording recording = new();
 
-		await recording.RunAsync(new Fmp4HlsSplitter(), new RecordingSplit.None(), async session =>
+		await recording.RunAsync(new Fmp4HlsSplitter(), new RecordingSplit.None(), static async session =>
 		{
 			await session.InitAsync(Fmp4Init(44_100));
 			await session.SegmentAsync(Fmp4MovieFragment(VideoTraf(900, 1, 60), AudioTraf(1, 0, 96_000)));
@@ -422,7 +423,7 @@ public sealed class RecordingTimestampTest
 
 	private static IEnumerable<string> Place(SplitRecording recording, IEnumerable<long> times)
 	{
-		return times.Select(time => recording.Timeline.TryPlace(time, out TimelinePosition? position) && position is { } placed ? $"{placed.Segment}@{placed.Time.TotalMilliseconds}" : "null");
+		return times.Select(time => recording.Timeline.TryPlace(time, out TimelinePosition? position) && position is { } placed ? string.Create(CultureInfo.InvariantCulture, $"{placed.Segment}@{placed.Time.TotalMilliseconds}") : "null");
 	}
 
 	private static byte[] TsSegment(params long[] pts)
@@ -461,14 +462,14 @@ public sealed class RecordingTimestampTest
 				fields.Add($"d{ReadTimestamp(payload.Slice(14))}");
 			}
 
-			packets.Add($"{(pid is TsSamples.VideoPid ? "V" : "A")}:{string.Join(",", fields)}");
+			packets.Add($"{(pid is TsSamples.VideoPid ? "V" : "A")}:{string.Join(',', fields)}");
 		}
 
 		return [.. packets];
 
 		static long ReadTimestamp(ReadOnlySpan<byte> field)
 		{
-			return (long)(field[0] >> 1 & 0x07) << 30 | (long)field[1] << 22 | (long)(field[2] >> 1) << 15 | (long)field[3] << 7 | (long)(field[4] >> 1);
+			return (long)(field[0] >> 1 & 0x07) << 30 | (long)field[1] << 22 | (long)(field[2] >> 1) << 15 | (long)field[3] << 7 | (long)field[4] >> 1;
 		}
 	}
 

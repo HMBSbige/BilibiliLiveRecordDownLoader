@@ -68,7 +68,7 @@
 
                                 <StackPanel Grid.Row="0" Grid.Column="2" Grid.RowSpan="3" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" HorizontalAlignment="Right">
                                     <Button Classes="icon"
-                                            Command="{Binding #TaskList.((tasks:TaskListViewModel)DataContext).CancelTaskCommand}"
+                                            Command="{Binding #TaskList.((tasks:TaskListViewModel)DataContext).CancelTaskCommand, FallbackValue={x:Null}}"
                                             CommandParameter="{Binding}"
                                             IsVisible="{Binding IsActive}"
                                             ToolTip.Tip="{Binding CancelTask, Source={x:Static l:AppLanguage.Current}}"
@@ -76,7 +76,7 @@
                                         <ic:FluentIcon Icon="Dismiss" />
                                     </Button>
                                     <Button Classes="icon"
-                                            Command="{Binding #TaskList.((tasks:TaskListViewModel)DataContext).OpenTargetFolderCommand}"
+                                            Command="{Binding #TaskList.((tasks:TaskListViewModel)DataContext).OpenTargetFolderCommand, FallbackValue={x:Null}}"
                                             CommandParameter="{Binding}"
                                             IsVisible="{Binding TargetPath, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                                             ToolTip.Tip="{Binding OpenTargetFolder, Source={x:Static l:AppLanguage.Current}}"

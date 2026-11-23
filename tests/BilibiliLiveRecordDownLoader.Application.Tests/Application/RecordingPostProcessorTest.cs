@@ -166,7 +166,7 @@ public sealed class RecordingPostProcessorTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(await File.ReadAllTextAsync(directory.Combine(Stem + ".ass"))).Contains("PlayResY: 720");
+			await Assert.That(await File.ReadAllTextAsync(directory.Combine(Stem + ".ass"), cancellationToken)).Contains("PlayResY: 720");
 			await Assert.That(mediaTools.Chapters[remux.Destination]).Contains("START=0\nEND=100000\ntitle=测试标题\n").And.Contains($"START=100000\nEND=200000\ntitle={AppLanguage.Current.ChapterTitleChange.ToString("新标题")}\n");
 			await Assert.That(File.Exists(withChapters!.Path)).IsFalse();
 		}
@@ -202,7 +202,7 @@ public sealed class RecordingPostProcessorTest
 
 		await Create(new RecordingMediaTools()).ProcessAsync(path, CreateProfile(directory), Streamer, new DanmakuSegment(danmaku, null, null), CreateDanmakuProfile(showPaidMessages: show));
 
-		string subtitle = await File.ReadAllTextAsync(directory.Combine(Stem + ".ass"));
+		string subtitle = await File.ReadAllTextAsync(directory.Combine(Stem + ".ass"), cancellationToken);
 
 		using (Assert.Multiple())
 		{

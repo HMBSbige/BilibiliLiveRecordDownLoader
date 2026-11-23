@@ -29,7 +29,7 @@ public abstract partial class DialogViewModel : ViewModelBase
 	}
 }
 
-public abstract partial class DialogViewModel<TResult> : DialogViewModel
+public abstract class DialogViewModel<TResult> : DialogViewModel
 {
 	private readonly TaskCompletionSource<TResult?> _result = new(TaskCreationOptions.RunContinuationsAsynchronously);
 

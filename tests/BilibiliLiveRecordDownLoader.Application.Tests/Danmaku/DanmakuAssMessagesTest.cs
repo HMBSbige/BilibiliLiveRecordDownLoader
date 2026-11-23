@@ -69,7 +69,7 @@ public sealed partial class DanmakuAssMessagesTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(text).Contains(@"Dialogue: 0,0:00:00.00,0:00:12.00,Danmaku,");
-			await Assert.That(messages).All(static match => (match.Groups[@"layer"].Value is "1") == match.Groups[@"tags"].Value.EndsWith(@"\p1", StringComparison.Ordinal));
+			await Assert.That(messages).All(static match => match.Groups[@"layer"].Value is "1" == match.Groups[@"tags"].Value.EndsWith(@"\p1", StringComparison.Ordinal));
 			await Assert.That(Texts(messages).Distinct()).IsEquivalentTo([@"老板", @"¥30", @"内容", @"舰长 开通了舰长", @"观众 投喂 礼物 ×1"]);
 		}
 	}
@@ -268,12 +268,12 @@ public sealed partial class DanmakuAssMessagesTest
 
 	public static IEnumerable<Func<(string Text, double MaxWidth, string[] Lines)>> WrapCases()
 	{
-		yield return () => (new string('字', 25), 80, [new string('字', 10), new string('字', 10), new string('字', 5)]);
+		yield return static () => (new string('字', 25), 80, [new string('字', 10), new string('字', 10), new string('字', 5)]);
 		// 拉丁字母在空格处换行，行首行尾的空格去掉
-		yield return () => (@"hello world  foo", 30, [@"hello", @"world", @"foo"]);
+		yield return static () => (@"hello world  foo", 30, [@"hello", @"world", @"foo"]);
 		// 混排时从最后一个全角字之后断开
-		yield return () => (@"主播 好厉害abcdeabcde", 80, [@"主播 好厉害", @"abcdeabcde"]);
-		yield return () => (string.Empty, 80, []);
+		yield return static () => (@"主播 好厉害abcdeabcde", 80, [@"主播 好厉害", @"abcdeabcde"]);
+		yield return static () => (string.Empty, 80, []);
 	}
 
 	// 字号 10 时全角字宽按 8 估算
@@ -404,7 +404,7 @@ public sealed partial class DanmakuAssMessagesTest
 	[Test]
 	public async Task TheBarHeightDuringAPeriodIsTheTallestEntryInItAsync()
 	{
-		DanmakuAssMessages.Occupancy occupied = new(new DanmakuAssMessages.Geometry(1920, 1080, 1), [(TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(10), 100), (TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(15), 200)]);
+		DanmakuAssMessages.Occupancy occupied = new(new DanmakuAssMessages.Geometry(1920, 1080, 1), [(TimeSpan.Zero, TimeSpan.FromSeconds(10), 100), (TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(15), 200)]);
 
 		using (Assert.Multiple())
 		{

@@ -1,10 +1,13 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace BilibiliLiveRecordDownLoader.ViewModels;
 
 public abstract class ViewModelBase : ReactiveObject, IDisposable
 {
+	[SuppressMessage("Usage", "CA2213", Justification = "没有定时器和链接，不需要释放，释放后再次 Dispose 时 Cancel 会抛异常")]
 	private readonly CancellationTokenSource _lifetime = new();
 
-	protected MultipleDisposable Disposables { get; } = new();
+	protected MultipleDisposable Disposables { get; } = [];
 
 	protected void PersistToConfig<T>(IAppConfigManager configManager, IObservable<T> source, Action<AppConfig, T> updateAction, TimeSpan quietPeriod = default)
 	{

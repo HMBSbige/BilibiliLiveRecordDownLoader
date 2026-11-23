@@ -8,6 +8,9 @@ using System.Globalization;
 using System.Text;
 using System.Threading.Channels;
 
+// 先释放以等文件写完再读；await using 兜底中途失败的情况
+// ReSharper disable DisposeOnUsingVariable
+
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
 public sealed class RoomDanmakuTest : IDisposable
@@ -166,7 +169,7 @@ public sealed class RoomDanmakuTest : IDisposable
 		string second = _directory.Combine("b.flv");
 		string third = _directory.Combine("c.flv");
 		danmaku.SetRecording(true);
-		danmaku.OnVideoStarted(timeline, first, Run(() => isEnabled));
+		danmaku.OnVideoStarted(timeline, first, Run([SuppressMessage("ReSharper", "AccessToModifiedClosure")] () => isEnabled));
 		timeline.Next().SetResult(new TimelinePosition(0, first, TimeSpan.FromSeconds(10.5)));
 		danmaku.OnReceived(Comment("推过末尾"));
 		await BarrierAsync(danmaku, cancellationToken);
@@ -589,10 +592,10 @@ public sealed class RoomDanmakuTest : IDisposable
 		bool isEnabled = true;
 		TimeSpan duration = TimeSpan.FromSeconds(10);
 		string video = _directory.Combine("a.flv");
-		ControlledTimeline timeline = new() { Fallback = new TimelinePosition(0, video, TimeSpan.FromSeconds(1)), Duration = _ => duration };
+		ControlledTimeline timeline = new() { Fallback = new TimelinePosition(0, video, TimeSpan.FromSeconds(1)), Duration = [SuppressMessage("ReSharper", "AccessToModifiedClosure")] (_) => duration };
 		await using RoomDanmaku danmaku = new(1, _time, logger, static () => { });
 		danmaku.SetRecording(true);
-		danmaku.OnVideoStarted(timeline, video, Run(() => isEnabled));
+		danmaku.OnVideoStarted(timeline, video, Run([SuppressMessage("ReSharper", "AccessToModifiedClosure")] () => isEnabled));
 		danmaku.OnReceived(Comment("关之前"));
 		await BarrierAsync(danmaku, cancellationToken);
 
@@ -631,7 +634,7 @@ public sealed class RoomDanmakuTest : IDisposable
 		await using RoomDanmaku danmaku = Create();
 		string first = UnixMilliseconds();
 		danmaku.SetRecording(true);
-		danmaku.OnVideoStarted(timeline, video, Run(() => isEnabled, saveRaw: true));
+		danmaku.OnVideoStarted(timeline, video, Run([SuppressMessage("ReSharper", "AccessToModifiedClosure")] () => isEnabled, saveRaw: true));
 		danmaku.OnReceived(Connected());
 		danmaku.OnReceived(LoginNotice());
 		await BarrierAsync(danmaku, cancellationToken);
@@ -807,24 +810,24 @@ public sealed class RoomDanmakuTest : IDisposable
 		return new DanmuReceiveTime(_time.GetTimestamp(), _time.GetUtcNow());
 	}
 
-	private DanmuMessage Connected()
+	private DanmuMessage.Connected Connected()
 	{
 		return new DanmuMessage.Connected(0) { ReceivedAt = ReceivedNow() };
 	}
 
-	private DanmuMessage LoginNotice()
+	private DanmuMessage.LoginNotice LoginNotice()
 	{
-		return new DanmuMessage.LoginNotice("未登录") { ReceivedAt = ReceivedNow() };
+		return new DanmuMessage.LoginNotice() { ReceivedAt = ReceivedNow() };
 	}
 
-	private DanmuMessage Raw(string command)
+	private DanmuMessage.Raw Raw(string command)
 	{
 		return new DanmuMessage.Raw(command, Encoding.UTF8.GetBytes($$"""{"cmd":"{{command}}"}""")) { ReceivedAt = ReceivedNow() };
 	}
 
-	private DanmuMessage Comment(string text)
+	private DanmuMessage.Comment Comment(string text)
 	{
-		return new DanmuMessage.Comment(new DanmuSender(0, "观众", GuardLevel.None, null), text, 1, 25, 0xFFFFFF, DateTimeOffset.UnixEpoch, "0", DanmuCommentKind.Text, false) { ReceivedAt = ReceivedNow() };
+		return new DanmuMessage.Comment(new DanmuSender(0, "观众", GuardLevel.None, null), text, 1, 25, 0xFFFFFF, DateTimeOffset.UnixEpoch, "0", false) { ReceivedAt = ReceivedNow() };
 	}
 
 	// 加入工作不送可读通知，只在完成时送达
@@ -915,7 +918,7 @@ public sealed class RoomDanmakuTest : IDisposable
 
 		public TaskCompletionSource Placing { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		public Func<string, TimeSpan?> Duration { get; set; } = static _ => TimeSpan.FromSeconds(30);
+		public Func<string, TimeSpan?> Duration { get; init; } = static _ => TimeSpan.FromSeconds(30);
 
 		public TaskCompletionSource<TimelinePosition?> Next()
 		{

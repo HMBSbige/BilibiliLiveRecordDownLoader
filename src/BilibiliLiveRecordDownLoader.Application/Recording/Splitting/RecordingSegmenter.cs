@@ -124,7 +124,7 @@ internal sealed partial class RecordingSegmenter(PipeWriter output, MediaSplitte
 			_pendingTitleChange = control.TitleChanges;
 
 			// 不分段时只攒分割器定起点要的第一个单元；单元中途打开分段，从下一个切分点开始判断
-			_isUnitHeld = (Splitter.HoldsFirstUnit && !_segmentHasMedia) || control.Policy is not { Split: RecordingSplit.None, OnTitleChange: false };
+			_isUnitHeld = Splitter.HoldsFirstUnit && !_segmentHasMedia || control.Policy is not { Split: RecordingSplit.None, OnTitleChange: false };
 		}
 
 		if (_scanned > 0 && (!_isPendingUnit || !Splitter.CanSplit || !_isUnitHeld))

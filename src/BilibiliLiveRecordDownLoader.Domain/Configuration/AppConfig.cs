@@ -104,6 +104,7 @@ public record AppConfig
 		SplitSizeMegabytes = ConfigValues.ClampSplitSize(SplitSizeMegabytes);
 		DanmakuOffset = ConfigValues.ClampDanmakuOffset(DanmakuOffset);
 		// 手改的配置里 Rooms 或其中的元素可能是 null
+		// ReSharper disable once NullCoalescingConditionIsAlwaysNotNullAccordingToAPIContract
 		Rooms = [.. (Rooms ?? []).Where(static room => room is { RoomId: > 0 }).DistinctBy(static room => room.RoomId)];
 		Rooms.ForEach(static room => room.ApplyDefaults());
 	}

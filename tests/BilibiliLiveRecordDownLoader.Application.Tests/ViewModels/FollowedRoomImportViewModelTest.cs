@@ -120,13 +120,13 @@ public sealed class FollowedRoomImportViewModelTest
 	{
 		FakeRoomAppService rooms = new(Followed)
 		{
-			AddRange = static settings => [.. settings.Select(static item => item.RoomId is 7777 ? new RoomAddResult.Failed(item.RoomId, "boom") : (RoomAddResult)new RoomAddResult.Skipped(item.RoomId, item.RoomId))]
+			AddRange = static settings => [.. settings.Select(static item => item.RoomId is 7777 ? new RoomAddResult.Failed(item.RoomId, "boom") : (RoomAddResult)new RoomAddResult.Skipped(item.RoomId))]
 		};
 		using FollowedRoomImportViewModel dialog = Open(rooms);
 
 		Select(dialog, 6154037, 7777);
 		((ICommand)dialog.ImportCommand).Execute(null);
-		await TestWait.UntilAsync(() => !dialog.IsBusy && dialog.ErrorMessage is not null, "the failed import shows its error", cancellationToken);
+		await TestWait.UntilAsync(() => dialog is { IsBusy: false, ErrorMessage: not null }, "the failed import shows its error", cancellationToken);
 
 		FollowedRoomItemViewModel skipped = dialog.VisibleRooms.Single(static room => room.RoomId is 6154037);
 
@@ -214,7 +214,7 @@ public sealed class FollowedRoomImportViewModelTest
 	{
 		public Exception? Failure { get; set; }
 
-		public Func<IReadOnlyList<RoomSettingsDto>, IReadOnlyList<RoomAddResult>> AddRange { get; init; } = static settings => [.. settings.Select(static item => new RoomAddResult.Added(item.RoomId, new RoomSnapshot(item, 0, null, null, LiveStatus.Unknown, RecordStatus.Idle, 0, null, null)))];
+		public Func<IReadOnlyList<RoomSettingsDto>, IReadOnlyList<RoomAddResult>> AddRange { get; init; } = static settings => [.. settings.Select(static item => new RoomAddResult.Added(item.RoomId))];
 
 		public ConcurrentQueue<RoomSettingsDto[]> Added { get; } = new();
 

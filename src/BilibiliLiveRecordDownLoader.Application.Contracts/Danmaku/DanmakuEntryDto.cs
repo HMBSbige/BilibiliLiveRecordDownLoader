@@ -3,11 +3,11 @@ namespace BilibiliLiveRecordDownLoader.Application.Contracts.Danmaku;
 // 价格都是千分之一元
 public closed record DanmakuEntryDto
 {
-	// Color 是 RGB；IsStorm 是节奏风暴代发的
-	public sealed record Comment(DanmuSender Sender, string Text, int Color, bool IsStorm) : DanmakuEntryDto;
+	// IsStorm 是节奏风暴代发的
+	public sealed record Comment(DanmuSender Sender, string Text, bool IsStorm) : DanmakuEntryDto;
 
 	// 缺少 Id 时为 0
-	public sealed record SuperChat(long Id, DanmuSender Sender, string Text, long Price, TimeSpan Duration) : DanmakuEntryDto;
+	public sealed record SuperChat(long Id, DanmuSender Sender, string Text, long Price) : DanmakuEntryDto;
 
 	// Ids 对应 SuperChat.Id；只用来标出被删的 SC，不单独列出
 	public sealed record SuperChatDeletion(IReadOnlyList<long> Ids) : DanmakuEntryDto

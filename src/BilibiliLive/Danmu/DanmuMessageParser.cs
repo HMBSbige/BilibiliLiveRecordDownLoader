@@ -11,6 +11,9 @@ internal static class DanmuMessageParser
 	// Far beyond the longest tier, and keeps an absurd value within the range of TimeSpan
 	private const long MaxSuperChatSeconds = 24 * 60 * 60;
 
+	// The largest whole-yuan price whose thousandths still fit in a long
+	private const long MaxSuperChatPrice = long.MaxValue / 1000;
+
 	/// <summary>When it throws, only the raw message may have been appended to <paramref name="output"/>.</summary>
 	/// <exception cref="JsonException">The body is not valid JSON.</exception>
 	/// <exception cref="InvalidDataException">The protobuf of a gift is malformed.</exception>
@@ -71,7 +74,7 @@ internal static class DanmuMessageParser
 			// Arrives once right after authentication, so later subscribers still learn whether nicknames are masked
 			case "LOG_IN_NOTICE":
 			{
-				output.Add(ParseLoginNotice(json) with { ReceivedAt = receivedAt });
+				output.Add(new DanmuMessage.LoginNotice { ReceivedAt = receivedAt });
 				break;
 			}
 			case "DANMU_MSG" when includeChat && ParseComment(json, receivedAt) is { } comment:
@@ -121,7 +124,7 @@ internal static class DanmuMessageParser
 		}
 	}
 
-	internal static string? GetCommand(ReadOnlySpan<byte> json)
+	private static string? GetCommand(ReadOnlySpan<byte> json)
 	{
 		Utf8JsonReader reader = new(json);
 
@@ -150,7 +153,7 @@ internal static class DanmuMessageParser
 		return null;
 	}
 
-	internal static string? ValidateAndGetCommand(ReadOnlySpan<byte> json)
+	private static string? ValidateAndGetCommand(ReadOnlySpan<byte> json)
 	{
 		// The reader itself rejects empty input, malformed JSON and trailing content
 		Utf8JsonReader reader = new(json);
@@ -187,12 +190,6 @@ internal static class DanmuMessageParser
 		return new DanmuMessage.RoomChanged(GetString(data, "title") ?? string.Empty, GetString(data, "area_name"), GetString(data, "parent_area_name"));
 	}
 
-	private static DanmuMessage.LoginNotice ParseLoginNotice(ReadOnlyMemory<byte> json)
-	{
-		using JsonDocument document = JsonDocument.Parse(json);
-		return new DanmuMessage.LoginNotice(GetString(Get(document.RootElement, "data"), "notice_msg") ?? string.Empty);
-	}
-
 	private static DanmuMessage.Comment? ParseComment(ReadOnlyMemory<byte> json, DanmuReceiveTime receivedAt)
 	{
 		using JsonDocument document = JsonDocument.Parse(json);
@@ -223,7 +220,6 @@ internal static class DanmuMessageParser
 			GetInt32(At(meta, 3)),
 			sentTime,
 			GetString(At(meta, 7)) ?? string.Empty,
-			(DanmuCommentKind)GetInt32(At(meta, 12)),
 			GetInt64(At(meta, 9)) is not 0
 		)
 		{ ReceivedAt = receivedAt };
@@ -237,7 +233,7 @@ internal static class DanmuMessageParser
 			return null;
 		}
 
-		return new DanmuMedal(GetInt32(At(medal, 0)), name, GetInt32(At(medal, 4)), GetInt64(At(medal, 12)), GetInt64(At(medal, 3)), GetInt64(At(medal, 11)) is not 0);
+		return new DanmuMedal(GetInt32(At(medal, 0)), name, GetInt32(At(medal, 4)), GetInt64(At(medal, 11)) is not 0);
 	}
 
 	private static DanmuMedal? ParseMedalObject(JsonElement medal)
@@ -248,7 +244,7 @@ internal static class DanmuMessageParser
 		}
 
 		// medal_color_start matches the color DANMU_MSG lists, medal_color is a different shade written as a string
-		return new DanmuMedal(GetInt32(Get(medal, "medal_level")), name, GetInt32(Get(medal, "medal_color_start")), GetInt64(Get(medal, "target_id")), GetInt64(Get(medal, "anchor_roomid")), GetInt64(Get(medal, "is_lighted")) is not 0);
+		return new DanmuMedal(GetInt32(Get(medal, "medal_level")), name, GetInt32(Get(medal, "medal_color_start")), GetInt64(Get(medal, "is_lighted")) is not 0);
 	}
 
 	private static DanmuMessage.SuperChat? ParseSuperChat(ReadOnlyMemory<byte> json, DanmuReceiveTime receivedAt)
@@ -263,10 +259,10 @@ internal static class DanmuMessageParser
 
 		JsonElement userInfo = Get(data, "user_info");
 		DanmuSender sender = new(GetInt64(Get(data, "uid")), GetString(userInfo, "uname") ?? string.Empty, (GuardLevel)GetInt32(Get(userInfo, "guard_level")), ParseMedalObject(Get(data, "medal_info")));
-		long price = (long)decimal.Round(Math.Clamp(GetDecimal(Get(data, "price")), 0, long.MaxValue / 1000) * 1000);
+		long price = (long)decimal.Round(Math.Clamp(GetDecimal(Get(data, "price")), 0, MaxSuperChatPrice) * 1000);
 		TimeSpan duration = GetInt64(Get(data, "time")) is > 0 and <= MaxSuperChatSeconds and var seconds ? TimeSpan.FromSeconds(seconds) : TimeSpan.Zero;
 
-		return new DanmuMessage.SuperChat(GetInt64(Get(data, "id")), sender, GetString(data, "message") ?? string.Empty, price, duration, FromUnixSeconds(GetInt64(Get(data, "start_time")), receivedAt))
+		return new DanmuMessage.SuperChat(GetInt64(Get(data, "id")), sender, GetString(data, "message") ?? string.Empty, price, duration)
 		{
 			ReceivedAt = receivedAt
 		};
@@ -287,7 +283,7 @@ internal static class DanmuMessageParser
 		long unitPrice = GetInt64(Get(data, "price"));
 		long totalPrice = GetInt64(Get(data, "total_coin")) is > 0 and var total ? total : unitPrice * count;
 
-		return new DanmuMessage.Gift(sender, GetInt64(Get(data, "giftId")), GetString(data, "giftName") ?? string.Empty, count, unitPrice, totalPrice, ParseCoinType(GetString(data, "coin_type")), FromUnixSeconds(GetInt64(Get(data, "timestamp")), receivedAt))
+		return new DanmuMessage.Gift(sender, GetString(data, "giftName") ?? string.Empty, count, totalPrice, ParseCoinType(GetString(data, "coin_type")))
 		{
 			ReceivedAt = receivedAt
 		};
@@ -345,7 +341,7 @@ internal static class DanmuMessageParser
 		// Captured toasts use 1 to open and 2 to renew; the web page treats anything but 1 as a renewal, but 0 is a missing field
 		bool isRenewal = GetInt64(Get(guard, "op_type")) >= 2;
 
-		return new DanmuMessage.GuardBought(sender, level, months, price, isRenewal, FromUnixSeconds(GetInt64(Get(guard, "start_time")), receivedAt))
+		return new DanmuMessage.GuardBought(sender, level, months, price, isRenewal)
 		{
 			ReceivedAt = receivedAt
 		};
@@ -357,7 +353,7 @@ internal static class DanmuMessageParser
 	}
 
 	// A missing or absurd time falls back to the arrival, which is at most seconds later
-	internal static DateTimeOffset FromUnixSeconds(long seconds, DanmuReceiveTime receivedAt)
+	private static DateTimeOffset FromUnixSeconds(long seconds, DanmuReceiveTime receivedAt)
 	{
 		return seconds > 0 && seconds <= MaxUnixSeconds ? DateTimeOffset.FromUnixTimeSeconds(seconds) : receivedAt.UtcTime;
 	}

@@ -8,6 +8,7 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 	// 再快滚动跟不上，再慢看起来一顿一顿的
 	private static readonly TimeSpan RefreshInterval = TimeSpan.FromMilliseconds(150);
 
+	[SuppressMessage("Usage", "CA2213", Justification = "由 Disposables 释放")]
 	private readonly IDanmakuFeed _feed;
 	private readonly List<DanmakuEntryViewModel> _all = [];
 	private long _lastSequence;

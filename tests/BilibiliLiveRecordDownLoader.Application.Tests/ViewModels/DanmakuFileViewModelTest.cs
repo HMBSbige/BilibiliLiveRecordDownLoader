@@ -200,8 +200,8 @@ public sealed class DanmakuFileViewModelTest
 			Entries =
 			[
 				new DanmakuFileEntryDto(TimeSpan.FromSeconds(10), new DanmakuEntryDto.SuperChatDeletion([7])),
-				new DanmakuFileEntryDto(TimeSpan.FromSeconds(10), new DanmakuEntryDto.SuperChat(7, sender, "被删", 30_000, TimeSpan.FromMinutes(1))),
-				new DanmakuFileEntryDto(TimeSpan.FromSeconds(20), new DanmakuEntryDto.SuperChat(8, sender, "留着", 30_000, TimeSpan.FromMinutes(1)))
+				new DanmakuFileEntryDto(TimeSpan.FromSeconds(10), new DanmakuEntryDto.SuperChat(7, sender, "被删", 30_000)),
+				new DanmakuFileEntryDto(TimeSpan.FromSeconds(20), new DanmakuEntryDto.SuperChat(8, sender, "留着", 30_000))
 			]
 		};
 		using DanmakuFileViewModel viewModel = new(file, new FakeDanmakuAppService());
@@ -211,8 +211,8 @@ public sealed class DanmakuFileViewModelTest
 
 	private static string VideoNotFound => AppLanguage.Current.DanmakuVideoNotFound.ToString(Path.GetFileName(DanmakuPath));
 
-	private static async Task WaitForMessageAsync(DanmakuFileViewModel viewModel, CancellationToken cancellationToken)
+	private static Task WaitForMessageAsync(DanmakuFileViewModel viewModel, CancellationToken cancellationToken)
 	{
-		await TestWait.UntilAsync(() => viewModel.Message is not null && !viewModel.IsBusy, "the file has been read and a message is shown", cancellationToken);
+		return TestWait.UntilAsync(() => viewModel.Message is not null && !viewModel.IsBusy, "the file has been read and a message is shown", cancellationToken);
 	}
 }

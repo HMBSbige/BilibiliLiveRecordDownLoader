@@ -181,7 +181,7 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 			}
 			catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
 			{
-				if (roomAppService.GetRooms().FirstOrDefault(snapshot => snapshot.RoomId == RoomId) is { } snapshot)
+				if (roomAppService.GetRooms().FirstOrDefault(room => room.RoomId == RoomId) is { } snapshot)
 				{
 					Apply(snapshot, _hasCookie);
 				}

@@ -100,7 +100,7 @@ internal sealed class RawDanmakuWriter : IAsyncDisposable
 		}
 	}
 
-	public async ValueTask FlushAsync(CancellationToken cancellationToken)
+	private async ValueTask FlushAsync(CancellationToken cancellationToken)
 	{
 		if (_pendingCount is 0)
 		{
@@ -142,7 +142,10 @@ internal sealed class RawDanmakuWriter : IAsyncDisposable
 	private async ValueTask EndLineAsync(CancellationToken cancellationToken)
 	{
 		_json.WriteEndObject();
+		// 只写到内存缓冲区
+#pragma warning disable CA1849
 		_json.Flush();
+#pragma warning restore CA1849
 		_pending.Write("\n"u8);
 		++_pendingCount;
 

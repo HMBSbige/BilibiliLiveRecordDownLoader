@@ -1,5 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace BilibiliLive.Wbi;
 
+[SuppressMessage("Design", "CA1001", Justification = "Only WaitAsync and Release are used, which never create the wait handle that Dispose releases")]
 internal sealed class WbiKeyCache(Func<CancellationToken, Task<string>> fetchMixinKey, TimeProvider timeProvider)
 {
 	// The keys rotate about once a day

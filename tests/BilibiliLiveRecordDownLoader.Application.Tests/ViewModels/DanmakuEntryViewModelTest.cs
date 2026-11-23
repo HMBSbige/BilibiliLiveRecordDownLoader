@@ -19,7 +19,7 @@ public sealed class DanmakuEntryViewModelTest
 	[Test]
 	public async Task SuperChatIsColoredByItsTierAsync()
 	{
-		DanmakuEntryViewModel entry = File(new DanmakuEntryDto.SuperChat(1, Viewer, "加油", 100_000, TimeSpan.FromMinutes(1)));
+		DanmakuEntryViewModel entry = File(new DanmakuEntryDto.SuperChat(1, Viewer, "加油", 100_000));
 		SuperChatTier tier = SuperChatTier.For(100_000);
 
 		using (Assert.Multiple())
@@ -43,7 +43,7 @@ public sealed class DanmakuEntryViewModelTest
 
 	public static IEnumerable<Func<(DanmakuEntryDto Entry, long? Price)>> Prices()
 	{
-		yield return static () => (new DanmakuEntryDto.SuperChat(1, Viewer, "加油", 30_000, TimeSpan.FromMinutes(1)), 30_000);
+		yield return static () => (new DanmakuEntryDto.SuperChat(1, Viewer, "加油", 30_000), 30_000);
 		yield return static () => (new DanmakuEntryDto.Gift(Viewer, "小花花", 2, 200), 200);
 		// 银瓜子礼物不花钱
 		yield return static () => (new DanmakuEntryDto.Gift(Viewer, "辣条", 10, 0), null);
@@ -93,10 +93,10 @@ public sealed class DanmakuEntryViewModelTest
 	[Test]
 	public async Task GuardBadgeTakesPrecedenceOverTheMedalAsync()
 	{
-		DanmuMedal medal = new(21, "粉丝团", 0x1A2B3C, 2, 3, true);
-		DanmakuEntryViewModel guard = File(new DanmakuEntryDto.Comment(new DanmuSender(1, "舰长观众", GuardLevel.Captain, medal), "hi", 0xFFFFFF, false));
-		DanmakuEntryViewModel fan = File(new DanmakuEntryDto.Comment(new DanmuSender(1, "粉丝", GuardLevel.None, medal), "hi", 0xFFFFFF, false));
-		DanmakuEntryViewModel unlit = File(new DanmakuEntryDto.Comment(new DanmuSender(1, "粉丝", GuardLevel.None, medal with { IsLit = false }), "hi", 0xFFFFFF, false));
+		DanmuMedal medal = new(21, "粉丝团", 0x1A2B3C, true);
+		DanmakuEntryViewModel guard = File(new DanmakuEntryDto.Comment(new DanmuSender(1, "舰长观众", GuardLevel.Captain, medal), "hi", false));
+		DanmakuEntryViewModel fan = File(new DanmakuEntryDto.Comment(new DanmuSender(1, "粉丝", GuardLevel.None, medal), "hi", false));
+		DanmakuEntryViewModel unlit = File(new DanmakuEntryDto.Comment(new DanmuSender(1, "粉丝", GuardLevel.None, medal with { IsLit = false }), "hi", false));
 
 		using (Assert.Multiple())
 		{
@@ -109,9 +109,9 @@ public sealed class DanmakuEntryViewModelTest
 	[Test]
 	public async Task AccessibleTextReadsTheWholeRowAsync()
 	{
-		DanmuMedal medal = new(21, "粉丝团", 0x1A2B3C, 2, 3, true);
-		DanmakuEntryViewModel comment = File(new DanmakuEntryDto.Comment(new DanmuSender(1, "粉丝", GuardLevel.None, medal), "你好", 0xFFFFFF, false), 65);
-		DanmakuEntryViewModel superChat = File(new DanmakuEntryDto.SuperChat(7, Viewer, "加油", 30_000, TimeSpan.FromMinutes(1)));
+		DanmuMedal medal = new(21, "粉丝团", 0x1A2B3C, true);
+		DanmakuEntryViewModel comment = File(new DanmakuEntryDto.Comment(new DanmuSender(1, "粉丝", GuardLevel.None, medal), "你好", false), 65);
+		DanmakuEntryViewModel superChat = File(new DanmakuEntryDto.SuperChat(7, Viewer, "加油", 30_000));
 		DanmakuEntryViewModel title = File(new DanmakuEntryDto.TitleChange("新标题"));
 		bool notified = false;
 		superChat.PropertyChanged += (_, e) => notified |= e.PropertyName is nameof(DanmakuEntryViewModel.AccessibleText);
@@ -130,7 +130,7 @@ public sealed class DanmakuEntryViewModelTest
 	[Test]
 	public async Task SearchIgnoresCaseInNamesAndTextAsync()
 	{
-		DanmakuEntryViewModel entry = File(new DanmakuEntryDto.Comment(new DanmuSender(1, "Viewer", GuardLevel.None, null), "Hello 世界", 0xFFFFFF, false));
+		DanmakuEntryViewModel entry = File(new DanmakuEntryDto.Comment(new DanmuSender(1, "Viewer", GuardLevel.None, null), "Hello 世界", false));
 
 		using (Assert.Multiple())
 		{
@@ -144,9 +144,9 @@ public sealed class DanmakuEntryViewModelTest
 	[Test]
 	public async Task OnlySuperChatsWithAMatchingIdAreMarkedDeletedAsync()
 	{
-		DanmakuEntryViewModel deleted = File(new DanmakuEntryDto.SuperChat(7, Viewer, "被删", 30_000, TimeSpan.FromMinutes(1)));
-		DanmakuEntryViewModel kept = File(new DanmakuEntryDto.SuperChat(8, Viewer, "留着", 30_000, TimeSpan.FromMinutes(1)));
-		DanmakuEntryViewModel withoutId = File(new DanmakuEntryDto.SuperChat(0, Viewer, "旧文件", 30_000, TimeSpan.FromMinutes(1)));
+		DanmakuEntryViewModel deleted = File(new DanmakuEntryDto.SuperChat(7, Viewer, "被删", 30_000));
+		DanmakuEntryViewModel kept = File(new DanmakuEntryDto.SuperChat(8, Viewer, "留着", 30_000));
+		DanmakuEntryViewModel withoutId = File(new DanmakuEntryDto.SuperChat(0, Viewer, "旧文件", 30_000));
 
 		DanmakuEntryViewModel.MarkDeleted([deleted, kept, withoutId], [7, 0]);
 
@@ -167,6 +167,6 @@ public sealed class DanmakuEntryViewModelTest
 
 	private static DanmakuEntryDto.Comment Comment()
 	{
-		return new DanmakuEntryDto.Comment(Viewer, "hi", 0xFFFFFF, false);
+		return new DanmakuEntryDto.Comment(Viewer, "hi", false);
 	}
 }

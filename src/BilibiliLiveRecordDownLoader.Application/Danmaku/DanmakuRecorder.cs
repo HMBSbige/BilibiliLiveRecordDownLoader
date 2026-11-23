@@ -148,10 +148,13 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 				await wait.CancelAsync();
 				cancellationToken.ThrowIfCancellationRequested();
 
-				if (completed == readable && readable.IsCompletedSuccessfully && !readable.Result)
+				// 成功完成后才读 Result，不会阻塞
+#pragma warning disable CA1849
+				if (completed == readable && readable is { IsCompletedSuccessfully: true, Result: false })
 				{
 					return null;
 				}
+#pragma warning restore CA1849
 
 				// 可读通知异步送达，WhenAny 可能先看到到期；已经排进来的工作里可能有未登录通知，要先处理
 				if (completed == readable || reader.TryPeek(out _))
@@ -936,7 +939,7 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 	private async Task ReleaseAsync(Sink.Video sink, TimeSpan? end, CancellationToken cancellationToken)
 	{
 		// 前一段还没关时它的末尾可能还要接过来，先不写；还没登记的是最新的一段
-		if (sink.Ahead.Count is 0 || (end is null && _videoSinks.Values.TakeWhile(other => !ReferenceEquals(other, sink)).Any(static other => other is not null)))
+		if (sink.Ahead.Count is 0 || end is null && _videoSinks.Values.TakeWhile(other => !ReferenceEquals(other, sink)).Any(static other => other is not null))
 		{
 			return;
 		}
@@ -1085,6 +1088,7 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 	{
 		public DanmakuRun Run { get; } = run;
 
+		// ReSharper disable once MemberHidesStaticFromOuterClass
 		public Sink.Text? Sink { get; set; }
 	}
 

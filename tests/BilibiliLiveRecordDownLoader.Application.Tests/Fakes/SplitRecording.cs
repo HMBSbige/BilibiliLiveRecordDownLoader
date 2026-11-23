@@ -100,7 +100,7 @@ internal sealed class SplitRecording
 
 	private MemoryFile Create(int index)
 	{
-		MemoryFile file = new(index == FailClosingFile, BlockClosingFile is (var blocked, var release) && blocked == index ? release : Task.CompletedTask);
+		MemoryFile file = new(index == FailClosingFile, BlockClosingFile is var (blocked, release) && blocked == index ? release : Task.CompletedTask);
 		_files.Enqueue(file);
 		return file;
 	}

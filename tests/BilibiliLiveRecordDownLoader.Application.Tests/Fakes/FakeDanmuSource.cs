@@ -1,4 +1,5 @@
 using BilibiliLive.Danmu;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
@@ -13,6 +14,7 @@ internal sealed class FakeDanmuSource(TimeProvider time)
 	// 房间的整个生命周期里是同一个对象
 	public DanmuReceiveOptions? Options { get; private set; }
 
+	[SuppressMessage("Style", "IDE0060", Justification = "签名要对上 RoomSessionServices.ReceiveDanmu")]
 	public async IAsyncEnumerable<DanmuMessage> ReceiveAsync(long roomId, DanmuReceiveOptions options, [EnumeratorCancellation] CancellationToken cancellationToken)
 	{
 		Options = options;
@@ -25,9 +27,9 @@ internal sealed class FakeDanmuSource(TimeProvider time)
 		}
 	}
 
-	public async Task<FakeDanmuConnection> NextConnectionAsync()
+	public Task<FakeDanmuConnection> NextConnectionAsync()
 	{
-		return await _connections.Reader.ReadAsync().AsTask().WaitAsync(WaitTimeout);
+		return _connections.Reader.ReadAsync().AsTask().WaitAsync(WaitTimeout);
 	}
 }
 

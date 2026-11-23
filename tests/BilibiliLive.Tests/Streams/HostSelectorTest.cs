@@ -44,7 +44,7 @@ public class HostSelectorTest
 	[Test]
 	public async Task FirstResponseTriesInOrderAndStopsAtFirstSuccessAsync(CancellationToken cancellationToken)
 	{
-		Opener opener = new((uri, _) => uri == Hosts[0] ? Fail(uri) : Succeed(uri));
+		Opener opener = new(static (uri, _) => uri == Hosts[0] ? Fail(uri) : Succeed(uri));
 
 		FakeSession session = await HostSelector.OpenAsync(Hosts, StreamHostSelection.FirstResponse, opener.OpenAsync, Random.Shared, cancellationToken);
 
@@ -59,7 +59,7 @@ public class HostSelectorTest
 	[MatrixDataSource]
 	public async Task AllFailuresAreAggregatedAsync([Matrix] StreamHostSelection selection, CancellationToken cancellationToken)
 	{
-		Opener opener = new((uri, _) => Fail(uri));
+		Opener opener = new(static (uri, _) => Fail(uri));
 
 		await Assert.ThrowsAsync<AggregateException>(() => HostSelector.OpenAsync(Hosts, selection, opener.OpenAsync, Random.Shared, cancellationToken))
 			.And.Member(static e => e.InnerExceptions, static errors => errors.Count().IsEqualTo(Hosts.Length).And.All(static e => e is HttpRequestException));
@@ -138,7 +138,7 @@ public class HostSelectorTest
 	{
 		using CancellationTokenSource cts = new();
 		await cts.CancelAsync();
-		Opener opener = new((_, ct) => Task.FromCanceled<FakeSession>(ct));
+		Opener opener = new(static (_, ct) => Task.FromCanceled<FakeSession>(ct));
 
 		await Assert.ThrowsAsync<OperationCanceledException>(() => HostSelector.OpenAsync(Hosts, selection, opener.OpenAsync, Random.Shared, cts.Token));
 	}
@@ -151,7 +151,7 @@ public class HostSelectorTest
 
 		for (int i = 0; i < 32; ++i)
 		{
-			Opener opener = new((uri, _) => uri == Hosts[2] ? Succeed(uri) : Fail(uri));
+			Opener opener = new(static (uri, _) => uri == Hosts[2] ? Succeed(uri) : Fail(uri));
 
 			FakeSession session = await HostSelector.OpenAsync(Hosts, StreamHostSelection.Random, opener.OpenAsync, random, cancellationToken);
 			List<Uri> attempts = [.. opener.Attempts];

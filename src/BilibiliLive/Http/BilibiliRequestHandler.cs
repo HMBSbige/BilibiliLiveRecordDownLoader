@@ -22,7 +22,7 @@ public sealed class BilibiliRequestHandler(BilibiliIdentity identity) : Delegati
 	{
 		HttpRequestHeaders headers = request.Headers;
 		bool markedAnonymous = headers.Remove(AnonymousHeader);
-		bool anonymous = markedAnonymous || (request.Options.TryGetValue(AnonymousOption, out bool value) && value);
+		bool anonymous = markedAnonymous || request.Options.TryGetValue(AnonymousOption, out bool value) && value;
 		(string? userAgent, string cookie) = await identity.ResolveAsync(anonymous, cancellationToken);
 
 		headers.Referrer = Referrer;

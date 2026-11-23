@@ -4,11 +4,11 @@ public sealed class RecordingSplitPolicyTest
 {
 	public static IEnumerable<Func<(RecordingSplitMode Mode, TimeSpan? Duration, long? SizeMegabytes, RecordingSplit Expected)>> RoomSplitOverrides()
 	{
-		yield return () => (RecordingSplitMode.None, null, null, new RecordingSplit.None());
-		yield return () => (RecordingSplitMode.Duration, TimeSpan.FromMinutes(20), null, new RecordingSplit.ByDuration(TimeSpan.FromMinutes(20)));
-		yield return () => (RecordingSplitMode.Duration, null, null, new RecordingSplit.ByDuration(TimeSpan.FromMinutes(45)));
-		yield return () => (RecordingSplitMode.Size, null, 100, new RecordingSplit.BySize(100L << 20));
-		yield return () => (RecordingSplitMode.Size, null, null, new RecordingSplit.BySize(2000L << 20));
+		yield return static () => (RecordingSplitMode.None, null, null, new RecordingSplit.None());
+		yield return static () => (RecordingSplitMode.Duration, TimeSpan.FromMinutes(20), null, new RecordingSplit.ByDuration(TimeSpan.FromMinutes(20)));
+		yield return static () => (RecordingSplitMode.Duration, null, null, new RecordingSplit.ByDuration(TimeSpan.FromMinutes(45)));
+		yield return static () => (RecordingSplitMode.Size, null, 100, new RecordingSplit.BySize(100L << 20));
+		yield return static () => (RecordingSplitMode.Size, null, null, new RecordingSplit.BySize(2000L << 20));
 	}
 
 	[Test]

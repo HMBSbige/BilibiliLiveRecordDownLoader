@@ -4,7 +4,7 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 {
 	internal const int MaxDensityBins = 2000;
 
-	internal static readonly TimeSpan MinDensityBinWidth = TimeSpan.FromSeconds(5);
+	private static readonly TimeSpan MinDensityBinWidth = TimeSpan.FromSeconds(5);
 
 	public IDanmakuFeed Subscribe(long roomId)
 	{
@@ -35,7 +35,7 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 		TimeSpan end = highlight.End + DanmakuConsts.HighlightExportMargin;
 		// 排着队的剪辑还没写出文件，也要避开它的输出，否则两段写进同一个文件，后写完的覆盖先写完的
 		string[] pending = [.. tasks.GetTasks().Where(static task => task.IsActive).Select(static task => task.TargetPath).OfType<string>()];
-		string destination = GetHighlightPath(RecordingFileLayout.GetStem(danmakuPath), video, start, path => File.Exists(path) || pending.Any(target => FileOperations.IsSamePath(target, path)));
+		string destination = GetHighlightPath(RecordingFileLayout.GetStem(danmakuPath), video, start, path => File.Exists(path) || Array.Exists(pending, target => FileOperations.IsSamePath(target, path)));
 		await mediaTools.QueueCutAsync(new CutInput(video, destination, start, end), cancellationToken);
 		return destination;
 	}
@@ -58,7 +58,7 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 		}
 	}
 
-	internal static string? FindVideo(string danmakuPath)
+	private static string? FindVideo(string danmakuPath)
 	{
 		return RecordingFileLayout.GetVideoPaths(RecordingFileLayout.GetStem(danmakuPath)).FirstOrDefault(File.Exists);
 	}

@@ -94,7 +94,7 @@ public sealed class RoomDanmuLoopTest
 		{
 			await danmu.SendAsync(new DanmuMessage.Connected(0));
 			await danmu.SendAsync(new DanmuMessage.Raw("LOG_IN_NOTICE", """{"cmd":"LOG_IN_NOTICE"}"""u8.ToArray()));
-			await danmu.SendAsync(new DanmuMessage.LoginNotice("为保护用户隐私，未登录无法查看他人昵称"));
+			await danmu.SendAsync(new DanmuMessage.LoginNotice());
 			danmu.Close();
 			(danmu, waited) = await loop.AdvanceUntilDanmuReconnectedAsync();
 		}
@@ -165,9 +165,9 @@ public sealed class RoomDanmuLoopTest
 		await StartRecordingAsync(loop);
 
 		await danmu.SendAsync(Comment(Viewer, "弹幕内容"));
-		await danmu.SendAsync(new DanmuMessage.SuperChat(1, Viewer, "醒目留言内容", 30000, TimeSpan.FromSeconds(60), DateTimeOffset.UnixEpoch));
-		await danmu.SendAsync(new DanmuMessage.Gift(Viewer, 1, "礼物名称", 1, 1000, 1000, DanmuCoinType.Gold, DateTimeOffset.UnixEpoch));
-		await danmu.SendAsync(new DanmuMessage.GuardBought(Viewer, GuardLevel.Captain, 1, 198000, false, DateTimeOffset.UnixEpoch));
+		await danmu.SendAsync(new DanmuMessage.SuperChat(1, Viewer, "醒目留言内容", 30000, TimeSpan.FromSeconds(60)));
+		await danmu.SendAsync(new DanmuMessage.Gift(Viewer, "礼物名称", 1, 1000, DanmuCoinType.Gold));
+		await danmu.SendAsync(new DanmuMessage.GuardBought(Viewer, GuardLevel.Captain, 1, 198000, false));
 		await loop.StopAsync();
 
 		string[] logs = [.. loop.Logs.Select(static log => $"{log.Message} {log.Exception}")];
@@ -176,7 +176,7 @@ public sealed class RoomDanmuLoopTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(logs).IsNotEmpty();
-			await Assert.That(logs.Where(log => secrets.Any(secret => log.Contains(secret, StringComparison.Ordinal)))).IsEmpty();
+			await Assert.That(logs.Where(log => Array.Exists(secrets, secret => log.Contains(secret, StringComparison.Ordinal)))).IsEmpty();
 		}
 	}
 
@@ -204,7 +204,7 @@ public sealed class RoomDanmuLoopTest
 
 	private static DanmuMessage.Comment Comment(DanmuSender sender, string text)
 	{
-		return new DanmuMessage.Comment(sender, text, 1, 25, 0xFFFFFF, DateTimeOffset.UnixEpoch, "a16fe0dd", DanmuCommentKind.Text, false);
+		return new DanmuMessage.Comment(sender, text, 1, 25, 0xFFFFFF, DateTimeOffset.UnixEpoch, "a16fe0dd", false);
 	}
 
 	private sealed class UnavailableHandler : HttpMessageHandler

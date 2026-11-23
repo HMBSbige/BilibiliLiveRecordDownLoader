@@ -178,12 +178,12 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		File.WriteAllText(path, OperatingSystem.IsWindows() ? $"@echo {standardError} 1>&2\r\n@exit /b 1\r\n" : $"#!/bin/sh\necho \"{standardError}\" >&2\nexit 1\n");
 	}
 
-	public async Task<StreamRequest> NextStreamAsync()
+	public Task<StreamRequest> NextStreamAsync()
 	{
-		return await _streams.Reader.ReadAsync(_lifetime.Token).AsTask().WaitAsync(WaitTimeout);
+		return _streams.Reader.ReadAsync(_lifetime.Token).AsTask().WaitAsync(WaitTimeout);
 	}
 
-	public static RecordingLoopHarness CreateSplitting(CancellationToken cancellationToken, IMediaToolAppService mediaTools, Func<string, Stream>? createFile = null)
+	public static RecordingLoopHarness CreateSplitting(IMediaToolAppService mediaTools, CancellationToken cancellationToken, Func<string, Stream>? createFile = null)
 	{
 		RecordingLoopHarness loop = new(cancellationToken, createFile, mediaTools: mediaTools);
 		loop.Time.SetUtcNow(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
@@ -239,7 +239,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		for (int step = 0; step < 20 && !next.IsCompleted; ++step)
 		{
 			// 留出注册重连定时器的时间
-			await Task.Delay(50);
+			await Task.Delay(50, _lifetime.Token);
 
 			if (!next.IsCompleted)
 			{
@@ -385,7 +385,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
 		{
 			string message = formatter(state, exception);
-			logs.Enqueue(new HarnessLog(typeof(T).Name, logLevel, message, exception));
+			logs.Enqueue(new HarnessLog(logLevel, message, exception));
 			messages?.Enqueue(message);
 		}
 	}
@@ -426,7 +426,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 }
 
 // 日志输出会连同异常消息一起写出，检查敏感信息时两者都要看
-internal sealed record HarnessLog(string Category, LogLevel Level, string Message, Exception? Exception);
+internal sealed record HarnessLog(LogLevel Level, string Message, Exception? Exception);
 
 internal sealed class StreamRequest(string host)
 {
@@ -441,6 +441,20 @@ internal sealed class StreamRequest(string host)
 
 	// 读过 FLV 头之后才完成，这时空闲看门狗已经在运行
 	public Task CopyStarted => _copyStarted.Task;
+
+	public async Task AcceptAsync(bool sendFlv = true)
+	{
+		if (sendFlv)
+		{
+			await _body.Writer.WriteAsync((byte[])[.. "FLV"u8, .. new byte[1024]]);
+		}
+		else
+		{
+			await _body.Writer.CompleteAsync();
+		}
+
+		_response.SetResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new ObservedStream(_body.Reader.AsStream(), OnRead)) });
+	}
 
 	// 等会话把数据交给录制器之后才返回
 	public async Task AcceptAsync(byte[] body)
@@ -464,20 +478,6 @@ internal sealed class StreamRequest(string host)
 	public void Reject(HttpStatusCode status = HttpStatusCode.NotFound)
 	{
 		_response.SetResult(new HttpResponseMessage(status));
-	}
-
-	public async Task AcceptAsync(bool sendFlv = true)
-	{
-		if (sendFlv)
-		{
-			await _body.Writer.WriteAsync((byte[])[.. "FLV"u8, .. new byte[1024]]);
-		}
-		else
-		{
-			await _body.Writer.CompleteAsync();
-		}
-
-		_response.SetResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new ObservedStream(_body.Reader.AsStream(), OnRead)) });
 	}
 
 	public async Task SendAsync()

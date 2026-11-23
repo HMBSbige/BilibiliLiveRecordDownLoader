@@ -21,7 +21,7 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 		{
 			lock (_lock)
 			{
-				return _entries.Any(static entry => entry.Snapshot.IsActive);
+				return _entries.Exists(static entry => entry.Snapshot.IsActive);
 			}
 		}
 	}
@@ -35,7 +35,7 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 	}
 
 	// 同一队列中的任务依次执行，避免多个转封装同时读写同一块磁盘
-	public QueuedTask Enqueue(string title, string queueKey, Func<BackgroundTaskContext, CancellationToken, Task> work, string? sourcePath = null, string? targetPath = null)
+	public Task<BackgroundTaskSnapshot> Enqueue(string title, string queueKey, Func<BackgroundTaskContext, CancellationToken, Task> work, string? sourcePath = null, string? targetPath = null)
 	{
 		Guid id = Guid.CreateVersion7();
 		TaskEntry entry = new(new BackgroundTaskSnapshot(id, title, sourcePath, targetPath, BackgroundTaskStatus.Queued, null, null, null));
@@ -67,7 +67,7 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 			start.RunSynchronously(TaskScheduler.Default);
 		}
 
-		return new QueuedTask(id, completion);
+		return completion;
 	}
 
 	public void Cancel(Guid id)

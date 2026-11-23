@@ -9,12 +9,22 @@ public class SegmentHistoryTest
 	{
 		SegmentHistory history = new(2);
 
-		bool[] added = [history.Add("a"), history.Add("b"), history.Add("a"), history.Add("c"), history.Add("b"), history.Add("a")];
+		history.Add("a");
+		history.Add("b");
+		// 已有的不再入队，否则容量满时会把 a 自己挤掉
+		history.Add("a");
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(added).IsEquivalentTo([true, true, false, true, false, true], CollectionOrdering.Matching);
-			await Assert.That(history.Count).IsEqualTo(2);
-		}
+		await Assert.That(history)
+			.Member(static h => h.Contains("a"), static a => a.IsTrue())
+			.And.Member(static h => h.Contains("b"), static b => b.IsTrue());
+
+		history.Add("c");
+		history.Add("b");
+		history.Add("a");
+
+		await Assert.That(history)
+			.Member(static h => h.Contains("a"), static a => a.IsTrue())
+			.And.Member(static h => h.Contains("b"), static b => b.IsFalse())
+			.And.Member(static h => h.Contains("c"), static c => c.IsTrue());
 	}
 }

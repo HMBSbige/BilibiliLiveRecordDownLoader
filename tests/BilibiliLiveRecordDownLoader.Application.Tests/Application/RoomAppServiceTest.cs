@@ -30,19 +30,12 @@ public sealed class RoomAppServiceTest
 		await using Harness harness = await Harness.CreateAsync();
 
 		IReadOnlyList<RoomAddResult> results = await harness.Rooms.AddRangeAsync([Room(732), Room(ExistingRoomId), Room(6154037), Room(1)], cancellationToken);
+		RoomSnapshot resolved = harness.Rooms.GetRooms().Single(static room => room.RoomId is 6154037);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(results[0]).IsTypeOf<RoomAddResult.Added>()
-				.And.Member(static added => added.RequestedRoomId, static id => id.IsEqualTo(732))
-				.And.Member(static added => added.Room.RoomId, static id => id.IsEqualTo(6154037))
-				.And.Member(static added => added.Room.ShortId, static id => id.IsEqualTo(732))
-				.And.Member(static added => added.Room.UserName, static name => name.IsEqualTo("Asaki大人"));
-			await Assert.That(results[1]).IsEqualTo(new RoomAddResult.Skipped(ExistingRoomId, ExistingRoomId));
-			await Assert.That(results[2]).IsEqualTo(new RoomAddResult.Skipped(6154037, 6154037));
-			await Assert.That(results[3]).IsTypeOf<RoomAddResult.Added>()
-				.And.Member(static added => added.RequestedRoomId, static id => id.IsEqualTo(1))
-				.And.Member(static added => added.Room.RoomId, static id => id.IsEqualTo(5440));
+			await Assert.That(results).IsEquivalentTo((RoomAddResult[])[new RoomAddResult.Added(732), new RoomAddResult.Skipped(ExistingRoomId), new RoomAddResult.Skipped(6154037), new RoomAddResult.Added(1)], CollectionOrdering.Matching);
+			await Assert.That((resolved.ShortId, resolved.UserName)).IsEqualTo((732L, "Asaki大人"));
 			await Assert.That(harness.Config.UpdateCount).IsEqualTo(1);
 			await Assert.That(harness.ConfiguredRoomIds).IsEquivalentTo([ExistingRoomId, 6154037, 5440], CollectionOrdering.Matching);
 			await Assert.That(harness.Rooms.GetRooms().Select(static room => room.RoomId)).IsEquivalentTo([ExistingRoomId, 6154037, 5440], CollectionOrdering.Matching);
@@ -274,12 +267,12 @@ public sealed class RoomAppServiceTest
 	public static IEnumerable<Func<(long[] RoomIds, long? Before, long[] Expected)>> MoveCases()
 	{
 		// 初始顺序：已有、第一、第二、第三、第四
-		yield return () => ([ThirdRoomId, FirstRoomId], ExistingRoomId, [FirstRoomId, ThirdRoomId, ExistingRoomId, SecondRoomId, FourthRoomId]);
-		yield return () => ([ExistingRoomId, SecondRoomId], null, [FirstRoomId, ThirdRoomId, FourthRoomId, ExistingRoomId, SecondRoomId]);
-		yield return () => ([FourthRoomId], SecondRoomId, [ExistingRoomId, FirstRoomId, FourthRoomId, SecondRoomId, ThirdRoomId]);
+		yield return static () => ([ThirdRoomId, FirstRoomId], ExistingRoomId, [FirstRoomId, ThirdRoomId, ExistingRoomId, SecondRoomId, FourthRoomId]);
+		yield return static () => ([ExistingRoomId, SecondRoomId], null, [FirstRoomId, ThirdRoomId, FourthRoomId, ExistingRoomId, SecondRoomId]);
+		yield return static () => ([FourthRoomId], SecondRoomId, [ExistingRoomId, FirstRoomId, FourthRoomId, SecondRoomId, ThirdRoomId]);
 		// 目标也在移动的房间里时，以它之后第一个不移动的房间为准
-		yield return () => ([FirstRoomId, ThirdRoomId], FirstRoomId, [ExistingRoomId, FirstRoomId, ThirdRoomId, SecondRoomId, FourthRoomId]);
-		yield return () => ([SecondRoomId, 404404], ExistingRoomId, [SecondRoomId, ExistingRoomId, FirstRoomId, ThirdRoomId, FourthRoomId]);
+		yield return static () => ([FirstRoomId, ThirdRoomId], FirstRoomId, [ExistingRoomId, FirstRoomId, ThirdRoomId, SecondRoomId, FourthRoomId]);
+		yield return static () => ([SecondRoomId, 404404], ExistingRoomId, [SecondRoomId, ExistingRoomId, FirstRoomId, ThirdRoomId, FourthRoomId]);
 	}
 
 	[Test]
@@ -302,13 +295,13 @@ public sealed class RoomAppServiceTest
 
 	public static IEnumerable<Func<(long[] RoomIds, long? Before)>> UnchangedMoveCases()
 	{
-		yield return () => ([ThirdRoomId, FourthRoomId], null);
-		yield return () => ([ExistingRoomId, FirstRoomId], SecondRoomId);
+		yield return static () => ([ThirdRoomId, FourthRoomId], null);
+		yield return static () => ([ExistingRoomId, FirstRoomId], SecondRoomId);
 		// 目标和它之后的房间都在移动，等同于移到末尾
-		yield return () => ([ThirdRoomId, FourthRoomId], ThirdRoomId);
-		yield return () => ([404404], ExistingRoomId);
-		yield return () => ([FirstRoomId], 404404);
-		yield return () => ([], null);
+		yield return static () => ([ThirdRoomId, FourthRoomId], ThirdRoomId);
+		yield return static () => ([404404], ExistingRoomId);
+		yield return static () => ([FirstRoomId], 404404);
+		yield return static () => ([], null);
 	}
 
 	private static RoomSettingsDto Room(long roomId)
@@ -454,7 +447,7 @@ public sealed class RoomAppServiceTest
 
 			long[] requested = [.. roomIds.Select(static id => long.Parse(id, CultureInfo.InvariantCulture))];
 			IEnumerable<string> rooms = KnownRooms
-				.Where(room => requested.Any(id => id == room.RoomId || id == room.ShortId))
+				.Where(room => Array.Exists(requested, id => id == room.RoomId || id == room.ShortId))
 				.Select(static room => $$"""
 					"{{room.RoomId}}":{"room_id":{{room.RoomId}},"short_id":{{room.ShortId}},"uid":1,"uname":"{{room.UserName}}","title":"","live_status":0}
 					""");

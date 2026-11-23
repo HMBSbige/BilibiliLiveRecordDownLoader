@@ -1,5 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace BilibiliLiveRecordDownLoader.Application.Storage;
 
+[SuppressMessage("Design", "CA1001", Justification = "CancellationTokenSource 由 MonitorAsync 释放，字段只用来取消")]
 internal sealed partial class LowDiskSpaceMonitor(IDiskSpaceService diskSpace, IAppConfigManager configManager, INotificationService notifications, TimeProvider timeProvider, ILogger<LowDiskSpaceMonitor> logger)
 {
 	internal const long Threshold = 1L << 30;

@@ -1,7 +1,9 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Windows.Input;
 
 namespace BilibiliLiveRecordDownLoader.Views.Services;
 
+[SuppressMessage("Design", "CA1001", Justification = "伴随进程的单例，释放后退出过程中读取 ShuttingDown 会抛 ObjectDisposedException")]
 internal sealed class ApplicationShell(IServiceProvider serviceProvider, AppStartupOptions startupOptions) : IApplicationShell
 {
 	private readonly CancellationTokenSource _shuttingDown = new();

@@ -10,7 +10,7 @@ public sealed partial class LogViewModel : ViewModelBase
 
 	private readonly ILogStore _logStore;
 	private readonly List<LogEntry> _all = [];
-	private readonly IComparer<LogEntry> _comparer;
+	private readonly Comparer<LogEntry> _comparer;
 	private long _lastSequence;
 
 	public LogViewModel(ILogStore logStore)

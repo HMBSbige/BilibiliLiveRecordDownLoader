@@ -40,7 +40,7 @@ public sealed class DanmakuXmlReaderTest
 		// 最后一个字节是 </i> 后的换行，少了它文件仍然完整
 		for (int length = 0; length < content.Length - 1; ++length)
 		{
-			DanmakuFile file = await DanmakuSamples.ReadAsync(content.AsSpan(0, length).ToArray(), cancellationToken);
+			DanmakuFile file = await DanmakuSamples.ReadAsync([.. content.AsSpan(0, length)], cancellationToken);
 
 			await Assert.That(file.IsComplete).IsFalse();
 			await Assert.That(file.Records.Count).IsGreaterThanOrEqualTo(previousCount);
@@ -119,7 +119,7 @@ public sealed class DanmakuXmlReaderTest
 		byte[] tag = Encoding.UTF8.GetBytes(closingTag);
 		int cut = content.AsSpan().IndexOf(tag) + tag.Length;
 
-		DanmakuFile file = await DanmakuSamples.ReadAsync(content.AsSpan(0, cut).ToArray(), cancellationToken);
+		DanmakuFile file = await DanmakuSamples.ReadAsync([.. content.AsSpan(0, cut)], cancellationToken);
 
 		using (Assert.Multiple())
 		{

@@ -22,7 +22,7 @@ internal sealed class ManualTimeProvider : TimeProvider
 	public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
 	{
 		Delays.Enqueue(dueTime);
-		ThreadPool.QueueUserWorkItem(_ => callback(state));
+		ThreadPool.QueueUserWorkItem(static timer => timer.callback(timer.state), (callback, state), preferLocal: false);
 		return new NoopTimer();
 	}
 

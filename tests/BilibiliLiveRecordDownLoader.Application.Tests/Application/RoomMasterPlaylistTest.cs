@@ -387,6 +387,7 @@ public sealed class RoomMasterPlaylistTest
 				return null;
 			}
 
+			// ReSharper disable once AccessToModifiedClosure
 			onAvc?.Invoke();
 			return Text(LivePlaylist + "#EXT-X-ENDLIST\n");
 		});

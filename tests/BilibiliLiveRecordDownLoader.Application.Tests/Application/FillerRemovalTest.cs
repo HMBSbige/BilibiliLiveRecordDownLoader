@@ -122,7 +122,7 @@ public sealed class FillerRemovalTest
 	[Test]
 	public async Task FlvSequenceHeadersAreFollowedInTheOrderTheyAreWrittenAsync(CancellationToken cancellationToken)
 	{
-		byte[] Stream(bool removeFiller)
+		static byte[] Stream(bool removeFiller)
 		{
 			byte[] Frame(bool isKey, uint timestamp, int lengthSize, string marker)
 			{
@@ -141,7 +141,7 @@ public sealed class FillerRemovalTest
 
 		SplitRecording recording = new();
 
-		await recording.RunAsync(new FlvSplitter(), SplitRecording.Fixed(OneMinute, removeFiller: true), session => session.WriteAsync(Stream(false)), cancellationToken);
+		await recording.RunAsync(new FlvSplitter(), SplitRecording.Fixed(OneMinute, removeFiller: true), static session => session.WriteAsync(Stream(false)), cancellationToken);
 
 		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[Stream(true)], CollectionOrdering.Matching);
 	}

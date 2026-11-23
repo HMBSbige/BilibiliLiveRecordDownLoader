@@ -284,9 +284,16 @@ internal static class DanmakuAssMessages
 		bool fadesIn = span.Start < fadeInEnd;
 		bool fadesOut = span.End > placement.FadeOutStart;
 
-		if ((!fadesIn || span.Start == placement.ShownAt) && (!fadesOut || (span.End == placement.RemovedAt && span.Start <= placement.FadeOutStart)))
+		if ((!fadesIn || span.Start == placement.ShownAt) && (!fadesOut || span.End == placement.RemovedAt && span.Start <= placement.FadeOutStart))
 		{
-			return fadesIn || fadesOut ? string.Create(CultureInfo.InvariantCulture, $@"\fad({(fadesIn ? Milliseconds(fadeInEnd - placement.ShownAt) : 0)},{(fadesOut ? Milliseconds(placement.RemovedAt - placement.FadeOutStart) : 0)})") : string.Empty;
+			if (!fadesIn && !fadesOut)
+			{
+				return string.Empty;
+			}
+
+			int fadeIn = fadesIn ? Milliseconds(fadeInEnd - placement.ShownAt) : 0;
+			int fadeOut = fadesOut ? Milliseconds(placement.RemovedAt - placement.FadeOutStart) : 0;
+			return string.Create(CultureInfo.InvariantCulture, $@"\fad({fadeIn},{fadeOut})");
 		}
 
 		int alpha = AlphaAt(placement, span.Start);

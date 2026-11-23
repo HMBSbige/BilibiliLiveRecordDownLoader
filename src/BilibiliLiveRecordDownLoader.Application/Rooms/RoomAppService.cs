@@ -22,7 +22,7 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 		{
 			lock (_lock)
 			{
-				return _closing.Count > 0 || _sessions.Any(static session => session.IsRecording);
+				return _closing.Count > 0 || _sessions.Exists(static session => session.IsRecording);
 			}
 		}
 	}
@@ -141,9 +141,9 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 				else if (resolved.TryGetValue(requested, out LiveRoomInfo? info))
 				{
 					// 同一批里的短号和长号可能指向同一个房间
-					if (Find(info.RoomId) is { } existing)
+					if (Find(info.RoomId) is not null)
 					{
-						results[index] = new RoomAddResult.Skipped(requested, existing.RoomId);
+						results[index] = new RoomAddResult.Skipped(requested);
 						continue;
 					}
 
@@ -153,9 +153,9 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 					rooms.Add(room);
 					created.Add((index, session, info));
 				}
-				else if (FindByAnyId(requested) is { } existing)
+				else if (FindByAnyId(requested) is not null)
 				{
-					results[index] = new RoomAddResult.Skipped(requested, existing.RoomId);
+					results[index] = new RoomAddResult.Skipped(requested);
 				}
 				else
 				{
@@ -168,7 +168,7 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 		{
 			session.Apply(info);
 			session.Start();
-			results[index] = new RoomAddResult.Added(settings[index].RoomId, session.GetSnapshot());
+			results[index] = new RoomAddResult.Added(settings[index].RoomId);
 		}
 
 		Touch();
@@ -351,7 +351,7 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 
 				foreach (long roomId in chunk)
 				{
-					if (infos.FirstOrDefault(info => info.RoomId == roomId || info.ShortId == roomId) is { } info)
+					if (infos.FirstOrDefault(candidate => candidate.RoomId == roomId || candidate.ShortId == roomId) is { } info)
 					{
 						resolved[roomId] = info;
 					}

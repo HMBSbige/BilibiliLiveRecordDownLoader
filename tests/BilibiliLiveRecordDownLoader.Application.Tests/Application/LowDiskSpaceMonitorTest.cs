@@ -2,6 +2,7 @@ using BilibiliLiveRecordDownLoader.Application.Contracts.Storage;
 using BilibiliLiveRecordDownLoader.Application.Storage;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics.CodeAnalysis;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -95,6 +96,7 @@ public sealed class LowDiskSpaceMonitorTest
 		return (new LowDiskSpaceMonitor(disk, new FakeConfigManager(), notifications, time, logger ?? NullLogger<LowDiskSpaceMonitor>.Instance), disk, notifications, time);
 	}
 
+	[SuppressMessage("Design", "CA1001", Justification = "只用 WaitAsync 和 Release，不会创建需要释放的等待句柄")]
 	private sealed class FakeDiskSpace : IDiskSpaceService
 	{
 		private readonly SemaphoreSlim _checked = new(0);
@@ -126,7 +128,7 @@ public sealed class LowDiskSpaceMonitorTest
 
 		public Task<List<object?>> FirstEntryScopes => _firstEntryScopes.Task;
 
-		public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+		public IDisposable BeginScope<TState>(TState state) where TState : notnull
 		{
 			return _scopes.Push(state);
 		}

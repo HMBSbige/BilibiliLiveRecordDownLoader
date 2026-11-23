@@ -278,7 +278,7 @@ internal sealed class Fmp4FillerRemover
 		uint flags = IsoBmff.ReadFlags(trun);
 		bool hasSampleSizes = (flags & TrackRunFlags.SampleSizePresent) is not 0;
 
-		if ((flags & TrackRunFlags.DataOffsetPresent) is 0 || (isVideo && !hasSampleSizes) || (!hasSampleSizes && defaultSampleSize is null))
+		if ((flags & TrackRunFlags.DataOffsetPresent) is 0 || isVideo && !hasSampleSizes || !hasSampleSizes && defaultSampleSize is null)
 		{
 			return false;
 		}

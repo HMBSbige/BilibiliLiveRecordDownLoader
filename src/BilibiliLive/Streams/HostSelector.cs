@@ -47,6 +47,7 @@ internal static class HostSelector
 	private static async Task<T> OpenFastestAsync<T>(IReadOnlyList<Uri> urls, Func<Uri, CancellationToken, Task<T>> open, CancellationToken cancellationToken) where T : class, IAsyncDisposable
 	{
 		using CancellationTokenSource losers = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+		// ReSharper disable once AccessToDisposedClosure
 		Task<T>[] attempts = [.. urls.Select(uri => open(uri, losers.Token))];
 
 		T? winner = null;
@@ -57,6 +58,8 @@ internal static class HostSelector
 		{
 			if (attempt.IsCompletedSuccessfully)
 			{
+				// Result is only read once the attempt has succeeded, so it does not block
+#pragma warning disable CA1849
 				if (winner is null)
 				{
 					winner = attempt.Result;
@@ -66,6 +69,7 @@ internal static class HostSelector
 				{
 					await attempt.Result.DisposeAsync();
 				}
+#pragma warning restore CA1849
 			}
 			// Reading Exception also marks it observed, which matters for failures that arrive after a winner
 			else if (attempt.Exception?.InnerException is { } error && winner is null)

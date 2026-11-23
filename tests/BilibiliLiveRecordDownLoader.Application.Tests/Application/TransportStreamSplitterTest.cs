@@ -61,7 +61,7 @@ public sealed class TransportStreamSplitterTest
 	{
 		SplitRecording recording = new();
 
-		await recording.RunAsync(new TransportStreamSplitter(), OneMinute, async session =>
+		await recording.RunAsync(new TransportStreamSplitter(), OneMinute, static async session =>
 		{
 			await session.WriteAsync(Key("k1"));
 			session.Advance(TimeSpan.FromMinutes(1));

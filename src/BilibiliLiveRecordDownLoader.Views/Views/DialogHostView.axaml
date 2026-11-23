@@ -23,7 +23,7 @@
                             AutomationProperties.Name="{Binding Close, Source={x:Static l:AppLanguage.Current}}">
                         <ic:FluentIcon Icon="Dismiss" />
                     </Button>
-                    <TextBlock Classes="H5" Theme="{StaticResource TitleTextBlock}" Text="{Binding Current.Title, FallbackValue={x:Null}}" VerticalAlignment="Center"
+                    <TextBlock Classes="H5" Theme="{DynamicResource TitleTextBlock}" Text="{Binding Current.Title, FallbackValue={x:Null}}" VerticalAlignment="Center"
                                TextWrapping="Wrap" />
                 </DockPanel>
                 <ContentControl x:Name="DialogContent" Content="{Binding Current}">

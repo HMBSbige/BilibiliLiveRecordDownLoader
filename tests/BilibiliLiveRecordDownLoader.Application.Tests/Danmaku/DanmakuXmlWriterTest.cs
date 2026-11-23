@@ -184,7 +184,7 @@ public sealed class DanmakuXmlWriterTest
 	[Test]
 	public async Task InvalidCharactersAreDroppedAndEachElementStaysOnOneLineAsync(CancellationToken cancellationToken)
 	{
-		string text = "a\u0001b\nc\uD800d\uFFFE<&>\"\U0001F600";
+		const string text = "a\u0001b\nc\uD800d\uFFFE<&>\"\U0001F600";
 		byte[] content = await DanmakuSamples.WriteAsync([DanmakuSamples.Comment(1, text), new DanmakuRecord.TitleChange(TimeSpan.Zero, "第一行\r\n第二行")], cancellationToken);
 		DanmakuFile file = await DanmakuSamples.ReadAsync(content, cancellationToken);
 

@@ -13,4 +13,4 @@ namespace BilibiliLiveRecordDownLoader.Configuration;
 	UseStringEnumConverter = true,
 	DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
 )]
-internal partial class AppConfigJsonContext : JsonSerializerContext;
+internal sealed partial class AppConfigJsonContext : JsonSerializerContext;

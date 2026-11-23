@@ -39,7 +39,7 @@ public class FFmpegMetadataTest
 	[Test]
 	public async Task RejectsChaptersThatEndBeforeTheyStartAsync()
 	{
-		await Assert.That(() => FFmpegMetadata.FormatChapters([new FFmpegChapter(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(1), @"x")])).Throws<ArgumentOutOfRangeException>();
+		await Assert.That(static () => FFmpegMetadata.FormatChapters([new FFmpegChapter(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(1), @"x")])).Throws<ArgumentOutOfRangeException>();
 	}
 
 	[Test]

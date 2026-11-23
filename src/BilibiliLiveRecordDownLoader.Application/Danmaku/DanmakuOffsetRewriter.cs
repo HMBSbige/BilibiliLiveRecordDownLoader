@@ -35,7 +35,10 @@ internal static class DanmakuOffsetRewriter
 			// 不先落盘的话，断电时替换可能先于数据写到磁盘，原文件没了，新文件却是残缺的
 			await using (FileStream stream = new(temporary, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
 			{
+				// FlushAsync 不会落盘
+#pragma warning disable CA1849
 				stream.Flush(true);
+#pragma warning restore CA1849
 			}
 
 			File.Move(temporary, path, true);

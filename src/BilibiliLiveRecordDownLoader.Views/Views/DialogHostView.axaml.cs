@@ -39,7 +39,7 @@ public partial class DialogHostView : UserControl
 
 		if (change.GetNewValue<bool>())
 		{
-			_previousFocus = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
+			_previousFocus = TopLevel.GetTopLevel(this)?.FocusManager.GetFocusedElement();
 			Dispatcher.UIThread.Post(FocusFirstInput, DispatcherPriority.Loaded);
 		}
 		else if (_previousFocus is { } previous)
@@ -55,9 +55,9 @@ public partial class DialogHostView : UserControl
 		Control[] candidates = [.. DialogContent.GetVisualDescendants().OfType<Control>().Where(static control => control is { Focusable: true, IsEffectivelyEnabled: true, IsEffectivelyVisible: true })];
 
 		// NumericUpDown 模板里也有 TextBox，不能让它越过排在前面的下拉框和复选框
-		Control? target = candidates.FirstOrDefault(static control => control is TextBox { TemplatedParent: null })
-			?? candidates.FirstOrDefault(static control => control is ComboBox or ToggleButton or NumericUpDown)
-			?? candidates.FirstOrDefault(static control => control is Button);
+		Control? target = Array.Find(candidates, static control => control is TextBox { TemplatedParent: null })
+			?? Array.Find(candidates, static control => control is ComboBox or ToggleButton or NumericUpDown)
+			?? Array.Find(candidates, static control => control is Button);
 
 		target?.Focus(NavigationMethod.Tab);
 	}

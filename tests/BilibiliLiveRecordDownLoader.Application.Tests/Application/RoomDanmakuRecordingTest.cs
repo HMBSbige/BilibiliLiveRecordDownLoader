@@ -16,7 +16,7 @@ public sealed class RoomDanmakuRecordingTest
 	public async Task DanmakuFollowsTheVideoSegmentsWithTimesFromTheVideoAsync(CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();
-		await using RecordingLoopHarness loop = Create(cancellationToken, mediaTools);
+		await using RecordingLoopHarness loop = Create(mediaTools, cancellationToken);
 		loop.Config.WriteChaptersOnConvert = true;
 		FakeDanmuConnection danmu = await ConnectAsync(loop, masked: true);
 
@@ -75,7 +75,7 @@ public sealed class RoomDanmakuRecordingTest
 	public async Task DanmakuFollowingTheVideoIsShiftedByTheOffsetAsync(CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();
-		await using RecordingLoopHarness loop = Create(cancellationToken, mediaTools);
+		await using RecordingLoopHarness loop = Create(mediaTools, cancellationToken);
 		loop.Config.DanmakuOffset = TimeSpan.FromSeconds(2);
 		FakeDanmuConnection danmu = await ConnectAsync(loop);
 
@@ -103,7 +103,7 @@ public sealed class RoomDanmakuRecordingTest
 	public async Task DanmakuDuringReconnectingIsLeftOutAndTheNextAttemptStartsFromItsOwnFileAsync(CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();
-		await using RecordingLoopHarness loop = Create(cancellationToken, mediaTools);
+		await using RecordingLoopHarness loop = Create(mediaTools, cancellationToken);
 		FakeDanmuConnection danmu = await ConnectAsync(loop);
 
 		StreamRequest stream = await loop.NextStreamAsync();
@@ -140,7 +140,7 @@ public sealed class RoomDanmakuRecordingTest
 	public async Task TooSmallVideoIsDeletedTogetherWithItsDanmakuAsync(CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();
-		await using RecordingLoopHarness loop = Create(cancellationToken, mediaTools);
+		await using RecordingLoopHarness loop = Create(mediaTools, cancellationToken);
 		FakeDanmuConnection danmu = await ConnectAsync(loop);
 		string stem = Path.Combine(loop.RoomDirectory, "20260101_000000");
 
@@ -161,7 +161,7 @@ public sealed class RoomDanmakuRecordingTest
 	[Test]
 	public async Task DanmakuOnlyFollowsTheLiveStatusAndSplitsOnTitleChangesAsync(CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = Create(cancellationToken, new RecordingMediaTools());
+		await using RecordingLoopHarness loop = Create(new RecordingMediaTools(), cancellationToken);
 		loop.Settings.IsRecordingEnabled = false;
 		loop.Config.SplitOnTitleChange = true;
 		loop.Config.DanmakuOffset = TimeSpan.FromSeconds(3);
@@ -206,7 +206,7 @@ public sealed class RoomDanmakuRecordingTest
 	[Test]
 	public async Task TitleChangeIsRecordedWhenDanmakuOnlyDoesNotSplitAsync(CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = Create(cancellationToken, new RecordingMediaTools());
+		await using RecordingLoopHarness loop = Create(new RecordingMediaTools(), cancellationToken);
 		loop.Settings.IsRecordingEnabled = false;
 		FakeDanmuConnection danmu = await ConnectAsync(loop);
 		await loop.WaitUntilAsync(static snapshot => snapshot.Danmaku.IsRecording);
@@ -226,7 +226,7 @@ public sealed class RoomDanmakuRecordingTest
 	[Test]
 	public async Task RawMessagesOfTheWholeLiveGoToOneFileAsync(CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = Create(cancellationToken, new RecordingMediaTools());
+		await using RecordingLoopHarness loop = Create(new RecordingMediaTools(), cancellationToken);
 		loop.Settings.IsRecordingEnabled = false;
 		loop.Config.SaveRawDanmaku = true;
 		loop.Config.SplitOnTitleChange = true;
@@ -279,7 +279,7 @@ public sealed class RoomDanmakuRecordingTest
 	[Test]
 	public async Task ParsingIsOnOnlyWhileRecordingDanmakuOrSubscribedAsync(CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = Create(cancellationToken, new RecordingMediaTools());
+		await using RecordingLoopHarness loop = Create(new RecordingMediaTools(), cancellationToken);
 		loop.Settings.IsDanmakuEnabled = false;
 		FakeDanmuConnection danmu = await ConnectAsync(loop);
 		_ = await loop.NextStreamAsync();
@@ -322,13 +322,13 @@ public sealed class RoomDanmakuRecordingTest
 	[Test]
 	public async Task FeedKeepsRecentEntriesWhileRecordingAndReportsTheConnectionAsync(CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = Create(cancellationToken, new RecordingMediaTools());
+		await using RecordingLoopHarness loop = Create(new RecordingMediaTools(), cancellationToken);
 		loop.Settings.IsRecordingEnabled = false;
 		FakeDanmuConnection danmu = await ConnectAsync(loop, masked: true);
 		await loop.WaitUntilAsync(static snapshot => snapshot.Danmaku.IsRecording);
 
 		await danmu.SendAsync(Comment("录着呢"));
-		await danmu.SendAsync(new DanmuMessage.SuperChat(1, new DanmuSender(42, "老板", GuardLevel.Captain, null), "醒目留言", 30000, TimeSpan.FromSeconds(60), DateTimeOffset.UnixEpoch));
+		await danmu.SendAsync(new DanmuMessage.SuperChat(1, new DanmuSender(42, "老板", GuardLevel.Captain, null), "醒目留言", 30000, TimeSpan.FromSeconds(60)));
 
 		using IDisposable subscription = loop.Session.Danmaku.Subscribe();
 		IReadOnlyList<LiveDanmakuEntryDto> entries = loop.Session.Danmaku.Feed.GetEntries(0);
@@ -338,15 +338,15 @@ public sealed class RoomDanmakuRecordingTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(entries.Select(static entry => entry.Sequence)).IsEquivalentTo([1L, 2], CollectionOrdering.Matching);
-			await Assert.That(entries[1].Entry).IsEqualTo(new DanmakuEntryDto.SuperChat(1, new DanmuSender(42, "老板", GuardLevel.Captain, null), "醒目留言", 30000, TimeSpan.FromSeconds(60)));
+			await Assert.That(entries[1].Entry).IsEqualTo(new DanmakuEntryDto.SuperChat(1, new DanmuSender(42, "老板", GuardLevel.Captain, null), "醒目留言", 30000));
 			await Assert.That(status).IsEqualTo(new DanmakuFeedStatus(DanmakuConnectionState.Connected, 1, 0, true, 2, null));
 			await Assert.That(snapshot).IsEqualTo(new RoomDanmakuSnapshot(true));
 		}
 	}
 
-	private static RecordingLoopHarness Create(CancellationToken cancellationToken, RecordingMediaTools mediaTools)
+	private static RecordingLoopHarness Create(RecordingMediaTools mediaTools, CancellationToken cancellationToken)
 	{
-		RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools);
+		RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(mediaTools, cancellationToken);
 		loop.Settings.IsDanmakuEnabled = true;
 		return loop;
 	}
@@ -359,7 +359,7 @@ public sealed class RoomDanmakuRecordingTest
 
 		if (masked)
 		{
-			await danmu.SendAsync(new DanmuMessage.LoginNotice("为保护用户隐私，未登录无法查看他人昵称"));
+			await danmu.SendAsync(new DanmuMessage.LoginNotice());
 		}
 
 		return danmu;
@@ -367,7 +367,7 @@ public sealed class RoomDanmakuRecordingTest
 
 	private static DanmuMessage.Comment Comment(string text)
 	{
-		return new DanmuMessage.Comment(new DanmuSender(0, "观***", GuardLevel.None, null), text, 1, 25, 0xFFFFFF, DateTimeOffset.UnixEpoch, "a16fe0dd", DanmuCommentKind.Text, false);
+		return new DanmuMessage.Comment(new DanmuSender(0, "观***", GuardLevel.None, null), text, 1, 25, 0xFFFFFF, DateTimeOffset.UnixEpoch, "a16fe0dd", false);
 	}
 
 	private static async Task SendSecondsAsync(RecordingLoopHarness loop, StreamRequest stream, int from, int to)
@@ -459,8 +459,8 @@ public sealed class RoomDanmakuRecordingTest
 		return found;
 	}
 
-	private static async Task WaitForRemuxAsync(RecordingLoopHarness loop, RecordingMediaTools mediaTools, int count)
+	private static Task WaitForRemuxAsync(RecordingLoopHarness loop, RecordingMediaTools mediaTools, int count)
 	{
-		await loop.WaitUntilAsync(() => mediaTools.Remuxes.Count >= count, $"{count} remuxes are queued");
+		return loop.WaitUntilAsync(() => mediaTools.Remuxes.Count >= count, $"{count} remuxes are queued");
 	}
 }

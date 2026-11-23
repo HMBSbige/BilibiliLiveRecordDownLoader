@@ -3,7 +3,7 @@ using ReactiveUI.Primitives.Signals;
 
 namespace BilibiliLiveRecordDownLoader.Views.Infrastructure;
 
-internal sealed class NotificationExceptionHandler(INotificationService notificationService, ILogger<NotificationExceptionHandler> logger) : IDisposable
+internal sealed partial class NotificationExceptionHandler(INotificationService notificationService, ILogger<NotificationExceptionHandler> logger) : IDisposable
 {
 	private IDisposable? _subscription;
 
@@ -28,21 +28,30 @@ internal sealed class NotificationExceptionHandler(INotificationService notifica
 		{
 			case OperationCanceledException { InnerException: TimeoutException }:
 			{
-				logger.LogWarning(exception, "An operation timed out.");
+				LogTimedOut(exception);
 				notificationService.Show(AppLanguage.Current.Error, AppLanguage.Current.RequestTimedOut, AppNotificationType.Error);
 				break;
 			}
 			case OperationCanceledException:
 			{
-				logger.LogTrace(exception, "The operation was canceled.");
+				LogCanceled(exception);
 				break;
 			}
 			default:
 			{
-				logger.LogError(exception, "An unhandled exception occurred during an operation.");
+				LogFailed(exception);
 				notificationService.Show(AppLanguage.Current.Error, exception.Message, AppNotificationType.Error);
 				break;
 			}
 		}
 	}
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "An operation timed out.")]
+	private partial void LogTimedOut(Exception exception);
+
+	[LoggerMessage(Level = LogLevel.Trace, Message = "The operation was canceled.")]
+	private partial void LogCanceled(Exception exception);
+
+	[LoggerMessage(Level = LogLevel.Error, Message = "An unhandled exception occurred during an operation.")]
+	private partial void LogFailed(Exception exception);
 }

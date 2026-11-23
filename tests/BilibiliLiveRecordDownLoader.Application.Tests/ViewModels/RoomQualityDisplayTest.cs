@@ -28,14 +28,14 @@ public sealed class RoomQualityDisplayTest
 
 	public static IEnumerable<Func<(QualityRestriction Restriction, string Expected)>> RestrictionCases()
 	{
-		yield return () => (new QualityRestriction.NotLoggedIn(10000), AppLanguage.Current.QualityRestrictedNotLoggedIn.ToString(AppLanguage.Current.QualitySuperHigh, AppLanguage.Current.QualityOriginal));
-		yield return () => (new QualityRestriction.LoginMayHaveExpired(10000), AppLanguage.Current.QualityRestrictedLoginMayHaveExpired.ToString(AppLanguage.Current.QualityOriginal, AppLanguage.Current.QualitySuperHigh));
-		yield return () => (new QualityRestriction.OtherCodec(10000, StreamCodec.Av1, 10000), AppLanguage.Current.QualityRestrictedByCodec.ToString("AV1", AppLanguage.Current.QualityOriginal));
-		yield return () => (new QualityRestriction.OtherCodecUnavailable(10000, StreamCodec.Av1, 10000), AppLanguage.Current.QualityRestrictedByCodecUnavailable.ToString("AV1", AppLanguage.Current.QualityOriginal));
+		yield return static () => (new QualityRestriction.NotLoggedIn(10000), AppLanguage.Current.QualityRestrictedNotLoggedIn.ToString(AppLanguage.Current.QualitySuperHigh, AppLanguage.Current.QualityOriginal));
+		yield return static () => (new QualityRestriction.LoginMayHaveExpired(10000), AppLanguage.Current.QualityRestrictedLoginMayHaveExpired.ToString(AppLanguage.Current.QualityOriginal, AppLanguage.Current.QualitySuperHigh));
+		yield return static () => (new QualityRestriction.OtherCodec(10000, StreamCodec.Av1, 10000), AppLanguage.Current.QualityRestrictedByCodec.ToString("AV1", AppLanguage.Current.QualityOriginal));
+		yield return static () => (new QualityRestriction.OtherCodecUnavailable(10000, StreamCodec.Av1, 10000), AppLanguage.Current.QualityRestrictedByCodecUnavailable.ToString("AV1", AppLanguage.Current.QualityOriginal));
 		// 另一种编码只能给到蓝光时，提示的是蓝光而不是目标档位
-		yield return () => (new QualityRestriction.OtherCodec(10000, StreamCodec.Av1, 400), AppLanguage.Current.QualityRestrictedByCodec.ToString("AV1", AppLanguage.Current.QualityBluRay));
+		yield return static () => (new QualityRestriction.OtherCodec(10000, StreamCodec.Av1, 400), AppLanguage.Current.QualityRestrictedByCodec.ToString("AV1", AppLanguage.Current.QualityBluRay));
 		// 所选画质低于最高画质时，提示里写的是所选的
-		yield return () => (new QualityRestriction.NotLoggedIn(400), AppLanguage.Current.QualityRestrictedNotLoggedIn.ToString(AppLanguage.Current.QualitySuperHigh, AppLanguage.Current.QualityBluRay));
+		yield return static () => (new QualityRestriction.NotLoggedIn(400), AppLanguage.Current.QualityRestrictedNotLoggedIn.ToString(AppLanguage.Current.QualitySuperHigh, AppLanguage.Current.QualityBluRay));
 	}
 
 	[Test]

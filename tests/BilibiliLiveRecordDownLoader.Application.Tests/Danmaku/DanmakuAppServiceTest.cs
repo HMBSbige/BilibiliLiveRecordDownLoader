@@ -50,8 +50,11 @@ public sealed class DanmakuAppServiceTest
 	{
 		using TestDirectory directory = new();
 		await using ServiceProvider services = CreateServices();
-		List<DanmakuRecord> records = [.. Enumerable.Range(0, 600).Select(static i => (DanmakuRecord)DanmakuSamples.Comment(i * 3, $@"日常{i}", i % 4 + 1))];
-		records.AddRange(Enumerable.Range(0, 40).Select(static i => (DanmakuRecord)DanmakuSamples.Comment(900 + i * 0.01, i % 2 is 0 ? @"好耶" : $@"不同的话{i}", 1000 + i)));
+		DanmakuRecord[] records =
+		[
+			.. Enumerable.Range(0, 600).Select(static i => DanmakuSamples.Comment(i * 3, $@"日常{i}", i % 4 + 1)),
+			.. Enumerable.Range(0, 40).Select(static i => DanmakuSamples.Comment(900 + i * 0.01, i % 2 is 0 ? @"好耶" : $@"不同的话{i}", 1000 + i))
+		];
 		string path = await WriteDanmakuAsync(directory, records, cancellationToken);
 		await File.WriteAllBytesAsync(directory.Combine("20260102_030405.flv"), [1], cancellationToken);
 
@@ -62,7 +65,7 @@ public sealed class DanmakuAppServiceTest
 			await Assert.That(file.Source).IsEqualTo(new DanmakuFileSourceDto.Native("测试主播", "测试标题", TimeSpan.Zero));
 			await Assert.That(file.IsComplete).IsTrue();
 			await Assert.That(file.Entries).Count().IsEqualTo(640);
-			await Assert.That(file.Entries[0]).IsEqualTo(new DanmakuFileEntryDto(TimeSpan.Zero, new DanmakuEntryDto.Comment(new DanmuSender(1, "观众", GuardLevel.None, null), "日常0", 0xFFFFFF, false)));
+			await Assert.That(file.Entries[0]).IsEqualTo(new DanmakuFileEntryDto(TimeSpan.Zero, new DanmakuEntryDto.Comment(new DanmuSender(1, "观众", GuardLevel.None, null), "日常0", false)));
 			await Assert.That(file.Density.BinWidth).IsEqualTo(TimeSpan.FromSeconds(5));
 			await Assert.That(file.Density.Counts.Sum()).IsEqualTo(640);
 			await Assert.That(file.Density.Counts[180]).IsEqualTo(42);
@@ -80,7 +83,7 @@ public sealed class DanmakuAppServiceTest
 		byte[] content = await DanmakuSamples.WriteAsync([], cancellationToken);
 		int headerEnd = content.AsSpan().IndexOf("/>\n"u8) + 3;
 		string path = directory.Combine("20260102_030405.xml");
-		await File.WriteAllBytesAsync(path, content.AsSpan(0, headerEnd).ToArray(), cancellationToken);
+		await File.WriteAllBytesAsync(path, content.AsMemory(0, headerEnd), cancellationToken);
 
 		DanmakuFileDto file = await services.GetRequiredService<IDanmakuAppService>().OpenFileAsync(path, cancellationToken);
 

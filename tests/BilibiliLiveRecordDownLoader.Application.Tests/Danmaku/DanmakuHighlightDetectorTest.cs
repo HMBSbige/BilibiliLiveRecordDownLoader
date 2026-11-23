@@ -21,9 +21,9 @@ public sealed class DanmakuHighlightDetectorTest
 		return records;
 	}
 
-	private static IEnumerable<DanmakuRecord> Burst(double seconds, int users, Func<int, string> text, long uidBase = 100000)
+	private static IEnumerable<DanmakuRecord.Comment> Burst(double seconds, int users, Func<int, string> text, long uidBase = 100000)
 	{
-		return Enumerable.Range(0, users).Select(user => (DanmakuRecord)DanmakuSamples.Comment(seconds + user * 0.005, text(user), uidBase is 0 ? 0 : uidBase + user));
+		return Enumerable.Range(0, users).Select(user => DanmakuSamples.Comment(seconds + user * 0.005, text(user), uidBase is 0 ? 0 : uidBase + user));
 	}
 
 	private static string Distinct(int user)
@@ -45,7 +45,7 @@ public sealed class DanmakuHighlightDetectorTest
 	// 冷清的直播间基线是 1，比例那一关只要 2.5；热度够不上绝对下限时不算高能
 	[Test]
 	[Arguments(8, new int[0])]
-	[Arguments(12, new int[] { 13 })]
+	[Arguments(12, new[] { 13 })]
 	public async Task QuietRoomsNeedTheMinimumScoreAsync(int users, int[] scores)
 	{
 		List<DanmakuRecord> records = Background(TimeSpan.Zero, Hour, 1);
@@ -71,7 +71,7 @@ public sealed class DanmakuHighlightDetectorTest
 	public async Task OneUserFloodingIsNotAHighlightAsync()
 	{
 		List<DanmakuRecord> records = Background(TimeSpan.Zero, Hour, 4);
-		records.AddRange(Enumerable.Range(0, 200).Select(static i => (DanmakuRecord)DanmakuSamples.Comment(1800 + i * 0.02, Distinct(i), 999)));
+		records.AddRange(Enumerable.Range(0, 200).Select(static i => DanmakuSamples.Comment(1800 + i * 0.02, Distinct(i), 999)));
 
 		await Assert.That(DanmakuHighlightDetector.Detect(records, Hour)).IsEmpty();
 	}
@@ -80,7 +80,7 @@ public sealed class DanmakuHighlightDetectorTest
 	public async Task RhythmStormsAreIgnoredAsync()
 	{
 		List<DanmakuRecord> records = Background(TimeSpan.Zero, Hour, 4);
-		records.AddRange(Burst(1800, 60, static _ => @"节奏风暴口令").Select(static record => (DanmakuRecord)((DanmakuRecord.Comment)record with { IsStorm = true })));
+		records.AddRange(Burst(1800, 60, static _ => @"节奏风暴口令").Select(static record => record with { IsStorm = true }));
 
 		await Assert.That(DanmakuHighlightDetector.Detect(records, Hour)).IsEmpty();
 	}
@@ -116,9 +116,9 @@ public sealed class DanmakuHighlightDetectorTest
 	public async Task MaskedUsersAreCountedByTheirHashAsync()
 	{
 		List<DanmakuRecord> flooding = Background(TimeSpan.Zero, Hour, 4);
-		flooding.AddRange(Enumerable.Range(0, 40).Select(static i => (DanmakuRecord)(DanmakuSamples.Comment(1800 + i * 0.01, Distinct(i), 0) with { UidHash = i % 2 is 0 ? @"a16fe0dd" : @"14f71d3" })));
+		flooding.AddRange(Enumerable.Range(0, 40).Select(static i => DanmakuSamples.Comment(1800 + i * 0.01, Distinct(i), 0) with { UidHash = i % 2 is 0 ? @"a16fe0dd" : @"14f71d3" }));
 		List<DanmakuRecord> crowd = Background(TimeSpan.Zero, Hour, 4);
-		crowd.AddRange(Enumerable.Range(0, 40).Select(static i => (DanmakuRecord)(DanmakuSamples.Comment(1800 + i * 0.01, Distinct(i), 0) with { UidHash = DanmakuUid.Hash(500000 + i) })));
+		crowd.AddRange(Enumerable.Range(0, 40).Select(static i => DanmakuSamples.Comment(1800 + i * 0.01, Distinct(i), 0) with { UidHash = DanmakuUid.Hash(500000 + i) }));
 
 		using (Assert.Multiple())
 		{

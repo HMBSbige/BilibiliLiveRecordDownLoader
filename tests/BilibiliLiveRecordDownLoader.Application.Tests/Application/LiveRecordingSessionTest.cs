@@ -5,7 +5,7 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
 public sealed class LiveRecordingSessionTest
 {
-	private static LiveStreamCandidate Candidate(StreamFormat format, string signature, params string[] hosts)
+	private static LiveStreamCandidate.Listed Candidate(StreamFormat format, string signature, params string[] hosts)
 	{
 		return new LiveStreamCandidate.Listed(StreamProtocol.HttpHls, format, StreamCodec.Avc, 10000, [], [.. hosts.Select(host => new Uri($"https://{host}/live/index.m3u8?sign={signature}"))]);
 	}
@@ -17,7 +17,7 @@ public sealed class LiveRecordingSessionTest
 
 	private static string Describe(IEnumerable<LiveStreamCandidate> candidates)
 	{
-		return string.Join(", ", candidates.SelectMany(candidate => candidate.Urls, (candidate, uri) => $"{candidate.Format}@{uri.Host}"));
+		return string.Join(", ", candidates.SelectMany(static candidate => candidate.Urls, static (candidate, uri) => $"{candidate.Format}@{uri.Host}"));
 	}
 
 	[Test]

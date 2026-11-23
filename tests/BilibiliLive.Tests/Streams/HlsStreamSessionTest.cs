@@ -849,22 +849,16 @@ public class HlsStreamSessionTest
 		}
 	}
 
-	private sealed class SegmentGates
+	/// <param name="target">How many downloads must wait at once before <see cref="Reached"/> completes.</param>
+	/// <param name="names">The segments whose downloads wait until <see cref="Release"/> lets them through.</param>
+	private sealed class SegmentGates(int target, params string[] names)
 	{
 		private readonly Lock _lock = new();
-		private readonly Dictionary<string, (TaskCompletionSource Gate, TaskCompletionSource Passed)> _segments;
+		private readonly Dictionary<string, (TaskCompletionSource Gate, TaskCompletionSource Passed)> _segments = names.ToDictionary(static name => name, static _ => (new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously), new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)));
 		private readonly TaskCompletionSource _reached = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		private readonly int _target;
 		private int _waiting;
 		private int _peak;
 		private int _cancelled;
-
-		/// <param name="target">How many downloads must wait at once before <see cref="Reached"/> completes.</param>
-		public SegmentGates(int target, params string[] names)
-		{
-			_target = target;
-			_segments = names.ToDictionary(name => name, _ => (new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously), new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)));
-		}
 
 		public Task Reached => _reached.Task;
 
@@ -929,7 +923,7 @@ public class HlsStreamSessionTest
 				{
 					_peak = Math.Max(_peak, ++_waiting);
 
-					if (_waiting >= _target)
+					if (_waiting >= target)
 					{
 						_reached.TrySetResult();
 					}

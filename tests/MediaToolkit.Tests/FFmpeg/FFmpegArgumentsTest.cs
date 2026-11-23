@@ -59,13 +59,13 @@ public class FFmpegArgumentsTest
 	[Test]
 	public async Task RecordRejectsAProxyFFmpegWouldIgnoreAsync()
 	{
-		await Assert.That(() => FFmpegArguments.Record(Source, null, null, Timeout.InfiniteTimeSpan, FillerRemoval.None, new Uri(@"https://127.0.0.1:7890"))).Throws<ArgumentException>();
+		await Assert.That(static () => FFmpegArguments.Record(Source, null, null, Timeout.InfiniteTimeSpan, FillerRemoval.None, new Uri(@"https://127.0.0.1:7890"))).Throws<ArgumentException>();
 	}
 
 	[Test]
 	public async Task RecordRejectsRelativeSourceAsync()
 	{
-		await Assert.That(() => FFmpegArguments.Record(new Uri(@"live.flv", UriKind.Relative), null, null, Timeout.InfiniteTimeSpan)).Throws<ArgumentException>();
+		await Assert.That(static () => FFmpegArguments.Record(new Uri(@"live.flv", UriKind.Relative), null, null, Timeout.InfiniteTimeSpan)).Throws<ArgumentException>();
 	}
 
 	[Test]

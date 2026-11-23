@@ -1,6 +1,8 @@
+using NullLogger = Microsoft.Extensions.Logging.Abstractions.NullLogger;
+
 namespace BilibiliLiveRecordDownLoader.Desktop;
 
-internal static class Program
+internal static partial class Program
 {
 	private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(10);
 
@@ -24,6 +26,7 @@ internal static class Program
 		{
 			return BuildAvaloniaApp(AppStartupOptions.Parse(args))
 				// 平台初始化之后才能往 UI 线程投递，容器也在那时建好
+				// ReSharper disable once AccessToDisposedClosure
 				.AfterSetup(_ => signals = ListenForRequests(singleInstance))
 				.StartWithClassicDesktopLifetime(args);
 		}
@@ -72,7 +75,7 @@ internal static class Program
 		// 超时后容器可能正在后台释放，那时已无法再解析服务
 		IAppConfigManager? configManager = AppLocator.Current.GetService<IAppConfigManager>();
 		ILoggerProvider[] loggerProviders = [.. AppLocator.Current.GetServices<ILoggerProvider>()];
-		ILogger? logger = AppLocator.Current.GetService<ILoggerFactory>()?.CreateLogger(typeof(Program));
+		ILogger logger = AppLocator.Current.GetService<ILoggerFactory>()?.CreateLogger(typeof(Program)) ?? NullLogger.Instance;
 
 		try
 		{
@@ -82,12 +85,12 @@ internal static class Program
 				return;
 			}
 
-			logger?.LogWarning("Shutdown did not finish within {Timeout}, saving config and flushing logs", ShutdownTimeout);
+			LogShutdownTimedOut(logger, ShutdownTimeout);
 		}
 		catch (AggregateException exception)
 		{
 			// 只有释放容器本身出错会到这里，日志可能已经关闭
-			logger?.LogError(exception, "Disposing services failed, saving config and flushing logs");
+			LogDisposeFailed(logger, exception);
 		}
 
 		// 两者重复释放都是安全的
@@ -100,7 +103,7 @@ internal static class Program
 	}
 
 	// 兜底注销、信号等不经过 ExitCommand 结束的情况
-	private static async Task ShutdownAsync(ILogger? logger)
+	private static async Task ShutdownAsync(ILogger logger)
 	{
 		try
 		{
@@ -112,11 +115,20 @@ internal static class Program
 		catch (Exception exception)
 		{
 			// 释放容器会关闭日志，要在 finally 之前记下
-			logger?.LogError(exception, "Shutdown failed");
+			LogShutdownFailed(logger, exception);
 		}
 		finally
 		{
 			AppLocator.GetLocator().Dispose();
 		}
 	}
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Shutdown did not finish within {Timeout}, saving config and flushing logs")]
+	private static partial void LogShutdownTimedOut(ILogger logger, TimeSpan timeout);
+
+	[LoggerMessage(Level = LogLevel.Error, Message = "Disposing services failed, saving config and flushing logs")]
+	private static partial void LogDisposeFailed(ILogger logger, Exception exception);
+
+	[LoggerMessage(Level = LogLevel.Error, Message = "Shutdown failed")]
+	private static partial void LogShutdownFailed(ILogger logger, Exception exception);
 }

@@ -56,16 +56,16 @@ public sealed class RoomListViewModelTest
 
 	public static IEnumerable<Func<(string Command, long[] Selected, long? Before, long[] Expected)>> CommandCases()
 	{
-		yield return () => ("Up", [3], 2, [1, 3, 2, 4, 5]);
+		yield return static () => ("Up", [3], 2, [1, 3, 2, 4, 5]);
 		// 不连续的选中项合并到第一个选中项的上一位
-		yield return () => ("Up", [4, 2], 1, [2, 4, 1, 3, 5]);
-		yield return () => ("Up", [1, 3], 2, [1, 3, 2, 4, 5]);
-		yield return () => ("Down", [3], 5, [1, 2, 4, 3, 5]);
-		yield return () => ("Down", [2, 4], null, [1, 3, 5, 2, 4]);
-		yield return () => ("Down", [5], null, [1, 2, 3, 4, 5]);
-		yield return () => ("Top", [5, 3], 1, [3, 5, 1, 2, 4]);
-		yield return () => ("Top", [1, 2], 3, [1, 2, 3, 4, 5]);
-		yield return () => ("Bottom", [1, 3], null, [2, 4, 5, 1, 3]);
+		yield return static () => ("Up", [4, 2], 1, [2, 4, 1, 3, 5]);
+		yield return static () => ("Up", [1, 3], 2, [1, 3, 2, 4, 5]);
+		yield return static () => ("Down", [3], 5, [1, 2, 4, 3, 5]);
+		yield return static () => ("Down", [2, 4], null, [1, 3, 5, 2, 4]);
+		yield return static () => ("Down", [5], null, [1, 2, 3, 4, 5]);
+		yield return static () => ("Top", [5, 3], 1, [3, 5, 1, 2, 4]);
+		yield return static () => ("Top", [1, 2], 3, [1, 2, 3, 4, 5]);
+		yield return static () => ("Bottom", [1, 3], null, [2, 4, 5, 1, 3]);
 	}
 
 	[Test]
@@ -83,12 +83,12 @@ public sealed class RoomListViewModelTest
 
 	public static IEnumerable<Func<(long[] Selected, int Index, long? Before, long[] Expected)>> DropCases()
 	{
-		yield return () => ([1], 3, 4, [2, 3, 1, 4, 5]);
-		yield return () => ([2, 3], 0, 1, [2, 3, 1, 4, 5]);
-		yield return () => ([2, 3], 5, null, [1, 4, 5, 2, 3]);
+		yield return static () => ([1], 3, 4, [2, 3, 1, 4, 5]);
+		yield return static () => ([2, 3], 0, 1, [2, 3, 1, 4, 5]);
+		yield return static () => ([2, 3], 5, null, [1, 4, 5, 2, 3]);
 		// 放在被拖动的房间之间时，以后面第一个不移动的房间为准
-		yield return () => ([2, 3], 2, 4, [1, 2, 3, 4, 5]);
-		yield return () => ([4, 1], 3, 5, [2, 3, 1, 4, 5]);
+		yield return static () => ([2, 3], 2, 4, [1, 2, 3, 4, 5]);
+		yield return static () => ([4, 1], 3, 5, [2, 3, 1, 4, 5]);
 	}
 
 	[Test]

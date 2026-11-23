@@ -16,7 +16,7 @@ internal ref struct BitReader(ReadOnlySpan<byte> buffer)
 
 		for (int i = 0; i < count; ++i, ++_position)
 		{
-			int bit = _buffer[_position >> 3] >> (7 - (_position & 7)) & 1;
+			int bit = _buffer[_position >> 3] >> 7 - (_position & 7) & 1;
 			value = value << 1 | bit;
 		}
 

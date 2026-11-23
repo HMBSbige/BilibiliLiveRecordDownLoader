@@ -18,7 +18,7 @@ internal static class MasterPlaylistCandidates
 
 		return (restrictedTarget, trueOriginal) switch
 		{
-			({ } target, true) when target is not StreamQualityConsts.TrueOriginal => [StreamQualityConsts.TrueOriginal, target],
+			({ } target and not StreamQualityConsts.TrueOriginal, true) => [StreamQualityConsts.TrueOriginal, target],
 			({ } target, _) => [target],
 			// 拿到普通原画不算受限，但主播放列表里可能有真原画，和是否登录无关
 			(null, true) when listed is not [{ Qn: StreamQualityConsts.TrueOriginal }, ..] => [StreamQualityConsts.TrueOriginal],

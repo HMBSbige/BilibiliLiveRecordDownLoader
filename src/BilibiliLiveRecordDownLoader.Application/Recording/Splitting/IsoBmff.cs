@@ -384,7 +384,7 @@ internal static class TrackFragmentFlags
 	// field 是某个可选字段的标志，返回这个字段在 tfhd 内容里的位置，不管它在不在
 	public static int OffsetOf(uint flags, uint field)
 	{
-		uint preceding = flags & OptionalFields & (field - 1);
+		uint preceding = flags & OptionalFields & field - 1;
 		return 8 + 4 * BitOperations.PopCount(preceding) + ((preceding & BaseDataOffsetPresent) is 0 ? 0 : 4);
 	}
 }
@@ -404,7 +404,7 @@ internal static class TrackRunFlags
 	// 返回 field 对应的字段在 trun 内容里的位置，样本字段指第一个样本的，不管它在不在；第一个样本从 SampleDurationPresent 的位置开始
 	public static int OffsetOf(uint flags, uint field)
 	{
-		return 8 + 4 * BitOperations.PopCount(flags & (DataOffsetPresent | FirstSampleFlagsPresent | SampleFields) & (field - 1));
+		return 8 + 4 * BitOperations.PopCount(flags & (DataOffsetPresent | FirstSampleFlagsPresent | SampleFields) & field - 1);
 	}
 
 	public static int SampleFieldsSize(uint flags)

@@ -79,8 +79,8 @@ public sealed class RecordingFileLayoutTest
 		string[] produced =
 		[
 			.. Enum.GetValues<RecorderType>()
-				.SelectMany(_ => Enum.GetValues<StreamFormat>(), (recorderType, format) => RecordingFileLayout.GetRecordingPath(stem, format, recorderType))
-				.SelectMany(path => new[] { path, RecordingFileLayout.GetMp4ConversionPath(path) })
+				.SelectMany(static _ => Enum.GetValues<StreamFormat>(), static (recorderType, format) => RecordingFileLayout.GetRecordingPath(stem, format, recorderType))
+				.SelectMany(static path => new[] { path, RecordingFileLayout.GetMp4ConversionPath(path) })
 				.OfType<string>()
 				.Distinct()
 		];

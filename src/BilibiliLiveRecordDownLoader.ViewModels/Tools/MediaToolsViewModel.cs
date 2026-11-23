@@ -236,7 +236,7 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 	private HashSet<string> GetPendingOutputs()
 	{
 		IEnumerable<string> outputs = _tasks.GetTasks().Where(static task => task.IsActive).Select(static task => task.TargetPath).OfType<string>();
-		return new HashSet<string>(outputs.Select(Path.GetFullPath), PathComparer);
+		return [with(PathComparer), .. outputs.Select(Path.GetFullPath)];
 	}
 
 	private void NotifyQueued()
@@ -324,5 +324,6 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 		{
 			yield return string.Create(CultureInfo.InvariantCulture, $"{withoutExtension}_{index}{extension}");
 		}
+		// ReSharper disable once IteratorNeverReturns
 	}
 }

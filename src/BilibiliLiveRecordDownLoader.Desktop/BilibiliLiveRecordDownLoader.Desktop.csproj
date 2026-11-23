@@ -4,7 +4,16 @@
     <AssemblyName>BilibiliLiveRecordDownLoader</AssemblyName>
     <ApplicationIcon>..\BilibiliLiveRecordDownLoader.Views\Assets\Asaki.ico</ApplicationIcon>
     <PublishAot>true</PublishAot>
+    <PublishSingleFile>true</PublishSingleFile>
+    <OptimizationPreference>Size</OptimizationPreference>
+    <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' != 'Debug'">
+    <DebuggerSupport>false</DebuggerSupport>
+    <DebugType>none</DebugType>
+    <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
   </PropertyGroup>
 
   <ItemGroup>

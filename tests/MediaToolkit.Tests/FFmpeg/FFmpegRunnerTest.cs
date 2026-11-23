@@ -1,5 +1,6 @@
 using MediaToolkit.FFmpeg;
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Text;
 
 namespace MediaToolkit.Tests.FFmpeg;
@@ -57,12 +58,12 @@ public class FFmpegRunnerTest
 				cts.Cancel();
 			}
 		});
-		Stopwatch stopwatch = Stopwatch.StartNew();
+		long startedAt = Stopwatch.GetTimestamp();
 
 		await Assert.That(() => runner.RunAsync(arguments, progress, cts.Token)).Throws<OperationCanceledException>();
 
 		await Assert.That(messages).Contains(@"stdin=q");
-		await Assert.That(stopwatch.Elapsed).IsLessThan(TimeSpan.FromSeconds(20));
+		await Assert.That(Stopwatch.GetElapsedTime(startedAt)).IsLessThan(TimeSpan.FromSeconds(20));
 	}
 
 	[Test]
@@ -84,15 +85,15 @@ public class FFmpegRunnerTest
 		{
 			if (p.Message.StartsWith(@"pid=", StringComparison.Ordinal))
 			{
-				processId = int.Parse(p.Message.AsSpan(4));
+				processId = int.Parse(p.Message.AsSpan(4), CultureInfo.InvariantCulture);
 				cts.Cancel();
 			}
 		});
-		Stopwatch stopwatch = Stopwatch.StartNew();
+		long startedAt = Stopwatch.GetTimestamp();
 
 		await Assert.That(() => runner.RunAsync(arguments, progress, cts.Token)).Throws<OperationCanceledException>();
 
-		await Assert.That(stopwatch.Elapsed).IsLessThan(TimeSpan.FromSeconds(30));
+		await Assert.That(Stopwatch.GetElapsedTime(startedAt)).IsLessThan(TimeSpan.FromSeconds(30));
 		await Assert.That(processId).IsNotEqualTo(0);
 		await Assert.That(FakeProcess.IsRunning(processId)).IsFalse();
 	}
@@ -168,7 +169,7 @@ public class FFmpegRunnerTest
 		{
 			if (p.Message.StartsWith(@"pid=", StringComparison.Ordinal))
 			{
-				started.TrySetResult(int.Parse(p.Message.AsSpan(4)));
+				started.TrySetResult(int.Parse(p.Message.AsSpan(4), CultureInfo.InvariantCulture));
 			}
 		});
 
@@ -283,7 +284,7 @@ public class FFmpegRunnerTest
 		int processId = 0;
 		SyncProgress<FFmpegProgress> progress = new(p =>
 		{
-			processId = int.Parse(p.Message.AsSpan(4));
+			processId = int.Parse(p.Message.AsSpan(4), CultureInfo.InvariantCulture);
 			throw new InvalidOperationException(@"progress failed");
 		});
 

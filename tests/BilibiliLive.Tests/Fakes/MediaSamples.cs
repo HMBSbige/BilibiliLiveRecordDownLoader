@@ -35,12 +35,17 @@ internal static partial class MediaSamples
 
 	public static byte[] ForPath(string path, string marker)
 	{
-		return Path.GetExtension(path) is ".m4s" ? Path.GetFileName(path).StartsWith('h') ? Fmp4Init(marker) : Fmp4Fragment(marker) : TransportStream(marker);
+		if (Path.GetExtension(path) is not ".m4s")
+		{
+			return TransportStream(marker);
+		}
+
+		return Path.GetFileName(path).StartsWith('h') ? Fmp4Init(marker) : Fmp4Fragment(marker);
 	}
 
 	public static string Markers(byte[] output)
 	{
-		return string.Concat(MarkerPattern().Matches(Encoding.Latin1.GetString(output)).Select(match => match.Value));
+		return string.Concat(MarkerPattern().Matches(Encoding.Latin1.GetString(output)).Select(static match => match.Value));
 	}
 
 	public static byte[] Box(string type, byte[] payload)

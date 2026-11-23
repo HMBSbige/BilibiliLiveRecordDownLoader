@@ -1,3 +1,3 @@
 namespace BilibiliLive.Models;
 
-public sealed record FollowedLiveRoom(long RoomId, long UserId, string UserName, string Title, LiveStatus LiveStatus);
+public sealed record FollowedLiveRoom(long RoomId, string UserName, string Title, LiveStatus LiveStatus);

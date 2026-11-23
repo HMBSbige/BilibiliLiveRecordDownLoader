@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace BilibiliLiveRecordDownLoader.Application.Rooms;
 
 internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServices services, Action onChanged) : IRecordingObserver, IAsyncDisposable
@@ -32,6 +34,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	private Task _danmuTask = Task.CompletedTask;
 	private CancellationTokenSource? _statusCancellation;
 	private Task _statusTask = Task.CompletedTask;
+	[SuppressMessage("Usage", "CA2213", Justification = "录制循环退出时释放，DisposeAsync 会等循环结束")]
 	private CancellationTokenSource? _recordingCancellation;
 	private Task _recordingTask = Task.CompletedTask;
 	private bool _isRecordingLoopActive;

@@ -117,7 +117,7 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 		}
 	}
 
-	public async ValueTask FlushAsync(CancellationToken cancellationToken)
+	private async ValueTask FlushAsync(CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -153,7 +153,7 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 	private async ValueTask FlushCoreAsync(CancellationToken cancellationToken)
 	{
 		// 写入失败时保留待写内容，下次从同一位置重写
-		byte[] content = Utf8.GetBytes(_pending.ToString() + ClosingTag);
+		byte[] content = Utf8.GetBytes(_pending + ClosingTag);
 		_stream.Position = _contentEnd;
 		await _stream.WriteAsync(content, cancellationToken);
 		await _stream.FlushAsync(cancellationToken);

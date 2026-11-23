@@ -19,7 +19,7 @@ public sealed class RoomSplitRecordingTest
 	[Arguments(false, null, 1)]
 	public async Task TitleChangeWhileRecordingStartsANewFileAtTheNextKeyFrameAsync(bool global, bool? room, int expectedFiles, CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, new RecordingMediaTools());
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(new RecordingMediaTools(), cancellationToken);
 		loop.Config.SplitMode = RecordingSplitMode.None;
 		StreamRequest stream = await StartRecordingAsync(loop);
 
@@ -40,7 +40,7 @@ public sealed class RoomSplitRecordingTest
 	[Test]
 	public async Task TitleChangeBeforeRecordingStartsDoesNotSplitAsync(CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, new RecordingMediaTools());
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(new RecordingMediaTools(), cancellationToken);
 		loop.Config.SplitMode = RecordingSplitMode.None;
 		loop.Config.SplitOnTitleChange = true;
 
@@ -58,7 +58,7 @@ public sealed class RoomSplitRecordingTest
 	[Test]
 	public async Task FileStartedAfterATitleChangeIsNamedWithTheNewTitleAsync(CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, new RecordingMediaTools());
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(new RecordingMediaTools(), cancellationToken);
 		loop.Config.SplitMode = RecordingSplitMode.None;
 		loop.Config.SplitOnTitleChange = true;
 		loop.Config.IncludeTitleInFileName = true;
@@ -75,7 +75,7 @@ public sealed class RoomSplitRecordingTest
 	[Test]
 	public async Task TitleInFileNameFollowsTheSettingWhenEachFileStartsAsync(CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, new RecordingMediaTools());
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(new RecordingMediaTools(), cancellationToken);
 		loop.Config.IncludeTitleInFileName = true;
 		StreamRequest stream = await StartRecordingAsync(loop);
 
@@ -94,7 +94,7 @@ public sealed class RoomSplitRecordingTest
 		RecordingMediaTools mediaTools = new();
 		TaskCompletionSource nextFileWritten = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		int files = 0;
-		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools, path => Interlocked.Increment(ref files) is 1 ? LiveRecorder.CreateRecordingFile(path) : new FirstWriteFile(path, nextFileWritten));
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(mediaTools, cancellationToken, path => Interlocked.Increment(ref files) is 1 ? LiveRecorder.CreateRecordingFile(path) : new FirstWriteFile(path, nextFileWritten));
 		StreamRequest stream = await StartRecordingAsync(loop);
 		ActiveRecordingDto? first = loop.Snapshot.Recording;
 
@@ -126,7 +126,7 @@ public sealed class RoomSplitRecordingTest
 		RecordingMediaTools mediaTools = new();
 		TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		StuckClosingFile? first = null;
-		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools, path => first is null ? first = new StuckClosingFile(path, release.Task) : LiveRecorder.CreateRecordingFile(path));
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(mediaTools, cancellationToken, path => first is null ? first = new StuckClosingFile(path, release.Task) : LiveRecorder.CreateRecordingFile(path));
 		StreamRequest stream = await StartRecordingAsync(loop);
 		loop.Time.Advance(TimeSpan.FromSeconds(61));
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 61_000));
@@ -161,7 +161,7 @@ public sealed class RoomSplitRecordingTest
 		RecordingMediaTools mediaTools = new();
 		TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		StuckClosingFile? first = null;
-		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools, path => first is null ? first = new StuckClosingFile(path, release.Task) : LiveRecorder.CreateRecordingFile(path));
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(mediaTools, cancellationToken, path => first is null ? first = new StuckClosingFile(path, release.Task) : LiveRecorder.CreateRecordingFile(path));
 		StreamRequest stream = await StartRecordingAsync(loop);
 		loop.Time.Advance(TimeSpan.FromSeconds(61));
 		await stream.SendAndWaitAsync(Frame(VideoPacket.KeyFrame, 61_000));
@@ -192,7 +192,7 @@ public sealed class RoomSplitRecordingTest
 	[Test]
 	public async Task SplittingTurnedOnWhileRecordingSplitsTheCurrentRecordingAsync(CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, new RecordingMediaTools());
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(new RecordingMediaTools(), cancellationToken);
 		loop.Config.SplitMode = RecordingSplitMode.None;
 		StreamRequest stream = await StartRecordingAsync(loop);
 
@@ -210,7 +210,7 @@ public sealed class RoomSplitRecordingTest
 	public async Task ConversionFollowsTheSettingWhenEachFileIsFinishedAsync(CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();
-		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, mediaTools);
+		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(mediaTools, cancellationToken);
 		loop.Config.ConvertToMp4 = false;
 		StreamRequest stream = await StartRecordingAsync(loop);
 		loop.Time.Advance(TimeSpan.FromSeconds(61));

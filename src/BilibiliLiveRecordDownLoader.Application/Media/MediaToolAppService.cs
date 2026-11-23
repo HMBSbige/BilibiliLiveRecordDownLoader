@@ -47,7 +47,7 @@ internal sealed partial class MediaToolAppService(FFmpegProvider ffmpegProvider,
 			},
 			input.Source,
 			input.Destination
-		).Completion;
+		);
 	}
 
 	public async Task QueueCutAsync(CutInput input, CancellationToken cancellationToken = default)
@@ -60,7 +60,7 @@ internal sealed partial class MediaToolAppService(FFmpegProvider ffmpegProvider,
 		FFmpegRunner runner = await ffmpegProvider.GetRequiredRunnerAsync(cancellationToken);
 		EnsureValidPaths(input.Source, input.Destination);
 
-		backgroundTasks.Enqueue
+		_ = backgroundTasks.Enqueue
 		(
 			AppLanguage.Current.TaskCut.ToString(Path.GetFileName(input.Source)),
 			FileOperations.GetQueueKey(input.Destination),

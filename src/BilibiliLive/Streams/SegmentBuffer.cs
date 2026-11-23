@@ -3,19 +3,12 @@ using System.Buffers;
 namespace BilibiliLive.Streams;
 
 // Renting saves a new large object heap allocation of several megabytes for every segment
-internal sealed class SegmentBuffer : IDisposable
+internal sealed class SegmentBuffer(int capacity, long? expectedLength = null) : IDisposable
 {
 	internal const int MinimumCapacity = 4096;
 
-	private readonly long? _expectedLength;
-	private byte[] _array;
+	private byte[] _array = ArrayPool<byte>.Shared.Rent(Math.Max(capacity, MinimumCapacity));
 	private int _length;
-
-	public SegmentBuffer(int capacity, long? expectedLength = null)
-	{
-		_array = ArrayPool<byte>.Shared.Rent(Math.Max(capacity, MinimumCapacity));
-		_expectedLength = expectedLength;
-	}
 
 	public ReadOnlyMemory<byte> Memory => _array.AsMemory(0, _length);
 
@@ -30,7 +23,7 @@ internal sealed class SegmentBuffer : IDisposable
 			if (_length == _array.Length)
 			{
 				// A body of the announced length that fills the rental exactly would otherwise rent twice the size just to read its end
-				if (_length != _expectedLength)
+				if (_length != expectedLength)
 				{
 					Grow();
 				}

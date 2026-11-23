@@ -175,6 +175,7 @@ internal sealed class HlsStreamSession : LiveStreamSession
 
 		async Task WriteAsync(ReadOnlyMemory<byte> data)
 		{
+			// ReSharper disable once AccessToDisposedClosure
 			await destination.WriteAsync(data, stop.Token).ConfigureAwait(false);
 			progress?.Report(data.Length);
 		}
@@ -400,7 +401,7 @@ internal sealed class HlsStreamSession : LiveStreamSession
 
 	private static int GetInitialCapacity(long? contentLength)
 	{
-		return contentLength is long length and > 0 ? (int)Math.Min(length, MaxInitialSegmentCapacity) : DefaultSegmentCapacity;
+		return contentLength is { } length and > 0 ? (int)Math.Min(length, MaxInitialSegmentCapacity) : DefaultSegmentCapacity;
 	}
 
 	private async Task<SegmentBuffer> DownloadAsync(PendingSegment segment, CancellationTokenSource timeout, CancellationToken cancellationToken)

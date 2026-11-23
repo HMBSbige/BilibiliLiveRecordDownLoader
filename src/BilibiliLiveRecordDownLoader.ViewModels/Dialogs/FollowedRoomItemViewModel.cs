@@ -3,23 +3,22 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
 public sealed partial class FollowedRoomItemViewModel : ReactiveObject
 {
 	private readonly Action _onSelectionChanged;
+	private readonly string _userName;
 
 	public FollowedRoomItemViewModel(FollowedRoomDto room, Action onSelectionChanged)
 	{
 		_onSelectionChanged = onSelectionChanged;
 		RoomId = room.RoomId;
-		UserName = room.UserName;
+		_userName = room.UserName;
 		LiveStatus = room.LiveStatus;
 		IsAdded = room.IsAdded;
 
 		string roomId = RoomId.ToString(CultureInfo.InvariantCulture);
-		DisplayName = UserName.Length > 0 ? UserName : roomId;
+		DisplayName = _userName.Length > 0 ? _userName : roomId;
 		Subtitle = room.Title.Length > 0 ? $"{roomId} · {room.Title}" : roomId;
 	}
 
 	public long RoomId { get; }
-
-	public string UserName { get; }
 
 	public LiveStatus LiveStatus { get; }
 
@@ -55,6 +54,6 @@ public sealed partial class FollowedRoomItemViewModel : ReactiveObject
 
 	internal bool Matches(string keyword)
 	{
-		return UserName.Contains(keyword, StringComparison.CurrentCultureIgnoreCase) || RoomId.ToString(CultureInfo.InvariantCulture).Contains(keyword, StringComparison.Ordinal);
+		return _userName.Contains(keyword, StringComparison.CurrentCultureIgnoreCase) || RoomId.ToString(CultureInfo.InvariantCulture).Contains(keyword, StringComparison.Ordinal);
 	}
 }

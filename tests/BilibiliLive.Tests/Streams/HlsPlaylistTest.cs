@@ -94,7 +94,7 @@ public class HlsPlaylistTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(HlsPlaylist.GetVariant(content)).IsEqualTo("https://edge.test/d1--cn-gotcha204b.bilivideo.com/live-bvc/1/live_2500/index.m3u8?expires=1&sign=x");
-			await Assert.That(() => HlsPlaylist.Parse(content)).Throws<FormatException>();
+			await Assert.That(static () => HlsPlaylist.Parse(content)).Throws<FormatException>();
 		}
 	}
 

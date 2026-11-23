@@ -10,8 +10,8 @@ public class WbiKeyCacheTest
 	{
 		return ApiClient.Routes(new Dictionary<string, Func<HttpResponseMessage>>
 		{
-			[ApiPaths.Nav] = nav ?? (() => Responses.Fixture("nav_anonymous.json")),
-			[ApiPaths.DanmuInfo] = () => Responses.Fixture("danmu_info.json")
+			[ApiPaths.Nav] = nav ?? (static () => Responses.Fixture("nav_anonymous.json")),
+			[ApiPaths.DanmuInfo] = static () => Responses.Fixture("danmu_info.json")
 		}, time);
 	}
 

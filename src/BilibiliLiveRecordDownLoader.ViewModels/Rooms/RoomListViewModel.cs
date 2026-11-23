@@ -52,7 +52,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		MoveSelectionToCommand.DisposeWith(Disposables);
 		LoginCommand.DisposeWith(Disposables);
 
-		RoomsMoved = Signal.Merge<IReadOnlyList<RoomItemViewModel>>(MoveToTopCommand, MoveToBottomCommand, MoveUpCommand, MoveDownCommand, MoveSelectionToCommand);
+		RoomsMoved = Signal.Merge(MoveToTopCommand, MoveToBottomCommand, MoveUpCommand, MoveDownCommand, MoveSelectionToCommand);
 	}
 
 	// 列表刷新之后发出，按显示顺序
@@ -456,7 +456,10 @@ public sealed partial class RoomListViewModel : ViewModelBase
 
 		static int CompareNames(RoomItemViewModel x, RoomItemViewModel y)
 		{
+			// 界面排序按用户的区域性
+#pragma warning disable CA1309
 			return string.Compare(x.DisplayName, y.DisplayName, StringComparison.CurrentCultureIgnoreCase);
+#pragma warning restore CA1309
 		}
 
 		static int Rank(RoomItemViewModel room)

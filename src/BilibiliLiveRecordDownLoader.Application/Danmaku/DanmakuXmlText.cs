@@ -5,6 +5,8 @@ namespace BilibiliLiveRecordDownLoader.Application.Danmaku;
 
 internal static class DanmakuXmlText
 {
+	private const long MaxWholeSeconds = long.MaxValue / TimeSpan.TicksPerSecond;
+
 	// 换行和制表符也写成字符引用，保证每个元素占一行，属性值里的空白读回时也不会被规范化成空格
 	// XML 不允许的字符（控制字符、落单的代理项等）丢掉
 	public static void AppendEscaped(StringBuilder builder, string value)
@@ -58,7 +60,7 @@ internal static class DanmakuXmlText
 	public static bool TryParseSeconds(string? value, out TimeSpan result)
 	{
 		// 先粗略限定范围，乘以每秒的 tick 数时 decimal 才不会溢出
-		if (decimal.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal seconds) && decimal.Abs(seconds) <= long.MaxValue / TimeSpan.TicksPerSecond + 1 && decimal.Truncate(seconds * TimeSpan.TicksPerSecond) is var ticks && ticks >= long.MinValue && ticks <= long.MaxValue)
+		if (decimal.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal seconds) && decimal.Abs(seconds) <= MaxWholeSeconds + 1 && decimal.Truncate(seconds * TimeSpan.TicksPerSecond) is var ticks and >= long.MinValue and <= long.MaxValue)
 		{
 			result = new TimeSpan((long)ticks);
 			return true;

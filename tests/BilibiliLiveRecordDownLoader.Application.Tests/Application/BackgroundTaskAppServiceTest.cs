@@ -13,7 +13,7 @@ public sealed class BackgroundTaskAppServiceTest
 		TaskCompletionSource releaseFirst = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		List<string> started = [];
 
-		Guid first = service.Enqueue("first", "C:", async (_, cancellationToken) =>
+		Guid first = Start(service, "first", "C:", async (_, cancellationToken) =>
 		{
 			lock (started)
 			{
@@ -21,8 +21,8 @@ public sealed class BackgroundTaskAppServiceTest
 			}
 
 			await releaseFirst.Task.WaitAsync(cancellationToken);
-		}).Id;
-		Guid second = service.Enqueue("second", "c:", (_, _) =>
+		});
+		Guid second = Start(service, "second", "c:", (_, _) =>
 		{
 			lock (started)
 			{
@@ -30,7 +30,7 @@ public sealed class BackgroundTaskAppServiceTest
 			}
 
 			return Task.CompletedTask;
-		}).Id;
+		});
 
 		await WaitForStatusAsync(service, first, BackgroundTaskStatus.Running);
 		await Assert.That(Status(service, second)).IsEqualTo(BackgroundTaskStatus.Queued);
@@ -48,8 +48,8 @@ public sealed class BackgroundTaskAppServiceTest
 		BackgroundTaskAppService service = CreateService();
 		TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		Guid first = service.Enqueue("first", "C:", (_, cancellationToken) => release.Task.WaitAsync(cancellationToken)).Id;
-		Guid second = service.Enqueue("second", "D:", (_, cancellationToken) => release.Task.WaitAsync(cancellationToken)).Id;
+		Guid first = Start(service, "first", "C:", (_, cancellationToken) => release.Task.WaitAsync(cancellationToken));
+		Guid second = Start(service, "second", "D:", (_, cancellationToken) => release.Task.WaitAsync(cancellationToken));
 
 		await WaitForStatusAsync(service, first, BackgroundTaskStatus.Running);
 		await WaitForStatusAsync(service, second, BackgroundTaskStatus.Running);
@@ -63,8 +63,8 @@ public sealed class BackgroundTaskAppServiceTest
 	{
 		BackgroundTaskAppService service = CreateService();
 
-		Guid running = service.Enqueue("running", "q", static (_, cancellationToken) => Task.Delay(Timeout.Infinite, cancellationToken)).Id;
-		Guid queued = service.Enqueue("queued", "q", static (_, _) => Task.CompletedTask).Id;
+		Guid running = Start(service, "running", "q", static (_, cancellationToken) => Task.Delay(Timeout.Infinite, cancellationToken));
+		Guid queued = Start(service, "queued", "q", static (_, _) => Task.CompletedTask);
 
 		await WaitForStatusAsync(service, running, BackgroundTaskStatus.Running);
 		service.Cancel(queued);
@@ -83,11 +83,11 @@ public sealed class BackgroundTaskAppServiceTest
 		bool ran = false;
 
 		await service.StopAsync();
-		Guid id = service.Enqueue("late", "q", (_, _) =>
+		Guid id = Start(service, "late", "q", (_, _) =>
 		{
 			ran = true;
 			return Task.CompletedTask;
-		}).Id;
+		});
 
 		await Assert.That(Status(service, id)).IsEqualTo(BackgroundTaskStatus.Canceled);
 		await Assert.That(ran).IsFalse();
@@ -100,10 +100,10 @@ public sealed class BackgroundTaskAppServiceTest
 	{
 		BackgroundTaskAppService service = CreateService();
 
-		BackgroundTaskSnapshot failed = await service.Enqueue("failing", "q", static (_, _) => throw new InvalidOperationException("boom")).Completion.WaitAsync(WaitTimeout);
-		BackgroundTaskSnapshot completed = await service.Enqueue("done", "q", static (_, _) => Task.CompletedTask, "in.flv", "out.mp4").Completion.WaitAsync(WaitTimeout);
+		BackgroundTaskSnapshot failed = await service.Enqueue("failing", "q", static (_, _) => throw new InvalidOperationException("boom")).WaitAsync(WaitTimeout);
+		BackgroundTaskSnapshot completed = await service.Enqueue("done", "q", static (_, _) => Task.CompletedTask, "in.flv", "out.mp4").WaitAsync(WaitTimeout);
 		await service.StopAsync();
-		BackgroundTaskSnapshot canceled = await service.Enqueue("late", "q", static (_, _) => Task.CompletedTask).Completion.WaitAsync(WaitTimeout);
+		BackgroundTaskSnapshot canceled = await service.Enqueue("late", "q", static (_, _) => Task.CompletedTask).WaitAsync(WaitTimeout);
 
 		using (Assert.Multiple())
 		{
@@ -120,12 +120,12 @@ public sealed class BackgroundTaskAppServiceTest
 		TaskCompletionSource reported = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		Guid id = service.Enqueue("task", "q", async (context, cancellationToken) =>
+		Guid id = Start(service, "task", "q", async (context, cancellationToken) =>
 		{
 			context.Report(1.5);
 			reported.SetResult();
 			await release.Task.WaitAsync(cancellationToken);
-		}).Id;
+		});
 
 		await reported.Task.WaitAsync(WaitTimeout);
 		BackgroundTaskSnapshot running = Snapshot(service, id);
@@ -143,8 +143,8 @@ public sealed class BackgroundTaskAppServiceTest
 		BackgroundTaskAppService service = CreateService();
 		TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		Guid done = service.Enqueue("done", "a", static (_, _) => Task.CompletedTask).Id;
-		Guid active = service.Enqueue("active", "b", (_, cancellationToken) => release.Task.WaitAsync(cancellationToken)).Id;
+		Guid done = Start(service, "done", "a", static (_, _) => Task.CompletedTask);
+		Guid active = Start(service, "active", "b", (_, cancellationToken) => release.Task.WaitAsync(cancellationToken));
 
 		await WaitForStatusAsync(service, done, BackgroundTaskStatus.Completed);
 		await WaitForStatusAsync(service, active, BackgroundTaskStatus.Running);
@@ -170,7 +170,7 @@ public sealed class BackgroundTaskAppServiceTest
 			Task enqueue = Task.Run(() =>
 			{
 				barrier.SignalAndWait();
-				service.Enqueue("task", "q", static (_, cancellationToken) => Task.Delay(Timeout.Infinite, cancellationToken));
+				_ = service.Enqueue("task", "q", static (_, cancellationToken) => Task.Delay(Timeout.Infinite, cancellationToken));
 			});
 			Task stop = Task.Run(async () =>
 			{
@@ -189,12 +189,12 @@ public sealed class BackgroundTaskAppServiceTest
 	{
 		BackgroundTaskAppService service = CreateService();
 
-		BackgroundTaskSnapshot failed = await service.Enqueue("failing", "q", static (_, _) => throw new InvalidOperationException("boom")).Completion.WaitAsync(WaitTimeout);
+		BackgroundTaskSnapshot failed = await service.Enqueue("failing", "q", static (_, _) => throw new InvalidOperationException("boom")).WaitAsync(WaitTimeout);
 		List<Guid> completed = [];
 
 		for (int i = 0; i < BackgroundTaskAppService.MaxFinishedEntries + 5; i++)
 		{
-			completed.Add((await service.Enqueue("done", "q", static (_, _) => Task.CompletedTask).Completion.WaitAsync(WaitTimeout)).Id);
+			completed.Add((await service.Enqueue("done", "q", static (_, _) => Task.CompletedTask).WaitAsync(WaitTimeout)).Id);
 		}
 
 		await Assert.That(service.GetTasks().Select(static task => task.Id)).IsEquivalentTo([failed.Id, .. completed.Skip(5)], CollectionOrdering.Matching).Because("加入最后一个任务时它还在排队，结束后要等下次加入才裁剪");
@@ -208,17 +208,17 @@ public sealed class BackgroundTaskAppServiceTest
 
 		for (int i = 0; i < BackgroundTaskAppService.MaxFinishedEntries; i++)
 		{
-			await service.Enqueue("done", "a", static (_, _) => Task.CompletedTask).Completion.WaitAsync(WaitTimeout);
+			await service.Enqueue("done", "a", static (_, _) => Task.CompletedTask).WaitAsync(WaitTimeout);
 		}
 
 		TaskCompletionSource[] started = [new(TaskCreationOptions.RunContinuationsAsynchronously), new(TaskCreationOptions.RunContinuationsAsynchronously)];
-		Guid[] running = [.. started.Select((signal, i) => service.Enqueue("running", $"b{i}", (_, cancellationToken) =>
+		Guid[] running = [.. started.Select((signal, i) => Start(service, "running", $"b{i}", (_, cancellationToken) =>
 		{
 			TaskCompletionSource canceled = new();
 			cancellationToken.Register(() => canceled.TrySetCanceled(cancellationToken));
 			signal.SetResult();
 			return canceled.Task;
-		}).Id)];
+		}))];
 
 		await Task.WhenAll(started.Select(static signal => signal.Task)).WaitAsync(WaitTimeout);
 		await Task.Run(service.StopAsync).WaitAsync(WaitTimeout);
@@ -235,7 +235,7 @@ public sealed class BackgroundTaskAppServiceTest
 		StoppedSynchronizationContext ui = new();
 
 		// 第二个任务要等第一个让出队列
-		(Task<BackgroundTaskSnapshot> first, Task<BackgroundTaskSnapshot> second) = ui.Run(() => (service.Enqueue("first", "q", (_, cancellationToken) => release.Task.WaitAsync(cancellationToken)).Completion, service.Enqueue("second", "q", static (_, _) => Task.CompletedTask).Completion));
+		(Task<BackgroundTaskSnapshot> first, Task<BackgroundTaskSnapshot> second) = ui.Run(() => (service.Enqueue("first", "q", (_, cancellationToken) => release.Task.WaitAsync(cancellationToken)), service.Enqueue("second", "q", static (_, _) => Task.CompletedTask)));
 		release.SetResult();
 		BackgroundTaskSnapshot[] finished = await Task.WhenAll(first, second).WaitAsync(WaitTimeout);
 
@@ -278,6 +278,13 @@ public sealed class BackgroundTaskAppServiceTest
 	private static BackgroundTaskAppService CreateService()
 	{
 		return new BackgroundTaskAppService(TimeProvider.System, NullLogger<BackgroundTaskAppService>.Instance);
+	}
+
+	// Enqueue 只交出完成结果；刚加入的任务排在列表最后
+	private static Guid Start(BackgroundTaskAppService service, string title, string queueKey, Func<BackgroundTaskContext, CancellationToken, Task> work)
+	{
+		_ = service.Enqueue(title, queueKey, work);
+		return service.GetTasks()[^1].Id;
 	}
 
 	private static BackgroundTaskSnapshot Snapshot(BackgroundTaskAppService service, Guid id)

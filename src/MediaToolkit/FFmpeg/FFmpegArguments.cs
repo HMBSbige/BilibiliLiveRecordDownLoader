@@ -97,11 +97,11 @@ public static class FFmpegArguments
 	// 裸流输入没有时间戳，不给 -framerate 时 FFmpeg 按 25 帧算
 	private static string[] FrameRate(double? frameRate)
 	{
-		return frameRate is double rate and > 0 ? [@"-framerate", rate.ToString(@"0.###", CultureInfo.InvariantCulture)] : [];
+		return frameRate is { } rate and > 0 ? [@"-framerate", rate.ToString(@"0.###", CultureInfo.InvariantCulture)] : [];
 	}
 
 	// TimeSpan 的 hh 只是小时分量，超过一天会丢掉天数
-	internal static string FormatTime(TimeSpan value)
+	private static string FormatTime(TimeSpan value)
 	{
 		return string.Create(CultureInfo.InvariantCulture, $@"{(long)value.TotalHours:00}:{value:mm\:ss\.fff}");
 	}

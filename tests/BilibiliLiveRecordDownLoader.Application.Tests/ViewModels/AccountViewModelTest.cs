@@ -89,16 +89,7 @@ public sealed class AccountViewModelTest
 	[Test]
 	public async Task CookieReloadedAfterLogoutIsNotSavedOrCheckedAgainAsync(CancellationToken cancellationToken)
 	{
-		int checks = 0;
-		FakeAccountAppService accounts = new()
-		{
-			Cookie = "old",
-			IsLoggedIn = OnThreadPool(_ =>
-			{
-				Interlocked.Increment(ref checks);
-				return true;
-			})
-		};
+		FakeAccountAppService accounts = new() { Cookie = "old", IsLoggedIn = OnThreadPool(static _ => true) };
 		using AccountViewModel viewModel = new(accounts);
 		await viewModel.LoadAsync(cancellationToken);
 		((ICommand)viewModel.CheckLoginCommand).Execute(null);
@@ -111,7 +102,7 @@ public sealed class AccountViewModelTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(viewModel.Cookie).IsNull();
-			await Assert.That(Volatile.Read(ref checks)).IsEqualTo(1);
+			await Assert.That(accounts.Checks).IsEqualTo(1);
 			await Assert.That(accounts.Saves).IsEqualTo(saves);
 		}
 	}
@@ -125,12 +116,15 @@ public sealed class AccountViewModelTest
 	private sealed class FakeAccountAppService : IAccountAppService
 	{
 		private int _saves;
+		private int _checks;
 
 		public required Func<string?, CancellationToken, Task<bool>> IsLoggedIn { get; init; }
 
 		public string? Cookie { get; set; }
 
 		public int Saves => Volatile.Read(ref _saves);
+
+		public int Checks => Volatile.Read(ref _checks);
 
 		public Task<string?> GetCookieAsync(CancellationToken cancellationToken = default)
 		{
@@ -146,6 +140,7 @@ public sealed class AccountViewModelTest
 
 		public Task<bool> IsLoggedInAsync(CancellationToken cancellationToken = default)
 		{
+			Interlocked.Increment(ref _checks);
 			return IsLoggedIn(Cookie, cancellationToken);
 		}
 

@@ -27,7 +27,7 @@ internal static class MasterPlaylistVariants
 
 			if (!hasHeader)
 			{
-				if (!line.TrimStart('\uFEFF').SequenceEqual(Header))
+				if (line.TrimStart('\uFEFF') is not Header)
 				{
 					throw new FormatException("The response is not an HLS playlist.");
 				}

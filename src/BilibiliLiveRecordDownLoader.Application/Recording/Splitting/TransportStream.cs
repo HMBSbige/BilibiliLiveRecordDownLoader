@@ -226,7 +226,7 @@ internal static class TransportStream
 
 	public static long ReadTimestamp(ReadOnlySpan<byte> field)
 	{
-		return (long)(field[0] >> 1 & 0x07) << 30 | (long)field[1] << 22 | (long)(field[2] >> 1) << 15 | (long)field[3] << 7 | (long)(field[4] >> 1);
+		return (long)(field[0] >> 1 & 0x07) << 30 | (long)field[1] << 22 | (long)(field[2] >> 1) << 15 | (long)field[3] << 7 | (long)field[4] >> 1;
 	}
 
 	// 保留前缀的 4 位，标记位都写 1

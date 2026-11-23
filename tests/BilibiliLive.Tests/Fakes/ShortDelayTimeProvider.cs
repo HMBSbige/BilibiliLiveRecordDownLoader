@@ -35,7 +35,7 @@ internal sealed class ShortDelayTimeProvider(TimeSpan longest) : TimeProvider
 		}
 
 		Delays.Enqueue(dueTime);
-		ThreadPool.QueueUserWorkItem(_ => callback(state));
+		ThreadPool.QueueUserWorkItem(static timer => timer.callback(timer.state), (callback, state), preferLocal: false);
 
 		// A later Change, such as CancelAfter moving a deadline, then follows the fake clock
 		return _clock.CreateTimer(callback, state, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);

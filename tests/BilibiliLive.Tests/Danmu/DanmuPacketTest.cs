@@ -30,12 +30,12 @@ public class DanmuPacketTest
 
 	internal static byte[] Zlib(params byte[][] packets)
 	{
-		return DanmuPacket.Encode(DanmuOperation.Message, 2, Compress([.. packets.SelectMany(p => p)], static s => new ZLibStream(s, CompressionLevel.Optimal)));
+		return DanmuPacket.Encode(DanmuOperation.Message, 2, Compress([.. packets.SelectMany(static p => p)], static s => new ZLibStream(s, CompressionLevel.Optimal)));
 	}
 
 	internal static byte[] Brotli(params byte[][] packets)
 	{
-		return DanmuPacket.Encode(DanmuOperation.Message, 3, Compress([.. packets.SelectMany(p => p)], static s => new BrotliStream(s, CompressionLevel.Optimal)));
+		return DanmuPacket.Encode(DanmuOperation.Message, 3, Compress([.. packets.SelectMany(static p => p)], static s => new BrotliStream(s, CompressionLevel.Optimal)));
 	}
 
 	internal static byte[] Json(string json, ushort version = 0)
@@ -54,7 +54,7 @@ public class DanmuPacketTest
 		yield return new(static () =>
 		{
 			byte[] data = Json("{}");
-			data[3] += 1;
+			++data[3];
 			return data;
 		}, DisplayName: "Decode rejects a length beyond the buffer");
 		yield return new(static () =>

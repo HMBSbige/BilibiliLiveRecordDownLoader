@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization.Metadata;
 
 namespace BilibiliLiveRecordDownLoader.Configuration;
@@ -18,7 +19,9 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 	private readonly string _configPath = storageOptions.Value.FilePath;
 	private readonly string? _legacyPath = storageOptions.Value.LegacyFilePath;
 	private readonly TimeSpan _saveDelay = storageOptions.Value.SaveDelay;
+	[SuppressMessage("Usage", "CA2213", Justification = "没有需要释放的等待句柄，释放后再次 Dispose 时 Wait 会抛异常")]
 	private readonly SemaphoreSlim _lock = new(1, 1);
+	[SuppressMessage("Usage", "CA2213", Justification = "没有定时器和链接，不需要释放，释放后再次 Dispose 时 Cancel 会抛异常")]
 	private readonly CancellationTokenSource _disposal = new();
 	private bool _isDirty;
 	private bool _isSaveScheduled;
@@ -211,7 +214,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 			return null;
 		}
 
-		using FileStream stream = File.OpenRead(path);
+		await using FileStream stream = File.OpenRead(path);
 		return await JsonSerializer.DeserializeAsync(stream, AppConfigJsonContext.Default.AppConfig, cancellationToken).ConfigureAwait(false);
 	}
 
@@ -269,7 +272,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 
 	private static async ValueTask<JsonObject?> ReadObjectAsync(string path, CancellationToken cancellationToken)
 	{
-		using FileStream stream = File.OpenRead(path);
+		await using FileStream stream = File.OpenRead(path);
 		return await JsonNode.ParseAsync(stream, documentOptions: DocumentOptions, cancellationToken: cancellationToken).ConfigureAwait(false) as JsonObject;
 	}
 
@@ -284,7 +287,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		foreach ((string key, JsonNode? value) in node.ToArray())
 		{
 			// 未知的属性读取时本来就会忽略
-			if (typeInfo.Properties.FirstOrDefault(property => string.Equals(property.Name, key, StringComparison.OrdinalIgnoreCase)) is not { } property
+			if (typeInfo.Properties.FirstOrDefault(candidate => string.Equals(candidate.Name, key, StringComparison.OrdinalIgnoreCase)) is not { } property
 				|| AppConfigJsonContext.Default.GetTypeInfo(property.PropertyType) is not { } propertyTypeInfo)
 			{
 				continue;

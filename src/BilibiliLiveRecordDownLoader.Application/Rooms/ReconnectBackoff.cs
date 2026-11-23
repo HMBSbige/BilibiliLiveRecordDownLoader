@@ -10,7 +10,7 @@ internal sealed class ReconnectBackoff(Func<TimeSpan> initialDelay, TimeProvider
 	public static readonly TimeSpan MaxDelay = TimeSpan.FromMinutes(2);
 
 	// 弹幕服务器每 30 秒回应一次心跳，撑过一个心跳周期说明认证已经通过
-	public static readonly TimeSpan StableDuration = TimeSpan.FromSeconds(30);
+	private static readonly TimeSpan StableDuration = TimeSpan.FromSeconds(30);
 
 	private TimeSpan _delay = initialDelay();
 	private long _connectedAt;

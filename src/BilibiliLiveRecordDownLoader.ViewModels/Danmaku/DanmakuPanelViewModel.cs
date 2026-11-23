@@ -1,18 +1,21 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace BilibiliLiveRecordDownLoader.ViewModels.Danmaku;
 
 public sealed partial class DanmakuPanelViewModel : ViewModelBase
 {
 	private readonly IDanmakuAppService _danmaku;
 	private readonly IAppConfigManager _configManager;
-	private readonly Func<CancellationToken, Task<bool>> _showLogin;
+	private readonly Func<CancellationToken, Task> _showLogin;
 
 	// 切换直播间时不重置
+	[SuppressMessage("Usage", "CA2213", Justification = "由 Disposables 释放")]
 	private readonly DanmakuFilterViewModel _liveFilter;
 
 	// 读完时编号变了就丢掉结果
 	private int _fileRequest;
 
-	public DanmakuPanelViewModel(IDanmakuAppService danmaku, IAppConfigManager configManager, Func<CancellationToken, Task<bool>> showLogin)
+	public DanmakuPanelViewModel(IDanmakuAppService danmaku, IAppConfigManager configManager, Func<CancellationToken, Task> showLogin)
 	{
 		_danmaku = danmaku;
 		_configManager = configManager;

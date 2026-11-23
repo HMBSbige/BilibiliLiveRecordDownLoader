@@ -21,7 +21,7 @@ public class LiveStreamReaderTest
 		using HttpClient client = new(handler);
 		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [], [BrokenHost, WorkingHost]);
 
-		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, null, cancellationToken: cancellationToken);
+		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, cancellationToken: cancellationToken);
 		using MemoryStream output = new();
 		RecordingProgress progress = new();
 		await session.CopyToAsync(output, progress, cancellationToken);
@@ -42,7 +42,7 @@ public class LiveStreamReaderTest
 	{
 		Uri garbage = new("https://garbage.test/index.m3u8");
 		Uri valid = new("https://valid.test/index.m3u8");
-		FakeHttpMessageHandler handler = new(request => request.RequestUri switch
+		FakeHttpMessageHandler handler = new(static request => request.RequestUri switch
 		{
 			{ Host: "garbage.test" } => Responses.Text("<html>blocked</html>"),
 			{ Host: "valid.test", AbsolutePath: "/index.m3u8" } => Responses.Text("#EXTM3U\n#EXTINF:1,\nseg.ts\n#EXT-X-ENDLIST\n"),
@@ -52,7 +52,7 @@ public class LiveStreamReaderTest
 		using HttpClient client = new(handler);
 		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpHls, StreamFormat.Ts, StreamCodec.Avc, 10000, [], [garbage, valid]);
 
-		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, null, cancellationToken: cancellationToken);
+		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, cancellationToken: cancellationToken);
 		using MemoryStream output = new();
 		await session.CopyToAsync(output, null, cancellationToken);
 
@@ -78,7 +78,7 @@ public class LiveStreamReaderTest
 		List<(Uri Host, Exception Error)> failures = [];
 		FakeTimeProvider time = new();
 
-		Task<LiveStreamSession> opening = LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, (host, error) => failures.Add((host, error)), time, cancellationToken);
+		Task<LiveStreamSession> opening = LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, (failedHost, failure) => failures.Add((failedHost, failure)), time, cancellationToken);
 		await hung.Task.WaitAsync(cancellationToken);
 		time.Advance(ConnectTimeout);
 		await using LiveStreamSession session = await opening;
@@ -95,7 +95,7 @@ public class LiveStreamReaderTest
 	[Test]
 	public async Task EveryFailedHostIsReportedAsync(CancellationToken cancellationToken)
 	{
-		using HttpClient client = new(new FakeHttpMessageHandler(request => request.RequestUri == WorkingHost ? Responses.Bytes([.. "FLV"u8]) : Responses.NotFound()));
+		using HttpClient client = new(new FakeHttpMessageHandler(static request => request.RequestUri == WorkingHost ? Responses.Bytes([.. "FLV"u8]) : Responses.NotFound()));
 		Uri otherBroken = new("https://other-broken.test/live.flv");
 		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [], [BrokenHost, otherBroken, WorkingHost]);
 		List<Uri> failed = [];
@@ -107,7 +107,7 @@ public class LiveStreamReaderTest
 
 	[Test]
 	[Arguments(new byte[0])]
-	[Arguments(new byte[] { (byte)'<', (byte)'h', (byte)'t', (byte)'m', (byte)'l', (byte)'>' })]
+	[Arguments(new[] { (byte)'<', (byte)'h', (byte)'t', (byte)'m', (byte)'l', (byte)'>' })]
 	public async Task HttpStreamThatIsNotFlvIsRejectedAsync(byte[] body, CancellationToken cancellationToken)
 	{
 		using HttpClient client = new(new FakeHttpMessageHandler(_ => Responses.Bytes(body)));

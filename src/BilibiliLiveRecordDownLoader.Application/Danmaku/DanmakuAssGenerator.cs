@@ -25,12 +25,11 @@ internal static class DanmakuAssGenerator
 	private static readonly UTF8Encoding Utf8WithBom = new(true);
 
 	// 很多播放器只在有 BOM 时把 ASS 当 UTF-8；messageLabels 为 null 时不画消息栏
-	public static async Task<DanmakuAssResult> WriteFileAsync(string path, IEnumerable<DanmakuRecord> records, VideoResolution? videoSize, DanmakuAssLabels? messageLabels, CancellationToken cancellationToken)
+	public static async Task WriteFileAsync(string path, IEnumerable<DanmakuRecord> records, VideoResolution? videoSize, DanmakuAssLabels? messageLabels, CancellationToken cancellationToken)
 	{
 		await using StreamWriter writer = new(path, false, Utf8WithBom);
-		DanmakuAssResult result = Write(writer, records, videoSize, messageLabels);
+		Write(writer, records, videoSize, messageLabels);
 		await writer.FlushAsync(cancellationToken);
-		return result;
 	}
 
 	public static DanmakuAssResult Write(TextWriter writer, IEnumerable<DanmakuRecord> records, VideoResolution? videoSize, DanmakuAssLabels? messageLabels)
@@ -239,7 +238,7 @@ internal static class DanmakuAssGenerator
 	// ASS 的颜色是 BGR
 	internal static string ToAssColor(int rgb)
 	{
-		return string.Create(CultureInfo.InvariantCulture, $@"{rgb & 0xFF:X2}{(rgb >> 8) & 0xFF:X2}{(rgb >> 16) & 0xFF:X2}");
+		return string.Create(CultureInfo.InvariantCulture, $@"{rgb & 0xFF:X2}{rgb >> 8 & 0xFF:X2}{rgb >> 16 & 0xFF:X2}");
 	}
 
 	internal static string FormatTime(TimeSpan value)

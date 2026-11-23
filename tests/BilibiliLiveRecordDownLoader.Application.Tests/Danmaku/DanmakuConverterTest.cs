@@ -6,7 +6,7 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
 public sealed class DanmakuConverterTest
 {
-	private static readonly DanmuSender Sender = new(42, "观众", GuardLevel.Captain, new DanmuMedal(21, "牌子", 0x1A544B, 1, 2, true));
+	private static readonly DanmuSender Sender = new(42, "观众", GuardLevel.Captain, new DanmuMedal(21, "牌子", 0x1A544B, true));
 
 	private static readonly TimeSpan Time = TimeSpan.FromSeconds(12.5);
 
@@ -17,13 +17,13 @@ public sealed class DanmakuConverterTest
 
 	private static DanmuMessage.Gift Gift(DanmuCoinType coinType)
 	{
-		return new DanmuMessage.Gift(Sender, 1, "小花花", 2, 100, 200, coinType, DateTimeOffset.UnixEpoch);
+		return new DanmuMessage.Gift(Sender, "小花花", 2, 200, coinType);
 	}
 
 	[Test]
 	public async Task CommentKeepsTheUidHashAndStormFlagAsync()
 	{
-		DanmuMessage.Comment comment = new(Sender with { UserId = 0, Name = "观***" }, "文本", 5, 36, 0xFF0000, DateTimeOffset.FromUnixTimeSeconds(1795343190), "a16fe0dd", DanmuCommentKind.Text, true);
+		DanmuMessage.Comment comment = new(Sender with { UserId = 0, Name = "观***" }, "文本", 5, 36, 0xFF0000, DateTimeOffset.FromUnixTimeSeconds(1795343190), "a16fe0dd", true);
 
 		DanmakuRecord? record = DanmakuConverter.ToRecord(comment, Time, Profile(superChats: false, guards: false));
 
@@ -52,7 +52,7 @@ public sealed class DanmakuConverterTest
 	[Test]
 	public async Task GuardKeepsThePaidPriceAndRenewalAsync()
 	{
-		DanmuMessage.GuardBought guard = new(Sender, GuardLevel.Captain, 3, 414000, true, DateTimeOffset.UnixEpoch);
+		DanmuMessage.GuardBought guard = new(Sender, GuardLevel.Captain, 3, 414000, true);
 
 		using (Assert.Multiple())
 		{
@@ -64,7 +64,7 @@ public sealed class DanmakuConverterTest
 	[Test]
 	public async Task SuperChatsFollowTheSettingAsync()
 	{
-		DanmuMessage.SuperChat superChat = new(7, Sender, "醒目留言", 30000, TimeSpan.FromSeconds(60), DateTimeOffset.UnixEpoch);
+		DanmuMessage.SuperChat superChat = new(7, Sender, "醒目留言", 30000, TimeSpan.FromSeconds(60));
 
 		using (Assert.Multiple())
 		{
@@ -93,8 +93,8 @@ public sealed class DanmakuConverterTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(DanmakuConverter.ToEntry(Gift(DanmuCoinType.Gold))).IsEqualTo(new DanmakuEntryDto.Gift(Sender, "小花花", 2, 200));
-			await Assert.That(DanmakuConverter.ToEntry(new DanmuMessage.GuardBought(Sender, GuardLevel.Admiral, 2, 3996000, true, DateTimeOffset.UnixEpoch))).IsEqualTo(new DanmakuEntryDto.Guard(Sender, GuardLevel.Admiral, 2, 3996000, true));
-			await Assert.That(DanmakuConverter.ToEntry(new DanmuMessage.SuperChat(7, Sender, "醒目留言", 30000, TimeSpan.FromSeconds(60), DateTimeOffset.UnixEpoch))).IsEqualTo(new DanmakuEntryDto.SuperChat(7, Sender, "醒目留言", 30000, TimeSpan.FromSeconds(60)));
+			await Assert.That(DanmakuConverter.ToEntry(new DanmuMessage.GuardBought(Sender, GuardLevel.Admiral, 2, 3996000, true))).IsEqualTo(new DanmakuEntryDto.Guard(Sender, GuardLevel.Admiral, 2, 3996000, true));
+			await Assert.That(DanmakuConverter.ToEntry(new DanmuMessage.SuperChat(7, Sender, "醒目留言", 30000, TimeSpan.FromSeconds(60)))).IsEqualTo(new DanmakuEntryDto.SuperChat(7, Sender, "醒目留言", 30000));
 			await Assert.That(DanmakuConverter.ToEntry(new DanmuMessage.LiveStarted())).IsNull();
 		}
 	}
@@ -105,9 +105,9 @@ public sealed class DanmakuConverterTest
 		await Assert.That(DanmakuSamples.AllKinds().Select(DanmakuConverter.ToEntry)).IsEquivalentTo(
 		[
 			new(TimeSpan.Zero, new DanmakuEntryDto.Connection(true, true)),
-			new(TimeSpan.FromMilliseconds(12345), new DanmakuEntryDto.Comment(FileSender(123, "昵称"), "文本", 16777215, false)),
-			new(TimeSpan.FromMilliseconds(13000), new DanmakuEntryDto.Comment(FileSender(0, "淡***"), "节奏风暴", 0xFF0000, true)),
-			new(TimeSpan.FromSeconds(20), new DanmakuEntryDto.SuperChat(20541912, FileSender(456, "老板"), "醒目留言", 30000, TimeSpan.FromSeconds(60))),
+			new(TimeSpan.FromMilliseconds(12345), new DanmakuEntryDto.Comment(FileSender(123, "昵称"), "文本", false)),
+			new(TimeSpan.FromMilliseconds(13000), new DanmakuEntryDto.Comment(FileSender(0, "淡***"), "节奏风暴", true)),
+			new(TimeSpan.FromSeconds(20), new DanmakuEntryDto.SuperChat(20541912, FileSender(456, "老板"), "醒目留言", 30000)),
 			new(TimeSpan.FromMilliseconds(21500), new DanmakuEntryDto.Gift(FileSender(789, "观众"), "小花花", 10, 1000)),
 			new(TimeSpan.FromSeconds(30), new DanmakuEntryDto.Guard(FileSender(1011, "舰长"), GuardLevel.Captain, 1, 198000, false)),
 			new(TimeSpan.FromSeconds(40), new DanmakuEntryDto.TitleChange("新标题")),

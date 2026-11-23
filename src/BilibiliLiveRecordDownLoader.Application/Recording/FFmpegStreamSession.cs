@@ -15,7 +15,8 @@ internal sealed class FFmpegStreamSession(FFmpegRunner ffmpeg, IReadOnlyList<str
 	public override async Task<StreamEndReason> CopyToAsync(Stream destination, IProgress<long>? progress = null, CancellationToken cancellationToken = default)
 	{
 		using CancellationTokenSource writing = new();
-		using CancellationTokenRegistration stopping = cancellationToken.Register(() => writing.CancelAfter(FlushTimeout));
+		// ReSharper disable once AccessToDisposedClosure
+		await using CancellationTokenRegistration stopping = cancellationToken.Register(() => writing.CancelAfter(FlushTimeout));
 		await ffmpeg.RunAsync(arguments, output => CopyAsync(output, destination, progress, writing.Token), null, cancellationToken);
 		return StreamEndReason.EndOfStream;
 	}

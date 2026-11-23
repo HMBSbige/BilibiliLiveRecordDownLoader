@@ -28,7 +28,7 @@ public sealed class VideoResolutionProbeTest
 		byte[] media = Fmp4Samples.Box("mdat", new byte[4096]);
 
 		// 没做 faststart 的文件把 moov 放在 mdat 之后
-		int ftypLength = 8 + 4;
+		const int ftypLength = 8 + 4;
 		byte[] content = isMovieLast ? [.. init.AsSpan(0, ftypLength), .. media, .. init.AsSpan(ftypLength)] : [.. init, .. media];
 		await File.WriteAllBytesAsync(path, content, cancellationToken);
 

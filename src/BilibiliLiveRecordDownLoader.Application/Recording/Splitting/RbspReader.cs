@@ -32,7 +32,7 @@ internal ref struct RbspReader(ReadOnlySpan<byte> nal)
 			return 0;
 		}
 
-		uint bit = (uint)(_current >> (7 - _bitOffset) & 1);
+		uint bit = (uint)(_current >> 7 - _bitOffset & 1);
 
 		if (++_bitOffset is 8)
 		{
@@ -71,7 +71,7 @@ internal ref struct RbspReader(ReadOnlySpan<byte> nal)
 	public int ReadSe()
 	{
 		uint value = ReadUe();
-		return (value & 1) is 0 ? -(int)(value >> 1) : (int)((value + 1) >> 1);
+		return (value & 1) is 0 ? -(int)(value >> 1) : (int)(value + 1 >> 1);
 	}
 
 	private bool TryLoad()

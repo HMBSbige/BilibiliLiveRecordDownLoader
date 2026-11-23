@@ -1,5 +1,4 @@
 using BilibiliLiveRecordDownLoader.Application.Danmaku;
-using System.Text;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
@@ -13,8 +12,8 @@ public sealed class RawDanmakuWriterTest
 
 		await using (RawDanmakuWriter writer = RawDanmakuWriter.Open(path, DanmakuFlushPolicy.Default, TimeProvider.System))
 		{
-			await writer.WriteAsync(DateTimeOffset.UnixEpoch, "X", Encoding.UTF8.GetBytes("{\"cmd\":\"X\",\r\n\"data\":\n[1, \"a\\nb\"]}"), cancellationToken);
-			await writer.WriteAsync(DateTimeOffset.UnixEpoch, "Y", """{"cmd":"Y", "data":1}"""u8.ToArray(), cancellationToken);
+			await writer.WriteAsync(DateTimeOffset.UnixEpoch, "X", "{\"cmd\":\"X\",\r\n\"data\":\n[1, \"a\\nb\"]}"u8, cancellationToken);
+			await writer.WriteAsync(DateTimeOffset.UnixEpoch, "Y", """{"cmd":"Y", "data":1}"""u8, cancellationToken);
 		}
 
 		await Assert.That(await File.ReadAllLinesAsync(path, cancellationToken)).IsEquivalentTo(["""{"t":0,"cmd":"X","raw":{"cmd":"X","data":[1,"a\nb"]}}""", """{"t":0,"cmd":"Y","raw":{"cmd":"Y", "data":1}}"""], CollectionOrdering.Matching);

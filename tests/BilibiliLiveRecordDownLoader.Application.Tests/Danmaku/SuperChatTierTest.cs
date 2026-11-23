@@ -23,7 +23,7 @@ public sealed class SuperChatTierTest
 	[Test]
 	public async Task ColorsKeepTextLegibleOnTheTierBackgroundsAsync()
 	{
-		SuperChatTier[] tiers = SuperChatTier.All.ToArray();
+		SuperChatTier[] tiers = [.. SuperChatTier.All];
 
 		using (Assert.Multiple())
 		{

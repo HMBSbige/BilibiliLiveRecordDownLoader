@@ -102,11 +102,11 @@
                 <Grid Classes="form" ColumnDefinitions="*,*">
                     <StackPanel Grid.Column="0" Classes="field">
                         <CheckBox IsChecked="{Binding OverrideCodecPriority}" Content="{Binding CustomCodecPriority, Source={x:Static l:AppLanguage.Current}}" />
-                        <views:PriorityListView DataContext="{Binding CodecPriority}" IsEnabled="{Binding $parent[UserControl].((dialogs:RoomEditorViewModel)DataContext).OverrideCodecPriority}" />
+                        <views:PriorityListView DataContext="{Binding CodecPriority}" IsEnabled="{Binding $parent[UserControl].((dialogs:RoomEditorViewModel)DataContext).OverrideCodecPriority, FallbackValue={x:False}}" />
                     </StackPanel>
                     <StackPanel Grid.Column="1" Classes="field">
                         <CheckBox IsChecked="{Binding OverrideFormatPriority}" Content="{Binding CustomFormatPriority, Source={x:Static l:AppLanguage.Current}}" />
-                        <views:PriorityListView DataContext="{Binding FormatPriority}" IsEnabled="{Binding $parent[UserControl].((dialogs:RoomEditorViewModel)DataContext).OverrideFormatPriority}" />
+                        <views:PriorityListView DataContext="{Binding FormatPriority}" IsEnabled="{Binding $parent[UserControl].((dialogs:RoomEditorViewModel)DataContext).OverrideFormatPriority, FallbackValue={x:False}}" />
                     </StackPanel>
                 </Grid>
                 <Expander Classes="inline" Header="{Binding Advanced, Source={x:Static l:AppLanguage.Current}}">

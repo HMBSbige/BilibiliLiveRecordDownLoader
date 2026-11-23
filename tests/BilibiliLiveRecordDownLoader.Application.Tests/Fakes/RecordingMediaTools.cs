@@ -15,15 +15,15 @@ internal sealed class RecordingMediaTools : IMediaToolAppService
 		throw new NotSupportedException();
 	}
 
-	public Task<Task<BackgroundTaskSnapshot>> QueueRemuxAsync(RemuxInput input, CancellationToken cancellationToken = default)
+	public async Task<Task<BackgroundTaskSnapshot>> QueueRemuxAsync(RemuxInput input, CancellationToken cancellationToken = default)
 	{
 		if (input.Mode is RemuxMode.WithChapters { Path: var chapters })
 		{
-			Chapters[input.Destination] = File.ReadAllText(chapters);
+			Chapters[input.Destination] = await File.ReadAllTextAsync(chapters, cancellationToken);
 		}
 
 		Remuxes.Enqueue(input);
-		return Task.FromResult(Task.FromResult(new BackgroundTaskSnapshot(Guid.NewGuid(), "remux", input.Source, input.Destination, BackgroundTaskStatus.Completed, 1, null, null)));
+		return Task.FromResult(new BackgroundTaskSnapshot(Guid.NewGuid(), "remux", input.Source, input.Destination, BackgroundTaskStatus.Completed, 1, null, null));
 	}
 
 	public Task QueueCutAsync(CutInput input, CancellationToken cancellationToken = default)

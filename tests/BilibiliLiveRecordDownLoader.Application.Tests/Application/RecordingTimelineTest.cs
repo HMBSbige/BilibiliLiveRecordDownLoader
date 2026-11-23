@@ -258,7 +258,7 @@ public sealed class RecordingTimelineTest
 		// 下一段从第 40 帧开始，它之前一刻收到的弹幕这时已经确定
 		recording.SegmentCompleted = _ => settled = recording.Timeline.TryPlace(beforeBoundary, out last);
 
-		await recording.RunAsync(new FlvSplitter(), new RecordingSplit.ByDuration(TimeSpan.FromSeconds(3)), async session =>
+		await recording.RunAsync(new FlvSplitter(), new RecordingSplit.ByDuration(TimeSpan.FromSeconds(3)), static async session =>
 		{
 			await session.WriteAsync(FlvHead());
 			await WriteFramesAsync(session, 0, 70, []);
@@ -390,7 +390,7 @@ public sealed class RecordingTimelineTest
 	{
 		SplitRecording recording = new();
 
-		await recording.RunAsync(new FlvSplitter(), new RecordingSplit.ByDuration(TimeSpan.FromSeconds(3)), async session =>
+		await recording.RunAsync(new FlvSplitter(), new RecordingSplit.ByDuration(TimeSpan.FromSeconds(3)), static async session =>
 		{
 			await session.WriteAsync(FlvHead());
 

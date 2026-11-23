@@ -285,7 +285,7 @@ public sealed class RoomRecordingNotificationTest
 		}
 	}
 
-	private static async Task<StreamRequest> FailForAsync(RecordingLoopHarness loop, StreamRequest next, TimeSpan duration, HttpStatusCode status = HttpStatusCode.Forbidden)
+	private static async Task FailForAsync(RecordingLoopHarness loop, StreamRequest next, TimeSpan duration, HttpStatusCode status = HttpStatusCode.Forbidden)
 	{
 		DateTimeOffset start = loop.Time.GetUtcNow();
 
@@ -294,8 +294,6 @@ public sealed class RoomRecordingNotificationTest
 			await FailEveryStreamAsync(loop, next, status);
 			(next, _) = await loop.AdvanceUntilNextStreamAsync(RecordingLoopHarness.ReconnectDelay);
 		}
-
-		return next;
 	}
 
 	// 拿不到候选流时没有拉流请求可等

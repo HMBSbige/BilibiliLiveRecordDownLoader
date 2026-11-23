@@ -25,7 +25,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 	private static readonly TimeSpan MinExtrapolationLimit = TimeSpan.FromSeconds(10);
 
 	// 正常录制时弹幕排队放置不过几秒
-	internal static readonly TimeSpan Retention = TimeSpan.FromMinutes(2);
+	private static readonly TimeSpan Retention = TimeSpan.FromMinutes(2);
 
 	private const int DefaultPruneThreshold = 1024;
 
@@ -118,7 +118,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 	{
 		lock (_lock)
 		{
-			return _segments.Find(segment => string.Equals(segment.Path, path, StringComparison.Ordinal)) is { Clock.Offset: not null } segment ? TimeSpan.FromTicks(segment.Clock.Last) : null;
+			return _segments.Find(candidate => string.Equals(candidate.Path, path, StringComparison.Ordinal)) is { Clock.Offset: not null } segment ? TimeSpan.FromTicks(segment.Clock.Last) : null;
 		}
 	}
 
@@ -230,14 +230,14 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 
 		Record record = _records[index];
 
-		if (record.Segment < 0 || _segments[record.Segment].Path is not { } path)
+		if (record.SegmentIndex < 0 || _segments[record.SegmentIndex].Path is not { } path)
 		{
 			return _isClosed;
 		}
 
 		TimeSpan limit = _timeProvider.GetElapsedTime(record.BaseArrival, record.Arrival) + _extrapolationLimit;
 		TimeSpan elapsed = _timeProvider.GetElapsedTime(record.BaseArrival, timestamp);
-		position = new TimelinePosition(record.Segment, path, record.BaseTime + (elapsed < TimeSpan.Zero ? TimeSpan.Zero : elapsed > limit ? limit : elapsed));
+		position = new TimelinePosition(record.SegmentIndex, path, record.BaseTime + (elapsed < TimeSpan.Zero ? TimeSpan.Zero : elapsed > limit ? limit : elapsed));
 		return true;
 	}
 
@@ -314,7 +314,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 			segment.BaseArrival = record.Arrival;
 		}
 
-		record.Segment = segment.Index;
+		record.SegmentIndex = segment.Index;
 		record.BaseTime = segment.BaseTime;
 		record.BaseArrival = segment.BaseArrival;
 	}
@@ -350,7 +350,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 		public VideoResolution? Resolution { get; } = resolution;
 
 		// 还没提交时为 -1
-		public int Segment { get; set; } = -1;
+		public int SegmentIndex { get; set; } = -1;
 
 		// 这条记录到达时这一段最新的文件时间和它对应的到达时刻
 		public TimeSpan BaseTime { get; set; }

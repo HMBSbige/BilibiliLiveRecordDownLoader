@@ -81,7 +81,7 @@ internal static class DanmakuHighlightDetector
 			}
 
 			TimeSpan end = BinWidth * i;
-			HashSet<string> excluded = new(dominantPhrases.Skip(first).Take(i - first).OfType<string>(), StringComparer.Ordinal);
+			HashSet<string> excluded = [with(StringComparer.Ordinal), .. dominantPhrases.Skip(first).Take(i - first).OfType<string>()];
 			candidates.Add(new DanmakuHighlight(BinWidth * first, BinWidth * peak, end < total ? end : total, scores[peak], FindPhrase(bins.Skip(first).Take(i - first), excluded)));
 		}
 
@@ -95,7 +95,7 @@ internal static class DanmakuHighlightDetector
 				break;
 			}
 
-			if (selected.All(other => (other.Peak - candidate.Peak).Duration() >= MinimumSeparation))
+			if (selected.TrueForAll(other => (other.Peak - candidate.Peak).Duration() >= MinimumSeparation))
 			{
 				selected.Add(candidate);
 			}
@@ -218,7 +218,7 @@ internal static class DanmakuHighlightDetector
 
 			if (run <= 3)
 			{
-				builder.Append(rune.ToString());
+				builder.Append(rune);
 			}
 		}
 

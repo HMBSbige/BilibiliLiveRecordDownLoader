@@ -90,7 +90,7 @@ public sealed class BilibiliApiClient
 				if (room.RoomId > 0 && seen.Add(room.RoomId))
 				{
 					hasNewRoom = true;
-					yield return new FollowedLiveRoom(room.RoomId, room.Uid, room.Uname ?? string.Empty, room.Title ?? string.Empty, ToLiveStatus(room.LiveStatus));
+					yield return new FollowedLiveRoom(room.RoomId, room.Uname ?? string.Empty, room.Title ?? string.Empty, ToLiveStatus(room.LiveStatus));
 				}
 			}
 

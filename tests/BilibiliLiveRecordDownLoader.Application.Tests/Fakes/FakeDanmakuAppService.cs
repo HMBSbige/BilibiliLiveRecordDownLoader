@@ -85,6 +85,6 @@ internal sealed class FakeDanmakuFeed(long roomId) : IDanmakuFeed
 
 	public static DanmakuEntryDto.Comment Comment(string text, string name = "观众")
 	{
-		return new DanmakuEntryDto.Comment(new DanmuSender(1, name, GuardLevel.None, null), text, 0xFFFFFF, false);
+		return new DanmakuEntryDto.Comment(new DanmuSender(1, name, GuardLevel.None, null), text, false);
 	}
 }

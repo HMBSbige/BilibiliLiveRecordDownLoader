@@ -11,7 +11,7 @@ internal readonly record struct DanmuPacket(ushort ProtocolVersion, DanmuOperati
 	// The server sends packets of a few KB wrapped in one compression level, anything far beyond is hostile or corrupt
 	internal const int MaxPacketLength = 4 * 1024 * 1024;
 	internal const int MaxDecompressedLength = 16 * 1024 * 1024;
-	internal const int MaxCompressionRatio = 256;
+	private const int MaxCompressionRatio = 256;
 	internal const int MaxCompressionDepth = 3;
 
 	private const ushort ZlibVersion = 2;
@@ -98,7 +98,7 @@ internal readonly record struct DanmuPacket(ushort ProtocolVersion, DanmuOperati
 		long ratioLimit = (long)body.Length * MaxCompressionRatio;
 		ArrayBufferWriter<byte> output = new();
 
-		while (decompressor.Read(output.GetSpan(DecompressChunkSize)) is > 0 and int read)
+		while (decompressor.Read(output.GetSpan(DecompressChunkSize)) is > 0 and var read)
 		{
 			output.Advance(read);
 

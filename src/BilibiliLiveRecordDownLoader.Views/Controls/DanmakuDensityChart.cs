@@ -112,7 +112,7 @@ public sealed class DanmakuDensityChart : Control
 
 		if (Density is { Counts.Count: > 0 } density && BuildCurve(density, duration, size) is { } curve)
 		{
-			context.DrawGeometry(Fill, Stroke is { } stroke ? new Pen(stroke, 1) : null, curve);
+			context.DrawGeometry(Fill, Stroke is { } stroke ? new Pen(stroke) : null, curve);
 		}
 
 		if (HighlightBrush is { } highlightBrush)
@@ -177,31 +177,29 @@ public sealed class DanmakuDensityChart : Control
 
 		int columns = Math.Max(1, (int)Math.Ceiling(size.Width));
 		double binsPerColumn = duration.Ticks / (double)density.BinWidth.Ticks / columns;
-		double top = PeakRadius * 2 + 2;
+		const double top = PeakRadius * 2 + 2;
 		StreamGeometry geometry = new();
 
-		using (StreamGeometryContext builder = geometry.Open())
+		using StreamGeometryContext builder = geometry.Open();
+		builder.BeginFigure(new Point(0, size.Height));
+
+		for (int column = 0; column < columns; ++column)
 		{
-			builder.BeginFigure(new Point(0, size.Height), true);
+			int first = (int)(column * binsPerColumn);
+			int last = Math.Max(first, (int)Math.Ceiling((column + 1) * binsPerColumn) - 1);
+			int value = 0;
 
-			for (int column = 0; column < columns; ++column)
+			for (int bin = first; bin <= last && bin < counts.Count; ++bin)
 			{
-				int first = (int)(column * binsPerColumn);
-				int last = Math.Max(first, (int)Math.Ceiling((column + 1) * binsPerColumn) - 1);
-				int value = 0;
-
-				for (int bin = first; bin <= last && bin < counts.Count; ++bin)
-				{
-					value = Math.Max(value, counts[bin]);
-				}
-
-				double y = size.Height - value / (double)max * (size.Height - top);
-				builder.LineTo(new Point(Math.Min(column + 0.5, size.Width), y));
+				value = Math.Max(value, counts[bin]);
 			}
 
-			builder.LineTo(new Point(size.Width, size.Height));
-			builder.EndFigure(true);
+			double y = size.Height - value / (double)max * (size.Height - top);
+			builder.LineTo(new Point(Math.Min(column + 0.5, size.Width), y));
 		}
+
+		builder.LineTo(new Point(size.Width, size.Height));
+		builder.EndFigure(true);
 
 		return geometry;
 	}

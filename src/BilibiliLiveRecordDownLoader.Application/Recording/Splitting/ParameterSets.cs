@@ -180,8 +180,9 @@ internal static class ParameterSets
 		}
 
 		// 单色或独立色彩平面时裁剪单位是亮度像素，否则按色度采样换算
-		(int cropX, int cropY) = isSeparateColourPlane || chromaFormat is 0 ? (1, frameHeightFactor) : (chromaFormat is 3 ? 1 : 2, (chromaFormat is 1 ? 2 : 1) * frameHeightFactor);
-		return VideoResolution.Create(widthInMacroblocks * 16 - cropX * (left + right), frameHeightFactor * heightInMapUnits * 16 - cropY * (top + bottom));
+		int subWidth = !isSeparateColourPlane && chromaFormat is 1 or 2 ? 2 : 1;
+		int subHeight = !isSeparateColourPlane && chromaFormat is 1 ? 2 : 1;
+		return VideoResolution.Create(widthInMacroblocks * 16 - subWidth * (left + right), frameHeightFactor * heightInMapUnits * 16 - subHeight * frameHeightFactor * (top + bottom));
 	}
 
 	// nal 带 2 字节 NAL 头

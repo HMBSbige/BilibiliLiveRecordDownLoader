@@ -1,6 +1,7 @@
 using BilibiliLive.Danmu;
 using BilibiliLive.Http;
 using BilibiliLive.Tests.Fakes;
+using System.Globalization;
 using System.Net;
 using System.Text.Json.Nodes;
 using System.Web;
@@ -17,7 +18,7 @@ public class BilibiliApiClientTest
 	[Test]
 	public async Task GetRoomInfoResolvesShortIdAsync(CancellationToken cancellationToken)
 	{
-		using ApiClient api = Single(ApiPaths.RoomBaseInfo, () => Responses.Fixture("room_base_info.json"));
+		using ApiClient api = Single(ApiPaths.RoomBaseInfo, static () => Responses.Fixture("room_base_info.json"));
 
 		LiveRoomInfo info = await api.Client.GetRoomInfoAsync(732, cancellationToken);
 		RecordedRequest request = await Assert.That(api.Handler.Requests).HasSingleItem();
@@ -44,7 +45,7 @@ public class BilibiliApiClientTest
 	[Test]
 	public async Task GetRoomInfoThrowsWhenRoomIsMissingAsync(CancellationToken cancellationToken)
 	{
-		using ApiClient api = Single(ApiPaths.RoomBaseInfo, () => Responses.Json("""{"code":0,"message":"OK","data":{"by_uids":{},"by_room_ids":{}}}"""));
+		using ApiClient api = Single(ApiPaths.RoomBaseInfo, static () => Responses.Json("""{"code":0,"message":"OK","data":{"by_uids":{},"by_room_ids":{}}}"""));
 
 		await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetRoomInfoAsync(999999999, cancellationToken)).And.Member(static e => e.Code, static code => code.IsEqualTo(60004));
 	}
@@ -52,7 +53,7 @@ public class BilibiliApiClientTest
 	[Test]
 	public async Task GetRoomInfosRequestsAllRoomsAtOnceAsync(CancellationToken cancellationToken)
 	{
-		using ApiClient api = Single(ApiPaths.RoomBaseInfo, () => Responses.Json("""{"code":0,"message":"OK","data":{"by_room_ids":{"6154037":{"room_id":6154037,"short_id":732,"uid":194484313,"uname":"Asaki大人","title":"t","live_status":1},"5440":{"room_id":5440,"short_id":1,"uid":9617619,"live_status":0}}}}"""));
+		using ApiClient api = Single(ApiPaths.RoomBaseInfo, static () => Responses.Json("""{"code":0,"message":"OK","data":{"by_room_ids":{"6154037":{"room_id":6154037,"short_id":732,"uid":194484313,"uname":"Asaki大人","title":"t","live_status":1},"5440":{"room_id":5440,"short_id":1,"uid":9617619,"live_status":0}}}}"""));
 
 		IReadOnlyList<LiveRoomInfo> rooms = await api.Client.GetRoomInfosAsync([732, 5440, 999999999], cancellationToken);
 		RecordedRequest request = await Assert.That(api.Handler.Requests).HasSingleItem();
@@ -74,10 +75,10 @@ public class BilibiliApiClientTest
 
 		FollowedLiveRoom[] expected =
 		[
-			new(1, 101, "a", "title 1", LiveStatus.Live),
-			new(2, 102, "b", "title 2", LiveStatus.Idle),
-			new(3, 103, "c", "title 3", LiveStatus.Round),
-			new(4, 104, "d", "title 4", LiveStatus.Idle)
+			new(1, "a", "title 1", LiveStatus.Live),
+			new(2, "b", "title 2", LiveStatus.Idle),
+			new(3, "c", "title 3", LiveStatus.Round),
+			new(4, "d", "title 4", LiveStatus.Idle)
 		];
 
 		using (Assert.Multiple())
@@ -96,7 +97,7 @@ public class BilibiliApiClientTest
 
 		List<FollowedLiveRoom> rooms = await api.Client.GetFollowedRoomsAsync(cancellationToken).ToListAsync(cancellationToken);
 
-		await Assert.That(rooms).IsEquivalentTo([new FollowedLiveRoom(1, 101, string.Empty, string.Empty, LiveStatus.Idle), new FollowedLiveRoom(5, 105, "e", "title 5", LiveStatus.Idle)], CollectionOrdering.Matching);
+		await Assert.That(rooms).IsEquivalentTo([new FollowedLiveRoom(1, string.Empty, string.Empty, LiveStatus.Idle), new FollowedLiveRoom(5, "e", "title 5", LiveStatus.Idle)], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -151,7 +152,7 @@ public class BilibiliApiClientTest
 	[Test]
 	public async Task NonZeroCodeThrowsWithMessageAndCodeAsync(CancellationToken cancellationToken)
 	{
-		using ApiClient api = Single(ApiPaths.RoomBaseInfo, () => Responses.Json("""{"code":-400,"message":"请求错误","ttl":1,"data":[]}"""));
+		using ApiClient api = Single(ApiPaths.RoomBaseInfo, static () => Responses.Json("""{"code":-400,"message":"请求错误","ttl":1,"data":[]}"""));
 
 		await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetRoomInfoAsync(1, cancellationToken)).WithMessage("请求错误").And.Member(static e => e.Code, static code => code.IsEqualTo(-400));
 	}
@@ -159,7 +160,7 @@ public class BilibiliApiClientTest
 	[Test]
 	public async Task StreamCandidatesAreFilteredAndSortedByPriorityAsync(CancellationToken cancellationToken)
 	{
-		using ApiClient api = Single(ApiPaths.RoomPlayInfo, () => Responses.Fixture("room_play_info.json"));
+		using ApiClient api = Single(ApiPaths.RoomPlayInfo, static () => Responses.Fixture("room_play_info.json"));
 
 		IReadOnlyList<LiveStreamCandidate.Listed> candidates = await api.Client.GetStreamCandidatesAsync(732, 10000, [StreamCodec.Hevc, StreamCodec.Avc], [StreamFormat.Fmp4, StreamFormat.Flv], cancellationToken);
 		RecordedRequest request = await Assert.That(api.Handler.Requests).HasSingleItem();
@@ -191,7 +192,7 @@ public class BilibiliApiClientTest
 	[Test]
 	public async Task StreamCandidatesKeepApiOrderWithoutPriorityAsync(CancellationToken cancellationToken)
 	{
-		using ApiClient api = Single(ApiPaths.RoomPlayInfo, () => Responses.Fixture("room_play_info.json"));
+		using ApiClient api = Single(ApiPaths.RoomPlayInfo, static () => Responses.Fixture("room_play_info.json"));
 
 		IReadOnlyList<LiveStreamCandidate.Listed> candidates = await api.Client.GetStreamCandidatesAsync(732, 10000, [], [], cancellationToken);
 
@@ -224,7 +225,7 @@ public class BilibiliApiClientTest
 	[Test]
 	public async Task StreamCandidatesAreEmptyWhenLiveWithoutAStreamAsync(CancellationToken cancellationToken)
 	{
-		using ApiClient api = Single(ApiPaths.RoomPlayInfo, () => Responses.Json("""{"code":0,"message":"OK","data":{"room_id":5440,"short_id":1,"live_status":1,"playurl_info":null}}"""));
+		using ApiClient api = Single(ApiPaths.RoomPlayInfo, static () => Responses.Json("""{"code":0,"message":"OK","data":{"room_id":5440,"short_id":1,"live_status":1,"playurl_info":null}}"""));
 
 		await Assert.That(await api.Client.GetStreamCandidatesAsync(1, 10000, [], [], cancellationToken)).IsEmpty();
 	}
@@ -275,8 +276,8 @@ public class BilibiliApiClientTest
 	{
 		using ApiClient api = ApiClient.Routes(new Dictionary<string, Func<HttpResponseMessage>>
 		{
-			[ApiPaths.Nav] = () => Responses.Fixture("nav_anonymous.json"),
-			[ApiPaths.DanmuInfo] = () => Responses.Fixture("danmu_info.json")
+			[ApiPaths.Nav] = static () => Responses.Fixture("nav_anonymous.json"),
+			[ApiPaths.DanmuInfo] = static () => Responses.Fixture("danmu_info.json")
 		});
 
 		DanmuServerInfo info = await api.Client.GetDanmuServerInfoAsync(732, anonymous: false, cancellationToken);
@@ -300,7 +301,7 @@ public class BilibiliApiClientTest
 	[Test]
 	public async Task CurrentUserThrowsOnOtherErrorsAsync(CancellationToken cancellationToken)
 	{
-		using ApiClient api = Single(ApiPaths.Nav, () => Responses.Json("""{"code":-412,"message":"请求被拦截"}"""));
+		using ApiClient api = Single(ApiPaths.Nav, static () => Responses.Json("""{"code":-412,"message":"请求被拦截"}"""));
 
 		await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetCurrentUserIdAsync(cancellationToken)).And.Member(static e => e.Code, static code => code.IsEqualTo(-412));
 	}
@@ -308,7 +309,7 @@ public class BilibiliApiClientTest
 	[Test]
 	public async Task CreateQrCodeLoginReturnsUrlAndKeyAsync(CancellationToken cancellationToken)
 	{
-		using ApiClient api = Single(ApiPaths.QrCodeGenerate, () => Responses.Json("""{"code":0,"message":"OK","ttl":1,"data":{"url":"https://account.bilibili.com/h5/account-h5/auth/scan-web?qrcode_key=abc","qrcode_key":"abc"}}"""));
+		using ApiClient api = Single(ApiPaths.QrCodeGenerate, static () => Responses.Json("""{"code":0,"message":"OK","ttl":1,"data":{"url":"https://account.bilibili.com/h5/account-h5/auth/scan-web?qrcode_key=abc","qrcode_key":"abc"}}"""));
 
 		QrCodeLoginTicket ticket = await api.Client.CreateQrCodeLoginAsync(cancellationToken);
 
@@ -331,7 +332,7 @@ public class BilibiliApiClientTest
 	[Arguments(86038, typeof(QrCodeLoginResult.Expired))]
 	public async Task PollQrCodeLoginMapsPendingStatesAsync(int code, Type expected, CancellationToken cancellationToken)
 	{
-		using ApiClient api = Single(ApiPaths.QrCodePoll, () => Responses.Json($$$"""{"code":0,"message":"0","ttl":1,"data":{"url":"","refresh_token":"","timestamp":0,"code":{{{code}}},"message":"..."}}"""));
+		using ApiClient api = Single(ApiPaths.QrCodePoll, () => Responses.Json(string.Create(CultureInfo.InvariantCulture, $$$"""{"code":0,"message":"0","ttl":1,"data":{"url":"","refresh_token":"","timestamp":0,"code":{{{code}}},"message":"..."}}""")));
 
 		QrCodeLoginResult result = await api.Client.PollQrCodeLoginAsync("abc", cancellationToken);
 		RecordedRequest request = await Assert.That(api.Handler.Requests).HasSingleItem();
@@ -346,7 +347,7 @@ public class BilibiliApiClientTest
 	[Test]
 	public async Task PollQrCodeLoginBuildsCookieFromSetCookieAsync(CancellationToken cancellationToken)
 	{
-		using ApiClient api = Single(ApiPaths.QrCodePoll, () =>
+		using ApiClient api = Single(ApiPaths.QrCodePoll, static () =>
 		{
 			HttpResponseMessage response = Responses.Json("""{"code":0,"message":"0","ttl":1,"data":{"url":"https://passport.biligame.com/x/passport-login/web/crossDomain?DedeUserID=12345678","refresh_token":"r","timestamp":1,"code":0,"message":""}}""");
 			response.Headers.TryAddWithoutValidation("Set-Cookie", "SESSDATA=s%2Ce; Path=/; Domain=bilibili.com; HttpOnly; Secure");
@@ -363,7 +364,7 @@ public class BilibiliApiClientTest
 	[Test]
 	public async Task PollQrCodeLoginThrowsOnUnknownStateAsync(CancellationToken cancellationToken)
 	{
-		using ApiClient api = Single(ApiPaths.QrCodePoll, () => Responses.Json("""{"code":0,"message":"0","ttl":1,"data":{"code":12345,"message":"未知"}}"""));
+		using ApiClient api = Single(ApiPaths.QrCodePoll, static () => Responses.Json("""{"code":0,"message":"0","ttl":1,"data":{"code":12345,"message":"未知"}}"""));
 
 		await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.PollQrCodeLoginAsync("abc", cancellationToken)).WithMessage("未知").And.Member(static e => e.Code, static code => code.IsEqualTo(12345));
 	}
@@ -372,7 +373,7 @@ public class BilibiliApiClientTest
 	{
 		return new ApiClient
 		(
-			request => request.RequestUri is { AbsolutePath: ApiPaths.Following } uri && int.TryParse(HttpUtility.ParseQueryString(uri.Query)["page"], out int page) && page >= 1 && page <= pages.Length
+			request => request.RequestUri is { AbsolutePath: ApiPaths.Following } uri && int.TryParse(HttpUtility.ParseQueryString(uri.Query)["page"], CultureInfo.InvariantCulture, out int page) && page >= 1 && page <= pages.Length
 				? Responses.Json(pages[page - 1])
 				: Responses.NotFound(),
 			timeProvider
@@ -381,11 +382,11 @@ public class BilibiliApiClientTest
 
 	private static string FollowingPage(int totalPage, params string[] rooms)
 	{
-		return $$$"""{"code":0,"message":"0","ttl":1,"data":{"title":"哔哩哔哩直播 - 我的关注","pageSize":10,"totalPage":{{{totalPage}}},"list":[{{{string.Join(',', rooms)}}}],"count":{{{rooms.Length}}}}}""";
+		return string.Create(CultureInfo.InvariantCulture, $$$"""{"code":0,"message":"0","ttl":1,"data":{"title":"哔哩哔哩直播 - 我的关注","pageSize":10,"totalPage":{{{totalPage}}},"list":[{{{string.Join(',', rooms)}}}],"count":{{{rooms.Length}}}}}""");
 	}
 
 	private static string Room(long roomId, string userName, int liveStatus)
 	{
-		return $$"""{"roomid":{{roomId}},"uid":{{roomId + 100}},"uname":"{{userName}}","title":"title {{roomId}}","face":"https://i0.hdslb.com/face.jpg","live_status":{{liveStatus}},"record_live_time":0}""";
+		return string.Create(CultureInfo.InvariantCulture, $$"""{"roomid":{{roomId}},"uid":{{roomId + 100}},"uname":"{{userName}}","title":"title {{roomId}}","face":"https://i0.hdslb.com/face.jpg","live_status":{{liveStatus}},"record_live_time":0}""");
 	}
 }

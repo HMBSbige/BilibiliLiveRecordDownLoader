@@ -8,9 +8,9 @@ public sealed class DanmakuLiveFeedTest
 {
 	private readonly FakeTimeProvider _time = new();
 
-	private DanmuMessage Comment(int index)
+	private DanmuMessage.Comment Comment(int index)
 	{
-		return new DanmuMessage.Comment(new DanmuSender(index, "观众", GuardLevel.None, null), "文本", 1, 25, 0xFFFFFF, DateTimeOffset.UnixEpoch, "0", DanmuCommentKind.Text, false) { ReceivedAt = new DanmuReceiveTime(_time.GetTimestamp(), _time.GetUtcNow()) };
+		return new DanmuMessage.Comment(new DanmuSender(index, "观众", GuardLevel.None, null), "文本", 1, 25, 0xFFFFFF, DateTimeOffset.UnixEpoch, "0", false) { ReceivedAt = new DanmuReceiveTime(_time.GetTimestamp(), _time.GetUtcNow()) };
 	}
 
 	[Test]

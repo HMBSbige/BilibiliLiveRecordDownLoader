@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 
 internal sealed class FakeDisk
@@ -14,6 +16,7 @@ internal sealed class FakeDisk
 		_isFull = false;
 	}
 
+	[SuppressMessage("Style", "IDE0060", Justification = "签名要对上 LiveRecorder.CreateFile")]
 	public Stream CreateFile(string path)
 	{
 		return new FakeFile(_ => _isFull ? ValueTask.FromException(new IOException("disk full")) : ValueTask.CompletedTask);

@@ -71,7 +71,7 @@ public static class RecordingFileLayout
 
 	public static bool IsStemAvailable(string stem, Func<string, bool> fileExists)
 	{
-		return !StemSuffixes.Any(suffix => fileExists(stem + suffix));
+		return !Array.Exists(StemSuffixes, suffix => fileExists(stem + suffix));
 	}
 
 	// 只用于录制文件、弹幕文件和原始消息文件：转封装之后的 .mp4 主干以 _fmp4 结尾时会被误认成 fMP4 录制文件
@@ -114,7 +114,7 @@ public static class RecordingFileLayout
 			return null;
 		}
 
-		string cleaned = string.Concat(title.Trim().EnumerateRunes().Select(static rune => Rune.IsControl(rune) || (rune.IsBmp && InvalidFileNameChars.Contains((char)rune.Value)) ? "_" : rune.ToString()));
+		string cleaned = string.Concat(title.Trim().EnumerateRunes().Select(static rune => Rune.IsControl(rune) || rune.IsBmp && InvalidFileNameChars.Contains((char)rune.Value) ? "_" : rune.ToString()));
 
 		// 按完整的字符截断，不把 emoji 拆开
 		int length = 0;

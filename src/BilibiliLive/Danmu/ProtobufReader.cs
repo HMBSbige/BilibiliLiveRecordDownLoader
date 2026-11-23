@@ -64,7 +64,7 @@ internal ref struct ProtobufReader(ReadOnlySpan<byte> data)
 				throw new InvalidDataException("Protobuf varint overflows 64 bits.");
 			}
 
-			value |= (ulong)(b & 0x7F) << (7 * i);
+			value |= (ulong)(b & 0x7F) << 7 * i;
 
 			if (b < 0x80)
 			{

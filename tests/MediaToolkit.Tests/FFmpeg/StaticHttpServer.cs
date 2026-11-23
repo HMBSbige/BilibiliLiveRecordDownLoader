@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -22,12 +23,12 @@ internal sealed class StaticHttpServer : IAsyncDisposable
 
 	public Uri GetUri(string pathAndQuery)
 	{
-		return new Uri($@"http://127.0.0.1:{((IPEndPoint)_listener.LocalEndpoint).Port}{pathAndQuery}");
+		return new Uri(string.Create(CultureInfo.InvariantCulture, $@"http://127.0.0.1:{((IPEndPoint)_listener.LocalEndpoint).Port}{pathAndQuery}"));
 	}
 
 	private async Task AcceptLoopAsync(byte[] body, CancellationToken cancellationToken)
 	{
-		byte[] responseHead = Encoding.ASCII.GetBytes($"HTTP/1.1 200 OK\r\nContent-Type: video/x-flv\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n");
+		byte[] responseHead = Encoding.ASCII.GetBytes(string.Create(CultureInfo.InvariantCulture, $"HTTP/1.1 200 OK\r\nContent-Type: video/x-flv\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n"));
 
 		while (!cancellationToken.IsCancellationRequested)
 		{
@@ -51,6 +52,7 @@ internal sealed class StaticHttpServer : IAsyncDisposable
 			}
 			catch (IOException)
 			{
+				// 客户端没读完响应就断开时，继续接受下一个连接
 			}
 		}
 	}
@@ -58,7 +60,7 @@ internal sealed class StaticHttpServer : IAsyncDisposable
 	public async ValueTask DisposeAsync()
 	{
 		await _cts.CancelAsync();
-		_listener.Stop();
+		_listener.Dispose();
 		await _acceptLoop.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 		_cts.Dispose();
 	}

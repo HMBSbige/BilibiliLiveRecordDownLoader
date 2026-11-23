@@ -9,19 +9,16 @@ internal static class GiftProtobuf
 	private const int MedalField = 8;
 	private const int GiftField = 10;
 
-	private const int MedalStreamerUserIdField = 1;
 	private const int MedalLevelField = 5;
 	private const int MedalNameField = 6;
 	private const int MedalColorField = 7;
 	private const int MedalIsLitField = 11;
 
-	private const int GiftIdField = 1;
 	private const int GiftNameField = 2;
 	private const int GiftCountField = 3;
 	private const int GiftPriceField = 5;
 	private const int GiftTotalPriceField = 7;
 	private const int GiftCoinTypeField = 8;
-	private const int GiftTimestampField = 10;
 
 	public static void Parse(ReadOnlySpan<byte> data, DanmuReceiveTime receivedAt, List<DanmuMessage> output)
 	{
@@ -52,7 +49,7 @@ internal static class GiftProtobuf
 
 		while (reader.TryReadTag(out int field, out ProtobufWireType wireType))
 		{
-			switch ((field, wireType))
+			switch (field, wireType)
 			{
 				case (UserIdField, ProtobufWireType.Varint):
 				{
@@ -88,7 +85,6 @@ internal static class GiftProtobuf
 	private static DanmuMedal? ReadMedal(ReadOnlySpan<byte> data)
 	{
 		ProtobufReader reader = new(data);
-		long streamerUserId = 0;
 		int level = 0;
 		string name = string.Empty;
 		int color = 0;
@@ -96,13 +92,8 @@ internal static class GiftProtobuf
 
 		while (reader.TryReadTag(out int field, out ProtobufWireType wireType))
 		{
-			switch ((field, wireType))
+			switch (field, wireType)
 			{
-				case (MedalStreamerUserIdField, ProtobufWireType.Varint):
-				{
-					streamerUserId = reader.ReadInt64();
-					break;
-				}
 				case (MedalLevelField, ProtobufWireType.Varint):
 				{
 					level = reader.ReadInt32();
@@ -132,29 +123,22 @@ internal static class GiftProtobuf
 		}
 
 		// Users without a medal get an empty message
-		return name.Length is 0 ? null : new DanmuMedal(level, name, color, streamerUserId, 0, isLit);
+		return name.Length is 0 ? null : new DanmuMedal(level, name, color, isLit);
 	}
 
 	private static DanmuMessage.Gift ReadGift(ReadOnlySpan<byte> data, DanmuSender sender, DanmuReceiveTime receivedAt)
 	{
 		ProtobufReader reader = new(data);
-		long giftId = 0;
 		string giftName = string.Empty;
 		int count = 0;
 		long unitPrice = 0;
 		long totalPrice = 0;
 		DanmuCoinType coinType = DanmuCoinType.Silver;
-		long timestamp = 0;
 
 		while (reader.TryReadTag(out int field, out ProtobufWireType wireType))
 		{
-			switch ((field, wireType))
+			switch (field, wireType)
 			{
-				case (GiftIdField, ProtobufWireType.Varint):
-				{
-					giftId = reader.ReadInt64();
-					break;
-				}
 				case (GiftNameField, ProtobufWireType.LengthDelimited):
 				{
 					giftName = reader.ReadString();
@@ -180,11 +164,6 @@ internal static class GiftProtobuf
 					coinType = DanmuMessageParser.ParseCoinType(reader.ReadString());
 					break;
 				}
-				case (GiftTimestampField, ProtobufWireType.Varint):
-				{
-					timestamp = reader.ReadInt64();
-					break;
-				}
 				default:
 				{
 					reader.Skip(wireType);
@@ -193,7 +172,7 @@ internal static class GiftProtobuf
 			}
 		}
 
-		return new DanmuMessage.Gift(sender, giftId, giftName, count, unitPrice, totalPrice > 0 ? totalPrice : unitPrice * count, coinType, DanmuMessageParser.FromUnixSeconds(timestamp, receivedAt))
+		return new DanmuMessage.Gift(sender, giftName, count, totalPrice > 0 ? totalPrice : unitPrice * count, coinType)
 		{
 			ReceivedAt = receivedAt
 		};

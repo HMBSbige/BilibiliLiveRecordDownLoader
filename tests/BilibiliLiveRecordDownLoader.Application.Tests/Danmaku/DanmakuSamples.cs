@@ -63,7 +63,7 @@ internal static class DanmakuSamples
 
 	public static async Task<DanmakuFile> ReadAsync(byte[] content, CancellationToken cancellationToken)
 	{
-		using MemoryStream stream = new(content);
+		await using MemoryStream stream = new(content);
 		return await DanmakuXmlReader.ReadAsync(stream, cancellationToken);
 	}
 

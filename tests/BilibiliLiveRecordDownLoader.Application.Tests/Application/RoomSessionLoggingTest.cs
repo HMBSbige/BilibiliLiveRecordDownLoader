@@ -10,7 +10,7 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
 public sealed class RoomSessionLoggingTest
 {
-	private const long RoomId = 22907643;
+	private const long ExpectedRoomId = 22907643;
 
 	[Test]
 	public async Task RoomInfoAppliedByAnOutsideCallerIsLoggedWithTheRoomIdAsync()
@@ -22,11 +22,11 @@ public sealed class RoomSessionLoggingTest
 			.AddSingleton<INotificationService, RecordingNotifications>()
 			.AddApplication()
 			.BuildServiceProvider();
-		await using RoomSession session = services.GetRequiredService<RoomSessionFactory>().Create(new RoomConfig { RoomId = RoomId }, static () => { });
+		await using RoomSession session = services.GetRequiredService<RoomSessionFactory>().Create(new RoomConfig { RoomId = ExpectedRoomId }, static () => { });
 
-		session.Apply(new LiveRoomInfo(RoomId, 0, 1, "streamer", "title", LiveStatus.Idle));
+		session.Apply(new LiveRoomInfo(ExpectedRoomId, 0, 1, "streamer", "title", LiveStatus.Idle));
 
-		await Assert.That(logs.Entries).Count().IsEqualTo(2).And.All(static entry => entry.RoomId is RoomId);
+		await Assert.That(logs.Entries).Count().IsEqualTo(2).And.All(static entry => entry.RoomId is ExpectedRoomId);
 	}
 
 	private sealed record CapturedEntry(string Message, object? RoomId);
@@ -47,7 +47,7 @@ public sealed class RoomSessionLoggingTest
 			_scopes = scopeProvider;
 		}
 
-		public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+		public IDisposable BeginScope<TState>(TState state) where TState : notnull
 		{
 			return _scopes.Push(state);
 		}
@@ -60,7 +60,7 @@ public sealed class RoomSessionLoggingTest
 		public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
 		{
 			object? roomId = null;
-			_scopes.ForEachScope((scope, _) => roomId ??= scope is IEnumerable<KeyValuePair<string, object>> properties ? properties.FirstOrDefault(p => p.Key == LogProperties.RoomId).Value : null, (object?)null);
+			_scopes.ForEachScope((scope, _) => roomId ??= scope is IEnumerable<KeyValuePair<string, object>> properties ? properties.FirstOrDefault(static p => p.Key == LogProperties.RoomId).Value : null, (object?)null);
 			Entries.Enqueue(new CapturedEntry(formatter(state, exception), roomId));
 		}
 

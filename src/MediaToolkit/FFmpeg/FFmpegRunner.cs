@@ -54,12 +54,15 @@ public sealed class FFmpegRunner(string executablePath)
 
 		try
 		{
-			process = ChildProcessTracker.Start(new ProcessStartInfo(ExecutablePath, [@"-version"])
-			{
-				CreateNoWindow = true,
-				RedirectStandardOutput = true,
-				StandardOutputEncoding = Encoding.UTF8
-			});
+			process = ChildProcessTracker.Start
+			(
+				new ProcessStartInfo(ExecutablePath, [@"-version"])
+				{
+					CreateNoWindow = true,
+					RedirectStandardOutput = true,
+					StandardOutputEncoding = Encoding.UTF8
+				}
+			);
 		}
 		catch (Win32Exception)
 		{
@@ -114,8 +117,11 @@ public sealed class FFmpegRunner(string executablePath)
 		using Process process = ChildProcessTracker.Start(startInfo);
 
 		// 读取不能依赖调用方的同步上下文，UI 线程一忙 stderr 管道就会写满，把 FFmpeg 卡住
-		Task<string?> readError = Task.Run(() => ReadStandardErrorAsync(process.StandardError, progress, stopping));
-		Task readingOutput = readOutput is null ? Task.CompletedTask : Task.Run(() => ReadStandardOutputAsync(process.StandardOutput.BaseStream, readOutput, stopping));
+		// 取消后也要把管道读完，所以不传取消令牌
+		// ReSharper disable AccessToDisposedClosure
+		Task<string?> readError = Task.Run(() => ReadStandardErrorAsync(process.StandardError, progress, stopping), CancellationToken.None);
+		Task readingOutput = readOutput is null ? Task.CompletedTask : Task.Run(() => ReadStandardOutputAsync(process.StandardOutput.BaseStream, readOutput, stopping), CancellationToken.None);
+		// ReSharper restore AccessToDisposedClosure
 
 		try
 		{

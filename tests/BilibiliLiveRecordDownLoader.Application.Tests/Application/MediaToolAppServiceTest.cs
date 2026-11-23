@@ -103,17 +103,20 @@ public sealed class MediaToolAppServiceTest
 
 	public static IEnumerable<Func<(byte[] Flv, Func<string, string> ExpectedMessage)>> UnrepairableFlvs()
 	{
-		Func<string, string> unsupportedCodec = static name => AppLanguage.Current.FlvRepairUnsupportedCodec.ToString(name);
-
 		// HEVC 视频只剩音频可拆
-		yield return () => ([.. FlvSamples.Header, .. FlvSamples.HevcSequenceHeader(Sps, false), .. FlvSamples.Video(VideoStyle.LegacyHevc, VideoPacket.KeyFrame, 0), .. AacSequenceHeader, .. AacFrame], unsupportedCodec);
-		yield return () => ([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.EnhancedHevc, VideoPacket.KeyFrame, 0), .. AacSequenceHeader, .. AacFrame], unsupportedCodec);
+		yield return static () => ([.. FlvSamples.Header, .. FlvSamples.HevcSequenceHeader(Sps, false), .. FlvSamples.Video(VideoStyle.LegacyHevc, VideoPacket.KeyFrame, 0), .. AacSequenceHeader, .. AacFrame], UnsupportedCodec);
+		yield return static () => ([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.EnhancedHevc, VideoPacket.KeyFrame, 0), .. AacSequenceHeader, .. AacFrame], UnsupportedCodec);
 		// 前半段 H.264、后半段换成 HEVC：两条流都有输出，不报错的话后半段视频就丢了
-		yield return () => ([.. FlvSamples.Header, .. FlvSamples.AvcSequenceHeader(Sps), .. AvcKeyFrame, .. AacSequenceHeader, .. AacFrame, .. FlvSamples.HevcSequenceHeader(Sps, false, 1000), .. FlvSamples.Video(VideoStyle.LegacyHevc, VideoPacket.KeyFrame, 1000), .. FlvSamples.Tag(FlvSamples.AudioTag, 1000, Convert.FromHexString("AF01" + "21004990"))], unsupportedCodec);
+		yield return static () => ([.. FlvSamples.Header, .. FlvSamples.AvcSequenceHeader(Sps), .. AvcKeyFrame, .. AacSequenceHeader, .. AacFrame, .. FlvSamples.HevcSequenceHeader(Sps, false, 1000), .. FlvSamples.Video(VideoStyle.LegacyHevc, VideoPacket.KeyFrame, 1000), .. FlvSamples.Tag(FlvSamples.AudioTag, 1000, Convert.FromHexString("AF01" + "21004990"))], UnsupportedCodec);
 		// MP3 音频只剩视频可拆
-		yield return () => ([.. FlvSamples.Header, .. FlvSamples.AvcSequenceHeader(Sps), .. AvcKeyFrame, .. FlvSamples.Tag(FlvSamples.AudioTag, 0, Convert.FromHexString("2F01" + "21004990"))], unsupportedCodec);
-		yield return () => (FlvSamples.Header, static name => AppLanguage.Current.FlvNoSupportedTracks.ToString(name));
-		yield return () => ("not an flv file"u8.ToArray(), static name => AppLanguage.Current.NotFlvFile.ToString(name));
+		yield return static () => ([.. FlvSamples.Header, .. FlvSamples.AvcSequenceHeader(Sps), .. AvcKeyFrame, .. FlvSamples.Tag(FlvSamples.AudioTag, 0, Convert.FromHexString("2F01" + "21004990"))], UnsupportedCodec);
+		yield return static () => (FlvSamples.Header, static name => AppLanguage.Current.FlvNoSupportedTracks.ToString(name));
+		yield return static () => ("not an flv file"u8.ToArray(), static name => AppLanguage.Current.NotFlvFile.ToString(name));
+
+		static string UnsupportedCodec(string name)
+		{
+			return AppLanguage.Current.FlvRepairUnsupportedCodec.ToString(name);
+		}
 	}
 
 	[Test]

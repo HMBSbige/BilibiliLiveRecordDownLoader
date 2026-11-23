@@ -134,7 +134,7 @@ public sealed class LiveDanmakuViewModelTest
 	{
 		FakeDanmakuFeed feed = new(1);
 		DanmuSender sender = new(2, "老板", GuardLevel.None, null);
-		feed.Add(FakeDanmakuFeed.Comment("a"), new DanmakuEntryDto.SuperChat(1, sender, "sc", 30_000, TimeSpan.FromMinutes(1)));
+		feed.Add(FakeDanmakuFeed.Comment("a"), new DanmakuEntryDto.SuperChat(1, sender, "sc", 30_000));
 		using DanmakuFilterViewModel filter = new();
 		using LiveDanmakuViewModel viewModel = new(feed, filter, false);
 
@@ -173,10 +173,10 @@ public sealed class LiveDanmakuViewModelTest
 
 	public static IEnumerable<Func<(DanmakuFeedStatus Status, string? Identity, bool CanLogin)>> IdentityCases()
 	{
-		yield return () => (new DanmakuFeedStatus(DanmakuConnectionState.Connecting, 0, null, false, 0, null), null, false);
-		yield return () => (new DanmakuFeedStatus(DanmakuConnectionState.Connected, 1, 0, true, 0, null), AppLanguage.Current.DanmakuAnonymousMasked, true);
-		yield return () => (new DanmakuFeedStatus(DanmakuConnectionState.Connected, 1, 0, false, 0, null), AppLanguage.Current.DanmakuAnonymous, false);
-		yield return () => (new DanmakuFeedStatus(DanmakuConnectionState.Connected, 1, 42, false, 0, null), AppLanguage.Current.DanmakuLoggedIn, false);
+		yield return static () => (new DanmakuFeedStatus(DanmakuConnectionState.Connecting, 0, null, false, 0, null), null, false);
+		yield return static () => (new DanmakuFeedStatus(DanmakuConnectionState.Connected, 1, 0, true, 0, null), AppLanguage.Current.DanmakuAnonymousMasked, true);
+		yield return static () => (new DanmakuFeedStatus(DanmakuConnectionState.Connected, 1, 0, false, 0, null), AppLanguage.Current.DanmakuAnonymous, false);
+		yield return static () => (new DanmakuFeedStatus(DanmakuConnectionState.Connected, 1, 42, false, 0, null), AppLanguage.Current.DanmakuLoggedIn, false);
 	}
 
 	[Test]
@@ -251,7 +251,7 @@ public sealed class LiveDanmakuViewModelTest
 	{
 		FakeDanmakuFeed feed = new(1);
 		DanmuSender sender = new(2, "老板", GuardLevel.None, null);
-		feed.Add(new DanmakuEntryDto.SuperChat(7, sender, "被删", 30_000, TimeSpan.FromMinutes(1)), new DanmakuEntryDto.SuperChat(8, sender, "留着", 30_000, TimeSpan.FromMinutes(1)));
+		feed.Add(new DanmakuEntryDto.SuperChat(7, sender, "被删", 30_000), new DanmakuEntryDto.SuperChat(8, sender, "留着", 30_000));
 		using DanmakuFilterViewModel filter = new();
 		using LiveDanmakuViewModel viewModel = new(feed, filter, false);
 		DanmakuEntryViewModel shown = viewModel.Entries[0];
@@ -272,7 +272,7 @@ public sealed class LiveDanmakuViewModelTest
 	public async Task SuperChatDeletionMarksTheSuperChatShownWhileNotFollowingAsync()
 	{
 		FakeDanmakuFeed feed = new(1);
-		feed.Add(new DanmakuEntryDto.SuperChat(7, new DanmuSender(2, "老板", GuardLevel.None, null), "被删", 30_000, TimeSpan.FromMinutes(1)));
+		feed.Add(new DanmakuEntryDto.SuperChat(7, new DanmuSender(2, "老板", GuardLevel.None, null), "被删", 30_000));
 		using DanmakuFilterViewModel filter = new();
 		using LiveDanmakuViewModel viewModel = new(feed, filter, false);
 

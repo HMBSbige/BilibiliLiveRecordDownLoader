@@ -95,7 +95,7 @@ dotnet_style_prefer_simplified_interpolation = true:warning
 dotnet_style_readonly_field = true
 
 # 参数首选项
-dotnet_code_quality_unused_parameters = all
+dotnet_code_quality_unused_parameters = all:warning
 
 # 禁止显示首选项
 dotnet_remove_unnecessary_suppression_exclusions = 0
@@ -143,6 +143,7 @@ csharp_prefer_braces = true:warning
 csharp_prefer_simple_using_statement = true:warning
 csharp_prefer_system_threading_lock = true:warning
 csharp_style_namespace_declarations = file_scoped:warning
+csharp_style_prefer_primary_constructors = true:warning
 
 # 表达式级首选项
 csharp_prefer_simple_default_expression = true:warning
@@ -151,7 +152,7 @@ csharp_style_implicit_object_creation_when_type_is_apparent = true:warning
 csharp_style_inlined_variable_declaration = true:warning
 csharp_style_prefer_implicitly_typed_lambda_expression = true:warning
 csharp_style_prefer_index_operator = true:warning
-csharp_style_prefer_local_over_anonymous_function = true
+csharp_style_prefer_local_over_anonymous_function = true:warning
 csharp_style_prefer_null_check_over_type_check = true:warning
 csharp_style_prefer_range_operator = false:none
 csharp_style_prefer_unbound_generic_type_in_nameof = true:warning
@@ -236,8 +237,14 @@ dotnet_diagnostic.IDE0240.severity = warning
 dotnet_diagnostic.IDE0280.severity = warning
 # 不需要的 ! 可空抑制
 dotnet_diagnostic.IDE0370.severity = warning
+# 异步方法中使用了有异步版本的同步成员，如 Task.Result
+dotnet_diagnostic.CA1849.severity = warning
+# 可释放类型没有释放它创建的可释放字段
+dotnet_diagnostic.CA2213.severity = warning
 # 枚举 switch 已列全成员，仍提示没处理其他整数值
 dotnet_diagnostic.CS8524.severity = none
+# 名称撞上其他 .NET 语言的关键字，只写 C# 时无需避开
+dotnet_diagnostic.CA1716.severity = none
 
 #### 命名样式 ####
 

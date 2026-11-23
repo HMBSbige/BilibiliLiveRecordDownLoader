@@ -17,9 +17,9 @@ internal static class TestWait
 				await Task.Delay(10, wait.Token);
 			}
 		}
-		catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+		catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
 		{
-			throw new TimeoutException($"Timed out waiting until {because}.");
+			throw new TimeoutException($"Timed out waiting until {because}.", exception);
 		}
 	}
 }

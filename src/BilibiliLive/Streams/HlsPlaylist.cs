@@ -36,7 +36,7 @@ internal sealed record HlsPlaylist(TimeSpan? TargetDuration, IReadOnlyList<HlsSe
 
 			if (!hasHeader)
 			{
-				if (!line.TrimStart('\uFEFF').SequenceEqual(Header))
+				if (line.TrimStart('\uFEFF') is not Header)
 				{
 					throw new FormatException("The playlist does not start with #EXTM3U.");
 				}
@@ -73,11 +73,11 @@ internal sealed record HlsPlaylist(TimeSpan? TargetDuration, IReadOnlyList<HlsSe
 					? value
 					: throw new FormatException($"Invalid {DiscontinuitySequenceTag} tag.");
 			}
-			else if (line.SequenceEqual(DiscontinuityTag))
+			else if (line is DiscontinuityTag)
 			{
 				++discontinuitySequence;
 			}
-			else if (line.SequenceEqual(EndListTag))
+			else if (line is EndListTag)
 			{
 				endList = true;
 			}

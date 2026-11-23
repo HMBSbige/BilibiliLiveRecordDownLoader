@@ -22,6 +22,7 @@ public class DanmuClientTest
 	{
 		private readonly Channel<WebSocket> _pending = Channel.CreateUnbounded<WebSocket>();
 		private readonly ConcurrentQueue<WebSocket> _accepted = new();
+		private readonly DanmuClient _client;
 
 		public Harness(Func<HttpRequestMessage, HttpResponseMessage> danmuInfo, Func<HttpResponseMessage> nav, string cookie = DefaultCookie, TimeProvider? timeProvider = null)
 		{
@@ -46,7 +47,7 @@ public class DanmuClientTest
 					_ => Responses.NotFound()
 				};
 			}, timeProvider, Identity);
-			Client = new DanmuClient(Api.Client, Identity);
+			_client = new DanmuClient(Api.Client, Identity);
 		}
 
 		public string Cookie { get; set; }
@@ -54,8 +55,6 @@ public class DanmuClientTest
 		public BilibiliIdentity Identity { get; }
 
 		public ApiClient Api { get; }
-
-		public DanmuClient Client { get; }
 
 		public DanmuReceiveOptions Options { get; } = new();
 
@@ -65,12 +64,12 @@ public class DanmuClientTest
 
 		public IAsyncEnumerable<DanmuMessage> ReceiveAsync(CancellationToken cancellationToken)
 		{
-			return Client.ReceiveAsync(RoomId, Options, cancellationToken);
+			return _client.ReceiveAsync(RoomId, Options, cancellationToken);
 		}
 
 		public Task<List<DanmuMessage>> ReceiveAllAsync(CancellationToken cancellationToken)
 		{
-			return ReceiveAsync(cancellationToken).ToListAsync().AsTask();
+			return ReceiveAsync(cancellationToken).ToListAsync(cancellationToken).AsTask();
 		}
 
 		public ValueTask<WebSocket> AcceptAsync(CancellationToken cancellationToken)
@@ -106,7 +105,7 @@ public class DanmuClientTest
 
 	private static Harness CreateDefault(string cookie = DefaultCookie, TimeProvider? timeProvider = null)
 	{
-		return new Harness(_ => Responses.Fixture("danmu_info.json"), () => Responses.Fixture("nav_logged_in.json"), cookie, timeProvider);
+		return new Harness(static _ => Responses.Fixture("danmu_info.json"), static () => Responses.Fixture("nav_logged_in.json"), cookie, timeProvider);
 	}
 
 	private static async Task<List<DanmuPacket>> ReceivePacketsAsync(WebSocket server, CancellationToken cancellationToken)
@@ -131,9 +130,9 @@ public class DanmuClientTest
 		await Assert.That(packet.Operation).IsEqualTo(DanmuOperation.Heartbeat);
 	}
 
-	private static async Task SendAsync(WebSocket server, byte[] data, CancellationToken cancellationToken)
+	private static Task SendAsync(WebSocket server, byte[] data, CancellationToken cancellationToken)
 	{
-		await server.SendAsync(data, WebSocketMessageType.Binary, true, cancellationToken);
+		return server.SendAsync(data, WebSocketMessageType.Binary, true, cancellationToken);
 	}
 
 	private static async Task<WebSocket> AuthenticateAsync(Harness harness, string reply, CancellationToken cancellationToken)
@@ -224,7 +223,7 @@ public class DanmuClientTest
 	[Test]
 	public async Task RiskControlRetriesAnonymouslyAsync(CancellationToken cancellationToken)
 	{
-		using Harness harness = new(request => CookieHeader.GetValue(GetCookie(request), "SESSDATA") is null ? Responses.Fixture("danmu_info.json") : RiskControl(), () => Responses.Fixture("nav_logged_in.json"));
+		using Harness harness = new(static request => CookieHeader.GetValue(GetCookie(request), "SESSDATA") is null ? Responses.Fixture("danmu_info.json") : RiskControl(), static () => Responses.Fixture("nav_logged_in.json"));
 
 		(JsonElement auth, _) = await AuthenticateAndCloseAsync(harness, cancellationToken);
 		string?[] cookies = [.. harness.Api.Handler.RequestsTo(ApiPaths.DanmuInfo).Select(static r => r.Headers.GetValueOrDefault("Cookie"))];
@@ -249,7 +248,7 @@ public class DanmuClientTest
 		int navRequests = 0;
 		using Harness harness = new
 		(
-			request => CookieHeader.GetValue(GetCookie(request), "SESSDATA") is null ? Responses.Fixture("danmu_info.json") : Responses.Json("""{"code":0,"data":{"token":"login-token","host_list":[{"host":"broadcastlv.chat.bilibili.com","wss_port":443}]}}"""),
+			static request => CookieHeader.GetValue(GetCookie(request), "SESSDATA") is null ? Responses.Fixture("danmu_info.json") : Responses.Json("""{"code":0,"data":{"token":"login-token","host_list":[{"host":"broadcastlv.chat.bilibili.com","wss_port":443}]}}"""),
 			() => ++navRequests is 1 ? Responses.Status(HttpStatusCode.InternalServerError) : Responses.Fixture("nav_logged_in.json")
 		);
 
@@ -267,14 +266,14 @@ public class DanmuClientTest
 	[Test]
 	public async Task RiskControlOnAnonymousRetryFallsBackToAnonymousDefaultServerAsync(CancellationToken cancellationToken)
 	{
-		using Harness harness = new(_ => RiskControl(), () => Responses.Fixture("nav_logged_in.json"));
+		using Harness harness = new(static _ => RiskControl(), static () => Responses.Fixture("nav_logged_in.json"));
 		await AssertAnonymousDefaultServerAsync(harness, cancellationToken);
 	}
 
 	[Test]
 	public async Task ApiFailureFallsBackToAnonymousDefaultServerAsync(CancellationToken cancellationToken)
 	{
-		using Harness harness = new(_ => Responses.Fixture("danmu_info.json"), () => Responses.Status(HttpStatusCode.InternalServerError));
+		using Harness harness = new(static _ => Responses.Fixture("danmu_info.json"), static () => Responses.Status(HttpStatusCode.InternalServerError));
 		await AssertAnonymousDefaultServerAsync(harness, cancellationToken);
 	}
 
@@ -475,14 +474,14 @@ public class DanmuClientTest
 		FakeTimeProvider time = new();
 		using Harness harness = CreateDefault(timeProvider: time);
 		await using IAsyncEnumerator<DanmuMessage> messages = harness.ReceiveAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);
-		ValueTask<bool> next = messages.MoveNextAsync();
+		Task<bool> next = messages.MoveNextAsync().AsTask();
 
 		// Waiting for the connected message pins the last receive to the current fake time
 		WebSocket server = await AuthenticateAsync(harness, """{"code":0}""", cancellationToken);
 		await Assert.That(await next).IsTrue();
 		await ReceiveHeartbeatAsync(server, cancellationToken);
 
-		next = messages.MoveNextAsync();
+		next = messages.MoveNextAsync().AsTask();
 
 		for (TimeSpan idle = DanmuClient.HeartbeatInterval; idle <= DanmuClient.ReceiveTimeout; idle += DanmuClient.HeartbeatInterval)
 		{
@@ -501,11 +500,11 @@ public class DanmuClientTest
 		FakeTimeProvider time = new();
 		using Harness harness = CreateDefault(timeProvider: time);
 		await using IAsyncEnumerator<DanmuMessage> messages = harness.ReceiveAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);
-		ValueTask<bool> next = messages.MoveNextAsync();
+		Task<bool> next = messages.MoveNextAsync().AsTask();
 
 		WebSocket server = await AuthenticateAsync(harness, """{"code":0}""", cancellationToken);
 		await Assert.That(await next).IsTrue();
-		next = messages.MoveNextAsync();
+		next = messages.MoveNextAsync().AsTask();
 		await ReceiveHeartbeatAsync(server, cancellationToken);
 
 		// Twice the timeout passes in total, but no heartbeat interval is silent
@@ -513,7 +512,7 @@ public class DanmuClientTest
 		{
 			await SendAsync(server, Live, cancellationToken);
 			await Assert.That(await next).IsTrue();
-			next = messages.MoveNextAsync();
+			next = messages.MoveNextAsync().AsTask();
 
 			time.Advance(DanmuClient.HeartbeatInterval);
 			await ReceiveHeartbeatAsync(server, cancellationToken);
@@ -554,7 +553,7 @@ public class DanmuClientTest
 		List<DanmuMessage> plainAgain = await TakeAsync(messages, 1);
 
 		// The client answers the close only while it is receiving
-		ValueTask<bool> next = messages.MoveNextAsync();
+		Task<bool> next = messages.MoveNextAsync().AsTask();
 		await server.CloseAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
 		bool hasMore = await next;
 
@@ -598,7 +597,7 @@ public class DanmuClientTest
 
 		List<DanmuMessage> messages = await receiving;
 
-		DanmuMessage.SuperChat superChat = new(0, new DanmuSender(0, string.Empty, GuardLevel.None, null), string.Empty, 30_000, TimeSpan.Zero, time.GetUtcNow());
+		DanmuMessage.SuperChat superChat = new(0, new DanmuSender(0, string.Empty, GuardLevel.None, null), string.Empty, 30_000, TimeSpan.Zero);
 		await Assert.That(messages.Select(WithoutReceiveTime)).IsEquivalentTo([new DanmuMessage.Connected(12345678), superChat, new DanmuMessage.LiveStarted()], EqualityComparer<DanmuMessage>.Default, CollectionOrdering.Matching);
 	}
 }

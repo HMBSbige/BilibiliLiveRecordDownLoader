@@ -19,3 +19,4 @@ global using System.Runtime.InteropServices;
 global using System.Runtime.Versioning;
 global using System.Text;
 global using ILogger = Microsoft.Extensions.Logging.ILogger;
+global using LogLevel = Microsoft.Extensions.Logging.LogLevel;

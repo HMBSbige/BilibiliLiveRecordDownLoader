@@ -65,7 +65,10 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 
 	public IReadOnlyList<ChoiceOption> SplitModeOptions { get; } = ChoiceOption.InheritOr<RecordingSplitMode>();
 
+	// 视图通过实例绑定访问这个属性
+#pragma warning disable CA1822
 	public IReadOnlyList<ChoiceOption> ToggleOptions => ChoiceOption.Toggles;
+#pragma warning restore CA1822
 
 	public PriorityListViewModel CodecPriority { get; }
 

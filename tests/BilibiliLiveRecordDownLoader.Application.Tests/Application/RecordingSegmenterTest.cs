@@ -17,7 +17,7 @@ public sealed class RecordingSegmenterTest
 		SplitRecording recording = new();
 
 		// 头 3 字节，每个单元 30 字节，一段最多放得下头加 3 个单元
-		await recording.RunAsync(new FakeSplitter(), new RecordingSplit.BySize(100), async session =>
+		await recording.RunAsync(new FakeSplitter(), new RecordingSplit.BySize(100), static async session =>
 		{
 			foreach (char marker in "abcdefg")
 			{
@@ -42,7 +42,7 @@ public sealed class RecordingSegmenterTest
 		SplitRecording recording = new();
 
 		// 每个单元 30 字节，其中一半是填充；去掉之后头 3 字节加 3 个单元正好放得下
-		await recording.RunAsync(new FakeSplitter(), SplitRecording.Fixed(new RecordingSplit.BySize(50), removeFiller: removeFiller), async session =>
+		await recording.RunAsync(new FakeSplitter(), SplitRecording.Fixed(new RecordingSplit.BySize(50), removeFiller: removeFiller), static async session =>
 		{
 			foreach (char marker in "abcdefg")
 			{
@@ -64,7 +64,7 @@ public sealed class RecordingSegmenterTest
 	{
 		SplitRecording recording = new();
 
-		await recording.RunAsync(new FakeSplitter(), new RecordingSplit.BySize(100), async session =>
+		await recording.RunAsync(new FakeSplitter(), new RecordingSplit.BySize(100), static async session =>
 		{
 			await session.WriteAsync(FakeSplitter.Unit("a", 30));
 			await session.WriteAsync(FakeSplitter.Unit("b", 150));
@@ -80,7 +80,7 @@ public sealed class RecordingSegmenterTest
 		SplitRecording recording = new();
 		DateTimeOffset start = recording.Time.GetUtcNow();
 
-		await recording.RunAsync(new FakeSplitter(), OneMinute, async session =>
+		await recording.RunAsync(new FakeSplitter(), OneMinute, static async session =>
 		{
 			await session.WriteAsync(FakeSplitter.Unit("a", 10));
 			session.Advance(TimeSpan.FromSeconds(30));
@@ -131,7 +131,7 @@ public sealed class RecordingSegmenterTest
 	{
 		SplitRecording recording = new();
 
-		await recording.RunAsync(new FakeSplitter(), OneMinute, async session =>
+		await recording.RunAsync(new FakeSplitter(), OneMinute, static async session =>
 		{
 			await session.WriteAsync(FakeSplitter.Data("x", 10));
 			session.Advance(TimeSpan.FromMinutes(5));
@@ -149,7 +149,7 @@ public sealed class RecordingSegmenterTest
 	{
 		SplitRecording recording = new();
 
-		await recording.RunAsync(new FakeSplitter(), new RecordingSplit.BySize(40), async session =>
+		await recording.RunAsync(new FakeSplitter(), new RecordingSplit.BySize(40), static async session =>
 		{
 			await session.WriteAsync(FakeSplitter.Unit("a", 10));
 			await session.WriteAsync(FakeSplitter.Sequence("s", 10));
@@ -236,7 +236,7 @@ public sealed class RecordingSegmenterTest
 		SplitRecording recording = new() { MaxPendingLength = 50 };
 
 		// 已有的 20 字节加上攒到的 60 字节离上限还远，但单元的总长不知道
-		await recording.RunAsync(new FakeSplitter(), new RecordingSplit.BySize(1000), async session =>
+		await recording.RunAsync(new FakeSplitter(), new RecordingSplit.BySize(1000), static async session =>
 		{
 			await session.WriteAsync(FakeSplitter.Unit("a", 20));
 			await session.WriteAsync(FakeSplitter.Unit("b", 20));
@@ -278,7 +278,7 @@ public sealed class RecordingSegmenterTest
 	{
 		SplitRecording recording = new();
 
-		await recording.RunAsync(new FakeSplitter(), new RecordingSplit.BySize(50), async session =>
+		await recording.RunAsync(new FakeSplitter(), new RecordingSplit.BySize(50), static async session =>
 		{
 			await session.WriteAsync(FakeSplitter.Unit("a", 30));
 			await session.WriteAsync(FakeSplitter.Unit("b", 30));

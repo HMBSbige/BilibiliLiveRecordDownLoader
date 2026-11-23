@@ -70,7 +70,7 @@ public sealed class FlvSplitterTest
 	{
 		SplitRecording recording = new();
 
-		await recording.RunAsync(new FlvSplitter(), new RecordingSplit.None(), async session =>
+		await recording.RunAsync(new FlvSplitter(), new RecordingSplit.None(), static async session =>
 		{
 			await session.WriteAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0, "vseq"), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 10_000, "k1"), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.InterFrame, 10_500, "p1")]);
 			await session.WriteAsync(FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 0, "k2"));
@@ -92,10 +92,10 @@ public sealed class FlvSplitterTest
 	{
 		SplitRecording recording = new();
 
-		await recording.RunAsync(new FlvSplitter(), new RecordingSplit.None(), async session =>
+		await recording.RunAsync(new FlvSplitter(), new RecordingSplit.None(), static async session =>
 		{
 			await session.WriteAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0, "vseq"), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 10_000, "k1"), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.InterFrame, 10_500, "p1")]);
-			await session.WriteAsync([.. FlvSamples.Metadata(0), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0, "s2"), .. FlvSamples.AudioSequenceHeader(0, "a2")]);
+			await session.WriteAsync([.. FlvSamples.Metadata(), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0, "s2"), .. FlvSamples.AudioSequenceHeader(0, "a2")]);
 			await session.WriteAsync(FlvSamples.Video(VideoStyle.Avc, VideoPacket.InterFrame, 11_000, "p2"));
 		}, cancellationToken);
 
@@ -129,7 +129,7 @@ public sealed class FlvSplitterTest
 	{
 		SplitRecording recording = new();
 
-		await recording.RunAsync(new FlvSplitter(), OneMinute, async session =>
+		await recording.RunAsync(new FlvSplitter(), OneMinute, static async session =>
 		{
 			await session.WriteAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0, "vseq"), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 0, "k1")]);
 			session.Advance(TimeSpan.FromMinutes(1));
@@ -148,7 +148,7 @@ public sealed class FlvSplitterTest
 	{
 		SplitRecording recording = new();
 
-		await recording.RunAsync(new FlvSplitter(), OneMinute, async session =>
+		await recording.RunAsync(new FlvSplitter(), OneMinute, static async session =>
 		{
 			await session.WriteAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0, "s1"), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 0, "k1")]);
 			session.Advance(TimeSpan.FromMinutes(1));
@@ -158,7 +158,7 @@ public sealed class FlvSplitterTest
 			await session.WriteAsync(FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 4000, "k3"));
 		}, cancellationToken);
 
-		await Assert.That(recording.Files.Select(static file => string.Join(" ", FlvSamples.Describe(file)))).IsEquivalentTo(["V0[s1] V0[k1] V2000[s2]", "V0[s2] V0[k2] V2000[k3]"], CollectionOrdering.Matching);
+		await Assert.That(recording.Files.Select(static file => string.Join(' ', FlvSamples.Describe(file)))).IsEquivalentTo(["V0[s1] V0[k1] V2000[s2]", "V0[s2] V0[k2] V2000[k3]"], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -166,7 +166,7 @@ public sealed class FlvSplitterTest
 	{
 		SplitRecording recording = new();
 
-		await recording.RunAsync(new FlvSplitter(), OneMinute, async session =>
+		await recording.RunAsync(new FlvSplitter(), OneMinute, static async session =>
 		{
 			await session.WriteAsync([.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 0, "k1")]);
 			session.Advance(TimeSpan.FromMinutes(1));
