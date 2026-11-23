@@ -29,6 +29,11 @@ public sealed class MasterPlaylistCandidatesTest
 		return string.Join(' ', MasterPlaylistCandidates.GetQualities(listed, profile, hasCookie));
 	}
 
+	private static string Describe(IEnumerable<LiveStreamCandidate> candidates)
+	{
+		return string.Join(' ', candidates.Select(static candidate => $"{candidate.Codec}@{candidate.Qn}"));
+	}
+
 	[Test]
 	[Arguments(false)]
 	[Arguments(true)]
@@ -43,7 +48,7 @@ public sealed class MasterPlaylistCandidatesTest
 		}
 	}
 
-	// 所选画质低于原画时，目标档位是不高于它的最高一档
+	// 目标档位是不高于所选画质的最高一档
 	[Test]
 	[Arguments(StreamQuality.BluRay, new long[] { 10000, 400, 250 }, "400")]
 	[Arguments(StreamQuality.BluRay, new long[] { 10000, 250, 150 }, "250")]
@@ -56,7 +61,6 @@ public sealed class MasterPlaylistCandidatesTest
 	}
 
 	[Test]
-	// 首选的流已经是目标档位
 	[Arguments(StreamQuality.Original, 10000L)]
 	[Arguments(StreamQuality.BluRay, 400L)]
 	public async Task UnrestrictedPreferredStreamDoesNotAskAsync(StreamQuality quality, long qn)
@@ -64,7 +68,6 @@ public sealed class MasterPlaylistCandidatesTest
 		await Assert.That(Qualities([Listed(StreamCodec.Avc, qn, 10000, 400, 250), Listed(StreamCodec.Hevc, 250, 10000, 400, 250)], Profile(quality))).IsEmpty();
 	}
 
-	// 不受限时也要真原画，和是否登录、受限时开关开没开都无关
 	[Test]
 	[Arguments(false, false)]
 	[Arguments(true, false)]
@@ -84,7 +87,19 @@ public sealed class MasterPlaylistCandidatesTest
 		await Assert.That(Qualities(listed, Profile(requestTrueOriginal: true), true)).IsEmpty();
 	}
 
-	// 两个条件都满足时只请求一次，真原画在前
+	// 接口可能只在一个编码上给真原画
+	[Test]
+	public async Task TrueOriginalFromTheApiIsTriedBeforeThePreferredCodecAsync()
+	{
+		LiveStreamCandidate.Listed[] listed = [Listed(StreamCodec.Avc, 10000, 10000, 250), Listed(StreamCodec.Hevc, 25000, 25000, 10000), Listed(StreamCodec.Av1, 10000, 10000)];
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(Describe(MasterPlaylistCandidates.PreferTrueOriginal(listed, Profile(requestTrueOriginal: true)))).IsEqualTo("Hevc@25000 Avc@10000 Av1@10000");
+			await Assert.That(Describe(MasterPlaylistCandidates.PreferTrueOriginal(listed, Profile()))).IsEqualTo("Avc@10000 Hevc@25000 Av1@10000");
+		}
+	}
+
 	[Test]
 	public async Task RestrictedTrueOriginalAsksForBothAsync()
 	{
@@ -97,7 +112,6 @@ public sealed class MasterPlaylistCandidatesTest
 		}
 	}
 
-	// 真原画只在选了原画时请求，其他画质按受限的规则
 	[Test]
 	public async Task TrueOriginalIsOnlyWantedAtTheOriginalAsync()
 	{
@@ -111,7 +125,6 @@ public sealed class MasterPlaylistCandidatesTest
 	[Test]
 	[Arguments(StreamQuality.Original, true, 42L)]
 	[Arguments(StreamQuality.Original, false, 0L)]
-	// 真原画只在选了原画时请求，填别人的 uid 也只在这时
 	[Arguments(StreamQuality.BluRay, true, 0L)]
 	public async Task MidIsTheStreamerOnlyForTheTrueOriginalAsync(StreamQuality quality, bool requestTrueOriginal, long expected)
 	{
@@ -128,8 +141,8 @@ public sealed class MasterPlaylistCandidatesTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(string.Join(' ', selected.Select(static variant => $"{variant.Codec}@{variant.Qn}"))).IsEqualTo("Hevc@25000 Avc@10000 Hevc@10000");
-			await Assert.That(string.Join(' ', hevcFirst.Select(static variant => $"{variant.Codec}@{variant.Qn}"))).IsEqualTo("Hevc@10000 Avc@10000");
+			await Assert.That(Describe(selected)).IsEqualTo("Hevc@25000 Avc@10000 Hevc@10000");
+			await Assert.That(Describe(hevcFirst)).IsEqualTo("Hevc@10000 Avc@10000");
 		}
 	}
 }

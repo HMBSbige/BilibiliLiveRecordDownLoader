@@ -180,7 +180,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 	private async Task<CandidateBatch> GetCandidatesAsync(long roomId, long streamerUid, RecordingProfile profile, CandidateRequest request, CancellationToken cancellationToken)
 	{
-		IReadOnlyList<LiveStreamCandidate.Listed> listed = await apiClient.GetStreamCandidatesAsync(roomId, profile.RequestQuality, profile.CodecPriority, profile.FormatPriority, cancellationToken);
+		IReadOnlyList<LiveStreamCandidate.Listed> listed = MasterPlaylistCandidates.PreferTrueOriginal(await apiClient.GetStreamCandidatesAsync(roomId, profile.RequestQuality, profile.CodecPriority, profile.FormatPriority, cancellationToken), profile);
 
 		if (listed.Count is 0)
 		{
