@@ -7,11 +7,9 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 using System.Threading.Channels;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
-// 写入者按队列顺序等每条弹幕的归属，“关闭段”标记之前的弹幕都写进那一段，之后才到的丢弃
 public sealed class RoomDanmakuTest : IDisposable
 {
 	private readonly TestDirectory _directory = new();
@@ -23,7 +21,6 @@ public sealed class RoomDanmakuTest : IDisposable
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task SegmentIsClosedOnlyAfterTheDanmakuBeforeItArePlacedAsync(CancellationToken cancellationToken)
 	{
 		ControlledTimeline timeline = new();
@@ -58,7 +55,6 @@ public sealed class RoomDanmakuTest : IDisposable
 
 	// 段关闭之后它的弹幕文件可能已经随画面一起删掉
 	[Test]
-	[Timeout(10_000)]
 	public async Task DanmakuArrivingAfterTheirSegmentClosedDoNotRecreateItsFileAsync(CancellationToken cancellationToken)
 	{
 		ControlledTimeline timeline = new();
@@ -79,7 +75,6 @@ public sealed class RoomDanmakuTest : IDisposable
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task NextSegmentFileIsOpenedWhenItsDanmakuArriveBeforeTheStartNoticeAsync(CancellationToken cancellationToken)
 	{
 		ControlledTimeline timeline = new();
@@ -107,7 +102,6 @@ public sealed class RoomDanmakuTest : IDisposable
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	[MethodDataSource(nameof(SegmentEndCases))]
 	public async Task DanmakuPastTheEndOfASegmentContinueInTheNextOneAsync(int offsetSeconds, double[] positions, (string Text, double Seconds)[] inFirst, (string Text, double Seconds)[] inSecond, CancellationToken cancellationToken)
 	{
@@ -142,7 +136,6 @@ public sealed class RoomDanmakuTest : IDisposable
 
 	// 上一段还开着时下一段的弹幕先压着
 	[Test]
-	[Timeout(10_000)]
 	public async Task DanmakuHandedOverFromTheEndOfASegmentComeBeforeTheNextOnesOwnAsync(CancellationToken cancellationToken)
 	{
 		ControlledTimeline timeline = new() { Duration = SegmentDuration };
@@ -161,9 +154,8 @@ public sealed class RoomDanmakuTest : IDisposable
 		await Assert.That(await CommentsAsync("b.xml", cancellationToken)).IsEquivalentTo([("推过末尾", 0.5), ("第二段", 1.0)], CollectionOrdering.Matching);
 	}
 
-	// 推过末尾的换算成了紧接着那一段的时间，那一段没有弹幕文件时不能顺延到再后面的一段
+	// 不能顺延到再后面的一段
 	[Test]
-	[Timeout(10_000)]
 	public async Task DanmakuPastTheEndOfASegmentAreLeftOutWhenTheNextSegmentHasNoFileAsync(CancellationToken cancellationToken)
 	{
 		bool isEnabled = true;
@@ -178,7 +170,6 @@ public sealed class RoomDanmakuTest : IDisposable
 		danmaku.OnReceived(Comment("推过末尾"));
 		await BarrierAsync(danmaku, cancellationToken);
 
-		// 第二段开始时关着录弹幕
 		isEnabled = false;
 		danmaku.OnSettingsChanged();
 		Task<DanmakuSegment?> closed = danmaku.CompleteSegment(first);
@@ -200,7 +191,6 @@ public sealed class RoomDanmakuTest : IDisposable
 
 	// 从没连上时断开的区间就是整段画面
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(2)]
 	[Arguments(-2)]
 	public async Task AGapCoveringTheWholeSegmentMatchesTheVideoWhateverTheOffsetAsync(int offsetSeconds, CancellationToken cancellationToken)
@@ -218,7 +208,6 @@ public sealed class RoomDanmakuTest : IDisposable
 
 	// 断开的起点是弹幕的位置，和弹幕一样加偏移；终点是这一段画面的结尾
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(2)]
 	[Arguments(-2)]
 	public async Task AGapLeftOpenEndsWithTheVideoWhateverTheOffsetAsync(int offsetSeconds, CancellationToken cancellationToken)
@@ -242,7 +231,6 @@ public sealed class RoomDanmakuTest : IDisposable
 
 	// 文件开头的连接状态是画面开头的状态
 	[Test]
-	[Timeout(10_000)]
 	[MatrixDataSource]
 	public async Task TheConnectionAtTheStartOfAFileIsAtZeroWhateverTheOffsetAsync([Matrix(3, -3)] int offsetSeconds, [Matrix] bool isSettledBeforeTheFile, CancellationToken cancellationToken)
 	{
@@ -272,7 +260,6 @@ public sealed class RoomDanmakuTest : IDisposable
 
 	// 录制结束时还没等到通知的文件，开头按未打码记下连接
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(3)]
 	[Arguments(-3)]
 	public async Task AConnectionStillAwaitedWhenRecordingEndsIsAtZeroWhateverTheOffsetAsync(int offsetSeconds, CancellationToken cancellationToken)
@@ -288,7 +275,6 @@ public sealed class RoomDanmakuTest : IDisposable
 
 	// 改写偏移靠它避开正在写的文件
 	[Test]
-	[Timeout(10_000)]
 	public async Task OpenFileIsReportedAsWritingUntilTheSegmentClosesAsync(CancellationToken cancellationToken)
 	{
 		await using RoomDanmaku danmaku = Create();
@@ -306,7 +292,6 @@ public sealed class RoomDanmakuTest : IDisposable
 
 	// 开着保存原始消息也一样，不建原始消息文件，也不解析原始消息
 	[Test]
-	[Timeout(10_000)]
 	public async Task SegmentWithoutDanmakuRecordingHasNoFileAsync(CancellationToken cancellationToken)
 	{
 		await using RoomDanmaku danmaku = Create();
@@ -324,7 +309,6 @@ public sealed class RoomDanmakuTest : IDisposable
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task MessagesBeyondTheQueueLimitAreCountedAsDroppedAsync(CancellationToken cancellationToken)
 	{
 		ControlledTimeline timeline = new();
@@ -353,7 +337,6 @@ public sealed class RoomDanmakuTest : IDisposable
 
 	// 开播时房间开始记录常常落在认证和未登录通知之间；没等到通知就有弹幕时按未打码记下连接
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(true)]
 	[Arguments(false)]
 	public async Task AFileStartedBeforeTheLoginNoticeGetsOneConnectionAsync(bool isNoticed, CancellationToken cancellationToken)
@@ -378,7 +361,6 @@ public sealed class RoomDanmakuTest : IDisposable
 
 	// 队列的可读通知是异步送达的，通知排进队列时等待可能已经先到期
 	[Test]
-	[Timeout(10_000)]
 	public async Task ALoginNoticeQueuedBeforeTheDeadlineCountsEvenIfTheWaitEndsFirstAsync(CancellationToken cancellationToken)
 	{
 		TimerWatchingTimeProvider watched = new(_time);
@@ -401,7 +383,6 @@ public sealed class RoomDanmakuTest : IDisposable
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task AFileThatCannotBeWrittenIsGivenUpWithoutRetryingAsync(CancellationToken cancellationToken)
 	{
 		TimerWatchingTimeProvider watched = new(_time);
@@ -440,7 +421,6 @@ public sealed class RoomDanmakuTest : IDisposable
 
 	// 关闭时从原位置重写，盖掉半条记录
 	[Test]
-	[Timeout(10_000)]
 	public async Task AFileThatFailedHalfwayIsCompletedWhenClosedAsync(CancellationToken cancellationToken)
 	{
 		TimerWatchingTimeProvider watched = new(_time);
@@ -469,9 +449,7 @@ public sealed class RoomDanmakuTest : IDisposable
 		}
 	}
 
-	// 建文件到关上之间都不能改写偏移
 	[Test]
-	[Timeout(10_000)]
 	public async Task AFileCountsAsBeingWrittenFromCreationUntilItIsClosedAsync(CancellationToken cancellationToken)
 	{
 		TaskCompletionSource headerBlocked = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -535,7 +513,6 @@ public sealed class RoomDanmakuTest : IDisposable
 
 	// 重连落在下一段、段开始的通知还没到时，当场建出的下一段文件开头是断开的；前一段断开到它的末尾
 	[Test]
-	[Timeout(10_000)]
 	public async Task AReconnectionThatOpensTheNextSegmentStartsItDisconnectedAsync(CancellationToken cancellationToken)
 	{
 		ControlledTimeline timeline = new();
@@ -564,7 +541,6 @@ public sealed class RoomDanmakuTest : IDisposable
 
 	// 断开落在下一段、段开始的通知还没到时，当场建出的下一段文件开头是连着的，从断开的位置起算断开
 	[Test]
-	[Timeout(10_000)]
 	public async Task ADisconnectionThatOpensTheNextSegmentStartsItConnectedAsync(CancellationToken cancellationToken)
 	{
 		ControlledTimeline timeline = new();
@@ -583,7 +559,6 @@ public sealed class RoomDanmakuTest : IDisposable
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task ALoginNoticeAfterTheConnectionIsRecordedAddsAMaskedConnectionAsync(CancellationToken cancellationToken)
 	{
 		await using RoomDanmaku danmaku = Create();
@@ -602,7 +577,6 @@ public sealed class RoomDanmakuTest : IDisposable
 
 	// 后处理拿到的是整段的时长
 	[Test]
-	[Timeout(10_000)]
 	public async Task TurningDanmakuOffAndOnWithinASegmentKeepsWritingTheSameFileAsync(CancellationToken cancellationToken)
 	{
 		ListLogger logger = new();
@@ -643,7 +617,6 @@ public sealed class RoomDanmakuTest : IDisposable
 
 	// 又打开时开头补记当前的连接
 	[Test]
-	[Timeout(10_000)]
 	public async Task RawMessagesStopWhileDanmakuIsOffAndContinueInTheSameFileAsync(CancellationToken cancellationToken)
 	{
 		bool isEnabled = true;
@@ -692,7 +665,6 @@ public sealed class RoomDanmakuTest : IDisposable
 
 	// 补记的时刻是连接建立的时刻
 	[Test]
-	[Timeout(10_000)]
 	public async Task RawMessagesStartedBeforeTheConnectionIsSettledRecordItOnceSettledAsync(CancellationToken cancellationToken)
 	{
 		await using RoomDanmaku danmaku = Create();
@@ -712,7 +684,6 @@ public sealed class RoomDanmakuTest : IDisposable
 
 	// 写不进去时停到下一个文件
 	[Test]
-	[Timeout(10_000)]
 	public async Task RawMessagesContinueInTheSameFileAfterAWriteFailureAsync(CancellationToken cancellationToken)
 	{
 		DanmuReceiveOptions options = new();

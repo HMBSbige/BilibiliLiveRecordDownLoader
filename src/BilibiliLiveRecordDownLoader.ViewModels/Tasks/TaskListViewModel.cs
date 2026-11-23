@@ -38,7 +38,6 @@ public sealed partial class TaskListViewModel : ViewModelBase
 		PollChanges(() => _taskAppService.Version, Refresh, RefreshInterval);
 	}
 
-	// 测试不启动定时刷新，改为直接调用
 	internal void Refresh()
 	{
 		IReadOnlyList<BackgroundTaskSnapshot> snapshots = _taskAppService.GetTasks();

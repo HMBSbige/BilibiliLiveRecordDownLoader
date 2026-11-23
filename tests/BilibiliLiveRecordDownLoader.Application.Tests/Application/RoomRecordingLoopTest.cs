@@ -14,7 +14,6 @@ public sealed class RoomRecordingLoopTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task QuickFailuresTryTheNextHostThenTheNextCandidateWithoutWaitingAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -36,7 +35,6 @@ public sealed class RoomRecordingLoopTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task EveryStreamFailingQuicklyWaitsTheReconnectDelayBeforeRequestingAgainAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -59,7 +57,6 @@ public sealed class RoomRecordingLoopTest
 
 	// 重连间隔最长可以设到一天，最后一个文件的转封装和弹幕收尾不能跟着等
 	[Test]
-	[Timeout(30_000)]
 	public async Task LastFileIsPostProcessedWithoutWaitingForTheReconnectDelayAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -78,7 +75,6 @@ public sealed class RoomRecordingLoopTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task EveryStreamFailingToOpenWaitsTheReconnectDelayBeforeRequestingAgainAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -100,7 +96,6 @@ public sealed class RoomRecordingLoopTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task EveryStreamFailingToOpenAfterTheRoomWentOfflineEndsTheRecordingAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -125,7 +120,6 @@ public sealed class RoomRecordingLoopTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task DisconnectAfterALongRecordingStartsOverFromThePreferredStreamAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -146,7 +140,6 @@ public sealed class RoomRecordingLoopTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task DiskWriteFailureWaitsAndRetriesTheSameStreamAsync(CancellationToken cancellationToken)
 	{
 		FakeDisk disk = new();
@@ -170,7 +163,6 @@ public sealed class RoomRecordingLoopTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task DiskWriteFailureWhileFFmpegRecordsWaitsAndRetriesTheSameStreamAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken, static _ => new FakeFile(static _ => ValueTask.FromException(new IOException("disk full"))), RecorderType.FFmpeg);
@@ -191,7 +183,6 @@ public sealed class RoomRecordingLoopTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task DiskWriteFailureAfterALongRecordingStartsOverFromThePreferredStreamAsync(CancellationToken cancellationToken)
 	{
 		FakeDisk disk = new();
@@ -215,7 +206,6 @@ public sealed class RoomRecordingLoopTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task DiskStallingUntilTheStreamLooksIdleIsAWriteFailureAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken, static _ => new FakeFile(static ct => new ValueTask(Task.Delay(Timeout.Infinite, ct))));
@@ -236,7 +226,6 @@ public sealed class RoomRecordingLoopTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task StreamEndingBecauseTheRoomWentOfflineIsNotAFailureAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -257,7 +246,6 @@ public sealed class RoomRecordingLoopTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task UserStoppingTheRecordingIsNotAFailureAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -277,7 +265,6 @@ public sealed class RoomRecordingLoopTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task WaitingToReconnectShowsConnectingWithTheFailureAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -299,7 +286,6 @@ public sealed class RoomRecordingLoopTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task RecordingNormallyClearsTheEarlierFailureAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -317,7 +303,6 @@ public sealed class RoomRecordingLoopTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task StoppingWhileTheDiskIsStuckIsNotAFailureAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken, static _ => new FakeFile(static ct => new ValueTask(Task.Delay(Timeout.Infinite, ct))));
@@ -342,7 +327,6 @@ public sealed class RoomRecordingLoopTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task OnlyRecordingDanmakuCountsAsRecordingAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -358,7 +342,6 @@ public sealed class RoomRecordingLoopTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task LoopsStartedFromTheUIThreadDoNotRunOnItAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);

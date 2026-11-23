@@ -36,7 +36,7 @@ public closed record DanmuMessage
 	/// <param name="TotalPrice">Price of all <paramref name="Count"/> gifts, in units of <paramref name="CoinType"/>.</param>
 	public sealed record Gift(DanmuSender Sender, long GiftId, string GiftName, int Count, long UnitPrice, long TotalPrice, DanmuCoinType CoinType, DateTimeOffset Time) : DanmuMessage
 	{
-		/// <summary>The total price in thousandths of a yuan, 0 for silver gifts.</summary>
+		/// <summary>In thousandths of a yuan.</summary>
 		public long PaidPrice => CoinType is DanmuCoinType.Gold ? TotalPrice : 0;
 	}
 

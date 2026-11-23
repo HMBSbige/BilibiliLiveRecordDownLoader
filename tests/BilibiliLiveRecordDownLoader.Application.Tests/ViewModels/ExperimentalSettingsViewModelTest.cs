@@ -13,7 +13,6 @@ public sealed class ExperimentalSettingsViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	[Arguments(Setting.RemoveFillerData)]
 	[Arguments(Setting.RequestTrueOriginal)]
 	[Arguments(Setting.UseMasterPlaylistWhenRestricted)]

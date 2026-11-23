@@ -57,11 +57,9 @@ internal static class Program
 		_ = shell.ShuttingDown.Register(singleInstance.StopListening);
 		singleInstance.StartListening(() => Dispatcher.UIThread.Post(shell.ShowMainWindow));
 
-		// 信号处理程序在别的线程上运行，平台初始化前它首次访问 Dispatcher.UIThread 会把 UI 线程定成那个线程，平台初始化随即失败；
-		// 所以到这里才接管，在此之前收到的终止信号按默认处理结束进程，那时还没有要收尾的东西
+		// 平台初始化前在信号处理线程上首次访问 Dispatcher.UIThread 会把它定成 UI 线程，平台初始化随即失败，所以到这里才接管；此前还没有要收尾的东西
 		return OperatingSystem.IsWindows() ? [] : [.. TerminationSignals.Select(signal => PosixSignalRegistration.Create(signal, OnTerminationSignal))];
 
-		// 拦下默认的结束进程，正常关闭程序，退出前停止录制并收尾
 		void OnTerminationSignal(PosixSignalContext context)
 		{
 			context.Cancel = true;

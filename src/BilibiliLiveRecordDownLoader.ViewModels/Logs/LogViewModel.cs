@@ -72,7 +72,6 @@ public sealed partial class LogViewModel : ViewModelBase
 		PollChanges(() => _logStore.Version, Refresh, RefreshInterval);
 	}
 
-	// 测试不启动定时刷新，改为直接调用
 	internal void Refresh()
 	{
 		foreach (LogEntry entry in _logStore.GetEntries().Where(entry => entry.Sequence > _lastSequence))

@@ -1,14 +1,12 @@
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.ViewModels.Settings;
 using System.Windows.Input;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 
 public sealed class RecordingSettingsViewModelTest
 {
 	[Test]
-	[Timeout(30_000)]
 	public async Task SplitAndFileNameSettingsAreRestoredFromAndSavedToTheConfigAsync(CancellationToken cancellationToken)
 	{
 		AppConfig config = AppConfig.CreateDefault();
@@ -46,7 +44,6 @@ public sealed class RecordingSettingsViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task NumberBeingTypedIsSavedOnceItStopsChangingAsync(CancellationToken cancellationToken)
 	{
 		AppConfig config = AppConfig.CreateDefault();
@@ -76,7 +73,6 @@ public sealed class RecordingSettingsViewModelTest
 
 	// 保存可能排在别的写入后面，到时候界面上的列表可能又变了
 	[Test]
-	[Timeout(30_000)]
 	public async Task PriorityIsSavedAsItWasWhenItChangedAsync(CancellationToken cancellationToken)
 	{
 		AppConfig config = AppConfig.CreateDefault();

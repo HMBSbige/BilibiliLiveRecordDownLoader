@@ -35,7 +35,6 @@ internal static class RoomReorder
 		return null;
 	}
 
-	// index 是插入位置，取值 0 到 order.Count
 	public static long? At(IReadOnlyList<long> order, IReadOnlySet<long> moving, int index)
 	{
 		for (int current = Math.Max(index, 0); current < order.Count; ++current)

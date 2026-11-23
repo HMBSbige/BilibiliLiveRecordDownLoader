@@ -17,7 +17,6 @@ public sealed class AccountViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	[MethodDataSource(nameof(CheckFailures))]
 	public async Task FailedCheckLeavesTheCheckingStateAsync(Exception failure, CancellationToken cancellationToken)
 	{
@@ -39,7 +38,6 @@ public sealed class AccountViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task EditedCookieIsCheckedAfterItIsSavedAsync(CancellationToken cancellationToken)
 	{
 		ConcurrentQueue<string> checkedCookies = new();
@@ -58,7 +56,7 @@ public sealed class AccountViewModelTest
 		viewModel.Cookie = "new";
 		await TestWait.UntilAsync(() => viewModel.IsLoggedIn is true, "the new cookie is checked as logged in", cancellationToken);
 
-		await Assert.That(checkedCookies).IsEquivalentTo(["new"], StringComparer.Ordinal);
+		await Assert.That(checkedCookies).IsEquivalentTo(["new"]);
 	}
 
 	// 启动时的检查还没返回，用户就粘贴了新的 Cookie；用旧 Cookie 的那次后返回，不能盖掉新 Cookie 的结果
@@ -89,7 +87,6 @@ public sealed class AccountViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task CookieReloadedAfterLogoutIsNotSavedOrCheckedAgainAsync(CancellationToken cancellationToken)
 	{
 		int checks = 0;

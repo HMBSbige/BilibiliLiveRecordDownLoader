@@ -26,7 +26,6 @@ internal closed record DanmakuRecord(TimeSpan Time)
 		public long Id { get; init; }
 	}
 
-	// Ids 对应 SuperChat.Id
 	public sealed record SuperChatDeletion(TimeSpan Time, IReadOnlyList<long> Ids) : DanmakuRecord(Time)
 	{
 		// 按内容比较，读回的记录才和写入的相等

@@ -1,5 +1,4 @@
 using BilibiliLive.Streams;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLive.Tests.Streams;
 

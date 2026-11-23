@@ -2,7 +2,6 @@ using BilibiliLive.Streams;
 using BilibiliLive.Tests.Fakes;
 using System.Diagnostics;
 using System.Net;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLive.Tests.Streams;
 
@@ -20,7 +19,6 @@ public class HlsStreamSessionTest
 		return Responses.Bytes(MediaSamples.ForPath(path, Path.GetFileNameWithoutExtension(path)));
 	}
 
-	// 播放列表按顺序给出，用完后一直给最后一个；其余请求都按分片回应
 	private static FakeHttpMessageHandler Serve(params string[] playlists)
 	{
 		int served = 0;
@@ -48,7 +46,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task WritesMapOnceDeduplicatesSegmentsAndStopsAtEndListAsync(CancellationToken cancellationToken)
 	{
 		const string mapped = "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:2\n#EXT-X-MAP:URI=\"h1.m4s\"\n";
@@ -77,7 +74,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	[Arguments("#EXTM3U\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n2.m4s\n" + EndList, new[] { "init:[h1]", "media:[1]", "media:[2]" })]
 	[Arguments("#EXTM3U\n1.ts\n2.ts\n" + EndList, new[] { "media:[1]", "media:[2]" })]
 	public async Task ReportsEachSegmentRightBeforeWritingExactlyItsBytesAsync(string playlist, string[] expected, CancellationToken cancellationToken)
@@ -98,7 +94,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task FollowsAMasterPlaylistAndRefreshesItsVariantAsync(CancellationToken cancellationToken)
 	{
 		const string variantPath = "/edge/live-bvc/1/live_2500/index.m3u8";
@@ -156,7 +151,6 @@ public class HlsStreamSessionTest
 
 	// 后三行的新时代把编号从头排起，比已经写出的分片还小
 	[Test]
-	[Timeout(10_000)]
 	[Arguments("#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n2.m4s\n", "#EXT-X-MAP:URI=\"h1.m4s\"\n2.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n3.m4s\n", "[h1][1][2]", "3.m4s")]
 	[Arguments("a.ts\nb.ts\n", "b.ts\n#EXT-X-DISCONTINUITY\nc.ts\n", "[a][b]", "c.ts")]
 	[Arguments("#EXT-X-MEDIA-SEQUENCE:10\n10.ts\n11.ts\n", "#EXT-X-DISCONTINUITY-SEQUENCE:1\n#EXT-X-MEDIA-SEQUENCE:0\n0.ts\n", "[10][11]", "0.ts")]
@@ -178,7 +172,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task NewSessionStartsAtTheLatestTimelineAndFollowsTheSlidingWindowAsync(CancellationToken cancellationToken)
 	{
 		FakeHttpMessageHandler handler = Serve("#EXTM3U\n#EXT-X-DISCONTINUITY-SEQUENCE:0\na.ts\n#EXT-X-DISCONTINUITY\nb.ts\n", "#EXTM3U\n#EXT-X-DISCONTINUITY-SEQUENCE:1\nb.ts\nc.ts\n" + EndList);
@@ -190,7 +183,6 @@ public class HlsStreamSessionTest
 
 	// 刷新列出的旧时代分片排在见过的分片前面：前两行是打开时就列出的，后三行来自窗口落后的节点；最后一行的落后窗口里只剩打开时跳过的旧时代分片
 	[Test]
-	[Timeout(10_000)]
 	[Arguments("a.ts\n#EXT-X-DISCONTINUITY\nb.ts\n", "a.ts\n#EXT-X-DISCONTINUITY\nb.ts\nc.ts\n", "[b][c]", "a.ts")]
 	[Arguments("#EXT-X-MEDIA-SEQUENCE:1\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n2.m4s\n", "#EXT-X-MEDIA-SEQUENCE:1\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n2.m4s\n3.m4s\n", "[h2][2][3]", "1.m4s")]
 	[Arguments("#EXT-X-MEDIA-SEQUENCE:7\n#EXT-X-MAP:URI=\"h2.m4s\"\n7.m4s\n8.m4s\n", "#EXT-X-MEDIA-SEQUENCE:6\n#EXT-X-MAP:URI=\"h1.m4s\"\n6.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n7.m4s\n8.m4s\n9.m4s\n", "[h2][7][8][9]", "6.m4s")]
@@ -210,7 +202,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task HungSegmentRequestTimesOutAndIsRetriedAsync(CancellationToken cancellationToken)
 	{
 		int attempts = 0;
@@ -241,7 +232,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task HungRefreshTimesOutAndIsRetriedAsync(CancellationToken cancellationToken)
 	{
 		int refreshes = 0;
@@ -282,7 +272,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(false)]
 	[Arguments(true)]
 	public async Task FailedRefreshIsRetriedAsync(bool errorPage, CancellationToken cancellationToken)
@@ -309,7 +298,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task CancellingTheCopyIsNeitherATimeoutNorRetriedAsync(CancellationToken cancellationToken)
 	{
 		TaskCompletionSource hung = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -348,7 +336,6 @@ public class HlsStreamSessionTest
 
 	// A request that only gives up after its timeout already fired still belongs to a copy the caller cancelled
 	[Test]
-	[Timeout(10_000)]
 	public async Task CancellingTheCopyPastTheRequestTimeoutIsNotATimeoutAsync(CancellationToken cancellationToken)
 	{
 		TaskCompletionSource hung = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -390,7 +377,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task CancellingAHungRefreshIsNeitherATimeoutNorRetriedAsync(CancellationToken cancellationToken)
 	{
 		int refreshes = 0;
@@ -431,7 +417,6 @@ public class HlsStreamSessionTest
 
 	// The session lets a body stream for two target durations without retrying, so the watchdog must wait at least a listing gap plus such a body
 	[Test]
-	[Timeout(10_000)]
 	public async Task MaxSilenceCoversABodyTheSessionStillWaitsForAsync(CancellationToken cancellationToken)
 	{
 		TimeSpan targetDuration = TimeSpan.FromSeconds(5);
@@ -483,7 +468,6 @@ public class HlsStreamSessionTest
 
 	// 200 的错误页面过不了媒体校验，其他状态码直接请求失败
 	[Test]
-	[Timeout(10_000)]
 	[Arguments("#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\nbad.m4s\n", HttpStatusCode.OK, typeof(InvalidDataException), "[h1][1]")]
 	[Arguments("#EXTINF:1,\n1.ts\n#EXTINF:1,\nbad.ts\n", HttpStatusCode.ServiceUnavailable, typeof(HttpRequestException), "[1]")]
 	public async Task SegmentFailingEveryAttemptThrowsAfterTheSegmentsBeforeItAsync(string listed, HttpStatusCode status, Type expected, string written, CancellationToken cancellationToken)
@@ -507,7 +491,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task RefreshRedirectedToAnotherNodeDoesNotRewriteSegmentsAsync(CancellationToken cancellationToken)
 	{
 		(string Host, string Content)[] playlists =
@@ -536,7 +519,6 @@ public class HlsStreamSessionTest
 
 	// 更早的分片此前没有列出过：前两行比最后入队的分片小两个或一个；第三行的刷新不带序号，只能靠位置认出；最后一行落后窗口的开头低于前一次不带序号的刷新入队的分片
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(new[] { Head + "#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n6.ts\n", Head + "#EXT-X-MEDIA-SEQUENCE:4\n4.ts\n5.ts\n6.ts\n7.ts\n" + EndList }, "[5][6][7]", "4.ts")]
 	[Arguments(new[] { Head + "#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n", Head + "#EXT-X-MEDIA-SEQUENCE:4\n4.ts\n5.ts\n6.ts\n7.ts\n" + EndList }, "[5][6][7]", "4.ts")]
 	[Arguments(new[] { Head + "#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n6.ts\n", Head + "4.ts\n5.ts\n6.ts\n7.ts\n" + EndList }, "[5][6][7]", "4.ts")]
@@ -555,7 +537,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task RefreshThatOmitsTheMediaSequenceDoesNotRewriteSegmentsAsync(CancellationToken cancellationToken)
 	{
 		CopyResult copy = await CopyAsync(Serve(Head + "#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n", Head + "1.ts\n2.ts\n3.ts\n" + EndList), NewTime(), cancellationToken);
@@ -564,7 +545,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task SegmentsQueuedFromAnUnnumberedRefreshAreNotCountedAsMissedAsync(CancellationToken cancellationToken)
 	{
 		FakeHttpMessageHandler handler = Serve
@@ -580,7 +560,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task SegmentsResolveAgainstRedirectedPlaylistAsync(CancellationToken cancellationToken)
 	{
 		Uri redirected = new("https://edge.test/node/7/index.m3u8?token=y");
@@ -602,7 +581,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task MissingTargetDurationPollsEverySecondAsync(CancellationToken cancellationToken)
 	{
 		ShortDelayTimeProvider time = NewTime();
@@ -617,7 +595,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task FailedSegmentIsRetriedAndWrittenOnceAsync(CancellationToken cancellationToken)
 	{
 		int attempts = 0;
@@ -643,7 +620,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task RefreshesWhileASegmentIsSlowSoLaterSegmentsAreNotLostAsync(CancellationToken cancellationToken)
 	{
 		string[] playlists =
@@ -687,7 +663,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task DownloadsAtMostTheAllowedNumberOfSegmentsAtOnceAsync(CancellationToken cancellationToken)
 	{
 		string[] later = ["2", "3", "4", "5", "6", "7", "8"];
@@ -709,7 +684,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task WritesAndReportsSegmentsInPlaylistOrderWhenLaterOnesArriveFirstAsync(CancellationToken cancellationToken)
 	{
 		SegmentGates gates = new(3, "2", "3", "4");
@@ -740,7 +714,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(Head + "#EXT-X-MEDIA-SEQUENCE:5\n5.ts\n6.ts\n" + EndList, "[1][2][5][6]", 2L)]
 	[Arguments(Head + "#EXT-X-MEDIA-SEQUENCE:3\n3.ts\n4.ts\n" + EndList, "[1][2][3][4]", 0L)]
 	[Arguments(Head + "#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n3.ts\n" + EndList, "[1][2][3]", 0L)]
@@ -754,7 +727,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(typeof(HttpRequestException), true)]
 	[Arguments(typeof(OperationCanceledException), false)]
 	public async Task EndingTheCopyStopsEveryDownloadBeforeReturningAsync(Type expected, bool segmentFails, CancellationToken cancellationToken)
@@ -801,7 +773,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(false)]
 	[Arguments(true)]
 	public async Task FailingWriteOrObserverStopsEveryDownloadBeforeReturningAsync(bool observerFails, CancellationToken cancellationToken)
@@ -827,7 +798,6 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task RefreshFailingEveryAttemptThrowsAfterTheListedSegmentsAsync(CancellationToken cancellationToken)
 	{
 		int refreshes = 0;

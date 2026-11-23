@@ -9,7 +9,6 @@ namespace BilibiliLiveRecordDownLoader.Views.Views;
 
 public partial class RoomsView : UserControl
 {
-	// 单击手柄只选中所在行
 	private const double DragThreshold = 4;
 
 	private const double AutoScrollEdge = 40;
@@ -346,7 +345,6 @@ public partial class RoomsView : UserControl
 		DropIndicator.IsVisible = true;
 	}
 
-	// 插入位置和指示线在列表坐标中的位置；指针在列表外时没有放置位置
 	private (int Index, double Y)? FindDrop(Point position)
 	{
 		if (!new Rect(RoomList.Bounds.Size).Contains(position))

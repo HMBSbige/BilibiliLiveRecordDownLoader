@@ -1,5 +1,4 @@
 using BilibiliLiveRecordDownLoader.ViewModels.Tasks;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 

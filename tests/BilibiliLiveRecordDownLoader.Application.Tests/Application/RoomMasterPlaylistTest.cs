@@ -3,7 +3,6 @@ using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Globalization;
 using System.Net;
 using System.Text;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -109,7 +108,6 @@ public sealed class RoomMasterPlaylistTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	[Arguments(new[] { StreamCodec.Avc, StreamCodec.Hevc, StreamCodec.Av1 }, StreamCodec.Avc, AvcOriginalPlaylist)]
 	[Arguments(new[] { StreamCodec.Hevc, StreamCodec.Avc, StreamCodec.Av1 }, StreamCodec.Hevc, HevcOriginalPlaylist)]
 	public async Task RestrictedRoomRecordsTheTargetFromTheMasterPlaylistAsync(StreamCodec[] codecPriority, StreamCodec codec, string playlist, CancellationToken cancellationToken)
@@ -135,7 +133,6 @@ public sealed class RoomMasterPlaylistTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task RestrictionBelowTheOriginalTakesTheTargetFromTheMasterPlaylistAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Loop(cancellationToken, Fmp4Streams(250, 10000, 400, 250));
@@ -152,7 +149,6 @@ public sealed class RoomMasterPlaylistTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	[Arguments(false, 250L, nameof(QualityRestriction.NotLoggedIn))]
 	[Arguments(true, 10000L, null)]
 	public async Task MasterPlaylistIsOnlyRequestedWhenTurnedOnAndTheQualityIsRestrictedAsync(bool useMasterPlaylist, long qn, string? restriction, CancellationToken cancellationToken)
@@ -172,7 +168,6 @@ public sealed class RoomMasterPlaylistTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	[Arguments(null)]
 	// 没开播或房间不存在时是空应答
 	[Arguments("")]
@@ -199,7 +194,6 @@ public sealed class RoomMasterPlaylistTest
 
 	// 变体连不上时同一节点上接口给的流照常可用
 	[Test]
-	[Timeout(30_000)]
 	public async Task RejectedVariantFallsBackToTheListedStreamRightAwayAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Loop(cancellationToken, respond: static path => path is AvcOriginalPlaylist or HevcOriginalPlaylist ? new HttpResponseMessage(HttpStatusCode.Forbidden) : null);
@@ -220,7 +214,6 @@ public sealed class RoomMasterPlaylistTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task LastFailureComesFromTheListedStreamsAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Loop(cancellationToken, respond: static path => path.EndsWith(".m3u8", StringComparison.Ordinal) ? new HttpResponseMessage(HttpStatusCode.Forbidden) : null);
@@ -238,7 +231,6 @@ public sealed class RoomMasterPlaylistTest
 
 	// 接口给的流很快断开时沿用这批候选流换下一路
 	[Test]
-	[Timeout(30_000)]
 	public async Task RejectedVariantIsNotRetriedAfterAQuickFailureAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Loop(cancellationToken, respond: static path => path switch
@@ -262,7 +254,6 @@ public sealed class RoomMasterPlaylistTest
 
 	// 已登录拿到普通原画不算受限，仍要请求真原画，和受限时用不用主播放列表无关；mid 填主播的 uid
 	[Test]
-	[Timeout(30_000)]
 	public async Task MissingTrueOriginalIsTakenFromTheMasterPlaylistAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Loop(cancellationToken, Fmp4Streams(10000, 10000, 250));
@@ -285,7 +276,6 @@ public sealed class RoomMasterPlaylistTest
 
 	// 接口给的是原画时只补真原画，受限时同一次请求里的原画变体也补上
 	[Test]
-	[Timeout(30_000)]
 	[Arguments(10000L, new[] { TrueOriginalPlaylist, AvcPlaylist }, DisplayName = "接口给的是原画")]
 	[Arguments(250L, new[] { TrueOriginalPlaylist, AvcOriginalPlaylist }, DisplayName = "接口给的画质受限")]
 	public async Task UnavailableTrueOriginalVariantFallsBackToTheOriginalAsync(long qn, string[] playlists, CancellationToken cancellationToken)
@@ -307,7 +297,6 @@ public sealed class RoomMasterPlaylistTest
 
 	// 接口只在 HEVC 上给真原画
 	[Test]
-	[Timeout(30_000)]
 	[Arguments(false, new[] { TrueOriginalPlaylist }, StreamCodec.Hevc, 25000L, DisplayName = "真原画连得上")]
 	[Arguments(true, new[] { TrueOriginalPlaylist, AvcPlaylist }, StreamCodec.Avc, 10000L, DisplayName = "真原画连不上时录原画")]
 	public async Task TrueOriginalFromTheApiIsTriedBeforeThePreferredCodecAsync(bool isRejected, string[] playlists, StreamCodec codec, long quality, CancellationToken cancellationToken)
@@ -328,7 +317,6 @@ public sealed class RoomMasterPlaylistTest
 
 	// 判断按所选的原画，不按实际请求的 25000
 	[Test]
-	[Timeout(30_000)]
 	public async Task OriginalAfterAskingForTheTrueOriginalIsNotRestrictedAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Loop(cancellationToken, Fmp4Streams(10000, 25000, 10000, 250), master: null);
@@ -347,7 +335,6 @@ public sealed class RoomMasterPlaylistTest
 
 	// 32378653 匿名时 AVC 列出原画和超清，HEVC 只列超清，两者都给超清
 	[Test]
-	[Timeout(30_000)]
 	public async Task RestrictionComesFromTheAcceptListsOfEveryCodecAsync(CancellationToken cancellationToken)
 	{
 		string streams = Fmp4Codecs(Codec("avc", AvcPlaylist, 250, 10000, 250), Codec("hevc", HevcPlaylist, 250, 250));
@@ -367,7 +354,6 @@ public sealed class RoomMasterPlaylistTest
 
 	// 3990387 匿名时 AV1 是原画
 	[Test]
-	[Timeout(30_000)]
 	[Arguments(new[] { StreamCodec.Avc, StreamCodec.Hevc, StreamCodec.Av1 }, false)]
 	[Arguments(new[] { StreamCodec.Av1, StreamCodec.Avc, StreamCodec.Hevc }, true)]
 	public async Task HigherQualityOfAnotherCodecIsReportedByWhetherItWasTriedAsync(StreamCodec[] codecPriority, bool triedFirst, CancellationToken cancellationToken)
@@ -391,7 +377,6 @@ public sealed class RoomMasterPlaylistTest
 
 	// 未登录时拿到的候选流不能配上登录后的身份判断；失败的线路仍然记着
 	[Test]
-	[Timeout(30_000)]
 	public async Task CandidatesAreRequestedAgainAfterLoggingInAsync(CancellationToken cancellationToken)
 	{
 		Action? onAvc = null;
@@ -424,7 +409,6 @@ public sealed class RoomMasterPlaylistTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task ConfiguredCookieTurnsTheRestrictionIntoAPossiblyExpiredLoginAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Loop(cancellationToken, master: null);
@@ -442,7 +426,6 @@ public sealed class RoomMasterPlaylistTest
 
 	// FFmpeg 重新拉流前就要知道编码，按错的编码过滤会弄坏视频
 	[Test]
-	[Timeout(30_000)]
 	[Arguments(new[] { StreamCodec.Avc, StreamCodec.Hevc, StreamCodec.Av1 }, AvcOriginalPlaylist, "filter_units=remove_types=12")]
 	[Arguments(new[] { StreamCodec.Hevc, StreamCodec.Avc, StreamCodec.Av1 }, HevcOriginalPlaylist, "filter_units=remove_types=38")]
 	public async Task FFmpegRemovesFillerByTheCodecOfTheVariantAsync(StreamCodec[] codecPriority, string playlist, string filter, CancellationToken cancellationToken)
@@ -463,7 +446,6 @@ public sealed class RoomMasterPlaylistTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task RestrictionIsLoggedOncePerLiveAsync(CancellationToken cancellationToken)
 	{
 		const string streams = """

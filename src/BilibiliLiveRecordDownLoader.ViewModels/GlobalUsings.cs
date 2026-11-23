@@ -34,6 +34,5 @@ global using ReactiveUI.Primitives.Disposables;
 global using ReactiveUI.Primitives.Signals;
 global using ReactiveUI.SourceGenerators;
 global using Splat;
-global using System.Collections;
 global using System.Collections.ObjectModel;
 global using System.Globalization;

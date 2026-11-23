@@ -2,7 +2,6 @@ using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Buffers.Binary;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -93,7 +92,7 @@ public sealed class MediaHeaderTest
 		await Assert.That(splitter.MediaMarks.ToArray().Select(static mark => (mark.End, mark.Span))).IsEquivalentTo([((long)header.Length + key.Length, MediaSpan.At(TimeSpan.FromMilliseconds(100_000))), ((long)header.Length + key.Length + audio.Length, MediaSpan.At(TimeSpan.FromMilliseconds(99_990)))], CollectionOrdering.Matching);
 	}
 
-	// mdhd 版本 1 的创建和修改时间是 64 位，timescale 跟着往后挪；没有 mdhd 的音频轨不列出
+	// 没有 mdhd 的音频轨不列出
 	[Test]
 	[Arguments((byte)0)]
 	[Arguments((byte)1)]
@@ -111,7 +110,6 @@ public sealed class MediaHeaderTest
 		}
 	}
 
-	// 样本时长可以逐个给出，也可以用 trex 的默认值
 	[Test]
 	[Arguments(3000u, 0u, (byte)1)]
 	[Arguments(0u, 3000u, (byte)0)]

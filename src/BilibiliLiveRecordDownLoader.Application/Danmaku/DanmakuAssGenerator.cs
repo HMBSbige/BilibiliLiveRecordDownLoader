@@ -242,7 +242,6 @@ internal static class DanmakuAssGenerator
 		return string.Create(CultureInfo.InvariantCulture, $@"{rgb & 0xFF:X2}{(rgb >> 8) & 0xFF:X2}{(rgb >> 16) & 0xFF:X2}");
 	}
 
-	// ASS 的时间精度是百分之一秒
 	internal static string FormatTime(TimeSpan value)
 	{
 		long centiseconds = value.Ticks / (TimeSpan.TicksPerMillisecond * 10);

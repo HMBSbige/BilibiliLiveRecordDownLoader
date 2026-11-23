@@ -163,7 +163,6 @@ internal sealed class TsHlsSplitter : HlsSplitter
 				isLeading = false;
 			}
 
-			// 每个带时间戳的 PES 一条，所有 PID 都按解码时间，和 TransportStreamRebaser 推进的一一对应
 			if (TransportStream.IsPayloadStart(packet) && TransportStream.TryReadDecodeTime(TransportStream.GetPayload(packet), out long decode))
 			{
 				_spans.Add(MediaSpan.At(_clock.Unwrap(decode)));

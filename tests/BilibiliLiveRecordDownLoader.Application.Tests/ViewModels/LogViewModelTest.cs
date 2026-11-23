@@ -1,7 +1,6 @@
 using BilibiliLiveRecordDownLoader.Application.Contracts.Logging;
 using BilibiliLiveRecordDownLoader.ViewModels.Logs;
 using System.Windows.Input;
-using TUnit.Assertions.Enums;
 using LogLevel = Microsoft.Extensions.Logging.LogLevel;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;

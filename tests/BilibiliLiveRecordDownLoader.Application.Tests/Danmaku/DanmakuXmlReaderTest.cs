@@ -1,7 +1,6 @@
 using BilibiliLive.Danmu;
 using BilibiliLiveRecordDownLoader.Application.Danmaku;
 using System.Text;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
@@ -73,7 +72,7 @@ public sealed class DanmakuXmlReaderTest
 		}
 	}
 
-	// 其他程序的扩展元素含义和单位各不相同；内嵌的 XSL 里的 HTML 元素也叫 title 之类
+	// 内嵌的 XSL 里的 HTML 元素也叫 title 之类
 	[Test]
 	public async Task OtherFilesYieldOnlyCommentsAsync(CancellationToken cancellationToken)
 	{
@@ -242,7 +241,6 @@ public sealed class DanmakuXmlReaderTest
 		}
 	}
 
-	// id 为 0 表示没有 id，留着会对上所有没记 id 的 SC
 	[Test]
 	public async Task SuperChatDeletionsKeepOnlyValidIdsAsync(CancellationToken cancellationToken)
 	{

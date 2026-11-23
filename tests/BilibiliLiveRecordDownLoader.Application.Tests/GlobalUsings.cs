@@ -14,3 +14,4 @@ global using Microsoft.Extensions.Logging.Abstractions;
 global using Microsoft.Extensions.Options;
 global using Microsoft.Extensions.Time.Testing;
 global using System.Text.Json.Nodes;
+global using TUnit.Assertions.Enums;

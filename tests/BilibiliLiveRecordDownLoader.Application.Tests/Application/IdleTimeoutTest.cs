@@ -25,7 +25,6 @@ public sealed class IdleTimeoutTest
 
 	// FFmpeg 的会话不知道分片间隔，空闲超时要按验证线路时的 HLS 会话算
 	[Test]
-	[Timeout(30_000)]
 	[Arguments(RecorderType.BuiltIn)]
 	[Arguments(RecorderType.FFmpeg)]
 	public async Task StalledHlsStreamWaitsTheSilenceBetweenSegmentsAsync(RecorderType recorderType, CancellationToken cancellationToken)

@@ -6,7 +6,6 @@ using BilibiliLiveRecordDownLoader.Application.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Concurrent;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
@@ -73,7 +72,6 @@ public sealed class DanmakuAppServiceTest
 		}
 	}
 
-	// 录制刚开始、还没有记录的文件只有文件头
 	[Test]
 	public async Task OwnFileWithOnlyTheHeaderOpensAsync(CancellationToken cancellationToken)
 	{
@@ -176,7 +174,6 @@ public sealed class DanmakuAppServiceTest
 		}
 	}
 
-	// 缺 moov 的 .mp4 读不到尺寸，改用同主干的源录像
 	[Test]
 	public async Task SubtitleSizeFallsBackToTheNextVideoWhenTheMp4IsIncompleteAsync(CancellationToken cancellationToken)
 	{
@@ -242,7 +239,6 @@ public sealed class DanmakuAppServiceTest
 		}
 	}
 
-	// 排着队的剪辑还没写出文件，同一段再导出一次也不能用它的输出
 	[Test]
 	public async Task HighlightAvoidsTheOutputOfQueuedCutsAsync(CancellationToken cancellationToken)
 	{

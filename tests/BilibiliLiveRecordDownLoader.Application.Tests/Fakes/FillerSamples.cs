@@ -82,7 +82,6 @@ internal static class FillerSamples
 		return FlvSamples.Tag(FlvSamples.VideoTag, timestamp, [.. FlvVideoPrefix(style, isKey, false), .. Sample(lengthSize, nals)]);
 	}
 
-	// 传统格式和国内扩展的 HEVC 带包类型和合成时间；Enhanced FLV 的 CodedFrames 带合成时间，CodedFramesX 不带
 	public static byte[] FlvVideoPrefix(FlvFillerStyle style, bool isKey, bool isSequence)
 	{
 		byte frameType = (byte)(isKey ? 1 : 2);

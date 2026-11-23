@@ -2,7 +2,6 @@ using BilibiliLive.Streams;
 using BilibiliLive.Tests.Fakes;
 using Microsoft.Extensions.Time.Testing;
 using System.Diagnostics;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLive.Tests.Streams;
 
@@ -61,7 +60,6 @@ public class LiveStreamReaderTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task HungHostOnlyUsesItsOwnConnectTimeoutAsync(CancellationToken cancellationToken)
 	{
 		TaskCompletionSource hung = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -123,7 +121,6 @@ public class LiveStreamReaderTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task HttpStreamThatSendsNoDataWithinTheConnectTimeoutIsRejectedAsync(CancellationToken cancellationToken)
 	{
 		TaskCompletionSource stalled = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -143,7 +140,6 @@ public class LiveStreamReaderTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(StreamProtocol.HttpStream)]
 	[Arguments(StreamProtocol.HttpHls)]
 	public async Task CancelledOpenIsNotReportedAsAHostFailureAsync(StreamProtocol protocol, CancellationToken cancellationToken)

@@ -484,7 +484,6 @@ internal static class DanmakuAssMessages
 		return Truncate(compose(fitted), fontSize, maxWidth);
 	}
 
-	// price 的单位是千分之一元
 	internal static string FormatYuan(long price)
 	{
 		return @"¥" + decimal.Round(price / 1000m, 2, MidpointRounding.AwayFromZero).ToString(@"0.##", CultureInfo.InvariantCulture);

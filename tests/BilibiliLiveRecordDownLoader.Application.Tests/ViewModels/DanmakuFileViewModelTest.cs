@@ -5,7 +5,6 @@ using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels.Danmaku;
 using System.Globalization;
 using System.Windows.Input;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 
@@ -82,7 +81,6 @@ public sealed class DanmakuFileViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	[MethodDataSource(nameof(RewriteResults))]
 	public async Task RegeneratingReloadsTheFileWithTheNewOffsetAsync(DanmakuOffsetResult result, string message, AppNotificationType type, CancellationToken cancellationToken)
 	{
@@ -113,12 +111,10 @@ public sealed class DanmakuFileViewModelTest
 		yield return static () => (new IOException("正在录制"), "正在录制");
 		yield return static () => (new InvalidDataException("不是本程序写的"), "不是本程序写的");
 		yield return static () => (new UnauthorizedAccessException("只读"), "只读");
-		// 系统给的原因没有本地化
 		yield return static () => (new FileNotFoundException(null, DanmakuPath), AppLanguage.Current.FileNotFound.ToString(DanmakuPath));
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	[MethodDataSource(nameof(RewriteFailures))]
 	public async Task RewriteFailuresAreShownWithTheirReasonAsync(Exception failure, string message, CancellationToken cancellationToken)
 	{
@@ -132,7 +128,6 @@ public sealed class DanmakuFileViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task ExportingAHighlightReportsWhereItGoesAsync(CancellationToken cancellationToken)
 	{
 		FakeDanmakuAppService danmaku = new();
@@ -163,7 +158,6 @@ public sealed class DanmakuFileViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	[MethodDataSource(nameof(ExportFailures))]
 	public async Task ExportFailuresAreShownWithTheirReasonAsync(Exception failure, string message, CancellationToken cancellationToken)
 	{

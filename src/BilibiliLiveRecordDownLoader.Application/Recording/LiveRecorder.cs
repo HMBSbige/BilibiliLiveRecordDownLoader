@@ -396,14 +396,12 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		}
 		catch (OperationCanceledException)
 		{
-			// 传输结束时停止采样
 		}
 		finally
 		{
 			observer.OnSpeedChanged(0);
 		}
 
-		// 最后一次采样之后到达的数据
 		if (!isIdle && meter.TakePending() > 0)
 		{
 			lastDataTimestamp = timeProvider.GetTimestamp();

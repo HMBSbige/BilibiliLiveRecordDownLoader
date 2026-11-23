@@ -47,7 +47,6 @@ internal static class FillerNalUnits
 		return kept > 0 ? kept : sample.Length;
 	}
 
-	// 原地去掉填充时原样保留的一段，返回 length
 	public static int Keep(Span<byte> buffer, int source, int destination, int length)
 	{
 		if (source != destination)

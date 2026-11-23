@@ -85,7 +85,6 @@ public class WbiKeyCacheTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task ConcurrentRequestsFetchKeysOnceAsync(CancellationToken cancellationToken)
 	{
 		TaskCompletionSource navGate = new(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -108,7 +108,6 @@ internal static class DanmuMessageParser
 		}
 	}
 
-	/// <returns><see langword="null"/> when the body carries no numeric <c>code</c>.</returns>
 	public static long? GetAuthReplyCode(ReadOnlyMemory<byte> json)
 	{
 		try
@@ -151,7 +150,6 @@ internal static class DanmuMessageParser
 		return null;
 	}
 
-	/// <summary>Reads the whole body, so it throws on JSON that <see cref="GetCommand"/> would accept because the error lies after the cmd.</summary>
 	internal static string? ValidateAndGetCommand(ReadOnlySpan<byte> json)
 	{
 		// The reader itself rejects empty input, malformed JSON and trailing content

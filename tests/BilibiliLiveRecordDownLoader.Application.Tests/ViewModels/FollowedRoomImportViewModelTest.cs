@@ -5,7 +5,6 @@ using BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 
@@ -87,7 +86,6 @@ public sealed class FollowedRoomImportViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	[Arguments(true, true, false)]
 	[Arguments(false, false, true)]
 	public async Task ImportAppliesTheTogglesToEveryRoomAndClosesAsync(bool isRecordingEnabled, bool isDanmakuEnabled, bool isNotificationEnabled, CancellationToken cancellationToken)
@@ -118,7 +116,6 @@ public sealed class FollowedRoomImportViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task PartialFailureKeepsTheDialogOpenWithTheFailedRoomsSelectedAsync(CancellationToken cancellationToken)
 	{
 		FakeRoomAppService rooms = new(Followed)

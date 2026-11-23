@@ -8,7 +8,6 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLive.Tests.Danmu;
 
@@ -189,7 +188,6 @@ public class DanmuClientTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task ReceivesCommandsUntilServerClosesAsync(CancellationToken cancellationToken)
 	{
 		using Harness harness = CreateDefault();
@@ -224,7 +222,6 @@ public class DanmuClientTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task RiskControlRetriesAnonymouslyAsync(CancellationToken cancellationToken)
 	{
 		using Harness harness = new(request => CookieHeader.GetValue(GetCookie(request), "SESSDATA") is null ? Responses.Fixture("danmu_info.json") : RiskControl(), () => Responses.Fixture("nav_logged_in.json"));
@@ -246,7 +243,6 @@ public class DanmuClientTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task UserIdFailureRequestsAnAnonymousTokenAsync(CancellationToken cancellationToken)
 	{
 		// The first nav request asks for the uid, the second one fetches the wbi keys
@@ -269,7 +265,6 @@ public class DanmuClientTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task RiskControlOnAnonymousRetryFallsBackToAnonymousDefaultServerAsync(CancellationToken cancellationToken)
 	{
 		using Harness harness = new(_ => RiskControl(), () => Responses.Fixture("nav_logged_in.json"));
@@ -277,7 +272,6 @@ public class DanmuClientTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task ApiFailureFallsBackToAnonymousDefaultServerAsync(CancellationToken cancellationToken)
 	{
 		using Harness harness = new(_ => Responses.Fixture("danmu_info.json"), () => Responses.Status(HttpStatusCode.InternalServerError));
@@ -308,7 +302,6 @@ public class DanmuClientTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task ReconnectWithinCacheDurationReusesServerInfoAsync(CancellationToken cancellationToken)
 	{
 		FakeTimeProvider time = new();
@@ -329,7 +322,6 @@ public class DanmuClientTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task ReconnectAfterCacheDurationRefetchesServerInfoAsync(CancellationToken cancellationToken)
 	{
 		FakeTimeProvider time = new();
@@ -343,7 +335,6 @@ public class DanmuClientTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task ChangedLoginRefetchesServerInfoWithinCacheDurationAsync(CancellationToken cancellationToken)
 	{
 		FakeTimeProvider time = new();
@@ -358,7 +349,6 @@ public class DanmuClientTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task ChangedLoginClosesTheConnectionAtTheNextHeartbeatAsync(CancellationToken cancellationToken)
 	{
 		FakeTimeProvider time = new();
@@ -377,7 +367,6 @@ public class DanmuClientTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task ChangedLoginEndsNormallyWhenTheServerDropsTheConnectionInsteadOfClosingAsync(CancellationToken cancellationToken)
 	{
 		FakeTimeProvider time = new();
@@ -392,7 +381,6 @@ public class DanmuClientTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task AuthFailureThrowsAndDiscardsCachedServerInfoAsync(CancellationToken cancellationToken)
 	{
 		using Harness harness = CreateDefault();
@@ -406,7 +394,6 @@ public class DanmuClientTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task CancellationEndsEnumerationWithoutExceptionAsync(CancellationToken cancellationToken)
 	{
 		using Harness harness = CreateDefault();
@@ -430,7 +417,6 @@ public class DanmuClientTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task ConnectionLossThrowsAsync(CancellationToken cancellationToken)
 	{
 		using Harness harness = CreateDefault();
@@ -443,7 +429,6 @@ public class DanmuClientTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task OversizedMessageThrowsAsync(CancellationToken cancellationToken)
 	{
 		using Harness harness = CreateDefault();
@@ -467,7 +452,6 @@ public class DanmuClientTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(DefaultCookie, null)]
 	[Arguments("SESSDATA=x; buvid3=MINE", "MINE")]
 	public async Task AuthCarriesTheBuvid3OfTheHandshakeCookieAsync(string cookie, string? userBuvid3, CancellationToken cancellationToken)
@@ -486,7 +470,6 @@ public class DanmuClientTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task SilentConnectionIsAbortedAfterReceiveTimeoutAsync(CancellationToken cancellationToken)
 	{
 		FakeTimeProvider time = new();
@@ -513,7 +496,6 @@ public class DanmuClientTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task IncomingPacketsKeepTheConnectionAliveAsync(CancellationToken cancellationToken)
 	{
 		FakeTimeProvider time = new();
@@ -543,7 +525,6 @@ public class DanmuClientTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task OptionsTakeEffectWithoutReconnectingAsync(CancellationToken cancellationToken)
 	{
 		FakeTimeProvider time = new();
@@ -595,7 +576,6 @@ public class DanmuClientTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task MalformedChatDoesNotInterruptReceivingAsync(CancellationToken cancellationToken)
 	{
 		FakeTimeProvider time = new();

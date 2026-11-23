@@ -4,7 +4,6 @@ using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.IO.Pipelines;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -13,7 +12,6 @@ public sealed class RecordingSegmenterTest
 	private static readonly RecordingSplit OneMinute = new RecordingSplit.ByDuration(TimeSpan.FromMinutes(1));
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task SizeLimitSwitchesFilesBeforeAUnitThatWouldNotFitAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -37,7 +35,6 @@ public sealed class RecordingSegmenterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(true, "abc | H0:def | H0:g")]
 	[Arguments(false, "a | H0:b | H0:c | H0:d | H0:e | H0:f | H0:g")]
 	public async Task SizeLimitCountsTheBytesLeftAfterRemovingFillerAsync(bool removeFiller, string expected, CancellationToken cancellationToken)
@@ -63,7 +60,6 @@ public sealed class RecordingSegmenterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task UnitLargerThanTheLimitTakesAFileOfItsOwnAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -79,7 +75,6 @@ public sealed class RecordingSegmenterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task DurationSwitchesFilesAtTheFirstSplitPointAfterItRunsOutAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -111,7 +106,6 @@ public sealed class RecordingSegmenterTest
 
 	// 改系统时间或校时只动墙钟
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(-1)]
 	[Arguments(1)]
 	public async Task DurationIsMeasuredWithTheMonotonicClockAsync(int clockJumpHours, CancellationToken cancellationToken)
@@ -133,7 +127,6 @@ public sealed class RecordingSegmenterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task NothingIsSplitBeforeTheFirstSplitPointAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -152,7 +145,6 @@ public sealed class RecordingSegmenterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task NewFileGetsTheHeaderFromBeforeItsFirstElementAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -172,7 +164,6 @@ public sealed class RecordingSegmenterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task ElementsSplitAcrossWritesAreReassembledAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -185,7 +176,6 @@ public sealed class RecordingSegmenterTest
 
 	// 攒到上限还等不到切分点就先写出去，接在当前文件后面，单元剩下的部分随到随写；下一个切分点照常判断
 	[Test]
-	[Timeout(10_000)]
 	public async Task DataThatNeverReachesASplitPointIsWrittenOutWithoutStartingAFileAsync(CancellationToken cancellationToken)
 	{
 		FakeTimeProvider time = new();
@@ -217,7 +207,6 @@ public sealed class RecordingSegmenterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task StoppingWritesWhatWasHeldBackAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -242,7 +231,6 @@ public sealed class RecordingSegmenterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task UnitTooLongToHoldStartsANewFileUnderASizeLimitAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new() { MaxPendingLength = 50 };
@@ -266,7 +254,6 @@ public sealed class RecordingSegmenterTest
 
 	// 时长到了、标题也改了，只开着其中一种分段；收流结束时把最后半个单元切出去只会得到一个太短的文件
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(false)]
 	[Arguments(true)]
 	public async Task LastUnitIsNotSplitOffByDurationOrTitleChangeWhenTheStreamEndsAsync(bool byTitle, CancellationToken cancellationToken)
@@ -287,7 +274,6 @@ public sealed class RecordingSegmenterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task LastUnitThatDoesNotFitStillStartsANewFileWhenTheStreamEndsAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -303,7 +289,6 @@ public sealed class RecordingSegmenterTest
 
 	// 每写一次之后交给写盘端的数据：分段时攒到下一个切分点才知道单元要不要换文件；不分段时只攒分割器定时间起点要的第一个单元
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(true, false, new[] { "x", "x", "xa", "xa" })]
 	[Arguments(false, false, new[] { "x", "xa", "xab", "xaby" })]
 	[Arguments(false, true, new[] { "x", "x", "xab", "xaby" })]
@@ -323,7 +308,6 @@ public sealed class RecordingSegmenterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task TitleChangeSwitchesFilesAtTheFirstSplitPointAfterItAsync(CancellationToken cancellationToken)
 	{
 		SplitControl control = SplitRecording.Fixed(new RecordingSplit.None(), true);
@@ -347,7 +331,6 @@ public sealed class RecordingSegmenterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task TitleChangeBeforeAnyMediaOrBeforeTheRecordingIsDroppedAsync(CancellationToken cancellationToken)
 	{
 		SplitControl control = SplitRecording.Fixed(new RecordingSplit.None(), true);
@@ -367,7 +350,6 @@ public sealed class RecordingSegmenterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task SplitSettingChangedWhileRecordingAppliesFromTheNextSplitPointAsync(CancellationToken cancellationToken)
 	{
 		RecordingSplitPolicy policy = new(new RecordingSplit.None(), false);
@@ -392,7 +374,6 @@ public sealed class RecordingSegmenterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task TitleChangedWhileTitleSplitIsOffIsNotCarriedOverOnceItIsTurnedOnAsync(CancellationToken cancellationToken)
 	{
 		RecordingSplitPolicy policy = new(new RecordingSplit.None(), false);

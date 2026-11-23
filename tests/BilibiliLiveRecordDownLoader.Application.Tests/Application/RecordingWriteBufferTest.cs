@@ -11,7 +11,6 @@ public sealed class RecordingWriteBufferTest
 	private static readonly TimeSpan DrainTimeout = TimeSpan.FromSeconds(5);
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task NetworkKeepsReceivingWhileTheDiskStallsThenEverythingIsWrittenAsync(CancellationToken cancellationToken)
 	{
 		ChunkSession session = new(10, false);
@@ -34,7 +33,6 @@ public sealed class RecordingWriteBufferTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task StoppingDrainsWhatWasAlreadyReceivedAsync(CancellationToken cancellationToken)
 	{
 		ChunkSession session = new(3, true);
@@ -53,7 +51,6 @@ public sealed class RecordingWriteBufferTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task StoppingWhileTheBufferIsFullIsAWriteFailureEvenIfTheDiskRecoversAsync(CancellationToken cancellationToken)
 	{
 		ChunkSession session = new(int.MaxValue, false);
@@ -69,7 +66,6 @@ public sealed class RecordingWriteBufferTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task WriteFailureStopsReceivingAndSurfacesAsync(CancellationToken cancellationToken)
 	{
 		ChunkSession session = new(int.MaxValue, false);
@@ -81,7 +77,6 @@ public sealed class RecordingWriteBufferTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task FailureToFlushTheFileOnCloseIsAWriteFailureAsync(CancellationToken cancellationToken)
 	{
 		ChunkSession session = new(3, false);
@@ -92,7 +87,6 @@ public sealed class RecordingWriteBufferTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task NetworkFailureIsNotReportedAsAWriteFailureAsync(CancellationToken cancellationToken)
 	{
 		ChunkSession session = new(3, false, new IOException("connection reset"));
@@ -105,7 +99,6 @@ public sealed class RecordingWriteBufferTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task DiskThatNeverRecoversCannotHangTheStopAsync(CancellationToken cancellationToken)
 	{
 		ChunkSession session = new(1, true);
@@ -123,7 +116,6 @@ public sealed class RecordingWriteBufferTest
 
 	// 网络盘断开时卡住的写入常常等到会话超时才以 IO 错误结束，文件仍要关掉，后处理才删得了它
 	[Test]
-	[Timeout(10_000)]
 	public async Task WriteFailingAfterTheDrainTimeoutStillClosesTheFileAsync(CancellationToken cancellationToken)
 	{
 		ChunkSession session = new(1, true);

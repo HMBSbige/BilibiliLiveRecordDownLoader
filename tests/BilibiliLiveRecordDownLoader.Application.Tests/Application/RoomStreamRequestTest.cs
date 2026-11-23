@@ -8,7 +8,6 @@ public sealed class RoomStreamRequestTest
 {
 	// 沿用的候选流是按旧画质请求的，按新画质判断受限会误报；失败过的线路仍然跳过
 	[Test]
-	[Timeout(30_000)]
 	public async Task QualityChangedBetweenAttemptsRequestsTheCandidatesAgainAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -30,7 +29,6 @@ public sealed class RoomStreamRequestTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task RecordingLogShowsTheStreamPathWithoutTheQueryAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -47,7 +45,6 @@ public sealed class RoomStreamRequestTest
 
 	// FFmpeg 的最后几行输出是唯一的诊断信息，要照样展示，但其中地址的查询串里有用户的 uid 和签名
 	[Test]
-	[Timeout(30_000)]
 	public async Task FFmpegFailureShowsItsLastOutputInTheAppLanguageWithoutTheQueryAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken, recorderType: RecorderType.FFmpeg);
@@ -66,13 +63,11 @@ public sealed class RoomStreamRequestTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task ConnectionTimeoutIsShownInTheAppLanguageAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
 		loop.GoLive();
 
-		// 三条线路都不应答
 		for (int i = 0; i < 3; ++i)
 		{
 			_ = await loop.NextStreamAsync();

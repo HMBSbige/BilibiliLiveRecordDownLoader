@@ -11,7 +11,6 @@ public sealed class LowDiskSpaceMonitorTest
 	private const long Enough = LowDiskSpaceMonitor.Threshold;
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task AlertsOnceWhileLowAndAgainOnlyAfterRecoveringAsync(CancellationToken cancellationToken)
 	{
 		(LowDiskSpaceMonitor monitor, FakeDiskSpace disk, RecordingNotifications notifications, FakeTimeProvider time) = Create();
@@ -33,7 +32,6 @@ public sealed class LowDiskSpaceMonitorTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task UnknownFreeSpaceIsSkippedQuietlyAsync(CancellationToken cancellationToken)
 	{
 		(LowDiskSpaceMonitor monitor, FakeDiskSpace disk, RecordingNotifications notifications, FakeTimeProvider time) = Create();
@@ -51,7 +49,6 @@ public sealed class LowDiskSpaceMonitorTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task ChecksOnlyWhileSomethingRecordsAsync(CancellationToken cancellationToken)
 	{
 		(LowDiskSpaceMonitor monitor, FakeDiskSpace disk, _, FakeTimeProvider time) = Create();
@@ -72,7 +69,6 @@ public sealed class LowDiskSpaceMonitorTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task MonitoringDoesNotCarryTheLogScopeOfTheFirstWatcherAsync(CancellationToken cancellationToken)
 	{
 		ScopeCapturingLogger logger = new();

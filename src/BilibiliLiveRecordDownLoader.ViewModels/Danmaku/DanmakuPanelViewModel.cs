@@ -30,10 +30,9 @@ public sealed partial class DanmakuPanelViewModel : ViewModelBase
 		LoginCommand.DisposeWith(Disposables);
 	}
 
-	// 测试里关掉，由测试调用 Refresh
 	internal bool AutoRefresh { get; init; } = true;
 
-	// 参数是起始目录；测试里换掉系统的文件选择框
+	// 参数是起始目录
 	internal Func<string, Task<string?>> PickDanmakuFile { get; set; } = static directory => AppLocator.Current.GetRequiredService<IStoragePickerService>().PickDanmakuFileAsync(directory);
 
 	[Reactive]

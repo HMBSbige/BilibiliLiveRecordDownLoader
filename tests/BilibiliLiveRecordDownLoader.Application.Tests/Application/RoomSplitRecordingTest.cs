@@ -3,7 +3,6 @@ using BilibiliLiveRecordDownLoader.Application.Contracts.Media;
 using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using Microsoft.Extensions.Logging;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -14,7 +13,6 @@ public sealed class RoomSplitRecordingTest
 	private static byte[] Start => [.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. Frame(VideoPacket.KeyFrame, 0)];
 
 	[Test]
-	[Timeout(30_000)]
 	[Arguments(true, null, 2)]
 	[Arguments(true, false, 1)]
 	[Arguments(false, true, 2)]
@@ -40,7 +38,6 @@ public sealed class RoomSplitRecordingTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task TitleChangeBeforeRecordingStartsDoesNotSplitAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, new RecordingMediaTools());
@@ -59,7 +56,6 @@ public sealed class RoomSplitRecordingTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task FileStartedAfterATitleChangeIsNamedWithTheNewTitleAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, new RecordingMediaTools());
@@ -77,7 +73,6 @@ public sealed class RoomSplitRecordingTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task TitleInFileNameFollowsTheSettingWhenEachFileStartsAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, new RecordingMediaTools());
@@ -94,7 +89,6 @@ public sealed class RoomSplitRecordingTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task EachFileIsPostProcessedOnceFinishedWhileTheRecordingTimeKeepsRunningAsync(CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();
@@ -127,7 +121,6 @@ public sealed class RoomSplitRecordingTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task FileStillClosingWhenTheAttemptEndsIsPostProcessedOnceAfterClosingAndNothingFollowsAsync(CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();
@@ -163,7 +156,6 @@ public sealed class RoomSplitRecordingTest
 
 	// 磁盘一直不恢复时，退出也在等这次后处理，不能一直等下去
 	[Test]
-	[Timeout(30_000)]
 	public async Task FileThatStaysOpenIsLeftWithoutPostProcessingAsync(CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();
@@ -198,7 +190,6 @@ public sealed class RoomSplitRecordingTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task SplittingTurnedOnWhileRecordingSplitsTheCurrentRecordingAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = RecordingLoopHarness.CreateSplitting(cancellationToken, new RecordingMediaTools());
@@ -216,7 +207,6 @@ public sealed class RoomSplitRecordingTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task ConversionFollowsTheSettingWhenEachFileIsFinishedAsync(CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();

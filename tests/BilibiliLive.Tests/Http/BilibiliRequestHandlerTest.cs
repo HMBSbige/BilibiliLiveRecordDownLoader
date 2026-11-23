@@ -2,7 +2,6 @@ using BilibiliLive.Http;
 using BilibiliLive.Tests.Fakes;
 using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLive.Tests.Http;
 

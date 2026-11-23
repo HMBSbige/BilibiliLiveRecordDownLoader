@@ -5,7 +5,6 @@ using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels.Danmaku;
 using System.Globalization;
 using System.Windows.Input;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 
@@ -75,7 +74,6 @@ public sealed class LiveDanmakuViewModelTest
 		}
 	}
 
-	// 条件变了列表整个重建，原来读到的位置已经不在了
 	[Test]
 	public async Task ChangingTheFilterWhileNotFollowingGoesBackToTheLatestAsync()
 	{
@@ -154,7 +152,6 @@ public sealed class LiveDanmakuViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task SearchMatchesNamesAndTextAsync(CancellationToken cancellationToken)
 	{
 		FakeDanmakuFeed feed = new(1);
@@ -271,7 +268,6 @@ public sealed class LiveDanmakuViewModelTest
 		}
 	}
 
-	// 不跟随时列表还显示着已经挤出保留范围的 SC
 	[Test]
 	public async Task SuperChatDeletionMarksTheSuperChatShownWhileNotFollowingAsync()
 	{

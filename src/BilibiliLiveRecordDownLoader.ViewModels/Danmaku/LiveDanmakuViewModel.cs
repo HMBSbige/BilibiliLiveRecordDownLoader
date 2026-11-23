@@ -20,7 +20,6 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 	// 登录时的连接，要等重连才换成登录身份
 	private long? _loginConnection;
 
-	// autoRefresh 为 false 时由测试调用 Refresh
 	public LiveDanmakuViewModel(IDanmakuFeed feed, DanmakuFilterViewModel filter, bool autoRefresh = true)
 	{
 		_feed = feed.DisposeWith(Disposables);

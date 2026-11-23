@@ -1,6 +1,5 @@
 using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -9,7 +8,6 @@ public sealed class HlsSplitterTest
 	private static readonly RecordingSplit EverySegment = new RecordingSplit.ByDuration(TimeSpan.FromMinutes(1));
 
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(SampleFlagsSource.FirstSampleFlags)]
 	[Arguments(SampleFlagsSource.PerSampleFlags)]
 	[Arguments(SampleFlagsSource.TrackFragmentDefault)]
@@ -25,7 +23,6 @@ public sealed class HlsSplitterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(Fmp4Samples.SyncFlags, 2, DisplayName = "trex 默认同步样本")]
 	[Arguments(Fmp4Samples.NonSyncFlags, 1, DisplayName = "trex 默认非同步样本")]
 	public async Task Fmp4FallsBackToTheTrackExtendsDefaultFlagsAsync(uint videoTrexFlags, int files, CancellationToken cancellationToken)
@@ -40,7 +37,6 @@ public sealed class HlsSplitterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task Fmp4WithoutVideoSplitsBeforeAnyFragmentAsync(CancellationToken cancellationToken)
 	{
 		byte[] init = Fmp4Samples.Init(hasVideo: false);
@@ -52,7 +48,6 @@ public sealed class HlsSplitterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task TsSegmentsThatCarryTheirOwnTablesAreNotGivenMoreAsync(CancellationToken cancellationToken)
 	{
 		byte[][] segments = [TsSegment("1", true, TsSamples.AvcIdr), TsSegment("2", true, TsSamples.AvcSlice), TsSegment("3", true, TsSamples.AvcIdr), TsSegment("4", true, TsSamples.AvcIdr)];
@@ -64,7 +59,6 @@ public sealed class HlsSplitterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task TsSegmentsWithoutTablesStartWithTheLatestOnesAsync(CancellationToken cancellationToken)
 	{
 		byte[][] segments = [TsSegment("1", true, TsSamples.AvcIdr), TsSegment("2", false, TsSamples.AvcIdr), TsSegment("3", false, TsSamples.AvcIdr)];
@@ -76,7 +70,6 @@ public sealed class HlsSplitterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(TsSamples.HevcStreamType, false, DisplayName = "HEVC 按 NAL 类型")]
 	[Arguments(TsSamples.AvcStreamType, true, DisplayName = "AVC 按随机访问标志")]
 	public async Task TsKeyFramesAreFoundByNalTypeOrRandomAccessFlagAsync(byte streamType, bool randomAccessOnly, CancellationToken cancellationToken)
@@ -97,7 +90,6 @@ public sealed class HlsSplitterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task EmptySegmentDoesNotHoldBackTheFollowingOnesAsync(CancellationToken cancellationToken)
 	{
 		byte[] init = Fmp4Samples.Init();

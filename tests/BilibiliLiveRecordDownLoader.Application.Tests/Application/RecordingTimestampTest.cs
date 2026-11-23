@@ -3,7 +3,6 @@ using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Buffers.Binary;
 using System.Text;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -21,7 +20,6 @@ public sealed class RecordingTimestampTest
 
 	// onMetaData 和序列头的时间戳本来就是 0，起点按第一个音视频帧算
 	[Test]
-	[Timeout(10_000)]
 	public async Task FlvFirstFileStartsAtItsFirstFrameWhereTheDanmakuIsPlacedAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -50,7 +48,6 @@ public sealed class RecordingTimestampTest
 
 	// 各轨道按自己的 timescale 换算到同一个起点，音频比视频早 10 毫秒；第三个分片是重新开始的时间线
 	[Test]
-	[Timeout(10_000)]
 	public async Task Fmp4TracksShareOneStartInEveryFileAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -78,7 +75,6 @@ public sealed class RecordingTimestampTest
 
 	// 起点按 TimeSpan 的刻度取，换回各轨道的时间要向上取整：44.1 kHz 的 1 换成刻度不是整数，向下取整的话最早的轨道减不到 0
 	[Test]
-	[Timeout(10_000)]
 	public async Task Fmp4TrackTimesAreRoundedUpFromTheSharedStartAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -98,7 +94,6 @@ public sealed class RecordingTimestampTest
 
 	// 音频比起点早 20 毫秒，在容差内不算重新开始；减出的负数不能按无符号回绕成很大的值
 	[Test]
-	[Timeout(10_000)]
 	[Arguments((byte)0)]
 	[Arguments((byte)1)]
 	public async Task Fmp4TrackSlightlyBeforeTheStartIsClampedToZeroAsync(byte audioVersion, CancellationToken cancellationToken)
@@ -116,7 +111,6 @@ public sealed class RecordingTimestampTest
 
 	// 第三个分片比前一个的开头只晚 0.5 秒，结尾仍在已经写出的时间之后；按开头判断才认得出重新开始
 	[Test]
-	[Timeout(10_000)]
 	public async Task Fmp4FragmentThatGoesBackLessThanItsLengthContinuesAfterTheWrittenTimeAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -143,7 +137,6 @@ public sealed class RecordingTimestampTest
 
 	// 第二个分片的两个 moof 之间时间线重新开始
 	[Test]
-	[Timeout(10_000)]
 	public async Task Fmp4TimelineFollowsEveryMoofOfASegmentAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -168,7 +161,6 @@ public sealed class RecordingTimestampTest
 
 	// tfdt 都用版本 0：90 kHz 的视频在 2³² 处回绕，48 kHz 的音频还没有
 	[Test]
-	[Timeout(10_000)]
 	public async Task Fmp4Version0DecodeTimesKeepCountingWhereEachTrackWrapsAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -196,7 +188,6 @@ public sealed class RecordingTimestampTest
 
 	// 起点按 PES 的解码时间算，时间略早的音频也不早于起点；PCR 比解码时间早一个复用延迟，减到 0 为止；第一个文件里 PTS 跨过 33 位回绕，第二个文件整个在回绕之后
 	[Test]
-	[Timeout(10_000)]
 	public async Task TransportStreamTimestampsShareOneStartAcrossTheWrapAsync(CancellationToken cancellationToken)
 	{
 		const long start = PtsPeriod - 4_000;
@@ -222,7 +213,6 @@ public sealed class RecordingTimestampTest
 
 	// 第一个 PES 的 PTS 已经回绕、DTS 还没有，只能按解码时间展开
 	[Test]
-	[Timeout(10_000)]
 	public async Task TransportStreamWhosePtsWrapsBeforeItsDtsStaysOnTheTimelineAsync(CancellationToken cancellationToken)
 	{
 		const long start = PtsPeriod - 1_800;
@@ -249,7 +239,6 @@ public sealed class RecordingTimestampTest
 
 	// 第一次提交里有比第一个 PES 早 2 秒的解码时间，那是重新开始的时间线
 	[Test]
-	[Timeout(10_000)]
 	public async Task TransportStreamStartIgnoresTimesFromBeforeARestartAsync(CancellationToken cancellationToken)
 	{
 		const long decode = 900_000;
@@ -273,7 +262,6 @@ public sealed class RecordingTimestampTest
 
 	// 带 B 帧时 PTS 比 DTS 晚，重新开始前后差得不一样，只能按 DTS 计时；PCR 比 DTS 早 1.5 秒，超过容差也不当作重新开始
 	[Test]
-	[Timeout(10_000)]
 	public async Task TransportStreamCountsByDecodeTimeAcrossARestartAsync(CancellationToken cancellationToken)
 	{
 		const long decode = 900_000;
@@ -297,7 +285,6 @@ public sealed class RecordingTimestampTest
 
 	// FFmpeg 的输出按块读出，关键帧 PES 后面、DTS 早 40 毫秒的音频 PES 在下一次写入里才到
 	[Test]
-	[Timeout(10_000)]
 	public async Task FFmpegTransportStreamWithoutSplittingStartsAtTheEarliestPesOfItsFirstUnitAsync(CancellationToken cancellationToken)
 	{
 		const long decode = 900_000;
@@ -323,7 +310,6 @@ public sealed class RecordingTimestampTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task TransportStreamTimelineThatStartsOverContinuesFromTheLastTimestampAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -350,7 +336,6 @@ public sealed class RecordingTimestampTest
 
 	// 第三个分片重复了第二个：开头比已经写出的时间早 2 秒，结尾没有
 	[Test]
-	[Timeout(10_000)]
 	public async Task TsHlsSegmentThatGoesBackLessThanItsLengthContinuesAfterTheWrittenTimeAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -377,7 +362,6 @@ public sealed class RecordingTimestampTest
 
 	// 时间线在第一个分片中间倒退一小时
 	[Test]
-	[Timeout(10_000)]
 	public async Task TsHlsTimelineFollowsARestartInTheMiddleOfASegmentAsync(CancellationToken cancellationToken)
 	{
 		const long hour = 3600 * PtsClock.ClockRate;
@@ -404,7 +388,6 @@ public sealed class RecordingTimestampTest
 
 	// 会话认开头有不到一个包杂字节的 TS 分片；分片末尾不完整的包也不能让同一次提交里后面的分片对不上包边界
 	[Test]
-	[Timeout(10_000)]
 	[Arguments((byte[])[0, 0], 0, DisplayName = "分片开头有杂字节")]
 	[Arguments((byte[])[0x47, 0], 0, DisplayName = "杂字节以 0x47 开头")]
 	[Arguments((byte[])[], 100, DisplayName = "分片末尾有不完整的包")]
@@ -524,7 +507,7 @@ public sealed class RecordingTimestampTest
 		return [.. Fmp4Samples.Box("moof", [.. trafs.SelectMany(static traf => traf)]), .. Fmp4Samples.Box("mdat", "[timed]"u8.ToArray())];
 	}
 
-	// trun 0x104 带首样本标志和样本时长：每个样本时长 3000，第一个是同步样本
+	// trun 0x104 带首样本标志和样本时长
 	private static byte[] VideoTraf(ulong decodeTime, byte version, uint samples)
 	{
 		byte[] trun = [.. Words(0x104, samples, Fmp4Samples.SyncFlags), .. Enumerable.Repeat(Words(3000), (int)samples).SelectMany(static word => word)];

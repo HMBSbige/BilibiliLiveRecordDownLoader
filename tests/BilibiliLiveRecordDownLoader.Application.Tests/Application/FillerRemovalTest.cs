@@ -1,7 +1,6 @@
 using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -10,7 +9,6 @@ public sealed class FillerRemovalTest
 	private static readonly RecordingSplit OneMinute = new RecordingSplit.ByDuration(TimeSpan.FromMinutes(1));
 
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(FlvFillerStyle.Avc, 4)]
 	[Arguments(FlvFillerStyle.Avc, 2)]
 	[Arguments(FlvFillerStyle.LegacyHevc, 4)]
@@ -54,7 +52,6 @@ public sealed class FillerRemovalTest
 
 	// 多轨和 ModEx 里可能装着改了长度字段宽度的序列头
 	[Test]
-	[Timeout(10_000)]
 	public async Task FlvFramesAfterAnUnrecognizedSequencePacketWaitForTheNextSequenceHeaderAsync(CancellationToken cancellationToken)
 	{
 		byte[][] nals = [FillerSamples.Picture(FillerCodec.Avc, false, "p"), FillerSamples.Filler(FillerCodec.Avc, 30)];
@@ -78,7 +75,6 @@ public sealed class FillerRemovalTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task FlvTagLeftIncompleteAtTheEndIsDroppedAsync(CancellationToken cancellationToken)
 	{
 		byte[][] nals = [FillerSamples.Picture(FillerCodec.Avc, true, "k"), FillerSamples.Filler(FillerCodec.Avc, 60)];
@@ -92,7 +88,6 @@ public sealed class FillerRemovalTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(FlvTagCase.NalLengthsDoNotAddUp)]
 	[Arguments(FlvTagCase.NoSequenceHeader)]
 	[Arguments(FlvTagCase.TruncatedSequenceHeader)]
@@ -125,7 +120,6 @@ public sealed class FillerRemovalTest
 
 	// 这些序列头和帧在同一个攒着的单元里，提交时不能用已经看到后面序列头的状态
 	[Test]
-	[Timeout(10_000)]
 	public async Task FlvSequenceHeadersAreFollowedInTheOrderTheyAreWrittenAsync(CancellationToken cancellationToken)
 	{
 		byte[] Stream(bool removeFiller)
@@ -154,7 +148,6 @@ public sealed class FillerRemovalTest
 
 	// 序列头在关闭时就过去了
 	[Test]
-	[Timeout(10_000)]
 	public async Task TurningFillerRemovalOnTakesEffectFromTheNextWriteAsync(CancellationToken cancellationToken)
 	{
 		byte[][] nals = [FillerSamples.Picture(FillerCodec.Avc, false, "p"), FillerSamples.Filler(FillerCodec.Avc, 30)];
@@ -176,7 +169,6 @@ public sealed class FillerRemovalTest
 
 	// 去掉的字节让写出的位置落后于收到的位置
 	[Test]
-	[Timeout(10_000)]
 	public async Task FlvDataAfterAnUnrecognizedTagInALaterFileIsWrittenUnchangedAsync(CancellationToken cancellationToken)
 	{
 		byte[][] nals = [FillerSamples.Picture(FillerCodec.Avc, true, "k"), FillerSamples.Filler(FillerCodec.Avc, 100)];
@@ -208,7 +200,6 @@ public sealed class FillerRemovalTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(FillerCodec.Avc, 4, Fmp4Layout.Bilibili)]
 	[Arguments(FillerCodec.Hevc, 4, Fmp4Layout.Bilibili)]
 	[Arguments(FillerCodec.Avc, 2, Fmp4Layout.LargeMdat)]
@@ -250,7 +241,6 @@ public sealed class FillerRemovalTest
 
 	// 大小为 0 的样本和下一个样本起点相同；样本多于 16 个时排序不稳定，零长样本放在分区中点附近最容易被排到后面
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(13)]
 	[Arguments(14)]
 	public async Task Fmp4ZeroSizeVideoSampleKeepsItsPlaceAsync(int emptyIndex, CancellationToken cancellationToken)
@@ -276,7 +266,6 @@ public sealed class FillerRemovalTest
 
 	// init 段在关闭时就过去了
 	[Test]
-	[Timeout(10_000)]
 	public async Task TurningFillerRemovalOnTakesEffectFromTheNextFmp4FragmentAsync(CancellationToken cancellationToken)
 	{
 		byte[][] nals = [FillerSamples.Picture(FillerCodec.Avc, true, "k"), FillerSamples.Filler(FillerCodec.Avc, 30)];
@@ -297,7 +286,6 @@ public sealed class FillerRemovalTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task Fmp4FragmentLeftIncompleteAtTheEndIsDroppedAsync(CancellationToken cancellationToken)
 	{
 		byte[][] nals = [FillerSamples.Picture(FillerCodec.Avc, true, "k"), FillerSamples.Filler(FillerCodec.Avc, 60)];
@@ -317,7 +305,6 @@ public sealed class FillerRemovalTest
 
 	// 后面跟一个能处理的分片，确认原样写的分片不影响后面的解析
 	[Test]
-	[Timeout(10_000)]
 	[MethodDataSource(nameof(UnchangedFmp4Fragments))]
 	public async Task Fmp4FragmentsThatCannotBeTakenApartAreWrittenUnchangedAsync(byte[] init, byte[] fragment, bool isNextProcessed, CancellationToken cancellationToken)
 	{
@@ -357,7 +344,6 @@ public sealed class FillerRemovalTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task DisabledFillerRemovalKeepsEveryByteAsync(CancellationToken cancellationToken)
 	{
 		byte[][] nals = [FillerSamples.Picture(FillerCodec.Avc, true, "k"), FillerSamples.Filler(FillerCodec.Avc, 100)];

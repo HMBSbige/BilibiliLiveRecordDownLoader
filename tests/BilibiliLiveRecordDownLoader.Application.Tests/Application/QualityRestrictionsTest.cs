@@ -39,7 +39,6 @@ public sealed class QualityRestrictionsTest
 		await Assert.That(QualityRestrictions.Evaluate(avc, [avc, hevc], Profile(StreamQuality.Original), false)).IsEqualTo(new QualityRestriction.NotLoggedIn(10000));
 	}
 
-	// 已登录的账号也可能被限
 	[Test]
 	public async Task TranscodedStreamWithCookieMayHaveAnExpiredLoginAsync()
 	{
@@ -173,7 +172,7 @@ public sealed class QualityRestrictionsTest
 		}
 	}
 
-	// 3990387 匿名时 AV1 是原画；AV1 排在录到的编码前面说明已经试过但没连上
+	// 3990387 匿名时 AV1 是原画
 	[Test]
 	[Arguments(new[] { StreamCodec.Avc, StreamCodec.Hevc, StreamCodec.Av1 }, false)]
 	[Arguments(new[] { StreamCodec.Av1, StreamCodec.Avc, StreamCodec.Hevc }, true)]

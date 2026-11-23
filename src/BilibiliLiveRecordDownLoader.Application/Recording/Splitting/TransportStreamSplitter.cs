@@ -60,7 +60,6 @@ internal sealed class TransportStreamSplitter : MediaSplitter
 		return TransportStream.PacketSize;
 	}
 
-	// 每个 PES 一条，所有 PID 都按解码时间，和 TransportStreamRebaser 推进的一一对应
 	protected override void Accept(ReadOnlySpan<byte> element)
 	{
 		if (IsUnaligned || _tables.Inspect(element))

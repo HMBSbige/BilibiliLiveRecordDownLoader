@@ -45,7 +45,7 @@ public class FFmpegArgumentsTest
 	[MethodDataSource(nameof(Commands))]
 	public async Task BuildsTheExpectedArgumentsAsync(IReadOnlyList<string> arguments, string[] expected)
 	{
-		await Assert.That(arguments).IsEquivalentTo(expected, StringComparer.Ordinal, CollectionOrdering.Matching);
+		await Assert.That(arguments).IsEquivalentTo(expected, CollectionOrdering.Matching);
 	}
 
 	[Test]

@@ -1,6 +1,5 @@
 using BilibiliLive.Models;
 using BilibiliLiveRecordDownLoader.Application.Recording;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 

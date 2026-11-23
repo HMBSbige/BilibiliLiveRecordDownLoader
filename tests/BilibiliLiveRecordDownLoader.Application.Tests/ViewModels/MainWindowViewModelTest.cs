@@ -6,14 +6,12 @@ using BilibiliLiveRecordDownLoader.ViewModels.Platform;
 using ReactiveUI.Primitives;
 using System.Collections.Concurrent;
 using System.Windows.Input;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 
 public sealed class MainWindowViewModelTest
 {
 	[Test]
-	[Timeout(30_000)]
 	public async Task ExitStopsAcceptingActivationsFirstAndShutsDownEvenIfStoppingFailsAsync(CancellationToken cancellationToken)
 	{
 		Events events = new();
@@ -35,7 +33,6 @@ public sealed class MainWindowViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task ExitWhileRecordingClosesTheOpenDialogBeforeAskingAsync(CancellationToken cancellationToken)
 	{
 		Events events = new();
@@ -56,7 +53,6 @@ public sealed class MainWindowViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task ExitWhileADialogIsSubmittingLeavesItOpenAsync(CancellationToken cancellationToken)
 	{
 		Events events = new();

@@ -1,5 +1,4 @@
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 

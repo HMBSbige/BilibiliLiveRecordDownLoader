@@ -4,7 +4,6 @@ using BilibiliLive.Tests.Fakes;
 using System.Net;
 using System.Text.Json.Nodes;
 using System.Web;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLive.Tests;
 

@@ -17,7 +17,6 @@ internal sealed class Fmp4Rebaser
 		_clock = new SegmentClock(Tolerance);
 	}
 
-	// 每次提交都是从分片开头开始的完整分片
 	public void Rebase(Span<byte> elements)
 	{
 		int offset = 0;

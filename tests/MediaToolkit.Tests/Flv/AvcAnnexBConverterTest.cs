@@ -51,7 +51,6 @@ public class AvcAnnexBConverterTest
 	[Test]
 	public async Task NaluPacketStopsAtTruncatedNalUnitAsync()
 	{
-		// 第二个 NALU 声明 9 字节，实际只剩 3 字节
 		byte[] output = Run(new AvcAnnexBConverter(), Convert.FromHexString(@"2701000000" + @"00000005" + @"6588840033" + @"00000009" + @"060501"));
 
 		await Assert.That(Convert.ToHexString(output)).IsEqualTo(Convert.ToHexString(FlvSamples.AnnexB(FlvSamples.IdrSlice)));

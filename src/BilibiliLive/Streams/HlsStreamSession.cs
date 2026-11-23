@@ -51,7 +51,7 @@ internal sealed class HlsStreamSession : LiveStreamSession
 
 	public override long MissedSegments => Interlocked.Read(ref _missedSegments);
 
-	/// <param name="requestTimeout">Bounds every later playlist refresh as a whole and every segment download until its response headers arrive, because the stream client itself never times out; a segment body then gets at least two target durations.</param>
+	/// <param name="requestTimeout">Bounds every later playlist refresh as a whole and every segment download until its response headers arrive, because the stream client itself never times out.</param>
 	public static async Task<LiveStreamSession> OpenAsync(HttpClient httpClient, Uri uri, TimeSpan requestTimeout, TimeProvider timeProvider, CancellationToken cancellationToken)
 	{
 		PlaylistSnapshot snapshot = await FetchPlaylistAsync(httpClient, uri, cancellationToken).ConfigureAwait(false);

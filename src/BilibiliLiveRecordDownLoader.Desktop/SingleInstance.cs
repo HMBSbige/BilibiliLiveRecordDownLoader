@@ -14,8 +14,8 @@ internal sealed partial class SingleInstance : IDisposable
 
 	public SingleInstance(string id)
 	{
-		// 按用户隔离；用哈希缩短名称，Unix 域套接字路径有长度限制
-		// Windows 上互斥量按会话隔离，命名管道却不分会话；名称不带会话时，后启动的会话建不了管道，激活请求还会发到别的会话
+		// 用哈希缩短名称，Unix 域套接字路径有长度限制
+		// Windows 上互斥量按会话隔离，命名管道却不分会话；名称不带会话时，后启动的会话建不了管道
 		string scope = OperatingSystem.IsWindows() ? $"{id}\0{Environment.UserName}\0{GetSessionId()}" : $"{id}\0{Environment.UserName}";
 		_name = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(scope)).AsSpan(0, 12));
 

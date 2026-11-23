@@ -1,5 +1,4 @@
 using Avalonia.Input;
-using Avalonia.Platform;
 using Symbol = FluentIcons.Common.Icon;
 
 namespace BilibiliLiveRecordDownLoader.Views.Views;

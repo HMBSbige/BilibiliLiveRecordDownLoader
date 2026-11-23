@@ -8,7 +8,6 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 public sealed class GeneralSettingsViewModelTest
 {
 	[Test]
-	[Timeout(30_000)]
 	[Arguments("  ", null)]
 	[Arguments("  records  ", "records")]
 	public async Task RecordDirectoryShowsTheDirectoryThatIsSavedAsync(string typed, string? expected, CancellationToken cancellationToken)

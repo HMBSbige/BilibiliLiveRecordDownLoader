@@ -29,7 +29,6 @@ global using BilibiliLiveRecordDownLoader.Application.Updates;
 global using BilibiliLiveRecordDownLoader.Domain.Configuration;
 global using BilibiliLiveRecordDownLoader.Domain.Recording;
 global using BilibiliLiveRecordDownLoader.Domain.Shared;
-global using BilibiliLiveRecordDownLoader.Domain.Shared.Configuration;
 global using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 global using BilibiliLiveRecordDownLoader.Domain.Shared.Recording;
 global using MediaToolkit.FFmpeg;

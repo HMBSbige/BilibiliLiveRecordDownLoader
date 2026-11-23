@@ -17,9 +17,7 @@ public sealed class UpdateAppServiceTest
 		await Assert.ThrowsAsync<HttpRequestException>(() => CreateOffline().CheckForUpdateAsync(false, cancellationToken)).WithMessage("No network.");
 	}
 
-	// HttpClient 超时抛的是取消异常，会被当成用户取消
 	[Test]
-	[Timeout(30_000)]
 	public async Task ManualCheckTimeoutIsThrownAsATimeoutAsync(CancellationToken cancellationToken)
 	{
 		UpdateAppService updates = new(new HangingHttpClientFactory(), NullLogger<UpdateAppService>.Instance);

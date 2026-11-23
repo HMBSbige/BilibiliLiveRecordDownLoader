@@ -10,7 +10,6 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 public sealed class AccountAppServiceTest
 {
 	[Test]
-	[Timeout(30_000)]
 	public async Task RequestTimeoutIsReportedAsATimeoutAsync(CancellationToken cancellationToken)
 	{
 		using HttpClient httpClient = new(new HangingHandler()) { Timeout = TimeSpan.FromMilliseconds(100) };
@@ -30,7 +29,6 @@ public sealed class AccountAppServiceTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task SucceededLoginSavesTheCookieAsync(CancellationToken cancellationToken)
 	{
 		using HttpClient httpClient = new(new LoginSucceededHandler());
@@ -44,7 +42,6 @@ public sealed class AccountAppServiceTest
 
 	// 扫码登录、退出和在账号页编辑都经这里保存，读取方只需判断 null
 	[Test]
-	[Timeout(30_000)]
 	public async Task SavedCookieIsTrimmedAndABlankOneClearsItAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();

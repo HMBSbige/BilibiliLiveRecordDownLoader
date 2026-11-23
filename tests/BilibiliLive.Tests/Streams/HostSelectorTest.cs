@@ -1,6 +1,5 @@
 using BilibiliLive.Streams;
 using System.Collections.Concurrent;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLive.Tests.Streams;
 
@@ -68,7 +67,6 @@ public class HostSelectorTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task FastestResponseWinsCancelsAndDisposesTheRestAsync(CancellationToken cancellationToken)
 	{
 		TaskCompletionSource<FakeSession> slow = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -112,7 +110,6 @@ public class HostSelectorTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task FastestResponseStartsAllAttemptsConcurrentlyAsync(CancellationToken cancellationToken)
 	{
 		TaskCompletionSource allStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);

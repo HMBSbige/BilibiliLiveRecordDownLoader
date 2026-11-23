@@ -22,7 +22,6 @@ public sealed class RoomRecordingNotificationTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task EveryStreamFailingForAMinuteNotifiesOnceAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -42,7 +41,6 @@ public sealed class RoomRecordingNotificationTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	[Arguments(StallReset.Recorded)]
 	[Arguments(StallReset.WentOffline)]
 	[Arguments(StallReset.RecordingDisabled)]
@@ -83,7 +81,6 @@ public sealed class RoomRecordingNotificationTest
 
 	// 主播重开推流软件、换网络时，直播间还会显示直播中一段时间，不是要人处理的故障
 	[Test]
-	[Timeout(30_000)]
 	[Arguments(StreamerSilence.NoStreamListed)]
 	[Arguments(StreamerSilence.EveryStreamNotFound)]
 	[Arguments(StreamerSilence.ConnectedWithoutData)]
@@ -132,7 +129,6 @@ public sealed class RoomRecordingNotificationTest
 
 	// 每次都算快速失败，但文件一直在增长，不是线路都坏了
 	[Test]
-	[Timeout(30_000)]
 	public async Task StreamsThatKeepSendingDataInShortStretchesAreNotNotifiedAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -153,7 +149,6 @@ public sealed class RoomRecordingNotificationTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task StreamsSendingOnlyTheHeaderAreNotifiedAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -169,7 +164,6 @@ public sealed class RoomRecordingNotificationTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task DiskWriteFailureNotifiesOnceUntilWritingRecoversAsync(CancellationToken cancellationToken)
 	{
 		FakeDisk disk = new();
@@ -207,7 +201,6 @@ public sealed class RoomRecordingNotificationTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task RecordingFileThatCannotBeCreatedIsAWriteFailureAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken, static _ => throw new IOException("the network drive is gone"));
@@ -233,7 +226,6 @@ public sealed class RoomRecordingNotificationTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	[Arguments(false)]
 	[Arguments(true)]
 	public async Task RecordingErrorsAreNotNotifiedWhenTurnedOffAsync(bool isDiskFull, CancellationToken cancellationToken)

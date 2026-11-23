@@ -3,7 +3,6 @@ using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Collections.Concurrent;
 using System.IO.Pipelines;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -12,7 +11,6 @@ public sealed class TransportStreamSplitterTest
 	private static readonly RecordingSplit OneMinute = new RecordingSplit.ByDuration(TimeSpan.FromMinutes(1));
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task NewFileStartsWithTheTablesBeforeARandomAccessFrameAsync(CancellationToken cancellationToken)
 	{
 		byte[] first = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k1"), .. Inter("p1")];
@@ -32,7 +30,6 @@ public sealed class TransportStreamSplitterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task WithoutSplittingTheFileIsTheStreamAsReceivedAsync(CancellationToken cancellationToken)
 	{
 		byte[] stream = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k1"), .. Inter("p1"), .. TsSamples.Pat(continuity: 1), .. TsSamples.Pmt(continuity: 1), .. Key("k2"), .. Inter("p2"), .. Key("k3")];
@@ -44,7 +41,6 @@ public sealed class TransportStreamSplitterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task ChangedProgramMapReplacesTheCachedOneAsync(CancellationToken cancellationToken)
 	{
 		byte[] changedPmt = TsSamples.Pmt(TsSamples.HevcStreamType, version: 1);
@@ -61,7 +57,6 @@ public sealed class TransportStreamSplitterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task RandomAccessFrameBeforeTheTablesIsNotASplitPointAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -78,7 +73,6 @@ public sealed class TransportStreamSplitterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task LostPacketSyncStopsSplittingWithoutLosingDataAsync(CancellationToken cancellationToken)
 	{
 		byte[] stream = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k1"), 0x00, .. Key("k2"), .. Key("k3")];
@@ -96,7 +90,6 @@ public sealed class TransportStreamSplitterTest
 
 	// 失去同步之前的关键帧照常改到 0
 	[Test]
-	[Timeout(10_000)]
 	public async Task PacketLookalikeAfterLosingSyncIsWrittenUnchangedAsync(CancellationToken cancellationToken)
 	{
 		byte[] lookalike = TsSamples.TimedPes(TsSamples.VideoPid, 990_000, null, 980_000);
@@ -114,7 +107,6 @@ public sealed class TransportStreamSplitterTest
 
 	// 停止录制时 FFmpeg 的输出可能停在一个包中间
 	[Test]
-	[Timeout(10_000)]
 	public async Task PartialPacketAtTheEndIsNotWrittenAsync(CancellationToken cancellationToken)
 	{
 		byte[] stream = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k1"), .. Inter("p1")];
@@ -127,7 +119,6 @@ public sealed class TransportStreamSplitterTest
 
 	// 失去包同步之后不再知道包的边界
 	[Test]
-	[Timeout(10_000)]
 	public async Task DataAfterLosingPacketSyncIsWrittenInFullWhenTheStreamEndsAsync(CancellationToken cancellationToken)
 	{
 		byte[] stream = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k1"), 0x00, .. Key("k2").AsSpan(0, 100)];
@@ -139,7 +130,6 @@ public sealed class TransportStreamSplitterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task DataAfterLosingPacketSyncIsNotHeldBackAsync(CancellationToken cancellationToken)
 	{
 		byte[] stream = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. Key("k1"), 0x00, .. Inter("p1")];

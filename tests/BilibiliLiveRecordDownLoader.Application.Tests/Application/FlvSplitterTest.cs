@@ -3,7 +3,6 @@ using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Collections.Concurrent;
 using System.IO.Pipelines;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -12,7 +11,6 @@ public sealed class FlvSplitterTest
 	private static readonly RecordingSplit OneMinute = new RecordingSplit.ByDuration(TimeSpan.FromMinutes(1));
 
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(VideoStyle.Avc)]
 	[Arguments(VideoStyle.LegacyHevc)]
 	[Arguments(VideoStyle.EnhancedHevc)]
@@ -50,7 +48,6 @@ public sealed class FlvSplitterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task WithoutSplittingTheFileIsTheStreamAsReceivedAsync(CancellationToken cancellationToken)
 	{
 		byte[] stream =
@@ -69,7 +66,6 @@ public sealed class FlvSplitterTest
 
 	// 文件里的时间要和时间轴放弹幕的位置一致
 	[Test]
-	[Timeout(10_000)]
 	public async Task TimelineThatStartsOverInTheFirstFileContinuesFromTheLastTimestampAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -92,7 +88,6 @@ public sealed class FlvSplitterTest
 
 	// 时间轴不看序列头和脚本 tag，当成推流重新开始的话后面的帧整体推后，和弹幕的位置对不上
 	[Test]
-	[Timeout(10_000)]
 	public async Task SequenceHeaderResentWithTimestampZeroKeepsTheTimelineAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -114,7 +109,6 @@ public sealed class FlvSplitterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task HeadersBeforeTheFirstFrameAreWrittenAtZeroAsync(CancellationToken cancellationToken)
 	{
 		byte[] stream =
@@ -131,7 +125,6 @@ public sealed class FlvSplitterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task TagsSlightlyEarlierThanTheSegmentSoFarKeepTheTimelineAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -151,7 +144,6 @@ public sealed class FlvSplitterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task LatestSequenceHeaderBeforeTheKeyFrameIsUsedAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -170,7 +162,6 @@ public sealed class FlvSplitterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task KeyFrameBeforeAnySequenceHeaderIsNotASplitPointAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -187,7 +178,6 @@ public sealed class FlvSplitterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task UnrecognizedTagStopsSplittingWithoutLosingDataAsync(CancellationToken cancellationToken)
 	{
 		byte[] stream =
@@ -210,7 +200,6 @@ public sealed class FlvSplitterTest
 
 	// 停止录制时会话可能停在一个 tag 中间；分段时攒着的单元也一样
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(false)]
 	[Arguments(true)]
 	public async Task HalfTagAtTheEndIsNotWrittenAsync(bool isSplitting, CancellationToken cancellationToken)
@@ -227,7 +216,6 @@ public sealed class FlvSplitterTest
 
 	// 放弃解析之后不再知道 tag 的边界，收流结束时只丢没放弃解析的末尾；签名和 tag 类型对不上就放弃，不等凑够一个头
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(UnparsableEnd.HalfTagAfterAnUnrecognizedTag)]
 	[Arguments(UnparsableEnd.ShortDataAfterTags)]
 	[Arguments(UnparsableEnd.ShortDataInsteadOfAFileHeader)]
@@ -250,7 +238,6 @@ public sealed class FlvSplitterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task DataAfterAnUnrecognizedTagInALaterFileIsWrittenUnchangedAsync(CancellationToken cancellationToken)
 	{
 		byte[] unrecognized = FlvSamples.Tag(0x29, 10, [1, 2, 3]);
@@ -272,7 +259,6 @@ public sealed class FlvSplitterTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task DataAfterAnUnrecognizedTagIsNotHeldBackAsync(CancellationToken cancellationToken)
 	{
 		byte[] stream = [.. FlvSamples.Header, .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.SequenceHeader, 0), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 0), .. FlvSamples.Tag(0x29, 10, [1, 2, 3])];

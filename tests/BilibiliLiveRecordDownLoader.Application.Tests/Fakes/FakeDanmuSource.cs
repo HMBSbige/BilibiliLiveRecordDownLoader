@@ -4,7 +4,6 @@ using System.Threading.Channels;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 
-// 替代 DanmuClient
 internal sealed class FakeDanmuSource(TimeProvider time)
 {
 	private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(5);

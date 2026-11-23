@@ -70,7 +70,6 @@ public sealed class RoomQualityDisplayTest
 		}
 	}
 
-	// 受限时改从主播放列表取到的真原画不再受限
 	[Test]
 	public async Task RestrictionIsClearedOnceTheRoomRecordsTheTrueOriginalAsync()
 	{

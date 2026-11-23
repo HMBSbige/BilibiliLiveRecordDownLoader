@@ -1,7 +1,6 @@
 using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Collections.Concurrent;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -11,7 +10,6 @@ public sealed class SegmentedOutputTest
 
 	// 交出时记下已经建了哪些文件和它们关闭时的内容：没关闭的文件内容为空，下一段建得太早会多出一个
 	[Test]
-	[Timeout(10_000)]
 	public async Task FinishedSegmentIsClosedAndHandedOverBeforeTheNextOneOpensAsync(CancellationToken cancellationToken)
 	{
 		ConcurrentQueue<string> handOvers = new();
@@ -28,7 +26,6 @@ public sealed class SegmentedOutputTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task FailingToCreateTheNextFileIsAWriteFailureAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new() { FailOpeningFile = 1 };
@@ -43,7 +40,6 @@ public sealed class SegmentedOutputTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task FailingToCloseAFinishedSegmentIsAWriteFailureAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new() { FailClosingFile = 0 };
@@ -59,7 +55,6 @@ public sealed class SegmentedOutputTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task SegmentStillClosingWhenTheDrainTimesOutIsNeitherHandedOverNorFollowedByANewFileAsync(CancellationToken cancellationToken)
 	{
 		TaskCompletionSource closing = new(TaskCreationOptions.RunContinuationsAsynchronously);

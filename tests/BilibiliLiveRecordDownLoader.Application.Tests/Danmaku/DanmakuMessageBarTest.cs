@@ -1,5 +1,4 @@
 using BilibiliLiveRecordDownLoader.Application.Danmaku;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
@@ -33,7 +32,7 @@ public sealed class DanmakuMessageBarTest
 		return layout.Placements.Single(placement => placement.Request == request);
 	}
 
-	// 同一帧里的消息共用接收时刻，第一段就要用合并后的数量
+	// 同一帧里的消息共用接收时刻
 	[Test]
 	public async Task ComboMergedAtTheMomentItIsShownStartsWithTheMergedCountAsync()
 	{

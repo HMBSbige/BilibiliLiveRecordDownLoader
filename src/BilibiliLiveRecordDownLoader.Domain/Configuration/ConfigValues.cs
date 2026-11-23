@@ -1,6 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.Domain.Configuration;
 
-// 配置的取值规则：ApplyDefaults 在加载和每次修改之后执行；界面要立即显示规范后的值时也调这里
+// ApplyDefaults 在加载和每次修改之后执行；界面要立即显示规范后的值时也调这里
 public static class ConfigValues
 {
 	internal static TimeSpan ClampSplitDuration(TimeSpan duration)
@@ -23,7 +23,6 @@ public static class ConfigValues
 		return Clamp(interval, TimeSpan.FromSeconds((double)minimumSeconds), TimeSpan.FromSeconds((double)RoomDefaults.MaxIntervalSeconds));
 	}
 
-	// 只有空白时算没填
 	public static string? NormalizeText(string? value)
 	{
 		return string.IsNullOrWhiteSpace(value) ? null : value.Trim();

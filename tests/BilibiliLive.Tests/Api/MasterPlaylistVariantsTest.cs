@@ -1,6 +1,5 @@
 using BilibiliLive.Api;
 using BilibiliLive.Tests.Fakes;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLive.Tests.Api;
 
@@ -88,7 +87,6 @@ public class MasterPlaylistVariantsTest
 	}
 
 	[Test]
-	// A room that is not live gets an empty body
 	[Arguments("")]
 	[Arguments("""{"code":-400,"message":"请求错误","ttl":1}""")]
 	public async Task ContentThatIsNotAPlaylistIsRejectedAsync(string content)

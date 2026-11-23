@@ -4,7 +4,6 @@ using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels.Danmaku;
 using BilibiliLiveRecordDownLoader.ViewModels.Rooms;
 using System.Windows.Input;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 
@@ -123,7 +122,6 @@ public sealed class DanmakuPanelViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task OpeningAFileReplacesTheLiveFeedUntilItIsClosedAsync(CancellationToken cancellationToken)
 	{
 		FakeDanmakuAppService danmaku = new() { OpenFile = static (_, _) => Task.FromResult(DanmakuFileViewModelTest.CreateFile(seconds: [1])) };
@@ -143,7 +141,6 @@ public sealed class DanmakuPanelViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task ShowingLiveDanmakuClosesTheOpenFileAsync(CancellationToken cancellationToken)
 	{
 		FakeDanmakuAppService danmaku = new() { OpenFile = static (_, _) => Task.FromResult(DanmakuFileViewModelTest.CreateFile(seconds: [1])) };
@@ -163,7 +160,6 @@ public sealed class DanmakuPanelViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task LoadingAFileShowsThePanelRightAwayAsync(CancellationToken cancellationToken)
 	{
 		TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -185,7 +181,6 @@ public sealed class DanmakuPanelViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task ClosingThePanelWhileLoadingDiscardsTheFileAsync(CancellationToken cancellationToken)
 	{
 		TaskCompletionSource gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -200,7 +195,6 @@ public sealed class DanmakuPanelViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task FilePickerStartsInTheExpectedDirectoryAsync(CancellationToken cancellationToken)
 	{
 		FakeConfigManager configManager = new();
@@ -235,7 +229,6 @@ public sealed class DanmakuPanelViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	[MethodDataSource(nameof(OpenFailures))]
 	public async Task FilesThatCannotBeOpenedAreReportedInThePanelAsync(Exception failure, string message, CancellationToken cancellationToken)
 	{

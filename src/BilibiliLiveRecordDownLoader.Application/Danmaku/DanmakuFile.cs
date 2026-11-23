@@ -7,6 +7,6 @@ internal closed record DanmakuFileSource
 {
 	public sealed record Native(DanmakuFileHeader Header) : DanmakuFileSource;
 
-	// 其他程序写的文件，只读出 d
+	// 其他程序写的文件
 	public sealed record Standard : DanmakuFileSource;
 }

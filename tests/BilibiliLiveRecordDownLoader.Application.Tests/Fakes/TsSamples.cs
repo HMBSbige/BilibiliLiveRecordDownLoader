@@ -57,7 +57,7 @@ internal static class TsSamples
 		return Pes(VideoPid, pes, randomAccess);
 	}
 
-	// 带 PTS 的视频访问单元：AUD、可选的 SPS，再加上图像 NAL；给出 dts 时 PES 头里也带上 DTS
+	// 带 PTS 的视频访问单元：AUD、可选的 SPS，再加上图像 NAL
 	public static byte[] TimedVideoFrame(byte[] picture, long pts, bool randomAccess = false, byte[]? sps = null, bool isHevc = false, long? dts = null)
 	{
 		List<byte> es = isHevc ? [0, 0, 0, 1, 0x46, 0x01, 0x50] : [0, 0, 0, 1, 0x09, 0xF0];

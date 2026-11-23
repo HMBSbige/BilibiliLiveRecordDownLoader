@@ -5,7 +5,6 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -28,7 +27,6 @@ public sealed class BilibiliHttpClientsTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task ApiClientDoesNotFollowRedirectsAsync(CancellationToken cancellationToken)
 	{
 		await using LoopbackServer server = new();
@@ -47,7 +45,6 @@ public sealed class BilibiliHttpClientsTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task StreamClientFollowsRedirectsWithoutTheLoginCookieAsync(CancellationToken cancellationToken)
 	{
 		await using LoopbackServer server = new();

@@ -18,7 +18,7 @@ internal sealed partial class AutoStartService(ILogger<AutoStartService> logger)
 	{
 		try
 		{
-			// 程序换了目录后旧的登记已经失效；旧版参数不同的登记指向当前程序时照样按最小化启动
+			// 程序换了目录后旧的登记已经失效
 			if (OperatingSystem.IsWindows())
 			{
 				using RegistryKey? key = Registry.CurrentUser.OpenSubKey(WindowsRunKey);
@@ -114,7 +114,7 @@ internal sealed partial class AutoStartService(ILogger<AutoStartService> logger)
 
 		if (OperatingSystem.IsLinux())
 		{
-			// ApplicationData 在 Linux 上按 XDG 规范取 XDG_CONFIG_HOME，未设置或不是绝对路径时用 ~/.config；目录可能还没建，写入时再创建
+			// ApplicationData 在 Linux 上是 XDG_CONFIG_HOME 或 ~/.config；目录可能还没建，写入时再创建
 			return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.DoNotVerify), "autostart", $"{AppConsts.Name}.desktop");
 		}
 

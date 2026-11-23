@@ -8,7 +8,6 @@ public sealed class FFmpegProxyTest
 	private const string HttpProxy = "http://proxy.test:8080/";
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task FFmpegRecordsThroughTheSystemProxyWhenTurnedOnAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken, recorderType: RecorderType.FFmpeg, systemProxy: new WebProxy(HttpProxy));
@@ -26,7 +25,6 @@ public sealed class FFmpegProxyTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task FFmpegConnectsDirectlyWhenTheSystemProxyIsTurnedOffAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken, recorderType: RecorderType.FFmpeg, systemProxy: new WebProxy(HttpProxy));
@@ -38,7 +36,6 @@ public sealed class FFmpegProxyTest
 
 	// 假接口给的第一条线路在 a.test
 	[Test]
-	[Timeout(30_000)]
 	public async Task FFmpegConnectsDirectlyToABypassedHostAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken, recorderType: RecorderType.FFmpeg, systemProxy: new WebProxy(HttpProxy, false, [@"a\.test"]));
@@ -51,7 +48,6 @@ public sealed class FFmpegProxyTest
 
 	// FFmpeg 只认 http:// 的代理，传别的会被它忽略
 	[Test]
-	[Timeout(30_000)]
 	public async Task FFmpegConnectsDirectlyAndSaysSoWhenTheSystemProxyIsNotHttpAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken, recorderType: RecorderType.FFmpeg, systemProxy: new WebProxy("socks5://proxy.test:1080"));

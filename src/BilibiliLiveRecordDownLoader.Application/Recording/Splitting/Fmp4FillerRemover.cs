@@ -17,7 +17,7 @@ internal sealed class Fmp4FillerRemover
 	private int _nalLengthSize;
 	private bool _hasSegmentIndex;
 
-	// isEnabled 为 false 时也要看 moov 和 sidx；每次提交都是从分片开头开始的完整分片
+	// isEnabled 为 false 时也要看 moov 和 sidx
 	public int Remove(Span<byte> elements, bool isEnabled)
 	{
 		int read = 0;
@@ -121,7 +121,6 @@ internal sealed class Fmp4FillerRemover
 		}
 	}
 
-	// moof 从 read 开始
 	private bool TryRemove(Span<byte> elements, int read, int write, int moofLength, out int consumed, out int written)
 	{
 		consumed = written = 0;

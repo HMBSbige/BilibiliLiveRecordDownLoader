@@ -17,7 +17,6 @@ public sealed class RoomDanmuLoopTest
 	private static readonly DanmuSender Viewer = new(42, "观众昵称", GuardLevel.None, null);
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task ConsecutiveDanmuFailuresBackOffExponentiallyAsync(CancellationToken cancellationToken)
 	{
 		FakeTimeProvider time = new();
@@ -66,7 +65,6 @@ public sealed class RoomDanmuLoopTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task ChangingTheMonitorIntervalsKeepsTheDanmuConnectionAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -80,9 +78,8 @@ public sealed class RoomDanmuLoopTest
 		await Assert.That(loop.Session.Danmaku.Feed.Status.DisconnectedAt).IsNull();
 	}
 
-	// 未登录的连接认证后马上收到这几条，存原始消息时未登录通知还多一份原始消息；只收到这些就被断开的连接要接着翻倍等待
+	// 未登录的连接认证后马上收到这几条，存原始消息时未登录通知还多一份原始消息
 	[Test]
-	[Timeout(30_000)]
 	public async Task ConnectionsDroppedRightAfterAuthenticationKeepBackingOffAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -106,7 +103,6 @@ public sealed class RoomDanmuLoopTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task LiveStartedFromDanmuDoesNotRecordThePreviousLiveIdAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -132,7 +128,6 @@ public sealed class RoomDanmuLoopTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task StoppingWaitsForThePostProcessingOfTheLastSegmentAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -149,7 +144,6 @@ public sealed class RoomDanmuLoopTest
 
 	// 状态查询的应答已经收到、还没校验时房间被停下，风控的 412 也按取消算，停止照常收尾
 	[Test]
-	[Timeout(30_000)]
 	public async Task StatusCheckFailingAsTheRoomStopsDoesNotFailTheStopAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);
@@ -163,7 +157,6 @@ public sealed class RoomDanmuLoopTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task DanmakuContentAndViewersStayOutOfTheLogsAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);

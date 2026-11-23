@@ -6,7 +6,6 @@ public abstract class ViewModelBase : ReactiveObject, IDisposable
 
 	protected MultipleDisposable Disposables { get; } = new();
 
-	// quietPeriod 为正时，值停下来这么久之后才保存
 	protected void PersistToConfig<T>(IAppConfigManager configManager, IObservable<T> source, Action<AppConfig, T> updateAction, TimeSpan quietPeriod = default)
 	{
 		IObservable<T> changes = source.Skip(1);
@@ -19,7 +18,6 @@ public abstract class ViewModelBase : ReactiveObject, IDisposable
 		RunLatest(changes.Unique(), (value, cancellationToken) => configManager.UpdateAsync(config => updateAction(config, value), cancellationToken).AsTask());
 	}
 
-	// 新值到来时取消上一个值还没做完的操作；出错和 Forget 一样交给全局处理
 	protected void RunLatest<T>(IObservable<T> source, Func<T, CancellationToken, Task> action)
 	{
 		source

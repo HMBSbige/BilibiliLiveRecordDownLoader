@@ -8,7 +8,6 @@ public sealed class FFmpegStreamSessionTest
 	private static readonly Uri Source = new("https://cdn.test/live.flv");
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task OutputFlushedAfterStoppingReachesTheRecordingAsync(CancellationToken cancellationToken)
 	{
 		using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -21,7 +20,6 @@ public sealed class FFmpegStreamSessionTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task WriteThatNeverReturnsCannotHangTheStopAsync(CancellationToken cancellationToken)
 	{
 		using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

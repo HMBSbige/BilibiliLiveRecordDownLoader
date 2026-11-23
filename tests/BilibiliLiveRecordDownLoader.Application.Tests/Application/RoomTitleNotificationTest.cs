@@ -8,7 +8,6 @@ public sealed class RoomTitleNotificationTest
 	private static readonly Uri LiveRoomUri = new($"https://live.bilibili.com/{RecordingLoopHarness.RoomId}");
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task RefreshNotifiesOnlyWhenTheTitleReallyChangesAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Create(cancellationToken);
@@ -31,7 +30,6 @@ public sealed class RoomTitleNotificationTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task RoomChangedMessageNotifiesOnlyWhenTheTitleReallyChangesAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Create(cancellationToken);
@@ -52,7 +50,6 @@ public sealed class RoomTitleNotificationTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	[Arguments(false, true)]
 	[Arguments(true, false)]
 	public async Task TitleChangeIsNotNotifiedUnlessBothSwitchesAreOnAsync(bool isRoomNotificationEnabled, bool isTitleNotificationEnabled, CancellationToken cancellationToken)

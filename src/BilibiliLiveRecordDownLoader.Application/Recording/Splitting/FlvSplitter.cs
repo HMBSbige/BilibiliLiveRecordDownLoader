@@ -88,7 +88,7 @@ internal sealed class FlvSplitter : MediaSplitter
 			return data.Length;
 		}
 
-		// 签名和 tag 类型对不上时马上放弃，不等凑够一个头
+		// 签名对不上时马上放弃，不等凑够文件头
 		if (!_hasFileHeader)
 		{
 			ReadOnlySpan<byte> signature = "FLV"u8;
@@ -301,7 +301,7 @@ internal sealed class FlvSplitter : MediaSplitter
 		tag[7] = (byte)(timestamp >> 24);
 	}
 
-	// 和 Accept 一样只按音视频帧推进：onMetaData 和序列头的时间戳可能是 0，拿来定起点或判断重新开始会让后面的帧整体推后，和时间轴放弹幕的位置对不上
+	// 和 Accept 一样只按音视频帧推进，否则和时间轴放弹幕的位置对不上
 	// 音视频交错时紧跟第一帧的 tag 可能比它早一点，算出负数，夹到 0
 	private uint Retime(ReadOnlySpan<byte> tag)
 	{

@@ -161,7 +161,7 @@ public class FlvExtractorTest
 		FlvExtractResult result = await FlvExtractor.ExtractAsync(input, directory.Root);
 
 		await Assert.That(result).IsEqualTo(new FlvExtractResult(video, null));
-		await Assert.That(Directory.EnumerateFiles(directory.Root)).IsEquivalentTo([input, video], StringComparer.Ordinal);
+		await Assert.That(Directory.EnumerateFiles(directory.Root)).IsEquivalentTo([input, video]);
 	}
 
 	[Test]
@@ -169,7 +169,6 @@ public class FlvExtractorTest
 	[Arguments(false, true, @"1C00000000" + @"01", "video starts as HEVC")]
 	[Arguments(false, false, @"2F01" + @"21004990", "audio starts as MP3")]
 	[Arguments(true, true, @"9068766331" + @"01", "video switches to enhanced HEVC")]
-	// AudioObjectType 6（BSAC）无法用 ADTS 表示
 	[Arguments(true, false, @"AF00" + @"3210", "audio switches to an unsupported AudioSpecificConfig")]
 	public async Task UnconvertibleTagThrowsWithoutOutputAsync(bool midway, bool isVideo, string hex, string reason)
 	{
@@ -184,7 +183,7 @@ public class FlvExtractorTest
 		string input = directory.CreateFile(@"input.flv", flv);
 
 		await Assert.That(async () => await FlvExtractor.ExtractAsync(input, directory.Root)).Throws<NotSupportedException>().Because(reason);
-		await Assert.That(Directory.EnumerateFiles(directory.Root)).IsEquivalentTo([input], StringComparer.Ordinal);
+		await Assert.That(Directory.EnumerateFiles(directory.Root)).IsEquivalentTo([input]);
 	}
 
 	[Test]
@@ -234,7 +233,7 @@ public class FlvExtractorTest
 		FlvExtractResult result = await FlvExtractor.ExtractAsync(input, directory.Root);
 
 		await Assert.That(result).IsEqualTo(new FlvExtractResult(null, null));
-		await Assert.That(Directory.EnumerateFiles(directory.Root)).IsEquivalentTo([input], StringComparer.Ordinal);
+		await Assert.That(Directory.EnumerateFiles(directory.Root)).IsEquivalentTo([input]);
 	}
 
 	[Test]
@@ -308,7 +307,7 @@ public class FlvExtractorTest
 		string input = directory.CreateFile(@"fake.flv", "not an flv file"u8.ToArray());
 
 		await Assert.That(async () => await FlvExtractor.ExtractAsync(input, directory.Root)).Throws<InvalidDataException>();
-		await Assert.That(Directory.EnumerateFiles(directory.Root)).IsEquivalentTo([input], StringComparer.Ordinal);
+		await Assert.That(Directory.EnumerateFiles(directory.Root)).IsEquivalentTo([input]);
 	}
 
 	[Test]

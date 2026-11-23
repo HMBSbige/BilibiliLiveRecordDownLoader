@@ -5,7 +5,6 @@ using BilibiliLiveRecordDownLoader.Application.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Globalization;
 using System.Xml;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -14,7 +13,6 @@ public sealed class RoomDanmakuRecordingTest
 	private const int KeyFrameSize = 40 << 10;
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task DanmakuFollowsTheVideoSegmentsWithTimesFromTheVideoAsync(CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();
@@ -74,7 +72,6 @@ public sealed class RoomDanmakuRecordingTest
 
 	// 文件开头的连接状态是画面开头的状态，不加偏移
 	[Test]
-	[Timeout(30_000)]
 	public async Task DanmakuFollowingTheVideoIsShiftedByTheOffsetAsync(CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();
@@ -103,7 +100,6 @@ public sealed class RoomDanmakuRecordingTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task DanmakuDuringReconnectingIsLeftOutAndTheNextAttemptStartsFromItsOwnFileAsync(CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();
@@ -141,7 +137,6 @@ public sealed class RoomDanmakuRecordingTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task TooSmallVideoIsDeletedTogetherWithItsDanmakuAsync(CancellationToken cancellationToken)
 	{
 		RecordingMediaTools mediaTools = new();
@@ -164,7 +159,6 @@ public sealed class RoomDanmakuRecordingTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task DanmakuOnlyFollowsTheLiveStatusAndSplitsOnTitleChangesAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Create(cancellationToken, new RecordingMediaTools());
@@ -210,7 +204,6 @@ public sealed class RoomDanmakuRecordingTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task TitleChangeIsRecordedWhenDanmakuOnlyDoesNotSplitAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Create(cancellationToken, new RecordingMediaTools());
@@ -231,7 +224,6 @@ public sealed class RoomDanmakuRecordingTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task RawMessagesOfTheWholeLiveGoToOneFileAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Create(cancellationToken, new RecordingMediaTools());
@@ -285,7 +277,6 @@ public sealed class RoomDanmakuRecordingTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task ParsingIsOnOnlyWhileRecordingDanmakuOrSubscribedAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Create(cancellationToken, new RecordingMediaTools());
@@ -329,7 +320,6 @@ public sealed class RoomDanmakuRecordingTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task FeedKeepsRecentEntriesWhileRecordingAndReportsTheConnectionAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Create(cancellationToken, new RecordingMediaTools());

@@ -149,7 +149,6 @@ public sealed class BilibiliApiClient
 		}
 	}
 
-	// The token of an anonymous request only authenticates uid 0
 	internal async Task<DanmuServerInfo> GetDanmuServerInfoAsync(long roomId, bool anonymous, CancellationToken cancellationToken)
 	{
 		Uri uri = await CreateSignedUriAsync($"{LiveApi}xlive/web-room/v1/index/getDanmuInfo", [new("id", roomId.ToString(CultureInfo.InvariantCulture)), new("type", "0"), new("web_location", "444.8")], cancellationToken);

@@ -14,7 +14,6 @@ internal sealed class Fmp4TrackTimes(Fmp4Track[] tracks)
 	private readonly List<TrackFragmentTime> _fragment = [];
 	private readonly List<MediaSpan> _spans = [];
 
-	// 每个 moof 一条，和 Fmp4Rebaser 推进时间的粒度相同，时间轴才能认出 moof 之间的重新开始
 	public MediaSpan[] ReadFragmentSpans(ReadOnlySpan<byte> fragment)
 	{
 		_spans.Clear();

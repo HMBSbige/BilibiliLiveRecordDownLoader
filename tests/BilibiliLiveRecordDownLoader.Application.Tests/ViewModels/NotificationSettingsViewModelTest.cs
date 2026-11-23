@@ -6,7 +6,6 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 public sealed class NotificationSettingsViewModelTest
 {
 	[Test]
-	[Timeout(30_000)]
 	public async Task SwitchesAreRestoredFromAndSavedToTheConfigAsync(CancellationToken cancellationToken)
 	{
 		AppConfig config = AppConfig.CreateDefault();

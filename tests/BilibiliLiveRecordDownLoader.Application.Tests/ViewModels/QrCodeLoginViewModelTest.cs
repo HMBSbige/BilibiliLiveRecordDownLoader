@@ -7,7 +7,6 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 public sealed class QrCodeLoginViewModelTest
 {
 	[Test]
-	[Timeout(30_000)]
 	public async Task FailureToCreateTheQrCodeStopsLoadingAndShowsTheReasonAsync(CancellationToken cancellationToken)
 	{
 		using QrCodeLoginViewModel dialog = new(new FailingAccountAppService(new TimeoutException("请求超时")));

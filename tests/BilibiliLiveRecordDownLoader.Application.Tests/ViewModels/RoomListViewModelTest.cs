@@ -5,7 +5,6 @@ using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Signals;
 using System.Collections.Concurrent;
 using System.Windows.Input;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 
@@ -35,7 +34,6 @@ public sealed class RoomListViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	[MethodDataSource(nameof(CommandCases))]
 	public async Task MoveCommandsMoveTheSelectionPastTheExpectedRoomAsync(string command, long[] selected, long? before, long[] expected, CancellationToken cancellationToken)
 	{
@@ -71,7 +69,6 @@ public sealed class RoomListViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	[MethodDataSource(nameof(DropCases))]
 	public async Task DroppingMovesTheSelectionBeforeTheRoomAtTheInsertionPointAsync(long[] selected, int index, long? before, long[] expected, CancellationToken cancellationToken)
 	{
@@ -95,7 +92,6 @@ public sealed class RoomListViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task SortOrderIsRestoredFromAndSavedToTheConfigAsync(CancellationToken cancellationToken)
 	{
 		AppConfig config = AppConfig.CreateDefault();
@@ -150,7 +146,6 @@ public sealed class RoomListViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task RowToggleSavesOnlyThatSettingAsync(CancellationToken cancellationToken)
 	{
 		FakeRoomAppService rooms = new(InitialOrder);
@@ -166,7 +161,6 @@ public sealed class RoomListViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	[Arguments(false)]
 	[Arguments(true)]
 	public async Task FailedSaveRestoresTheToggleAsync(bool failsSynchronously, CancellationToken cancellationToken)
@@ -194,7 +188,6 @@ public sealed class RoomListViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task ShowingDanmakuSwitchesFromTheOpenFileToTheSelectedRoomAsync(CancellationToken cancellationToken)
 	{
 		FakeDanmakuAppService danmaku = new() { OpenFile = static (_, _) => Task.FromResult(DanmakuFileViewModelTest.CreateFile(seconds: [1])) };
@@ -211,7 +204,6 @@ public sealed class RoomListViewModelTest
 
 	// 即使面板正开着别的文件
 	[Test]
-	[Timeout(30_000)]
 	public async Task OpeningADanmakuFileFromTheRoomMenuStartsInTheRoomDirectoryAsync(CancellationToken cancellationToken)
 	{
 		FakeConfigManager configManager = new();
@@ -234,9 +226,7 @@ public sealed class RoomListViewModelTest
 		await Assert.That(await picked.Task.WaitAsync(cancellationToken)).IsEqualTo(RecordingFileLayout.GetRoomDirectory(recordDirectory, 5));
 	}
 
-	// 在录的直播间和弹幕连接都要等重连才用上登录身份，横幅按 Cookie 立即收起，面板先显示等重连
 	[Test]
-	[Timeout(30_000)]
 	[Arguments(false)]
 	[Arguments(true)]
 	public async Task LoggingInDismissesTheBannerAndMarksTheDanmakuConnectionAsPendingAsync(bool fromPanel, CancellationToken cancellationToken)
@@ -258,7 +248,6 @@ public sealed class RoomListViewModelTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task FailedLoginKeepsTheBannerAndTheLoginButtonAsync(CancellationToken cancellationToken)
 	{
 		using RoomListViewModel viewModel = CreateAnonymous(Signal.Return<string?>(null), static _ => Task.FromResult(false));
@@ -268,9 +257,7 @@ public sealed class RoomListViewModelTest
 		await Assert.That((loggedIn, viewModel.LoginBannerText, viewModel.Danmaku.Live?.CanLogin)).IsEqualTo((false, AppLanguage.Current.DanmakuMaskedBanner, true));
 	}
 
-	// 在账号页登录、粘贴或清除 Cookie 都不经过房间列表，房间的版本也不变；只有空白的 Cookie 和没有一样
 	[Test]
-	[Timeout(30_000)]
 	public async Task CookieChangedOnTheAccountPageUpdatesTheBannerAndTheDanmakuPanelAsync(CancellationToken cancellationToken)
 	{
 		using BehaviorSignal<string?> cookie = new(null);

@@ -72,7 +72,6 @@ internal static class DanmakuSamples
 		return ReadAsync(Encoding.UTF8.GetBytes(xml), cancellationToken);
 	}
 
-	// 任何不合法的地方都会抛异常
 	public static Dictionary<string, int> ParseStrictly(byte[] content)
 	{
 		Dictionary<string, int> counts = new(StringComparer.Ordinal);

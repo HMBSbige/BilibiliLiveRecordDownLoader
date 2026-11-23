@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using System.Runtime.Versioning;
-using TUnit.Assertions.Enums;
 using OS = TUnit.Core.Enums.OS;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Configuration;
@@ -522,7 +521,6 @@ public sealed class AppConfigManagerTest : IDisposable
 			await Assert.That(manager.IsLegacyConfigImported).IsEqualTo(expectedRoomId is not null);
 			await Assert.That(File.Exists(ConfigPath)).IsEqualTo(expectedRoomId is not null);
 			await Assert.That(config.Rooms.Select(static room => (long?)room.RoomId).SingleOrDefault()).IsEqualTo(expectedRoomId);
-			// 旧版没写录制目录时录到“视频”文件夹本身
 			await Assert.That(config.RecordDirectory).IsEqualTo(expectedRoomId is null ? ConfigurationConsts.DefaultRecordDirectory : LegacyDefaultRecordDirectory());
 		}
 	}

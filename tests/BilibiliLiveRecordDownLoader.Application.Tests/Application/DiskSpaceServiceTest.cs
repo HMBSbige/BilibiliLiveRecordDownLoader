@@ -1,6 +1,5 @@
 using BilibiliLiveRecordDownLoader.Application.Contracts.Storage;
 using BilibiliLiveRecordDownLoader.Application.Storage;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 

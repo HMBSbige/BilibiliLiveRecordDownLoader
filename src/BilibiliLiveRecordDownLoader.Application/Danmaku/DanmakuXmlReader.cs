@@ -185,7 +185,6 @@ internal static class DanmakuXmlReader
 		string user = isNative ? reader.GetAttribute(@"user") ?? string.Empty : string.Empty;
 		bool storm = isNative && reader.GetAttribute(@"storm") is @"1";
 
-		// 打码时 uid 为 0 而哈希仍是真的，原样保留
 		return new DanmakuRecord.Comment(time, mode, fontSize, color, sentAt, uid, user, string.Empty, dmId) { IsStorm = storm, UidHash = fields.ElementAtOrDefault(6) ?? @"0" };
 	}
 

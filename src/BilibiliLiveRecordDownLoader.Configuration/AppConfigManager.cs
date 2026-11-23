@@ -10,7 +10,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 
 	private static readonly TimeSpan ReadRetryDelay = TimeSpan.FromMilliseconds(200);
 
-	// 逐项清理要用 JsonObject，它遇到重复的键会抛 ArgumentException；解析时就拒绝，和其他读不出的文件一样处理
+	// 逐项清理用的 JsonObject 遇到重复的键会抛 ArgumentException，解析时就拒绝
 	private static readonly JsonDocumentOptions DocumentOptions = new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true, AllowDuplicateProperties = false };
 	private static readonly JsonObject DefaultNode = SerializeToJsonObject(AppConfig.CreateDefault(), AppConfigJsonContext.Default.AppConfig);
 	private static readonly JsonObject DefaultRoomNode = SerializeToJsonObject(new RoomConfig(), AppConfigJsonContext.Default.RoomConfig);
@@ -153,7 +153,7 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 				unsaved = config is not null;
 			}
 
-			// 没有备份就是第一次运行，临时文件读不出时也是；只删了配置文件来重置时备份还在，不再导入
+			// 没有备份才算第一次运行；用户删配置文件来重置时备份还在，不导入旧版
 			if (config is null && !File.Exists(BackupPath) && await TryImportLegacyAsync(cancellationToken).ConfigureAwait(false) is { } legacy)
 			{
 				config = legacy;
@@ -168,7 +168,6 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 			if (config is null)
 			{
 				LogConfigCorrupted(logger, exception, _configPath);
-				// 恢复出的配置写回之前损坏的文件一直留在原处，恢复中途取消或写回失败时下次加载照样从备份恢复；只剩备份的话会被当成用户删了配置
 				config = await TryRestoreAsync(BackupPath, cancellationToken).ConfigureAwait(false);
 				PreserveCorruptedFile(config is not null);
 			}
@@ -351,7 +350,8 @@ public sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions> s
 		}
 	}
 
-	// 恢复出配置时复制一份，原处的文件留给写回覆盖；没有可恢复的就移走：这时不立即写盘，留在原处的话每次启动都会再当成损坏处理一遍
+	// 恢复出配置时只复制，写回前损坏的文件留在原处：取消或写回失败时下次照样从备份恢复，移走的话只剩备份会被当成用户删了配置
+	// 没有可恢复的就移走：这时不立即写盘，留在原处每次启动都会再当成损坏处理一遍
 	private void PreserveCorruptedFile(bool isRestored)
 	{
 		string target = $"{_configPath}.corrupt-{DateTimeOffset.Now.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture)}";

@@ -72,7 +72,6 @@
     <Style Selector="StackPanel.field">
         <Setter Property="Spacing" Value="{StaticResource FieldSpacing}" />
     </Style>
-    <!-- 输入框后面跟着的按钮或单位 -->
     <Style Selector="StackPanel.field > DockPanel, Grid.form > DockPanel">
         <Setter Property="HorizontalSpacing" Value="{StaticResource ToolbarSpacing}" />
     </Style>

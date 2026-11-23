@@ -356,7 +356,7 @@ internal readonly record struct Fmp4Track(uint TrackId, uint Timescale, uint Def
 		return (long)UInt128.Min((UInt128)value * TimeSpan.TicksPerSecond / Timescale, long.MaxValue);
 	}
 
-	// 不小于 ticks 的最小轨道时间，ticks 为负时是负的；由 ToTicks(value) >= ticks 推出 value >= FromTicksCeiling(ticks)，按它减去起点不会减出负数
+	// 不小于 ticks 的最小轨道时间，ticks 为负时是负的；按它减去起点不会减出负数
 	public long FromTicksCeiling(long ticks)
 	{
 		(Int128 quotient, Int128 remainder) = Int128.DivRem((Int128)ticks * Timescale, TimeSpan.TicksPerSecond);

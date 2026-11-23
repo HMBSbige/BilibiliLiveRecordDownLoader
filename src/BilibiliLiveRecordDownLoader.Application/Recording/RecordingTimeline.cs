@@ -24,7 +24,7 @@ internal sealed class RecordingTimeline : IRecordingTimeline
 	// 要大于正常录制时最长的到达间隔：TS HLS 实测分片 3–5 秒，加上半个目标时长的刷新间隔和下载，约 8 秒
 	private static readonly TimeSpan MinExtrapolationLimit = TimeSpan.FromSeconds(10);
 
-	// 正常录制时弹幕排队放置不过几秒，远早于这个时长的记录不再保留；卡流后最新确定的记录会一下跳过整个卡流，卡流前后要用的记录由 Prune 另外留下
+	// 正常录制时弹幕排队放置不过几秒
 	internal static readonly TimeSpan Retention = TimeSpan.FromMinutes(2);
 
 	private const int DefaultPruneThreshold = 1024;

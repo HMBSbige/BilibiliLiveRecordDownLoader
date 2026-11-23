@@ -6,8 +6,6 @@ namespace MediaToolkit.Tests.FFmpeg;
 
 public class FFmpegRunnerTest
 {
-	private const int TestTimeout = 60_000;
-
 	[Test]
 	public async Task ProxyFromTheEnvironmentIsDroppedWithoutTheProxyArgumentAsync()
 	{
@@ -27,12 +25,10 @@ public class FFmpegRunnerTest
 
 		FFmpegRunner.RemoveUnrequestedProxy(startInfo);
 
-		// 其他系统上环境变量名区分大小写，FFmpeg 也不读大写的
 		await Assert.That(startInfo.Environment.ContainsKey(@"HTTP_PROXY")).IsEqualTo(!OperatingSystem.IsWindows());
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task CancellationSendsQuitAndWaitsForGracefulExitAsync(CancellationToken cancellationToken)
 	{
 		// 比下面断言的 20 秒长，走了强杀路径就会失败
@@ -70,7 +66,6 @@ public class FFmpegRunnerTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task CancellationKillsProcessThatIgnoresQuitAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = new(FakeProcess.Executable) { GracefulExitTimeout = TimeSpan.FromMilliseconds(500) };
@@ -103,7 +98,6 @@ public class FFmpegRunnerTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task StandardOutputIsHandedToTheReaderAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = new(FakeProcess.Executable);
@@ -116,7 +110,6 @@ public class FFmpegRunnerTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task CancellationLetsTheReaderReceiveOutputWrittenAfterQuitAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = new(FakeProcess.Executable) { GracefulExitTimeout = TimeSpan.FromSeconds(30) };
@@ -158,7 +151,6 @@ public class FFmpegRunnerTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task ReaderFailureStopsTheProcessAndSurfacesAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = new(FakeProcess.Executable) { GracefulExitTimeout = TimeSpan.FromMilliseconds(500) };
@@ -199,7 +191,6 @@ public class FFmpegRunnerTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task NonZeroExitThrowsWithLastStandardErrorLineAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = new(FakeProcess.Executable);
@@ -225,7 +216,6 @@ public class FFmpegRunnerTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task FailureMessageKeepsTheReasonBeforeClosingNoticesAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = new(FakeProcess.Executable);
@@ -251,7 +241,6 @@ public class FFmpegRunnerTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task SignedUrlQueriesAreRedactedFromFailuresAndProgressAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = new(FakeProcess.Executable);
@@ -278,7 +267,6 @@ public class FFmpegRunnerTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task ProgressFailureStopsTheProcessAndSurfacesAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = new(FakeProcess.Executable) { GracefulExitTimeout = TimeSpan.FromMilliseconds(500) };
@@ -305,7 +293,6 @@ public class FFmpegRunnerTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task ReportsProgressForEveryStandardErrorLineAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = new(FakeProcess.Executable);
@@ -337,7 +324,6 @@ public class FFmpegRunnerTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task GetVersionAsyncParsesVersionFromStandardOutputAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
@@ -349,7 +335,6 @@ public class FFmpegRunnerTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task GetVersionAsyncReturnsNullOnNonZeroExitAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
@@ -371,7 +356,6 @@ public class FFmpegRunnerTest
 	}
 
 	[Test]
-	[Timeout(TestTimeout)]
 	public async Task StartedProcessIsTrackedForCleanupAsync(CancellationToken cancellationToken)
 	{
 		using Process tracked = ChildProcessTracker.Start(SleepStartInfo());

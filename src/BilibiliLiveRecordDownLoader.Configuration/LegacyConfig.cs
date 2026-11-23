@@ -11,7 +11,7 @@ internal static class LegacyConfig
 		return Path.ChangeExtension(path, ".backup.json");
 	}
 
-	// 转成现在的配置结构，类型不对的值留给读取时丢掉
+	// 类型不对的值留给读取时丢掉
 	public static JsonObject ToCurrent(JsonObject legacy)
 	{
 		JsonObject config = [];

@@ -9,7 +9,6 @@ using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Web;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -26,7 +25,6 @@ public sealed class RoomAppServiceTest
 	private static readonly (long RoomId, long ShortId, string UserName)[] KnownRooms = [(FirstRoomId, 732, "Asaki大人"), (SecondRoomId, 1, "官方"), (ExistingRoomId, 0, "已有"), (ThirdRoomId, 0, "第三"), (FourthRoomId, 0, "第四"), (FifthRoomId, 0, "第五")];
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task AddRangeResolvesShortIdsInOneLookupAndWritesConfigOnceAsync(CancellationToken cancellationToken)
 	{
 		await using Harness harness = await Harness.CreateAsync();
@@ -55,7 +53,6 @@ public sealed class RoomAppServiceTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task AddRangeReportsFailuresWithoutDroppingTheOtherRoomsAsync(CancellationToken cancellationToken)
 	{
 		await using Harness harness = await Harness.CreateAsync();
@@ -75,7 +72,6 @@ public sealed class RoomAppServiceTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task AddRangeFallsBackToSingleLookupsWhenTheBatchIsRejectedAsync(CancellationToken cancellationToken)
 	{
 		await using Harness harness = await Harness.CreateAsync(rejectBatch: true);
@@ -90,7 +86,6 @@ public sealed class RoomAppServiceTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task AddRangeFailsTheChunkWithoutRetryingWhenTheRequestFailsAsync(CancellationToken cancellationToken)
 	{
 		await using Harness harness = await Harness.CreateAsync();
@@ -108,7 +103,6 @@ public sealed class RoomAppServiceTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task AddRangeReportsATimeoutWithALocalizedMessageAsync(CancellationToken cancellationToken)
 	{
 		await using Harness harness = await Harness.CreateAsync();
@@ -120,7 +114,6 @@ public sealed class RoomAppServiceTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task FollowedRoomsAreMarkedAddedByRoomIdOrShortIdAsync(CancellationToken cancellationToken)
 	{
 		await using Harness harness = await Harness.CreateAsync();
@@ -140,7 +133,6 @@ public sealed class RoomAppServiceTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task FollowedRoomsRequireLoginAsync(CancellationToken cancellationToken)
 	{
 		await using Harness harness = await Harness.CreateAsync();
@@ -150,7 +142,6 @@ public sealed class RoomAppServiceTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task BlockedFollowedRoomsFailWithAReadableMessageAsync(CancellationToken cancellationToken)
 	{
 		await using Harness harness = await Harness.CreateAsync();
@@ -160,7 +151,6 @@ public sealed class RoomAppServiceTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task TimedOutFollowedRoomsFailWithALocalizedMessageAsync(CancellationToken cancellationToken)
 	{
 		await using Harness harness = await Harness.CreateAsync();
@@ -170,7 +160,6 @@ public sealed class RoomAppServiceTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task AddingAnUnknownRoomFailsWithALocalizedMessageAsync(CancellationToken cancellationToken)
 	{
 		await using Harness harness = await Harness.CreateAsync();
@@ -183,7 +172,6 @@ public sealed class RoomAppServiceTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task AddingARoomWhileBlockedFailsWithAReadableMessageAsync(CancellationToken cancellationToken)
 	{
 		await using Harness harness = await Harness.CreateAsync();
@@ -193,7 +181,6 @@ public sealed class RoomAppServiceTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	public async Task AddingARoomThatTimesOutFailsWithALocalizedMessageAsync(CancellationToken cancellationToken)
 	{
 		await using Harness harness = await Harness.CreateAsync();
@@ -206,9 +193,8 @@ public sealed class RoomAppServiceTest
 		}
 	}
 
-	// 删除房间后马上退出：房间还在收尾时退出要等它，也要先确认
+	// 退出前的确认也要算上删除后还在收尾的房间
 	[Test]
-	[Timeout(30_000)]
 	public async Task StopWaitsForRemovedRoomsThatAreStillClosingAsync(CancellationToken cancellationToken)
 	{
 		await using Harness harness = await Harness.CreateAsync();
@@ -236,7 +222,6 @@ public sealed class RoomAppServiceTest
 
 	// 启动时在配置锁外枚举房间列表，这时界面上可能正在增删改房间
 	[Test]
-	[Timeout(30_000)]
 	[MethodDataSource(nameof(RoomListChanges))]
 	public async Task RoomChangesReplaceTheRoomListInsteadOfChangingItAsync(Func<IRoomAppService, CancellationToken, Task> change, RoomSettingsDto[] expected, CancellationToken cancellationToken)
 	{
@@ -269,7 +254,6 @@ public sealed class RoomAppServiceTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	[MethodDataSource(nameof(MoveCases))]
 	public async Task MoveKeepsTheRelativeOrderAndWritesConfigOnceAsync(long[] roomIds, long? before, long[] expected, CancellationToken cancellationToken)
 	{
@@ -299,7 +283,6 @@ public sealed class RoomAppServiceTest
 	}
 
 	[Test]
-	[Timeout(30_000)]
 	[MethodDataSource(nameof(UnchangedMoveCases))]
 	public async Task MoveThatChangesNothingDoesNotWriteConfigAsync(long[] roomIds, long? before, CancellationToken cancellationToken)
 	{

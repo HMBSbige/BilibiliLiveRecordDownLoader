@@ -1,5 +1,4 @@
 using BilibiliLiveRecordDownLoader.Application.Danmaku;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
@@ -113,7 +112,6 @@ public sealed class DanmakuHighlightDetectorTest
 		await Assert.That(DanmakuHighlightDetector.Detect(records, Hour).Select(static highlight => highlight.Phrase)).IsEquivalentTo([@"好耶"]);
 	}
 
-	// 昵称打码时 uid 为 0，但哈希是真的，仍按人去重
 	[Test]
 	public async Task MaskedUsersAreCountedByTheirHashAsync()
 	{
@@ -129,7 +127,6 @@ public sealed class DanmakuHighlightDetectorTest
 		}
 	}
 
-	// 没有哈希时只能每条算一个人
 	[Test]
 	public async Task AnonymousMessagesAreCountedOneByOneAsync()
 	{

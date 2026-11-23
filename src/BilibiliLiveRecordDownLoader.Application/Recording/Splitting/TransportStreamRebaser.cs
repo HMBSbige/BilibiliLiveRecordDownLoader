@@ -49,8 +49,8 @@ internal sealed class TransportStreamRebaser
 		return Math.Max(value, 0) & PtsClock.Period - 1;
 	}
 
-	// 关键帧后面的音频 PES 常早几十毫秒，一个 PES 又装着好几帧，按第一个 PES 定起点的话它们夹到 0、和下一个 PES 的帧重叠，所以取这一段第一次改写的数据里最早的解码时间
-	// 比第一个 PES 早出容差以上的属于重新开始的时间线，不算；FFmpeg 的 TS 第一次改写的是从关键帧起的整个单元（见 MediaSplitter.HoldsFirstUnit），HLS 的是第一个分片
+	// 关键帧后面的音频 PES 常早几十毫秒，按第一个 PES 定起点的话它们夹到 0、和下一个 PES 的帧重叠，所以取这一段第一次改写的数据（见 MediaSplitter.HoldsFirstUnit）里最早的解码时间
+	// 比第一个 PES 早出容差以上的属于重新开始的时间线，不算
 	private long? FindOrigin(ReadOnlySpan<byte> packets)
 	{
 		// 只是先看一遍，不能动正式展开的状态

@@ -25,7 +25,6 @@ public sealed class RoomEditorViewModelTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task OnlyTheValueOfTheChosenModeIsSavedAsync(CancellationToken cancellationToken)
 	{
 		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1 }, out Task<RoomSettingsDto> submitted);
@@ -45,7 +44,6 @@ public sealed class RoomEditorViewModelTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task OverriddenSplitIsShownAndClearedWhenFollowingTheGlobalAgainAsync(CancellationToken cancellationToken)
 	{
 		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1, SplitMode = RecordingSplitMode.Size, SplitSizeMegabytes = 1000, SplitOnTitleChange = true }, out Task<RoomSettingsDto> submitted);
@@ -63,7 +61,6 @@ public sealed class RoomEditorViewModelTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task EmptyDanmakuOffsetFollowsTheGlobalOneAsync(CancellationToken cancellationToken)
 	{
 		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1 }, out Task<RoomSettingsDto> submitted, new AppConfig { DanmakuOffset = TimeSpan.FromSeconds(0.5) });
@@ -80,7 +77,6 @@ public sealed class RoomEditorViewModelTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task DanmakuSettingsOfTheRoomAreSavedAsync(CancellationToken cancellationToken)
 	{
 		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1, DanmakuOffset = TimeSpan.FromSeconds(-1) }, out Task<RoomSettingsDto> submitted);

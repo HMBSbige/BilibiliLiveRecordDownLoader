@@ -6,7 +6,6 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 public sealed class DanmakuSettingsViewModelTest
 {
 	[Test]
-	[Timeout(30_000)]
 	public async Task SettingsAreRestoredFromAndSavedToTheConfigAsync(CancellationToken cancellationToken)
 	{
 		// 和默认值都相反，才看得出读了配置

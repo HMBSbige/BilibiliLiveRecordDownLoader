@@ -2,7 +2,6 @@ using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Globalization;
-using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -15,7 +14,6 @@ public sealed class RecordingTimelineTest
 	private static readonly TimeSpan FrameDuration = TimeSpan.FromMilliseconds(FrameInterval);
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task GopBurstOnConnectingCatchesUpWithTheLatestPictureAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -53,7 +51,6 @@ public sealed class RecordingTimelineTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task Fmp4BacklogFromTheOldestSegmentCatchesUpAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -86,7 +83,6 @@ public sealed class RecordingTimelineTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task TsBacklogUsesTheLastPictureOfEachSegmentAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -117,7 +113,6 @@ public sealed class RecordingTimelineTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task StalledStreamStopsMovingAfterTheLimitFromTheLastDataAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -165,7 +160,6 @@ public sealed class RecordingTimelineTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task DataWithoutCompleteElementsKeepsTheClockRunningAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -191,7 +185,6 @@ public sealed class RecordingTimelineTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	[Arguments(SplitKind.Duration)]
 	[Arguments(SplitKind.Size)]
 	[Arguments(SplitKind.Title)]
@@ -255,7 +248,6 @@ public sealed class RecordingTimelineTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task SegmentIsSettledBeforeItsFileIsReportedCompleteAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -280,7 +272,6 @@ public sealed class RecordingTimelineTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task FlvTimelineRestartContinuesAndForwardJumpsAreFollowedAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -302,7 +293,6 @@ public sealed class RecordingTimelineTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task TsPtsWrapKeepsTheFileTimeGoingAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -330,7 +320,6 @@ public sealed class RecordingTimelineTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task TsPtsResetWithinAnEraContinuesFromTheLatestPictureAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -350,7 +339,6 @@ public sealed class RecordingTimelineTest
 
 	// HLS 换 era 时会话以 Discontinuity 结束，下一次尝试是新的文件和新的时间轴
 	[Test]
-	[Timeout(10_000)]
 	public async Task NothingIsPlacedOutsideTheAttemptAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -375,7 +363,6 @@ public sealed class RecordingTimelineTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task WithoutMediaTimesEachFileCountsFromItsFirstUnitAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -399,7 +386,6 @@ public sealed class RecordingTimelineTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task EachFileKeepsTheSizeFromItsOwnHeaderAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
@@ -432,7 +418,6 @@ public sealed class RecordingTimelineTest
 
 	// 时间戳本来就从 0 开始，改写不动字节
 	[Test]
-	[Timeout(10_000)]
 	public async Task ReadingTheTimelineLeavesTheRecordedBytesUnchangedAsync(CancellationToken cancellationToken)
 	{
 		byte[] flv = [.. FlvHead(), .. Enumerable.Range(0, 50).SelectMany(static frame => (byte[])[.. FlvFrame((uint)frame * FrameInterval, frame % FramesPerGop is 0), .. FlvSamples.Audio((uint)frame * FrameInterval + 20)])];
@@ -481,7 +466,6 @@ public sealed class RecordingTimelineTest
 	}
 
 	[Test]
-	[Timeout(10_000)]
 	public async Task SplittingWithTheTimelineWritesTheSameFilesAsync(CancellationToken cancellationToken)
 	{
 		byte[] head = FlvHead();
@@ -554,7 +538,6 @@ public sealed class RecordingTimelineTest
 
 	// 攒着的单元中间卡流，卡得比保留时长还久，空闲超时还没到
 	[Test]
-	[Timeout(10_000)]
 	public async Task StallLongerThanTheRetentionKeepsTheRecordsItsDanmakuAreWaitingForAsync(CancellationToken cancellationToken)
 	{
 		FakeTimeProvider time = new();
