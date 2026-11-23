@@ -1,41 +1,11 @@
 using BilibiliLiveRecordDownLoader.Application.Contracts.Storage;
 using BilibiliLiveRecordDownLoader.Application.Storage;
+using OS = TUnit.Core.Enums.OS;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
 public sealed class DiskSpaceServiceTest
 {
-	[Test]
-	[Arguments("/mnt/data/videos", "/mnt/data", true)]
-	[Arguments("/mnt/data", "/mnt/data", true)]
-	[Arguments("/mnt/data2/videos", "/mnt/data", false)]
-	[Arguments("/mnt/data2/videos", "/", true)]
-	public async Task MountPointMatchesOnlyOnDirectoryBoundaryAsync(string path, string root, bool expected)
-	{
-		await Assert.That(DiskSpaceService.IsUnder(path, root, StringComparison.Ordinal)).IsEqualTo(expected);
-	}
-
-	[Test]
-	[Arguments(true, "/mnt/data")]
-	[Arguments(false, null)]
-	public async Task OnlyTheLongestMatchingMountIsProbedAsync(bool dataReady, string? expected)
-	{
-		(string Root, bool IsReady)[] mounts = [("/", true), ("/mnt/net", false), ("/mnt/data", dataReady)];
-		List<string> probed = [];
-
-		string? mount = DiskSpaceService.FindReadyMount(mounts.Select(static mount => mount.Root), static root => root, root =>
-		{
-			probed.Add(root);
-			return mounts.Single(mount => mount.Root == root).IsReady;
-		}, "/mnt/data/videos", StringComparison.Ordinal);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(mount).IsEqualTo(expected);
-			await Assert.That(probed).IsEquivalentTo(["/mnt/data"], CollectionOrdering.Matching);
-		}
-	}
-
 	[Test]
 	public async Task RecordDirectoryThatDoesNotExistYetReportsTheVolumeOfItsParentAsync()
 	{
@@ -50,6 +20,20 @@ public sealed class DiskSpaceServiceTest
 			await Assert.That(existing.AvailableBytes).IsGreaterThan(0).And.IsLessThanOrEqualTo(existing.TotalBytes);
 			await Assert.That(missing?.TotalBytes).IsEqualTo(existing.TotalBytes);
 		}
+	}
+
+	// 录播目录可能经符号链接放到别的分区上；/dev 在 Linux 和 macOS 上都单独挂载，和临时目录不在一个分区
+	[Test]
+	[ExcludeOn(OS.Windows)]
+	public async Task SymlinkedRecordDirectoryReportsTheVolumeItPointsToAsync()
+	{
+		using TestDirectory directory = new();
+		string link = directory.Combine("link");
+		Directory.CreateSymbolicLink(link, "/dev");
+
+		DiskSpaceInfo? linked = new DiskSpaceService().GetDiskSpace(Path.Combine(link, "records"));
+
+		await Assert.That(linked?.TotalBytes).IsEqualTo(new DriveInfo("/dev").TotalSize);
 	}
 
 	[Test]

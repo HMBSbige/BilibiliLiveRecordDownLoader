@@ -37,60 +37,64 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 	// 同一队列中的任务依次执行，避免多个转封装同时读写同一块磁盘
 	public Task<BackgroundTaskSnapshot> Enqueue(string title, string queueKey, Func<BackgroundTaskContext, CancellationToken, Task> work, string? sourcePath = null, string? targetPath = null)
 	{
-		Guid id = Guid.CreateVersion7();
-		TaskEntry entry = new(new BackgroundTaskSnapshot(id, title, sourcePath, targetPath, BackgroundTaskStatus.Queued, null, null, null));
-		SemaphoreSlim queue = _queues.GetOrAdd(queueKey, static _ => new SemaphoreSlim(1, 1));
-		// Completion 要在加入列表的同时可见，否则 StopAsync 不会等这个任务
-		Task<Task<BackgroundTaskSnapshot>> start = new(() => RunAsync(entry, queue, work));
-		Task<BackgroundTaskSnapshot> completion = start.Unwrap();
-		bool isStopping;
+		BackgroundTaskSnapshot snapshot = new(Guid.CreateVersion7(), title, sourcePath, targetPath, BackgroundTaskStatus.Queued, null, null, null);
+		TaskEntry entry;
 
 		lock (_lock)
 		{
-			isStopping = _isStopping;
-
-			if (isStopping)
+			if (_isStopping)
 			{
-				entry.Snapshot = entry.Snapshot with { Status = BackgroundTaskStatus.Canceled };
-				completion = Task.FromResult(entry.Snapshot);
+				snapshot = snapshot with { Status = BackgroundTaskStatus.Canceled };
 			}
 
-			entry.Completion = completion;
+			entry = new TaskEntry(snapshot);
 			_entries.Add(entry);
 			TrimFinished();
 		}
 
 		Touch();
 
-		if (!isStopping)
+		if (snapshot.IsActive)
 		{
-			start.RunSynchronously(TaskScheduler.Default);
+			_ = RunAsync(entry, _queues.GetOrAdd(queueKey, static _ => new SemaphoreSlim(1, 1)), work);
+		}
+		else
+		{
+			entry.Complete(snapshot);
 		}
 
-		return completion;
+		return entry.Completion;
 	}
 
 	public void Cancel(Guid id)
 	{
+		CancellationTokenSource? cancellation;
+
 		lock (_lock)
 		{
-			_entries.Find(entry => entry.Snapshot.Id == id)?.Cancel();
+			cancellation = _entries.Find(entry => entry.Snapshot.Id == id)?.Cancellation;
 		}
+
+		cancellation?.Cancel();
 	}
 
 	public void CancelAll()
 	{
+		TaskEntry[] entries;
+
 		lock (_lock)
 		{
-			_entries.ForEach(static entry => entry.Cancel());
+			entries = [.. _entries];
 		}
+
+		CancelEach(entries);
 	}
 
 	public void RemoveFinished()
 	{
 		lock (_lock)
 		{
-			RemoveOldestFinished(static _ => true, int.MaxValue);
+			_entries.RemoveAll(static entry => !entry.Snapshot.IsActive);
 		}
 
 		Touch();
@@ -98,22 +102,31 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 
 	public async Task StopAsync()
 	{
-		Task[] pending;
+		TaskEntry[] entries;
 
 		lock (_lock)
 		{
 			_isStopping = true;
-			_entries.ForEach(static entry => entry.Cancel());
-			pending = [.. _entries.Select(static entry => entry.Completion)];
+			entries = [.. _entries];
 		}
 
-		await Task.WhenAll(pending);
+		CancelEach(entries);
+		await Task.WhenAll(entries.Select(static entry => entry.Completion));
+	}
+
+	// 取消回调会就地跑完 FFmpeg 结束进程和任务的收尾，所以在锁外逐个取消
+	private static void CancelEach(TaskEntry[] entries)
+	{
+		foreach (TaskEntry entry in entries)
+		{
+			entry.Cancellation.Cancel();
+		}
 	}
 
 	// 要在 Enqueue 中同步进入队列才能按加入顺序执行，所以不先让出线程，而是不回到调用方的同步上下文：退出时 UI 线程在等这些任务
-	private async Task<BackgroundTaskSnapshot> RunAsync(TaskEntry entry, SemaphoreSlim queue, Func<BackgroundTaskContext, CancellationToken, Task> work)
+	private async Task RunAsync(TaskEntry entry, SemaphoreSlim queue, Func<BackgroundTaskContext, CancellationToken, Task> work)
 	{
-		CancellationToken cancellationToken = entry.CancellationToken;
+		CancellationToken cancellationToken = entry.Cancellation.Token;
 
 		try
 		{
@@ -121,92 +134,61 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 		}
 		catch (OperationCanceledException)
 		{
-			Update(entry, BackgroundTaskStatus.Canceled);
-			return Snapshot(entry);
+			entry.Complete(Update(entry, BackgroundTaskStatus.Canceled));
+			return;
 		}
+
+		BackgroundTaskSnapshot result;
 
 		try
 		{
 			Update(entry, BackgroundTaskStatus.Running);
 			BackgroundTaskContext context = new((progress, speed) => Update(entry, BackgroundTaskStatus.Running, progress, speed), timeProvider);
 			await Task.Run(() => work(context, cancellationToken), cancellationToken).ConfigureAwait(false);
-			Update(entry, BackgroundTaskStatus.Completed, 1);
+			result = Update(entry, BackgroundTaskStatus.Completed, 1);
 		}
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{
-			Update(entry, BackgroundTaskStatus.Canceled);
+			result = Update(entry, BackgroundTaskStatus.Canceled);
 		}
 		catch (Exception exception)
 		{
-			LogTaskFailed(logger, exception, Snapshot(entry).Title);
-			Update(entry, BackgroundTaskStatus.Failed, message: exception.Message);
+			result = Update(entry, BackgroundTaskStatus.Failed, message: exception.Message);
+			LogTaskFailed(logger, exception, result.Title);
 		}
 		finally
 		{
 			queue.Release();
 		}
 
-		return Snapshot(entry);
-	}
-
-	private BackgroundTaskSnapshot Snapshot(TaskEntry entry)
-	{
-		lock (_lock)
-		{
-			return entry.Snapshot;
-		}
+		entry.Complete(result);
 	}
 
 	// 速度只在运行中有意义，不保留旧值
-	private void Update(TaskEntry entry, BackgroundTaskStatus status, double? progress = null, double? speed = null, string? message = null)
+	private BackgroundTaskSnapshot Update(TaskEntry entry, BackgroundTaskStatus status, double? progress = null, double? speed = null, string? message = null)
 	{
+		BackgroundTaskSnapshot snapshot;
+
 		lock (_lock)
 		{
-			BackgroundTaskSnapshot snapshot = entry.Snapshot;
-			entry.Snapshot = snapshot with { Status = status, Progress = progress ?? snapshot.Progress, Speed = speed, Message = message ?? snapshot.Message };
+			snapshot = entry.Snapshot with { Status = status, Progress = progress ?? entry.Snapshot.Progress, Speed = speed, Message = message ?? entry.Snapshot.Message };
+			entry.Snapshot = snapshot;
 		}
 
 		Touch();
+		return snapshot;
 	}
 
-	// 失败的条目尽量留给用户查看
-	// 只在加入新条目时裁剪：取消回调可能在 CancelAll 和 StopAsync 遍历列表时同步跑到 Update
+	// 按加入顺序移除已结束的条目，失败的尽量留给用户查看
 	private void TrimFinished()
 	{
-		int excess = _entries.Count(static entry => !entry.Snapshot.IsActive) - MaxFinishedEntries;
+		List<TaskEntry> finished = _entries.FindAll(static entry => !entry.Snapshot.IsActive);
 
-		if (excess > 0)
+		if (finished.Count > MaxFinishedEntries)
 		{
-			excess -= RemoveOldestFinished(static entry => entry.Snapshot.Status is not BackgroundTaskStatus.Failed, excess);
+			HashSet<TaskEntry> removed = [.. finished.OrderBy(static entry => entry.Snapshot.Status is BackgroundTaskStatus.Failed).Take(finished.Count - MaxFinishedEntries)];
+			_entries.RemoveAll(removed.Contains);
 		}
-
-		if (excess > 0)
-		{
-			RemoveOldestFinished(static entry => entry.Snapshot.Status is BackgroundTaskStatus.Failed, excess);
-		}
-	}
-
-	private int RemoveOldestFinished(Func<TaskEntry, bool> predicate, int count)
-	{
-		int removed = 0;
-
-		for (int i = 0; i < _entries.Count && removed < count;)
-		{
-			TaskEntry entry = _entries[i];
-
-			if (!entry.Snapshot.IsActive && predicate(entry))
-			{
-				entry.Dispose();
-				_entries.RemoveAt(i);
-				removed++;
-			}
-			else
-			{
-				i++;
-			}
-		}
-
-		return removed;
 	}
 
 	private void Touch()
@@ -217,28 +199,22 @@ internal sealed partial class BackgroundTaskAppService(TimeProvider timeProvider
 	[LoggerMessage(Level = LogLevel.Error, Message = "Task {Title} failed")]
 	private static partial void LogTaskFailed(ILogger logger, Exception exception, string title);
 
-	private sealed class TaskEntry(BackgroundTaskSnapshot snapshot) : IDisposable
+	private sealed class TaskEntry(BackgroundTaskSnapshot snapshot)
 	{
-		private readonly CancellationTokenSource _cancellation = new();
+		// 取消回调会同步跑到这里，等结果的调用方不能接着在取消它的线程上执行，那可能是 UI 线程
+		private readonly TaskCompletionSource<BackgroundTaskSnapshot> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		// 只在 _lock 内读写
 		public BackgroundTaskSnapshot Snapshot { get; set; } = snapshot;
 
-		public Task Completion { get; set; } = Task.CompletedTask;
+		// 不带定时器也不链接别的令牌，用完不必释放，取消也就不用和移除条目互斥
+		public CancellationTokenSource Cancellation { get; } = new();
 
-		public CancellationToken CancellationToken => _cancellation.Token;
+		public Task<BackgroundTaskSnapshot> Completion => _completion.Task;
 
-		public void Cancel()
+		public void Complete(BackgroundTaskSnapshot result)
 		{
-			if (Snapshot.IsActive)
-			{
-				_cancellation.Cancel();
-			}
-		}
-
-		public void Dispose()
-		{
-			_cancellation.Dispose();
+			_completion.SetResult(result);
 		}
 	}
 }

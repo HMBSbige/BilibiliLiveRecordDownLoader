@@ -1,3 +1,5 @@
+using System.Net.Http.Headers;
+
 namespace BilibiliLiveRecordDownLoader.Application.Http;
 
 internal static class BilibiliHttpServiceCollectionExtensions
@@ -9,7 +11,9 @@ internal static class BilibiliHttpServiceCollectionExtensions
 		services.TryAddSingleton(static _ => new SwitchableWebProxy(HttpClient.DefaultProxy));
 		services.TryAddSingleton(CreateIdentity);
 
-		AddClient(services, HttpClientNames.Default, ApiRequestTimeout, allowAutoRedirect: true);
+		// GitHub API 拒绝不带 User-Agent 的请求
+		AddClient(services, HttpClientNames.GitHub, ApiRequestTimeout, allowAutoRedirect: true)
+			.ConfigureHttpClient(static client => client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue(AppConsts.Name, null)));
 
 		// 接口不需要跟随重定向；自动跟随时登录 Cookie 会被带到跳转后的主机
 		AddClient(services, HttpClientNames.BilibiliApi, ApiRequestTimeout, allowAutoRedirect: false)

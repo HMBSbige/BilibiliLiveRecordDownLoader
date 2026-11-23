@@ -169,7 +169,7 @@ internal sealed class RoomAppService(BilibiliApiClient apiClient, IAppConfigMana
 	{
 		try
 		{
-			return await RequestTimeout.ReportAsync(rooms.MoveNextAsync().AsTask());
+			return await RequestTimeout.ReportAsync(rooms.MoveNextAsync());
 		}
 		catch (BilibiliApiException exception) when (exception.Code is BilibiliApiException.NotLoggedInCode)
 		{

@@ -20,4 +20,16 @@ internal static class RequestTimeout
 			throw new TimeoutException(AppLanguage.Current.RequestTimedOut, exception);
 		}
 	}
+
+	public static async ValueTask<T> ReportAsync<T>(ValueTask<T> request)
+	{
+		try
+		{
+			return await request;
+		}
+		catch (OperationCanceledException exception) when (IsTimedOut(exception))
+		{
+			throw new TimeoutException(AppLanguage.Current.RequestTimedOut, exception);
+		}
+	}
 }

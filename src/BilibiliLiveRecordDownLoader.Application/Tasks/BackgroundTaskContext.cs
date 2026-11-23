@@ -2,11 +2,6 @@ namespace BilibiliLiveRecordDownLoader.Application.Tasks;
 
 internal sealed class BackgroundTaskContext(Action<double?, double?> report, TimeProvider timeProvider)
 {
-	public void Report(double? progress)
-	{
-		Report(progress, null);
-	}
-
 	public IProgress<double> CreateProgress(double start = 0, double weight = 1)
 	{
 		return new ScaledProgress(this, start, weight);
@@ -26,7 +21,7 @@ internal sealed class BackgroundTaskContext(Action<double?, double?> report, Tim
 	{
 		public void Report(double value)
 		{
-			context.Report(start + value * weight);
+			context.Report(start + value * weight, null);
 		}
 	}
 

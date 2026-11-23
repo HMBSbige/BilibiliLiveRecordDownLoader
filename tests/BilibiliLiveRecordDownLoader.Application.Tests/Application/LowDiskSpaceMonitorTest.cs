@@ -63,10 +63,13 @@ public sealed class LowDiskSpaceMonitorTest
 		second.Dispose();
 		int checks = disk.Checks;
 
-		time.Advance(LowDiskSpaceMonitor.CheckInterval * 3);
-		await Task.Delay(100, cancellationToken);
+		// 新一轮要等上一轮停下才开始，上一轮还在的话等不到这次检查
+		using (monitor.Watch())
+		{
+			await disk.WaitForCheckAsync(cancellationToken).WaitAsync(TestWait.DefaultTimeout, TimeProvider.System, cancellationToken);
+		}
 
-		await Assert.That(disk.Checks).IsEqualTo(checks);
+		await Assert.That(disk.Checks).IsEqualTo(checks + 1);
 	}
 
 	[Test]

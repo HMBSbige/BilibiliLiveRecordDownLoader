@@ -10,19 +10,21 @@ public sealed class BackgroundTaskAppServiceTest
 	public async Task TasksInSameQueueRunOneAtATimeInOrderAsync()
 	{
 		BackgroundTaskAppService service = CreateService();
+		TaskCompletionSource firstStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		TaskCompletionSource releaseFirst = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		List<string> started = [];
 
-		Guid first = Start(service, "first", "C:", async (_, cancellationToken) =>
+		_ = service.Enqueue("first", "C:", async (_, cancellationToken) =>
 		{
 			lock (started)
 			{
 				started.Add("first");
 			}
 
+			firstStarted.SetResult();
 			await releaseFirst.Task.WaitAsync(cancellationToken);
 		});
-		Guid second = Start(service, "second", "c:", (_, _) =>
+		(Guid secondId, Task<BackgroundTaskSnapshot> second) = Start(service, "second", "c:", (_, _) =>
 		{
 			lock (started)
 			{
@@ -32,48 +34,58 @@ public sealed class BackgroundTaskAppServiceTest
 			return Task.CompletedTask;
 		});
 
-		await WaitForStatusAsync(service, first, BackgroundTaskStatus.Running);
-		await Assert.That(Status(service, second)).IsEqualTo(BackgroundTaskStatus.Queued);
+		await firstStarted.Task.WaitAsync(WaitTimeout);
+		await Assert.That(Status(service, secondId)).IsEqualTo(BackgroundTaskStatus.Queued);
 
 		releaseFirst.SetResult();
-		await WaitForStatusAsync(service, second, BackgroundTaskStatus.Completed);
+		await second.WaitAsync(WaitTimeout);
 
 		await Assert.That(started).IsEquivalentTo(["first", "second"], CollectionOrdering.Matching);
 		await Assert.That(service.HasActiveTasks).IsFalse();
 	}
 
+	// 两个任务互相等对方开始，只能同时运行才都能结束
 	[Test]
 	public async Task TasksInDifferentQueuesRunConcurrentlyAsync()
 	{
 		BackgroundTaskAppService service = CreateService();
-		TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		TaskCompletionSource onC = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		TaskCompletionSource onD = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		Guid first = Start(service, "first", "C:", (_, cancellationToken) => release.Task.WaitAsync(cancellationToken));
-		Guid second = Start(service, "second", "D:", (_, cancellationToken) => release.Task.WaitAsync(cancellationToken));
+		BackgroundTaskSnapshot[] finished = await Task.WhenAll(service.Enqueue("c", "C:", Meet(onC, onD)), service.Enqueue("d", "D:", Meet(onD, onC))).WaitAsync(WaitTimeout);
 
-		await WaitForStatusAsync(service, first, BackgroundTaskStatus.Running);
-		await WaitForStatusAsync(service, second, BackgroundTaskStatus.Running);
+		await Assert.That(finished.Select(static snapshot => snapshot.Status)).All(static status => status is BackgroundTaskStatus.Completed);
 
-		release.SetResult();
-		await WaitForStatusAsync(service, second, BackgroundTaskStatus.Completed);
+		static Func<BackgroundTaskContext, CancellationToken, Task> Meet(TaskCompletionSource arrived, TaskCompletionSource other)
+		{
+			return (_, cancellationToken) =>
+			{
+				arrived.SetResult();
+				return other.Task.WaitAsync(cancellationToken);
+			};
+		}
 	}
 
 	[Test]
 	public async Task CancelStopsRunningAndQueuedTasksAsync()
 	{
 		BackgroundTaskAppService service = CreateService();
+		TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		Guid running = Start(service, "running", "q", static (_, cancellationToken) => Task.Delay(Timeout.Infinite, cancellationToken));
-		Guid queued = Start(service, "queued", "q", static (_, _) => Task.CompletedTask);
+		(Guid runningId, Task<BackgroundTaskSnapshot> running) = Start(service, "running", "q", async (_, cancellationToken) =>
+		{
+			started.SetResult();
+			await Task.Delay(Timeout.Infinite, cancellationToken);
+		});
+		(Guid queuedId, Task<BackgroundTaskSnapshot> queued) = Start(service, "queued", "q", static (_, _) => Task.CompletedTask);
 
-		await WaitForStatusAsync(service, running, BackgroundTaskStatus.Running);
-		service.Cancel(queued);
-		await WaitForStatusAsync(service, queued, BackgroundTaskStatus.Canceled);
-		await Assert.That(Status(service, running)).IsEqualTo(BackgroundTaskStatus.Running);
-
+		await started.Task.WaitAsync(WaitTimeout);
+		service.Cancel(queuedId);
+		BackgroundTaskSnapshot canceled = await queued.WaitAsync(WaitTimeout);
+		BackgroundTaskStatus stillRunning = Status(service, runningId);
 		await service.StopAsync();
 
-		await Assert.That(Status(service, running)).IsEqualTo(BackgroundTaskStatus.Canceled);
+		await Assert.That((canceled.Status, stillRunning, (await running).Status)).IsEqualTo((BackgroundTaskStatus.Canceled, BackgroundTaskStatus.Running, BackgroundTaskStatus.Canceled));
 	}
 
 	[Test]
@@ -83,15 +95,13 @@ public sealed class BackgroundTaskAppServiceTest
 		bool ran = false;
 
 		await service.StopAsync();
-		Guid id = Start(service, "late", "q", (_, _) =>
+		BackgroundTaskSnapshot late = await service.Enqueue("late", "q", (_, _) =>
 		{
 			ran = true;
 			return Task.CompletedTask;
-		});
+		}).WaitAsync(WaitTimeout);
 
-		await Assert.That(Status(service, id)).IsEqualTo(BackgroundTaskStatus.Canceled);
-		await Assert.That(ran).IsFalse();
-		await Assert.That(service.HasActiveTasks).IsFalse();
+		await Assert.That((late.Status, ran, service.HasActiveTasks)).IsEqualTo((BackgroundTaskStatus.Canceled, false, false));
 	}
 
 	// 失败的任务之后，同一队列里的任务照常执行
@@ -102,14 +112,11 @@ public sealed class BackgroundTaskAppServiceTest
 
 		BackgroundTaskSnapshot failed = await service.Enqueue("failing", "q", static (_, _) => throw new InvalidOperationException("boom")).WaitAsync(WaitTimeout);
 		BackgroundTaskSnapshot completed = await service.Enqueue("done", "q", static (_, _) => Task.CompletedTask, "in.flv", "out.mp4").WaitAsync(WaitTimeout);
-		await service.StopAsync();
-		BackgroundTaskSnapshot canceled = await service.Enqueue("late", "q", static (_, _) => Task.CompletedTask).WaitAsync(WaitTimeout);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That((failed.Status, failed.Message)).IsEqualTo((BackgroundTaskStatus.Failed, "boom"));
 			await Assert.That(completed).IsEqualTo(new BackgroundTaskSnapshot(completed.Id, "done", "in.flv", "out.mp4", BackgroundTaskStatus.Completed, 1, null, null));
-			await Assert.That(canceled.Status).IsEqualTo(BackgroundTaskStatus.Canceled);
 		}
 	}
 
@@ -120,34 +127,35 @@ public sealed class BackgroundTaskAppServiceTest
 		TaskCompletionSource reported = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		Guid id = Start(service, "task", "q", async (context, cancellationToken) =>
+		(Guid id, Task<BackgroundTaskSnapshot> completion) = Start(service, "task", "q", async (context, cancellationToken) =>
 		{
-			context.Report(1.5);
+			context.CreateProgress().Report(1.5);
 			reported.SetResult();
 			await release.Task.WaitAsync(cancellationToken);
 		});
 
 		await reported.Task.WaitAsync(WaitTimeout);
-		BackgroundTaskSnapshot running = Snapshot(service, id);
-
-		await Assert.That(running.Progress).IsEqualTo(1);
-
+		double? running = Snapshot(service, id).Progress;
 		release.SetResult();
-		await WaitForStatusAsync(service, id, BackgroundTaskStatus.Completed);
-		await Assert.That(Snapshot(service, id).Progress).IsEqualTo(1);
+
+		await Assert.That((running, (await completion.WaitAsync(WaitTimeout)).Progress)).IsEqualTo((1d, 1d));
 	}
 
 	[Test]
 	public async Task RemoveFinishedKeepsActiveTasksAsync()
 	{
 		BackgroundTaskAppService service = CreateService();
+		TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		Guid done = Start(service, "done", "a", static (_, _) => Task.CompletedTask);
-		Guid active = Start(service, "active", "b", (_, cancellationToken) => release.Task.WaitAsync(cancellationToken));
+		await service.Enqueue("done", "a", static (_, _) => Task.CompletedTask).WaitAsync(WaitTimeout);
+		(Guid active, Task<BackgroundTaskSnapshot> completion) = Start(service, "active", "b", async (_, cancellationToken) =>
+		{
+			started.SetResult();
+			await release.Task.WaitAsync(cancellationToken);
+		});
 
-		await WaitForStatusAsync(service, done, BackgroundTaskStatus.Completed);
-		await WaitForStatusAsync(service, active, BackgroundTaskStatus.Running);
+		await started.Task.WaitAsync(WaitTimeout);
 		long version = service.Version;
 
 		service.RemoveFinished();
@@ -156,7 +164,7 @@ public sealed class BackgroundTaskAppServiceTest
 		await Assert.That(service.Version).IsGreaterThan(version);
 
 		release.SetResult();
-		await WaitForStatusAsync(service, active, BackgroundTaskStatus.Completed);
+		await completion.WaitAsync(WaitTimeout);
 	}
 
 	[Test]
@@ -200,30 +208,26 @@ public sealed class BackgroundTaskAppServiceTest
 		await Assert.That(service.GetTasks().Select(static task => task.Id)).IsEquivalentTo([failed.Id, .. completed.Skip(5)], CollectionOrdering.Matching).Because("加入最后一个任务时它还在排队，结束后要等下次加入才裁剪");
 	}
 
-	// 线程池上没有同步上下文，任务等的东西如果在取消回调里同步完成，任务的收尾也在取消回调里同步跑完
+	// 线程池上没有同步上下文，任务等的东西在取消回调里同步完成时，任务的收尾和等结果的调用方都可能在取消的调用里接着执行，调用方这时排入新任务
 	[Test]
-	public async Task CancelingAtTheCapFromAThreadPoolThreadCancelsEveryTaskAsync()
+	public async Task CallersQueueingFollowUpsWhileTasksAreCanceledDoNotBreakCancelAllAsync()
 	{
 		BackgroundTaskAppService service = CreateService();
+		TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		for (int i = 0; i < BackgroundTaskAppService.MaxFinishedEntries; i++)
-		{
-			await service.Enqueue("done", "a", static (_, _) => Task.CompletedTask).WaitAsync(WaitTimeout);
-		}
-
-		TaskCompletionSource[] started = [new(TaskCreationOptions.RunContinuationsAsynchronously), new(TaskCreationOptions.RunContinuationsAsynchronously)];
-		Guid[] running = [.. started.Select((signal, i) => Start(service, "running", $"b{i}", (_, cancellationToken) =>
+		Task<BackgroundTaskSnapshot> running = service.Enqueue("running", "q", (_, cancellationToken) =>
 		{
 			TaskCompletionSource canceled = new();
 			cancellationToken.Register(() => canceled.TrySetCanceled(cancellationToken));
-			signal.SetResult();
+			started.SetResult();
 			return canceled.Task;
-		}))];
+		});
+		Task<BackgroundTaskSnapshot> followUp = running.ContinueWith(_ => service.Enqueue("follow-up", "q", static (_, _) => Task.CompletedTask), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default).Unwrap();
 
-		await Task.WhenAll(started.Select(static signal => signal.Task)).WaitAsync(WaitTimeout);
-		await Task.Run(service.StopAsync).WaitAsync(WaitTimeout);
+		await started.Task.WaitAsync(WaitTimeout);
+		await Task.Run(service.CancelAll).WaitAsync(WaitTimeout);
 
-		await Assert.That(running.Select(id => Status(service, id))).IsEquivalentTo([BackgroundTaskStatus.Canceled, BackgroundTaskStatus.Canceled]);
+		await Assert.That((await followUp.WaitAsync(WaitTimeout)).Status).IsEqualTo(BackgroundTaskStatus.Completed);
 	}
 
 	// 工具页在 UI 线程上排队；退出时 UI 线程在等这些任务，续体投回去就再也不会执行
@@ -280,11 +284,11 @@ public sealed class BackgroundTaskAppServiceTest
 		return new BackgroundTaskAppService(TimeProvider.System, NullLogger<BackgroundTaskAppService>.Instance);
 	}
 
-	// Enqueue 只交出完成结果；刚加入的任务排在列表最后
-	private static Guid Start(BackgroundTaskAppService service, string title, string queueKey, Func<BackgroundTaskContext, CancellationToken, Task> work)
+	// 刚加入的任务排在列表最后
+	private static (Guid Id, Task<BackgroundTaskSnapshot> Completion) Start(BackgroundTaskAppService service, string title, string queueKey, Func<BackgroundTaskContext, CancellationToken, Task> work)
 	{
-		_ = service.Enqueue(title, queueKey, work);
-		return service.GetTasks()[^1].Id;
+		Task<BackgroundTaskSnapshot> completion = service.Enqueue(title, queueKey, work);
+		return (service.GetTasks()[^1].Id, completion);
 	}
 
 	private static BackgroundTaskSnapshot Snapshot(BackgroundTaskAppService service, Guid id)
@@ -295,10 +299,5 @@ public sealed class BackgroundTaskAppServiceTest
 	private static BackgroundTaskStatus Status(BackgroundTaskAppService service, Guid id)
 	{
 		return Snapshot(service, id).Status;
-	}
-
-	private static Task WaitForStatusAsync(BackgroundTaskAppService service, Guid id, BackgroundTaskStatus expected)
-	{
-		return TestWait.UntilAsync(() => Status(service, id) == expected, $"the task is {expected}", CancellationToken.None, WaitTimeout);
 	}
 }

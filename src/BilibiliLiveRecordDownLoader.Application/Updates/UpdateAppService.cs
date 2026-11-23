@@ -5,12 +5,11 @@ namespace BilibiliLiveRecordDownLoader.Application.Updates;
 
 internal sealed partial class UpdateAppService(IHttpClientFactory httpClientFactory, ILogger<UpdateAppService> logger) : IUpdateAppService
 {
-	public string CurrentVersion { get; } = Normalize(ThisAssembly.Info.InformationalVersion) ?? string.Empty;
+	public string CurrentVersion => AppVersion.Current;
 
 	public async Task<UpdateCheckResult> CheckForUpdateAsync(bool includePreRelease, CancellationToken cancellationToken = default)
 	{
-		HttpClient httpClient = httpClientFactory.CreateClient(HttpClientNames.Default);
-		httpClient.DefaultRequestHeaders.UserAgent.TryParseAdd(AppConsts.Name);
+		HttpClient httpClient = httpClientFactory.CreateClient(HttpClientNames.GitHub);
 
 		GitHubReleasesUpdateChecker checker = new
 		(
@@ -19,12 +18,12 @@ internal sealed partial class UpdateAppService(IHttpClientFactory httpClientFact
 				Owner = AppConsts.Author,
 				Repo = AppConsts.Repository,
 				IsPreRelease = includePreRelease,
-				CurrentVersion = CurrentVersion,
+				CurrentVersion = AppVersion.Current,
 				VersionScheme = new NuGetVersionScheme()
 			}
 		);
 
-		bool hasUpdate = await RequestTimeout.ReportAsync(checker.CheckAsync(httpClient, cancellationToken).AsTask());
+		bool hasUpdate = await RequestTimeout.ReportAsync(checker.CheckAsync(httpClient, cancellationToken));
 
 		return new UpdateCheckResult(hasUpdate, checker.LatestVersion);
 	}
@@ -42,11 +41,6 @@ internal sealed partial class UpdateAppService(IHttpClientFactory httpClientFact
 		}
 	}
 
-	private static string? Normalize(string value)
-	{
-		return NuGetVersion.TryParse(value, out NuGetVersion? version) ? version.ToNormalizedString() : null;
-	}
-
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to check for updates")]
 	private static partial void LogCheckFailed(ILogger logger, Exception exception);
 
@@ -54,7 +48,7 @@ internal sealed partial class UpdateAppService(IHttpClientFactory httpClientFact
 	{
 		public bool TryParse(string value, out string version)
 		{
-			string? normalized = Normalize(value);
+			string? normalized = AppVersion.Normalize(value);
 			version = normalized ?? string.Empty;
 			return normalized is not null;
 		}

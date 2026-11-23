@@ -16,9 +16,10 @@ internal static class LoggerExtensions
 		}
 	}
 
+	// 每条日志都要读一遍作用域，Serilog 对 Dictionary<string, object> 有不经接口枚举的专门路径
 	private static Dictionary<string, object> CreateRoomScope(long roomId)
 	{
-		return new Dictionary<string, object> { [LogProperties.RoomId] = roomId };
+		return new(StringComparer.Ordinal) { [LogProperties.RoomId] = roomId };
 	}
 
 	private sealed class RoomScopedLogger(ILogger inner, Dictionary<string, object> roomScope) : ILogger
