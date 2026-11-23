@@ -136,7 +136,7 @@ internal static class DanmakuAssMessages
 			Right = bar.Left + bar.BarWidth;
 			Bottom = bar.Bottom;
 
-			List<(TimeSpan Time, double Extent, bool Adds)> events = [.. extents.SelectMany(static extent => new[] { (extent.Start, extent.Extent, true), (extent.End, extent.Extent, false) })];
+			List<(TimeSpan Time, double Extent, bool Adds)> events = [.. extents.Select(static extent => (extent.Start, extent.Extent, true)), .. extents.Select(static extent => (extent.End, extent.Extent, false))];
 			events.Sort(static (a, b) => a.Time.CompareTo(b.Time));
 			SortedDictionary<double, int> active = [];
 			List<TimeSpan> times = [];
@@ -320,7 +320,7 @@ internal static class DanmakuAssMessages
 	}
 
 	// 左上角是原点，配合 \an7 定位
-	internal static string RoundedRectangle(int width, int height, int topRadius, int bottomRadius)
+	private static string RoundedRectangle(int width, int height, int topRadius, int bottomRadius)
 	{
 		StringBuilder builder = new();
 		builder.Append(CultureInfo.InvariantCulture, $@"m {topRadius} 0 l {width - topRadius} 0");
@@ -398,7 +398,7 @@ internal static class DanmakuAssMessages
 				continue;
 			}
 
-			line.Append(rune.ToString());
+			line.Append(rune);
 			width += runeWidth;
 
 			if (rune.Value is ' ' || DanmakuAssGenerator.IsWide(rune.Value))
@@ -457,17 +457,18 @@ internal static class DanmakuAssMessages
 	// 省略号按全角估算，多数中文字体里它占一个字宽
 	private static string Ellipsize(string text, double fontSize, double maxWidth)
 	{
-		List<Rune> runes = [.. text.EnumerateRunes()];
+		ReadOnlySpan<char> kept = text;
 		double width = Measure(text, fontSize);
 		double ellipsis = fontSize * 0.8;
 
-		while (runes.Count > 0 && width + ellipsis > maxWidth)
+		while (!kept.IsEmpty && width + ellipsis > maxWidth)
 		{
-			width -= Measure(runes[^1], fontSize);
-			runes.RemoveAt(runes.Count - 1);
+			Rune.DecodeLastFromUtf16(kept, out Rune last, out int length);
+			width -= Measure(last, fontSize);
+			kept = kept.Slice(0, kept.Length - length);
 		}
 
-		return string.Concat(runes.Select(static rune => rune.ToString())).TrimEnd() + Ellipsis;
+		return string.Concat(kept.TrimEnd(), Ellipsis);
 	}
 
 	private static string FitName(Func<string, string> compose, string name, double fontSize, double maxWidth)

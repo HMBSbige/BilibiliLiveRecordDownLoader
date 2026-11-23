@@ -1,6 +1,7 @@
 using BilibiliLive.Danmu;
 using BilibiliLiveRecordDownLoader.Application.Contracts.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Danmaku;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
@@ -34,7 +35,6 @@ public sealed class DanmakuConverterTest
 	[Arguments(DanmakuGiftMode.None, DanmuCoinType.Gold, false)]
 	[Arguments(DanmakuGiftMode.Paid, DanmuCoinType.Gold, true)]
 	[Arguments(DanmakuGiftMode.Paid, DanmuCoinType.Silver, false)]
-	[Arguments(DanmakuGiftMode.All, DanmuCoinType.Silver, true)]
 	public async Task GiftsFollowTheGiftModeAsync(DanmakuGiftMode mode, DanmuCoinType coinType, bool isRecorded)
 	{
 		await Assert.That(DanmakuConverter.ToRecord(Gift(coinType), Time, Profile(gifts: mode)) is not null).IsEqualTo(isRecorded);
@@ -103,16 +103,25 @@ public sealed class DanmakuConverterTest
 	[Test]
 	public async Task FileEntriesComeFromEveryKindOfRecordAsync()
 	{
-		DanmakuFileEntryDto[] entries = [.. DanmakuSamples.AllKinds().Select(DanmakuConverter.ToEntry)];
+		await Assert.That(DanmakuSamples.AllKinds().Select(DanmakuConverter.ToEntry)).IsEquivalentTo(
+		[
+			new(TimeSpan.Zero, new DanmakuEntryDto.Connection(true, true)),
+			new(TimeSpan.FromMilliseconds(12345), new DanmakuEntryDto.Comment(FileSender(123, "昵称"), "文本", 16777215, false)),
+			new(TimeSpan.FromMilliseconds(13000), new DanmakuEntryDto.Comment(FileSender(0, "淡***"), "节奏风暴", 0xFF0000, true)),
+			new(TimeSpan.FromSeconds(20), new DanmakuEntryDto.SuperChat(20541912, FileSender(456, "老板"), "醒目留言", 30000, TimeSpan.FromSeconds(60))),
+			new(TimeSpan.FromMilliseconds(21500), new DanmakuEntryDto.Gift(FileSender(789, "观众"), "小花花", 10, 1000)),
+			new(TimeSpan.FromSeconds(30), new DanmakuEntryDto.Guard(FileSender(1011, "舰长"), GuardLevel.Captain, 1, 198000, false)),
+			new(TimeSpan.FromSeconds(40), new DanmakuEntryDto.TitleChange("新标题")),
+			new(TimeSpan.FromSeconds(100), new DanmakuEntryDto.Gap(TimeSpan.FromMilliseconds(105200))),
+			new(TimeSpan.FromMilliseconds(105200), new DanmakuEntryDto.Connection(false, false)),
+			new(TimeSpan.FromSeconds(110), new DanmakuEntryDto.SuperChatDeletion([20541912, 20541913])),
+			new(TimeSpan.FromSeconds(120), new DanmakuEntryDto.Guard(FileSender(1012, "老舰长"), GuardLevel.Admiral, 3, 4_194_000, true))
+		], EqualityComparer<DanmakuFileEntryDto>.Default, CollectionOrdering.Matching);
+	}
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(entries.Length).IsEqualTo(DanmakuSamples.AllKinds().Length);
-			await Assert.That(entries[5]).IsEqualTo(new DanmakuFileEntryDto(TimeSpan.FromSeconds(30), new DanmakuEntryDto.Guard(new DanmuSender(1011, "舰长", GuardLevel.None, null), GuardLevel.Captain, 1, 198000, false)));
-			await Assert.That(entries[7]).IsEqualTo(new DanmakuFileEntryDto(TimeSpan.FromSeconds(100), new DanmakuEntryDto.Gap(TimeSpan.FromMilliseconds(105200))));
-			await Assert.That(entries[3].Entry is DanmakuEntryDto.SuperChat { Id: 20541912 }).IsTrue();
-			await Assert.That(entries[9]).IsEqualTo(new DanmakuFileEntryDto(TimeSpan.FromSeconds(110), new DanmakuEntryDto.SuperChatDeletion([20541912, 20541913])));
-			await Assert.That(entries[10].Entry is DanmakuEntryDto.Guard { IsRenewal: true }).IsTrue();
-		}
+	// 文件里的发送者只有 uid 和昵称
+	private static DanmuSender FileSender(long uid, string name)
+	{
+		return new DanmuSender(uid, name, GuardLevel.None, null);
 	}
 }

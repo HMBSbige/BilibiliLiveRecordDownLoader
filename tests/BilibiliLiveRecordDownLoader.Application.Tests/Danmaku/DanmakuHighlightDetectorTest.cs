@@ -1,4 +1,5 @@
 using BilibiliLiveRecordDownLoader.Application.Danmaku;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
@@ -39,28 +40,19 @@ public sealed class DanmakuHighlightDetectorTest
 
 		IReadOnlyList<DanmakuHighlight> highlights = DanmakuHighlightDetector.Detect(records, Hour);
 
-		await Assert.That(highlights).IsEquivalentTo([new DanmakuHighlight(TimeSpan.FromSeconds(1800), TimeSpan.FromSeconds(1800), TimeSpan.FromSeconds(1805), 44, @"草")], EqualityComparer<DanmakuHighlight>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+		await Assert.That(highlights).IsEquivalentTo([new DanmakuHighlight(TimeSpan.FromSeconds(1800), TimeSpan.FromSeconds(1800), TimeSpan.FromSeconds(1805), 44, @"草")]);
 	}
 
 	// 冷清的直播间基线是 1，比例那一关只要 2.5；热度够不上绝对下限时不算高能
 	[Test]
-	[Arguments(8, false)]
-	[Arguments(12, true)]
-	public async Task QuietRoomsNeedTheMinimumScoreAsync(int users, bool expected)
+	[Arguments(8, new int[0])]
+	[Arguments(12, new int[] { 13 })]
+	public async Task QuietRoomsNeedTheMinimumScoreAsync(int users, int[] scores)
 	{
 		List<DanmakuRecord> records = Background(TimeSpan.Zero, Hour, 1);
 		records.AddRange(Burst(1800, users, Distinct));
 
-		IReadOnlyList<DanmakuHighlight> highlights = DanmakuHighlightDetector.Detect(records, Hour);
-
-		if (expected)
-		{
-			await Assert.That(highlights.Single().Score).IsEqualTo(users + 1);
-		}
-		else
-		{
-			await Assert.That(highlights).IsEmpty();
-		}
+		await Assert.That(DanmakuHighlightDetector.Detect(records, Hour).Select(static highlight => highlight.Score)).IsEquivalentTo(scores);
 	}
 
 	[Test]
@@ -71,15 +63,9 @@ public sealed class DanmakuHighlightDetectorTest
 		records.AddRange(Burst(1805, 50, Distinct, 200000));
 		records.AddRange(Burst(1810, 30, Distinct, 300000));
 
-		DanmakuHighlight highlight = DanmakuHighlightDetector.Detect(records, Hour).Single();
+		DanmakuHighlight highlight = await Assert.That(DanmakuHighlightDetector.Detect(records, Hour)).HasSingleItem();
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(highlight.Start).IsEqualTo(TimeSpan.FromSeconds(1800));
-			await Assert.That(highlight.Peak).IsEqualTo(TimeSpan.FromSeconds(1805));
-			await Assert.That(highlight.End).IsEqualTo(TimeSpan.FromSeconds(1815));
-			await Assert.That(highlight.Score).IsEqualTo(54);
-		}
+		await Assert.That((highlight.Start, highlight.Peak, highlight.End, highlight.Score)).IsEqualTo((TimeSpan.FromSeconds(1800), TimeSpan.FromSeconds(1805), TimeSpan.FromSeconds(1815), 54));
 	}
 
 	[Test]
@@ -106,17 +92,13 @@ public sealed class DanmakuHighlightDetectorTest
 		List<DanmakuRecord> quiet = Background(TimeSpan.Zero, Hour, 4);
 		quiet.AddRange(Burst(1800, 60, static _ => @"参与天选 抽奖"));
 		List<DanmakuRecord> lively = Background(TimeSpan.Zero, Hour, 4);
-		// 口令只按 3 个人算
 		lively.AddRange(Burst(1800, 60, static _ => @"参与天选  抽奖"));
 		lively.AddRange(Burst(1800, 30, Distinct, 200000));
-
-		IReadOnlyList<DanmakuHighlight> highlights = DanmakuHighlightDetector.Detect(lively, Hour);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(DanmakuHighlightDetector.Detect(quiet, Hour)).IsEmpty();
-			await Assert.That(highlights.Count).IsEqualTo(1);
-			await Assert.That(highlights[0].Score).IsEqualTo(37);
+			await Assert.That(DanmakuHighlightDetector.Detect(lively, Hour).Select(static highlight => highlight.Score)).IsEquivalentTo([37]).Because("口令只按 3 个人算");
 		}
 	}
 
@@ -128,7 +110,7 @@ public sealed class DanmakuHighlightDetectorTest
 		records.AddRange(Burst(1800, 15, static _ => @"好耶", 200000));
 		records.AddRange(Burst(1801, 15, Distinct, 300000));
 
-		await Assert.That(DanmakuHighlightDetector.Detect(records, Hour).Single().Phrase).IsEqualTo(@"好耶");
+		await Assert.That(DanmakuHighlightDetector.Detect(records, Hour).Select(static highlight => highlight.Phrase)).IsEquivalentTo([@"好耶"]);
 	}
 
 	// 昵称打码时 uid 为 0，但哈希是真的，仍按人去重
@@ -143,7 +125,7 @@ public sealed class DanmakuHighlightDetectorTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(DanmakuHighlightDetector.Detect(flooding, Hour)).IsEmpty();
-			await Assert.That(DanmakuHighlightDetector.Detect(crowd, Hour).Single().Score).IsEqualTo(44);
+			await Assert.That(DanmakuHighlightDetector.Detect(crowd, Hour).Select(static highlight => highlight.Score)).IsEquivalentTo([44]);
 		}
 	}
 
@@ -154,9 +136,7 @@ public sealed class DanmakuHighlightDetectorTest
 		List<DanmakuRecord> records = Background(TimeSpan.Zero, Hour, 4, 0);
 		records.AddRange(Burst(1800, 40, Distinct, 0));
 
-		DanmakuHighlight highlight = DanmakuHighlightDetector.Detect(records, Hour).Single();
-
-		await Assert.That(highlight.Score).IsEqualTo(44);
+		await Assert.That(DanmakuHighlightDetector.Detect(records, Hour).Select(static highlight => highlight.Score)).IsEquivalentTo([44]);
 	}
 
 	// 冷热交界本身也不算高能
@@ -167,13 +147,10 @@ public sealed class DanmakuHighlightDetectorTest
 		records.AddRange(Background(TimeSpan.FromMinutes(30), Hour, 20));
 		List<DanmakuRecord> withBursts = [.. records, .. Burst(900, 25, Distinct), .. Burst(2700, 25, Distinct)];
 
-		IReadOnlyList<DanmakuHighlight> highlights = DanmakuHighlightDetector.Detect(withBursts, Hour);
-
 		using (Assert.Multiple())
 		{
 			await Assert.That(DanmakuHighlightDetector.Detect(records, Hour)).IsEmpty();
-			await Assert.That(highlights.Count).IsEqualTo(1);
-			await Assert.That(highlights[0].Start).IsEqualTo(TimeSpan.FromSeconds(900));
+			await Assert.That(DanmakuHighlightDetector.Detect(withBursts, Hour).Select(static highlight => highlight.Start)).IsEquivalentTo([TimeSpan.FromSeconds(900)]);
 		}
 	}
 
@@ -189,8 +166,8 @@ public sealed class DanmakuHighlightDetectorTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(DanmakuHighlightDetector.Detect(close, Hour).Select(static highlight => highlight.Start)).IsEquivalentTo([TimeSpan.FromSeconds(1860)], EqualityComparer<TimeSpan>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
-			await Assert.That(DanmakuHighlightDetector.Detect(apart, Hour).Select(static highlight => highlight.Start)).IsEquivalentTo([TimeSpan.FromSeconds(1800), TimeSpan.FromSeconds(2040)], EqualityComparer<TimeSpan>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+			await Assert.That(DanmakuHighlightDetector.Detect(close, Hour).Select(static highlight => highlight.Start)).IsEquivalentTo([TimeSpan.FromSeconds(1860)]);
+			await Assert.That(DanmakuHighlightDetector.Detect(apart, Hour).Select(static highlight => highlight.Start)).IsEquivalentTo([TimeSpan.FromSeconds(1800), TimeSpan.FromSeconds(2040)], CollectionOrdering.Matching);
 		}
 	}
 
@@ -209,8 +186,8 @@ public sealed class DanmakuHighlightDetectorTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(highlights.Select(static highlight => highlight.Start.TotalSeconds)).IsEquivalentTo([1500d, 1800, 2100, 2400, 2700, 3000], EqualityComparer<double>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
-			await Assert.That(halfHour.Select(static highlight => highlight.Start.TotalSeconds)).IsEquivalentTo([900d, 1200, 1500], EqualityComparer<double>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+			await Assert.That(highlights.Select(static highlight => highlight.Start.TotalSeconds)).IsEquivalentTo([1500d, 1800, 2100, 2400, 2700, 3000], CollectionOrdering.Matching);
+			await Assert.That(halfHour.Select(static highlight => highlight.Start.TotalSeconds)).IsEquivalentTo([900d, 1200, 1500], CollectionOrdering.Matching);
 		}
 	}
 
@@ -228,8 +205,8 @@ public sealed class DanmakuHighlightDetectorTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(DanmakuHighlightDetector.Detect(laughing, Hour).Single().Phrase).IsEqualTo(@"哈哈哈哈");
-			await Assert.That(DanmakuHighlightDetector.Detect(talking, Hour).Single().Phrase).IsEqualTo(@"好");
+			await Assert.That(DanmakuHighlightDetector.Detect(laughing, Hour).Select(static highlight => highlight.Phrase)).IsEquivalentTo([@"哈哈哈哈"]);
+			await Assert.That(DanmakuHighlightDetector.Detect(talking, Hour).Select(static highlight => highlight.Phrase)).IsEquivalentTo([@"好"]);
 		}
 	}
 
@@ -244,7 +221,11 @@ public sealed class DanmakuHighlightDetectorTest
 
 		IReadOnlyList<DanmakuHighlight> ordered = DanmakuHighlightDetector.Detect(records, Hour);
 
-		await Assert.That(DanmakuHighlightDetector.Detect(shuffled, Hour)).IsEquivalentTo(ordered, EqualityComparer<DanmakuHighlight>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+		using (Assert.Multiple())
+		{
+			await Assert.That(ordered).Count().IsEqualTo(2);
+			await Assert.That(DanmakuHighlightDetector.Detect(shuffled, Hour)).IsEquivalentTo(ordered, CollectionOrdering.Matching);
+		}
 	}
 
 	[Test]

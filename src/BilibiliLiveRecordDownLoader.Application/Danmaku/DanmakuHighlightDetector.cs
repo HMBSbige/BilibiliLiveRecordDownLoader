@@ -3,14 +3,14 @@ using System.Text;
 namespace BilibiliLiveRecordDownLoader.Application.Danmaku;
 
 // Peak 是热度最高的那一格的开始；Phrase 在事件里只有抽奖口令或复读时为空
-internal sealed record DanmakuHighlight(TimeSpan Start, TimeSpan Peak, TimeSpan End, double Score, string Phrase);
+internal sealed record DanmakuHighlight(TimeSpan Start, TimeSpan Peak, TimeSpan End, int Score, string Phrase);
 
 internal static class DanmakuHighlightDetector
 {
 	private const double BaselineRatio = 2.5;
 
 	// 冷清的直播间基线接近 0，没有下限的话几个人同时说话就算高能
-	private const double MinimumScore = 10;
+	private const int MinimumScore = 10;
 
 	// 一格里某句话的人数超过这个比例时，多半是抽奖口令或复读，只按 DominantPhraseLimit 个人算
 	private const double DominantPhraseShare = 0.5;
@@ -31,16 +31,16 @@ internal static class DanmakuHighlightDetector
 	// duration 是视频时长，为 null 时按最后一条弹幕算
 	public static IReadOnlyList<DanmakuHighlight> Detect(IEnumerable<DanmakuRecord> records, TimeSpan? duration = null)
 	{
-		DanmakuRecord.Comment[] comments = records.OfType<DanmakuRecord.Comment>().Where(static comment => !comment.IsStorm && comment.Time >= TimeSpan.Zero).OrderBy(static comment => comment.Time).ToArray();
+		DanmakuRecord.Comment[] comments = [.. records.OfType<DanmakuRecord.Comment>().Where(static comment => !comment.IsStorm && comment.Time >= TimeSpan.Zero).OrderBy(static comment => comment.Time)];
 
 		if (comments.Length is 0)
 		{
 			return [];
 		}
 
-		TimeSpan total = duration is { } known && known > comments[^1].Time ? known : comments[^1].Time + BinWidth;
-		int binCount = (int)((comments[^1].Time.Ticks / BinWidth.Ticks) + 1);
-		binCount = Math.Max(binCount, (int)Math.Ceiling(total.Ticks / (double)BinWidth.Ticks));
+		TimeSpan last = comments[^1].Time;
+		TimeSpan total = duration is { } known && known > last ? known : last + BinWidth;
+		int binCount = Math.Max((int)(last.Ticks / BinWidth.Ticks) + 1, (int)Math.Ceiling(total / BinWidth));
 		List<Message>?[] bins = new List<Message>?[binCount];
 
 		for (int i = 0; i < comments.Length; ++i)
@@ -50,7 +50,7 @@ internal static class DanmakuHighlightDetector
 			(bins[bin] ??= []).Add(new Message(GetUserKey(comment, i), Normalize(comment.Text), comment.Text, comment.Time));
 		}
 
-		double[] scores = new double[binCount];
+		int[] scores = new int[binCount];
 		string?[] dominantPhrases = new string?[binCount];
 
 		for (int i = 0; i < binCount; ++i)
@@ -80,10 +80,9 @@ internal static class DanmakuHighlightDetector
 				}
 			}
 
-			TimeSpan start = BinWidth * first;
 			TimeSpan end = BinWidth * i;
 			HashSet<string> excluded = new(dominantPhrases.Skip(first).Take(i - first).OfType<string>(), StringComparer.Ordinal);
-			candidates.Add(new DanmakuHighlight(start, BinWidth * peak, end < total ? end : total, scores[peak], FindPhrase(bins.AsSpan(first, i - first), excluded, MaxPhraseLength)));
+			candidates.Add(new DanmakuHighlight(BinWidth * first, BinWidth * peak, end < total ? end : total, scores[peak], FindPhrase(bins.Skip(first).Take(i - first), excluded)));
 		}
 
 		List<DanmakuHighlight> selected = [];
@@ -102,7 +101,7 @@ internal static class DanmakuHighlightDetector
 			}
 		}
 
-		return selected.OrderBy(static highlight => highlight.Start).ToArray();
+		return [.. selected.OrderBy(static highlight => highlight.Start)];
 
 		bool IsHot(int bin)
 		{
@@ -111,82 +110,66 @@ internal static class DanmakuHighlightDetector
 	}
 
 	// 按不同用户计数，一个人刷屏只算一次
-	private static (double Score, string? Dominant) Score(List<Message> messages)
+	private static (int Score, string? Dominant) Score(List<Message> messages)
 	{
 		HashSet<string> users = [.. messages.Select(static message => message.User)];
-		IGrouping<string, Message>? dominant = messages.GroupBy(static message => message.Phrase, StringComparer.Ordinal)
-			.Select(static group => (Group: group, Users: group.Select(static message => message.User).Distinct(StringComparer.Ordinal).Count()))
-			.Where(entry => entry.Users > users.Count * DominantPhraseShare)
-			.Select(static entry => entry.Group)
-			.FirstOrDefault();
 
-		if (dominant is null)
+		foreach (IGrouping<string, Message> phrase in messages.GroupBy(static message => message.Phrase, StringComparer.Ordinal))
 		{
-			return (users.Count, null);
+			HashSet<string> senders = [.. phrase.Select(static message => message.User)];
+
+			if (senders.Count > users.Count * DominantPhraseShare)
+			{
+				HashSet<string> others = [.. messages.Where(message => !string.Equals(message.Phrase, phrase.Key, StringComparison.Ordinal)).Select(static message => message.User)];
+				senders.ExceptWith(others);
+				return (others.Count + Math.Min(senders.Count, DominantPhraseLimit), phrase.Key);
+			}
 		}
 
-		HashSet<string> others = [.. messages.Where(message => !string.Equals(message.Phrase, dominant.Key, StringComparison.Ordinal)).Select(static message => message.User)];
-		int dominantOnly = dominant.Select(static message => message.User).Distinct(StringComparer.Ordinal).Count(user => !others.Contains(user));
-		return (others.Count + Math.Min(dominantOnly, DominantPhraseLimit), dominant.Key);
+		return (users.Count, null);
 	}
 
-	private static double[] ComputeBaselines(double[] scores, int radius)
+	private static double[] ComputeBaselines(int[] scores, int radius)
 	{
 		double[] baselines = new double[scores.Length];
-		List<double> window = new(radius * 2 + 1);
+		int[] buffer = new int[radius * 2 + 1];
 
 		for (int i = 0; i < scores.Length; ++i)
 		{
 			int from = Math.Max(0, i - radius);
 			int to = Math.Min(scores.Length - 1, i + radius);
-			window.Clear();
-
-			for (int j = from; j <= to; ++j)
-			{
-				window.Add(scores[j]);
-			}
-
+			Span<int> window = buffer.AsSpan(0, to - from + 1);
+			scores.AsSpan(from, window.Length).CopyTo(window);
 			window.Sort();
-			int middle = window.Count / 2;
-			baselines[i] = window.Count % 2 is 1 ? window[middle] : (window[middle - 1] + window[middle]) / 2;
+			int middle = window.Length / 2;
+			baselines[i] = window.Length % 2 is 1 ? window[middle] : (window[middle - 1] + window[middle]) / 2.0;
 		}
 
 		return baselines;
 	}
 
 	// 判为抽奖口令或复读的话不用，否则章节名会是抽奖口令
-	private static string FindPhrase(ReadOnlySpan<List<Message>?> bins, HashSet<string> excluded, int maxLength)
+	private static string FindPhrase(IEnumerable<List<Message>?> bins, HashSet<string> excluded)
 	{
-		Dictionary<string, (HashSet<string> Users, string Text, TimeSpan First)> phrases = new(StringComparer.Ordinal);
+		string? text = bins
+			.OfType<List<Message>>()
+			.SelectMany(static messages => messages)
+			.Where(message => !excluded.Contains(message.Phrase))
+			.GroupBy(static message => CollapseRepeats(message.Phrase), StringComparer.Ordinal)
+			.OrderBy(static phrase => new StringInfo(phrase.Key).LengthInTextElements > MaxPhraseLength)
+			.ThenByDescending(static phrase => phrase.Select(static message => message.User).Distinct(StringComparer.Ordinal).Count())
+			.ThenBy(static phrase => phrase.First().Time)
+			.ThenBy(static phrase => phrase.Key, StringComparer.Ordinal)
+			.Select(static phrase => phrase.First().Text.Trim())
+			.FirstOrDefault();
 
-		foreach (List<Message>? messages in bins)
+		if (text is null)
 		{
-			foreach (Message message in messages ?? [])
-			{
-				if (excluded.Contains(message.Phrase))
-				{
-					continue;
-				}
-
-				string key = CollapseRepeats(message.Phrase);
-
-				if (!phrases.TryGetValue(key, out (HashSet<string> Users, string Text, TimeSpan First) entry))
-				{
-					entry = ([], message.Text.Trim(), message.Time);
-					phrases.Add(key, entry);
-				}
-
-				entry.Users.Add(message.User);
-			}
+			return string.Empty;
 		}
 
-		IEnumerable<KeyValuePair<string, (HashSet<string> Users, string Text, TimeSpan First)>> ranked = phrases
-			.OrderBy(pair => new StringInfo(pair.Key).LengthInTextElements > maxLength)
-			.ThenByDescending(static pair => pair.Value.Users.Count)
-			.ThenBy(static pair => pair.Value.First)
-			.ThenBy(static pair => pair.Key, StringComparer.Ordinal);
-
-		return ranked.FirstOrDefault() is { Value.Text: { } text } ? Truncate(text, maxLength) : string.Empty;
+		StringInfo info = new(text);
+		return info.LengthInTextElements > MaxPhraseLength ? info.SubstringByTextElements(0, MaxPhraseLength) : text;
 	}
 
 	// 昵称打码时 uid 的哈希仍是真的
@@ -240,12 +223,6 @@ internal static class DanmakuHighlightDetector
 		}
 
 		return builder.ToString();
-	}
-
-	private static string Truncate(string text, int maxLength)
-	{
-		StringInfo info = new(text);
-		return info.LengthInTextElements > maxLength ? info.SubstringByTextElements(0, maxLength) : text;
 	}
 
 	private sealed record Message(string User, string Phrase, string Text, TimeSpan Time);

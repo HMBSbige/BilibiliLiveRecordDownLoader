@@ -7,8 +7,8 @@ namespace BilibiliLiveRecordDownLoader.Application.Danmaku;
 // 不是线程安全的
 internal sealed class RawDanmakuWriter : IAsyncDisposable
 {
-	public const string ConnectedCommand = @"@connected";
-	public const string DisconnectedCommand = @"@disconnected";
+	private const string ConnectedCommand = @"@connected";
+	private const string DisconnectedCommand = @"@disconnected";
 
 	private static readonly JsonWriterOptions WriterOptions = new() { SkipValidation = true };
 
@@ -20,7 +20,8 @@ internal sealed class RawDanmakuWriter : IAsyncDisposable
 	private int _pendingCount;
 	private long _firstPendingTimestamp;
 
-	private RawDanmakuWriter(Stream stream, DanmakuFlushPolicy policy, TimeProvider timeProvider)
+	// 接管 stream 的所有权
+	public RawDanmakuWriter(Stream stream, DanmakuFlushPolicy policy, TimeProvider timeProvider)
 	{
 		_stream = stream;
 		_policy = policy;
@@ -31,13 +32,7 @@ internal sealed class RawDanmakuWriter : IAsyncDisposable
 	// 同一次录制里重新打开时接着写
 	public static RawDanmakuWriter Open(string path, DanmakuFlushPolicy policy, TimeProvider timeProvider)
 	{
-		return Create(new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read, 0, FileOptions.Asynchronous), policy, timeProvider);
-	}
-
-	// 接管 stream 的所有权
-	public static RawDanmakuWriter Create(Stream stream, DanmakuFlushPolicy policy, TimeProvider timeProvider)
-	{
-		return new RawDanmakuWriter(stream, policy, timeProvider);
+		return new RawDanmakuWriter(new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read, 0, FileOptions.Asynchronous), policy, timeProvider);
 	}
 
 	public TimeSpan? FlushDueIn

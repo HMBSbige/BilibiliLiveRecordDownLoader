@@ -3,6 +3,7 @@ using BilibiliLiveRecordDownLoader.Application.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Recording;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
@@ -20,6 +21,9 @@ public sealed partial class DanmakuAssGeneratorTest
 	[GeneratedRegex(@"\\fs(?<size>\d+)")]
 	private static partial Regex FontSizeRegex();
 
+	[GeneratedRegex(@"\\c.*$")]
+	private static partial Regex ColorRegex();
+
 	private static (string Text, DanmakuAssResult Result) Generate(IEnumerable<DanmakuRecord> records, VideoResolution? size = null)
 	{
 		StringWriter writer = new(CultureInfo.InvariantCulture);
@@ -29,7 +33,7 @@ public sealed partial class DanmakuAssGeneratorTest
 
 	private static Match[] Dialogues(string text)
 	{
-		return text.Split('\n').Select(static line => DialogueRegex().Match(line)).Where(static match => match.Success).ToArray();
+		return [.. text.Split('\n').Select(static line => DialogueRegex().Match(line)).Where(static match => match.Success)];
 	}
 
 	private static double ParseTime(string value)
@@ -37,51 +41,34 @@ public sealed partial class DanmakuAssGeneratorTest
 		return TimeSpan.ParseExact(value, @"h\:mm\:ss\.ff", CultureInfo.InvariantCulture).TotalSeconds;
 	}
 
-	[Test]
-	public async Task DefaultsTo1080pWhenTheResolutionIsUnknownAsync()
+	private static IEnumerable<string> Texts(string text)
 	{
-		(string text, _) = Generate([DanmakuSamples.Comment(1)]);
-		(string scaled, _) = Generate([DanmakuSamples.Comment(1)], new VideoResolution(1280, 720));
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(text).Contains("PlayResX: 1920\nPlayResY: 1080\n");
-			await Assert.That(text).Contains("Style: Danmaku,Microsoft YaHei,38,");
-			await Assert.That(scaled).Contains("PlayResX: 1280\nPlayResY: 720\n");
-			await Assert.That(scaled).Contains("Style: Danmaku,Microsoft YaHei,25,");
-		}
+		return Dialogues(text).Select(static match => match.Groups[@"text"].Value);
 	}
 
-	[Test]
-	public async Task PortraitVideoScalesByTheShortSideAsync()
+	private static Dictionary<string, string> TagsByText(string text)
 	{
-		DanmakuRecord[] records = Enumerable.Range(0, 60).Select(static i => (DanmakuRecord)DanmakuSamples.Comment(10, $@"弹幕{i}")).ToArray();
-
-		(string text, DanmakuAssResult result) = Generate(records, new VideoResolution(1080, 1920));
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(text).Contains("PlayResX: 1080\nPlayResY: 1920\n");
-			await Assert.That(text).Contains("Style: Danmaku,Microsoft YaHei,38,");
-			// 1920 / 38 = 50 条轨道
-			await Assert.That(result).IsEqualTo(new DanmakuAssResult(50, 10, 0, 0));
-		}
+		return Dialogues(text).ToDictionary(static match => match.Groups[@"text"].Value, static match => match.Groups[@"tags"].Value);
 	}
 
+	// 同时到达的弹幕各占一条轨道，占满后丢弃；轨道高就是弹幕样式的字号，1080 / 38 = 28 条
+	// 视频宽高为 0 表示读不到画面尺寸
 	[Test]
-	public async Task SimultaneousCommentsTakeSeparateLanesAndTheRestAreDroppedAsync()
+	[Arguments(0, 0, 1920, 1080, 38, 28)]
+	[Arguments(1280, 720, 1280, 720, 25, 28)]
+	// 竖屏按短边缩放，字不跟着高度放大，轨道就多了
+	[Arguments(1080, 1920, 1080, 1920, 38, 50)]
+	public async Task LanesFollowTheShortSideAndDefaultTo1080pAsync(int videoWidth, int videoHeight, int width, int height, int fontSize, int lanes)
 	{
-		DanmakuRecord[] records = Enumerable.Range(0, 40).Select(static i => (DanmakuRecord)DanmakuSamples.Comment(10, $@"弹幕{i}")).ToArray();
-
-		(string text, DanmakuAssResult result) = Generate(records);
-		int[] lanes = Dialogues(text).Select(static match => int.Parse(MoveRegex().Match(match.Groups[@"tags"].Value).Groups[@"y1"].Value, CultureInfo.InvariantCulture)).ToArray();
+		VideoResolution? size = videoWidth > 0 ? new VideoResolution(videoWidth, videoHeight) : null;
+		(string text, DanmakuAssResult result) = Generate([.. Enumerable.Range(0, 60).Select(static i => DanmakuSamples.Comment(10, $@"弹幕{i}"))], size);
 
 		using (Assert.Multiple())
 		{
-			// 1080 / 38 = 28 条轨道
-			await Assert.That(result).IsEqualTo(new DanmakuAssResult(28, 12, 0, 0));
-			await Assert.That(lanes.Distinct().Count()).IsEqualTo(28);
-			await Assert.That(lanes.Max()).IsEqualTo(27 * 38);
+			await Assert.That(text).Contains(string.Create(CultureInfo.InvariantCulture, $"PlayResX: {width}\nPlayResY: {height}\n"));
+			await Assert.That(text).Contains(string.Create(CultureInfo.InvariantCulture, $"Style: Danmaku,Microsoft YaHei,{fontSize},"));
+			await Assert.That(result).IsEqualTo(new DanmakuAssResult(lanes, 60 - lanes, 0, 0));
+			await Assert.That(Dialogues(text).Select(static match => int.Parse(MoveRegex().Match(match.Groups[@"tags"].Value).Groups[@"y1"].Value, CultureInfo.InvariantCulture))).IsEquivalentTo(Enumerable.Range(0, lanes).Select(lane => lane * fontSize));
 		}
 	}
 
@@ -99,13 +86,13 @@ public sealed partial class DanmakuAssGeneratorTest
 		}
 
 		(string ass, DanmakuAssResult result) = Generate(records);
-		Placed[] placed = Dialogues(ass).Select(static match =>
+		Placed[] placed = [.. Dialogues(ass).Select(static match =>
 		{
 			string tags = match.Groups[@"tags"].Value;
 			Match move = MoveRegex().Match(tags);
 			int fontSize = FontSizeRegex().Match(tags) is { Success: true } fs ? int.Parse(fs.Groups[@"size"].Value, CultureInfo.InvariantCulture) : 38;
 			return new Placed(ParseTime(match.Groups[@"start"].Value), int.Parse(move.Groups[@"y1"].Value, CultureInfo.InvariantCulture), fontSize, -int.Parse(move.Groups[@"x2"].Value, CultureInfo.InvariantCulture));
-		}).ToArray();
+		})];
 		int violations = 0;
 
 		for (int i = 0; i < placed.Length; ++i)
@@ -155,7 +142,7 @@ public sealed partial class DanmakuAssGeneratorTest
 		];
 
 		(string text, _) = Generate(records);
-		Dictionary<string, string> tags = Dialogues(text).ToDictionary(static match => match.Groups[@"text"].Value, static match => match.Groups[@"tags"].Value);
+		Dictionary<string, string> tags = TagsByText(text);
 
 		using (Assert.Multiple())
 		{
@@ -172,32 +159,27 @@ public sealed partial class DanmakuAssGeneratorTest
 	public async Task FontSizeScalesWithResolutionAndDanmakuSizeAsync()
 	{
 		(string text, _) = Generate([DanmakuSamples.Comment(0, @"大") with { FontSize = 36 }, DanmakuSamples.Comment(0, @"小") with { FontSize = 18 }, DanmakuSamples.Comment(0, @"中")], new VideoResolution(1280, 720));
-		Dictionary<string, string> tags = Dialogues(text).ToDictionary(static match => match.Groups[@"text"].Value, static match => match.Groups[@"tags"].Value);
+		Dictionary<string, string> tags = TagsByText(text);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(tags[@"大"]).Contains(@"\fs36");
 			await Assert.That(tags[@"小"]).Contains(@"\fs18");
-			await Assert.That(tags[@"中"].Contains(@"\fs", StringComparison.Ordinal)).IsFalse();
+			await Assert.That(tags[@"中"]).DoesNotContain(@"\fs");
 		}
 	}
 
+	// 颜色是最后一个标签；白色是样式里的颜色，不用写
 	[Test]
-	[Arguments(0xFF0000, "0000FF")]
-	[Arguments(0x123456, "563412")]
-	public async Task ColorsAreConvertedToBgrAsync(int rgb, string expected)
+	[Arguments(0xFF0000, @"\c&H0000FF&")]
+	[Arguments(0x123456, @"\c&H563412&")]
+	[Arguments(0xFFFFFF, "")]
+	public async Task ColorsAreConvertedToBgrAndWhiteNeedsNoTagAsync(int rgb, string expected)
 	{
 		(string text, _) = Generate([DanmakuSamples.Comment(0) with { Color = rgb }]);
+		Match dialogue = await Assert.That(Dialogues(text)).HasSingleItem();
 
-		await Assert.That(Dialogues(text).Single().Groups[@"tags"].Value).EndsWith($@"\c&H{expected}&");
-	}
-
-	[Test]
-	public async Task WhiteNeedsNoColorTagAsync()
-	{
-		(string text, _) = Generate([DanmakuSamples.Comment(0)]);
-
-		await Assert.That(Dialogues(text).Single().Groups[@"tags"].Value.Contains(@"\c", StringComparison.Ordinal)).IsFalse();
+		await Assert.That(ColorRegex().Match(dialogue.Groups[@"tags"].Value).Value).IsEqualTo(expected);
 	}
 
 	[Test]
@@ -205,7 +187,7 @@ public sealed partial class DanmakuAssGeneratorTest
 	{
 		(string text, _) = Generate([DanmakuSamples.Comment(0, "{\\b1}换\\N行\n第二行\u0007")]);
 
-		await Assert.That(Dialogues(text).Single().Groups[@"text"].Value).IsEqualTo(@"｛＼b1｝换＼N行 第二行");
+		await Assert.That(Texts(text)).IsEquivalentTo([@"｛＼b1｝换＼N行 第二行"]);
 	}
 
 	[Test]
@@ -227,7 +209,7 @@ public sealed partial class DanmakuAssGeneratorTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(result).IsEqualTo(new DanmakuAssResult(1, 0, 0, 0));
-			await Assert.That(Dialogues(text).Single().Groups[@"text"].Value).IsEqualTo(@"滚动");
+			await Assert.That(Texts(text)).IsEquivalentTo([@"滚动"]);
 		}
 	}
 
@@ -244,19 +226,19 @@ public sealed partial class DanmakuAssGeneratorTest
 	{
 		(string text, _) = Generate([DanmakuSamples.Comment(5, @"后"), DanmakuSamples.Comment(1, @"前")]);
 
-		await Assert.That(Dialogues(text).Select(static match => match.Groups[@"text"].Value)).IsEquivalentTo([@"前", @"后"], StringComparer.Ordinal, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+		await Assert.That(Texts(text)).IsEquivalentTo([@"前", @"后"], CollectionOrdering.Matching);
 	}
 
 	[Test]
-	public async Task FileStartsWithAByteOrderMarkAsync()
+	public async Task FileStartsWithAByteOrderMarkAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
 		string path = directory.Combine(@"弹幕.ass");
 
-		await DanmakuAssGenerator.WriteFileAsync(path, [DanmakuSamples.Comment(0)], null, null, CancellationToken.None);
-		byte[] content = await File.ReadAllBytesAsync(path);
+		await DanmakuAssGenerator.WriteFileAsync(path, [DanmakuSamples.Comment(0)], null, null, cancellationToken);
+		byte[] content = await File.ReadAllBytesAsync(path, cancellationToken);
 
-		await Assert.That(content is [0xEF, 0xBB, 0xBF, ..]).IsTrue();
+		await Assert.That(content.Take(3)).IsEquivalentTo((byte[])[0xEF, 0xBB, 0xBF], CollectionOrdering.Matching);
 	}
 
 	private readonly record struct Placed(double Start, int Top, int Height, int Width);

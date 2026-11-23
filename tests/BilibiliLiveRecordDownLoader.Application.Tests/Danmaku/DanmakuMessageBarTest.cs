@@ -1,4 +1,5 @@
 using BilibiliLiveRecordDownLoader.Application.Danmaku;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
@@ -40,7 +41,7 @@ public sealed class DanmakuMessageBarTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(Of(layout, 0).Spans).IsEquivalentTo([new DanmakuMessageSpan(S(0), DanmakuMessageBar.ComboWindow, 0, 0, S(0), 3)], EqualityComparer<DanmakuMessageSpan>.Default);
+			await Assert.That(Of(layout, 0).Spans).IsEquivalentTo([new DanmakuMessageSpan(S(0), DanmakuMessageBar.ComboWindow, 0, 0, S(0), 3)]);
 			await Assert.That((layout.Shown, layout.Dropped)).IsEqualTo((2, 0));
 		}
 	}
@@ -61,8 +62,8 @@ public sealed class DanmakuMessageBarTest
 				new DanmakuMessageSpan(S(1), S(7), 0, 40, S(1.2), 1),
 				// 上舰到期后落回原位
 				new DanmakuMessageSpan(S(7), S(10), 40, 0, S(7.2), 1)
-			], EqualityComparer<DanmakuMessageSpan>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
-			await Assert.That(guard.Spans).IsEquivalentTo([new DanmakuMessageSpan(S(1), S(7), 0, 0, S(1), 1)], EqualityComparer<DanmakuMessageSpan>.Default);
+			], CollectionOrdering.Matching);
+			await Assert.That(guard.Spans).IsEquivalentTo([new DanmakuMessageSpan(S(1), S(7), 0, 0, S(1), 1)]);
 			await Assert.That((guard.ShownAt, guard.FadeOutStart, guard.RemovedAt)).IsEqualTo((S(1), S(6.8), S(7)));
 			await Assert.That((layout.Shown, layout.Dropped)).IsEqualTo((2, 0));
 		}
@@ -109,7 +110,7 @@ public sealed class DanmakuMessageBarTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(layout.Placements.Select(static placement => placement.Request)).IsEquivalentTo([0, 1], EqualityComparer<int>.Default);
+			await Assert.That(layout.Placements.Select(static placement => placement.Request)).IsEquivalentTo([0, 1]);
 			await Assert.That((layout.Shown, layout.Dropped)).IsEqualTo((2, 1));
 		}
 	}
@@ -159,7 +160,7 @@ public sealed class DanmakuMessageBarTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(Of(layout, 1).ShownAt).IsEqualTo(S(10));
-			await Assert.That(layout.Placements.Select(static placement => placement.Request)).IsEquivalentTo([0, 1], EqualityComparer<int>.Default);
+			await Assert.That(layout.Placements.Select(static placement => placement.Request)).IsEquivalentTo([0, 1]);
 			await Assert.That((layout.Shown, layout.Dropped)).IsEqualTo((2, 1));
 		}
 	}
@@ -169,7 +170,7 @@ public sealed class DanmakuMessageBarTest
 	{
 		DanmakuMessageLayout layout = DanmakuMessageBar.Layout([SuperChat(0, 150, 10)], MaxHeight, Gap);
 
-		await Assert.That(Of(layout, 0).Spans).IsEquivalentTo([new DanmakuMessageSpan(S(0), S(10), 0, 0, S(0), 1)], EqualityComparer<DanmakuMessageSpan>.Default);
+		await Assert.That(Of(layout, 0).Spans).IsEquivalentTo([new DanmakuMessageSpan(S(0), S(10), 0, 0, S(0), 1)]);
 	}
 
 	[Test]
@@ -180,11 +181,11 @@ public sealed class DanmakuMessageBarTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(combo.Spans.Select(static span => (span.Start, span.Count))).IsEquivalentTo([(S(0), 1), (S(2), 3), (S(6.5), 6), (S(7), 6)], EqualityComparer<(TimeSpan, int)>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+			await Assert.That(combo.Spans.Select(static span => (span.Start, span.Count))).IsEquivalentTo([(S(0), 1), (S(2), 3), (S(6.5), 6), (S(7), 6)], EqualityComparer<(TimeSpan, int)>.Default, CollectionOrdering.Matching);
 			// 最后一次到达之后再显示 5 秒
 			await Assert.That(combo.RemovedAt).IsEqualTo(S(11.5));
 			// 别人的礼物另起一条，上一次连击结束后再送也另起一条
-			await Assert.That(layout.Placements.Select(static placement => placement.Request)).IsEquivalentTo([0, 3, 4], EqualityComparer<int>.Default);
+			await Assert.That(layout.Placements.Select(static placement => placement.Request)).IsEquivalentTo([0, 3, 4]);
 			await Assert.That((layout.Shown, layout.Dropped)).IsEqualTo((5, 0));
 		}
 	}

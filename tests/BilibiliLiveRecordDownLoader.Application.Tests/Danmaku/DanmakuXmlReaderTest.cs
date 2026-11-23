@@ -1,22 +1,33 @@
 using BilibiliLive.Danmu;
 using BilibiliLiveRecordDownLoader.Application.Danmaku;
 using System.Text;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
 public sealed class DanmakuXmlReaderTest
 {
+	private static IEnumerable<string> CommentTexts(DanmakuFile file)
+	{
+		return file.Records.OfType<DanmakuRecord.Comment>().Select(static comment => comment.Text);
+	}
+
 	[Test]
-	public async Task ReadsBackEverythingItWroteAsync()
+	[Arguments(true)]
+	[Arguments(false)]
+	public async Task ReadsBackEverythingItWroteAsync(bool canSeek, CancellationToken cancellationToken)
 	{
 		DanmakuRecord[] records = DanmakuSamples.AllKinds();
-		DanmakuFile file = await DanmakuSamples.ReadAsync(await DanmakuSamples.WriteAsync(records));
+		byte[] content = await DanmakuSamples.WriteAsync(records);
+		await using Stream stream = canSeek ? new MemoryStream(content) : new ForwardOnlyStream(new MemoryStream(content));
+
+		DanmakuFile file = await DanmakuXmlReader.ReadAsync(stream, cancellationToken);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(file.IsComplete).IsTrue();
 			await Assert.That(file.Source).IsEqualTo(new DanmakuFileSource.Native(DanmakuSamples.Header));
-			await Assert.That(file.Records).IsEquivalentTo(records, EqualityComparer<DanmakuRecord>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+			await Assert.That(file.Records).IsEquivalentTo(records, EqualityComparer<DanmakuRecord>.Default, CollectionOrdering.Matching);
 		}
 	}
 
@@ -34,7 +45,7 @@ public sealed class DanmakuXmlReaderTest
 
 			await Assert.That(file.IsComplete).IsFalse();
 			await Assert.That(file.Records.Count).IsGreaterThanOrEqualTo(previousCount);
-			await Assert.That(file.Records).IsEquivalentTo(records.Take(file.Records.Count), EqualityComparer<DanmakuRecord>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+			await Assert.That(file.Records).IsEquivalentTo(records.Take(file.Records.Count), EqualityComparer<DanmakuRecord>.Default, CollectionOrdering.Matching);
 			previousCount = file.Records.Count;
 		}
 
@@ -49,23 +60,16 @@ public sealed class DanmakuXmlReaderTest
 			""";
 
 		DanmakuFile file = await DanmakuSamples.ReadAsync(xml);
-		DanmakuRecord.Comment[] comments = file.Records.OfType<DanmakuRecord.Comment>().ToArray();
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(file.IsComplete).IsTrue();
 			await Assert.That(file.Source).IsTypeOf<DanmakuFileSource.Standard>();
-			await Assert.That(comments.Length).IsEqualTo(2);
-			await Assert.That(comments[0].Time).IsEqualTo(TimeSpan.FromMilliseconds(601));
-			await Assert.That(comments[0].Mode).IsEqualTo(4);
-			await Assert.That(comments[0].FontSize).IsEqualTo(25);
-			await Assert.That(comments[0].Color).IsEqualTo(15138834);
-			await Assert.That(comments[0].SentAt).IsEqualTo(DateTimeOffset.FromUnixTimeSeconds(1604742895));
-			await Assert.That(comments[0].Uid).IsEqualTo(0);
-			await Assert.That(comments[0].UidHash).IsEqualTo(@"9e5adeaa");
-			await Assert.That(comments[0].DmId).IsEqualTo(40685126698926083);
-			await Assert.That(comments[0].Text).IsEqualTo(@"底部弹幕");
-			await Assert.That(comments[1].UidHash).IsEqualTo(@"14f71d3");
+			await Assert.That(file.Records).IsEquivalentTo(
+			[
+				new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(601), 4, 25, 15138834, DateTimeOffset.FromUnixTimeSeconds(1604742895), 0, string.Empty, @"底部弹幕", 40685126698926083) { UidHash = @"9e5adeaa" },
+				new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(9416), 5, 25, 16755202, DateTimeOffset.FromUnixTimeSeconds(1611378869), 0, string.Empty, @"顶部弹幕", 44164288244350983) { UidHash = @"14f71d3" }
+			], EqualityComparer<DanmakuRecord>.Default, CollectionOrdering.Matching);
 		}
 	}
 
@@ -90,23 +94,13 @@ public sealed class DanmakuXmlReaderTest
 			""";
 
 		DanmakuFile file = await DanmakuSamples.ReadAsync(xml);
-		DanmakuRecord.Comment comment = file.Records.OfType<DanmakuRecord.Comment>().Single();
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(file.IsComplete).IsTrue();
 			await Assert.That(file.Source).IsTypeOf<DanmakuFileSource.Standard>();
-			await Assert.That(file.Records.Count).IsEqualTo(1);
-			await Assert.That(comment.Time).IsEqualTo(TimeSpan.FromMilliseconds(1234));
-			await Assert.That(comment.SentAt).IsEqualTo(DateTimeOffset.FromUnixTimeSeconds(1795343190));
-			await Assert.That(comment.UidHash).IsEqualTo(@"a16fe0dd");
-			// p[7] 不是十进制的 dmid 时读成 0
-			await Assert.That(comment.DmId).IsEqualTo(0);
-			await Assert.That(comment.Text).IsEqualTo(@"弹幕");
-			// B 站标准的 d 只有 p，其他程序写在 d 上的同名属性不读
-			await Assert.That(comment.Uid).IsEqualTo(0);
-			await Assert.That(comment.User).IsEmpty();
-			await Assert.That(comment.IsStorm).IsFalse();
+			// p[7] 不是十进制的 dmid 时读成 0；B 站标准的 d 只有 p，其他程序写在 d 上的 uid、user 和 storm 不读
+			await Assert.That(file.Records).IsEquivalentTo([new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(1234), 1, 25, 16777215, DanmakuSamples.SentAt, 0, string.Empty, @"弹幕", 0) { UidHash = @"a16fe0dd" }], EqualityComparer<DanmakuRecord>.Default);
 		}
 	}
 
@@ -131,7 +125,7 @@ public sealed class DanmakuXmlReaderTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(file.IsComplete).IsFalse();
-			await Assert.That(file.Records).IsEquivalentTo(records.Take(index + 1), EqualityComparer<DanmakuRecord>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+			await Assert.That(file.Records).IsEquivalentTo(records.Take(index + 1), EqualityComparer<DanmakuRecord>.Default, CollectionOrdering.Matching);
 		}
 	}
 
@@ -151,7 +145,7 @@ public sealed class DanmakuXmlReaderTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(file.IsComplete).IsTrue();
-			await Assert.That(file.Records.OfType<DanmakuRecord.Comment>().Select(static comment => comment.Text).ToArray()).IsEquivalentTo([@"前面", @"下一条"], StringComparer.Ordinal, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+			await Assert.That(CommentTexts(file)).IsEquivalentTo([@"前面", @"下一条"], CollectionOrdering.Matching);
 		}
 	}
 
@@ -185,10 +179,10 @@ public sealed class DanmakuXmlReaderTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(standardFile.IsComplete).IsTrue();
-			await Assert.That(standardFile.Records.OfType<DanmakuRecord.Comment>().Select(static comment => comment.Text).Single()).IsEqualTo(@"正好一天");
-			await Assert.That(nativeFile.Source is DanmakuFileSource.Native { Header.Offset.TotalSeconds: -5 }).IsTrue();
-			await Assert.That(nativeFile.Records.OfType<DanmakuRecord.Comment>().Select(static comment => comment.Text).Single()).IsEqualTo(@"超过一天");
-			await Assert.That(nativeFile.Records.Count).IsEqualTo(1);
+			await Assert.That(CommentTexts(standardFile)).IsEquivalentTo([@"正好一天"]);
+			await Assert.That(nativeFile.Source).IsTypeOf<DanmakuFileSource.Native>().And.Member(static source => source.Header.Offset, static offset => offset.IsEqualTo(TimeSpan.FromSeconds(-5)));
+			await Assert.That(nativeFile.Records).Count().IsEqualTo(1);
+			await Assert.That(CommentTexts(nativeFile)).IsEquivalentTo([@"超过一天"]);
 		}
 	}
 
@@ -208,22 +202,7 @@ public sealed class DanmakuXmlReaderTest
 
 		DanmakuFile file = await DanmakuSamples.ReadAsync(xml);
 
-		await Assert.That(file.Records.OfType<DanmakuRecord.Guard>().Single().Level).IsEqualTo(expected);
-	}
-
-	[Test]
-	public async Task ReadsStreamsThatCannotSeekAsync()
-	{
-		byte[] content = await DanmakuSamples.WriteAsync(DanmakuSamples.AllKinds());
-		await using ForwardOnlyStream stream = new(new MemoryStream(content));
-
-		DanmakuFile file = await DanmakuXmlReader.ReadAsync(stream, CancellationToken.None);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(file.IsComplete).IsTrue();
-			await Assert.That(file.Records.Count).IsEqualTo(DanmakuSamples.AllKinds().Length);
-		}
+		await Assert.That(file.Records.OfType<DanmakuRecord.Guard>().Select(static guard => guard.Level)).IsEquivalentTo([expected]);
 	}
 
 	[Test]
@@ -241,17 +220,12 @@ public sealed class DanmakuXmlReaderTest
 			""";
 
 		DanmakuFile file = await DanmakuSamples.ReadAsync(xml);
-		DanmakuRecord.Comment comment = file.Records.OfType<DanmakuRecord.Comment>().Single();
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(file.IsComplete).IsTrue();
-			await Assert.That(file.Records.Count).IsEqualTo(1);
-			await Assert.That(comment.Time).IsEqualTo(TimeSpan.FromMilliseconds(2500));
-			await Assert.That(comment.Mode).IsEqualTo(1);
-			await Assert.That(comment.FontSize).IsEqualTo(25);
-			await Assert.That(comment.Color).IsEqualTo(0xFFFFFF);
-			await Assert.That(comment.Text).IsEqualTo(@"字段不全");
+			// 缺的字段取默认值；没有 p[6] 时哈希读成 0，不按 uid 现算
+			await Assert.That(file.Records).IsEquivalentTo([new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(2500), 1, 25, 0xFFFFFF, DateTimeOffset.UnixEpoch, 0, string.Empty, @"字段不全", 0) { UidHash = @"0" }], EqualityComparer<DanmakuRecord>.Default);
 		}
 	}
 
@@ -285,12 +259,11 @@ public sealed class DanmakuXmlReaderTest
 
 		DanmakuFile file = await DanmakuSamples.ReadAsync(xml);
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(file.Records.Count).IsEqualTo(2);
-			await Assert.That(file.Records[0] is DanmakuRecord.SuperChat { Id: 0, Text: "没有 id" }).IsTrue();
-			await Assert.That(file.Records[1]).IsEqualTo(new DanmakuRecord.SuperChatDeletion(TimeSpan.FromSeconds(4), [5, 6]));
-		}
+		await Assert.That(file.Records).IsEquivalentTo(
+		[
+			new DanmakuRecord.SuperChat(TimeSpan.FromSeconds(1), 1, @"老板", 30000, TimeSpan.FromSeconds(60), @"没有 id"),
+			new DanmakuRecord.SuperChatDeletion(TimeSpan.FromSeconds(4), [5, 6])
+		], EqualityComparer<DanmakuRecord>.Default, CollectionOrdering.Matching);
 	}
 
 	private sealed class ForwardOnlyStream(Stream inner) : Stream

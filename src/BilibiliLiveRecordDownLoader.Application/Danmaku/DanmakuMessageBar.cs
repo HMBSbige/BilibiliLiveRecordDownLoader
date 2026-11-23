@@ -22,11 +22,11 @@ internal sealed record DanmakuMessageLayout(IReadOnlyList<DanmakuMessagePlacemen
 
 internal static class DanmakuMessageBar
 {
-	public static readonly TimeSpan MinimumDisplay = TimeSpan.FromSeconds(4);
-
 	public static readonly TimeSpan Transition = TimeSpan.FromMilliseconds(200);
 
 	public static readonly TimeSpan ComboWindow = TimeSpan.FromSeconds(5);
+
+	private static readonly TimeSpan MinimumDisplay = TimeSpan.FromSeconds(4);
 
 	public static DanmakuMessageLayout Layout(IReadOnlyList<DanmakuMessageRequest> requests, double maxHeight, double gap)
 	{
@@ -64,27 +64,19 @@ internal static class DanmakuMessageBar
 				int index = order[next];
 				DanmakuMessageRequest request = requests[index];
 
-				if (request.Kind is DanmakuMessageKind.Gift)
+				if (request.Kind is DanmakuMessageKind.Gift && FindCombo(column, request, now) is { } combo)
 				{
-					if (FindCombo(column, request, now) is { } combo)
-					{
-						combo.Merge(request, now);
-						++shown;
-					}
-					else if (waiting.Count is 0 && TryMakeRoom(column, request, now, maxHeight, gap, placements))
-					{
-						column.Add(new Entry(index, request, now));
-						++shown;
-					}
-					else
-					{
-						++dropped;
-					}
+					combo.Merge(request, now);
+					++shown;
 				}
 				else if (waiting.Count is 0 && TryMakeRoom(column, request, now, maxHeight, gap, placements))
 				{
 					column.Add(new Entry(index, request, now));
 					++shown;
+				}
+				else if (request.Kind is DanmakuMessageKind.Gift)
+				{
+					++dropped;
 				}
 				else
 				{

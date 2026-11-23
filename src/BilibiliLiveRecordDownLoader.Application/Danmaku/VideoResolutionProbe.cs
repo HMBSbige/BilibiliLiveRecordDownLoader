@@ -30,15 +30,9 @@ internal static class VideoResolutionProbe
 		await stream.ReadExactlyAsync(head, cancellationToken);
 		int position = 0;
 
-		// 遇到切分点时停在它前面，再调用一次就越过它
-		while (splitter.Resolution is null && position < head.Length)
+		// 遇到切分点时停在它前面，再调用一次就越过它；返回 false 时完整的元素都看过了
+		while (splitter.Resolution is null && splitter.TryFindSplit(head, ref position))
 		{
-			int before = position;
-
-			if (!splitter.TryFindSplit(head, ref position) && position == before)
-			{
-				break;
-			}
 		}
 
 		return splitter.Resolution;
@@ -54,7 +48,6 @@ internal static class VideoResolutionProbe
 			stream.Position = offset;
 			await stream.ReadExactlyAsync(header.AsMemory(0, 8), cancellationToken);
 			long size = BinaryPrimitives.ReadUInt32BigEndian(header);
-			bool isMovie = header.AsSpan(4, 4).SequenceEqual("moov"u8);
 
 			if (size is 1)
 			{
@@ -66,14 +59,15 @@ internal static class VideoResolutionProbe
 				size = stream.Length - offset;
 			}
 
-			if (size < 8)
+			// 超出文件的盒子之后不会再有完整的盒子；64 位长度可能是坏数据，写成相减才不会溢出
+			if (size < 8 || size > stream.Length - offset)
 			{
 				return null;
 			}
 
-			if (isMovie)
+			if (header.AsSpan(4, 4).SequenceEqual("moov"u8))
 			{
-				if (size > MaxMovieBoxLength || offset + size > stream.Length)
+				if (size > MaxMovieBoxLength)
 				{
 					return null;
 				}

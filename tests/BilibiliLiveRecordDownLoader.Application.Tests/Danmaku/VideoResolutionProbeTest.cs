@@ -1,6 +1,7 @@
 using BilibiliLiveRecordDownLoader.Application.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
+using System.Buffers.Binary;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
@@ -32,6 +33,21 @@ public sealed class VideoResolutionProbeTest
 		await File.WriteAllBytesAsync(path, content, cancellationToken);
 
 		await Assert.That(await VideoResolutionProbe.ReadAsync(path, cancellationToken)).IsEqualTo(new VideoResolution(1080, 1920));
+	}
+
+	// 坏掉的 64 位盒子长度：一个加到偏移上会溢出成负数，一个转成有符号数就是负数；后面的 moov 已经找不到了
+	[Test]
+	[Arguments(0x7FFF_FFFF_FFFF_FFF0UL)]
+	[Arguments(0x8000_0000_0000_0000UL)]
+	public async Task Mp4WithAnImpossibleBoxSizeHasNoSizeAsync(ulong largeSize, CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string path = directory.Combine("a.mp4");
+		byte[] header = [0, 0, 0, 1, .. "free"u8, 0, 0, 0, 0, 0, 0, 0, 0];
+		BinaryPrimitives.WriteUInt64BigEndian(header.AsSpan(8), largeSize);
+		await File.WriteAllBytesAsync(path, [.. Fmp4Samples.Box("ftyp", new byte[8]), .. header, .. Fmp4Samples.TimedInit(1000, 1080, 1920)], cancellationToken);
+
+		await Assert.That(await VideoResolutionProbe.ReadAsync(path, cancellationToken)).IsNull();
 	}
 
 	[Test]

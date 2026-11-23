@@ -6,48 +6,35 @@ namespace BilibiliLiveRecordDownLoader.Application.Danmaku;
 internal static class DanmakuXmlText
 {
 	// 换行和制表符也写成字符引用，保证每个元素占一行，属性值里的空白读回时也不会被规范化成空格
+	// XML 不允许的字符（控制字符、落单的代理项等）丢掉
 	public static void AppendEscaped(StringBuilder builder, string value)
 	{
 		for (int i = 0; i < value.Length; ++i)
 		{
 			char c = value[i];
-
-			switch (c)
+			string? reference = c switch
 			{
-				case '&':
-					builder.Append(@"&amp;");
-					break;
-				case '<':
-					builder.Append(@"&lt;");
-					break;
-				case '>':
-					builder.Append(@"&gt;");
-					break;
-				case '"':
-					builder.Append(@"&quot;");
-					break;
-				case '\t':
-					builder.Append(@"&#x9;");
-					break;
-				case '\n':
-					builder.Append(@"&#xA;");
-					break;
-				case '\r':
-					builder.Append(@"&#xD;");
-					break;
-				default:
-				{
-					if (XmlConvert.IsXmlChar(c))
-					{
-						builder.Append(c);
-					}
-					else if (i + 1 < value.Length && XmlConvert.IsXmlSurrogatePair(value[i + 1], c))
-					{
-						builder.Append(c).Append(value[++i]);
-					}
+				'&' => @"&amp;",
+				'<' => @"&lt;",
+				'>' => @"&gt;",
+				'"' => @"&quot;",
+				'\t' => @"&#x9;",
+				'\n' => @"&#xA;",
+				'\r' => @"&#xD;",
+				_ => null
+			};
 
-					break;
-				}
+			if (reference is not null)
+			{
+				builder.Append(reference);
+			}
+			else if (XmlConvert.IsXmlChar(c))
+			{
+				builder.Append(c);
+			}
+			else if (i + 1 < value.Length && XmlConvert.IsXmlSurrogatePair(value[i + 1], c))
+			{
+				builder.Append(c).Append(value[++i]);
 			}
 		}
 	}

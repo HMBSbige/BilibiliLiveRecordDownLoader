@@ -59,95 +59,58 @@ internal static class DanmakuXmlReader
 						source = new DanmakuFileSource.Native(ReadHeader(reader));
 						break;
 					}
-					case @"d":
+					case @"d" when ReadComment(reader, isNative) is { } comment:
 					{
-						// B 站标准的 d 只有 p，其他程序写在 d 上的同名属性含义不一定相同
-						DanmakuRecord.Comment? comment = isNative
-							? ParseComment(reader.GetAttribute(@"p"), MaxNativeTime, reader.GetAttribute(@"uid"), reader.GetAttribute(@"user"), reader.GetAttribute(@"storm") is @"1")
-							: ParseComment(reader.GetAttribute(@"p"), MaxStandardTime, null, null, false);
-
-						if (comment is not null)
-						{
-							records.Add(comment with { Text = await ReadTextAsync(reader) });
-						}
-
+						records.Add(comment with { Text = await ReadTextAsync(reader) });
 						break;
 					}
-					case @"sc" when isNative:
+					case @"sc" when isNative && TryReadNativeTime(reader, @"ts", out TimeSpan time):
 					{
-						if (TryParseTime(reader.GetAttribute(@"ts"), MaxNativeTime, out TimeSpan time))
-						{
-							long uid = DanmakuXmlText.ParseInt64(reader.GetAttribute(@"uid"));
-							string user = reader.GetAttribute(@"user") ?? string.Empty;
-							long price = DanmakuXmlText.ParseInt64(reader.GetAttribute(@"price"));
-							TimeSpan duration = DanmakuXmlText.TryParseSeconds(reader.GetAttribute(@"time"), out TimeSpan value) ? value : TimeSpan.Zero;
-							long id = DanmakuXmlText.ParseInt64(reader.GetAttribute(@"id"));
-							records.Add(new DanmakuRecord.SuperChat(time, uid, user, price, duration, await ReadTextAsync(reader)) { Id = id });
-						}
-
+						long uid = DanmakuXmlText.ParseInt64(reader.GetAttribute(@"uid"));
+						string user = reader.GetAttribute(@"user") ?? string.Empty;
+						long price = DanmakuXmlText.ParseInt64(reader.GetAttribute(@"price"));
+						TimeSpan duration = DanmakuXmlText.TryParseSeconds(reader.GetAttribute(@"time"), out TimeSpan value) ? value : TimeSpan.Zero;
+						long id = DanmakuXmlText.ParseInt64(reader.GetAttribute(@"id"));
+						records.Add(new DanmakuRecord.SuperChat(time, uid, user, price, duration, await ReadTextAsync(reader)) { Id = id });
 						break;
 					}
-					case @"sc_delete" when isNative:
+					case @"sc_delete" when isNative && TryReadNativeTime(reader, @"ts", out TimeSpan time) && ParseIds(reader.GetAttribute(@"ids")) is { Length: > 0 } ids:
 					{
-						if (TryParseTime(reader.GetAttribute(@"ts"), MaxNativeTime, out TimeSpan time) && ParseIds(reader.GetAttribute(@"ids")) is { Length: > 0 } ids)
-						{
-							records.Add(new DanmakuRecord.SuperChatDeletion(time, ids));
-						}
-
+						records.Add(new DanmakuRecord.SuperChatDeletion(time, ids));
 						break;
 					}
-					case @"gift" when isNative:
+					case @"gift" when isNative && TryReadNativeTime(reader, @"ts", out TimeSpan time):
 					{
-						if (TryParseTime(reader.GetAttribute(@"ts"), MaxNativeTime, out TimeSpan time))
-						{
-							records.Add(new DanmakuRecord.Gift(
-								time,
-								DanmakuXmlText.ParseInt64(reader.GetAttribute(@"uid")),
-								reader.GetAttribute(@"user") ?? string.Empty,
-								reader.GetAttribute(@"giftname") ?? string.Empty,
-								DanmakuXmlText.ParseInt32(reader.GetAttribute(@"giftcount"), 1),
-								DanmakuXmlText.ParseInt64(reader.GetAttribute(@"price"))));
-						}
-
+						records.Add(new DanmakuRecord.Gift(
+							time,
+							DanmakuXmlText.ParseInt64(reader.GetAttribute(@"uid")),
+							reader.GetAttribute(@"user") ?? string.Empty,
+							reader.GetAttribute(@"giftname") ?? string.Empty,
+							DanmakuXmlText.ParseInt32(reader.GetAttribute(@"giftcount"), 1),
+							DanmakuXmlText.ParseInt64(reader.GetAttribute(@"price"))));
 						break;
 					}
-					case @"guard" when isNative:
+					case @"guard" when isNative && TryReadNativeTime(reader, @"ts", out TimeSpan time):
 					{
-						if (TryParseTime(reader.GetAttribute(@"ts"), MaxNativeTime, out TimeSpan time))
-						{
-							GuardLevel level = (GuardLevel)DanmakuXmlText.ParseInt32(reader.GetAttribute(@"level"));
-							int count = DanmakuXmlText.ParseInt32(reader.GetAttribute(@"count"), 1);
-							bool isRenewal = reader.GetAttribute(@"renewal") is @"1";
-							records.Add(new DanmakuRecord.Guard(time, DanmakuXmlText.ParseInt64(reader.GetAttribute(@"uid")), reader.GetAttribute(@"user") ?? string.Empty, Enum.IsDefined(level) ? level : GuardLevel.None, count, DanmakuXmlText.ParseInt64(reader.GetAttribute(@"price"))) { IsRenewal = isRenewal });
-						}
-
+						GuardLevel level = (GuardLevel)DanmakuXmlText.ParseInt32(reader.GetAttribute(@"level"));
+						int count = DanmakuXmlText.ParseInt32(reader.GetAttribute(@"count"), 1);
+						bool isRenewal = reader.GetAttribute(@"renewal") is @"1";
+						records.Add(new DanmakuRecord.Guard(time, DanmakuXmlText.ParseInt64(reader.GetAttribute(@"uid")), reader.GetAttribute(@"user") ?? string.Empty, Enum.IsDefined(level) ? level : GuardLevel.None, count, DanmakuXmlText.ParseInt64(reader.GetAttribute(@"price"))) { IsRenewal = isRenewal });
 						break;
 					}
-					case @"title" when isNative:
+					case @"title" when isNative && TryReadNativeTime(reader, @"ts", out TimeSpan time):
 					{
-						if (TryParseTime(reader.GetAttribute(@"ts"), MaxNativeTime, out TimeSpan time))
-						{
-							records.Add(new DanmakuRecord.TitleChange(time, await ReadTextAsync(reader)));
-						}
-
+						records.Add(new DanmakuRecord.TitleChange(time, await ReadTextAsync(reader)));
 						break;
 					}
-					case @"gap" when isNative:
+					case @"gap" when isNative && TryReadNativeTime(reader, @"start", out TimeSpan start) && TryReadNativeTime(reader, @"end", out TimeSpan end):
 					{
-						if (TryParseTime(reader.GetAttribute(@"start"), MaxNativeTime, out TimeSpan start) && TryParseTime(reader.GetAttribute(@"end"), MaxNativeTime, out TimeSpan end))
-						{
-							records.Add(new DanmakuRecord.Gap(start, end));
-						}
-
+						records.Add(new DanmakuRecord.Gap(start, end));
 						break;
 					}
-					case @"connection" when isNative:
+					case @"connection" when isNative && TryReadNativeTime(reader, @"ts", out TimeSpan time):
 					{
-						if (TryParseTime(reader.GetAttribute(@"ts"), MaxNativeTime, out TimeSpan time))
-						{
-							records.Add(new DanmakuRecord.Connection(time, reader.GetAttribute(@"anonymous") is @"true", reader.GetAttribute(@"masked") is @"true"));
-						}
-
+						records.Add(new DanmakuRecord.Connection(time, reader.GetAttribute(@"anonymous") is @"true", reader.GetAttribute(@"masked") is @"true"));
 						break;
 					}
 				}
@@ -171,6 +134,11 @@ internal static class DanmakuXmlReader
 
 		await reader.ReadAsync();
 		return reader.NodeType is XmlNodeType.Text or XmlNodeType.CDATA or XmlNodeType.Whitespace or XmlNodeType.SignificantWhitespace ? await reader.ReadContentAsStringAsync() : string.Empty;
+	}
+
+	private static bool TryReadNativeTime(XmlReader reader, string attribute, out TimeSpan time)
+	{
+		return TryParseTime(reader.GetAttribute(attribute), MaxNativeTime, out time);
 	}
 
 	// 写入者把记录的时间截到 0，负值只会来自坏数据
@@ -197,43 +165,34 @@ internal static class DanmakuXmlReader
 		};
 	}
 
-	// p[4] 是 Unix 秒，p[6] 是 uid 的哈希；uid 和 user 属性只有自己的文件有
-	private static DanmakuRecord.Comment? ParseComment(string? p, TimeSpan maxTime, string? uidAttribute, string? user, bool storm)
+	// p[4] 是 Unix 秒，p[6] 是 uid 的哈希
+	// B 站标准的 d 只有 p，uid、user 和 storm 属性只读自己的文件：别的程序写在 d 上的同名属性含义不一定相同
+	private static DanmakuRecord.Comment? ReadComment(XmlReader reader, bool isNative)
 	{
-		if (p is null)
+		string[]? fields = reader.GetAttribute(@"p")?.Split(',');
+
+		if (fields is null || !TryParseTime(fields[0], isNative ? MaxNativeTime : MaxStandardTime, out TimeSpan time))
 		{
 			return null;
 		}
 
-		string[] fields = p.Split(',');
-
-		if (!TryParseTime(fields[0], maxTime, out TimeSpan time))
-		{
-			return null;
-		}
-
-		int mode = DanmakuXmlText.ParseInt32(Field(fields, 1), 1);
-		int fontSize = DanmakuXmlText.ParseInt32(Field(fields, 2), 25);
-		int color = (int)(DanmakuXmlText.ParseInt64(Field(fields, 3), 0xFFFFFF) & 0xFFFFFF);
-		long sent = DanmakuXmlText.ParseInt64(Field(fields, 4));
-		DateTimeOffset sentAt = FromUnixSeconds(sent);
-		string sender = Field(fields, 6) ?? @"0";
-		long dmId = DanmakuXmlText.ParseInt64(Field(fields, 7));
-		long uid = DanmakuXmlText.ParseInt64(uidAttribute);
+		int mode = DanmakuXmlText.ParseInt32(fields.ElementAtOrDefault(1), 1);
+		int fontSize = DanmakuXmlText.ParseInt32(fields.ElementAtOrDefault(2), 25);
+		int color = (int)(DanmakuXmlText.ParseInt64(fields.ElementAtOrDefault(3), 0xFFFFFF) & 0xFFFFFF);
+		DateTimeOffset sentAt = FromUnixSeconds(DanmakuXmlText.ParseInt64(fields.ElementAtOrDefault(4)));
+		long dmId = DanmakuXmlText.ParseInt64(fields.ElementAtOrDefault(7));
+		long uid = isNative ? DanmakuXmlText.ParseInt64(reader.GetAttribute(@"uid")) : 0;
+		string user = isNative ? reader.GetAttribute(@"user") ?? string.Empty : string.Empty;
+		bool storm = isNative && reader.GetAttribute(@"storm") is @"1";
 
 		// 打码时 uid 为 0 而哈希仍是真的，原样保留
-		return new DanmakuRecord.Comment(time, mode, fontSize, color, sentAt, uid, user ?? string.Empty, string.Empty, dmId) { IsStorm = storm, UidHash = sender };
+		return new DanmakuRecord.Comment(time, mode, fontSize, color, sentAt, uid, user, string.Empty, dmId) { IsStorm = storm, UidHash = fields.ElementAtOrDefault(6) ?? @"0" };
 	}
 
 	// 0 是缺失的 id，留着会删掉所有缺少 id 的 SC
 	private static long[] ParseIds(string? value)
 	{
 		return value is null ? [] : [.. value.Split(',').Select(static id => DanmakuXmlText.ParseInt64(id)).Where(static id => id > 0)];
-	}
-
-	private static string? Field(string[] fields, int index)
-	{
-		return index < fields.Length ? fields[index] : null;
 	}
 
 	private static DateTimeOffset FromUnixSeconds(long value)

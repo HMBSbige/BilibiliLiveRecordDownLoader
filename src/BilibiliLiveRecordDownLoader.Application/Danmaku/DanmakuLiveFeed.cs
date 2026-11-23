@@ -11,11 +11,8 @@ internal sealed class DanmakuLiveFeed(TimeProvider timeProvider)
 	private long _sequence;
 	private long _version;
 	private long _rateSecond;
-	private DanmakuConnectionState _state = DanmakuConnectionState.Connecting;
-	private long _connection;
-	private long? _userId;
-	private bool _isMasked;
-	private DateTimeOffset? _disconnectedAt;
+	// 其中的 MessagesPerMinute 随时间变化，读状态时才算
+	private DanmakuFeedStatus _status = new(DanmakuConnectionState.Connecting, 0, null, false, 0, null);
 	private bool _isRecording;
 
 	public long Version => Interlocked.Read(ref _version);
@@ -27,7 +24,7 @@ internal sealed class DanmakuLiveFeed(TimeProvider timeProvider)
 			lock (_lock)
 			{
 				AdvanceRate(CurrentSecond(timeProvider.GetTimestamp()));
-				return new DanmakuFeedStatus(_state, _connection, _userId, _isMasked, _rate.Sum(), _disconnectedAt);
+				return _status with { MessagesPerMinute = _rate.Sum() };
 			}
 		}
 	}
@@ -47,11 +44,6 @@ internal sealed class DanmakuLiveFeed(TimeProvider timeProvider)
 	{
 		lock (_lock)
 		{
-			if (_entries.Count is 0)
-			{
-				return [];
-			}
-
 			long first = _sequence - _entries.Count + 1;
 			int skip = (int)Math.Clamp(afterSequence - first + 1, 0, _entries.Count);
 			return [.. _entries.Skip(skip)];
@@ -98,7 +90,7 @@ internal sealed class DanmakuLiveFeed(TimeProvider timeProvider)
 	{
 		lock (_lock)
 		{
-			_state = DanmakuConnectionState.Connecting;
+			_status = _status with { State = DanmakuConnectionState.Connecting };
 			Touch();
 		}
 	}
@@ -107,11 +99,7 @@ internal sealed class DanmakuLiveFeed(TimeProvider timeProvider)
 	{
 		lock (_lock)
 		{
-			_state = DanmakuConnectionState.Connected;
-			++_connection;
-			_userId = userId;
-			_isMasked = false;
-			_disconnectedAt = null;
+			_status = _status with { State = DanmakuConnectionState.Connected, Connection = _status.Connection + 1, UserId = userId, IsMasked = false, DisconnectedAt = null };
 			Touch();
 		}
 	}
@@ -120,7 +108,7 @@ internal sealed class DanmakuLiveFeed(TimeProvider timeProvider)
 	{
 		lock (_lock)
 		{
-			_isMasked = true;
+			_status = _status with { IsMasked = true };
 			Touch();
 		}
 	}
@@ -129,8 +117,7 @@ internal sealed class DanmakuLiveFeed(TimeProvider timeProvider)
 	{
 		lock (_lock)
 		{
-			_state = DanmakuConnectionState.Disconnected;
-			_disconnectedAt ??= time;
+			_status = _status with { State = DanmakuConnectionState.Disconnected, DisconnectedAt = _status.DisconnectedAt ?? time };
 			Touch();
 		}
 	}

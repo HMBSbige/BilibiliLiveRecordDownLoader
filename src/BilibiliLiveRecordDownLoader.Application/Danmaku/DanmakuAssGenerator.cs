@@ -40,14 +40,12 @@ internal static class DanmakuAssGenerator
 		int laneHeight = Math.Max(1, (int)Math.Round(ReferenceFontSize * scale));
 		int laneCount = Math.Max(1, height / laneHeight);
 		ScrollLane?[] scrollLanes = new ScrollLane?[laneCount];
+		// 记的是轨道空出来的时刻，弹幕的开始时间不早于 0，初值 0 就是空闲
 		TimeSpan[] topLanes = new TimeSpan[laneCount];
 		TimeSpan[] bottomLanes = new TimeSpan[laneCount];
-		Array.Fill(topLanes, TimeSpan.MinValue);
-		Array.Fill(bottomLanes, TimeSpan.MinValue);
 		DanmakuRecord[] sorted = [.. records.OrderBy(static record => record.Time)];
 		DanmakuAssMessages.Geometry bar = new(width, height, scale);
 		DanmakuAssMessages.Rendering? messages = messageLabels is null ? null : DanmakuAssMessages.Prepare(sorted, bar, messageLabels);
-		DanmakuAssMessages.Occupancy? occupied = messages?.Occupancy;
 
 		WriteHeader(writer, width, height, laneHeight, bar.FontSize);
 
@@ -56,14 +54,7 @@ internal static class DanmakuAssGenerator
 
 		foreach (DanmakuRecord.Comment comment in sorted.OfType<DanmakuRecord.Comment>())
 		{
-			if (comment.Mode is not (>= 1 and <= 5))
-			{
-				continue;
-			}
-
-			string text = EscapeText(comment.Text);
-
-			if (text.Length is 0)
+			if (comment.Mode is not (>= 1 and <= 5) || EscapeText(comment.Text) is not { Length: > 0 } text)
 			{
 				continue;
 			}
@@ -72,42 +63,23 @@ internal static class DanmakuAssGenerator
 			int span = Math.Clamp((fontSize + laneHeight - 1) / laneHeight, 1, laneCount);
 			TimeSpan start = comment.Time < TimeSpan.Zero ? TimeSpan.Zero : comment.Time;
 			double textWidth = EstimateWidth(text, fontSize);
-			string? placement = comment.Mode switch
+			string? position = comment.Mode switch
 			{
-				4 => PlaceFixed(bottomLanes, span, start, lane => string.Create(CultureInfo.InvariantCulture, $@"\an2\pos({width / 2},{height - lane * laneHeight})"), BottomAvoidance(occupied, start, width, height, textWidth, laneHeight)),
-				5 => PlaceFixed(topLanes, span, start, lane => string.Create(CultureInfo.InvariantCulture, $@"\an8\pos({width / 2},{lane * laneHeight})"), null),
-				_ => PlaceScroll(scrollLanes, span, start, textWidth, width, laneHeight)
+				4 => PlaceFixed(bottomLanes, span, start, BottomAvoidance(messages?.Occupancy, start, width, height, textWidth, laneHeight)) is { } lane ? string.Create(CultureInfo.InvariantCulture, $@"\an2\pos({width / 2},{height - lane * laneHeight})") : null,
+				5 => PlaceFixed(topLanes, span, start, null) is { } lane ? string.Create(CultureInfo.InvariantCulture, $@"\an8\pos({width / 2},{lane * laneHeight})") : null,
+				_ => PlaceScroll(scrollLanes, span, start, textWidth, width) is { } lane ? string.Create(CultureInfo.InvariantCulture, $@"\an7\move({width},{lane * laneHeight},{-(int)Math.Ceiling(textWidth)},{lane * laneHeight})") : null
 			};
 
-			if (placement is null)
+			if (position is null)
 			{
 				++dropped;
 				continue;
 			}
 
 			TimeSpan end = start + (comment.Mode is 4 or 5 ? FixedDuration : ScrollDuration);
-			writer.Write(@"Dialogue: 0,");
-			writer.Write(FormatTime(start));
-			writer.Write(',');
-			writer.Write(FormatTime(end));
-			writer.Write(@",Danmaku,,0,0,0,,{");
-			writer.Write(placement);
-
-			if (fontSize != laneHeight)
-			{
-				writer.Write(string.Create(CultureInfo.InvariantCulture, $@"\fs{fontSize}"));
-			}
-
-			if ((comment.Color & 0xFFFFFF) is not 0xFFFFFF)
-			{
-				writer.Write(@"\c&H");
-				writer.Write(ToAssColor(comment.Color));
-				writer.Write('&');
-			}
-
-			writer.Write('}');
-			writer.Write(text);
-			writer.Write('\n');
+			string sizeTag = fontSize == laneHeight ? string.Empty : string.Create(CultureInfo.InvariantCulture, $@"\fs{fontSize}");
+			string colorTag = (comment.Color & 0xFFFFFF) is 0xFFFFFF ? string.Empty : $@"\c&H{ToAssColor(comment.Color)}&";
+			writer.Write($"Dialogue: 0,{FormatTime(start)},{FormatTime(end)},Danmaku,,0,0,0,,{{{position}{sizeTag}{colorTag}}}{text}\n");
 			++shown;
 		}
 
@@ -152,7 +124,7 @@ internal static class DanmakuAssGenerator
 			""").ReplaceLineEndings("\n"));
 	}
 
-	private static string? PlaceScroll(ScrollLane?[] lanes, int span, TimeSpan start, double textWidth, int screenWidth, int laneHeight)
+	private static int? PlaceScroll(ScrollLane?[] lanes, int span, TimeSpan start, double textWidth, int screenWidth)
 	{
 		double speed = (screenWidth + textWidth) / ScrollDuration.TotalSeconds;
 
@@ -161,13 +133,11 @@ internal static class DanmakuAssGenerator
 			return null;
 		}
 
-		ScrollLane occupied = new(start, textWidth, speed);
-		Array.Fill(lanes, occupied, found, span);
-		int y = found * laneHeight;
-		return string.Create(CultureInfo.InvariantCulture, $@"\an7\move({screenWidth},{y},{-(int)Math.Ceiling(textWidth)},{y})");
+		Array.Fill(lanes, new ScrollLane(start, textWidth, speed), found, span);
+		return found;
 	}
 
-	private static string? PlaceFixed(TimeSpan[] lanes, int span, TimeSpan start, Func<int, string> position, Func<int, int, bool>? avoid)
+	private static int? PlaceFixed(TimeSpan[] lanes, int span, TimeSpan start, Func<int, int, bool>? avoid)
 	{
 		if (FindLane(lanes.Length, span, lane => lanes[lane] <= start, avoid) is not { } found)
 		{
@@ -175,7 +145,7 @@ internal static class DanmakuAssGenerator
 		}
 
 		Array.Fill(lanes, start + FixedDuration, found, span);
-		return position(found);
+		return found;
 	}
 
 	// 不重叠的都不空闲时退回第一段空闲的，宁可和消息栏重叠也不多丢弹幕
@@ -183,18 +153,15 @@ internal static class DanmakuAssGenerator
 	{
 		int? fallback = null;
 
+	outer:
 		for (int lane = 0; lane + span <= laneCount; ++lane)
 		{
-			bool free = true;
-
-			for (int i = lane; i < lane + span && free; ++i)
+			for (int i = lane; i < lane + span; ++i)
 			{
-				free = isFree(i);
-			}
-
-			if (!free)
-			{
-				continue;
+				if (!isFree(i))
+				{
+					continue outer;
+				}
 			}
 
 			if (avoid is null || !avoid(lane, span))
@@ -209,7 +176,7 @@ internal static class DanmakuAssGenerator
 	}
 
 	// 没有字体度量，宁可估宽一点也不要重叠
-	internal static double EstimateWidth(string text, int fontSize)
+	private static double EstimateWidth(string text, int fontSize)
 	{
 		double width = 0;
 
@@ -258,7 +225,7 @@ internal static class DanmakuAssGenerator
 				{
 					if (!Rune.IsControl(rune))
 					{
-						builder.Append(rune.ToString());
+						builder.Append(rune);
 					}
 
 					break;

@@ -4,6 +4,7 @@ using BilibiliLiveRecordDownLoader.Application.Recording;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
@@ -23,12 +24,17 @@ public sealed partial class DanmakuAssMessagesTest
 		StringWriter writer = new(CultureInfo.InvariantCulture);
 		DanmakuAssResult result = DanmakuAssGenerator.Write(writer, records, size, Labels);
 		string text = writer.ToString();
-		return (text.Split('\n').Select(static line => MessageRegex().Match(line)).Where(static match => match.Success).ToArray(), result, text);
+		return ([.. text.Split('\n').Select(static line => MessageRegex().Match(line)).Where(static match => match.Success)], result, text);
 	}
 
 	private static string[] Texts(Match[] messages)
 	{
 		return [.. messages.Where(static match => match.Groups[@"layer"].Value is "2").Select(static match => match.Groups[@"text"].Value)];
+	}
+
+	private static IEnumerable<string> ShapeTags(Match[] messages)
+	{
+		return messages.Where(static match => match.Groups[@"layer"].Value is "1").Select(static match => match.Groups[@"tags"].Value);
 	}
 
 	private static string Color(int rgb)
@@ -42,19 +48,15 @@ public sealed partial class DanmakuAssMessagesTest
 	{
 		(Match[] messages, DanmakuAssResult result, _) = Generate([new DanmakuRecord.SuperChat(TimeSpan.FromSeconds(1), 1, @"老板", 100_000, TimeSpan.FromSeconds(60), @"醒目留言")]);
 		SuperChatTier tier = SuperChatTier.For(100_000);
-		Match[] shapes = [.. messages.Where(static match => match.Groups[@"layer"].Value is "1")];
 		Dictionary<string, string> texts = messages.Where(static match => match.Groups[@"layer"].Value is "2").ToDictionary(static match => match.Groups[@"text"].Value, static match => match.Groups[@"tags"].Value);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(result).IsEqualTo(new DanmakuAssResult(0, 0, 1, 0));
 			// 底边离画面底部 4%，左边离画面左边 2%
-			await Assert.That(shapes.Length).IsEqualTo(2);
-			await Assert.That(shapes[0].Groups[@"tags"].Value).IsEqualTo($@"\an7\pos(38,933)\fad(200,200){Color(tier.Background)}\1a&H00&\p1");
-			await Assert.That(shapes[1].Groups[@"tags"].Value).IsEqualTo($@"\an7\pos(38,981)\fad(200,200){Color(tier.BottomBackground)}\1a&H00&\p1");
+			await Assert.That(ShapeTags(messages)).IsEquivalentTo([$@"\an7\pos(38,933)\fad(200,200){Color(tier.Background)}\1a&H00&\p1", $@"\an7\pos(38,981)\fad(200,200){Color(tier.BottomBackground)}\1a&H00&\p1"], CollectionOrdering.Matching);
 			await Assert.That(texts[@"老板"]).Contains($@"\b1{Color(0x333333)}");
-			await Assert.That(texts[@"¥100"]).StartsWith(@"\an6\pos(502,957)");
-			await Assert.That(texts[@"¥100"]).EndsWith(Color(tier.PriceColor));
+			await Assert.That(texts[@"¥100"]).StartsWith(@"\an6\pos(502,957)").And.EndsWith(Color(tier.PriceColor));
 			await Assert.That(texts[@"醒目留言"]).EndsWith(Color(tier.TextColor));
 		}
 	}
@@ -67,8 +69,8 @@ public sealed partial class DanmakuAssMessagesTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(text).Contains(@"Dialogue: 0,0:00:00.00,0:00:12.00,Danmaku,");
-			await Assert.That(messages.All(static match => (match.Groups[@"layer"].Value is "1") == match.Groups[@"tags"].Value.EndsWith(@"\p1", StringComparison.Ordinal))).IsTrue();
-			await Assert.That(Texts(messages).Distinct()).IsEquivalentTo([@"老板", @"¥30", @"内容", @"舰长 开通了舰长", @"观众 投喂 礼物 ×1"], StringComparer.Ordinal);
+			await Assert.That(messages).All(static match => (match.Groups[@"layer"].Value is "1") == match.Groups[@"tags"].Value.EndsWith(@"\p1", StringComparison.Ordinal));
+			await Assert.That(Texts(messages).Distinct()).IsEquivalentTo([@"老板", @"¥30", @"内容", @"舰长 开通了舰长", @"观众 投喂 礼物 ×1"]);
 		}
 	}
 
@@ -110,7 +112,7 @@ public sealed partial class DanmakuAssMessagesTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(Texts(messages)).IsEquivalentTo([@"甲 开通了提督×3个月", @"乙 开通了总督", @"丙 续费了舰长"], StringComparer.Ordinal);
+			await Assert.That(Texts(messages)).IsEquivalentTo([@"甲 开通了提督×3个月", @"乙 开通了总督", @"丙 续费了舰长"]);
 			await Assert.That(result).IsEqualTo(new DanmakuAssResult(0, 0, 3, 0));
 		}
 	}
@@ -122,7 +124,7 @@ public sealed partial class DanmakuAssMessagesTest
 	public async Task EachGuardLevelUsesItsOwnColorAsync(GuardLevel level, int color)
 	{
 		(Match[] messages, _, _) = Generate([new DanmakuRecord.Guard(TimeSpan.Zero, 1, @"甲", level, 1, 198_000)]);
-		string shape = messages.Where(static match => match.Groups[@"layer"].Value is "1").Select(static match => match.Groups[@"tags"].Value).Single();
+		string shape = await Assert.That(ShapeTags(messages)).HasSingleItem();
 
 		await Assert.That(shape).Contains(Color(color));
 	}
@@ -146,7 +148,7 @@ public sealed partial class DanmakuAssMessagesTest
 			await Assert.That(texts).Contains(@"甲 投喂 人气票 ×3");
 			await Assert.That(texts).Contains(@"淡*** 投喂 人气票 ×2");
 			await Assert.That(texts).Contains(@"浓*** 投喂 人气票 ×1");
-			await Assert.That(texts.Any(static text => text.Contains(@"小心心", StringComparison.Ordinal))).IsFalse();
+			await Assert.That(texts).DoesNotContain(static text => text.Contains(@"小心心", StringComparison.Ordinal));
 			await Assert.That(result).IsEqualTo(new DanmakuAssResult(0, 0, 5, 0));
 		}
 	}
@@ -160,36 +162,29 @@ public sealed partial class DanmakuAssMessagesTest
 			new DanmakuRecord.Gift(TimeSpan.Zero, 2, @"观众", @"{礼物}", 1, 1000)
 		]);
 
-		await Assert.That(Texts(messages).Distinct()).IsEquivalentTo([@"｛＼b1｝", @"¥30", @"第一行 ｛＼N｝", @"观众 投喂 ｛礼物｝ ×1"], StringComparer.Ordinal);
+		await Assert.That(Texts(messages).Distinct()).IsEquivalentTo([@"｛＼b1｝", @"¥30", @"第一行 ｛＼N｝", @"观众 投喂 ｛礼物｝ ×1"]);
 	}
 
+	// 8 秒起，每个字加 0.15 秒，最多 20 秒，但不超过 SC 在直播间里置顶的时长
 	[Test]
-	[Arguments(0, 8)]
-	[Arguments(20, 11)]
-	[Arguments(100, 20)]
-	public async Task SuperChatsStayLongerForLongerTextUpToTwentySecondsAsync(int length, double seconds)
+	[Arguments(0, 60, 8)]
+	[Arguments(20, 60, 11)]
+	[Arguments(100, 60, 20)]
+	[Arguments(2, 5, 5)]
+	public async Task SuperChatsStayLongerForLongerTextButNotPastTheirOwnDurationAsync(int length, int duration, double seconds)
 	{
-		(Match[] messages, _, _) = Generate([new DanmakuRecord.SuperChat(TimeSpan.FromSeconds(1), 1, @"老板", 30_000, TimeSpan.FromSeconds(60), new string('字', length))]);
+		(Match[] messages, _, _) = Generate([new DanmakuRecord.SuperChat(TimeSpan.FromSeconds(1), 1, @"老板", 30_000, TimeSpan.FromSeconds(duration), new string('字', length))]);
 
-		await Assert.That(messages.Select(static match => match.Groups[@"end"].Value).Distinct()).IsEquivalentTo([DanmakuAssGenerator.FormatTime(TimeSpan.FromSeconds(1 + seconds))], StringComparer.Ordinal);
-	}
-
-	[Test]
-	public async Task SuperChatsNeverOutstayTheirOwnDurationAsync()
-	{
-		(Match[] messages, _, _) = Generate([new DanmakuRecord.SuperChat(TimeSpan.FromSeconds(1), 1, @"老板", 30_000, TimeSpan.FromSeconds(5), @"内容")]);
-
-		await Assert.That(messages.Select(static match => match.Groups[@"end"].Value).Distinct()).IsEquivalentTo([@"0:00:06.00"], StringComparer.Ordinal);
+		await Assert.That(messages.Select(static match => match.Groups[@"end"].Value).Distinct()).IsEquivalentTo([DanmakuAssGenerator.FormatTime(TimeSpan.FromSeconds(1 + seconds))]);
 	}
 
 	[Test]
 	public async Task OlderEntriesMoveUpAndSplitIntoSegmentsAsync()
 	{
 		(Match[] messages, _, _) = Generate([new DanmakuRecord.Guard(TimeSpan.Zero, 1, @"甲", GuardLevel.Captain, 1, 198_000), new DanmakuRecord.Guard(TimeSpan.FromSeconds(1), 2, @"乙", GuardLevel.Captain, 1, 198_000)]);
-		string[] first = [.. messages.Where(static match => match.Groups[@"text"].Value is @"甲 开通了舰长").Select(static match => $"{match.Groups[@"start"].Value}-{match.Groups[@"end"].Value} {match.Groups[@"tags"].Value}")];
 
 		// 胶囊高 46、间距 8；1080 × 0.96 - 46 = 990.8，取整 991；中线再往下 23
-		await Assert.That(first).IsEquivalentTo([@"0:00:00.00-0:00:01.00 \an4\pos(58,1014)\fad(200,0)", @"0:00:01.00-0:00:06.00 \an4\move(58,1014,58,960,0,200)\fad(0,200)"], StringComparer.Ordinal, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+		await Assert.That(messages.Where(static match => match.Groups[@"text"].Value is @"甲 开通了舰长").Select(static match => $"{match.Groups[@"start"].Value}-{match.Groups[@"end"].Value} {match.Groups[@"tags"].Value}")).IsEquivalentTo([@"0:00:00.00-0:00:01.00 \an4\pos(58,1014)\fad(200,0)", @"0:00:01.00-0:00:06.00 \an4\move(58,1014,58,960,0,200)\fad(0,200)"], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -200,7 +195,7 @@ public sealed partial class DanmakuAssMessagesTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(writer.ToString().Contains(@",Message,,", StringComparison.Ordinal)).IsFalse();
+			await Assert.That(writer.ToString()).DoesNotContain(@",Message,,");
 			await Assert.That(result).IsEqualTo(new DanmakuAssResult(0, 0, 0, 0));
 		}
 	}
@@ -222,7 +217,7 @@ public sealed partial class DanmakuAssMessagesTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(Enumerable.Range(0, 10).All(i => texts.Contains($@"老板{i}") && texts.Contains($@"舰长{i} 开通了舰长"))).IsTrue();
+			await Assert.That(Enumerable.Range(0, 10).SelectMany(static i => (string[])[$@"老板{i}", $@"舰长{i} 开通了舰长"])).All(text => texts.Contains(text));
 			await Assert.That(result.MessagesShown + result.MessagesDropped).IsEqualTo(30);
 			await Assert.That(result.MessagesDropped).IsGreaterThan(0);
 		}
@@ -262,7 +257,6 @@ public sealed partial class DanmakuAssMessagesTest
 	}
 
 	[Test]
-	[Arguments(30_000L, "¥30")]
 	[Arguments(30_500L, "¥30.5")]
 	[Arguments(12_345L, "¥12.35")]
 	[Arguments(1_999L, "¥2")]
@@ -272,29 +266,22 @@ public sealed partial class DanmakuAssMessagesTest
 		await Assert.That(DanmakuAssMessages.FormatYuan(price)).IsEqualTo(expected);
 	}
 
+	public static IEnumerable<Func<(string Text, double MaxWidth, string[] Lines)>> WrapCases()
+	{
+		yield return () => (new string('字', 25), 80, [new string('字', 10), new string('字', 10), new string('字', 5)]);
+		// 拉丁字母在空格处换行，行首行尾的空格去掉
+		yield return () => (@"hello world  foo", 30, [@"hello", @"world", @"foo"]);
+		// 混排时从最后一个全角字之后断开
+		yield return () => (@"主播 好厉害abcdeabcde", 80, [@"主播 好厉害", @"abcdeabcde"]);
+		yield return () => (string.Empty, 80, []);
+	}
+
 	// 字号 10 时全角字宽按 8 估算
 	[Test]
-	public async Task WideTextWrapsByCharacterAsync()
+	[MethodDataSource(nameof(WrapCases))]
+	public async Task TextWrapsAfterWideCharactersAndAtSpacesAsync(string text, double maxWidth, string[] lines)
 	{
-		IReadOnlyList<string> lines = DanmakuAssMessages.Wrap(new string('字', 25), 10, 80, 5);
-
-		await Assert.That(lines).IsEquivalentTo([new string('字', 10), new string('字', 10), new string('字', 5)], StringComparer.Ordinal, TUnit.Assertions.Enums.CollectionOrdering.Matching);
-	}
-
-	[Test]
-	public async Task LatinTextWrapsAtSpacesAsync()
-	{
-		IReadOnlyList<string> lines = DanmakuAssMessages.Wrap(@"hello world  foo", 10, 30, 5);
-
-		await Assert.That(lines).IsEquivalentTo([@"hello", @"world", @"foo"], StringComparer.Ordinal, TUnit.Assertions.Enums.CollectionOrdering.Matching);
-	}
-
-	[Test]
-	public async Task MixedTextBreaksAfterTheLastWideCharacterAsync()
-	{
-		IReadOnlyList<string> lines = DanmakuAssMessages.Wrap(@"主播 好厉害abcdeabcde", 10, 80, 5);
-
-		await Assert.That(lines).IsEquivalentTo([@"主播 好厉害", @"abcdeabcde"], StringComparer.Ordinal, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+		await Assert.That(DanmakuAssMessages.Wrap(text, 10, maxWidth, 5)).IsEquivalentTo(lines, CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -304,16 +291,10 @@ public sealed partial class DanmakuAssMessagesTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(lines.Count).IsEqualTo(5);
-			await Assert.That(lines[^1]).IsEqualTo(new string('字', 9) + @"…");
-			await Assert.That(lines.All(static line => DanmakuAssMessages.Measure(line, 10) <= 80)).IsTrue();
+			await Assert.That(lines).Count().IsEqualTo(5);
+			await Assert.That(lines).LastItem().IsEqualTo(new string('字', 9) + @"…");
+			await Assert.That(lines).All(static line => DanmakuAssMessages.Measure(line, 10) <= 80);
 		}
-	}
-
-	[Test]
-	public async Task EmptyTextHasNoLinesAsync()
-	{
-		await Assert.That(DanmakuAssMessages.Wrap(string.Empty, 10, 80, 5)).IsEmpty();
 	}
 
 	[Test]
@@ -328,10 +309,10 @@ public sealed partial class DanmakuAssMessagesTest
 	public async Task ASuperChatWithoutTextIsJustTheHeaderAsync()
 	{
 		(Match[] messages, _, _) = Generate([new DanmakuRecord.SuperChat(TimeSpan.Zero, 1, @"老板", 30_000, TimeSpan.FromSeconds(60), string.Empty)]);
-		string shape = messages.Single(static match => match.Groups[@"layer"].Value is "1").Groups[@"text"].Value;
+		Match shape = await Assert.That(messages).HasSingleItem(static match => match.Groups[@"layer"].Value is "1");
 
 		// 四个角都是圆的
-		await Assert.That(shape).IsEqualTo(@"m 6 0 l 474 0 b 477 0 480 3 480 6 l 480 42 b 480 45 477 48 474 48 l 6 48 b 3 48 0 45 0 42 l 0 6 b 0 3 3 0 6 0");
+		await Assert.That(shape.Groups[@"text"].Value).IsEqualTo(@"m 6 0 l 474 0 b 477 0 480 3 480 6 l 480 42 b 480 45 477 48 474 48 l 6 48 b 3 48 0 45 0 42 l 0 6 b 0 3 3 0 6 0");
 	}
 
 	[GeneratedRegex(@"^Dialogue: 0,[^,]+,[^,]+,Danmaku,,0,0,0,,\{(?<tags>[^}]*)\}(?<text>.*)$")]

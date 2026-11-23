@@ -8,11 +8,7 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 
 	public IDanmakuFeed Subscribe(long roomId)
 	{
-		if (rooms.FindSession(roomId) is not { } session)
-		{
-			throw new KeyNotFoundException($@"Room {roomId} is not monitored.");
-		}
-
+		RoomSession session = rooms.FindSession(roomId) ?? throw new KeyNotFoundException($@"Room {roomId} is not monitored.");
 		return new Feed(roomId, session.Danmaku.Feed, session.Danmaku.Subscribe());
 	}
 
@@ -37,9 +33,9 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 		TimeSpan start = highlight.Start - DanmakuConsts.HighlightExportMargin;
 		start = start > TimeSpan.Zero ? start : TimeSpan.Zero;
 		TimeSpan end = highlight.End + DanmakuConsts.HighlightExportMargin;
-		// 排着队的剪辑还没写出文件，也要避开它的输出，否则后一个失败会删掉前一个的成果
-		IReadOnlyList<BackgroundTaskSnapshot> pending = [.. tasks.GetTasks().Where(static task => task.Status is BackgroundTaskStatus.Queued or BackgroundTaskStatus.Running)];
-		string destination = GetHighlightPath(RecordingFileLayout.GetStem(danmakuPath), video, start, path => File.Exists(path) || pending.Any(task => task.TargetPath is { } target && FileOperations.IsSamePath(target, path)));
+		// 排着队的剪辑还没写出文件，也要避开它的输出，否则两段写进同一个文件，后写完的覆盖先写完的
+		string[] pending = [.. tasks.GetTasks().Where(static task => task.Status is BackgroundTaskStatus.Queued or BackgroundTaskStatus.Running).Select(static task => task.TargetPath).OfType<string>()];
+		string destination = GetHighlightPath(RecordingFileLayout.GetStem(danmakuPath), video, start, path => File.Exists(path) || pending.Any(target => FileOperations.IsSamePath(target, path)));
 		await mediaTools.QueueCutAsync(new CutInput(video, destination, start, end), cancellationToken);
 		return destination;
 	}
@@ -48,12 +44,7 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 	// 主干从弹幕文件取：标题以 _fmp4 结尾时，转封装后的 .mp4 看起来和 fMP4 录制文件一样，从视频路径推不出主干
 	internal static string GetHighlightPath(string stem, string video, TimeSpan start, Func<string, bool> isTaken)
 	{
-		string extension = Path.GetExtension(video).ToLowerInvariant() switch
-		{
-			@".flv" => @".flv",
-			@".ts" => @".ts",
-			_ => @".mp4"
-		};
+		string extension = Path.GetExtension(video);
 		string name = string.Create(CultureInfo.InvariantCulture, $@"{stem}.highlight-{(int)start.TotalHours:00}{start.Minutes:00}{start.Seconds:00}");
 
 		for (int sequence = 1; ; ++sequence)
@@ -89,7 +80,6 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 		};
 
 		DanmakuRecord[] records = [.. file.Records.OrderBy(static record => record.Time)];
-		IReadOnlyList<DanmakuHighlight> highlights = DanmakuHighlightDetector.Detect(records);
 
 		return new DanmakuFileDto
 		(
@@ -98,7 +88,7 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 			[.. records.Select(DanmakuConverter.ToEntry)],
 			file.IsComplete,
 			ComputeDensity(records),
-			[.. highlights.Select(DanmakuConverter.ToDto)],
+			[.. DanmakuHighlightDetector.Detect(records).Select(DanmakuConverter.ToDto)],
 			FindVideo(path)
 		);
 	}
@@ -168,7 +158,7 @@ internal sealed partial class DanmakuAppService(RoomAppService rooms, IMediaTool
 		return new DanmakuDensityDto(width, counts);
 	}
 
-	// 转封装进行中的 .mp4 还没写 moov，读不到尺寸，这时源录像还在，接着试下一个
+	// 有的视频读不出尺寸，比如缺 moov 的 .mp4，这时同主干的源录像可能还在，接着试下一个
 	private async Task<VideoResolution?> ReadResolutionAsync(string danmakuPath, CancellationToken cancellationToken)
 	{
 		foreach (string video in RecordingFileLayout.GetVideoPaths(RecordingFileLayout.GetStem(danmakuPath)).Where(File.Exists))

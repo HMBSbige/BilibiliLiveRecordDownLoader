@@ -1,4 +1,5 @@
 using BilibiliLiveRecordDownLoader.Application.Danmaku;
+using TUnit.Assertions.Enums;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
@@ -31,7 +32,7 @@ public sealed class DanmakuChapterBuilderTest
 			new(TimeSpan.FromSeconds(600), TimeSpan.FromSeconds(1200), @"标题：第二个标题"),
 			new(TimeSpan.FromSeconds(1200), TimeSpan.FromSeconds(1800), @"高能：草")
 		];
-		await Assert.That(chapters).IsEquivalentTo(expected, EqualityComparer<FFmpegChapter>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+		await Assert.That(chapters).IsEquivalentTo(expected, CollectionOrdering.Matching);
 	}
 
 	// 分段的弹幕文件里时间会倒退零点几秒；倒序处理会把 200 秒改回原标题当成没变
@@ -48,7 +49,7 @@ public sealed class DanmakuChapterBuilderTest
 			new(TimeSpan.FromSeconds(100), TimeSpan.FromSeconds(200), @"标题：新标题"),
 			new(TimeSpan.FromSeconds(200), TimeSpan.FromSeconds(300), @"标题：直播标题")
 		];
-		await Assert.That(chapters).IsEquivalentTo(expected, EqualityComparer<FFmpegChapter>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+		await Assert.That(chapters).IsEquivalentTo(expected, CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -58,7 +59,7 @@ public sealed class DanmakuChapterBuilderTest
 
 		IReadOnlyList<FFmpegChapter> chapters = DanmakuChapterBuilder.Build(@"直播标题", records, [], TimeSpan.FromSeconds(400), Names);
 
-		await Assert.That(chapters.Select(static chapter => chapter.Title)).IsEquivalentTo([@"直播标题", @"标题：新标题"], StringComparer.Ordinal, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+		await Assert.That(chapters.Select(static chapter => chapter.Title)).IsEquivalentTo([@"直播标题", @"标题：新标题"], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -73,21 +74,20 @@ public sealed class DanmakuChapterBuilderTest
 			new(TimeSpan.Zero, TimeSpan.FromSeconds(100), @"直播标题 / 高能：开场"),
 			new(TimeSpan.FromSeconds(100), TimeSpan.FromSeconds(400), @"标题：新标题 / 高能：草")
 		];
-		await Assert.That(chapters).IsEquivalentTo(expected, EqualityComparer<FFmpegChapter>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+		await Assert.That(chapters).IsEquivalentTo(expected, CollectionOrdering.Matching);
 	}
 
 	[Test]
 	public async Task NeverMoreThan255ChaptersAsync()
 	{
-		DanmakuRecord[] records = Enumerable.Range(1, 400).Select(static i => (DanmakuRecord)new DanmakuRecord.TitleChange(TimeSpan.FromSeconds(i * 20), $@"标题{i}")).ToArray();
+		DanmakuRecord[] records = [.. Enumerable.Range(1, 400).Select(static i => new DanmakuRecord.TitleChange(TimeSpan.FromSeconds(i * 20), $@"标题{i}"))];
 
 		IReadOnlyList<FFmpegChapter> chapters = DanmakuChapterBuilder.Build(@"直播标题", records, [], TimeSpan.FromHours(3), Names);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(chapters.Count).IsEqualTo(DanmakuChapterBuilder.MaxChapters);
-			await Assert.That(chapters[^1].Title).IsEqualTo(@"标题：标题254");
-			await Assert.That(chapters[^1].End).IsEqualTo(TimeSpan.FromHours(3));
+			await Assert.That(chapters).Count().IsEqualTo(DanmakuChapterBuilder.MaxChapters);
+			await Assert.That(chapters[^1]).IsEqualTo(new FFmpegChapter(TimeSpan.FromSeconds(254 * 20), TimeSpan.FromHours(3), @"标题：标题254"));
 		}
 	}
 
@@ -98,7 +98,7 @@ public sealed class DanmakuChapterBuilderTest
 
 		IReadOnlyList<FFmpegChapter> chapters = DanmakuChapterBuilder.Build(@"直播标题", records, [Highlight(600, @"也太晚了")], TimeSpan.FromSeconds(400), Names);
 
-		await Assert.That(chapters).IsEquivalentTo([new FFmpegChapter(TimeSpan.Zero, TimeSpan.FromSeconds(400), @"直播标题")], EqualityComparer<FFmpegChapter>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+		await Assert.That(chapters).IsEquivalentTo([new FFmpegChapter(TimeSpan.Zero, TimeSpan.FromSeconds(400), @"直播标题")]);
 	}
 
 	[Test]
@@ -106,6 +106,6 @@ public sealed class DanmakuChapterBuilderTest
 	{
 		IReadOnlyList<FFmpegChapter> chapters = DanmakuChapterBuilder.Build(@"直播标题", [DanmakuSamples.Comment(42)], [], null, Names);
 
-		await Assert.That(chapters).IsEquivalentTo([new FFmpegChapter(TimeSpan.Zero, TimeSpan.FromSeconds(43), @"直播标题")], EqualityComparer<FFmpegChapter>.Default, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+		await Assert.That(chapters).IsEquivalentTo([new FFmpegChapter(TimeSpan.Zero, TimeSpan.FromSeconds(43), @"直播标题")]);
 	}
 }
