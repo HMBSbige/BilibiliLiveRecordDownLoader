@@ -6,7 +6,6 @@
         <Thickness x:Key="PageMargin">16</Thickness>
         <Thickness x:Key="CardPadding">16</Thickness>
         <x:Double x:Key="PageSpacing">24</x:Double>
-        <x:Double x:Key="PageMaxWidth">1000</x:Double>
         <x:Double x:Key="FormSpacing">12</x:Double>
         <x:Double x:Key="FieldSpacing">4</x:Double>
         <x:Double x:Key="ToolbarSpacing">8</x:Double>

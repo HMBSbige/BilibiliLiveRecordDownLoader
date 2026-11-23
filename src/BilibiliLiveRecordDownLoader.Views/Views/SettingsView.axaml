@@ -10,231 +10,226 @@
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.SettingsView"
     x:DataType="settings:SettingsViewModel">
     <ScrollViewer>
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition MaxWidth="{StaticResource PageMaxWidth}" />
-            </Grid.ColumnDefinitions>
-            <StackPanel Classes="page">
-                <Border Classes="card settings" DataContext="{Binding General}">
-                    <StackPanel x:DataType="settings:GeneralSettingsViewModel">
-                        <TextBlock Classes="section" Text="{Binding General, Source={x:Static l:AppLanguage.Current}}" />
-                        <ctl:SettingRow Classes="stacked" Header="{Binding RecordDirectory, Source={x:Static l:AppLanguage.Current}}">
-                            <StackPanel Spacing="8">
-                                <DockPanel HorizontalSpacing="8">
-                                    <StackPanel DockPanel.Dock="Right" Classes="toolbar">
-                                        <Button Command="{Binding BrowseRecordDirectoryCommand}" Content="{Binding Browse, Source={x:Static l:AppLanguage.Current}}" />
-                                        <Button Command="{Binding OpenRecordDirectoryCommand}" Content="{Binding Open, Source={x:Static l:AppLanguage.Current}}" />
-                                    </StackPanel>
-                                    <TextBox Text="{Binding RecordDirectory, UpdateSourceTrigger=LostFocus}" />
-                                </DockPanel>
-                                <StackPanel Classes="iconText" IsVisible="{Binding DiskSpaceText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                    <ProgressBar Width="120" VerticalAlignment="Center" Value="{Binding DiskUsagePercent}" Maximum="100" />
-                                    <TextBlock Classes="caption" Text="{Binding DiskSpaceText}" />
-                                </StackPanel>
-                            </StackPanel>
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Classes="stacked" Header="{Binding FFmpegPath, Source={x:Static l:AppLanguage.Current}}">
+        <StackPanel Classes="page">
+            <Border Classes="card settings" DataContext="{Binding General}">
+                <StackPanel x:DataType="settings:GeneralSettingsViewModel">
+                    <TextBlock Classes="section" Text="{Binding General, Source={x:Static l:AppLanguage.Current}}" />
+                    <ctl:SettingRow Classes="stacked" Header="{Binding RecordDirectory, Source={x:Static l:AppLanguage.Current}}">
+                        <StackPanel Spacing="8">
                             <DockPanel HorizontalSpacing="8">
-                                <Button DockPanel.Dock="Right" Command="{Binding BrowseFFmpegPathCommand}"
-                                        Content="{Binding Browse, Source={x:Static l:AppLanguage.Current}}" />
-                                <TextBox Text="{Binding FFmpegPath, UpdateSourceTrigger=LostFocus}" PlaceholderText="{Binding AutoDetect, Source={x:Static l:AppLanguage.Current}}" />
-                            </DockPanel>
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Header="{Binding AutoStart, Source={x:Static l:AppLanguage.Current}}" IsVisible="{Binding IsAutoStartSupported}">
-                            <ToggleSwitch IsChecked="{Binding IsAutoStartEnabled}" />
-                        </ctl:SettingRow>
-                    </StackPanel>
-                </Border>
-
-                <Border Classes="card settings" DataContext="{Binding Recording}">
-                    <StackPanel x:DataType="settings:RecordingSettingsViewModel">
-                        <TextBlock Classes="section" Text="{Binding RecordingDefaults, Source={x:Static l:AppLanguage.Current}}" />
-                        <ctl:SettingRow Header="{Binding RecorderType, Source={x:Static l:AppLanguage.Current}}">
-                            <ComboBox ItemsSource="{Binding RecorderTypeOptions}" SelectedValue="{Binding RecorderType}"
-                                      SelectedValueBinding="{Binding Value}" ItemTemplate="{StaticResource LocalizedLabel}" />
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Header="{Binding StreamHostSelection, Source={x:Static l:AppLanguage.Current}}">
-                            <ComboBox ItemsSource="{Binding HostSelectionOptions}" SelectedValue="{Binding HostSelection}"
-                                      SelectedValueBinding="{Binding Value}" ItemTemplate="{StaticResource LocalizedLabel}" />
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Classes="stacked" Description="{Binding PriorityHint, Source={x:Static l:AppLanguage.Current}}">
-                            <Grid Classes="form" ColumnDefinitions="*,*">
-                                <StackPanel Grid.Column="0" Classes="field">
-                                    <TextBlock Text="{Binding CodecPriority, Source={x:Static l:AppLanguage.Current}}" />
-                                    <views:PriorityListView DataContext="{Binding CodecPriority}" />
+                                <StackPanel DockPanel.Dock="Right" Classes="toolbar">
+                                    <Button Command="{Binding BrowseRecordDirectoryCommand}" Content="{Binding Browse, Source={x:Static l:AppLanguage.Current}}" />
+                                    <Button Command="{Binding OpenRecordDirectoryCommand}" Content="{Binding Open, Source={x:Static l:AppLanguage.Current}}" />
                                 </StackPanel>
-                                <StackPanel Grid.Column="1" Classes="field">
-                                    <TextBlock Text="{Binding FormatPriority, Source={x:Static l:AppLanguage.Current}}" />
-                                    <views:PriorityListView DataContext="{Binding FormatPriority}" />
-                                </StackPanel>
-                            </Grid>
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Header="{Binding ConvertToMp4, Source={x:Static l:AppLanguage.Current}}">
-                            <ToggleSwitch IsChecked="{Binding ConvertToMp4}" />
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Classes="nested" Header="{Binding DeleteAfterConvert, Source={x:Static l:AppLanguage.Current}}" IsEnabled="{Binding ConvertToMp4}">
-                            <ToggleSwitch IsChecked="{Binding DeleteAfterConvert}" />
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Header="{Binding RecordingSplit, Source={x:Static l:AppLanguage.Current}}">
-                            <ComboBox ItemsSource="{Binding SplitModeOptions}" SelectedValue="{Binding SplitMode}"
-                                      SelectedValueBinding="{Binding Value}" ItemTemplate="{StaticResource LocalizedLabel}" />
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Classes="nested" Header="{Binding SplitDuration, Source={x:Static l:AppLanguage.Current}}" IsVisible="{Binding IsSplitByDuration}">
-                            <StackPanel Classes="iconText">
-                                <NumericUpDown Value="{Binding SplitDurationMinutes}" FormatString="0"
-                                               Minimum="{x:Static cfg:RecordingSplitDefaults.MinDurationMinutes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxDurationMinutes}" />
-                                <TextBlock Text="{Binding Minutes, Source={x:Static l:AppLanguage.Current}}" />
-                            </StackPanel>
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Classes="nested" Header="{Binding SplitSize, Source={x:Static l:AppLanguage.Current}}" IsVisible="{Binding IsSplitBySize}">
-                            <StackPanel Classes="iconText">
-                                <NumericUpDown Value="{Binding SplitSizeMebibytes}" Increment="100" FormatString="0"
-                                               Minimum="{x:Static cfg:RecordingSplitDefaults.MinSizeMebibytes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxSizeMebibytes}" />
-                                <TextBlock Text="{Binding Mebibytes, Source={x:Static l:AppLanguage.Current}}" />
-                            </StackPanel>
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Header="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}">
-                            <ToggleSwitch IsChecked="{Binding SplitOnTitleChange}" />
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Header="{Binding IncludeTitleInFileName, Source={x:Static l:AppLanguage.Current}}">
-                            <ToggleSwitch IsChecked="{Binding IncludeTitleInFileName}" />
-                        </ctl:SettingRow>
-                    </StackPanel>
-                </Border>
-
-                <Border Classes="card settings" DataContext="{Binding Danmaku}">
-                    <StackPanel x:DataType="settings:DanmakuSettingsViewModel">
-                        <TextBlock Classes="section" Text="{Binding Danmaku, Source={x:Static l:AppLanguage.Current}}" />
-                        <ctl:SettingRow Header="{Binding RecordGifts, Source={x:Static l:AppLanguage.Current}}">
-                            <ComboBox ItemsSource="{Binding GiftModeOptions}" SelectedValue="{Binding GiftMode}"
-                                      SelectedValueBinding="{Binding Value}" ItemTemplate="{StaticResource LocalizedLabel}" />
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Header="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}"
-                                        Description="{Binding DanmakuOffsetHint, Source={x:Static l:AppLanguage.Current}}">
-                            <NumericUpDown Value="{Binding OffsetSeconds}" Increment="0.1" FormatString="0.###"
-                                           Minimum="{x:Static cfg:DanmakuDefaults.MinOffsetSeconds}" Maximum="{x:Static cfg:DanmakuDefaults.MaxOffsetSeconds}" />
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Header="{Binding RecordSuperChats, Source={x:Static l:AppLanguage.Current}}">
-                            <ToggleSwitch IsChecked="{Binding RecordSuperChats}" />
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Header="{Binding RecordGuards, Source={x:Static l:AppLanguage.Current}}">
-                            <ToggleSwitch IsChecked="{Binding RecordGuards}" />
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Header="{Binding GenerateDanmakuSubtitle, Source={x:Static l:AppLanguage.Current}}"
-                                        Description="{Binding GenerateDanmakuSubtitleHint, Source={x:Static l:AppLanguage.Current}}">
-                            <ToggleSwitch IsChecked="{Binding GenerateSubtitle}" />
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Classes="nested" Header="{Binding ShowPaidMessagesInSubtitle, Source={x:Static l:AppLanguage.Current}}" IsEnabled="{Binding GenerateSubtitle}">
-                            <ToggleSwitch IsChecked="{Binding ShowPaidMessagesInSubtitle}" />
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Header="{Binding SaveRawDanmaku, Source={x:Static l:AppLanguage.Current}}"
-                                        Description="{Binding SaveRawDanmakuHint, Source={x:Static l:AppLanguage.Current}}">
-                            <ToggleSwitch IsChecked="{Binding SaveRawMessages}" />
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Header="{Binding WriteChaptersOnConvert, Source={x:Static l:AppLanguage.Current}}"
-                                        Description="{Binding WriteChaptersOnConvertHint, Source={x:Static l:AppLanguage.Current}}">
-                            <ToggleSwitch IsChecked="{Binding WriteChaptersOnConvert}" />
-                        </ctl:SettingRow>
-                    </StackPanel>
-                </Border>
-
-                <Border Classes="card settings" DataContext="{Binding Network}">
-                    <StackPanel x:DataType="settings:NetworkSettingsViewModel">
-                        <TextBlock Classes="section" Text="{Binding Network, Source={x:Static l:AppLanguage.Current}}" />
-                        <ctl:SettingRow Classes="stacked" Header="{Binding UserAgent, Source={x:Static l:AppLanguage.Current}}">
-                            <TextBox Text="{Binding UserAgent, UpdateSourceTrigger=LostFocus}" PlaceholderText="{Binding Default, Source={x:Static l:AppLanguage.Current}}" />
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Header="{Binding UseSystemProxy, Source={x:Static l:AppLanguage.Current}}">
-                            <ToggleSwitch IsChecked="{Binding UseSystemProxy}" />
-                        </ctl:SettingRow>
-                    </StackPanel>
-                </Border>
-
-                <Border Classes="card settings" DataContext="{Binding Notification}">
-                    <StackPanel x:DataType="settings:NotificationSettingsViewModel">
-                        <TextBlock Classes="section" Text="{Binding Notifications, Source={x:Static l:AppLanguage.Current}}" />
-                        <ctl:SettingRow Header="{Binding NotifyOnRecordingError, Source={x:Static l:AppLanguage.Current}}"
-                                        Description="{Binding NotifyOnRecordingErrorHint, Source={x:Static l:AppLanguage.Current}}">
-                            <ToggleSwitch IsChecked="{Binding NotifyOnRecordingError}" />
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Header="{Binding NotifyOnTitleChange, Source={x:Static l:AppLanguage.Current}}"
-                                        Description="{Binding NotifyOnTitleChangeHint, Source={x:Static l:AppLanguage.Current}}">
-                            <ToggleSwitch IsChecked="{Binding NotifyOnTitleChange}" />
-                        </ctl:SettingRow>
-                    </StackPanel>
-                </Border>
-
-                <Border Classes="card settings" DataContext="{Binding Appearance}">
-                    <StackPanel x:DataType="settings:AppearanceSettingsViewModel">
-                        <TextBlock Classes="section" Text="{Binding Appearance, Source={x:Static l:AppLanguage.Current}}" />
-                        <ctl:SettingRow Header="{Binding Theme, Source={x:Static l:AppLanguage.Current}}">
-                            <ComboBox ItemsSource="{Binding ThemeOptions}" SelectedValue="{Binding Theme}"
-                                      SelectedValueBinding="{Binding Value}" ItemTemplate="{StaticResource LocalizedLabel}" />
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Header="{Binding Language, Source={x:Static l:AppLanguage.Current}}">
-                            <ComboBox ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage}"
-                                      ItemTemplate="{StaticResource LocalizedLabel}" />
-                        </ctl:SettingRow>
-                    </StackPanel>
-                </Border>
-
-                <Border Classes="card settings" DataContext="{Binding Experimental}">
-                    <StackPanel x:DataType="settings:ExperimentalSettingsViewModel">
-                        <TextBlock Classes="section" Text="{Binding ExperimentalFeatures, Source={x:Static l:AppLanguage.Current}}" />
-                        <ctl:SettingRow Header="{Binding RemoveFillerData, Source={x:Static l:AppLanguage.Current}}"
-                                        Description="{Binding RemoveFillerDataHint, Source={x:Static l:AppLanguage.Current}}">
-                            <ToggleSwitch IsChecked="{Binding RemoveFillerData}" />
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Header="{Binding RequestTrueOriginal, Source={x:Static l:AppLanguage.Current}}"
-                                        Description="{Binding RequestTrueOriginalHint, Source={x:Static l:AppLanguage.Current}}">
-                            <ToggleSwitch IsChecked="{Binding RequestTrueOriginal}" />
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Header="{Binding UseMasterPlaylistWhenRestricted, Source={x:Static l:AppLanguage.Current}}"
-                                        Description="{Binding UseMasterPlaylistWhenRestrictedHint, Source={x:Static l:AppLanguage.Current}}">
-                            <ToggleSwitch IsChecked="{Binding UseMasterPlaylistWhenRestricted}" />
-                        </ctl:SettingRow>
-                    </StackPanel>
-                </Border>
-
-                <Border Classes="card settings" DataContext="{Binding Update}">
-                    <StackPanel x:DataType="settings:UpdateSettingsViewModel">
-                        <TextBlock Classes="section" Text="{Binding About, Source={x:Static l:AppLanguage.Current}}" />
-                        <ctl:SettingRow Classes="stacked">
-                            <DockPanel HorizontalSpacing="12">
-                                <Button DockPanel.Dock="Right" Command="{Binding CheckUpdateCommand}">
-                                    <StackPanel Classes="iconText">
-                                        <ic:FluentIcon Icon="ArrowSync" />
-                                        <TextBlock Text="{Binding CheckUpdate, Source={x:Static l:AppLanguage.Current}}" />
-                                    </StackPanel>
-                                </Button>
-                                <SelectableTextBlock VerticalAlignment="Center" Text="{Binding VersionText}" TextTrimming="CharacterEllipsis" />
+                                <TextBox Text="{Binding RecordDirectory, UpdateSourceTrigger=LostFocus}" />
                             </DockPanel>
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Header="{Binding AutoCheckUpdate, Source={x:Static l:AppLanguage.Current}}">
-                            <ToggleSwitch IsChecked="{Binding AutoCheckUpdate}" />
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Header="{Binding IncludePreRelease, Source={x:Static l:AppLanguage.Current}}">
-                            <ToggleSwitch IsChecked="{Binding IncludePreRelease}" />
-                        </ctl:SettingRow>
-                        <ctl:SettingRow Classes="stacked">
-                            <StackPanel Classes="toolbar">
-                                <Button Command="{Binding OpenHomepageCommand}">
-                                    <StackPanel Classes="iconText">
-                                        <ic:FluentIcon Icon="Open" />
-                                        <TextBlock Text="{Binding OpenHomepage, Source={x:Static l:AppLanguage.Current}}" />
-                                    </StackPanel>
-                                </Button>
-                                <Button Command="{Binding OpenConfigDirectoryCommand}">
-                                    <StackPanel Classes="iconText">
-                                        <ic:FluentIcon Icon="FolderOpen" />
-                                        <TextBlock Text="{Binding OpenConfigDirectory, Source={x:Static l:AppLanguage.Current}}" />
-                                    </StackPanel>
-                                </Button>
+                            <StackPanel Classes="iconText" IsVisible="{Binding DiskSpaceText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                <ProgressBar Width="120" VerticalAlignment="Center" Value="{Binding DiskUsagePercent}" Maximum="100" />
+                                <TextBlock Classes="caption" Text="{Binding DiskSpaceText}" />
                             </StackPanel>
-                        </ctl:SettingRow>
-                    </StackPanel>
-                </Border>
-            </StackPanel>
-        </Grid>
+                        </StackPanel>
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Classes="stacked" Header="{Binding FFmpegPath, Source={x:Static l:AppLanguage.Current}}">
+                        <DockPanel HorizontalSpacing="8">
+                            <Button DockPanel.Dock="Right" Command="{Binding BrowseFFmpegPathCommand}"
+                                    Content="{Binding Browse, Source={x:Static l:AppLanguage.Current}}" />
+                            <TextBox Text="{Binding FFmpegPath, UpdateSourceTrigger=LostFocus}" PlaceholderText="{Binding AutoDetect, Source={x:Static l:AppLanguage.Current}}" />
+                        </DockPanel>
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Header="{Binding AutoStart, Source={x:Static l:AppLanguage.Current}}" IsVisible="{Binding IsAutoStartSupported}">
+                        <ToggleSwitch IsChecked="{Binding IsAutoStartEnabled}" />
+                    </ctl:SettingRow>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card settings" DataContext="{Binding Recording}">
+                <StackPanel x:DataType="settings:RecordingSettingsViewModel">
+                    <TextBlock Classes="section" Text="{Binding RecordingDefaults, Source={x:Static l:AppLanguage.Current}}" />
+                    <ctl:SettingRow Header="{Binding RecorderType, Source={x:Static l:AppLanguage.Current}}">
+                        <ComboBox ItemsSource="{Binding RecorderTypeOptions}" SelectedValue="{Binding RecorderType}"
+                                  SelectedValueBinding="{Binding Value}" ItemTemplate="{StaticResource LocalizedLabel}" />
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Header="{Binding StreamHostSelection, Source={x:Static l:AppLanguage.Current}}">
+                        <ComboBox ItemsSource="{Binding HostSelectionOptions}" SelectedValue="{Binding HostSelection}"
+                                  SelectedValueBinding="{Binding Value}" ItemTemplate="{StaticResource LocalizedLabel}" />
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Classes="stacked" Description="{Binding PriorityHint, Source={x:Static l:AppLanguage.Current}}">
+                        <Grid Classes="form" ColumnDefinitions="*,*">
+                            <StackPanel Grid.Column="0" Classes="field">
+                                <TextBlock Text="{Binding CodecPriority, Source={x:Static l:AppLanguage.Current}}" />
+                                <views:PriorityListView DataContext="{Binding CodecPriority}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Classes="field">
+                                <TextBlock Text="{Binding FormatPriority, Source={x:Static l:AppLanguage.Current}}" />
+                                <views:PriorityListView DataContext="{Binding FormatPriority}" />
+                            </StackPanel>
+                        </Grid>
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Header="{Binding ConvertToMp4, Source={x:Static l:AppLanguage.Current}}">
+                        <ToggleSwitch IsChecked="{Binding ConvertToMp4}" />
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Classes="nested" Header="{Binding DeleteAfterConvert, Source={x:Static l:AppLanguage.Current}}" IsEnabled="{Binding ConvertToMp4}">
+                        <ToggleSwitch IsChecked="{Binding DeleteAfterConvert}" />
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Header="{Binding RecordingSplit, Source={x:Static l:AppLanguage.Current}}">
+                        <ComboBox ItemsSource="{Binding SplitModeOptions}" SelectedValue="{Binding SplitMode}"
+                                  SelectedValueBinding="{Binding Value}" ItemTemplate="{StaticResource LocalizedLabel}" />
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Classes="nested" Header="{Binding SplitDuration, Source={x:Static l:AppLanguage.Current}}" IsVisible="{Binding IsSplitByDuration}">
+                        <StackPanel Classes="iconText">
+                            <NumericUpDown Value="{Binding SplitDurationMinutes}" FormatString="0"
+                                           Minimum="{x:Static cfg:RecordingSplitDefaults.MinDurationMinutes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxDurationMinutes}" />
+                            <TextBlock Text="{Binding Minutes, Source={x:Static l:AppLanguage.Current}}" />
+                        </StackPanel>
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Classes="nested" Header="{Binding SplitSize, Source={x:Static l:AppLanguage.Current}}" IsVisible="{Binding IsSplitBySize}">
+                        <StackPanel Classes="iconText">
+                            <NumericUpDown Value="{Binding SplitSizeMebibytes}" Increment="100" FormatString="0"
+                                           Minimum="{x:Static cfg:RecordingSplitDefaults.MinSizeMebibytes}" Maximum="{x:Static cfg:RecordingSplitDefaults.MaxSizeMebibytes}" />
+                            <TextBlock Text="{Binding Mebibytes, Source={x:Static l:AppLanguage.Current}}" />
+                        </StackPanel>
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Header="{Binding SplitOnTitleChange, Source={x:Static l:AppLanguage.Current}}">
+                        <ToggleSwitch IsChecked="{Binding SplitOnTitleChange}" />
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Header="{Binding IncludeTitleInFileName, Source={x:Static l:AppLanguage.Current}}">
+                        <ToggleSwitch IsChecked="{Binding IncludeTitleInFileName}" />
+                    </ctl:SettingRow>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card settings" DataContext="{Binding Danmaku}">
+                <StackPanel x:DataType="settings:DanmakuSettingsViewModel">
+                    <TextBlock Classes="section" Text="{Binding Danmaku, Source={x:Static l:AppLanguage.Current}}" />
+                    <ctl:SettingRow Header="{Binding RecordGifts, Source={x:Static l:AppLanguage.Current}}">
+                        <ComboBox ItemsSource="{Binding GiftModeOptions}" SelectedValue="{Binding GiftMode}"
+                                  SelectedValueBinding="{Binding Value}" ItemTemplate="{StaticResource LocalizedLabel}" />
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Header="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}"
+                                    Description="{Binding DanmakuOffsetHint, Source={x:Static l:AppLanguage.Current}}">
+                        <NumericUpDown Value="{Binding OffsetSeconds}" Increment="0.1" FormatString="0.###"
+                                       Minimum="{x:Static cfg:DanmakuDefaults.MinOffsetSeconds}" Maximum="{x:Static cfg:DanmakuDefaults.MaxOffsetSeconds}" />
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Header="{Binding RecordSuperChats, Source={x:Static l:AppLanguage.Current}}">
+                        <ToggleSwitch IsChecked="{Binding RecordSuperChats}" />
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Header="{Binding RecordGuards, Source={x:Static l:AppLanguage.Current}}">
+                        <ToggleSwitch IsChecked="{Binding RecordGuards}" />
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Header="{Binding GenerateDanmakuSubtitle, Source={x:Static l:AppLanguage.Current}}"
+                                    Description="{Binding GenerateDanmakuSubtitleHint, Source={x:Static l:AppLanguage.Current}}">
+                        <ToggleSwitch IsChecked="{Binding GenerateSubtitle}" />
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Classes="nested" Header="{Binding ShowPaidMessagesInSubtitle, Source={x:Static l:AppLanguage.Current}}" IsEnabled="{Binding GenerateSubtitle}">
+                        <ToggleSwitch IsChecked="{Binding ShowPaidMessagesInSubtitle}" />
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Header="{Binding SaveRawDanmaku, Source={x:Static l:AppLanguage.Current}}"
+                                    Description="{Binding SaveRawDanmakuHint, Source={x:Static l:AppLanguage.Current}}">
+                        <ToggleSwitch IsChecked="{Binding SaveRawMessages}" />
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Header="{Binding WriteChaptersOnConvert, Source={x:Static l:AppLanguage.Current}}"
+                                    Description="{Binding WriteChaptersOnConvertHint, Source={x:Static l:AppLanguage.Current}}">
+                        <ToggleSwitch IsChecked="{Binding WriteChaptersOnConvert}" />
+                    </ctl:SettingRow>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card settings" DataContext="{Binding Network}">
+                <StackPanel x:DataType="settings:NetworkSettingsViewModel">
+                    <TextBlock Classes="section" Text="{Binding Network, Source={x:Static l:AppLanguage.Current}}" />
+                    <ctl:SettingRow Classes="stacked" Header="{Binding UserAgent, Source={x:Static l:AppLanguage.Current}}">
+                        <TextBox Text="{Binding UserAgent, UpdateSourceTrigger=LostFocus}" PlaceholderText="{Binding Default, Source={x:Static l:AppLanguage.Current}}" />
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Header="{Binding UseSystemProxy, Source={x:Static l:AppLanguage.Current}}">
+                        <ToggleSwitch IsChecked="{Binding UseSystemProxy}" />
+                    </ctl:SettingRow>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card settings" DataContext="{Binding Notification}">
+                <StackPanel x:DataType="settings:NotificationSettingsViewModel">
+                    <TextBlock Classes="section" Text="{Binding Notifications, Source={x:Static l:AppLanguage.Current}}" />
+                    <ctl:SettingRow Header="{Binding NotifyOnRecordingError, Source={x:Static l:AppLanguage.Current}}"
+                                    Description="{Binding NotifyOnRecordingErrorHint, Source={x:Static l:AppLanguage.Current}}">
+                        <ToggleSwitch IsChecked="{Binding NotifyOnRecordingError}" />
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Header="{Binding NotifyOnTitleChange, Source={x:Static l:AppLanguage.Current}}"
+                                    Description="{Binding NotifyOnTitleChangeHint, Source={x:Static l:AppLanguage.Current}}">
+                        <ToggleSwitch IsChecked="{Binding NotifyOnTitleChange}" />
+                    </ctl:SettingRow>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card settings" DataContext="{Binding Appearance}">
+                <StackPanel x:DataType="settings:AppearanceSettingsViewModel">
+                    <TextBlock Classes="section" Text="{Binding Appearance, Source={x:Static l:AppLanguage.Current}}" />
+                    <ctl:SettingRow Header="{Binding Theme, Source={x:Static l:AppLanguage.Current}}">
+                        <ComboBox ItemsSource="{Binding ThemeOptions}" SelectedValue="{Binding Theme}"
+                                  SelectedValueBinding="{Binding Value}" ItemTemplate="{StaticResource LocalizedLabel}" />
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Header="{Binding Language, Source={x:Static l:AppLanguage.Current}}">
+                        <ComboBox ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage}"
+                                  ItemTemplate="{StaticResource LocalizedLabel}" />
+                    </ctl:SettingRow>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card settings" DataContext="{Binding Experimental}">
+                <StackPanel x:DataType="settings:ExperimentalSettingsViewModel">
+                    <TextBlock Classes="section" Text="{Binding ExperimentalFeatures, Source={x:Static l:AppLanguage.Current}}" />
+                    <ctl:SettingRow Header="{Binding RemoveFillerData, Source={x:Static l:AppLanguage.Current}}"
+                                    Description="{Binding RemoveFillerDataHint, Source={x:Static l:AppLanguage.Current}}">
+                        <ToggleSwitch IsChecked="{Binding RemoveFillerData}" />
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Header="{Binding RequestTrueOriginal, Source={x:Static l:AppLanguage.Current}}"
+                                    Description="{Binding RequestTrueOriginalHint, Source={x:Static l:AppLanguage.Current}}">
+                        <ToggleSwitch IsChecked="{Binding RequestTrueOriginal}" />
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Header="{Binding UseMasterPlaylistWhenRestricted, Source={x:Static l:AppLanguage.Current}}"
+                                    Description="{Binding UseMasterPlaylistWhenRestrictedHint, Source={x:Static l:AppLanguage.Current}}">
+                        <ToggleSwitch IsChecked="{Binding UseMasterPlaylistWhenRestricted}" />
+                    </ctl:SettingRow>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card settings" DataContext="{Binding Update}">
+                <StackPanel x:DataType="settings:UpdateSettingsViewModel">
+                    <TextBlock Classes="section" Text="{Binding About, Source={x:Static l:AppLanguage.Current}}" />
+                    <ctl:SettingRow Classes="stacked">
+                        <DockPanel HorizontalSpacing="12">
+                            <Button DockPanel.Dock="Right" Command="{Binding CheckUpdateCommand}">
+                                <StackPanel Classes="iconText">
+                                    <ic:FluentIcon Icon="ArrowSync" />
+                                    <TextBlock Text="{Binding CheckUpdate, Source={x:Static l:AppLanguage.Current}}" />
+                                </StackPanel>
+                            </Button>
+                            <SelectableTextBlock VerticalAlignment="Center" Text="{Binding VersionText}" TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Header="{Binding AutoCheckUpdate, Source={x:Static l:AppLanguage.Current}}">
+                        <ToggleSwitch IsChecked="{Binding AutoCheckUpdate}" />
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Header="{Binding IncludePreRelease, Source={x:Static l:AppLanguage.Current}}">
+                        <ToggleSwitch IsChecked="{Binding IncludePreRelease}" />
+                    </ctl:SettingRow>
+                    <ctl:SettingRow Classes="stacked">
+                        <StackPanel Classes="toolbar">
+                            <Button Command="{Binding OpenHomepageCommand}">
+                                <StackPanel Classes="iconText">
+                                    <ic:FluentIcon Icon="Open" />
+                                    <TextBlock Text="{Binding OpenHomepage, Source={x:Static l:AppLanguage.Current}}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Command="{Binding OpenConfigDirectoryCommand}">
+                                <StackPanel Classes="iconText">
+                                    <ic:FluentIcon Icon="FolderOpen" />
+                                    <TextBlock Text="{Binding OpenConfigDirectory, Source={x:Static l:AppLanguage.Current}}" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </ctl:SettingRow>
+                </StackPanel>
+            </Border>
+        </StackPanel>
     </ScrollViewer>
 </UserControl>
