@@ -5,11 +5,11 @@ public sealed partial class RecordingSettingsViewModel(ISettingsAppService setti
 	// 数字框每按一个键就改一次值，录制中途会读分段设置，不能存输到一半的数
 	internal static readonly TimeSpan NumberInputQuietPeriod = TimeSpan.FromSeconds(1);
 
-	public IReadOnlyList<ChoiceOption> RecorderTypeOptions { get; } = ChoiceOption.Of(Enum.GetValues<RecorderType>());
+	public IReadOnlyList<ChoiceOption> RecorderTypeOptions { get; } = ChoiceOption.Of<RecorderType>();
 
-	public IReadOnlyList<ChoiceOption> HostSelectionOptions { get; } = ChoiceOption.Of(Enum.GetValues<StreamHostSelection>());
+	public IReadOnlyList<ChoiceOption> HostSelectionOptions { get; } = ChoiceOption.Of<StreamHostSelection>();
 
-	public IReadOnlyList<ChoiceOption> SplitModeOptions { get; } = ChoiceOption.Of(Enum.GetValues<RecordingSplitMode>());
+	public IReadOnlyList<ChoiceOption> SplitModeOptions { get; } = ChoiceOption.Of<RecordingSplitMode>();
 
 	public PriorityListViewModel CodecPriority { get; } = new();
 
@@ -84,5 +84,12 @@ public sealed partial class RecordingSettingsViewModel(ISettingsAppService setti
 		// 保存可能在线程池上执行，用发出的快照，不去读界面正在改的列表
 		PersistSetting(settingsAppService, CodecPriority.WhenChanged(static list => list.Values), static (current, values) => current with { CodecPriority = [.. values.OfType<StreamCodec>()] });
 		PersistSetting(settingsAppService, FormatPriority.WhenChanged(static list => list.Values), static (current, values) => current with { FormatPriority = [.. values.OfType<StreamFormat>()] });
+	}
+
+	public override void Dispose()
+	{
+		CodecPriority.Dispose();
+		FormatPriority.Dispose();
+		base.Dispose();
 	}
 }

@@ -65,10 +65,7 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 
 	public IReadOnlyList<ChoiceOption> SplitModeOptions { get; } = ChoiceOption.InheritOr<RecordingSplitMode>();
 
-	// 视图通过实例绑定访问这个属性
-#pragma warning disable CA1822
-	public IReadOnlyList<ChoiceOption> ToggleOptions => ChoiceOption.Toggles;
-#pragma warning restore CA1822
+	public IReadOnlyList<ChoiceOption> ToggleOptions { get; } = ChoiceOption.Toggles;
 
 	public PriorityListViewModel CodecPriority { get; }
 
@@ -168,8 +165,8 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 			DanmakuOffset = DanmakuOffsetSeconds is { } seconds ? ConfigValues.DanmakuOffsetFromSeconds(seconds) : null,
 			Quality = Quality,
 			RecorderType = RecorderType.As<RecorderType>(),
-			CodecPriority = OverrideCodecPriority ? CodecPriority.ToList<StreamCodec>() : null,
-			FormatPriority = OverrideFormatPriority ? FormatPriority.ToList<StreamFormat>() : null,
+			CodecPriority = OverrideCodecPriority ? CodecPriority.GetValues<StreamCodec>() : null,
+			FormatPriority = OverrideFormatPriority ? FormatPriority.GetValues<StreamFormat>() : null,
 			ConvertToMp4 = ConvertToMp4.As<bool>(),
 			DeleteAfterConvert = DeleteAfterConvert.As<bool>(),
 			SplitMode = SplitMode.As<RecordingSplitMode>(),

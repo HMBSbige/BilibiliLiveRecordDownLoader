@@ -2,14 +2,16 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
 
 public sealed partial class QrCodeLoginViewModel : DialogViewModel<bool>
 {
-	private const int MaxConsecutivePollFailures = 5;
-	private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(1);
+	internal const int MaxConsecutivePollFailures = 5;
+	internal static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(1);
 
 	private readonly IAccountAppService _accountAppService;
+	private readonly TimeProvider _timeProvider;
 
-	public QrCodeLoginViewModel(IAccountAppService accountAppService)
+	public QrCodeLoginViewModel(IAccountAppService accountAppService, TimeProvider timeProvider)
 	{
 		_accountAppService = accountAppService;
+		_timeProvider = timeProvider;
 		RefreshCommand.DisposeWith(Disposables);
 	}
 
@@ -71,7 +73,7 @@ public sealed partial class QrCodeLoginViewModel : DialogViewModel<bool>
 
 		QrCodeUrl = ticket.Url;
 
-		using PeriodicTimer timer = new(PollInterval);
+		using PeriodicTimer timer = new(PollInterval, _timeProvider);
 		int failures = 0;
 
 		while (await timer.WaitForNextTickAsync(cancellationToken))

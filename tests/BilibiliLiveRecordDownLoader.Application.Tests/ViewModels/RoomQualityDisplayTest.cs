@@ -1,5 +1,6 @@
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
+using BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
 using BilibiliLiveRecordDownLoader.ViewModels.Rooms;
 using ReactiveUI.Primitives.Signals;
 using System.Globalization;
@@ -18,9 +19,14 @@ public sealed class RoomQualityDisplayTest
 		return new RoomSnapshot(new RoomSettingsDto { RoomId = roomId }, 0, $"主播{roomId}", null, LiveStatus.Live, RecordStatus.Idle, 0, null, null);
 	}
 
+	private static RoomItemViewModel Row(RoomSnapshot snapshot)
+	{
+		return new RoomItemViewModel(snapshot, false, new FakeRoomAppService(), TimeProvider.System);
+	}
+
 	private static RoomListViewModel CreateList(FakeRoomAppService rooms, IObservable<string?> cookie)
 	{
-		RoomListViewModel viewModel = new(rooms, new SettingsAppService(new FakeConfigManager()), new FakeDanmakuAppService());
+		RoomListViewModel viewModel = new(new DialogHostViewModel(), rooms, new SettingsAppService(new FakeConfigManager()), new FakeDanmakuAppService(), new PlatformStub(), TimeProvider.System);
 		viewModel.ApplySettings(AppConfig.CreateDefault().ToSettingsDto(), cookie);
 		viewModel.Sync();
 		return viewModel;
@@ -42,7 +48,7 @@ public sealed class RoomQualityDisplayTest
 	[MethodDataSource(nameof(RestrictionCases))]
 	public async Task RestrictedQualityIsMarkedWithItsReasonAsync(QualityRestriction restriction, string expected)
 	{
-		using RoomItemViewModel room = new(Recording(1, restriction), false);
+		using RoomItemViewModel room = Row(Recording(1, restriction));
 
 		using (Assert.Multiple())
 		{
@@ -58,7 +64,7 @@ public sealed class RoomQualityDisplayTest
 	public async Task RowHelpFollowsTheFailureUntilTheRoomRecordsAsync()
 	{
 		RoomSnapshot connecting = new(new RoomSettingsDto { RoomId = 1 }, 0, "主播1", null, LiveStatus.Live, RecordStatus.Connecting, 0, null, "连接超时");
-		using RoomItemViewModel room = new(connecting, false);
+		using RoomItemViewModel room = Row(connecting);
 		string? failing = room.HelpText;
 
 		room.Apply(Recording(1, new QualityRestriction.NotLoggedIn(10000)), false);
@@ -73,7 +79,7 @@ public sealed class RoomQualityDisplayTest
 	[Test]
 	public async Task RestrictionIsClearedOnceTheRoomRecordsTheTrueOriginalAsync()
 	{
-		using RoomItemViewModel room = new(Recording(1, new QualityRestriction.NotLoggedIn(10000)), false);
+		using RoomItemViewModel room = Row(Recording(1, new QualityRestriction.NotLoggedIn(10000)));
 
 		room.Apply(Recording(1, null, StreamCodec.Hevc, 25000), false);
 

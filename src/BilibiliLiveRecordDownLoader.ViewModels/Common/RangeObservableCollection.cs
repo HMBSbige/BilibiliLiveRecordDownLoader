@@ -1,15 +1,15 @@
 using System.Collections.Specialized;
 using System.ComponentModel;
 
-namespace BilibiliLiveRecordDownLoader.ViewModels.Danmaku;
+namespace BilibiliLiveRecordDownLoader.ViewModels.Common;
 
-// 热门房间每次刷新几十条，逐条通知会让列表逐条重新布局
-public sealed class DanmakuEntryCollection : ObservableCollection<DanmakuEntryViewModel>
+// 热门房间每次刷新几十条弹幕，改筛选条件要重排上千条日志，逐条通知会让列表逐条重新布局
+public sealed class RangeObservableCollection<T> : ObservableCollection<T>
 {
 	private static readonly PropertyChangedEventArgs CountChanged = new(nameof(Count));
 	private static readonly PropertyChangedEventArgs IndexerChanged = new("Item[]");
 
-	public void AddRange(IReadOnlyList<DanmakuEntryViewModel> items)
+	public void AddRange(IReadOnlyList<T> items)
 	{
 		if (items.Count is 0)
 		{
@@ -19,7 +19,7 @@ public sealed class DanmakuEntryCollection : ObservableCollection<DanmakuEntryVi
 		CheckReentrancy();
 		int index = Items.Count;
 
-		foreach (DanmakuEntryViewModel item in items)
+		foreach (T item in items)
 		{
 			Items.Add(item);
 		}
@@ -35,7 +35,7 @@ public sealed class DanmakuEntryCollection : ObservableCollection<DanmakuEntryVi
 		}
 
 		CheckReentrancy();
-		DanmakuEntryViewModel[] removed = [.. Items.Take(count)];
+		T[] removed = [.. Items.Take(count)];
 
 		for (int index = 0; index < removed.Length; ++index)
 		{
@@ -45,12 +45,12 @@ public sealed class DanmakuEntryCollection : ObservableCollection<DanmakuEntryVi
 		OnChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Remove, removed, 0));
 	}
 
-	public void Reset(IEnumerable<DanmakuEntryViewModel> items)
+	public void Reset(IEnumerable<T> items)
 	{
 		CheckReentrancy();
 		Items.Clear();
 
-		foreach (DanmakuEntryViewModel item in items)
+		foreach (T item in items)
 		{
 			Items.Add(item);
 		}

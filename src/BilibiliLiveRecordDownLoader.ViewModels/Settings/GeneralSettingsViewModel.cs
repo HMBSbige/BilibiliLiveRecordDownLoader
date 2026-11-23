@@ -7,13 +7,17 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 	private readonly ISettingsAppService _settingsAppService;
 	private readonly IDiskSpaceService _diskSpaceService;
 	private readonly IAutoStartService _autoStartService;
+	private readonly IStoragePickerService _storagePicker;
+	private readonly ILauncherService _launcher;
 	private bool _isRevertingAutoStart;
 
-	public GeneralSettingsViewModel(ISettingsAppService settingsAppService, IDiskSpaceService diskSpaceService, IAutoStartService autoStartService)
+	public GeneralSettingsViewModel(ISettingsAppService settingsAppService, IDiskSpaceService diskSpaceService, IAutoStartService autoStartService, IStoragePickerService storagePicker, ILauncherService launcher)
 	{
 		_settingsAppService = settingsAppService;
 		_diskSpaceService = diskSpaceService;
 		_autoStartService = autoStartService;
+		_storagePicker = storagePicker;
+		_launcher = launcher;
 
 		BrowseRecordDirectoryCommand.DisposeWith(Disposables);
 		OpenRecordDirectoryCommand.DisposeWith(Disposables);
@@ -64,7 +68,7 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 	[ReactiveCommand]
 	private async Task BrowseRecordDirectoryAsync()
 	{
-		if (await AppLocator.Current.GetRequiredService<IStoragePickerService>().PickFolderAsync(RecordDirectory) is { } directory)
+		if (await _storagePicker.PickFolderAsync(RecordDirectory) is { } directory)
 		{
 			RecordDirectory = directory;
 		}
@@ -73,7 +77,7 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 	[ReactiveCommand]
 	private async Task OpenRecordDirectoryAsync()
 	{
-		await AppLocator.Current.GetRequiredService<ILauncherService>().OpenFolderAsync(RecordDirectory);
+		await _launcher.OpenFolderAsync(RecordDirectory);
 	}
 
 	[ReactiveCommand]
@@ -81,7 +85,7 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 	{
 		string? initialDirectory = string.IsNullOrWhiteSpace(FFmpegPath) ? null : Path.GetDirectoryName(FFmpegPath);
 
-		if (await AppLocator.Current.GetRequiredService<IStoragePickerService>().PickFileAsync(initialDirectory) is { } path)
+		if (await _storagePicker.PickFileAsync(initialDirectory) is { } path)
 		{
 			FFmpegPath = path;
 		}

@@ -1,6 +1,7 @@
 using BilibiliLive.Models;
 using BilibiliLiveRecordDownLoader.Application.Contracts.Accounts;
 using BilibiliLiveRecordDownLoader.ViewModels;
+using ReactiveUI;
 using ReactiveUI.Primitives;
 using System.Collections.Concurrent;
 using System.Windows.Input;
@@ -21,19 +22,16 @@ public sealed class AccountViewModelTest
 	public async Task FailedCheckLeavesTheCheckingStateAsync(Exception failure, CancellationToken cancellationToken)
 	{
 		FakeAccountAppService accounts = new() { IsLoggedIn = OnThreadPool(_ => throw failure) };
-		using AccountViewModel viewModel = new(accounts);
-		ConcurrentQueue<Exception> thrown = new();
-		using IDisposable subscription = viewModel.CheckLoginCommand.ThrownExceptions.Subscribe(thrown.Enqueue);
+		using AccountViewModel viewModel = new(accounts, TimeProvider.System);
+		// 先订阅，否则异常会落到全局处理
+		Task<Exception> reported = viewModel.CheckLoginCommand.ThrownExceptions.FirstAsync(cancellationToken);
 
 		((ICommand)viewModel.CheckLoginCommand).Execute(null);
-		// 异常是异步交给订阅者的，等它到了再结束，否则会落到全局处理
-		await TestWait.UntilAsync(() => !thrown.IsEmpty, "the exception reaches the subscriber", cancellationToken);
-		Exception reported = await Assert.That(thrown).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
+			await Assert.That(await reported).IsSameReferenceAs(failure);
 			await Assert.That(viewModel.IsLoggedIn).IsFalse();
-			await Assert.That(reported).IsSameReferenceAs(failure);
 		}
 	}
 
@@ -50,11 +48,12 @@ public sealed class AccountViewModelTest
 				return true;
 			})
 		};
-		using AccountViewModel viewModel = new(accounts);
+		using AccountViewModel viewModel = new(accounts, TimeProvider.System);
 		await viewModel.LoadAsync(cancellationToken);
+		Task loggedIn = WhenLoggedInAsync(viewModel, true, cancellationToken);
 
 		viewModel.Cookie = "new";
-		await TestWait.UntilAsync(() => viewModel.IsLoggedIn is true, "the new cookie is checked as logged in", cancellationToken);
+		await loggedIn;
 
 		await Assert.That(checkedCookies).IsEquivalentTo(["new"]);
 	}
@@ -68,12 +67,13 @@ public sealed class AccountViewModelTest
 		{
 			IsLoggedIn = (_, _) =>
 			{
+				// 续体在 SetResult 里同步执行，返回时结果已经写入
 				TaskCompletionSource<bool> check = new();
 				checks.Enqueue(check);
 				return check.Task;
 			}
 		};
-		using AccountViewModel viewModel = new(accounts);
+		using AccountViewModel viewModel = new(accounts, TimeProvider.System);
 		await viewModel.LoadAsync(CancellationToken.None);
 
 		viewModel.RefreshLoginStatus();
@@ -90,21 +90,26 @@ public sealed class AccountViewModelTest
 	public async Task CookieReloadedAfterLogoutIsNotSavedOrCheckedAgainAsync(CancellationToken cancellationToken)
 	{
 		FakeAccountAppService accounts = new() { Cookie = "old", IsLoggedIn = OnThreadPool(static _ => true) };
-		using AccountViewModel viewModel = new(accounts);
+		using AccountViewModel viewModel = new(accounts, TimeProvider.System);
 		await viewModel.LoadAsync(cancellationToken);
-		((ICommand)viewModel.CheckLoginCommand).Execute(null);
-		await TestWait.UntilAsync(() => viewModel.IsLoggedIn is true, "the login check reports logged in", cancellationToken);
+		await viewModel.CheckLoginCommand.Execute().ToTask(cancellationToken);
 		int saves = accounts.Saves;
 
-		((ICommand)viewModel.LogoutCommand).Execute(null);
-		await TestWait.UntilAsync(() => viewModel.IsLoggedIn is false, "the logout is shown", cancellationToken);
+		await viewModel.LogoutCommand.Execute().ToTask(cancellationToken);
 
 		using (Assert.Multiple())
 		{
+			await Assert.That(viewModel.IsLoggedIn).IsFalse();
 			await Assert.That(viewModel.Cookie).IsNull();
 			await Assert.That(accounts.Checks).IsEqualTo(1);
 			await Assert.That(accounts.Saves).IsEqualTo(saves);
 		}
+	}
+
+	// 结果在别的线程上写入
+	private static Task<bool?> WhenLoggedInAsync(AccountViewModel viewModel, bool isLoggedIn, CancellationToken cancellationToken)
+	{
+		return viewModel.WhenChanged(static viewModel => viewModel.IsLoggedIn).Keep(value => value == isLoggedIn).FirstAsync(cancellationToken);
 	}
 
 	// 和真实的请求一样，结果在别的线程上返回；参数是检查时服务里的 Cookie

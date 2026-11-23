@@ -2,10 +2,10 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.Settings;
 
 public sealed partial class AppearanceSettingsViewModel(ISettingsAppService settingsAppService, IThemeService themeService, ISystemLanguageService systemLanguage) : ViewModelBase
 {
-	public IReadOnlyList<ChoiceOption> ThemeOptions { get; } = ChoiceOption.Of(Enum.GetValues<AppTheme>());
+	public IReadOnlyList<ChoiceOption> ThemeOptions { get; } = ChoiceOption.Of<AppTheme>();
 
 	// 语言名为空的一项表示跟随系统
-	public ObservableCollection<LanguageOptionViewModel> Languages { get; } =
+	public IReadOnlyList<LanguageOptionViewModel> Languages { get; } =
 	[
 		new(string.Empty, string.Empty),
 		.. AppLanguage.SupportedLanguageTags.Select(static name => CultureInfo.GetCultureInfo(name)).Select(static culture => new LanguageOptionViewModel(culture.Name, culture.NativeName))
@@ -19,7 +19,7 @@ public sealed partial class AppearanceSettingsViewModel(ISettingsAppService sett
 
 	internal void ApplySettings(AppSettingsDto settings)
 	{
-		SelectedLanguage = Languages.FirstOrDefault(language => language.CultureName == settings.Language) ?? Languages[0];
+		SelectedLanguage = FindLanguage(settings.Language);
 		Theme = settings.Theme;
 
 		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.SelectedLanguage).Map(static language => language?.CultureName), static (current, value) => current with { Language = value });
@@ -32,6 +32,12 @@ public sealed partial class AppearanceSettingsViewModel(ISettingsAppService sett
 		this.WhenChanged(static viewModel => viewModel.Theme)
 			.Subscribe(themeService.Apply)
 			.DisposeWith(Disposables);
+	}
+
+	// 语言标签不区分大小写，手改配置写成 EN 或 zh-hans 也要认出来；认不出的退回跟随系统
+	internal LanguageOptionViewModel FindLanguage(string? cultureName)
+	{
+		return Languages.FirstOrDefault(language => string.Equals(language.CultureName, cultureName, StringComparison.OrdinalIgnoreCase)) ?? Languages[0];
 	}
 
 	private IObservable<(CultureInfo Ui, CultureInfo Format)> ResolveCultures(LanguageOptionViewModel language)

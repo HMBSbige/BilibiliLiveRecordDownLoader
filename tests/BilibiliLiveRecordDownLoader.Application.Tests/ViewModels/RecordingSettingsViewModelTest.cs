@@ -61,8 +61,6 @@ public sealed class RecordingSettingsViewModelTest
 
 		await TestWait.UntilAsync(() => configManager.UpdateCount >= 1, "the change is saved", cancellationToken);
 
-		await Task.Delay(RecordingSettingsViewModel.NumberInputQuietPeriod, cancellationToken);
-
 		using (Assert.Multiple())
 		{
 			await Assert.That(whileTyping).IsEqualTo(TimeSpan.FromMinutes(60));

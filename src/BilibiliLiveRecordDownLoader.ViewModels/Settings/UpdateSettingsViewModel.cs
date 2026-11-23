@@ -4,11 +4,15 @@ public sealed partial class UpdateSettingsViewModel : ViewModelBase
 {
 	private readonly ISettingsAppService _settingsAppService;
 	private readonly IUpdateAppService _updateAppService;
+	private readonly INotificationService _notifications;
+	private readonly ILauncherService _launcher;
 
-	public UpdateSettingsViewModel(ISettingsAppService settingsAppService, IUpdateAppService updateAppService)
+	public UpdateSettingsViewModel(ISettingsAppService settingsAppService, IUpdateAppService updateAppService, INotificationService notifications, ILauncherService launcher)
 	{
 		_settingsAppService = settingsAppService;
 		_updateAppService = updateAppService;
+		_notifications = notifications;
+		_launcher = launcher;
 
 		CheckUpdateCommand.DisposeWith(Disposables);
 		OpenHomepageCommand.DisposeWith(Disposables);
@@ -66,13 +70,13 @@ public sealed partial class UpdateSettingsViewModel : ViewModelBase
 	[ReactiveCommand]
 	private async Task OpenHomepageAsync()
 	{
-		await AppLocator.Current.GetRequiredService<ILauncherService>().LaunchUriAsync(new Uri(AppConsts.HomepageUrl));
+		await _launcher.LaunchUriAsync(new Uri(AppConsts.HomepageUrl));
 	}
 
 	[ReactiveCommand]
 	private async Task OpenConfigDirectoryAsync()
 	{
-		await AppLocator.Current.GetRequiredService<ILauncherService>().OpenFolderAsync(ConfigurationConsts.ConfigDirectory);
+		await _launcher.OpenFolderAsync(ConfigurationConsts.ConfigDirectory);
 	}
 
 	private void UpdateVersionText()
@@ -86,15 +90,13 @@ public sealed partial class UpdateSettingsViewModel : ViewModelBase
 	{
 		LatestVersion = result.LatestVersion;
 
-		INotificationService notificationService = AppLocator.Current.GetRequiredService<INotificationService>();
-
 		if (result is { HasUpdate: true, LatestVersion: { } latestVersion })
 		{
-			notificationService.Show(AppLanguage.Current.Update, AppLanguage.Current.NewVersionAvailable.ToString(latestVersion), link: new Uri(AppConsts.ReleasesUrl));
+			_notifications.Show(AppLanguage.Current.Update, AppLanguage.Current.NewVersionAvailable.ToString(latestVersion), link: new Uri(AppConsts.ReleasesUrl));
 		}
 		else if (!silentOnLatest)
 		{
-			notificationService.Show(AppLanguage.Current.Update, AppLanguage.Current.AlreadyLatestVersion, AppNotificationType.Success);
+			_notifications.Show(AppLanguage.Current.Update, AppLanguage.Current.AlreadyLatestVersion, AppNotificationType.Success);
 		}
 	}
 }

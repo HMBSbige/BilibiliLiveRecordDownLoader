@@ -1,25 +1,23 @@
 namespace BilibiliLiveRecordDownLoader.ViewModels.Settings;
 
-public sealed class SettingsViewModel : ViewModelBase
+// 各分区都是容器里的单例，由容器释放
+public sealed class SettingsViewModel(GeneralSettingsViewModel general, RecordingSettingsViewModel recording, DanmakuSettingsViewModel danmaku, NetworkSettingsViewModel network, NotificationSettingsViewModel notification, ExperimentalSettingsViewModel experimental, AppearanceSettingsViewModel appearance, UpdateSettingsViewModel update)
 {
-	// 视图通过实例绑定访问这些属性
-#pragma warning disable CA1822
-	public GeneralSettingsViewModel General => AppLocator.Current.GetRequiredService<GeneralSettingsViewModel>();
+	public GeneralSettingsViewModel General { get; } = general;
 
-	public RecordingSettingsViewModel Recording => AppLocator.Current.GetRequiredService<RecordingSettingsViewModel>();
+	public RecordingSettingsViewModel Recording { get; } = recording;
 
-	public DanmakuSettingsViewModel Danmaku => AppLocator.Current.GetRequiredService<DanmakuSettingsViewModel>();
+	public DanmakuSettingsViewModel Danmaku { get; } = danmaku;
 
-	public NetworkSettingsViewModel Network => AppLocator.Current.GetRequiredService<NetworkSettingsViewModel>();
+	public NetworkSettingsViewModel Network { get; } = network;
 
-	public NotificationSettingsViewModel Notification => AppLocator.Current.GetRequiredService<NotificationSettingsViewModel>();
+	public NotificationSettingsViewModel Notification { get; } = notification;
 
-	public ExperimentalSettingsViewModel Experimental => AppLocator.Current.GetRequiredService<ExperimentalSettingsViewModel>();
+	public ExperimentalSettingsViewModel Experimental { get; } = experimental;
 
-	public AppearanceSettingsViewModel Appearance => AppLocator.Current.GetRequiredService<AppearanceSettingsViewModel>();
+	public AppearanceSettingsViewModel Appearance { get; } = appearance;
 
-	public UpdateSettingsViewModel Update => AppLocator.Current.GetRequiredService<UpdateSettingsViewModel>();
-#pragma warning restore CA1822
+	public UpdateSettingsViewModel Update { get; } = update;
 
 	public void ApplySettings(AppSettingsDto settings)
 	{

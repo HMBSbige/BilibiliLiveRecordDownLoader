@@ -15,7 +15,8 @@ public sealed class GeneralSettingsViewModelTest
 		AppConfig config = AppConfig.CreateDefault();
 		config.RecordDirectory = "old";
 		FakeConfigManager configManager = new(config);
-		using GeneralSettingsViewModel viewModel = new(new SettingsAppService(configManager), new NoDiskSpace(), new UnsupportedAutoStart());
+		PlatformStub platform = new();
+		using GeneralSettingsViewModel viewModel = new(new SettingsAppService(configManager), new NoDiskSpace(), new UnsupportedAutoStart(), platform, platform);
 		viewModel.ApplySettings(config.ToSettingsDto());
 		string saved = expected ?? ConfigurationConsts.DefaultRecordDirectory;
 

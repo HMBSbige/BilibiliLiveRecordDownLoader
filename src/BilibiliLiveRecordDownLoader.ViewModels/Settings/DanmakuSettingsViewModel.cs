@@ -2,7 +2,7 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.Settings;
 
 public sealed partial class DanmakuSettingsViewModel(ISettingsAppService settingsAppService) : ViewModelBase
 {
-	public IReadOnlyList<ChoiceOption> GiftModeOptions { get; } = ChoiceOption.Of(Enum.GetValues<DanmakuGiftMode>());
+	public IReadOnlyList<ChoiceOption> GiftModeOptions { get; } = ChoiceOption.Of<DanmakuGiftMode>();
 
 	[Reactive]
 	public partial bool RecordSuperChats { get; set; }

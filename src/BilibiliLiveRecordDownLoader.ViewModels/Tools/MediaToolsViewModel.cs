@@ -9,13 +9,17 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 
 	private readonly IMediaToolAppService _mediaTools;
 	private readonly INotificationService _notifications;
+	private readonly ILauncherService _launcher;
+	private readonly IStoragePickerService _storagePicker;
 	private string? _ffmpegVersion;
 	private int _ffmpegCheckGeneration;
 
-	public MediaToolsViewModel(IMediaToolAppService mediaTools, INotificationService notifications)
+	public MediaToolsViewModel(IMediaToolAppService mediaTools, INotificationService notifications, ILauncherService launcher, IStoragePickerService storagePicker)
 	{
 		_mediaTools = mediaTools;
 		_notifications = notifications;
+		_launcher = launcher;
+		_storagePicker = storagePicker;
 
 		CanQueueRemux = this.WhenChanged(static viewModel => viewModel.IsFFmpegAvailable, static viewModel => viewModel.RemuxInput, static viewModel => viewModel.RemuxOutput, CanQueue);
 		CanQueueCut = this.WhenChanged
@@ -51,18 +55,22 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 			.Subscribe(_ => RemuxError = null)
 			.DisposeWith(Disposables);
 
-		this.WhenChanged
-			(
-				static viewModel => viewModel.CutInput,
-				static viewModel => viewModel.CutOutput,
-				static viewModel => viewModel.CutStart,
-				static viewModel => viewModel.CutEnd,
-				static string? (_, _, start, end) => TryParseTimeRange(start, end, out _, out _) ? null : AppLanguage.Current.InvalidTimeRange
-			)
-			.Subscribe(error => CutError = error)
+		this.WhenChanged(static viewModel => viewModel.CutInput, static viewModel => viewModel.CutOutput, static viewModel => viewModel.CutStart, static viewModel => viewModel.CutEnd, static (_, _, _, _) => RxVoid.Default)
+			.Subscribe(_ => CutError = GetTimeRangeError())
 			.DisposeWith(Disposables);
 
-		OnLanguageChanged(UpdateFFmpegVersionText);
+		OnLanguageChanged
+		(() =>
+			{
+				UpdateFFmpegVersionText();
+
+				// 时间范围有效时 CutError 可能是应用服务给的原因，无法换成新语言，也不能清掉
+				if (GetTimeRangeError() is { } error)
+				{
+					CutError = error;
+				}
+			}
+		);
 	}
 
 	public IObservable<bool> CanQueueRemux { get; }
@@ -142,13 +150,13 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 	[ReactiveCommand]
 	private async Task DownloadFFmpegAsync()
 	{
-		await AppLocator.Current.GetRequiredService<ILauncherService>().LaunchUriAsync(new Uri(AppConsts.FFmpegDownloadUrl));
+		await _launcher.LaunchUriAsync(new Uri(AppConsts.FFmpegDownloadUrl));
 	}
 
 	[ReactiveCommand]
 	private async Task BrowseRemuxInputAsync()
 	{
-		if (await AppLocator.Current.GetRequiredService<IStoragePickerService>().PickVideoFileAsync(GetDirectory(RemuxInput)) is { } path)
+		if (await _storagePicker.PickVideoFileAsync(GetDirectory(RemuxInput)) is { } path)
 		{
 			RemuxInput = path;
 		}
@@ -157,7 +165,7 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 	[ReactiveCommand]
 	private async Task BrowseRemuxOutputAsync()
 	{
-		if (await AppLocator.Current.GetRequiredService<IStoragePickerService>().PickSaveVideoFileAsync(RemuxOutput) is { } path)
+		if (await _storagePicker.PickSaveVideoFileAsync(RemuxOutput) is { } path)
 		{
 			RemuxOutput = path;
 		}
@@ -183,7 +191,7 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 	[ReactiveCommand]
 	private async Task BrowseCutInputAsync()
 	{
-		if (await AppLocator.Current.GetRequiredService<IStoragePickerService>().PickVideoFileAsync(GetDirectory(CutInput)) is { } path)
+		if (await _storagePicker.PickVideoFileAsync(GetDirectory(CutInput)) is { } path)
 		{
 			CutInput = path;
 		}
@@ -192,7 +200,7 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 	[ReactiveCommand]
 	private async Task BrowseCutOutputAsync()
 	{
-		if (await AppLocator.Current.GetRequiredService<IStoragePickerService>().PickSaveVideoFileAsync(CutOutput) is { } path)
+		if (await _storagePicker.PickSaveVideoFileAsync(CutOutput) is { } path)
 		{
 			CutOutput = path;
 		}
@@ -218,6 +226,11 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 
 		NotifyQueued();
 		CutOutput = SuggestCutOutput(CutInput);
+	}
+
+	private string? GetTimeRangeError()
+	{
+		return TryParseTimeRange(CutStart, CutEnd, out _, out _) ? null : AppLanguage.Current.InvalidTimeRange;
 	}
 
 	private void UpdateFFmpegVersionText()
@@ -249,7 +262,7 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 
 	private static bool TryParseTime(string text, out TimeSpan time)
 	{
-		if (TimePattern().Match(text.Trim()) is not { Success: true, Groups: var groups })
+		if (TimePattern.Match(text.Trim()) is not { Success: true, Groups: var groups })
 		{
 			time = default;
 			return false;
@@ -269,7 +282,7 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 
 	// TimeSpan 的 h、m 格式只认 0–23 时、0–59 分，而不分段的录像可能超过一天；只有一个数时分不清单位，至少要写出分和秒；位数上限只为换算时不溢出
 	[GeneratedRegex(@"^(?:(?<hours>[0-9]{1,6}):(?<minutes>[0-5][0-9])|(?<minutes>[0-9]{1,8})):(?<seconds>[0-5][0-9])(?:\.(?<fraction>[0-9]{1,3}))?$", RegexOptions.CultureInvariant)]
-	private static partial Regex TimePattern();
+	private static partial Regex TimePattern { get; }
 
 	private static string? GetDirectory(string path)
 	{

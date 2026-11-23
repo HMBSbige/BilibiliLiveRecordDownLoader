@@ -31,20 +31,18 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
 	public DialogHostViewModel Dialogs { get; }
 
-	// 视图通过实例绑定访问这些属性
-#pragma warning disable CA1822
-	public RoomListViewModel Rooms => AppLocator.Current.GetRequiredService<RoomListViewModel>();
+	// 按需解析而不注入，主窗口的构造和测试都不必带上全部页面
+	public RoomListViewModel Rooms => field ??= AppLocator.Current.GetRequiredService<RoomListViewModel>();
 
-	public TaskListViewModel Tasks => AppLocator.Current.GetRequiredService<TaskListViewModel>();
+	public TaskListViewModel Tasks => field ??= AppLocator.Current.GetRequiredService<TaskListViewModel>();
 
-	public MediaToolsViewModel Tools => AppLocator.Current.GetRequiredService<MediaToolsViewModel>();
+	public MediaToolsViewModel Tools => field ??= AppLocator.Current.GetRequiredService<MediaToolsViewModel>();
 
-	public LogViewModel Logs => AppLocator.Current.GetRequiredService<LogViewModel>();
+	public LogViewModel Logs => field ??= AppLocator.Current.GetRequiredService<LogViewModel>();
 
-	public AccountViewModel Account => AppLocator.Current.GetRequiredService<AccountViewModel>();
+	public AccountViewModel Account => field ??= AppLocator.Current.GetRequiredService<AccountViewModel>();
 
-	public SettingsViewModel Settings => AppLocator.Current.GetRequiredService<SettingsViewModel>();
-#pragma warning restore CA1822
+	public SettingsViewModel Settings => field ??= AppLocator.Current.GetRequiredService<SettingsViewModel>();
 
 	[Reactive]
 	public partial bool IsInitialized { get; private set; }

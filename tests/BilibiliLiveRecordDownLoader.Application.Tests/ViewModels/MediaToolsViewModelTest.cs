@@ -128,7 +128,8 @@ public sealed class MediaToolsViewModelTest
 
 	private static MediaToolsViewModel Create(FakeMediaTools tools, RecordingNotifications notifications)
 	{
-		return new MediaToolsViewModel(tools, notifications);
+		PlatformStub platform = new();
+		return new MediaToolsViewModel(tools, notifications, platform, platform);
 	}
 
 	private static async Task<MediaToolsViewModel> CreateWithFFmpegAsync(FakeMediaTools tools, RecordingNotifications notifications, CancellationToken cancellationToken)

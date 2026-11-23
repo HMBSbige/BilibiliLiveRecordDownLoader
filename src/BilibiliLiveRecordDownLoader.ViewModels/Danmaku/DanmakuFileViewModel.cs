@@ -36,7 +36,7 @@ public sealed partial class DanmakuFileViewModel : ViewModelBase
 
 	public DanmakuFilterViewModel Filter { get; }
 
-	public DanmakuEntryCollection Entries { get; } = [];
+	public RangeObservableCollection<DanmakuEntryViewModel> Entries { get; } = [];
 
 	public IObservable<bool> CanRegenerate { get; }
 
@@ -96,24 +96,7 @@ public sealed partial class DanmakuFileViewModel : ViewModelBase
 			return;
 		}
 
-		int low = 0;
-		int high = Entries.Count;
-
-		while (low < high)
-		{
-			int middle = low + (high - low) / 2;
-
-			if (Entries[middle].Time < time)
-			{
-				low = middle + 1;
-			}
-			else
-			{
-				high = middle;
-			}
-		}
-
-		SelectedEntry = Entries[Math.Min(low, Entries.Count - 1)];
+		SelectedEntry = Entries[Math.Min(Entries.LowerBound(entry => entry.Time < time), Entries.Count - 1)];
 	}
 
 	[ReactiveCommand(CanExecute = nameof(CanRegenerate))]

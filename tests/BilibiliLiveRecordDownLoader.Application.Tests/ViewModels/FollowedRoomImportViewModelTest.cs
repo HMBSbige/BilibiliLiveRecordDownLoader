@@ -2,6 +2,7 @@ using BilibiliLiveRecordDownLoader.Application.Contracts.Accounts;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
+using ReactiveUI.Primitives;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
@@ -125,8 +126,7 @@ public sealed class FollowedRoomImportViewModelTest
 		using FollowedRoomImportViewModel dialog = Open(rooms);
 
 		Select(dialog, 6154037, 7777);
-		((ICommand)dialog.ImportCommand).Execute(null);
-		await TestWait.UntilAsync(() => dialog is { IsBusy: false, ErrorMessage: not null }, "the failed import shows its error", cancellationToken);
+		await dialog.ImportCommand.Execute().ToTask(cancellationToken);
 
 		FollowedRoomItemViewModel skipped = dialog.VisibleRooms.Single(static room => room.RoomId is 6154037);
 

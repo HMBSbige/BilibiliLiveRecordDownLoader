@@ -9,13 +9,15 @@ public sealed partial class LogViewModel : ViewModelBase
 	private static readonly TimeSpan FilterDelay = TimeSpan.FromMilliseconds(200);
 
 	private readonly ILogStore _logStore;
+	private readonly ILauncherService _launcher;
 	private readonly List<LogEntry> _all = [];
 	private readonly Comparer<LogEntry> _comparer;
 	private long _lastSequence;
 
-	public LogViewModel(ILogStore logStore)
+	public LogViewModel(ILogStore logStore, ILauncherService launcher)
 	{
 		_logStore = logStore;
+		_launcher = launcher;
 		_comparer = Comparer<LogEntry>.Create(Compare);
 
 		CanResetFilters = this.WhenChanged
@@ -43,7 +45,7 @@ public sealed partial class LogViewModel : ViewModelBase
 		SortByCommand.DisposeWith(Disposables);
 	}
 
-	public ObservableCollection<LogEntry> Entries { get; } = [];
+	public RangeObservableCollection<LogEntry> Entries { get; } = [];
 
 	public IReadOnlyList<LogLevelOption> LevelOptions { get; } = [LogLevelOption.All, new(LogLevel.Information), new(LogLevel.Warning), new(LogLevel.Error)];
 
@@ -74,14 +76,17 @@ public sealed partial class LogViewModel : ViewModelBase
 
 	internal void Refresh()
 	{
+		Func<LogEntry, bool> matches = CreatePredicate();
+
 		foreach (LogEntry entry in _logStore.GetEntries().Where(entry => entry.Sequence > _lastSequence))
 		{
 			_all.Add(entry);
 			_lastSequence = entry.Sequence;
 
-			if (Matches(entry))
+			if (matches(entry))
 			{
-				Entries.Insert(FindInsertIndex(entry), entry);
+				// 比较器最后按序号比，新条目不会和已有的相等，插在第一个排在它后面的条目前
+				Entries.Insert(Entries.LowerBound(shown => _comparer.Compare(shown, entry) < 0), entry);
 			}
 		}
 
@@ -101,7 +106,7 @@ public sealed partial class LogViewModel : ViewModelBase
 	[ReactiveCommand]
 	private async Task OpenLogFolderAsync()
 	{
-		await AppLocator.Current.GetRequiredService<ILauncherService>().OpenFolderAsync(ConfigurationConsts.LogDirectory);
+		await _launcher.OpenFolderAsync(ConfigurationConsts.LogDirectory);
 	}
 
 	[ReactiveCommand(CanExecute = nameof(CanResetFilters))]
@@ -118,15 +123,21 @@ public sealed partial class LogViewModel : ViewModelBase
 		Sort = new LogSort(column, column == Sort.Column ? !Sort.IsDescending : column is not LogSortColumn.Room);
 	}
 
+	internal Func<LogEntry, bool> CreatePredicate()
+	{
+		LogLevel minimum = MinimumLevel.Minimum ?? LogLevel.Trace;
+		string? room = string.IsNullOrWhiteSpace(RoomFilter) ? null : RoomFilter.Trim();
+		string? search = string.IsNullOrWhiteSpace(SearchText) ? null : SearchText.Trim();
+
+		// 和弹幕搜索一样不按区域性比较：过滤在界面线程上逐条进行，按区域性比较中文会慢很多
+		return entry => entry.Level >= minimum
+			&& (room is null || entry.RoomId is { } roomId && roomId.ToString(CultureInfo.InvariantCulture).Contains(room, StringComparison.Ordinal))
+			&& (search is null || entry.Message.Contains(search, StringComparison.OrdinalIgnoreCase));
+	}
+
 	private void Rebuild()
 	{
-		Entries.Clear();
-
-		foreach (LogEntry entry in _all.Where(Matches).Order(_comparer))
-		{
-			Entries.Add(entry);
-		}
-
+		Entries.Reset(_all.Where(CreatePredicate()).Order(_comparer));
 		UpdateState();
 	}
 
@@ -134,44 +145,6 @@ public sealed partial class LogViewModel : ViewModelBase
 	{
 		HasEntries = _all.Count > 0;
 		HasVisibleEntries = Entries.Count > 0;
-	}
-
-	private bool Matches(LogEntry entry)
-	{
-		if (MinimumLevel.Minimum is { } level && entry.Level < level)
-		{
-			return false;
-		}
-
-		if (!string.IsNullOrWhiteSpace(RoomFilter) && entry.RoomId?.ToString(CultureInfo.InvariantCulture).Contains(RoomFilter.Trim(), StringComparison.Ordinal) is not true)
-		{
-			return false;
-		}
-
-		return string.IsNullOrWhiteSpace(SearchText) || entry.Message.Contains(SearchText.Trim(), StringComparison.CurrentCultureIgnoreCase);
-	}
-
-	// 比较器最后按序号比，新条目不会和已有的相等，插在第一个排在它后面的条目前
-	private int FindInsertIndex(LogEntry entry)
-	{
-		int low = 0;
-		int high = Entries.Count;
-
-		while (low < high)
-		{
-			int middle = low + (high - low) / 2;
-
-			if (_comparer.Compare(Entries[middle], entry) < 0)
-			{
-				low = middle + 1;
-			}
-			else
-			{
-				high = middle;
-			}
-		}
-
-		return low;
 	}
 
 	private int Compare(LogEntry x, LogEntry y)

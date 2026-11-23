@@ -7,6 +7,7 @@ public sealed partial class DanmakuPanelViewModel : ViewModelBase
 	private readonly IDanmakuAppService _danmaku;
 	private readonly IRoomAppService _roomAppService;
 	private readonly ISettingsAppService _settingsAppService;
+	private readonly IStoragePickerService _storagePicker;
 	private readonly Func<CancellationToken, Task> _showLogin;
 
 	// 切换直播间时不重置
@@ -16,11 +17,12 @@ public sealed partial class DanmakuPanelViewModel : ViewModelBase
 	// 读完时编号变了就丢掉结果
 	private int _fileRequest;
 
-	public DanmakuPanelViewModel(IDanmakuAppService danmaku, IRoomAppService roomAppService, ISettingsAppService settingsAppService, Func<CancellationToken, Task> showLogin)
+	public DanmakuPanelViewModel(IDanmakuAppService danmaku, IRoomAppService roomAppService, ISettingsAppService settingsAppService, IStoragePickerService storagePicker, Func<CancellationToken, Task> showLogin)
 	{
 		_danmaku = danmaku;
 		_roomAppService = roomAppService;
 		_settingsAppService = settingsAppService;
+		_storagePicker = storagePicker;
 		_showLogin = showLogin;
 		_liveFilter = new DanmakuFilterViewModel().DisposeWith(Disposables);
 
@@ -36,9 +38,6 @@ public sealed partial class DanmakuPanelViewModel : ViewModelBase
 	}
 
 	internal bool AutoRefresh { get; init; } = true;
-
-	// 参数是起始目录
-	internal Func<string, Task<string?>> PickDanmakuFile { get; set; } = static directory => AppLocator.Current.GetRequiredService<IStoragePickerService>().PickDanmakuFileAsync(directory);
 
 	[Reactive]
 	public partial bool IsOpen { get; set; }
@@ -146,7 +145,7 @@ public sealed partial class DanmakuPanelViewModel : ViewModelBase
 			directory = (await _settingsAppService.GetAsync(cancellationToken)).RecordDirectory;
 		}
 
-		if (await PickDanmakuFile(directory) is { } path)
+		if (await _storagePicker.PickDanmakuFileAsync(directory) is { } path)
 		{
 			await LoadFileAsync(path, cancellationToken);
 		}

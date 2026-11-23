@@ -1,5 +1,3 @@
-using Splat;
-
 namespace BilibiliLiveRecordDownLoader.Application.Tests;
 
 public static class TestSettings
@@ -9,12 +7,5 @@ public static class TestSettings
 	{
 		context.Settings.Execution.FailOnUnobservedTaskExceptions = true;
 		context.Settings.Timeouts.DefaultTestTimeout = TimeSpan.FromSeconds(30);
-	}
-
-	// 房间列表项读取 TimeProvider 时走全局定位器
-	[Before(Assembly)]
-	public static void RegisterServices()
-	{
-		AppLocator.CurrentMutable.RegisterConstant(TimeProvider.System);
 	}
 }

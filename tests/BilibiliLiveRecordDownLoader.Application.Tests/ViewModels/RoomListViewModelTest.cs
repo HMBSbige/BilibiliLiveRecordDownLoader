@@ -1,5 +1,6 @@
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
+using BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
 using BilibiliLiveRecordDownLoader.ViewModels.Rooms;
 using ReactiveUI.Primitives;
 using ReactiveUI.Primitives.Signals;
@@ -97,7 +98,7 @@ public sealed class RoomListViewModelTest
 		AppConfig config = AppConfig.CreateDefault();
 		config.RoomSortOrder = RoomSortOrder.Name;
 		FakeConfigManager configManager = new(config);
-		using RoomListViewModel viewModel = new(new FakeRoomAppService(InitialOrder), new SettingsAppService(configManager), new FakeDanmakuAppService());
+		using RoomListViewModel viewModel = new(new DialogHostViewModel(), new FakeRoomAppService(InitialOrder), new SettingsAppService(configManager), new FakeDanmakuAppService(), new PlatformStub(), TimeProvider.System);
 
 		viewModel.ApplySettings(config.ToSettingsDto(), Signal.Return<string?>(null));
 		(RoomSortOrder restored, bool canReorder, int updates) = (viewModel.SortOrder, viewModel.CanReorder, configManager.UpdateCount);
@@ -145,6 +146,27 @@ public sealed class RoomListViewModelTest
 		}
 	}
 
+	// 不等定时刷新，免得在删除后的一段时间里还能编辑或切换已删除的房间
+	[Test]
+	public async Task RemovedRoomsLeaveTheListAndTheSelectionOnceConfirmedAsync(CancellationToken cancellationToken)
+	{
+		FakeRoomAppService rooms = new(InitialOrder);
+		using DialogHostViewModel dialogs = new();
+		using RoomListViewModel viewModel = Create(rooms, dialogs: dialogs);
+		Select(viewModel, [2, 4]);
+		Task<ConfirmDialogViewModel> confirmation = dialogs.WhenChanged(static dialogs => dialogs.Current).OfType<ConfirmDialogViewModel>().FirstAsync(cancellationToken);
+
+		Task removing = viewModel.RemoveRoomsCommand.Execute().ToTask(cancellationToken);
+		((ICommand)(await confirmation).ConfirmCommand).Execute(null);
+		await removing;
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(viewModel.Rooms.Select(static room => room.RoomId)).IsEquivalentTo([1L, 3L, 5L], CollectionOrdering.Matching);
+			await Assert.That(viewModel.SelectedRooms).IsEmpty();
+		}
+	}
+
 	[Test]
 	public async Task RowToggleSavesOnlyThatSettingAsync(CancellationToken cancellationToken)
 	{
@@ -154,8 +176,7 @@ public sealed class RoomListViewModelTest
 		RoomSettingsDto before = room.Settings;
 
 		room.IsDanmakuEnabled = !before.IsDanmakuEnabled;
-
-		await TestWait.UntilAsync(() => !rooms.Updates.IsEmpty, "the room settings are saved", cancellationToken);
+		await rooms.Updated.WaitAsync(cancellationToken);
 
 		await Assert.That(rooms.Updates).IsEquivalentTo([before with { IsDanmakuEnabled = !before.IsDanmakuEnabled }], EqualityComparer<RoomSettingsDto>.Default);
 	}
@@ -168,16 +189,14 @@ public sealed class RoomListViewModelTest
 		// 不是本次取消引起的取消也算失败，例如请求超时
 		TaskCanceledException failure = new(null, new TimeoutException());
 		FakeRoomAppService rooms = new(InitialOrder) { UpdateFailure = failure, FailsSynchronously = failsSynchronously };
-		ConcurrentQueue<Exception> reported = new();
-		using RoomListViewModel viewModel = Create(rooms, reportSaveFailure: reported.Enqueue);
+		TaskCompletionSource<Exception> reported = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		using RoomListViewModel viewModel = Create(rooms, reportSaveFailure: exception => reported.TrySetResult(exception));
 		RoomItemViewModel room = viewModel.Rooms.Single(static room => room.RoomId == 3);
 		bool original = room.IsDanmakuEnabled;
 
 		room.IsDanmakuEnabled = !original;
-
 		// 先回滚再报告，报告到了时回滚已经完成
-		await TestWait.UntilAsync(() => !reported.IsEmpty, "the failed save is reported", cancellationToken);
-		Exception exception = await Assert.That(reported).HasSingleItem();
+		Exception exception = await reported.Task.WaitAsync(cancellationToken);
 
 		using (Assert.Multiple())
 		{
@@ -208,13 +227,16 @@ public sealed class RoomListViewModelTest
 	{
 		FakeRoomAppService rooms = new(InitialOrder);
 		FakeDanmakuAppService danmaku = new() { OpenFile = static (_, _) => Task.FromResult(DanmakuFileViewModelTest.CreateFile(seconds: [1])) };
-		using RoomListViewModel viewModel = Create(rooms, danmaku);
-		TaskCompletionSource<string> picked = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		viewModel.Danmaku.PickDanmakuFile = directory =>
+		TaskCompletionSource<string?> picked = new(TaskCreationOptions.RunContinuationsAsynchronously);
+		PlatformStub platform = new()
 		{
-			picked.TrySetResult(directory);
-			return Task.FromResult<string?>(null);
+			PickDanmakuFile = directory =>
+			{
+				picked.TrySetResult(directory);
+				return null;
+			}
 		};
+		using RoomListViewModel viewModel = Create(rooms, danmaku, platform: platform);
 
 		Select(viewModel, [1]);
 		await viewModel.Danmaku.LoadFileAsync("a.xml", cancellationToken);
@@ -234,7 +256,7 @@ public sealed class RoomListViewModelTest
 		using RoomListViewModel viewModel = CreateAnonymous(cookie, _ =>
 		{
 			cookie.OnNext("a=b");
-			return Task.FromResult(true);
+			return Task.CompletedTask;
 		});
 		(string? banner, bool couldLogin) = (viewModel.LoginBannerText, viewModel.Danmaku.Live?.CanLogin is true);
 
@@ -249,18 +271,18 @@ public sealed class RoomListViewModelTest
 	[Test]
 	public async Task FailedLoginKeepsTheBannerAndTheLoginButtonAsync(CancellationToken cancellationToken)
 	{
-		using RoomListViewModel viewModel = CreateAnonymous(Signal.Return<string?>(null), static _ => Task.FromResult(false));
+		using RoomListViewModel viewModel = CreateAnonymous(Signal.Return<string?>(null), static _ => Task.CompletedTask);
 
-		bool loggedIn = await viewModel.LoginCommand.Execute().ToTask(cancellationToken);
+		await viewModel.LoginCommand.Execute().ToTask(cancellationToken);
 
-		await Assert.That((loggedIn, viewModel.LoginBannerText, viewModel.Danmaku.Live?.CanLogin)).IsEqualTo((false, AppLanguage.Current.DanmakuMaskedBanner, true));
+		await Assert.That((viewModel.LoginBannerText, viewModel.Danmaku.Live?.CanLogin)).IsEqualTo((AppLanguage.Current.DanmakuMaskedBanner, true));
 	}
 
 	[Test]
 	public async Task CookieChangedOnTheAccountPageUpdatesTheBannerAndTheDanmakuPanelAsync(CancellationToken cancellationToken)
 	{
 		using BehaviorSignal<string?> cookie = new(null);
-		using RoomListViewModel viewModel = CreateAnonymous(cookie, static _ => Task.FromResult(false));
+		using RoomListViewModel viewModel = CreateAnonymous(cookie, static _ => Task.CompletedTask);
 		(string? banner, bool couldLogin) = (viewModel.LoginBannerText, viewModel.Danmaku.Live?.CanLogin is true);
 
 		cookie.OnNext(" a=b ");
@@ -272,20 +294,20 @@ public sealed class RoomListViewModelTest
 		await Assert.That((banner, couldLogin)).IsEqualTo((AppLanguage.Current.DanmakuMaskedBanner, true));
 	}
 
-	private static RoomListViewModel Create(FakeRoomAppService rooms, FakeDanmakuAppService? danmaku = null, Action<Exception>? reportSaveFailure = null)
+	private static RoomListViewModel Create(FakeRoomAppService rooms, FakeDanmakuAppService? danmaku = null, Action<Exception>? reportSaveFailure = null, DialogHostViewModel? dialogs = null, PlatformStub? platform = null)
 	{
-		RoomListViewModel viewModel = new(rooms, new SettingsAppService(new FakeConfigManager()), danmaku ?? new FakeDanmakuAppService()) { ReportSaveFailure = reportSaveFailure };
+		RoomListViewModel viewModel = new(dialogs ?? new DialogHostViewModel(), rooms, new SettingsAppService(new FakeConfigManager()), danmaku ?? new FakeDanmakuAppService(), platform ?? new PlatformStub(), TimeProvider.System) { ReportSaveFailure = reportSaveFailure };
 		((ICommand)viewModel.SortByCommand).Execute(RoomSortOrder.Custom);
 		viewModel.Sync();
 		return viewModel;
 	}
 
 	// cookie 一开始为 null，1 号直播间在录弹幕，横幅提示弹幕昵称被隐去；面板开着并跟随 1 号直播间
-	private static RoomListViewModel CreateAnonymous(IObservable<string?> cookie, Func<CancellationToken, Task<bool>> showLogin)
+	private static RoomListViewModel CreateAnonymous(IObservable<string?> cookie, Func<CancellationToken, Task> showLogin)
 	{
 		FakeRoomAppService rooms = new(InitialOrder);
 		rooms.Change(1, static snapshot => snapshot with { Danmaku = new RoomDanmakuSnapshot(true) });
-		RoomListViewModel viewModel = new(rooms, new SettingsAppService(new FakeConfigManager()), new FakeDanmakuAppService()) { ShowLogin = showLogin };
+		RoomListViewModel viewModel = new(new DialogHostViewModel(), rooms, new SettingsAppService(new FakeConfigManager()), new FakeDanmakuAppService(), new PlatformStub(), TimeProvider.System) { ShowLogin = showLogin };
 		viewModel.ApplySettings(AppConfig.CreateDefault().ToSettingsDto(), cookie);
 		viewModel.Sync();
 		viewModel.Danmaku.IsOpen = true;
@@ -339,10 +361,14 @@ public sealed class RoomListViewModelTest
 	private sealed class FakeRoomAppService(IEnumerable<long> roomIds) : RoomAppServiceStub
 	{
 		private readonly List<RoomSnapshot> _rooms = [.. roomIds.Select(static roomId => new RoomSnapshot(new RoomSettingsDto { RoomId = roomId }, 0, $"主播{roomId}", null, LiveStatus.Idle, RecordStatus.Idle, 0, null, null))];
+		private readonly TaskCompletionSource _updated = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		public ConcurrentQueue<(long[] RoomIds, long? Before)> Moves { get; } = new();
 
 		public ConcurrentQueue<RoomSettingsDto> Updates { get; } = new();
+
+		// 第一次保存成功后完成
+		public Task Updated => _updated.Task;
 
 		public Exception? UpdateFailure { get; init; }
 
@@ -358,6 +384,12 @@ public sealed class RoomListViewModelTest
 		public void Remove(long roomId)
 		{
 			_rooms.RemoveAll(room => room.RoomId == roomId);
+		}
+
+		public override Task RemoveAsync(IReadOnlyCollection<long> roomIds, CancellationToken cancellationToken = default)
+		{
+			_rooms.RemoveAll(room => roomIds.Contains(room.RoomId));
+			return Task.CompletedTask;
 		}
 
 		public override IReadOnlyList<RoomSnapshot> GetRooms()
@@ -389,6 +421,7 @@ public sealed class RoomListViewModelTest
 
 			int index = _rooms.FindIndex(room => room.RoomId == settings.RoomId);
 			_rooms[index] = _rooms[index] with { Settings = settings };
+			_updated.TrySetResult();
 		}
 	}
 }

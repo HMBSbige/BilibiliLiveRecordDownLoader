@@ -2,12 +2,15 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.Rooms;
 
 public sealed partial class RoomItemViewModel : ViewModelBase
 {
-	private readonly TimeProvider _timeProvider = AppLocator.Current.GetRequiredService<TimeProvider>();
+	private readonly IRoomAppService _roomAppService;
+	private readonly TimeProvider _timeProvider;
 	private bool _isApplying;
 	private bool _hasCookie;
 
-	public RoomItemViewModel(RoomSnapshot snapshot, bool hasCookie)
+	public RoomItemViewModel(RoomSnapshot snapshot, bool hasCookie, IRoomAppService roomAppService, TimeProvider timeProvider)
 	{
+		_roomAppService = roomAppService;
+		_timeProvider = timeProvider;
 		RoomId = snapshot.RoomId;
 		Settings = snapshot.Settings;
 		Apply(snapshot, hasCookie);
@@ -19,9 +22,6 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 	}
 
 	public long RoomId { get; }
-
-	// 为 null 时从全局取
-	internal IRoomAppService? RoomAppService { get; init; }
 
 	// 开关保存失败并回滚后调用；为 null 时交给全局处理
 	internal Action<Exception>? ReportSaveFailure { get; init; }
@@ -166,7 +166,6 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 		RoomSettingsDto settings = Settings with { IsRecordingEnabled = toggles.IsRecordingEnabled, IsNotificationEnabled = toggles.IsNotificationEnabled, IsDanmakuEnabled = toggles.IsDanmakuEnabled };
 		Settings = settings;
 
-		IRoomAppService roomAppService = RoomAppService ?? AppLocator.Current.GetRequiredService<IRoomAppService>();
 		Action<Exception> reportFailure = ReportSaveFailure ?? RxState.DefaultExceptionHandler.OnNext;
 		Forget(SaveAsync);
 
@@ -177,11 +176,11 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 
 			try
 			{
-				await roomAppService.UpdateAsync(settings, cancellationToken);
+				await _roomAppService.UpdateAsync(settings, cancellationToken);
 			}
 			catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
 			{
-				if (roomAppService.GetRooms().FirstOrDefault(room => room.RoomId == RoomId) is { } snapshot)
+				if (_roomAppService.GetRooms().FirstOrDefault(room => room.RoomId == RoomId) is { } snapshot)
 				{
 					Apply(snapshot, _hasCookie);
 				}

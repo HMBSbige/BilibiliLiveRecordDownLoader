@@ -80,6 +80,7 @@ public sealed class DanmakuFileViewModelTest
 		yield return static () => (new DanmakuOffsetResult.SubtitleNotWritten("room/a.ass", "locked"), AppLanguage.Current.DanmakuSubtitleNotWritten.ToString("a.ass", "locked"), AppNotificationType.Warning);
 	}
 
+	// 53.669 经 double 换算会略小于真值，按毫秒截断写进文件头后少 1 毫秒
 	[Test]
 	[MethodDataSource(nameof(RewriteResults))]
 	public async Task RegeneratingReloadsTheFileWithTheNewOffsetAsync(DanmakuOffsetResult result, string message, AppNotificationType type, CancellationToken cancellationToken)
@@ -94,13 +95,13 @@ public sealed class DanmakuFileViewModelTest
 		danmaku.OpenFile = static (_, _) => Task.FromResult(CreateFile(TimeSpan.FromSeconds(2), seconds: [12, 22]));
 		using DanmakuFileViewModel viewModel = new(CreateFile(seconds: [10, 20]), danmaku);
 
-		viewModel.OffsetSeconds = 2;
+		viewModel.OffsetSeconds = 53.669m;
 		((ICommand)viewModel.RegenerateCommand).Execute(null);
 		await WaitForMessageAsync(viewModel, cancellationToken);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(requested).IsEqualTo(TimeSpan.FromSeconds(2));
+			await Assert.That(requested).IsEqualTo(TimeSpan.FromMilliseconds(53_669));
 			await Assert.That(viewModel.Entries.Select(static entry => entry.Text)).IsEquivalentTo(["12", "22"], CollectionOrdering.Matching);
 			await Assert.That((viewModel.Message, viewModel.MessageType)).IsEqualTo((message, type));
 		}

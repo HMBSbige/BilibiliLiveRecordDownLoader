@@ -63,7 +63,7 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 
 	public DanmakuFilterViewModel Filter { get; }
 
-	public DanmakuEntryCollection Entries { get; } = [];
+	public RangeObservableCollection<DanmakuEntryViewModel> Entries { get; } = [];
 
 	[Reactive]
 	public partial DanmakuConnectionState State { get; private set; }
@@ -187,14 +187,7 @@ public sealed partial class LiveDanmakuViewModel : ViewModelBase
 			return;
 		}
 
-		int removed = 0;
-
-		while (removed < Entries.Count && Entries[removed].Sequence <= lastRemoved)
-		{
-			++removed;
-		}
-
-		Entries.RemoveFirst(removed);
+		Entries.RemoveFirst(Entries.LowerBound(entry => entry.Sequence <= lastRemoved));
 	}
 
 	// 重建后原来的滚动位置没有意义

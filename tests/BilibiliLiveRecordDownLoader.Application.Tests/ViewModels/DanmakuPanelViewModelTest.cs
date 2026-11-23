@@ -9,14 +9,14 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 
 public sealed class DanmakuPanelViewModelTest
 {
-	private static DanmakuPanelViewModel Create(IDanmakuAppService danmaku, IRoomAppService? rooms = null, ISettingsAppService? settings = null)
+	private static DanmakuPanelViewModel Create(IDanmakuAppService danmaku, IRoomAppService? rooms = null, ISettingsAppService? settings = null, PlatformStub? storagePicker = null)
 	{
-		return new DanmakuPanelViewModel(danmaku, rooms ?? new NoRooms(), settings ?? new SettingsAppService(new FakeConfigManager()), static _ => Task.FromResult(false)) { AutoRefresh = false };
+		return new DanmakuPanelViewModel(danmaku, rooms ?? new NoRooms(), settings ?? new SettingsAppService(new FakeConfigManager()), storagePicker ?? new PlatformStub(), static _ => Task.CompletedTask) { AutoRefresh = false };
 	}
 
 	private static RoomItemViewModel Room(long roomId)
 	{
-		return new RoomItemViewModel(new RoomSnapshot(new RoomSettingsDto { RoomId = roomId }, 0, $"主播{roomId}", null, LiveStatus.Live, RecordStatus.Idle, 0, null, null), false);
+		return new RoomItemViewModel(new RoomSnapshot(new RoomSettingsDto { RoomId = roomId }, 0, $"主播{roomId}", null, LiveStatus.Live, RecordStatus.Idle, 0, null, null), false, new NoRooms(), TimeProvider.System);
 	}
 
 	private static Func<string, CancellationToken, Task<DanmakuFileDto>> OpenFileAfter(Task gate)
@@ -200,15 +200,18 @@ public sealed class DanmakuPanelViewModelTest
 		NoRooms rooms = new();
 		SettingsAppService settings = new(new FakeConfigManager());
 		FakeDanmakuAppService danmaku = new() { OpenFile = static (_, _) => Task.FromResult(DanmakuFileViewModelTest.CreateFile(seconds: [1])) };
-		using DanmakuPanelViewModel panel = Create(danmaku, rooms, settings);
+		List<string?> directories = [];
+		PlatformStub storagePicker = new()
+		{
+			PickDanmakuFile = directory =>
+			{
+				directories.Add(directory);
+				return null;
+			}
+		};
+		using DanmakuPanelViewModel panel = Create(danmaku, rooms, settings, storagePicker);
 		using RoomItemViewModel first = Room(1);
 		using RoomItemViewModel second = Room(2);
-		List<string> directories = [];
-		panel.PickDanmakuFile = directory =>
-		{
-			directories.Add(directory);
-			return Task.FromResult<string?>(null);
-		};
 
 		await panel.PickFileAsync(null, cancellationToken);
 		panel.Follow(first);
@@ -219,8 +222,9 @@ public sealed class DanmakuPanelViewModelTest
 
 		string recordDirectory = (await settings.GetAsync(cancellationToken)).RecordDirectory;
 		string fileDirectory = Path.GetDirectoryName(DanmakuFileViewModelTest.CreateFile(seconds: [1]).Path) ?? string.Empty;
+		string?[] expected = [recordDirectory, await rooms.GetDirectoryAsync(1, cancellationToken), fileDirectory, await rooms.GetDirectoryAsync(2, cancellationToken)];
 
-		await Assert.That(directories).IsEquivalentTo([recordDirectory, await rooms.GetDirectoryAsync(1, cancellationToken), fileDirectory, await rooms.GetDirectoryAsync(2, cancellationToken)], CollectionOrdering.Matching);
+		await Assert.That(directories).IsEquivalentTo(expected, CollectionOrdering.Matching);
 	}
 
 	// 失败的类别由 DanmakuFileViewModelTest 逐一覆盖，面板和它共用同一套判断

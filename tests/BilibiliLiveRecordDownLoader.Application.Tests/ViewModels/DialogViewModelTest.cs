@@ -27,6 +27,17 @@ public sealed class DialogViewModelTest
 		}
 	}
 
+	[Test]
+	public async Task DisposingTheHostDismissesTheOpenDialogAsync(CancellationToken cancellationToken)
+	{
+		DialogHostViewModel host = new();
+		Task<bool> showing = host.ShowAsync(new TestDialog());
+
+		host.Dispose();
+
+		await Assert.That(await showing.WaitAsync(cancellationToken)).IsFalse();
+	}
+
 	private sealed class TestDialog : DialogViewModel<bool>
 	{
 		public override string Title => "test";

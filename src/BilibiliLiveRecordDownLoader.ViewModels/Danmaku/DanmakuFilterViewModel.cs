@@ -8,10 +8,7 @@ public sealed partial class DanmakuFilterViewModel : ViewModelBase
 	{
 		CriteriaChanged = Signal.Merge
 		(
-			this.WhenChanged(static viewModel => viewModel.ShowComments).Skip(1).Map(static _ => RxVoid.Default),
-			this.WhenChanged(static viewModel => viewModel.ShowSuperChats).Skip(1).Map(static _ => RxVoid.Default),
-			this.WhenChanged(static viewModel => viewModel.ShowGifts).Skip(1).Map(static _ => RxVoid.Default),
-			this.WhenChanged(static viewModel => viewModel.ShowGuards).Skip(1).Map(static _ => RxVoid.Default),
+			this.WhenChanged(static viewModel => viewModel.ShowComments, static viewModel => viewModel.ShowSuperChats, static viewModel => viewModel.ShowGifts, static viewModel => viewModel.ShowGuards, static (_, _, _, _) => RxVoid.Default).Skip(1),
 			this.WhenChanged(static viewModel => viewModel.SearchText)
 				.Skip(1)
 				.Calm(SearchDelay, RxSchedulers.TaskpoolScheduler)

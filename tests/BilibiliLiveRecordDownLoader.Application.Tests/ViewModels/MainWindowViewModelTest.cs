@@ -3,6 +3,7 @@ using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using BilibiliLiveRecordDownLoader.ViewModels;
 using BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
 using BilibiliLiveRecordDownLoader.ViewModels.Platform;
+using ReactiveUI;
 using ReactiveUI.Primitives;
 using System.Collections.Concurrent;
 using System.Windows.Input;
@@ -16,19 +17,17 @@ public sealed class MainWindowViewModelTest
 	{
 		Events events = new();
 		InvalidOperationException failure = new("stop failed");
-		using MainWindowViewModel viewModel = Create(events, isRecording: false, new FakeLifecycle(events) { Failure = failure }, out _);
-		ConcurrentQueue<Exception> thrown = new();
-		using IDisposable subscription = viewModel.ExitCommand.ThrownExceptions.Subscribe(thrown.Enqueue);
+		using DialogHostViewModel dialogs = new();
+		using MainWindowViewModel viewModel = Create(events, isRecording: false, new FakeLifecycle(events) { Failure = failure }, dialogs);
+		// 先订阅，否则异常会落到全局处理
+		Task<Exception> thrown = viewModel.ExitCommand.ThrownExceptions.FirstAsync(cancellationToken);
 
 		((ICommand)viewModel.ExitCommand).Execute(null);
-		// 异常是异步交给订阅者的，等它到了再结束，否则会落到全局处理
-		await TestWait.UntilAsync(() => !thrown.IsEmpty, "the exception reaches the subscriber", cancellationToken);
-		Exception exception = await Assert.That(thrown).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
+			await Assert.That(await thrown).IsSameReferenceAs(failure);
 			await Assert.That(events).IsEquivalentTo(["BeginShutdown", "Stop", "Shutdown"], CollectionOrdering.Matching);
-			await Assert.That(exception).IsSameReferenceAs(failure);
 		}
 	}
 
@@ -36,18 +35,18 @@ public sealed class MainWindowViewModelTest
 	public async Task ExitWhileRecordingClosesTheOpenDialogBeforeAskingAsync(CancellationToken cancellationToken)
 	{
 		Events events = new();
-		using MainWindowViewModel viewModel = Create(events, isRecording: true, new FakeLifecycle(events), out DialogHostViewModel dialogs);
+		using DialogHostViewModel dialogs = new();
+		using MainWindowViewModel viewModel = Create(events, isRecording: true, new FakeLifecycle(events), dialogs);
 		Task<bool> editing = dialogs.ShowAsync(new TestDialog());
+		Task<DialogViewModel?> confirmation = dialogs.WhenChanged(static dialogs => dialogs.Current).Keep(static dialog => dialog is ConfirmDialogViewModel).FirstAsync(cancellationToken);
 
-		((ICommand)viewModel.ExitCommand).Execute(null);
-		await TestWait.UntilAsync(() => dialogs.Current is ConfirmDialogViewModel, "the exit confirmation is shown", cancellationToken);
-		bool editingResult = await editing.WaitAsync(cancellationToken);
-		dialogs.Current?.Dismiss();
-		await TestWait.UntilAsync(() => ((ICommand)viewModel.ExitCommand).CanExecute(null), "the exit command finishes", cancellationToken);
+		Task exiting = viewModel.ExitCommand.Execute().ToTask(cancellationToken);
+		(await confirmation)?.Dismiss();
+		await exiting;
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(editingResult).IsFalse();
+			await Assert.That(await editing.WaitAsync(cancellationToken)).IsFalse();
 			await Assert.That(events).IsEquivalentTo(["ShowMainWindow"]);
 		}
 	}
@@ -56,26 +55,22 @@ public sealed class MainWindowViewModelTest
 	public async Task ExitWhileADialogIsSubmittingLeavesItOpenAsync(CancellationToken cancellationToken)
 	{
 		Events events = new();
-		using MainWindowViewModel viewModel = Create(events, isRecording: true, new FakeLifecycle(events), out DialogHostViewModel dialogs);
-		TestDialog submitting = new();
-		submitting.MarkBusy();
+		using DialogHostViewModel dialogs = new();
+		using MainWindowViewModel viewModel = Create(events, isRecording: true, new FakeLifecycle(events), dialogs);
+		TestDialog submitting = new(isBusy: true);
 		_ = dialogs.ShowAsync(submitting);
 
-		((ICommand)viewModel.ExitCommand).Execute(null);
-		await TestWait.UntilAsync(() => ((ICommand)viewModel.ExitCommand).CanExecute(null), "the exit command finishes", cancellationToken);
+		await viewModel.ExitCommand.Execute().ToTask(cancellationToken);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(dialogs.Current).IsSameReferenceAs(submitting);
 			await Assert.That(events).IsEquivalentTo(["ShowMainWindow"]);
 		}
-
-		submitting.Dismiss();
 	}
 
-	private static MainWindowViewModel Create(Events events, bool isRecording, FakeLifecycle lifecycle, out DialogHostViewModel dialogs)
+	private static MainWindowViewModel Create(Events events, bool isRecording, FakeLifecycle lifecycle, DialogHostViewModel dialogs)
 	{
-		dialogs = new DialogHostViewModel();
 		return new MainWindowViewModel(dialogs, new FakeShell(events), lifecycle, new SettingsAppService(new FakeConfigManager()), new FakeRoomAppService(isRecording), new IdleTasks());
 	}
 
@@ -83,12 +78,12 @@ public sealed class MainWindowViewModelTest
 
 	private sealed class TestDialog : DialogViewModel<bool>
 	{
-		public override string Title => "test";
-
-		public void MarkBusy()
+		public TestDialog(bool isBusy = false)
 		{
-			IsBusy = true;
+			IsBusy = isBusy;
 		}
+
+		public override string Title => "test";
 	}
 
 	private sealed class FakeShell(Events events) : IApplicationShell

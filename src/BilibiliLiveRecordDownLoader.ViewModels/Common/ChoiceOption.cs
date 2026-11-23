@@ -11,9 +11,14 @@ public sealed record ChoiceOption(object? Value)
 		return [.. values.Select(static value => new ChoiceOption(value))];
 	}
 
+	public static IReadOnlyList<ChoiceOption> Of<T>() where T : struct, Enum
+	{
+		return Of(Enum.GetValues<T>());
+	}
+
 	public static IReadOnlyList<ChoiceOption> InheritOr<T>() where T : struct, Enum
 	{
-		return [Inherit, .. Of(Enum.GetValues<T>())];
+		return [Inherit, .. Of<T>()];
 	}
 
 	public T? As<T>() where T : struct

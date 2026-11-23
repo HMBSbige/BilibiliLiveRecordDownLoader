@@ -46,9 +46,9 @@ public sealed partial class PriorityListViewModel : ViewModelBase
 		OnOrderChanged();
 	}
 
-	public List<T> ToList<T>() where T : struct, Enum
+	public IReadOnlyList<T> GetValues<T>() where T : struct, Enum
 	{
-		return [.. Items.Select(static item => item.Value).OfType<T>()];
+		return [.. Values.OfType<T>()];
 	}
 
 	[ReactiveCommand]

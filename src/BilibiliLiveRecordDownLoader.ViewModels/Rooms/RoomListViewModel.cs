@@ -6,17 +6,21 @@ public sealed partial class RoomListViewModel : ViewModelBase
 {
 	private static readonly TimeSpan RefreshInterval = TimeSpan.FromMilliseconds(500);
 
+	private readonly DialogHostViewModel _dialogs;
 	private readonly IRoomAppService _roomAppService;
 	private readonly ISettingsAppService _settingsAppService;
+	private readonly TimeProvider _timeProvider;
 	private readonly Dictionary<long, RoomItemViewModel> _rooms = [];
 	private bool _hasCookie;
 	private bool _isArranging;
 
-	public RoomListViewModel(IRoomAppService roomAppService, ISettingsAppService settingsAppService, IDanmakuAppService danmakuAppService)
+	public RoomListViewModel(DialogHostViewModel dialogs, IRoomAppService roomAppService, ISettingsAppService settingsAppService, IDanmakuAppService danmakuAppService, IStoragePickerService storagePicker, TimeProvider timeProvider)
 	{
+		_dialogs = dialogs;
 		_roomAppService = roomAppService;
 		_settingsAppService = settingsAppService;
-		Danmaku = new DanmakuPanelViewModel(danmakuAppService, roomAppService, settingsAppService, LoginAsync).DisposeWith(Disposables);
+		_timeProvider = timeProvider;
+		Danmaku = new DanmakuPanelViewModel(danmakuAppService, roomAppService, settingsAppService, storagePicker, LoginAsync).DisposeWith(Disposables);
 		HasSelection = this.WhenChanged(static viewModel => viewModel.SelectedCount).Map(static count => count > 0);
 		HasSingleSelection = this.WhenChanged(static viewModel => viewModel.SelectedCount).Map(static count => count is 1);
 		CanMoveSelection = this.WhenChanged(static viewModel => viewModel.CanReorder, static viewModel => viewModel.SelectedCount, static (canReorder, count) => canReorder && count > 0);
@@ -104,8 +108,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	// 为 null 时交给全局处理
 	internal Action<Exception>? ReportSaveFailure { get; init; }
 
-	// 返回是否登录成功
-	internal Func<CancellationToken, Task<bool>> ShowLogin { get; init; } = static cancellationToken => AppLocator.Current.GetRequiredService<AccountViewModel>().LoginWithQrCodeAsync(cancellationToken);
+	internal Func<CancellationToken, Task> ShowLogin { get; init; } = static cancellationToken => AppLocator.Current.GetRequiredService<AccountViewModel>().QrCodeLoginAsync(cancellationToken);
 
 	// cookie 是账号页的 Cookie：扫码登录、退出和手动编辑都会改它，房间的版本不变
 	internal void ApplySettings(AppSettingsDto settings, IObservable<string?> cookie)
@@ -130,7 +133,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	{
 		AppSettingsDto settings = await _settingsAppService.GetAsync(cancellationToken);
 
-		if (await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ShowAsync(new RoomEditorViewModel(null, settings, _roomAppService.AddAsync)) is not null)
+		if (await _dialogs.ShowAsync(new RoomEditorViewModel(null, settings, _roomAppService.AddAsync)) is not null)
 		{
 			Sync();
 		}
@@ -140,7 +143,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 	[ReactiveCommand]
 	private async Task ImportFollowedRoomsAsync()
 	{
-		await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ShowAsync(new FollowedRoomImportViewModel(_roomAppService, AppLocator.Current.GetRequiredService<INotificationService>(), static () => AppLocator.Current.GetRequiredService<MainWindowViewModel>().Navigate(MainPage.Account)));
+		await _dialogs.ShowAsync(new FollowedRoomImportViewModel(_roomAppService, AppLocator.Current.GetRequiredService<INotificationService>(), static () => AppLocator.Current.GetRequiredService<MainWindowViewModel>().Navigate(MainPage.Account)));
 		Sync();
 	}
 
@@ -155,7 +158,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		AppSettingsDto settings = await _settingsAppService.GetAsync(cancellationToken);
 
 		// 行内开关要基于最新设置修改
-		if (await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ShowAsync(new RoomEditorViewModel(room.Settings, settings, _roomAppService.UpdateAsync)) is not null)
+		if (await _dialogs.ShowAsync(new RoomEditorViewModel(room.Settings, settings, _roomAppService.UpdateAsync)) is not null)
 		{
 			Sync();
 		}
@@ -167,9 +170,10 @@ public sealed partial class RoomListViewModel : ViewModelBase
 		RoomItemViewModel[] rooms = [.. SelectedRooms];
 		string names = string.Join(Environment.NewLine, rooms.Select(static room => room.DisplayName));
 
-		if (rooms.Length > 0 && await AppLocator.Current.GetRequiredService<DialogHostViewModel>().ConfirmAsync(AppLanguage.Current.RemoveRoomsConfirm, names, AppLanguage.Current.RemoveRooms, true))
+		if (rooms.Length > 0 && await _dialogs.ConfirmAsync(AppLanguage.Current.RemoveRoomsConfirm, names, AppLanguage.Current.RemoveRooms, true))
 		{
 			await _roomAppService.RemoveAsync([.. rooms.Select(static room => room.RoomId)], cancellationToken);
+			Sync();
 		}
 	}
 
@@ -238,7 +242,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 
 	// 登录成功时账号页的 Cookie 跟着变，横幅和面板由 OnCookieChanged 更新
 	[ReactiveCommand]
-	private Task<bool> LoginAsync(CancellationToken cancellationToken)
+	private Task LoginAsync(CancellationToken cancellationToken)
 	{
 		return ShowLogin(cancellationToken);
 	}
@@ -370,7 +374,7 @@ public sealed partial class RoomListViewModel : ViewModelBase
 			}
 			else
 			{
-				room = new RoomItemViewModel(snapshot, _hasCookie) { RoomAppService = _roomAppService, ReportSaveFailure = ReportSaveFailure };
+				room = new RoomItemViewModel(snapshot, _hasCookie, _roomAppService, _timeProvider) { ReportSaveFailure = ReportSaveFailure };
 				_rooms.Add(snapshot.RoomId, room);
 			}
 
