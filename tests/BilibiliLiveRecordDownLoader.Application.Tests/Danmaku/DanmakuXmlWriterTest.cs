@@ -196,6 +196,16 @@ public sealed class DanmakuXmlWriterTest
 	}
 
 	[Test]
+	public async Task SurrogatePairsSplitAcrossBufferChunksSurviveAsync(CancellationToken cancellationToken)
+	{
+		DanmakuRecord[] records = [.. Enumerable.Range(0, 400).Select(static i => DanmakuSamples.Comment(i, string.Concat(Enumerable.Repeat("\U0001F600", i % 7 + 20))))];
+		byte[] content = await DanmakuSamples.WriteAsync(records, cancellationToken);
+		DanmakuFile file = await DanmakuSamples.ReadAsync(content, cancellationToken);
+
+		await Assert.That(file.Records).IsEquivalentTo(records, EqualityComparer<DanmakuRecord>.Default, CollectionOrdering.Matching);
+	}
+
+	[Test]
 	public async Task QuotesInAttributeValuesAreEscapedAsync(CancellationToken cancellationToken)
 	{
 		DanmakuRecord[] records =

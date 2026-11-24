@@ -41,12 +41,10 @@ internal static class DanmakuXmlText
 	}
 
 	// 取整到毫秒用截断，写回读出的值时不会因为舍入漂移
-	public static string FormatSeconds(TimeSpan value)
+	public static void AppendSeconds(StringBuilder builder, TimeSpan value)
 	{
 		long milliseconds = value.Ticks / TimeSpan.TicksPerMillisecond;
-		string sign = milliseconds < 0 ? @"-" : string.Empty;
-		milliseconds = Math.Abs(milliseconds);
-		return string.Create(CultureInfo.InvariantCulture, $@"{sign}{milliseconds / 1000}.{milliseconds % 1000:000}");
+		builder.Append(CultureInfo.InvariantCulture, $@"{milliseconds / 1000m:F3}");
 	}
 
 	public static string FormatTimestamp(DateTimeOffset? value)
@@ -56,7 +54,7 @@ internal static class DanmakuXmlText
 
 	// 用 decimal 解析，12.345 不会变成 12.344999…，改写偏移时不会丢一毫秒
 	// 上限按 tick 判断：TimeSpan.MaxValue.TotalSeconds 是 double，转成 decimal 时按 15 位有效数字舍入，和真正的上限对不上
-	public static bool TryParseSeconds(string? value, out TimeSpan result)
+	public static bool TryParseSeconds(ReadOnlySpan<char> value, out TimeSpan result)
 	{
 		// 先粗略限定范围，乘以每秒的 tick 数时 decimal 才不会溢出
 		if (decimal.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal seconds) && decimal.Abs(seconds) <= MaxWholeSeconds + 1 && decimal.Truncate(seconds * TimeSpan.TicksPerSecond) is var ticks and >= long.MinValue and <= long.MaxValue)
@@ -74,18 +72,13 @@ internal static class DanmakuXmlText
 		return DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out result);
 	}
 
-	public static long ParseInt64(string? value, long fallback = 0)
+	public static long ParseInt64(ReadOnlySpan<char> value, long fallback = 0)
 	{
 		return long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long result) ? result : fallback;
 	}
 
-	public static int ParseInt32(string? value, int fallback = 0)
+	public static int ParseInt32(ReadOnlySpan<char> value, int fallback = 0)
 	{
 		return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int result) ? result : fallback;
-	}
-
-	public static string Format(long value)
-	{
-		return value.ToString(CultureInfo.InvariantCulture);
 	}
 }

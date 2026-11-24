@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Diagnostics;
 using System.Text;
 
@@ -15,6 +16,7 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 	private readonly DanmakuFlushPolicy _policy;
 	private readonly TimeProvider _timeProvider;
 	private readonly StringBuilder _pending = new();
+	private readonly Encoder _encoder = Utf8.GetEncoder();
 
 	private long _contentEnd;
 	private long _firstPendingTimestamp;
@@ -84,7 +86,7 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 			_firstPendingTimestamp = _timeProvider.GetTimestamp();
 		}
 
-		AppendRecord(record.Shift(_offset));
+		AppendRecord(record);
 		++PendingCount;
 
 		if (PendingCount >= _policy.MaxPending)
@@ -141,13 +143,35 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 	private async ValueTask FlushCoreAsync(CancellationToken cancellationToken)
 	{
 		// 写入失败时保留待写内容，下次从同一位置重写
-		byte[] content = Utf8.GetBytes(_pending + ClosingTag);
-		_stream.Position = _contentEnd;
-		await _stream.WriteAsync(content, cancellationToken);
-		await _stream.FlushAsync(cancellationToken);
-		// 新内容总比原来的 </i> 长，文件只会变长，不需要截断
-		_contentEnd += content.Length - ClosingTag.Length;
-		_pending.Clear();
+		byte[] content = ArrayPool<byte>.Shared.Rent(Utf8.GetMaxByteCount(_pending.Length + ClosingTag.Length));
+
+		try
+		{
+			int length = EncodePending(content);
+			_stream.Position = _contentEnd;
+			await _stream.WriteAsync(content.AsMemory(0, length), cancellationToken);
+			await _stream.FlushAsync(cancellationToken);
+			// 新内容总比原来的 </i> 长，文件只会变长，不需要截断
+			_contentEnd += length - ClosingTag.Length;
+			_pending.Clear();
+		}
+		finally
+		{
+			ArrayPool<byte>.Shared.Return(content);
+		}
+	}
+
+	// 代理对可能跨在两个块之间，要用同一个编码器接着编码
+	private int EncodePending(Span<byte> destination)
+	{
+		int length = 0;
+
+		foreach (ReadOnlyMemory<char> chunk in _pending.GetChunks())
+		{
+			length += _encoder.GetBytes(chunk.Span, destination.Slice(length), false);
+		}
+
+		return length + _encoder.GetBytes(ClosingTag, destination.Slice(length), true);
 	}
 
 	private void AppendHeader(DanmakuFileHeader header)
@@ -157,8 +181,8 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 		_pending.Append("  <chatserver>chat.bilibili.com</chatserver><chatid>0</chatid><mission>0</mission><maxlimit>0</maxlimit><state>0</state><real_name>0</real_name><source>k-v</source>\n");
 		_pending.Append(@"  <BilibiliLiveRecordDownLoader");
 		AppendAttribute(@"version", header.Version);
-		AppendAttribute(@"room_id", DanmakuXmlText.Format(header.RoomId));
-		AppendAttribute(@"short_id", DanmakuXmlText.Format(header.ShortId));
+		AppendAttribute(@"room_id", header.RoomId);
+		AppendAttribute(@"short_id", header.ShortId);
 		AppendAttribute(@"streamer", header.Streamer);
 		AppendAttribute(@"title", header.Title);
 		AppendAttribute(@"area", header.Area);
@@ -166,7 +190,9 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 		AppendAttribute(@"live_id", header.LiveId);
 		AppendAttribute(@"live_start_time", DanmakuXmlText.FormatTimestamp(header.LiveStartTime));
 		AppendAttribute(@"record_start_time", DanmakuXmlText.FormatTimestamp(header.RecordStartTime));
-		AppendAttribute(@"offset", DanmakuXmlText.FormatSeconds(header.Offset));
+		_pending.Append(@" offset=""");
+		DanmakuXmlText.AppendSeconds(_pending, header.Offset);
+		_pending.Append('"');
 		_pending.Append(" />\n");
 	}
 
@@ -179,16 +205,10 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 			case DanmakuRecord.Comment comment:
 			{
 				_pending.Append(@"<d p=""");
-				_pending.Append(FormatTime(comment.Time)).Append(',');
-				_pending.Append(DanmakuXmlText.Format(comment.Mode)).Append(',');
-				_pending.Append(DanmakuXmlText.Format(comment.FontSize)).Append(',');
-				_pending.Append(DanmakuXmlText.Format(comment.Color)).Append(',');
-				_pending.Append(DanmakuXmlText.Format(comment.SentAt.ToUnixTimeSeconds())).Append(',');
-				_pending.Append(@"0,");
+				AppendTime(comment.Time);
+				_pending.Append(CultureInfo.InvariantCulture, $",{comment.Mode},{comment.FontSize},{comment.Color},{comment.SentAt.ToUnixTimeSeconds()},0,");
 				AppendField(comment.UidHash);
-				_pending.Append(',');
-				_pending.Append(DanmakuXmlText.Format(comment.DmId));
-				_pending.Append('"');
+				_pending.Append(CultureInfo.InvariantCulture, $",{comment.DmId}\"");
 				AppendUser(comment.Uid, comment.User);
 
 				if (comment.IsStorm)
@@ -204,12 +224,12 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 			case DanmakuRecord.SuperChat superChat:
 			{
 				_pending.Append(@"<sc");
-				AppendAttribute(@"ts", FormatTime(superChat.Time));
+				AppendTimeAttribute(@"ts", superChat.Time);
 				AppendUser(superChat.Uid, superChat.User);
 				// 和 blrec 一样用千分之一元：录播姬写的是元，DanmakuFactory 只对录播姬的文件乘 1000，其他文件按千分之一元读
-				AppendAttribute(@"price", DanmakuXmlText.Format(superChat.Price));
-				AppendAttribute(@"time", DanmakuXmlText.Format((long)superChat.Duration.TotalSeconds));
-				AppendAttribute(@"id", DanmakuXmlText.Format(superChat.Id));
+				AppendAttribute(@"price", superChat.Price);
+				AppendAttribute(@"time", (long)superChat.Duration.TotalSeconds);
+				AppendAttribute(@"id", superChat.Id);
 				_pending.Append('>');
 				DanmakuXmlText.AppendEscaped(_pending, superChat.Text);
 				_pending.Append(@"</sc>");
@@ -218,30 +238,36 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 			case DanmakuRecord.SuperChatDeletion deletion:
 			{
 				_pending.Append(@"<sc_delete");
-				AppendAttribute(@"ts", FormatTime(deletion.Time));
-				AppendAttribute(@"ids", string.Join(',', deletion.Ids.Select(DanmakuXmlText.Format)));
-				_pending.Append(@" />");
+				AppendTimeAttribute(@"ts", deletion.Time);
+				_pending.Append(@" ids=""");
+
+				for (int i = 0; i < deletion.Ids.Count; ++i)
+				{
+					_pending.Append(CultureInfo.InvariantCulture, $"{(i > 0 ? "," : string.Empty)}{deletion.Ids[i]}");
+				}
+
+				_pending.Append(@""" />");
 				break;
 			}
 			case DanmakuRecord.Gift gift:
 			{
 				_pending.Append(@"<gift");
-				AppendAttribute(@"ts", FormatTime(gift.Time));
+				AppendTimeAttribute(@"ts", gift.Time);
 				AppendUser(gift.Uid, gift.User);
 				AppendAttribute(@"giftname", gift.Name);
-				AppendAttribute(@"giftcount", DanmakuXmlText.Format(gift.Count));
-				AppendAttribute(@"price", DanmakuXmlText.Format(gift.Price));
+				AppendAttribute(@"giftcount", gift.Count);
+				AppendAttribute(@"price", gift.Price);
 				_pending.Append(@" />");
 				break;
 			}
 			case DanmakuRecord.Guard guard:
 			{
 				_pending.Append(@"<guard");
-				AppendAttribute(@"ts", FormatTime(guard.Time));
+				AppendTimeAttribute(@"ts", guard.Time);
 				AppendUser(guard.Uid, guard.User);
-				AppendAttribute(@"level", DanmakuXmlText.Format((int)guard.Level));
-				AppendAttribute(@"count", DanmakuXmlText.Format(guard.Count));
-				AppendAttribute(@"price", DanmakuXmlText.Format(guard.Price));
+				AppendAttribute(@"level", (int)guard.Level);
+				AppendAttribute(@"count", guard.Count);
+				AppendAttribute(@"price", guard.Price);
 
 				if (guard.IsRenewal)
 				{
@@ -254,7 +280,7 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 			case DanmakuRecord.TitleChange title:
 			{
 				_pending.Append(@"<title");
-				AppendAttribute(@"ts", FormatTime(title.Time));
+				AppendTimeAttribute(@"ts", title.Time);
 				_pending.Append('>');
 				DanmakuXmlText.AppendEscaped(_pending, title.Title);
 				_pending.Append(@"</title>");
@@ -263,15 +289,15 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 			case DanmakuRecord.Gap gap:
 			{
 				_pending.Append(@"<gap");
-				AppendAttribute(@"start", FormatTime(gap.Time));
-				AppendAttribute(@"end", FormatTime(gap.End));
+				AppendTimeAttribute(@"start", gap.Time);
+				AppendTimeAttribute(@"end", gap.End);
 				_pending.Append(@" />");
 				break;
 			}
 			case DanmakuRecord.Connection connection:
 			{
 				_pending.Append(@"<connection");
-				AppendAttribute(@"ts", FormatTime(connection.Time));
+				AppendTimeAttribute(@"ts", connection.Time);
 				AppendAttribute(@"anonymous", connection.Anonymous ? @"true" : @"false");
 				AppendAttribute(@"masked", connection.Masked ? @"true" : @"false");
 				_pending.Append(@" />");
@@ -295,7 +321,7 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 
 	private void AppendUser(long uid, string user)
 	{
-		AppendAttribute(@"uid", DanmakuXmlText.Format(uid));
+		AppendAttribute(@"uid", uid);
 		AppendAttribute(@"user", user);
 	}
 
@@ -306,9 +332,22 @@ internal sealed class DanmakuXmlWriter : IAsyncDisposable
 		_pending.Append('"');
 	}
 
-	// 偏移可能把开头的记录推到 0 之前
-	private static string FormatTime(TimeSpan value)
+	private void AppendAttribute(string name, long value)
 	{
-		return DanmakuXmlText.FormatSeconds(value < TimeSpan.Zero ? TimeSpan.Zero : value);
+		_pending.Append(CultureInfo.InvariantCulture, $" {name}=\"{value}\"");
+	}
+
+	private void AppendTimeAttribute(string name, TimeSpan value)
+	{
+		_pending.Append(' ').Append(name).Append(@"=""");
+		AppendTime(value);
+		_pending.Append('"');
+	}
+
+	// 偏移可能把开头的记录推到 0 之前
+	private void AppendTime(TimeSpan value)
+	{
+		TimeSpan shifted = value + _offset;
+		DanmakuXmlText.AppendSeconds(_pending, shifted < TimeSpan.Zero ? TimeSpan.Zero : shifted);
 	}
 }

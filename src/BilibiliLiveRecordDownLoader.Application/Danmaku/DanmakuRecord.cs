@@ -5,18 +5,23 @@ internal closed record DanmakuRecord(TimeSpan Time)
 {
 	// Mode、FontSize、Color 沿用 B 站弹幕的取值，Color 是 RGB
 	// DmId 是 B 站标准文件里的十进制 dmid，改写偏移时原样写回；直播弹幕没有，为 0
-	public sealed record Comment(TimeSpan Time, int Mode, int FontSize, int Color, DateTimeOffset SentAt, long Uid, string User, string Text, long DmId) : DanmakuRecord(Time)
+	public sealed record Comment(TimeSpan Time, int Mode, int FontSize, int Color, DateTimeOffset SentAt, long Uid, string User, string Text, long DmId, string UidHash = "") : DanmakuRecord(Time)
 	{
 		// 打码时 uid 为 0，但消息里仍带真实 uid 的哈希
 		// 构造时就算好存下，按 uid 算出的和读回的同一个哈希才会相等
 		public string UidHash
 		{
 			get;
-			init => field = string.IsNullOrEmpty(value) ? DanmakuUid.Hash(Uid) : value;
-		} = DanmakuUid.Hash(Uid);
+			init => field = HashOr(value, Uid);
+		} = HashOr(UidHash, Uid);
 
 		// 节奏风暴是系统替观众代发的，高能检测要排除
 		public bool IsStorm { get; init; }
+
+		private static string HashOr(string hash, long uid)
+		{
+			return string.IsNullOrEmpty(hash) ? DanmakuUid.Hash(uid) : hash;
+		}
 	}
 
 	// Price 是千分之一元
@@ -56,6 +61,11 @@ internal closed record DanmakuRecord(TimeSpan Time)
 
 	public DanmakuRecord Shift(TimeSpan delta)
 	{
+		if (delta == TimeSpan.Zero)
+		{
+			return this;
+		}
+
 		return this switch
 		{
 			Gap gap => gap with { Time = gap.Time + delta, End = gap.End + delta },

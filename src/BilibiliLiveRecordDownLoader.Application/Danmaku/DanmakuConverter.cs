@@ -6,7 +6,7 @@ internal static class DanmakuConverter
 	{
 		return message switch
 		{
-			DanmuMessage.Comment comment => new DanmakuRecord.Comment(time, comment.Mode, comment.FontSize, comment.Color, comment.SentAt, comment.Sender.UserId, comment.Sender.Name, comment.Text, 0) { UidHash = comment.UserHash, IsStorm = comment.IsStorm },
+			DanmuMessage.Comment comment => new DanmakuRecord.Comment(time, comment.Mode, comment.FontSize, comment.Color, comment.SentAt, comment.Sender.UserId, comment.Sender.Name, comment.Text, 0, comment.UserHash) { IsStorm = comment.IsStorm },
 			DanmuMessage.SuperChat superChat => profile.RecordSuperChats ? new DanmakuRecord.SuperChat(time, superChat.Sender.UserId, superChat.Sender.Name, superChat.Price, superChat.Duration, superChat.Message) { Id = superChat.Id } : null,
 			DanmuMessage.SuperChatDeleted deleted => profile.RecordSuperChats ? new DanmakuRecord.SuperChatDeletion(time, deleted.Ids) : null,
 			DanmuMessage.Gift gift => (profile.GiftMode, gift.PaidPrice) is (DanmakuGiftMode.All, _) or (DanmakuGiftMode.Paid, > 0) ? new DanmakuRecord.Gift(time, gift.Sender.UserId, gift.Sender.Name, gift.GiftName, gift.Count, gift.PaidPrice) : null,
