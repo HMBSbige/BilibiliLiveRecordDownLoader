@@ -23,7 +23,8 @@ public class FFmpegRunnerTest
 	{
 		// 留足时限：负载高时误走强杀就读不到 stdin=q
 		FFmpegRunner runner = new(FakeProcess.Executable) { GracefulExitTimeout = TimeSpan.FromSeconds(30) };
-		IReadOnlyList<string> arguments = FakeProcess.Arguments(
+		IReadOnlyList<string> arguments = FakeProcess.Arguments
+		(
 			"""
 			[Console]::Error.WriteLine('ready')
 			$c = [Console]::In.Read()
@@ -35,7 +36,8 @@ public class FFmpegRunnerTest
 			c=$(head -c 1)
 			echo "stdin=$c" >&2
 			exit 0
-			""");
+			"""
+		);
 		using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		ConcurrentQueue<string> messages = [];
 		SyncProgress<FFmpegProgress> progress = new(p =>
@@ -58,7 +60,8 @@ public class FFmpegRunnerTest
 	{
 		FFmpegRunner runner = new(FakeProcess.Executable) { GracefulExitTimeout = TimeSpan.FromMilliseconds(500) };
 		// 睡得远比测试超时久，没被强杀就不会自己退出
-		IReadOnlyList<string> arguments = FakeProcess.Arguments(
+		IReadOnlyList<string> arguments = FakeProcess.Arguments
+		(
 			"""
 			[Console]::Error.WriteLine("pid=$PID")
 			Start-Sleep -Seconds 600
@@ -66,7 +69,8 @@ public class FFmpegRunnerTest
 			"""
 			echo "pid=$$" >&2
 			exec sleep 600
-			""");
+			"""
+		);
 		using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		int processId = 0;
 		SyncProgress<FFmpegProgress> progress = new(p =>
@@ -88,7 +92,8 @@ public class FFmpegRunnerTest
 	public async Task CancellationLetsTheReaderReceiveOutputWrittenAfterQuitAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = new(FakeProcess.Executable) { GracefulExitTimeout = TimeSpan.FromSeconds(30) };
-		IReadOnlyList<string> arguments = FakeProcess.Arguments(
+		IReadOnlyList<string> arguments = FakeProcess.Arguments
+		(
 			"""
 			[Console]::Out.Write('ready')
 			[Console]::Out.Flush()
@@ -101,7 +106,8 @@ public class FFmpegRunnerTest
 			c=$(head -c 1)
 			printf "|stdin=$c"
 			exit 0
-			""");
+			"""
+		);
 		using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		StringBuilder output = new();
 
@@ -129,7 +135,8 @@ public class FFmpegRunnerTest
 	public async Task ReaderFailureStopsTheProcessAndSurfacesAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = new(FakeProcess.Executable) { GracefulExitTimeout = TimeSpan.FromMilliseconds(500) };
-		IReadOnlyList<string> arguments = FakeProcess.Arguments(
+		IReadOnlyList<string> arguments = FakeProcess.Arguments
+		(
 			"""
 			[Console]::Error.WriteLine("pid=$PID")
 			while ($true) { [Console]::Out.Write('x' * 4096) }
@@ -137,7 +144,8 @@ public class FFmpegRunnerTest
 			"""
 			echo "pid=$$" >&2
 			exec yes
-			""");
+			"""
+		);
 		TaskCompletionSource<int> started = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		SyncProgress<FFmpegProgress> progress = new(p =>
 		{
@@ -169,7 +177,8 @@ public class FFmpegRunnerTest
 	public async Task NonZeroExitThrowsWithLastStandardErrorLineAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = new(FakeProcess.Executable);
-		IReadOnlyList<string> arguments = FakeProcess.Arguments(
+		IReadOnlyList<string> arguments = FakeProcess.Arguments
+		(
 			"""
 			[Console]::Error.WriteLine('first')
 			[Console]::Error.WriteLine('boom')
@@ -181,7 +190,8 @@ public class FFmpegRunnerTest
 			echo boom >&2
 			echo >&2
 			exit 3
-			""");
+			"""
+		);
 
 		await Assert.That(() => runner.RunAsync(arguments, null, cancellationToken))
 			.Throws<FFmpegException>()
@@ -195,7 +205,8 @@ public class FFmpegRunnerTest
 	{
 		FFmpegRunner runner = new(FakeProcess.Executable);
 		// 和真实 FFmpeg 一样：原因之后还有一条 time=N/A 的统计行和固定的收尾提示
-		IReadOnlyList<string> arguments = FakeProcess.Arguments(
+		IReadOnlyList<string> arguments = FakeProcess.Arguments
+		(
 			"""
 			[Console]::Error.WriteLine('  Stream #0:0 -> #0:0 (copy)')
 			[Console]::Error.WriteLine('[wav @ 0001] wav muxer does not support any stream of type video')
@@ -208,7 +219,8 @@ public class FFmpegRunnerTest
 			"""
 			printf '  Stream #0:0 -> #0:0 (copy)\n[wav @ 0001] wav muxer does not support any stream of type video\n[out#0/wav @ 0002] Could not write header: Invalid argument\nframe=    0 fps=0.0 q=-1.0 Lsize=N/A time=N/A bitrate=N/A speed=N/A\r\nConversion failed!\n' >&2
 			exit 1
-			""");
+			"""
+		);
 
 		await Assert.That(() => runner.RunAsync(arguments, null, cancellationToken))
 			.Throws<FFmpegException>()
@@ -219,7 +231,8 @@ public class FFmpegRunnerTest
 	public async Task SignedUrlQueriesAreRedactedFromFailuresAndProgressAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = new(FakeProcess.Executable);
-		IReadOnlyList<string> arguments = FakeProcess.Arguments(
+		IReadOnlyList<string> arguments = FakeProcess.Arguments
+		(
 			"""
 			[Console]::Error.WriteLine("[hls @ 0001] Opening 'https://cdn.test/live/1.m4s?sign=abc&uid=42' for reading")
 			[Console]::Error.WriteLine('Error opening input file https://cdn.test/live/a.flv?expires=1&sign=abc&uid=42.')
@@ -229,7 +242,8 @@ public class FFmpegRunnerTest
 			echo "[hls @ 0001] Opening 'https://cdn.test/live/1.m4s?sign=abc&uid=42' for reading" >&2
 			echo 'Error opening input file https://cdn.test/live/a.flv?expires=1&sign=abc&uid=42.' >&2
 			exit 1
-			""");
+			"""
+		);
 		List<string> messages = [];
 
 		await Assert.That(() => runner.RunAsync(arguments, new SyncProgress<FFmpegProgress>(p => messages.Add(p.Message)), cancellationToken))
@@ -245,7 +259,8 @@ public class FFmpegRunnerTest
 	public async Task ProgressFailureStopsTheProcessAndSurfacesAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = new(FakeProcess.Executable) { GracefulExitTimeout = TimeSpan.FromMilliseconds(500) };
-		IReadOnlyList<string> arguments = FakeProcess.Arguments(
+		IReadOnlyList<string> arguments = FakeProcess.Arguments
+		(
 			"""
 			[Console]::Error.WriteLine("pid=$PID")
 			while ($true) { [Console]::Error.WriteLine('x' * 1024) }
@@ -253,7 +268,8 @@ public class FFmpegRunnerTest
 			"""
 			echo "pid=$$" >&2
 			exec yes >&2
-			""");
+			"""
+		);
 		int processId = 0;
 		SyncProgress<FFmpegProgress> progress = new(p =>
 		{
@@ -271,7 +287,8 @@ public class FFmpegRunnerTest
 	{
 		FFmpegRunner runner = new(FakeProcess.Executable);
 		// 统计行和真实 FFmpeg 一样只以 \r 结尾
-		IReadOnlyList<string> arguments = FakeProcess.Arguments(
+		IReadOnlyList<string> arguments = FakeProcess.Arguments
+		(
 			"""
 			[Console]::Error.WriteLine('  Duration: 00:01:00.00, start: 0.000000')
 			[Console]::Error.Write("frame=1 time=00:00:10.00 speed=1x`r")
@@ -281,7 +298,8 @@ public class FFmpegRunnerTest
 			""",
 			"""
 			printf '  Duration: 00:01:00.00, start: 0.000000\nframe=1 time=00:00:10.00 speed=1x\rframe=2 time=00:00:20.00 speed=1x\r\ndone\n' >&2
-			""");
+			"""
+		);
 		List<FFmpegProgress> reports = [];
 
 		await runner.RunAsync(arguments, new SyncProgress<FFmpegProgress>(reports.Add), cancellationToken);
@@ -333,9 +351,12 @@ public class FFmpegRunnerTest
 	public async Task GetVersionAsyncCancellationEndsTheWrappedProcessAsync(CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
-		string script = FakeProcess.CreateScript(directory, @"ffmpeg",
+		string script = FakeProcess.CreateScript
+		(
+			directory, @"ffmpeg",
 			"@powershell -NoLogo -NoProfile -NonInteractive -Command \"Set-Content -LiteralPath '%~dp0pid.tmp' -Value $PID; Move-Item -LiteralPath '%~dp0pid.tmp' -Destination '%~dp0pid'; Start-Sleep -Seconds 600\"\r\n",
-			"d=$(dirname \"$0\")\nsleep 600 &\necho $! > \"$d/pid.tmp\"\nmv \"$d/pid.tmp\" \"$d/pid\"\nwait\n");
+			"d=$(dirname \"$0\")\nsleep 600 &\necho $! > \"$d/pid.tmp\"\nmv \"$d/pid.tmp\" \"$d/pid\"\nwait\n"
+		);
 		using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
 		Task<string?> getting = new FFmpegRunner(script).GetVersionAsync(cts.Token);

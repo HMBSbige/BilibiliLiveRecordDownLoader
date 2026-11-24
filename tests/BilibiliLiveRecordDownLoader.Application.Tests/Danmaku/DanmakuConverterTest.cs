@@ -89,20 +89,23 @@ public sealed class DanmakuConverterTest
 	[Test]
 	public async Task FileEntriesComeFromEveryKindOfRecordAsync()
 	{
-		await Assert.That(DanmakuSamples.AllKinds().Select(DanmakuConverter.ToFileEntry)).IsEquivalentTo(
-		[
-			new(TimeSpan.Zero, new DanmakuEntryDto.Connection(true, true)),
-			new(TimeSpan.FromMilliseconds(12345), new DanmakuEntryDto.Comment(FileSender(123, "昵称"), "文本", false)),
-			new(TimeSpan.FromMilliseconds(13000), new DanmakuEntryDto.Comment(FileSender(0, "淡***"), "节奏风暴", true)),
-			new(TimeSpan.FromSeconds(20), new DanmakuEntryDto.SuperChat(20541912, FileSender(456, "老板"), "醒目留言", 30000)),
-			new(TimeSpan.FromMilliseconds(21500), new DanmakuEntryDto.Gift(FileSender(789, "观众"), "小花花", 10, 1000)),
-			new(TimeSpan.FromSeconds(30), new DanmakuEntryDto.Guard(FileSender(1011, "舰长"), GuardLevel.Captain, 1, 198000, false)),
-			new(TimeSpan.FromSeconds(40), new DanmakuEntryDto.TitleChange("新标题")),
-			new(TimeSpan.FromSeconds(100), new DanmakuEntryDto.Gap(TimeSpan.FromMilliseconds(105200))),
-			new(TimeSpan.FromMilliseconds(105200), new DanmakuEntryDto.Connection(false, false)),
-			new(TimeSpan.FromSeconds(110), new DanmakuEntryDto.SuperChatDeletion([20541912, 20541913])),
-			new(TimeSpan.FromSeconds(120), new DanmakuEntryDto.Guard(FileSender(1012, "老舰长"), GuardLevel.Admiral, 3, 4_194_000, true))
-		], EqualityComparer<DanmakuFileEntryDto>.Default, CollectionOrdering.Matching);
+		await Assert.That(DanmakuSamples.AllKinds().Select(DanmakuConverter.ToFileEntry)).IsEquivalentTo
+		(
+			[
+				new(TimeSpan.Zero, new DanmakuEntryDto.Connection(true, true)),
+				new(TimeSpan.FromMilliseconds(12345), new DanmakuEntryDto.Comment(FileSender(123, "昵称"), "文本", false)),
+				new(TimeSpan.FromMilliseconds(13000), new DanmakuEntryDto.Comment(FileSender(0, "淡***"), "节奏风暴", true)),
+				new(TimeSpan.FromSeconds(20), new DanmakuEntryDto.SuperChat(20541912, FileSender(456, "老板"), "醒目留言", 30000)),
+				new(TimeSpan.FromMilliseconds(21500), new DanmakuEntryDto.Gift(FileSender(789, "观众"), "小花花", 10, 1000)),
+				new(TimeSpan.FromSeconds(30), new DanmakuEntryDto.Guard(FileSender(1011, "舰长"), GuardLevel.Captain, 1, 198000, false)),
+				new(TimeSpan.FromSeconds(40), new DanmakuEntryDto.TitleChange("新标题")),
+				new(TimeSpan.FromSeconds(100), new DanmakuEntryDto.Gap(TimeSpan.FromMilliseconds(105200))),
+				new(TimeSpan.FromMilliseconds(105200), new DanmakuEntryDto.Connection(false, false)),
+				new(TimeSpan.FromSeconds(110), new DanmakuEntryDto.SuperChatDeletion([20541912, 20541913])),
+				new(TimeSpan.FromSeconds(120), new DanmakuEntryDto.Guard(FileSender(1012, "老舰长"), GuardLevel.Admiral, 3, 4_194_000, true))
+			],
+			EqualityComparer<DanmakuFileEntryDto>.Default, CollectionOrdering.Matching
+		);
 	}
 
 	private static DanmuSender FileSender(long uid, string name)

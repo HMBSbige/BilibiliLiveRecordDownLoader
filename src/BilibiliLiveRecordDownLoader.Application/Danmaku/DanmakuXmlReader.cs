@@ -80,13 +80,18 @@ internal static class DanmakuXmlReader
 					}
 					case @"gift" when isNative && TryReadNativeTime(reader, @"ts", out TimeSpan time):
 					{
-						records.Add(new DanmakuRecord.Gift(
-							time,
-							DanmakuXmlText.ParseInt64(reader.GetAttribute(@"uid")),
-							reader.GetAttribute(@"user") ?? string.Empty,
-							reader.GetAttribute(@"giftname") ?? string.Empty,
-							DanmakuXmlText.ParseInt32(reader.GetAttribute(@"giftcount"), 1),
-							DanmakuXmlText.ParseInt64(reader.GetAttribute(@"price"))));
+						records.Add
+						(
+							new DanmakuRecord.Gift
+							(
+								time,
+								DanmakuXmlText.ParseInt64(reader.GetAttribute(@"uid")),
+								reader.GetAttribute(@"user") ?? string.Empty,
+								reader.GetAttribute(@"giftname") ?? string.Empty,
+								DanmakuXmlText.ParseInt32(reader.GetAttribute(@"giftcount"), 1),
+								DanmakuXmlText.ParseInt64(reader.GetAttribute(@"price"))
+							)
+						);
 						break;
 					}
 					case @"guard" when isNative && TryReadNativeTime(reader, @"ts", out TimeSpan time):

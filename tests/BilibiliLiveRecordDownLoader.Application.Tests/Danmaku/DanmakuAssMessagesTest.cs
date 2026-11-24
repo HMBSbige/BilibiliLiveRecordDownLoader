@@ -75,13 +75,15 @@ public sealed partial class DanmakuAssMessagesTest
 	[Test]
 	public async Task DeletedSuperChatsAreNotDrawnAsync()
 	{
-		(Match[] messages, DanmakuAssResult result, _) = Generate(
-		[
-			new DanmakuRecord.SuperChat(TimeSpan.FromSeconds(1), 1, @"甲", 30_000, TimeSpan.FromSeconds(60), @"被删") { Id = 7 },
-			new DanmakuRecord.SuperChat(TimeSpan.FromSeconds(2), 2, @"乙", 30_000, TimeSpan.FromSeconds(60), @"留着") { Id = 8 },
-			new DanmakuRecord.SuperChat(TimeSpan.FromSeconds(3), 3, @"丙", 30_000, TimeSpan.FromSeconds(60), @"没有 id"),
-			new DanmakuRecord.SuperChatDeletion(TimeSpan.FromSeconds(30), [7, 0])
-		]);
+		(Match[] messages, DanmakuAssResult result, _) = Generate
+		(
+			[
+				new DanmakuRecord.SuperChat(TimeSpan.FromSeconds(1), 1, @"甲", 30_000, TimeSpan.FromSeconds(60), @"被删") { Id = 7 },
+				new DanmakuRecord.SuperChat(TimeSpan.FromSeconds(2), 2, @"乙", 30_000, TimeSpan.FromSeconds(60), @"留着") { Id = 8 },
+				new DanmakuRecord.SuperChat(TimeSpan.FromSeconds(3), 3, @"丙", 30_000, TimeSpan.FromSeconds(60), @"没有 id"),
+				new DanmakuRecord.SuperChatDeletion(TimeSpan.FromSeconds(30), [7, 0])
+			]
+		);
 		string[] texts = Texts(messages);
 
 		using (Assert.Multiple())
@@ -97,14 +99,16 @@ public sealed partial class DanmakuAssMessagesTest
 	[Test]
 	public async Task GuardsShowTheLevelAndMonthsAsync()
 	{
-		(Match[] messages, DanmakuAssResult result, _) = Generate(
-		[
-			new DanmakuRecord.Guard(TimeSpan.Zero, 1, @"甲", GuardLevel.Admiral, 3, 1_998_000 * 3),
-			new DanmakuRecord.Guard(TimeSpan.Zero, 2, @"乙", GuardLevel.Governor, 1, 19_998_000),
-			new DanmakuRecord.Guard(TimeSpan.Zero, 3, @"丙", GuardLevel.Captain, 1, 198_000) { IsRenewal = true },
-			new DanmakuRecord.Guard(TimeSpan.Zero, 4, @"丁", GuardLevel.None, 1, 198_000),
-			new DanmakuRecord.Guard(TimeSpan.Zero, 5, @"戊", (GuardLevel)7, 1, 198_000)
-		]);
+		(Match[] messages, DanmakuAssResult result, _) = Generate
+		(
+			[
+				new DanmakuRecord.Guard(TimeSpan.Zero, 1, @"甲", GuardLevel.Admiral, 3, 1_998_000 * 3),
+				new DanmakuRecord.Guard(TimeSpan.Zero, 2, @"乙", GuardLevel.Governor, 1, 19_998_000),
+				new DanmakuRecord.Guard(TimeSpan.Zero, 3, @"丙", GuardLevel.Captain, 1, 198_000) { IsRenewal = true },
+				new DanmakuRecord.Guard(TimeSpan.Zero, 4, @"丁", GuardLevel.None, 1, 198_000),
+				new DanmakuRecord.Guard(TimeSpan.Zero, 5, @"戊", (GuardLevel)7, 1, 198_000)
+			]
+		);
 
 		using (Assert.Multiple())
 		{
@@ -116,15 +120,17 @@ public sealed partial class DanmakuAssMessagesTest
 	[Test]
 	public async Task OnlyPaidGiftsAreShownAndCombosMergeByUidOrByNameWhenMaskedAsync()
 	{
-		(Match[] messages, DanmakuAssResult result, _) = Generate(
-		[
-			new DanmakuRecord.Gift(TimeSpan.Zero, 0, @"淡***", @"小心心", 1, 0),
-			new DanmakuRecord.Gift(TimeSpan.FromSeconds(1), 7, @"甲", @"人气票", 1, 1000),
-			new DanmakuRecord.Gift(TimeSpan.FromSeconds(2), 7, @"甲改名了", @"人气票", 2, 2000),
-			new DanmakuRecord.Gift(TimeSpan.FromSeconds(3), 0, @"淡***", @"人气票", 1, 1000),
-			new DanmakuRecord.Gift(TimeSpan.FromSeconds(3.5), 0, @"淡***", @"人气票", 1, 1000),
-			new DanmakuRecord.Gift(TimeSpan.FromSeconds(4), 0, @"浓***", @"人气票", 1, 1000)
-		]);
+		(Match[] messages, DanmakuAssResult result, _) = Generate
+		(
+			[
+				new DanmakuRecord.Gift(TimeSpan.Zero, 0, @"淡***", @"小心心", 1, 0),
+				new DanmakuRecord.Gift(TimeSpan.FromSeconds(1), 7, @"甲", @"人气票", 1, 1000),
+				new DanmakuRecord.Gift(TimeSpan.FromSeconds(2), 7, @"甲改名了", @"人气票", 2, 2000),
+				new DanmakuRecord.Gift(TimeSpan.FromSeconds(3), 0, @"淡***", @"人气票", 1, 1000),
+				new DanmakuRecord.Gift(TimeSpan.FromSeconds(3.5), 0, @"淡***", @"人气票", 1, 1000),
+				new DanmakuRecord.Gift(TimeSpan.FromSeconds(4), 0, @"浓***", @"人气票", 1, 1000)
+			]
+		);
 		string[] texts = [.. Texts(messages).Distinct()];
 
 		using (Assert.Multiple())
@@ -140,11 +146,13 @@ public sealed partial class DanmakuAssMessagesTest
 	[Test]
 	public async Task NamesGiftsAndTextAreEscapedAsync()
 	{
-		(Match[] messages, _, _) = Generate(
-		[
-			new DanmakuRecord.SuperChat(TimeSpan.Zero, 1, @"{\b1}", 30_000, TimeSpan.FromSeconds(60), "第一行\n{\\N}"),
-			new DanmakuRecord.Gift(TimeSpan.Zero, 2, @"观众", @"{礼物}", 1, 1000)
-		]);
+		(Match[] messages, _, _) = Generate
+		(
+			[
+				new DanmakuRecord.SuperChat(TimeSpan.Zero, 1, @"{\b1}", 30_000, TimeSpan.FromSeconds(60), "第一行\n{\\N}"),
+				new DanmakuRecord.Gift(TimeSpan.Zero, 2, @"观众", @"{礼物}", 1, 1000)
+			]
+		);
 
 		await Assert.That(Texts(messages).Distinct()).IsEquivalentTo([@"｛＼b1｝", @"¥30", @"第一行 ｛＼N｝", @"观众 投喂 ｛礼物｝ ×1"]);
 	}
@@ -171,19 +179,24 @@ public sealed partial class DanmakuAssMessagesTest
 	[Test]
 	public async Task ASegmentStartingMidFadeContinuesFromTheCurrentAlphaAsync()
 	{
-		(Match[] messages, _, _) = Generate(
-		[
-			new DanmakuRecord.Guard(TimeSpan.Zero, 1, @"甲", GuardLevel.Captain, 1, 198_000),
-			new DanmakuRecord.Gift(TimeSpan.FromSeconds(0.1), 2, @"乙", @"礼物", 1, 1000),
-			new DanmakuRecord.Gift(TimeSpan.FromSeconds(0.85), 2, @"乙", @"礼物", 1, 1000)
-		]);
+		(Match[] messages, _, _) = Generate
+		(
+			[
+				new DanmakuRecord.Guard(TimeSpan.Zero, 1, @"甲", GuardLevel.Captain, 1, 198_000),
+				new DanmakuRecord.Gift(TimeSpan.FromSeconds(0.1), 2, @"乙", @"礼物", 1, 1000),
+				new DanmakuRecord.Gift(TimeSpan.FromSeconds(0.85), 2, @"乙", @"礼物", 1, 1000)
+			]
+		);
 
-		await Assert.That(messages.Where(static match => match.Groups[@"text"].Value is @"甲 开通了舰长").Select(static match => $"{match.Groups[@"start"].Value}-{match.Groups[@"end"].Value} {match.Groups[@"tags"].Value}")).IsEquivalentTo(
-		[
-			@"0:00:00.00-0:00:00.10 \an4\pos(58,1014)\fad(200,0)",
-			@"0:00:00.10-0:00:05.85 \an4\move(58,1014,58,960,0,200)\fade(128,0,255,0,100,5700,5900)",
-			@"0:00:05.85-0:00:06.00 \an4\move(58,960,58,1014,0,200)\fade(64,64,255,0,0,0,150)"
-		], CollectionOrdering.Matching);
+		await Assert.That(messages.Where(static match => match.Groups[@"text"].Value is @"甲 开通了舰长").Select(static match => $"{match.Groups[@"start"].Value}-{match.Groups[@"end"].Value} {match.Groups[@"tags"].Value}")).IsEquivalentTo
+		(
+			[
+				@"0:00:00.00-0:00:00.10 \an4\pos(58,1014)\fad(200,0)",
+				@"0:00:00.10-0:00:05.85 \an4\move(58,1014,58,960,0,200)\fade(128,0,255,0,100,5700,5900)",
+				@"0:00:05.85-0:00:06.00 \an4\move(58,960,58,1014,0,200)\fade(64,64,255,0,0,0,150)"
+			],
+			CollectionOrdering.Matching
+		);
 	}
 
 	[Test]
@@ -212,11 +225,14 @@ public sealed partial class DanmakuAssMessagesTest
 	[Test]
 	public async Task PortraitVideoKeepsTheLandscapeSizesAndNarrowsTheBarAsync()
 	{
-		(Match[] messages, _, string text) = Generate(
-		[
-			new DanmakuRecord.SuperChat(TimeSpan.Zero, 1, @"老板", 30_000, TimeSpan.FromSeconds(60), @"内容"),
-			new DanmakuRecord.Guard(TimeSpan.Zero, 2, @"一个特别特别特别特别特别特别特别长的昵称", GuardLevel.Captain, 1, 198_000)
-		], new VideoResolution(1080, 1920));
+		(Match[] messages, _, string text) = Generate
+		(
+			[
+				new DanmakuRecord.SuperChat(TimeSpan.Zero, 1, @"老板", 30_000, TimeSpan.FromSeconds(60), @"内容"),
+				new DanmakuRecord.Guard(TimeSpan.Zero, 2, @"一个特别特别特别特别特别特别特别长的昵称", GuardLevel.Captain, 1, 198_000)
+			],
+			new VideoResolution(1080, 1920)
+		);
 
 		using (Assert.Multiple())
 		{

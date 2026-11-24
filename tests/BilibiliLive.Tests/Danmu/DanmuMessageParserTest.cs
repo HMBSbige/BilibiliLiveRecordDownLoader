@@ -289,12 +289,15 @@ public class DanmuMessageParserTest
 	{
 		List<DanmuMessage> messages = Parse(Fixture("gift_v2_multiple.json"), DanmuParseMode.Chat);
 
-		await Assert.That(messages).IsEquivalentTo(
-		[
-			Received(MaskedGiftV2),
-			Received(MaskedGiftV2 with { GiftName = "小花花", Count = 5, TotalPrice = 500 }),
-			Received(MaskedGiftV2 with { GiftName = "辣条", Count = 3, TotalPrice = 300, CoinType = DanmuCoinType.Silver })
-		], EqualityComparer<DanmuMessage>.Default, CollectionOrdering.Matching);
+		await Assert.That(messages).IsEquivalentTo
+		(
+			[
+				Received(MaskedGiftV2),
+				Received(MaskedGiftV2 with { GiftName = "小花花", Count = 5, TotalPrice = 500 }),
+				Received(MaskedGiftV2 with { GiftName = "辣条", Count = 3, TotalPrice = 300, CoinType = DanmuCoinType.Silver })
+			],
+			EqualityComparer<DanmuMessage>.Default, CollectionOrdering.Matching
+		);
 	}
 
 	[Test]

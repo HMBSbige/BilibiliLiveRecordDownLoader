@@ -53,12 +53,15 @@ public sealed class DanmakuMessageBarTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(superChat.Spans).IsEquivalentTo(
-			[
-				new DanmakuMessageSpan(S(0), S(1), 0, 0, S(0), 1),
-				new DanmakuMessageSpan(S(1), S(7), 0, 40, S(1.2), 1),
-				new DanmakuMessageSpan(S(7), S(10), 40, 0, S(7.2), 1)
-			], CollectionOrdering.Matching);
+			await Assert.That(superChat.Spans).IsEquivalentTo
+			(
+				[
+					new DanmakuMessageSpan(S(0), S(1), 0, 0, S(0), 1),
+					new DanmakuMessageSpan(S(1), S(7), 0, 40, S(1.2), 1),
+					new DanmakuMessageSpan(S(7), S(10), 40, 0, S(7.2), 1)
+				],
+				CollectionOrdering.Matching
+			);
 			await Assert.That(guard.Spans).IsEquivalentTo([new DanmakuMessageSpan(S(1), S(7), 0, 0, S(1), 1)]);
 			await Assert.That((guard.ShownAt, guard.FadeOutStart, guard.RemovedAt)).IsEqualTo((S(1), S(6.8), S(7)));
 			await Assert.That((layout.Shown, layout.Dropped)).IsEqualTo((2, 0));
@@ -76,15 +79,18 @@ public sealed class DanmakuMessageBarTest
 	[Test]
 	public async Task WhenFullTheOldestGiftGoesFirstThenTheOldestGuardThenTheOldestSuperChatAsync()
 	{
-		DanmakuMessageLayout layout = DanmakuMessageBar.Layout(
-		[
-			SuperChat(0, 20),
-			Guard(0, 20),
-			Gift(0, height: 20),
-			SuperChat(4.5, 20),
-			SuperChat(4.6, 20),
-			SuperChat(4.7, 20)
-		], MaxHeight, Gap);
+		DanmakuMessageLayout layout = DanmakuMessageBar.Layout
+		(
+			[
+				SuperChat(0, 20),
+				Guard(0, 20),
+				Gift(0, height: 20),
+				SuperChat(4.5, 20),
+				SuperChat(4.6, 20),
+				SuperChat(4.7, 20)
+			],
+			MaxHeight, Gap
+		);
 
 		using (Assert.Multiple())
 		{
@@ -125,13 +131,16 @@ public sealed class DanmakuMessageBarTest
 	[Test]
 	public async Task WaitingEntriesKeepTheirOrderAndGiftsAreDroppedMeanwhileAsync()
 	{
-		DanmakuMessageLayout layout = DanmakuMessageBar.Layout(
-		[
-			SuperChat(0, 100, 10),
-			Guard(1, 100),
-			SuperChat(2, 100, 8),
-			Gift(3, height: 10)
-		], MaxHeight, Gap);
+		DanmakuMessageLayout layout = DanmakuMessageBar.Layout
+		(
+			[
+				SuperChat(0, 100, 10),
+				Guard(1, 100),
+				SuperChat(2, 100, 8),
+				Gift(3, height: 10)
+			],
+			MaxHeight, Gap
+		);
 
 		using (Assert.Multiple())
 		{

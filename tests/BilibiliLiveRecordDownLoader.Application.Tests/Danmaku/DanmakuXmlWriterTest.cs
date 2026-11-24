@@ -13,15 +13,18 @@ public sealed class DanmakuXmlWriterTest
 
 		await using DanmakuXmlWriter writer = await DanmakuXmlWriter.CreateAsync(stream, DanmakuSamples.Header with { Offset = TimeSpan.FromMilliseconds(-1500), LiveStartTime = null }, DanmakuFlushPolicy.Default, TimeProvider.System, cancellationToken);
 
-		await Assert.That(Encoding.UTF8.GetString(stream.ToArray()).Split('\n')).IsEquivalentTo(
-		[
-			"<?xml version=\"1.0\" encoding=\"utf-8\"?>",
-			"<i>",
-			"  <chatserver>chat.bilibili.com</chatserver><chatid>0</chatid><mission>0</mission><maxlimit>0</maxlimit><state>0</state><real_name>0</real_name><source>k-v</source>",
-			"  <BilibiliLiveRecordDownLoader version=\"1.2.3\" room_id=\"21452505\" short_id=\"0\" streamer=\"测试主播\" title=\"测试标题\" area=\"虚拟主播\" parent_area=\"虚拟主播\" live_id=\"745899535714532510\" live_start_time=\"\" record_start_time=\"2026-11-22T18:26:00.123+08:00\" offset=\"-1.500\" />",
-			"</i>",
-			""
-		], CollectionOrdering.Matching);
+		await Assert.That(Encoding.UTF8.GetString(stream.ToArray()).Split('\n')).IsEquivalentTo
+		(
+			[
+				"<?xml version=\"1.0\" encoding=\"utf-8\"?>",
+				"<i>",
+				"  <chatserver>chat.bilibili.com</chatserver><chatid>0</chatid><mission>0</mission><maxlimit>0</maxlimit><state>0</state><real_name>0</real_name><source>k-v</source>",
+				"  <BilibiliLiveRecordDownLoader version=\"1.2.3\" room_id=\"21452505\" short_id=\"0\" streamer=\"测试主播\" title=\"测试标题\" area=\"虚拟主播\" parent_area=\"虚拟主播\" live_id=\"745899535714532510\" live_start_time=\"\" record_start_time=\"2026-11-22T18:26:00.123+08:00\" offset=\"-1.500\" />",
+				"</i>",
+				""
+			],
+			CollectionOrdering.Matching
+		);
 	}
 
 	[Test]
@@ -135,11 +138,14 @@ public sealed class DanmakuXmlWriterTest
 	[Test]
 	public async Task CommentFieldsFollowTheBilibiliLayoutAsync(CancellationToken cancellationToken)
 	{
-		byte[] content = await DanmakuSamples.WriteAsync(
-		[
-			new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(12345), 1, 25, 16777215, DanmakuSamples.SentAt, 123, @"昵称", @"文本", 40685126698926083),
-			new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(500), 5, 36, 0xFF0000, DanmakuSamples.SentAt.AddMilliseconds(999), 0, @"淡***", @"匿名", 0)
-		], cancellationToken);
+		byte[] content = await DanmakuSamples.WriteAsync
+		(
+			[
+				new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(12345), 1, 25, 16777215, DanmakuSamples.SentAt, 123, @"昵称", @"文本", 40685126698926083),
+				new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(500), 5, 36, 0xFF0000, DanmakuSamples.SentAt.AddMilliseconds(999), 0, @"淡***", @"匿名", 0)
+			],
+			cancellationToken
+		);
 
 		await Assert.That(DanmakuSamples.Lines(content).Where(static line => line.StartsWith(@"  <d ", StringComparison.Ordinal))).IsEquivalentTo(["  <d p=\"12.345,1,25,16777215,1795343190,0,884863d2,40685126698926083\" uid=\"123\" user=\"昵称\">文本</d>", "  <d p=\"0.500,5,36,16711680,1795343190,0,0,0\" uid=\"0\" user=\"淡***\">匿名</d>"], CollectionOrdering.Matching);
 	}

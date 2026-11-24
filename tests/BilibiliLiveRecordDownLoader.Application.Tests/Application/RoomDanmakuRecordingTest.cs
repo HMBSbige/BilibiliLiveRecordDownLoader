@@ -256,15 +256,18 @@ public sealed class RoomDanmakuRecordingTest
 		{
 			await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.jsonl")).IsEquivalentTo([raw]);
 			await Assert.That(Directory.GetFiles(loop.RoomDirectory, "*.xml")).Count().IsEqualTo(2);
-			await Assert.That(lines).IsEquivalentTo(
-			[
-				RawLine(start, "@connected", """{"anonymous":true,"masked":true}"""),
-				RawLine(start, "DANMU_MSG", """{"cmd":"DANMU_MSG","info":[1]}"""),
-				RawLine(second, "ROOM_CHANGE", """{"cmd":"ROOM_CHANGE","data":{"title":"new title"}}"""),
-				RawLine(second, "SEND_GIFT", """{"cmd":"SEND_GIFT"}"""),
-				RawLine(second, "@disconnected", "null"),
-				RawLine(reconnectedAt, "@connected", """{"anonymous":true}""")
-			], CollectionOrdering.Matching);
+			await Assert.That(lines).IsEquivalentTo
+			(
+				[
+					RawLine(start, "@connected", """{"anonymous":true,"masked":true}"""),
+					RawLine(start, "DANMU_MSG", """{"cmd":"DANMU_MSG","info":[1]}"""),
+					RawLine(second, "ROOM_CHANGE", """{"cmd":"ROOM_CHANGE","data":{"title":"new title"}}"""),
+					RawLine(second, "SEND_GIFT", """{"cmd":"SEND_GIFT"}"""),
+					RawLine(second, "@disconnected", "null"),
+					RawLine(reconnectedAt, "@connected", """{"anonymous":true}""")
+				],
+				CollectionOrdering.Matching
+			);
 		}
 	}
 

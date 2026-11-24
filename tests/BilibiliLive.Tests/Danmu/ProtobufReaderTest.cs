@@ -69,15 +69,18 @@ public class ProtobufReaderTest
 			0xF8, 0xFF, 0xFF, 0xFF, 0x0F, 0x00
 		];
 
-		await Assert.That(ReadTags(data)).IsEquivalentTo(
-		[
-			(1, ProtobufWireType.Varint),
-			(2, ProtobufWireType.Fixed64),
-			(3, ProtobufWireType.LengthDelimited),
-			(4, ProtobufWireType.Fixed32),
-			(16, ProtobufWireType.Varint),
-			((1 << 29) - 1, ProtobufWireType.Varint)
-		], CollectionOrdering.Matching);
+		await Assert.That(ReadTags(data)).IsEquivalentTo
+		(
+			[
+				(1, ProtobufWireType.Varint),
+				(2, ProtobufWireType.Fixed64),
+				(3, ProtobufWireType.LengthDelimited),
+				(4, ProtobufWireType.Fixed32),
+				(16, ProtobufWireType.Varint),
+				((1 << 29) - 1, ProtobufWireType.Varint)
+			],
+			CollectionOrdering.Matching
+		);
 	}
 
 	[Test]

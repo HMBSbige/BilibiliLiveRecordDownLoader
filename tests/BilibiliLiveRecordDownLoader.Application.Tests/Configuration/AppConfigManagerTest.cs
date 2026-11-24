@@ -180,7 +180,10 @@ public sealed class AppConfigManagerTest : IDisposable
 	[Test]
 	public async Task UnreadableValuesFallBackToTheirDefaultsWithoutDiscardingTheRestAsync(CancellationToken cancellationToken)
 	{
-		await WriteFileAsync(ConfigFileName, """
+		await WriteFileAsync
+		(
+			ConfigFileName,
+			"""
 			{
 				// 手改的配置
 				"theme": "Future",
@@ -190,7 +193,9 @@ public sealed class AppConfigManagerTest : IDisposable
 				"SplitDuration": 42,
 				"Rooms": [{ "RoomId": 1, "Quality": "Future", "IsNotificationEnabled": true, "FormatPriority": ["Ts", "Future", null] }, 5, { "RoomId": 2 }],
 			}
-			""", cancellationToken);
+			""",
+			cancellationToken
+		);
 
 		await using (AppConfigManager manager = Create())
 		{

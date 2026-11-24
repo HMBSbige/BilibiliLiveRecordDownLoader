@@ -32,14 +32,17 @@ public partial class FFmpegIntegrationTest
 
 		try
 		{
-			await runner.RunAsync(
-			[
-				@"-hide_banner", @"-y",
-				@"-f", @"lavfi", @"-i", $@"testsrc=duration={seconds}:size=160x120:rate=10",
-				@"-f", @"lavfi", @"-i", $@"sine=duration={seconds}",
-				@"-c:v", @"libx264", @"-pix_fmt", @"yuv420p", @"-c:a", @"aac",
-				@"-f", @"flv", output
-			], null, cancellationToken);
+			await runner.RunAsync
+			(
+				[
+					@"-hide_banner", @"-y",
+					@"-f", @"lavfi", @"-i", $@"testsrc=duration={seconds}:size=160x120:rate=10",
+					@"-f", @"lavfi", @"-i", $@"sine=duration={seconds}",
+					@"-c:v", @"libx264", @"-pix_fmt", @"yuv420p", @"-c:a", @"aac",
+					@"-f", @"flv", output
+				],
+				null, cancellationToken
+			);
 		}
 		catch (FFmpegException ex)
 		{
@@ -146,11 +149,15 @@ public partial class FFmpegIntegrationTest
 		await GenerateFlvAsync(runner, flv, cancellationToken);
 
 		string chapters = directory.Combine(@"章节.txt");
-		await FFmpegMetadata.WriteChaptersFileAsync(chapters,
-		[
-			new FFmpegChapter(TimeSpan.Zero, TimeSpan.FromSeconds(1), @"直播标题"),
-			new FFmpegChapter(TimeSpan.FromSeconds(1), SampleDuration, @"高能：a=b;c#d\e")
-		], cancellationToken);
+		await FFmpegMetadata.WriteChaptersFileAsync
+		(
+			chapters,
+			[
+				new FFmpegChapter(TimeSpan.Zero, TimeSpan.FromSeconds(1), @"直播标题"),
+				new FFmpegChapter(TimeSpan.FromSeconds(1), SampleDuration, @"高能：a=b;c#d\e")
+			],
+			cancellationToken
+		);
 		string mp4 = directory.Combine(@"remuxed.mp4");
 		await runner.RunAsync(FFmpegArguments.RemuxWithChapters(flv, chapters, mp4), null, cancellationToken);
 
@@ -176,11 +183,15 @@ public partial class FFmpegIntegrationTest
 		await GenerateFlvAsync(runner, flv, cancellationToken);
 
 		string chapters = directory.Combine(@"chapters.txt");
-		await FFmpegMetadata.WriteChaptersFileAsync(chapters,
-		[
-			new FFmpegChapter(TimeSpan.Zero, TimeSpan.FromSeconds(1), @"orz\"),
-			new FFmpegChapter(TimeSpan.FromSeconds(1), SampleDuration, @"end\")
-		], cancellationToken);
+		await FFmpegMetadata.WriteChaptersFileAsync
+		(
+			chapters,
+			[
+				new FFmpegChapter(TimeSpan.Zero, TimeSpan.FromSeconds(1), @"orz\"),
+				new FFmpegChapter(TimeSpan.FromSeconds(1), SampleDuration, @"end\")
+			],
+			cancellationToken
+		);
 		string mp4 = directory.Combine(@"remuxed.mp4");
 		await runner.RunAsync(FFmpegArguments.RemuxWithChapters(flv, chapters, mp4), null, cancellationToken);
 

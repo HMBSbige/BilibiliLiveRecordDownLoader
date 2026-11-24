@@ -199,10 +199,17 @@ public class DanmuClientTest
 		await SendAsync(server, DanmuPacket.Encode(DanmuOperation.AuthReply, 1, """{"code":0}"""u8), cancellationToken);
 		DanmuPacket heartbeat = await Assert.That(await ReceivePacketsAsync(server, cancellationToken)).HasSingleItem();
 
-		await SendAsync(server, DanmuPacketTest.Brotli(
-			DanmuPacketTest.Json("""{"cmd":"DANMU_MSG:4:0:2:2:2:0","info":[]}"""),
-			DanmuPacketTest.Json("""{"cmd":"LIVE","roomid":6154037}"""),
-			DanmuPacketTest.Json("""{"cmd":"PREPARING","round":1,"roomid":"6154037"}""")), cancellationToken);
+		await SendAsync
+		(
+			server,
+			DanmuPacketTest.Brotli
+			(
+				DanmuPacketTest.Json("""{"cmd":"DANMU_MSG:4:0:2:2:2:0","info":[]}"""),
+				DanmuPacketTest.Json("""{"cmd":"LIVE","roomid":6154037}"""),
+				DanmuPacketTest.Json("""{"cmd":"PREPARING","round":1,"roomid":"6154037"}""")
+			),
+			cancellationToken
+		);
 		await SendAsync(server, DanmuPacket.Encode(DanmuOperation.HeartbeatReply, 1, [0, 0, 0, 1]), cancellationToken);
 		await SendAsync(server, DanmuPacketTest.Zlib(DanmuPacketTest.Json("""{"cmd":"ROOM_CHANGE","data":{"title":"T","area_name":"A","parent_area_name":"P"}}""")), cancellationToken);
 		await server.CloseAsync(WebSocketCloseStatus.NormalClosure, "bye", cancellationToken);
@@ -612,16 +619,21 @@ public class DanmuClientTest
 		Task<List<DanmuMessage>> receiving = harness.ReceiveAllAsync(cancellationToken);
 
 		WebSocket server = await AuthenticateAsync(harness, """{"code":0}""", cancellationToken);
-		await SendAsync(server, DanmuPacketTest.Brotli
+		await SendAsync
 		(
-			DanmuPacketTest.Json("""{"cmd":"SEND_GIFT_V2","data":{"pb":"not base64"}}"""),
-			// 礼物字段的长度超出末尾
-			DanmuPacketTest.Json("""{"cmd":"SEND_GIFT_V2","data":{"pb":"UgU="}}"""),
-			DanmuPacketTest.Json("""{"cmd":"DANMU_MSG","info":[[0,1"""),
-			DanmuPacketTest.Json("""{"cmd":"DANMU_MSG","info":[[0,1,25],"\ud83d"]}"""),
-			DanmuPacketTest.Json("""{"cmd":"SUPER_CHAT_MESSAGE","data":{"price":30,"time":1e30}}"""),
-			Live
-		), cancellationToken);
+			server,
+			DanmuPacketTest.Brotli
+			(
+				DanmuPacketTest.Json("""{"cmd":"SEND_GIFT_V2","data":{"pb":"not base64"}}"""),
+				// 礼物字段的长度超出末尾
+				DanmuPacketTest.Json("""{"cmd":"SEND_GIFT_V2","data":{"pb":"UgU="}}"""),
+				DanmuPacketTest.Json("""{"cmd":"DANMU_MSG","info":[[0,1"""),
+				DanmuPacketTest.Json("""{"cmd":"DANMU_MSG","info":[[0,1,25],"\ud83d"]}"""),
+				DanmuPacketTest.Json("""{"cmd":"SUPER_CHAT_MESSAGE","data":{"price":30,"time":1e30}}"""),
+				Live
+			),
+			cancellationToken
+		);
 		await server.CloseAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
 
 		List<DanmuMessage> messages = await receiving;

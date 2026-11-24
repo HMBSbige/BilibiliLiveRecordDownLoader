@@ -105,12 +105,15 @@ internal static class FillerSamples
 		return
 		[
 			.. Fmp4Samples.Box("ftyp", "isom"u8.ToArray()),
-			.. Fmp4Samples.Box("moov",
-			[
-				.. Fmp4Samples.Box("trak", [.. Fmp4Samples.Tkhd(Fmp4Samples.VideoTrack), .. Fmp4Samples.Box("mdia", videoMedia)]),
-				.. Fmp4Samples.Track(Fmp4Samples.AudioTrack, "soun"),
-				.. Fmp4Samples.Box("mvex", [.. Fmp4Samples.Trex(Fmp4Samples.VideoTrack, defaultDescriptionIndex: 1), .. Fmp4Samples.Trex(Fmp4Samples.AudioTrack, defaultDescriptionIndex: 1)])
-			])
+			.. Fmp4Samples.Box
+			(
+				"moov",
+				[
+					.. Fmp4Samples.Box("trak", [.. Fmp4Samples.Tkhd(Fmp4Samples.VideoTrack), .. Fmp4Samples.Box("mdia", videoMedia)]),
+					.. Fmp4Samples.Track(Fmp4Samples.AudioTrack, "soun"),
+					.. Fmp4Samples.Box("mvex", [.. Fmp4Samples.Trex(Fmp4Samples.VideoTrack, defaultDescriptionIndex: 1), .. Fmp4Samples.Trex(Fmp4Samples.AudioTrack, defaultDescriptionIndex: 1)])
+				]
+			)
 		];
 	}
 
@@ -215,19 +218,25 @@ internal static class FillerSamples
 
 		byte[] audioTfhd = isHugeAudioRun ? [.. Word(0x02_003a), .. Word(Fmp4Samples.AudioTrack), .. Word(1), .. Word(1024), .. Word(1), .. Word(Fmp4Samples.SyncFlags)] : [.. Word(0x02_002a), .. Word(Fmp4Samples.AudioTrack), .. Word(1), .. Word(1024), .. Word(Fmp4Samples.SyncFlags)];
 
-		byte[] videoTraf = Fmp4Samples.Box("traf",
-		[
-			.. Fmp4Samples.Box("tfhd", [.. videoTfhd]),
-			.. Fmp4Samples.Box("tfdt", new byte[8]),
-			.. videoTruns,
-			.. layout is Fmp4Layout.Encrypted ? Fmp4Samples.Box("senc", new byte[8]) : []
-		]);
-		byte[] audioTraf = Fmp4Samples.Box("traf",
-		[
-			.. Fmp4Samples.Box("tfhd", audioTfhd),
-			.. Fmp4Samples.Box("tfdt", new byte[8]),
-			.. Fmp4Samples.Box("trun", [.. audioTrun])
-		]);
+		byte[] videoTraf = Fmp4Samples.Box
+		(
+			"traf",
+			[
+				.. Fmp4Samples.Box("tfhd", [.. videoTfhd]),
+				.. Fmp4Samples.Box("tfdt", new byte[8]),
+				.. videoTruns,
+				.. layout is Fmp4Layout.Encrypted ? Fmp4Samples.Box("senc", new byte[8]) : []
+			]
+		);
+		byte[] audioTraf = Fmp4Samples.Box
+		(
+			"traf",
+			[
+				.. Fmp4Samples.Box("tfhd", audioTfhd),
+				.. Fmp4Samples.Box("tfdt", new byte[8]),
+				.. Fmp4Samples.Box("trun", [.. audioTrun])
+			]
+		);
 
 		return Fmp4Samples.Box("moof", [.. Fmp4Samples.Box("mfhd", [.. Word(0), .. Word(1)]), .. videoTraf, .. audioTraf]);
 	}

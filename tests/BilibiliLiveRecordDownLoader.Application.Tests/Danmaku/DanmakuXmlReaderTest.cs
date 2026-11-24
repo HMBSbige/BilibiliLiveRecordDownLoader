@@ -63,11 +63,14 @@ public sealed class DanmakuXmlReaderTest
 		{
 			await Assert.That(file.IsComplete).IsTrue();
 			await Assert.That(file.Source).IsTypeOf<DanmakuFileSource.Standard>();
-			await Assert.That(file.Records).IsEquivalentTo(
-			[
-				new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(601), 4, 25, 15138834, DateTimeOffset.FromUnixTimeSeconds(1604742895), 0, string.Empty, @"底部弹幕", 40685126698926083) { UidHash = @"9e5adeaa" },
-				new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(9416), 5, 25, 16755202, DateTimeOffset.FromUnixTimeSeconds(1611378869), 0, string.Empty, @"顶部弹幕", 44164288244350983) { UidHash = @"14f71d3" }
-			], EqualityComparer<DanmakuRecord>.Default, CollectionOrdering.Matching);
+			await Assert.That(file.Records).IsEquivalentTo
+			(
+				[
+					new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(601), 4, 25, 15138834, DateTimeOffset.FromUnixTimeSeconds(1604742895), 0, string.Empty, @"底部弹幕", 40685126698926083) { UidHash = @"9e5adeaa" },
+					new DanmakuRecord.Comment(TimeSpan.FromMilliseconds(9416), 5, 25, 16755202, DateTimeOffset.FromUnixTimeSeconds(1611378869), 0, string.Empty, @"顶部弹幕", 44164288244350983) { UidHash = @"14f71d3" }
+				],
+				EqualityComparer<DanmakuRecord>.Default, CollectionOrdering.Matching
+			);
 		}
 	}
 
@@ -236,11 +239,14 @@ public sealed class DanmakuXmlReaderTest
 
 		DanmakuFile file = await DanmakuSamples.ReadAsync(xml, cancellationToken);
 
-		await Assert.That(file.Records).IsEquivalentTo(
-		[
-			new DanmakuRecord.SuperChat(TimeSpan.FromSeconds(1), 1, @"老板", 30000, TimeSpan.FromSeconds(60), @"没有 id"),
-			new DanmakuRecord.SuperChatDeletion(TimeSpan.FromSeconds(4), [5, 6])
-		], EqualityComparer<DanmakuRecord>.Default, CollectionOrdering.Matching);
+		await Assert.That(file.Records).IsEquivalentTo
+		(
+			[
+				new DanmakuRecord.SuperChat(TimeSpan.FromSeconds(1), 1, @"老板", 30000, TimeSpan.FromSeconds(60), @"没有 id"),
+				new DanmakuRecord.SuperChatDeletion(TimeSpan.FromSeconds(4), [5, 6])
+			],
+			EqualityComparer<DanmakuRecord>.Default, CollectionOrdering.Matching
+		);
 	}
 
 	private sealed class ForwardOnlyStream(Stream inner) : Stream

@@ -474,9 +474,12 @@ public sealed class RoomAppServiceTest
 			bool titled = TitlesBatchAnswers && roomIds.Length > 1;
 			IEnumerable<string> rooms = KnownRooms
 				.Where(room => Array.Exists(requested, id => id == room.RoomId || id == room.ShortId))
-				.Select(room => $$"""
-					"{{room.RoomId}}":{"room_id":{{room.RoomId}},"short_id":{{room.ShortId}},"uid":1,"uname":"{{room.UserName}}","title":"{{(titled ? room.RoomId : null)}}","live_status":0}
-					""");
+				.Select
+				(
+					room => $$"""
+						"{{room.RoomId}}":{"room_id":{{room.RoomId}},"short_id":{{room.ShortId}},"uid":1,"uname":"{{room.UserName}}","title":"{{(titled ? room.RoomId : null)}}","live_status":0}
+						"""
+				);
 
 			return Json("""{"code":0,"message":"OK","data":{"by_uids":{},"by_room_ids":{""" + string.Join(',', rooms) + "}}}");
 		}

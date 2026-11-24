@@ -129,24 +129,31 @@ internal static class DanmakuAssGenerator
 
 	private static void WriteHeader(TextWriter writer, int width, int height, int fontSize, int messageFontSize)
 	{
-		writer.Write(string.Create(CultureInfo.InvariantCulture, $"""
-			[Script Info]
-			ScriptType: v4.00+
-			PlayResX: {width}
-			PlayResY: {height}
-			WrapStyle: 2
-			ScaledBorderAndShadow: yes
-			YCbCr Matrix: None
+		writer.Write
+		(
+			string.Create
+			(
+				CultureInfo.InvariantCulture,
+				$"""
+				[Script Info]
+				ScriptType: v4.00+
+				PlayResX: {width}
+				PlayResY: {height}
+				WrapStyle: 2
+				ScaledBorderAndShadow: yes
+				YCbCr Matrix: None
 
-			[V4+ Styles]
-			Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-			Style: Danmaku,{FontName},{fontSize},&H{Alpha}FFFFFF,&H{Alpha}FFFFFF,&H{Alpha}000000,&H{Alpha}000000,0,0,0,0,100,100,0,0,1,0,1,7,0,0,0,1
-			Style: Message,{FontName},{messageFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
+				[V4+ Styles]
+				Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+				Style: Danmaku,{FontName},{fontSize},&H{Alpha}FFFFFF,&H{Alpha}FFFFFF,&H{Alpha}000000,&H{Alpha}000000,0,0,0,0,100,100,0,0,1,0,1,7,0,0,0,1
+				Style: Message,{FontName},{messageFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1
 
-			[Events]
-			Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+				[Events]
+				Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
-			""").ReplaceLineEndings("\n"));
+				"""
+			).ReplaceLineEndings("\n")
+		);
 	}
 
 	private static int? PlaceScroll(ScrollLane?[] lanes, int span, TimeSpan start, double textWidth, int screenWidth)
