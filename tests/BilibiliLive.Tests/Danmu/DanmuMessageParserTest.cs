@@ -474,6 +474,7 @@ public class DanmuMessageParserTest
 	[Test]
 	[Arguments("""{"cmd":"DANMU_MSG:4:0:2:2:2:0","info":[]}""", "DANMU_MSG")]
 	[Arguments("""{"data":{},"cmd":"LIVE"}""", "LIVE")]
+	[Arguments("""{"cmd":"POPULARITY_RED_POCKET_V2_WINNER_LIST_WITH_A_NAME_LONGER_THAN_THE_STACK_BUFFER:4"}""", "POPULARITY_RED_POCKET_V2_WINNER_LIST_WITH_A_NAME_LONGER_THAN_THE_STACK_BUFFER")]
 	public async Task RawIsYieldedForEveryCommandAsync(string json, string command)
 	{
 		List<DanmuMessage> messages = Parse(Encoding.UTF8.GetBytes(json), DanmuParseMode.Raw);

@@ -161,7 +161,7 @@ internal static class GiftProtobuf
 				}
 				case (GiftCoinTypeField, ProtobufWireType.LengthDelimited):
 				{
-					coinType = DanmuMessageParser.ParseCoinType(reader.ReadString());
+					coinType = DanmuMessageParser.ParseCoinType(reader.ReadLengthDelimited());
 					break;
 				}
 				default:

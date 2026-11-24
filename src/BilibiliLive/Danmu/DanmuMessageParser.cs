@@ -14,6 +14,8 @@ internal static class DanmuMessageParser
 
 	private const long MaxSuperChatPrice = long.MaxValue / 1000;
 
+	private const int CommandBufferLength = 64;
+
 	/// <summary>抛出异常时，<paramref name="output"/> 里最多只多了原始消息</summary>
 	/// <exception cref="JsonException">包体不是合法的 JSON</exception>
 	/// <exception cref="InvalidDataException">礼物的 protobuf 格式错误</exception>
@@ -21,21 +23,24 @@ internal static class DanmuMessageParser
 	/// <exception cref="InvalidOperationException">字符串里有非法的 UTF-8 或孤立代理项的转义</exception>
 	public static void Parse(ReadOnlyMemory<byte> json, DanmuParseMode mode, DanmuReceiveTime receivedAt, List<DanmuMessage> output)
 	{
-		string? command;
+		bool includeRaw = mode.HasFlag(DanmuParseMode.Raw);
 
-		if (mode.HasFlag(DanmuParseMode.Raw))
+		if (includeRaw)
 		{
 			// 原始消息会原样写进 JSON Lines 文件，所以必须整体合法，不能只合法到 cmd 为止
-			command = ValidateAndGetCommand(json.Span);
-
-			if (command is not null)
-			{
-				output.Add(new DanmuMessage.Raw(command, json.ToArray()) { ReceivedAt = receivedAt });
-			}
+			Validate(json.Span);
 		}
-		else
+
+		Span<char> buffer = stackalloc char[CommandBufferLength];
+
+		if (!TryGetCommand(json.Span, buffer, out ReadOnlySpan<char> command))
 		{
-			command = GetCommand(json.Span);
+			return;
+		}
+
+		if (includeRaw)
+		{
+			output.Add(new DanmuMessage.Raw(command.ToString(), json.ToArray()) { ReceivedAt = receivedAt });
 		}
 
 		int count = output.Count;
@@ -51,7 +56,7 @@ internal static class DanmuMessageParser
 		}
 	}
 
-	private static void ParseCommand(string? command, ReadOnlyMemory<byte> json, bool includeChat, DanmuReceiveTime receivedAt, List<DanmuMessage> output)
+	private static void ParseCommand(ReadOnlySpan<char> command, ReadOnlyMemory<byte> json, bool includeChat, DanmuReceiveTime receivedAt, List<DanmuMessage> output)
 	{
 		switch (command)
 		{
@@ -123,13 +128,14 @@ internal static class DanmuMessageParser
 		}
 	}
 
-	private static string? GetCommand(ReadOnlySpan<byte> json)
+	private static bool TryGetCommand(ReadOnlySpan<byte> json, Span<char> buffer, out ReadOnlySpan<char> command)
 	{
+		command = default;
 		Utf8JsonReader reader = new(json);
 
 		if (!reader.Read() || reader.TokenType is not JsonTokenType.StartObject)
 		{
-			return null;
+			return false;
 		}
 
 		while (reader.Read() && reader.TokenType is JsonTokenType.PropertyName)
@@ -138,21 +144,29 @@ internal static class DanmuMessageParser
 
 			if (!reader.Read())
 			{
-				return null;
+				return false;
 			}
 
 			if (isCommand)
 			{
-				return reader.TokenType is JsonTokenType.String ? TrimCommand(reader.GetString()) : null;
+				if (reader.TokenType is not JsonTokenType.String)
+				{
+					return false;
+				}
+
+				ReadOnlySpan<char> value = reader.ValueSpan.Length <= buffer.Length ? buffer.Slice(0, reader.CopyString(buffer)) : reader.GetString();
+				int separator = value.IndexOf(':');
+				command = separator < 0 ? value : value.Slice(0, separator);
+				return true;
 			}
 
 			reader.Skip();
 		}
 
-		return null;
+		return false;
 	}
 
-	private static string? ValidateAndGetCommand(ReadOnlySpan<byte> json)
+	private static void Validate(ReadOnlySpan<byte> json)
 	{
 		// 读取器要到 GetString 才检查属性名和字符串里的 UTF-8
 		if (!Utf8.IsValid(json))
@@ -165,15 +179,6 @@ internal static class DanmuMessageParser
 		while (reader.Read())
 		{
 		}
-
-		return GetCommand(json);
-	}
-
-	private static string TrimCommand(string? command)
-	{
-		command ??= string.Empty;
-		int separator = command.IndexOf(':');
-		return separator < 0 ? command : command.Substring(0, separator);
 	}
 
 	private static DanmuMessage.LiveStopped ParsePreparing(ReadOnlyMemory<byte> json)
@@ -286,7 +291,7 @@ internal static class DanmuMessageParser
 		int count = GetInt32(Get(data, "num"));
 		long totalPrice = GiftTotalPrice(GetInt64(Get(data, "total_coin")), GetInt64(Get(data, "price")), count);
 
-		return new DanmuMessage.Gift(sender, GetString(data, "giftName") ?? string.Empty, count, totalPrice, ParseCoinType(GetString(data, "coin_type")))
+		return new DanmuMessage.Gift(sender, GetString(data, "giftName") ?? string.Empty, count, totalPrice, ParseCoinType(Get(data, "coin_type")))
 		{
 			ReceivedAt = receivedAt
 		};
@@ -296,12 +301,12 @@ internal static class DanmuMessageParser
 	{
 		using JsonDocument document = JsonDocument.Parse(json);
 
-		if (GetString(Get(document.RootElement, "data"), "pb") is not { Length: > 0 } pb)
+		if (Get(Get(document.RootElement, "data"), "pb") is not { ValueKind: JsonValueKind.String } pb || pb.GetBytesFromBase64() is not { Length: > 0 } data)
 		{
 			return;
 		}
 
-		GiftProtobuf.Parse(Convert.FromBase64String(pb), receivedAt, output);
+		GiftProtobuf.Parse(data, receivedAt, output);
 	}
 
 	private static DanmuMessage.SuperChatDeleted? ParseSuperChatDelete(ReadOnlyMemory<byte> json)
@@ -349,9 +354,14 @@ internal static class DanmuMessageParser
 		};
 	}
 
-	internal static DanmuCoinType ParseCoinType(string? coinType)
+	internal static DanmuCoinType ParseCoinType(ReadOnlySpan<byte> coinType)
 	{
-		return coinType is "gold" ? DanmuCoinType.Gold : DanmuCoinType.Silver;
+		return coinType.SequenceEqual("gold"u8) ? DanmuCoinType.Gold : DanmuCoinType.Silver;
+	}
+
+	private static DanmuCoinType ParseCoinType(JsonElement coinType)
+	{
+		return coinType.ValueKind is JsonValueKind.String && coinType.ValueEquals("gold"u8) ? DanmuCoinType.Gold : DanmuCoinType.Silver;
 	}
 
 	internal static long GiftTotalPrice(long totalPrice, long unitPrice, int count)
