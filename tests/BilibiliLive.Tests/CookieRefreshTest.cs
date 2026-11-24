@@ -1,6 +1,7 @@
 using BilibiliLive.Api;
 using BilibiliLive.Http;
 using BilibiliLive.Tests.Fakes;
+using CryptoBase.Rsa;
 using Microsoft.Extensions.Time.Testing;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -22,11 +23,12 @@ public partial class CookieRefreshTest
 	public async Task RefreshAndConfirmSendTheRightCredentialsAsync(CancellationToken cancellationToken)
 	{
 		using RSA key = RSA.Create(1024);
+		using RsaKey publicKey = RsaKey.ImportSubjectPublicKeyInfo(key.ExportSubjectPublicKeyInfo());
 		FakeHttpMessageHandler handler = new(Respond);
 		BilibiliIdentity identity = new(static _ => ValueTask.FromResult(new BilibiliRequestOptions(Cookie: "SESSDATA=configured")));
 		using HttpClient httpClient = new(new BilibiliRequestHandler(identity) { InnerHandler = handler });
 		// 本地时钟和服务器时间不同
-		BilibiliApiClient client = new(httpClient, new FakeTimeProvider()) { CorrespondKey = key.ExportSubjectPublicKeyInfoPem() };
+		BilibiliApiClient client = new(httpClient, new FakeTimeProvider()) { CorrespondKey = publicKey };
 
 		CookieRefreshInfo info = await client.GetCookieRefreshInfoAsync(Cookie, cancellationToken);
 		LoginCredentials renewed = await client.RefreshCookieAsync(Cookie, "oldtoken", info, cancellationToken);

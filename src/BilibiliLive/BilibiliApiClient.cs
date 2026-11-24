@@ -2,6 +2,7 @@ using BilibiliLive.Api;
 using BilibiliLive.Danmu;
 using BilibiliLive.Http;
 using BilibiliLive.Wbi;
+using CryptoBase.Rsa;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization.Metadata;
@@ -34,7 +35,7 @@ public sealed class BilibiliApiClient
 
 	internal TimeProvider TimeProvider { get; }
 
-	internal string CorrespondKey { get; init; } = CorrespondPage.PublicKey;
+	internal RsaKey CorrespondKey { get; init; } = CorrespondPage.PublicKey;
 
 	internal static TimeSpan FollowingPageInterval { get; } = TimeSpan.FromMilliseconds(300);
 
