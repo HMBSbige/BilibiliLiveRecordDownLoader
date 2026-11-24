@@ -60,6 +60,13 @@ jobs:
 
       - run: dotnet test -c Release
 
+      - name: Upload test reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports-${{ matrix.os }}
+          path: artifacts/test/**/*-report.html
+
   build:
     name: Build (${{ matrix.target.rid }})
     needs: [test, check_format]
