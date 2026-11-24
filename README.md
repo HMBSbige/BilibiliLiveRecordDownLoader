@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/HMBSbige/BilibiliLiveRecordDownLoader/actions/workflows/CI.yml/badge.svg)](https://github.com/HMBSbige/BilibiliLiveRecordDownLoader/actions/workflows/CI.yml)
 
-跨平台的 Bilibili 直播录制工具，支持 Windows、Linux 和 macOS。
+跨平台 B 站直播录制工具，支持 Windows、Linux 和 macOS
 
 ## 主要功能
 
