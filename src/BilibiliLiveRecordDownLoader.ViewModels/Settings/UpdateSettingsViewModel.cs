@@ -2,17 +2,24 @@ namespace BilibiliLiveRecordDownLoader.ViewModels.Settings;
 
 public sealed partial class UpdateSettingsViewModel : ViewModelBase
 {
+	internal static readonly TimeSpan AutoCheckInterval = TimeSpan.FromDays(1);
+
+	internal static readonly TimeSpan AutoCheckPollInterval = TimeSpan.FromHours(1);
+
 	private readonly ISettingsAppService _settingsAppService;
 	private readonly IUpdateAppService _updateAppService;
 	private readonly INotificationService _notifications;
 	private readonly ILauncherService _launcher;
+	private readonly TimeProvider _timeProvider;
+	private string? _notifiedVersion;
 
-	public UpdateSettingsViewModel(ISettingsAppService settingsAppService, IUpdateAppService updateAppService, INotificationService notifications, ILauncherService launcher)
+	public UpdateSettingsViewModel(ISettingsAppService settingsAppService, IUpdateAppService updateAppService, INotificationService notifications, ILauncherService launcher, TimeProvider timeProvider)
 	{
 		_settingsAppService = settingsAppService;
 		_updateAppService = updateAppService;
 		_notifications = notifications;
 		_launcher = launcher;
+		_timeProvider = timeProvider;
 
 		CheckUpdateCommand.DisposeWith(Disposables);
 		OpenHomepageCommand.DisposeWith(Disposables);
@@ -47,23 +54,39 @@ public sealed partial class UpdateSettingsViewModel : ViewModelBase
 		PersistSetting(_settingsAppService, this.WhenChanged(static viewModel => viewModel.IncludePreRelease), static (current, value) => current with { IncludePreRelease = value });
 	}
 
-	internal async Task CheckForUpdateOnStartupAsync(CancellationToken cancellationToken = default)
+	internal void StartAutoCheck()
 	{
-		if (!AutoCheckUpdate)
-		{
-			return;
-		}
+		Forget(AutoCheckAsync);
+	}
 
-		if (await _updateAppService.TryCheckForUpdateAsync(IncludePreRelease, cancellationToken) is { } result)
+	private async Task AutoCheckAsync(CancellationToken cancellationToken)
+	{
+		using PeriodicTimer timer = new(AutoCheckPollInterval, _timeProvider);
+		DateTimeOffset? lastCheck = null;
+
+		do
 		{
-			ShowResult(result, silentOnLatest: true);
+			DateTimeOffset now = _timeProvider.GetUtcNow();
+
+			if (!AutoCheckUpdate || now - lastCheck < AutoCheckInterval)
+			{
+				continue;
+			}
+
+			lastCheck = now;
+
+			if (await _updateAppService.TryCheckForUpdateAsync(IncludePreRelease, cancellationToken) is { } result)
+			{
+				ShowResult(result, isAutomatic: true);
+			}
 		}
+		while (await timer.WaitForNextTickAsync(cancellationToken));
 	}
 
 	[ReactiveCommand]
 	private async Task CheckUpdateAsync(CancellationToken cancellationToken)
 	{
-		ShowResult(await _updateAppService.CheckForUpdateAsync(IncludePreRelease, cancellationToken), silentOnLatest: false);
+		ShowResult(await _updateAppService.CheckForUpdateAsync(IncludePreRelease, cancellationToken), isAutomatic: false);
 	}
 
 	[ReactiveCommand]
@@ -85,15 +108,21 @@ public sealed partial class UpdateSettingsViewModel : ViewModelBase
 			: AppLanguage.Current.CurrentAndLatestVersion.ToString(CurrentVersion, latest);
 	}
 
-	private void ShowResult(UpdateCheckResult result, bool silentOnLatest)
+	private void ShowResult(UpdateCheckResult result, bool isAutomatic)
 	{
 		LatestVersion = result.LatestVersion;
 
 		if (result is { HasUpdate: true, LatestVersion: { } latestVersion })
 		{
+			if (isAutomatic && latestVersion == _notifiedVersion)
+			{
+				return;
+			}
+
+			_notifiedVersion = latestVersion;
 			_notifications.Show(AppLanguage.Current.Update, AppLanguage.Current.NewVersionAvailable.ToString(latestVersion), link: new Uri(AppConsts.ReleasesUrl));
 		}
-		else if (!silentOnLatest)
+		else if (!isAutomatic)
 		{
 			_notifications.Show(AppLanguage.Current.Update, AppLanguage.Current.AlreadyLatestVersion, AppNotificationType.Success);
 		}

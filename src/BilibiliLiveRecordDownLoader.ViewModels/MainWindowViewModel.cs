@@ -118,8 +118,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 		Logs.StartMonitoring();
 		Tools.RefreshFFmpegStatus();
 		Account.RefreshLoginStatus();
-
-		await Settings.Update.CheckForUpdateOnStartupAsync(cancellationToken);
+		Settings.Update.StartAutoCheck();
 	}
 
 	[ReactiveCommand]
