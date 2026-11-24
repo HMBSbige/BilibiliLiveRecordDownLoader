@@ -279,7 +279,7 @@ public sealed partial class MediaToolsViewModel : ViewModelBase
 	}
 
 	// TimeSpan 的 h、m 格式只认 0–23 时、0–59 分，录像可能超过一天；只有一个数时分不清单位，至少写出分和秒；位数上限防止换算溢出
-	[GeneratedRegex(@"^(?:(?<hours>[0-9]{1,6}):(?<minutes>[0-5][0-9])|(?<minutes>[0-9]{1,8})):(?<seconds>[0-5][0-9])(?:\.(?<fraction>[0-9]{1,3}))?$", RegexOptions.CultureInvariant)]
+	[GeneratedRegex(@"^(?:(?<hours>[0-9]{1,6}):(?<minutes>[0-5][0-9])|(?<minutes>[0-9]{1,8})):(?<seconds>[0-5][0-9])(?:\.(?<fraction>[0-9]{1,3}))?$")]
 	private static partial Regex TimePattern { get; }
 
 	private static string? GetDirectory(string path)

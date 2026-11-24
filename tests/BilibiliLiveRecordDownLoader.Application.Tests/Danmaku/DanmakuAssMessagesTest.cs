@@ -16,7 +16,7 @@ public sealed partial class DanmakuAssMessagesTest
 		static (user, gift, count) => $@"{user} 投喂 {gift} ×{count}"
 	);
 
-	[GeneratedRegex(@"^Dialogue: (?<layer>\d),(?<start>[^,]+),(?<end>[^,]+),Message,,0,0,0,,\{(?<tags>[^}]*)\}(?<text>.*)$")]
+	[GeneratedRegex(@"^Dialogue: (?<layer>\d),(?<start>[^,]+),(?<end>[^,]+),Message,,0,0,0,,\{(?<tags>[^}]*)\}(?<text>.*)$", RegexOptions.Multiline)]
 	private static partial Regex MessageRegex { get; }
 
 	private static (Match[] Messages, DanmakuAssResult Result, string Text) Generate(IEnumerable<DanmakuRecord> records, VideoResolution? size = null)
@@ -24,7 +24,7 @@ public sealed partial class DanmakuAssMessagesTest
 		StringWriter writer = new(CultureInfo.InvariantCulture);
 		DanmakuAssResult result = DanmakuAssGenerator.Write(writer, records, size, Labels);
 		string text = writer.ToString();
-		return ([.. text.Split('\n').Select(static line => MessageRegex.Match(line)).Where(static match => match.Success)], result, text);
+		return (MessageRegex.Matches(text).ToArray(), result, text);
 	}
 
 	private static string[] Texts(Match[] messages)
@@ -292,12 +292,12 @@ public sealed partial class DanmakuAssMessagesTest
 		await Assert.That(shape.Groups[@"text"].Value).IsEqualTo(@"m 6 0 l 474 0 b 477 0 480 3 480 6 l 480 42 b 480 45 477 48 474 48 l 6 48 b 3 48 0 45 0 42 l 0 6 b 0 3 3 0 6 0");
 	}
 
-	[GeneratedRegex(@"^Dialogue: 0,[^,]+,[^,]+,Danmaku,,0,0,0,,\{(?<tags>[^}]*)\}(?<text>.*)$")]
+	[GeneratedRegex(@"^Dialogue: 0,[^,]+,[^,]+,Danmaku,,0,0,0,,\{(?<tags>[^}]*)\}(?<text>.*)$", RegexOptions.Multiline)]
 	private static partial Regex DanmakuRegex { get; }
 
 	private static Dictionary<string, string> BottomPositions(string text)
 	{
-		return text.Split('\n').Select(static line => DanmakuRegex.Match(line)).Where(static match => match.Success).ToDictionary(static match => match.Groups[@"text"].Value, static match => match.Groups[@"tags"].Value);
+		return DanmakuRegex.Matches(text).ToDictionary(static match => match.Groups[@"text"].Value, static match => match.Groups[@"tags"].Value);
 	}
 
 	private static string Wide(int i)

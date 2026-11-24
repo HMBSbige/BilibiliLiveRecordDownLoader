@@ -11,7 +11,7 @@ public sealed partial class DanmakuAssGeneratorTest
 	private const double ScrollSeconds = 12;
 	private const double Tolerance = 0.02;
 
-	[GeneratedRegex(@"^Dialogue: 0,(?<start>[^,]+),(?<end>[^,]+),Danmaku,,0,0,0,,\{(?<tags>[^}]*)\}(?<text>.*)$")]
+	[GeneratedRegex(@"^Dialogue: 0,(?<start>[^,]+),(?<end>[^,]+),Danmaku,,0,0,0,,\{(?<tags>[^}]*)\}(?<text>.*)$", RegexOptions.Multiline)]
 	private static partial Regex DialogueRegex { get; }
 
 	[GeneratedRegex(@"\\move\((?<x1>-?\d+),(?<y1>-?\d+),(?<x2>-?\d+),(?<y2>-?\d+)\)")]
@@ -32,7 +32,7 @@ public sealed partial class DanmakuAssGeneratorTest
 
 	private static Match[] Dialogues(string text)
 	{
-		return [.. text.Split('\n').Select(static line => DialogueRegex.Match(line)).Where(static match => match.Success)];
+		return DialogueRegex.Matches(text).ToArray();
 	}
 
 	private static double ParseTime(string value)
