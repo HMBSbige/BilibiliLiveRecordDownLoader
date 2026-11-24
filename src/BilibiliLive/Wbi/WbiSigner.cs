@@ -1,6 +1,7 @@
 using CryptoBase.Hashes;
 using CryptoBase.Hashes.MD5;
 using System.Buffers;
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 
@@ -58,7 +59,14 @@ internal static class WbiSigner
 			ArrayPool<byte>.Shared.Return(buffer);
 		}
 
-		return $"{query}&w_rid={Convert.ToHexStringLower(hash)}";
+		Span<char> signature = stackalloc char[hash.Length * 2];
+
+		if (!Convert.TryToHexStringLower(hash, signature, out _))
+		{
+			throw new UnreachableException();
+		}
+
+		return string.Concat(query, "&w_rid=", signature);
 	}
 
 	private static string RemoveReservedChars(string value)

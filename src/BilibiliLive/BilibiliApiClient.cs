@@ -53,10 +53,25 @@ public sealed class BilibiliApiClient
 			throw new ArgumentException("At least one room id is required.", nameof(roomIds));
 		}
 
-		// getRoomBaseInfo 能解析短号，也是唯一不用签名又返回主播名的接口
-		string query = string.Join('&', roomIds.Select(static roomId => string.Create(CultureInfo.InvariantCulture, $"room_ids={roomId}")));
-		RoomBaseInfoData data = await GetDataAsync(new Uri($"{LiveApi}xlive/web-room/v1/index/getRoomBaseInfo?{query}&req_biz=web_room_componet"), BilibiliJsonContext.Default.RoomBaseInfoData, cancellationToken);
+		RoomBaseInfoData data = await GetDataAsync(CreateRoomBaseInfoUri(roomIds), BilibiliJsonContext.Default.RoomBaseInfoData, cancellationToken);
 		return data.ByRoomIds is { } rooms ? [.. rooms.Values.Select(ToRoomInfo)] : [];
+	}
+
+	// getRoomBaseInfo 能解析短号，也是唯一不用签名又返回主播名的接口
+	private static Uri CreateRoomBaseInfoUri(IReadOnlyCollection<long> roomIds)
+	{
+		DefaultInterpolatedStringHandler url = new(0, 0, CultureInfo.InvariantCulture);
+		url.AppendLiteral($"{LiveApi}xlive/web-room/v1/index/getRoomBaseInfo?");
+
+		foreach (long roomId in roomIds)
+		{
+			url.AppendLiteral("room_ids=");
+			url.AppendFormatted(roomId);
+			url.AppendLiteral("&");
+		}
+
+		url.AppendLiteral("req_biz=web_room_componet");
+		return new Uri(url.ToStringAndClear());
 	}
 
 	private static LiveRoomInfo ToRoomInfo(RoomBaseInfo room)
