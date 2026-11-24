@@ -107,13 +107,19 @@ jobs:
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
-        shell: pwsh
-        run: Compress-Archive -Path "artifacts/publish/${{ env.ProjectName }}.Desktop/release_${{ matrix.target.rid }}/*" -DestinationPath "${{ env.ProjectName }}-${{ matrix.target.rid }}.zip"
+        run: 7z a -mx=9 "${{ env.ProjectName }}-${{ matrix.target.rid }}.7z" "./artifacts/publish/${{ env.ProjectName }}.Desktop/release_${{ matrix.target.rid }}/*"
 
       # upload-artifact 不保留文件权限，先打成 tar 保住可执行位
-      - name: Package (Unix)
-        if: runner.os != 'Windows'
-        run: tar -czf "${{ env.ProjectName }}-${{ matrix.target.rid }}.tar.gz" -C "artifacts/publish/${{ env.ProjectName }}.Desktop/release_${{ matrix.target.rid }}" .
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        env:
+          XZ_OPT: "-9"
+        run: tar -cJf "${{ env.ProjectName }}-${{ matrix.target.rid }}.tar.xz" -C "artifacts/publish/${{ env.ProjectName }}.Desktop/release_${{ matrix.target.rid }}" .
+
+      # macOS 的 tar 不认 XZ_OPT，会静默按默认级别压缩
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: tar --options xz:compression-level=9 -cJf "${{ env.ProjectName }}-${{ matrix.target.rid }}.tar.xz" -C "artifacts/publish/${{ env.ProjectName }}.Desktop/release_${{ matrix.target.rid }}" .
 
       - name: Upload
         uses: actions/upload-artifact@v7
