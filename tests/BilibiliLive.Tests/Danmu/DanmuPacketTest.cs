@@ -47,9 +47,15 @@ public class DanmuPacketTest
 		return DanmuPacket.Encode(DanmuOperation.Message, version, Encoding.UTF8.GetBytes(json));
 	}
 
-	private static IEnumerable<string> Bodies(IEnumerable<DanmuPacket> packets)
+	private static string[] Bodies(List<DanmuPacket> packets)
 	{
-		return packets.Select(static p => Encoding.UTF8.GetString(p.Body.Span));
+		return [.. packets.Select(static p => Encoding.UTF8.GetString(p.Body.Span))];
+	}
+
+	private static string[] DecodeBodies(byte[] data)
+	{
+		using DanmuPacketDecoder decoder = new();
+		return Bodies(decoder.Decode(data));
 	}
 
 	public static IEnumerable<TestDataRow<Func<byte[]>>> MalformedData()
@@ -67,19 +73,19 @@ public class DanmuPacketTest
 			data[5] = 8;
 			return data;
 		}, DisplayName: "Decode rejects a header shorter than sixteen bytes");
-		yield return new(static () => DanmuPacket.Encode(DanmuOperation.Message, 0, new byte[DanmuPacket.MaxPacketLength - DanmuPacket.HeaderLength + 1]), DisplayName: "Decode rejects a packet longer than the limit");
+		yield return new(static () => DanmuPacket.Encode(DanmuOperation.Message, 0, new byte[DanmuPacketDecoder.MaxPacketLength - DanmuPacket.HeaderLength + 1]), DisplayName: "Decode rejects a packet longer than the limit");
 		yield return new(static () =>
 		{
-			byte[] zeros = DanmuPacket.Encode(DanmuOperation.Message, 0, new byte[DanmuPacket.MaxPacketLength / 2]);
+			byte[] zeros = DanmuPacket.Encode(DanmuOperation.Message, 0, new byte[DanmuPacketDecoder.MaxPacketLength / 2]);
 			return Zlib(zeros, zeros, zeros);
 		}, DisplayName: "Decode rejects a compression bomb");
 		yield return new(static () =>
 		{
 			Random random = new(42);
-			byte[] body = new byte[DanmuPacket.MaxPacketLength / 2];
+			byte[] body = new byte[DanmuPacketDecoder.MaxPacketLength / 2];
 			ArrayBufferWriter<byte> data = new();
 
-			for (int i = 0; i <= DanmuPacket.MaxDecompressedLength / body.Length; ++i)
+			for (int i = 0; i <= DanmuPacketDecoder.MaxDecompressedLength / body.Length; ++i)
 			{
 				random.NextBytes(body);
 				data.Write(Zlib(DanmuPacket.Encode(DanmuOperation.Message, 0, body)));
@@ -102,7 +108,8 @@ public class DanmuPacketTest
 	{
 		byte[] data = [.. Json("""{"cmd":"A"}"""), .. DanmuPacket.Encode(DanmuOperation.HeartbeatReply, 1, [0, 0, 0, 42]), .. Json("""{"cmd":"B"}""", 1)];
 
-		List<DanmuPacket> packets = DanmuPacket.Decode(data);
+		using DanmuPacketDecoder decoder = new();
+		List<DanmuPacket> packets = decoder.Decode(data);
 
 		await Assert.That(packets.Select(static p => (p.ProtocolVersion, p.Operation))).IsEquivalentTo([((ushort)0, DanmuOperation.Message), ((ushort)1, DanmuOperation.HeartbeatReply), ((ushort)1, DanmuOperation.Message)], CollectionOrdering.Matching);
 
@@ -118,7 +125,7 @@ public class DanmuPacketTest
 	{
 		byte[] data = [.. Json("""{"cmd":"before"}"""), .. Brotli(Json("""{"cmd":"A"}"""), Zlib(Json("""{"cmd":"B"}"""), Json("""{"cmd":"C"}""")), Json("""{"cmd":"D"}""")), .. Json("""{"cmd":"after"}""")];
 
-		await Assert.That(Bodies(DanmuPacket.Decode(data))).IsEquivalentTo(["""{"cmd":"before"}""", """{"cmd":"A"}""", """{"cmd":"B"}""", """{"cmd":"C"}""", """{"cmd":"D"}""", """{"cmd":"after"}"""], CollectionOrdering.Matching);
+		await Assert.That(DecodeBodies(data)).IsEquivalentTo(["""{"cmd":"before"}""", """{"cmd":"A"}""", """{"cmd":"B"}""", """{"cmd":"C"}""", """{"cmd":"D"}""", """{"cmd":"after"}"""], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -126,14 +133,14 @@ public class DanmuPacketTest
 	{
 		byte[] packet = [0, 0, 0, 22, 0, 20, 0, 0, 0, 0, 0, 5, 0, 0, 0, 1, 9, 9, 9, 9, (byte)'o', (byte)'k'];
 
-		await Assert.That(Bodies(DanmuPacket.Decode(packet))).IsEquivalentTo(["ok"], CollectionOrdering.Matching);
+		await Assert.That(DecodeBodies(packet)).IsEquivalentTo(["ok"], CollectionOrdering.Matching);
 	}
 
 	[Test]
 	[MethodDataSource(nameof(MalformedData))]
 	public async Task DecodeRejectsMalformedDataAsync(byte[] data)
 	{
-		await Assert.That(() => DanmuPacket.Decode(data)).Throws<InvalidDataException>();
+		await Assert.That(() => DecodeBodies(data)).Throws<InvalidDataException>();
 	}
 
 	[Test]
@@ -143,8 +150,33 @@ public class DanmuPacketTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(Bodies(DanmuPacket.Decode(Nest(packet, DanmuPacket.MaxCompressionDepth)))).IsEquivalentTo(["""{"cmd":"A"}"""], CollectionOrdering.Matching);
-			await Assert.That(() => DanmuPacket.Decode(Nest(packet, DanmuPacket.MaxCompressionDepth + 1))).Throws<InvalidDataException>();
+			await Assert.That(DecodeBodies(Nest(packet, DanmuPacketDecoder.MaxCompressionDepth))).IsEquivalentTo(["""{"cmd":"A"}"""], CollectionOrdering.Matching);
+			await Assert.That(() => DecodeBodies(Nest(packet, DanmuPacketDecoder.MaxCompressionDepth + 1))).Throws<InvalidDataException>();
+		}
+	}
+
+	[Test]
+	public async Task DecodeGrowsTheBufferForWellCompressedPacketsAsync()
+	{
+		Random random = new(42);
+		string[] words = ["live", "danmu"];
+		string json = $$"""{"cmd":"A","text":"{{string.Join(' ', random.GetItems(words, 20_000))}}"}""";
+
+		await Assert.That(DecodeBodies(Brotli(Json(json)))).IsEquivalentTo([json], CollectionOrdering.Matching);
+	}
+
+	[Test]
+	public async Task DecoderIsReusableAcrossMessagesAsync()
+	{
+		using DanmuPacketDecoder decoder = new();
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(Bodies(decoder.Decode(Zlib(Json("""{"cmd":"A"}"""))))).IsEquivalentTo(["""{"cmd":"A"}"""]);
+			await Assert.That(Bodies(decoder.Decode(Brotli(Json("""{"cmd":"B"}"""))))).IsEquivalentTo(["""{"cmd":"B"}"""]);
+			await Assert.That(Bodies(decoder.Decode(Zlib(Json("""{"cmd":"C"}"""))))).IsEquivalentTo(["""{"cmd":"C"}"""]);
+			await Assert.That(() => decoder.Decode(DanmuPacket.Encode(DanmuOperation.Message, DanmuPacket.ZlibVersion, new byte[40]))).Throws<InvalidDataException>();
+			await Assert.That(Bodies(decoder.Decode(Zlib(Json("""{"cmd":"D"}"""))))).IsEquivalentTo(["""{"cmd":"D"}"""]);
 		}
 	}
 }

@@ -84,6 +84,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		ReceiveActivity activity = new(apiClient.TimeProvider);
 		Task heartbeat = HeartbeatAsync(socket, activity, endpoint.UserId, buvid3, endpoint.IdentityHash, heartbeatCts.Token);
 		ArrayBufferWriter<byte> buffer = new(ReceiveChunkSize);
+		using DanmuPacketDecoder decoder = new();
 		List<DanmuMessage> messages = [];
 
 		try
@@ -96,7 +97,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 				DanmuReceiveTime receivedAt = new(apiClient.TimeProvider.GetTimestamp(), apiClient.TimeProvider.GetUtcNow());
 				DanmuParseMode mode = options.Mode;
 
-				foreach (DanmuPacket packet in DanmuPacket.Decode(buffer.WrittenMemory))
+				foreach (DanmuPacket packet in decoder.Decode(buffer.WrittenMemory))
 				{
 					switch (packet.Operation)
 					{

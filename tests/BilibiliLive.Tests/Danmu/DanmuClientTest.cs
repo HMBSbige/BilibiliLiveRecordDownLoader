@@ -121,7 +121,8 @@ public class DanmuClientTest
 		}
 		while (!result.EndOfMessage);
 
-		return DanmuPacket.Decode(buffer.AsMemory(0, length));
+		using DanmuPacketDecoder decoder = new();
+		return [.. decoder.Decode(buffer.AsMemory(0, length))];
 	}
 
 	private static async Task ReceiveHeartbeatAsync(WebSocket server, CancellationToken cancellationToken)
@@ -460,7 +461,7 @@ public class DanmuClientTest
 
 		async Task SendAndCloseAsync()
 		{
-			byte[] packet = DanmuPacket.Encode(DanmuOperation.HeartbeatReply, 1, new byte[DanmuPacket.MaxPacketLength / 2]);
+			byte[] packet = DanmuPacket.Encode(DanmuOperation.HeartbeatReply, 1, new byte[DanmuPacketDecoder.MaxPacketLength / 2]);
 
 			for (int sent = 0; sent <= DanmuClient.MaxMessageLength; sent += packet.Length)
 			{
