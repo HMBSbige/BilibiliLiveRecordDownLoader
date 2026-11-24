@@ -108,11 +108,11 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 		if (_rawAwaitsConnection && _raw is not null)
 		{
 			_rawAwaitsConnection = false;
-			await GuardRawAsync(() => _raw.WriteConnectedAsync(connected.ReceivedAt.UtcTime, connected.IsAnonymous, false, CancellationToken.None));
+			await GuardRawAsync(_raw.WriteConnectedAsync(connected.ReceivedAt.UtcTime, connected.IsAnonymous, false, CancellationToken.None));
 		}
 	}
 
-	private async Task<DanmakuWork?> ReadAsync(ChannelReader<DanmakuWork> reader, CancellationToken cancellationToken)
+	private async ValueTask<DanmakuWork?> ReadAsync(ChannelReader<DanmakuWork> reader, CancellationToken cancellationToken)
 	{
 		while (true)
 		{
@@ -169,20 +169,23 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 
 	private TimeSpan? NextDue()
 	{
-		TimeSpan? due = null;
+		TimeSpan? due = _text is { File: { IsFailed: false } text } ? text.Writer.FlushDueIn : null;
 
-		foreach (Sink sink in OpenSinks.Where(static sink => !sink.IsFailed))
+		foreach (Sink.Video? sink in _videoSinks.Values)
 		{
-			due = Min(due, sink.Writer.FlushDueIn);
+			if (sink is { IsFailed: false })
+			{
+				due = Min(due, sink.Writer.FlushDueIn);
+
+				// 画面追上压着的记录时没有通知，只能定时检查
+				if (sink.Ahead.Count > 0)
+				{
+					due = Min(due, AheadCheckInterval);
+				}
+			}
 		}
 
 		due = Min(due, _raw?.FlushDueIn);
-
-		// 画面追上压着的记录时没有通知，只能定时检查
-		if (_videoSinks.Values.Any(static sink => sink is { IsFailed: false, Ahead.Count: > 0 }))
-		{
-			due = Min(due, AheadCheckInterval);
-		}
 
 		if (_pendingConnection is not null)
 		{
@@ -216,12 +219,12 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 				await ReleaseAsync(video, null, cancellationToken);
 			}
 
-			await GuardAsync(sink, () => sink.Writer.FlushIfDueAsync(cancellationToken));
+			await GuardAsync(sink, sink.Writer.FlushIfDueAsync(cancellationToken));
 		}
 
 		if (_raw is not null)
 		{
-			await GuardRawAsync(() => _raw.FlushIfDueAsync(cancellationToken));
+			await GuardRawAsync(_raw.FlushIfDueAsync(cancellationToken));
 		}
 	}
 
@@ -341,7 +344,7 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 				if (_raw is not null)
 				{
 					_rawAwaitsConnection = false;
-					await GuardRawAsync(() => _raw.WriteConnectedAsync(connected.ReceivedAt.UtcTime, connected.IsAnonymous, null, cancellationToken));
+					await GuardRawAsync(_raw.WriteConnectedAsync(connected.ReceivedAt.UtcTime, connected.IsAnonymous, null, cancellationToken));
 				}
 
 				break;
@@ -369,7 +372,7 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 			{
 				if (_raw is not null)
 				{
-					await GuardRawAsync(() => _raw.WriteAsync(raw.ReceivedAt.UtcTime, raw.Command, raw.Json.Span, cancellationToken));
+					await GuardRawAsync(_raw.WriteAsync(raw.ReceivedAt.UtcTime, raw.Command, raw.Json.Span, cancellationToken));
 				}
 
 				break;
@@ -450,7 +453,7 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 
 		if (_raw is not null)
 		{
-			await GuardRawAsync(() => _raw.WriteDisconnectedAsync(time.UtcTime, cancellationToken));
+			await GuardRawAsync(_raw.WriteDisconnectedAsync(time.UtcTime, cancellationToken));
 		}
 
 		_connection = null;
@@ -483,7 +486,7 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 		}
 	}
 
-	private async Task<(Sink Sink, TimeSpan Time)?> PlaceAsync(long timestamp, CancellationToken cancellationToken)
+	private async ValueTask<(Sink Sink, TimeSpan Time)?> PlaceAsync(long timestamp, CancellationToken cancellationToken)
 	{
 		if (_text is { File: { } textSink })
 		{
@@ -795,7 +798,7 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 
 		if (_raw is not null)
 		{
-			await GuardRawAsync(() => _raw.WriteConnectedAsync(connection.ReceivedAt.UtcTime, connection.IsAnonymous, _isMasked, cancellationToken));
+			await GuardRawAsync(_raw.WriteConnectedAsync(connection.ReceivedAt.UtcTime, connection.IsAnonymous, _isMasked, cancellationToken));
 		}
 	}
 
@@ -933,7 +936,7 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 	private async Task ReleaseAsync(Sink.Video sink, TimeSpan? end, CancellationToken cancellationToken)
 	{
 		// 前一段还没关时它的末尾可能还要接过来，先不写；还没登记的是最新的一段
-		if (sink.Ahead.Count is 0 || end is null && _videoSinks.Values.TakeWhile(other => !ReferenceEquals(other, sink)).Any(static other => other is not null))
+		if (sink.Ahead.Count is 0 || end is null && HasOpenSinkBefore(sink))
 		{
 			return;
 		}
@@ -946,13 +949,36 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 			++count;
 		}
 
-		List<DanmakuRecord> ready = sink.Ahead.GetRange(0, count);
-		sink.Ahead.RemoveRange(0, count);
-
-		foreach (DanmakuRecord record in ready)
+		// 中途抛出时也要移出，否则已交给写入器的记录在关闭这一段时会再写一遍
+		try
 		{
-			await WriteNowAsync(sink, record, cancellationToken);
+			for (int i = 0; i < count; ++i)
+			{
+				await WriteNowAsync(sink, sink.Ahead[i], cancellationToken);
+			}
 		}
+		finally
+		{
+			sink.Ahead.RemoveRange(0, count);
+		}
+	}
+
+	private bool HasOpenSinkBefore(Sink.Video sink)
+	{
+		foreach (Sink.Video? other in _videoSinks.Values)
+		{
+			if (ReferenceEquals(other, sink))
+			{
+				return false;
+			}
+
+			if (other is not null)
+			{
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private async Task WriteNowAsync(Sink sink, DanmakuRecord record, CancellationToken cancellationToken)
@@ -963,15 +989,15 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 		}
 
 		sink.LastTime = record.Time > sink.LastTime ? record.Time : sink.LastTime;
-		await GuardAsync(sink, () => sink.Writer.WriteAsync(record, cancellationToken));
+		await GuardAsync(sink, sink.Writer.WriteAsync(record, cancellationToken));
 	}
 
 	// 失败后不再写这个文件，但待写内容留着，关闭时从原位置重写，让文件尽量以 </i> 结尾
-	private async Task GuardAsync(Sink sink, Func<ValueTask> write)
+	private async Task GuardAsync(Sink sink, ValueTask write)
 	{
 		try
 		{
-			await write();
+			await write;
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
@@ -980,11 +1006,11 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 		}
 	}
 
-	private async Task GuardRawAsync(Func<ValueTask> write)
+	private async Task GuardRawAsync(ValueTask write)
 	{
 		try
 		{
-			await write();
+			await write;
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
 		{
@@ -1008,7 +1034,12 @@ internal sealed partial class DanmakuRecorder(long roomId, TimeProvider timeProv
 
 	private void UpdateRecording()
 	{
-		bool isRecording = OpenSinks.Any(static sink => sink is { IsFailed: false, IsPaused: false });
+		bool isRecording = _text is { File: { IsFailed: false, IsPaused: false } };
+
+		foreach (Sink.Video? sink in _videoSinks.Values)
+		{
+			isRecording |= sink is { IsFailed: false, IsPaused: false };
+		}
 
 		if (isRecording != _isRecording)
 		{
