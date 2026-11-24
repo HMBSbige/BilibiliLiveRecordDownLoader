@@ -50,6 +50,7 @@ internal static class DanmakuAssGenerator
 
 		int shown = 0;
 		int dropped = 0;
+		StringBuilder dialogue = new();
 
 		foreach (DanmakuRecord.Comment comment in sorted.OfType<DanmakuRecord.Comment>())
 		{
@@ -62,23 +63,48 @@ internal static class DanmakuAssGenerator
 			int span = Math.Clamp((fontSize + laneHeight - 1) / laneHeight, 1, laneCount);
 			TimeSpan start = comment.Time < TimeSpan.Zero ? TimeSpan.Zero : comment.Time;
 			double textWidth = EstimateWidth(text, fontSize);
-			string? position = comment.Mode switch
+			int? placed = comment.Mode switch
 			{
-				4 => PlaceFixed(bottomLanes, span, start, BottomAvoidance(messages?.Occupancy, start, width, height, textWidth, laneHeight)) is { } lane ? string.Create(CultureInfo.InvariantCulture, $@"\an2\pos({width / 2},{height - lane * laneHeight})") : null,
-				5 => PlaceFixed(topLanes, span, start, null) is { } lane ? string.Create(CultureInfo.InvariantCulture, $@"\an8\pos({width / 2},{lane * laneHeight})") : null,
-				_ => PlaceScroll(scrollLanes, span, start, textWidth, width) is { } lane ? string.Create(CultureInfo.InvariantCulture, $@"\an7\move({width},{lane * laneHeight},{-(int)Math.Ceiling(textWidth)},{lane * laneHeight})") : null
+				4 => PlaceFixed(bottomLanes, span, start, BottomAvoidance(messages?.Occupancy, start, width, height, textWidth, laneHeight)),
+				5 => PlaceFixed(topLanes, span, start, null),
+				_ => PlaceScroll(scrollLanes, span, start, textWidth, width)
 			};
 
-			if (position is null)
+			if (placed is not { } lane)
 			{
 				++dropped;
 				continue;
 			}
 
 			TimeSpan end = start + (comment.Mode is 4 or 5 ? FixedDuration : ScrollDuration);
-			string sizeTag = fontSize == laneHeight ? string.Empty : string.Create(CultureInfo.InvariantCulture, $@"\fs{fontSize}");
-			string colorTag = (comment.Color & 0xFFFFFF) is 0xFFFFFF ? string.Empty : $@"\c&H{DanmakuAssText.Color(comment.Color)}&";
-			writer.Write($"Dialogue: 0,{DanmakuAssText.Time(start)},{DanmakuAssText.Time(end)},Danmaku,,0,0,0,,{{{position}{sizeTag}{colorTag}}}{text}\n");
+			dialogue.Clear();
+			dialogue.Append(CultureInfo.InvariantCulture, $"Dialogue: 0,{DanmakuAssText.Time(start)},{DanmakuAssText.Time(end)},Danmaku,,0,0,0,,{{");
+
+			if (comment.Mode is 4)
+			{
+				dialogue.Append(CultureInfo.InvariantCulture, $@"\an2\pos({width / 2},{height - lane * laneHeight})");
+			}
+			else if (comment.Mode is 5)
+			{
+				dialogue.Append(CultureInfo.InvariantCulture, $@"\an8\pos({width / 2},{lane * laneHeight})");
+			}
+			else
+			{
+				dialogue.Append(CultureInfo.InvariantCulture, $@"\an7\move({width},{lane * laneHeight},{-(int)Math.Ceiling(textWidth)},{lane * laneHeight})");
+			}
+
+			if (fontSize != laneHeight)
+			{
+				dialogue.Append(CultureInfo.InvariantCulture, $@"\fs{fontSize}");
+			}
+
+			if ((comment.Color & 0xFFFFFF) is not 0xFFFFFF)
+			{
+				dialogue.Append(CultureInfo.InvariantCulture, $@"\c&H{DanmakuAssText.Color(comment.Color)}&");
+			}
+
+			dialogue.Append('}').Append(text).Append('\n');
+			writer.Write(dialogue);
 			++shown;
 		}
 
@@ -91,14 +117,14 @@ internal static class DanmakuAssGenerator
 	}
 
 	// 只有底部弹幕要避让：滚动和顶部弹幕从上往下排，和消息栏重叠的轨道只在上面的都不空闲时才用到，那时退回重叠的排法也一样
-	private static Func<int, int, bool>? BottomAvoidance(DanmakuAssMessages.Occupancy? occupied, TimeSpan start, int screenWidth, int screenHeight, double textWidth, int laneHeight)
+	private static BottomBand? BottomAvoidance(DanmakuAssMessages.Occupancy? occupied, TimeSpan start, int screenWidth, int screenHeight, double textWidth, int laneHeight)
 	{
 		if (occupied is null || screenWidth / 2.0 - textWidth / 2 >= occupied.Right || occupied.TopDuring(start, start + FixedDuration) is not { } top)
 		{
 			return null;
 		}
 
-		return (lane, count) => screenHeight - lane * laneHeight > top && screenHeight - (lane + count) * laneHeight < occupied.Bottom;
+		return new BottomBand(screenHeight, laneHeight, top, occupied.Bottom);
 	}
 
 	private static void WriteHeader(TextWriter writer, int width, int height, int fontSize, int messageFontSize)
@@ -127,7 +153,7 @@ internal static class DanmakuAssGenerator
 	{
 		double speed = (screenWidth + textWidth) / ScrollDuration.TotalSeconds;
 
-		if (FindLane(lanes.Length, span, lane => lanes[lane] is not { } previous || previous.AllowsNext(start, speed, screenWidth), null) is not { } found)
+		if (FindLane(lanes.Length, span, (lanes, start, speed, screenWidth), static (state, lane) => state.lanes[lane] is not { } previous || previous.AllowsNext(state.start, state.speed, state.screenWidth), null) is not { } found)
 		{
 			return null;
 		}
@@ -136,9 +162,9 @@ internal static class DanmakuAssGenerator
 		return found;
 	}
 
-	private static int? PlaceFixed(TimeSpan[] lanes, int span, TimeSpan start, Func<int, int, bool>? avoid)
+	private static int? PlaceFixed(TimeSpan[] lanes, int span, TimeSpan start, BottomBand? avoid)
 	{
-		if (FindLane(lanes.Length, span, lane => lanes[lane] <= start, avoid) is not { } found)
+		if (FindLane(lanes.Length, span, (lanes, start), static (state, lane) => state.lanes[lane] <= state.start, avoid) is not { } found)
 		{
 			return null;
 		}
@@ -148,7 +174,7 @@ internal static class DanmakuAssGenerator
 	}
 
 	// 不重叠的都不空闲时退回第一段空闲的，宁可和消息栏重叠也不多丢弹幕
-	private static int? FindLane(int laneCount, int span, Func<int, bool> isFree, Func<int, int, bool>? avoid)
+	private static int? FindLane<TState>(int laneCount, int span, TState state, Func<TState, int, bool> isFree, BottomBand? avoid)
 	{
 		int? fallback = null;
 
@@ -157,13 +183,13 @@ internal static class DanmakuAssGenerator
 		{
 			for (int i = lane; i < lane + span; ++i)
 			{
-				if (!isFree(i))
+				if (!isFree(state, i))
 				{
 					continue outer;
 				}
 			}
 
-			if (avoid is null || !avoid(lane, span))
+			if (avoid is not { } band || !band.Overlaps(lane, span))
 			{
 				return lane;
 			}
@@ -185,6 +211,14 @@ internal static class DanmakuAssGenerator
 		}
 
 		return width;
+	}
+
+	private readonly record struct BottomBand(int ScreenHeight, int LaneHeight, double Top, double Bottom)
+	{
+		public bool Overlaps(int lane, int count)
+		{
+			return ScreenHeight - lane * LaneHeight > Top && ScreenHeight - (lane + count) * LaneHeight < Bottom;
+		}
 	}
 
 	private readonly record struct ScrollLane(TimeSpan Start, double Width, double Speed)

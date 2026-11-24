@@ -157,7 +157,7 @@ public sealed partial class DanmakuAssMessagesTest
 	{
 		(Match[] messages, _, _) = Generate([new DanmakuRecord.SuperChat(TimeSpan.FromSeconds(1), 1, @"老板", 30_000, TimeSpan.FromSeconds(duration), new string('字', length))]);
 
-		await Assert.That(messages.Select(static match => match.Groups[@"end"].Value).Distinct()).IsEquivalentTo([DanmakuAssText.Time(TimeSpan.FromSeconds(1 + seconds))]);
+		await Assert.That(messages.Select(static match => match.Groups[@"end"].Value).Distinct()).IsEquivalentTo([DanmakuAssText.Time(TimeSpan.FromSeconds(1 + seconds)).ToString()]);
 	}
 
 	[Test]

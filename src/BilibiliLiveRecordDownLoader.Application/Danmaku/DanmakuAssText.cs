@@ -49,15 +49,51 @@ internal static class DanmakuAssText
 			or >= 0x1F000;
 	}
 
-	// ASS 的颜色是 BGR
-	public static string Color(int rgb)
+	public static ColorText Color(int rgb)
 	{
-		return string.Create(CultureInfo.InvariantCulture, $@"{rgb & 0xFF:X2}{rgb >> 8 & 0xFF:X2}{rgb >> 16 & 0xFF:X2}");
+		return new ColorText(rgb);
 	}
 
-	public static string Time(TimeSpan value)
+	public static TimeText Time(TimeSpan value)
 	{
-		long centiseconds = value.Ticks / (TimeSpan.TicksPerMillisecond * 10);
-		return string.Create(CultureInfo.InvariantCulture, $@"{centiseconds / 360000}:{centiseconds / 6000 % 60:00}:{centiseconds / 100 % 60:00}.{centiseconds % 100:00}");
+		return new TimeText(value);
+	}
+
+	// ASS 的颜色是 BGR
+	public readonly struct ColorText(int rgb) : ISpanFormattable
+	{
+		public bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)
+		{
+			return destination.TryWrite(CultureInfo.InvariantCulture, $@"{rgb & 0xFF:X2}{rgb >> 8 & 0xFF:X2}{rgb >> 16 & 0xFF:X2}", out charsWritten);
+		}
+
+		public string ToString(string? format, IFormatProvider? formatProvider)
+		{
+			return ToString();
+		}
+
+		public override string ToString()
+		{
+			return string.Create(CultureInfo.InvariantCulture, $"{this}");
+		}
+	}
+
+	public readonly struct TimeText(TimeSpan value) : ISpanFormattable
+	{
+		public bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)
+		{
+			long centiseconds = value.Ticks / (TimeSpan.TicksPerMillisecond * 10);
+			return destination.TryWrite(CultureInfo.InvariantCulture, $@"{centiseconds / 360000}:{centiseconds / 6000 % 60:00}:{centiseconds / 100 % 60:00}.{centiseconds % 100:00}", out charsWritten);
+		}
+
+		public string ToString(string? format, IFormatProvider? formatProvider)
+		{
+			return ToString();
+		}
+
+		public override string ToString()
+		{
+			return string.Create(CultureInfo.InvariantCulture, $"{this}");
+		}
 	}
 }
