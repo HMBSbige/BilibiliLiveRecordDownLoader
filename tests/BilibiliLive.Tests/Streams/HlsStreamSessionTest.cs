@@ -707,13 +707,25 @@ public class HlsStreamSessionTest
 	public async Task FailingWriteOrObserverStopsEveryDownloadBeforeReturningAsync(bool observerFails, CancellationToken cancellationToken)
 	{
 		SegmentGates gates = new(2, "3", "4");
-		FakeHttpMessageHandler handler = new(async (request, ct) => request.RequestUri == PlaylistUri
-			? Responses.Text("#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n3.ts\n4.ts\n5.ts\n" + EndList)
-			: await gates.PassAsync(request, ct));
+		FakeHttpMessageHandler handler = new(async (request, ct) =>
+		{
+			if (request.RequestUri == PlaylistUri)
+			{
+				return Responses.Text("#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n3.ts\n4.ts\n5.ts\n" + EndList);
+			}
+
+			if (request.RequestUri?.AbsolutePath.EndsWith("/2.ts", StringComparison.Ordinal) is true)
+			{
+				await gates.Reached.WaitAsync(ct);
+				return Segment(request);
+			}
+
+			return await gates.PassAsync(request, ct);
+		});
 		using HttpClient client = new(handler);
 		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken);
-		FailingOnSecondWrite output = new(observerFails ? null : gates.Reached);
-		FailingObserver segments = new(observerFails ? gates.Reached : null);
+		FailingOnSecondWrite output = new(!observerFails);
+		FailingObserver segments = new(observerFails);
 
 		await Assert.ThrowsAsync<IOException>(() => session.CopyToAsync(output, segments, null, cancellationToken));
 
@@ -743,15 +755,14 @@ public class HlsStreamSessionTest
 
 	private sealed record CopyResult(string Output, IEnumerable<long> Progress, StreamEndReason Reason, long MissedSegments);
 
-	private sealed class FailingOnSecondWrite(Task? before) : MemoryStream
+	private sealed class FailingOnSecondWrite(bool fails) : MemoryStream
 	{
 		private int _writes;
 
 		public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
 		{
-			if (++_writes is 2 && before is not null)
+			if (++_writes is 2 && fails)
 			{
-				await before.WaitAsync(cancellationToken);
 				throw new IOException("The disk is gone.");
 			}
 
@@ -759,7 +770,7 @@ public class HlsStreamSessionTest
 		}
 	}
 
-	private sealed class FailingObserver(Task? before) : IHlsSegmentObserver
+	private sealed class FailingObserver(bool fails) : IHlsSegmentObserver
 	{
 		private int _segments;
 
@@ -769,9 +780,8 @@ public class HlsStreamSessionTest
 
 		public void OnMediaSegment(ReadOnlySpan<byte> data)
 		{
-			if (++_segments is 2 && before is not null)
+			if (++_segments is 2 && fails)
 			{
-				before.Wait();
 				throw new IOException("The splitter failed.");
 			}
 		}
