@@ -378,6 +378,26 @@ public class DanmuClientTest
 	}
 
 	[Test]
+	[Arguments("SESSDATA=renewed; bili_jct=renewed; DedeUserID=12345678", WebSocketMessageType.Binary)]
+	[Arguments("SESSDATA=renewed; bili_jct=renewed; DedeUserID=1", WebSocketMessageType.Close)]
+	public async Task ChangedCookieReconnectsOnlyForAnotherLoginAsync(string renewedCookie, WebSocketMessageType expected, CancellationToken cancellationToken)
+	{
+		FakeTimeProvider time = new();
+		using Harness harness = CreateDefault("SESSDATA=x; bili_jct=x; DedeUserID=12345678", time);
+		Task<List<DanmuMessage>> receiving = harness.ReceiveAllAsync(cancellationToken);
+
+		WebSocket server = await AuthenticateAsync(harness, """{"code":0}""", cancellationToken);
+		await ReceiveHeartbeatAsync(server, cancellationToken);
+		harness.Cookie = renewedCookie;
+		time.Advance(DanmuClient.HeartbeatInterval);
+		ValueWebSocketReceiveResult next = await server.ReceiveAsync(new byte[64].AsMemory(), cancellationToken);
+		await server.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
+		await receiving;
+
+		await Assert.That(next.MessageType).IsEqualTo(expected);
+	}
+
+	[Test]
 	public async Task AuthFailureThrowsAndDiscardsCachedServerInfoAsync(CancellationToken cancellationToken)
 	{
 		using Harness harness = CreateDefault();

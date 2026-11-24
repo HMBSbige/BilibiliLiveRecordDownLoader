@@ -8,5 +8,5 @@ public closed record QrCodeLoginResult
 
 	public sealed record Expired : QrCodeLoginResult;
 
-	public sealed record Succeeded(string Cookie) : QrCodeLoginResult;
+	public sealed record Succeeded(LoginCredentials Credentials) : QrCodeLoginResult;
 }

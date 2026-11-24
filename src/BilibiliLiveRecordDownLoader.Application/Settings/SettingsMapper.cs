@@ -18,6 +18,7 @@ internal static class SettingsMapper
 				RecordDirectory = config.RecordDirectory,
 				FFmpegPath = config.FFmpegPath,
 				UserAgent = config.UserAgent,
+				AutoRenewCookie = config.AutoRenewCookie,
 				UseSystemProxy = config.UseSystemProxy,
 				RecorderType = config.RecorderType,
 				CodecPriority = config.CodecPriority,
@@ -59,6 +60,7 @@ internal static class SettingsMapper
 			config.RecordDirectory = settings.RecordDirectory;
 			config.FFmpegPath = settings.FFmpegPath;
 			config.UserAgent = settings.UserAgent;
+			config.AutoRenewCookie = settings.AutoRenewCookie;
 			config.UseSystemProxy = settings.UseSystemProxy;
 			config.RecorderType = settings.RecorderType;
 			config.CodecPriority = settings.CodecPriority;

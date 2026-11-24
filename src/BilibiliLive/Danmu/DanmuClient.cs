@@ -5,6 +5,7 @@ using CryptoBase.Hashes.Sha2;
 using CryptoBase.Platform;
 using System.Buffers;
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -20,6 +21,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 
 	private const ushort SendProtocolVersion = 1;
 	private const int ReceiveChunkSize = 16 * 1024;
+	private const string UserIdCookieName = "DedeUserID";
 
 	internal static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(30);
 
@@ -74,12 +76,13 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		// 经由 API 的 HttpClient 握手，WebSocket 的代理、User-Agent 和 buvid3 都和 API 请求一致
 		await socket.ConnectAsync(uri, apiClient.HttpClient, cancellationToken);
 
-		DanmuAuthBody auth = new(endpoint.UserId, roomId, await identity.GetBuvid3Async(cancellationToken), endpoint.Token);
+		string buvid3 = await identity.GetBuvid3Async(cancellationToken);
+		DanmuAuthBody auth = new(endpoint.UserId, roomId, buvid3, endpoint.Token);
 		await SendAsync(socket, DanmuOperation.Auth, JsonSerializer.SerializeToUtf8Bytes(auth, BilibiliJsonContext.Default.DanmuAuthBody), cancellationToken);
 
 		using CancellationTokenSource heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		ReceiveActivity activity = new(apiClient.TimeProvider);
-		Task heartbeat = HeartbeatAsync(socket, activity, endpoint.IdentityHash, heartbeatCts.Token);
+		Task heartbeat = HeartbeatAsync(socket, activity, endpoint.UserId, buvid3, endpoint.IdentityHash, heartbeatCts.Token);
 		ArrayBufferWriter<byte> buffer = new(ReceiveChunkSize);
 		List<DanmuMessage> messages = [];
 
@@ -268,7 +271,7 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 		}
 	}
 
-	private async Task HeartbeatAsync(ClientWebSocket socket, ReceiveActivity activity, string identityHash, CancellationToken cancellationToken)
+	private async Task HeartbeatAsync(ClientWebSocket socket, ReceiveActivity activity, long userId, string buvid3, string identityHash, CancellationToken cancellationToken)
 	{
 		try
 		{
@@ -288,11 +291,17 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 				}
 
 				// 连接的身份由认证包决定，登录或退出只能在新连接上生效
-				if (await GetIdentityHashAsync(cancellationToken) != identityHash)
+				if (await GetIdentityHashAsync(cancellationToken) is var current && current != identityHash)
 				{
-					LogIdentityChanged();
-					await CloseForNewIdentityAsync(socket, activity, cancellationToken);
-					return;
+					// 续期只换 SESSDATA、bili_jct 等凭据，认证包里的 uid 和 buvid3 没变，已建立的连接可以继续用
+					if (!await IsSameLoginAsync(userId, buvid3, cancellationToken))
+					{
+						LogIdentityChanged();
+						await CloseForNewIdentityAsync(socket, activity, cancellationToken);
+						return;
+					}
+
+					identityHash = current;
 				}
 
 				await SendAsync(socket, DanmuOperation.Heartbeat, ReadOnlyMemory<byte>.Empty, cancellationToken);
@@ -309,6 +318,15 @@ public sealed partial class DanmuClient(BilibiliApiClient apiClient, BilibiliIde
 			activity.End ??= new ConnectionEnd.HeartbeatFailed(ex);
 			socket.Abort();
 		}
+	}
+
+	// 匿名连接在 Cookie 变化时总要重连，登录后才能换成实名连接
+	private async ValueTask<bool> IsSameLoginAsync(long userId, string buvid3, CancellationToken cancellationToken)
+	{
+		BilibiliRequestOptions options = await identity.GetOptionsAsync(cancellationToken);
+		return userId is not 0
+			&& CookieHeader.GetValue(options.Cookie, UserIdCookieName) == userId.ToString(CultureInfo.InvariantCulture)
+			&& identity.GetBuvid3(options) == buvid3;
 	}
 
 	// 直接中止会让挂起的接收失败，调用方会当成连接故障；走关闭握手则和服务器主动关闭一样正常结束

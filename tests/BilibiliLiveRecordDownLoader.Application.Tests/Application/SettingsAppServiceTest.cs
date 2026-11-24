@@ -25,6 +25,7 @@ public sealed class SettingsAppServiceTest
 			RecordDirectory = "records",
 			FFmpegPath = "ffmpeg",
 			UserAgent = "agent",
+			AutoRenewCookie = false,
 			UseSystemProxy = true,
 			RecorderType = RecorderType.FFmpeg,
 			CodecPriority = [StreamCodec.Hevc, StreamCodec.Avc, StreamCodec.Av1],

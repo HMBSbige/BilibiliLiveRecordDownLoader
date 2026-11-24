@@ -4,7 +4,7 @@ using System.Text;
 
 namespace BilibiliLive.Tests.Fakes;
 
-internal sealed record RecordedRequest(Uri Uri, IReadOnlyDictionary<string, string> Headers);
+internal sealed record RecordedRequest(Uri Uri, IReadOnlyDictionary<string, string> Headers, string? Content);
 
 internal sealed class FakeHttpMessageHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> respond) : HttpMessageHandler
 {
@@ -22,7 +22,8 @@ internal sealed class FakeHttpMessageHandler(Func<HttpRequestMessage, Cancellati
 	protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 	{
 		Uri uri = request.RequestUri ?? throw new InvalidOperationException("The request has no uri.");
-		Requests.Enqueue(new RecordedRequest(uri, request.Headers.NonValidated.ToDictionary(static h => h.Key, static h => h.Value.ToString(), StringComparer.OrdinalIgnoreCase)));
+		string? content = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
+		Requests.Enqueue(new RecordedRequest(uri, request.Headers.NonValidated.ToDictionary(static h => h.Key, static h => h.Value.ToString(), StringComparer.OrdinalIgnoreCase), content));
 
 		HttpResponseMessage response = await respond(request, cancellationToken);
 		response.RequestMessage ??= request;

@@ -108,5 +108,10 @@ public sealed class RecordingSettingsViewModelTest
 			update(config);
 			Updated.TrySetResult();
 		}
+
+		public ValueTask UpdateAndSaveAsync(Action<AppConfig> update, CancellationToken cancellationToken = default)
+		{
+			return UpdateAsync(update, cancellationToken);
+		}
 	}
 }

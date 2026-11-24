@@ -36,4 +36,12 @@ public class CookieHeaderTest
 
 		await Assert.That(CookieHeader.FromSetCookie(headers)).IsEqualTo("SESSDATA=new%2Cvalue; bili_jct=csrf; DedeUserID=12345678");
 	}
+
+	[Test]
+	public async Task MergeReplacesRenewedEntriesAndKeepsTheRestInPlaceAsync()
+	{
+		string renewed = CookieHeader.FromSetCookie(["SESSDATA=new; Path=/; HttpOnly", "bili_jct=d; Path=/", "sid=s; Path=/"]);
+
+		await Assert.That(CookieHeader.Merge("buvid3=B; SESSDATA=old; bili_jct=c; custom=x", renewed)).IsEqualTo("buvid3=B; SESSDATA=new; bili_jct=d; custom=x; sid=s");
+	}
 }

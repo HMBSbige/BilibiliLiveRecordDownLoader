@@ -12,7 +12,9 @@ public sealed class BilibiliApiClient
 {
 	private const string LiveApi = "https://api.live.bilibili.com/";
 	private const string NavUrl = "https://api.bilibili.com/x/web-interface/nav";
-	private const string PassportApi = "https://passport.bilibili.com/x/passport-login/web/qrcode/";
+	private const string PassportApi = "https://passport.bilibili.com/x/passport-login/web/";
+	private const string LogoutUrl = "https://passport.bilibili.com/login/exit/v2";
+	private const string CorrespondUrl = "https://www.bilibili.com/correspond/1/";
 
 	private static readonly TimeSpan BeijingOffset = TimeSpan.FromHours(8);
 
@@ -31,6 +33,8 @@ public sealed class BilibiliApiClient
 	internal HttpClient HttpClient { get; }
 
 	internal TimeProvider TimeProvider { get; }
+
+	internal string CorrespondKey { get; init; } = CorrespondPage.PublicKey;
 
 	internal static TimeSpan FollowingPageInterval { get; } = TimeSpan.FromMilliseconds(300);
 
@@ -157,6 +161,12 @@ public sealed class BilibiliApiClient
 
 	public async Task<long> GetCurrentUserIdAsync(CancellationToken cancellationToken = default)
 	{
+		return (await GetCurrentUserAsync(cancellationToken))?.UserId ?? 0;
+	}
+
+	/// <returns>未登录时为空</returns>
+	public async Task<CurrentUser?> GetCurrentUserAsync(CancellationToken cancellationToken = default)
+	{
 		ApiResponse<NavData> response = await GetNavAsync(cancellationToken);
 
 		// 紧接着要请求弹幕 token，用这次拿到的密钥签名，而不是可能已经轮换的缓存密钥
@@ -167,21 +177,16 @@ public sealed class BilibiliApiClient
 
 		if (response.Code is BilibiliApiException.NotLoggedInCode)
 		{
-			return 0;
+			return null;
 		}
 
 		NavData data = response.GetData();
-		return data.IsLogin ? data.Mid : 0;
-	}
-
-	public async Task<bool> IsLoggedInAsync(CancellationToken cancellationToken = default)
-	{
-		return await GetCurrentUserIdAsync(cancellationToken) is not 0;
+		return data.IsLogin ? new CurrentUser(data.Mid, data.Uname ?? string.Empty) : null;
 	}
 
 	public async Task<QrCodeLoginTicket> CreateQrCodeLoginAsync(CancellationToken cancellationToken = default)
 	{
-		QrCodeGenerateData data = await GetDataAsync(new Uri($"{PassportApi}generate"), BilibiliJsonContext.Default.QrCodeGenerateData, cancellationToken);
+		QrCodeGenerateData data = await GetDataAsync(new Uri($"{PassportApi}qrcode/generate"), BilibiliJsonContext.Default.QrCodeGenerateData, cancellationToken);
 
 		if (string.IsNullOrEmpty(data.Url) || string.IsNullOrEmpty(data.QrcodeKey))
 		{
@@ -195,24 +200,88 @@ public sealed class BilibiliApiClient
 	{
 		ArgumentException.ThrowIfNullOrEmpty(key);
 
-		Uri uri = new($"{PassportApi}poll?qrcode_key={Uri.EscapeDataString(key)}&source=main-fe-header");
+		Uri uri = new($"{PassportApi}qrcode/poll?qrcode_key={Uri.EscapeDataString(key)}&source=main-fe-header");
 		using HttpResponseMessage response = await HttpClient.GetAsync(uri, cancellationToken);
 		QrCodePollData data = (await ApiResponse.ReadAsync(response, BilibiliJsonContext.Default.QrCodePollData, cancellationToken)).GetData();
 
 		return data.Code switch
 		{
-			0 => new QrCodeLoginResult.Succeeded(GetLoginCookie(response)),
+			0 => new QrCodeLoginResult.Succeeded(ReadCredentials(response, data.RefreshToken)),
 			86038 => new QrCodeLoginResult.Expired(),
 			86090 => new QrCodeLoginResult.WaitingForConfirm(),
 			86101 => new QrCodeLoginResult.WaitingForScan(),
 			_ => throw new BilibiliApiException(data.Message ?? $"Unknown QR code login state {data.Code}.", data.Code)
 		};
+	}
 
-		static string GetLoginCookie(HttpResponseMessage response)
-		{
-			string cookie = response.Headers.TryGetValues("Set-Cookie", out IEnumerable<string>? values) ? CookieHeader.FromSetCookie(values) : string.Empty;
-			return cookie.Length is 0 ? throw new BilibiliApiException("The QR code login succeeded without setting any cookie.") : cookie;
-		}
+	public async Task<CookieRefreshInfo> GetCookieRefreshInfoAsync(string cookie, CancellationToken cancellationToken = default)
+	{
+		using HttpRequestMessage request = CreateRequest(HttpMethod.Get, new Uri($"{PassportApi}cookie/info?csrf={Uri.EscapeDataString(BilibiliCookie.GetCsrf(cookie))}"), cookie);
+		CookieInfoData data = await GetDataAsync(request, BilibiliJsonContext.Default.CookieInfoData, cancellationToken);
+		return new CookieRefreshInfo(data.Refresh, data.Timestamp);
+	}
+
+	/// <returns>旧 Cookie 在 <see cref="ConfirmCookieRefreshAsync"/> 之前仍然有效</returns>
+	public async Task<LoginCredentials> RefreshCookieAsync(string cookie, string refreshToken, CookieRefreshInfo info, CancellationToken cancellationToken = default)
+	{
+		string csrf = BilibiliCookie.GetCsrf(cookie);
+		string refreshCsrf = await GetRefreshCsrfAsync(cookie, info.Timestamp, cancellationToken);
+
+		using HttpRequestMessage request = CreatePost(new Uri($"{PassportApi}cookie/refresh"), cookie, [new("csrf", csrf), new("refresh_csrf", refreshCsrf), new("source", "main_web"), new("refresh_token", refreshToken)]);
+		using HttpResponseMessage response = await HttpClient.SendAsync(request, cancellationToken);
+		CookieRefreshData data = (await ApiResponse.ReadAsync(response, BilibiliJsonContext.Default.CookieRefreshData, cancellationToken)).GetData();
+
+		return data.RefreshToken is { Length: > 0 } ? ReadCredentials(response, data.RefreshToken) : throw new BilibiliApiException("The cookie refresh response contains no refresh token.");
+	}
+
+	/// <param name="cookie">续期得到的新 Cookie</param>
+	/// <param name="previousRefreshToken">续期之前的 refresh_token</param>
+	public async Task ConfirmCookieRefreshAsync(string cookie, string previousRefreshToken, CancellationToken cancellationToken = default)
+	{
+		using HttpRequestMessage request = CreatePost(new Uri($"{PassportApi}confirm/refresh"), cookie, [new("csrf", BilibiliCookie.GetCsrf(cookie)), new("refresh_token", previousRefreshToken)]);
+		using HttpResponseMessage response = await HttpClient.SendAsync(request, cancellationToken);
+		await ApiResponse.EnsureSuccessAsync(response, cancellationToken);
+	}
+
+	public async Task LogoutAsync(string cookie, CancellationToken cancellationToken = default)
+	{
+		using HttpRequestMessage request = CreatePost(new Uri(LogoutUrl), cookie, [new("biliCSRF", BilibiliCookie.GetCsrf(cookie))]);
+		using HttpResponseMessage response = await HttpClient.SendAsync(request, cancellationToken);
+		await ApiResponse.EnsureSuccessAsync(response, cancellationToken);
+	}
+
+	// 路径不对、登录失效或请求太频繁都是 404
+	private async Task<string> GetRefreshCsrfAsync(string cookie, long timestamp, CancellationToken cancellationToken)
+	{
+		using HttpRequestMessage request = CreateRequest(HttpMethod.Get, new Uri(CorrespondUrl + CorrespondPage.CreatePath(timestamp, CorrespondKey)), cookie);
+		using HttpResponseMessage response = await HttpClient.SendAsync(request, cancellationToken);
+		response.EnsureSuccessStatusCode();
+
+		return CorrespondPage.ReadRefreshCsrf(await response.Content.ReadAsStringAsync(cancellationToken)) ?? throw new BilibiliApiException("The correspond page contains no refresh_csrf.");
+	}
+
+	private static LoginCredentials ReadCredentials(HttpResponseMessage response, string? refreshToken)
+	{
+		string[] setCookie = response.Headers.TryGetValues("Set-Cookie", out IEnumerable<string>? values) ? [.. values] : [];
+		string cookie = CookieHeader.FromSetCookie(setCookie);
+
+		return cookie.Length is 0
+			? throw new BilibiliApiException("The login response sets no cookie.")
+			: new LoginCredentials(cookie, refreshToken is { Length: > 0 } ? refreshToken : null, CookieHeader.GetExpires(setCookie, BilibiliCookie.SessionName));
+	}
+
+	private static HttpRequestMessage CreateRequest(HttpMethod method, Uri uri, string cookie)
+	{
+		HttpRequestMessage request = new(method, uri);
+		request.Options.Set(BilibiliRequestHandler.CookieOption, cookie);
+		return request;
+	}
+
+	private static HttpRequestMessage CreatePost(Uri uri, string cookie, IEnumerable<KeyValuePair<string, string>> form)
+	{
+		HttpRequestMessage request = CreateRequest(HttpMethod.Post, uri, cookie);
+		request.Content = new FormUrlEncodedContent(form);
+		return request;
 	}
 
 	private static LiveStatus ToLiveStatus(int status)

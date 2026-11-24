@@ -11,5 +11,7 @@ namespace BilibiliLive.Api;
 [JsonSerializable(typeof(FollowingData))]
 [JsonSerializable(typeof(QrCodeGenerateData))]
 [JsonSerializable(typeof(QrCodePollData))]
+[JsonSerializable(typeof(CookieInfoData))]
+[JsonSerializable(typeof(CookieRefreshData))]
 [JsonSerializable(typeof(DanmuAuthBody))]
 internal sealed partial class BilibiliJsonContext : JsonSerializerContext;

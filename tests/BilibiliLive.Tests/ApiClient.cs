@@ -13,6 +13,10 @@ internal static class ApiPaths
 	public const string Following = "/xlive/web-ucenter/user/following";
 	public const string QrCodeGenerate = "/x/passport-login/web/qrcode/generate";
 	public const string QrCodePoll = "/x/passport-login/web/qrcode/poll";
+	public const string CookieInfo = "/x/passport-login/web/cookie/info";
+	public const string Correspond = "/correspond/1/";
+	public const string CookieRefresh = "/x/passport-login/web/cookie/refresh";
+	public const string ConfirmRefresh = "/x/passport-login/web/confirm/refresh";
 }
 
 internal sealed class ApiClient : IDisposable

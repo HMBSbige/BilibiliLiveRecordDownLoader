@@ -101,6 +101,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 		WindowWidth = settings.WindowWidth;
 		WindowHeight = settings.WindowHeight;
 		Settings.ApplySettings(settings);
+		Account.ApplySettings(settings);
 		// 房间列表的登录提示跟随账号页的 Cookie，要等它读好
 		await Account.LoadAsync(cancellationToken);
 		Rooms.ApplySettings(settings, Account.WhenChanged(static account => account.Cookie));
@@ -117,7 +118,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 		Tasks.StartMonitoring();
 		Logs.StartMonitoring();
 		Tools.RefreshFFmpegStatus();
-		Account.RefreshLoginStatus();
+		Account.StartAutoCheck();
 		Settings.Update.StartAutoCheck();
 	}
 

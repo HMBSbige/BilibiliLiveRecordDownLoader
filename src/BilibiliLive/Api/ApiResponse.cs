@@ -21,21 +21,39 @@ internal static class ApiResponse
 {
 	public static async Task<ApiResponse<T>> ReadAsync<T>(HttpResponseMessage response, JsonTypeInfo<T> typeInfo, CancellationToken cancellationToken) where T : class
 	{
-		response.EnsureSuccessStatusCode();
-
-		await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-		using JsonDocument document = await JsonDocument.ParseAsync(stream, default, cancellationToken);
+		using JsonDocument document = await ParseAsync(response, cancellationToken);
 		JsonElement root = document.RootElement;
-
-		if (ReadEnvelope(root) is not (var code, var message))
-		{
-			throw new BilibiliApiException("The response is not a Bilibili API envelope.");
-		}
+		(long code, string message) = ReadEnvelope(root) ?? throw NotAnEnvelope();
 
 		// 出错时 data 的形状不定（null、[]、{}），但 nav 返回 -101 时仍带着 wbi 密钥
 		T? data = root.TryGetProperty("data", out JsonElement dataElement) && dataElement.ValueKind is JsonValueKind.Object ? dataElement.Deserialize(typeInfo) : null;
 
 		return new ApiResponse<T>(code, message, data);
+	}
+
+	// 用于成功时不一定带 data 的接口
+	public static async Task EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+	{
+		using JsonDocument document = await ParseAsync(response, cancellationToken);
+		(long code, string message) = ReadEnvelope(document.RootElement) ?? throw NotAnEnvelope();
+
+		if (code is not 0)
+		{
+			throw new BilibiliApiException(message, code);
+		}
+	}
+
+	private static async Task<JsonDocument> ParseAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+	{
+		response.EnsureSuccessStatusCode();
+
+		await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+		return await JsonDocument.ParseAsync(stream, default, cancellationToken);
+	}
+
+	private static BilibiliApiException NotAnEnvelope()
+	{
+		return new BilibiliApiException("The response is not a Bilibili API envelope.");
 	}
 
 	// 不返回信封的接口出错时仍会返回信封，靠其中的 code 区分风控和错误请求

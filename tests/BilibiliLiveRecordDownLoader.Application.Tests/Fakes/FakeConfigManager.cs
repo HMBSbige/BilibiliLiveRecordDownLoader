@@ -5,8 +5,13 @@ internal sealed class FakeConfigManager(AppConfig? config = null) : IAppConfigMa
 	private readonly AppConfig _config = config ?? AppConfig.CreateDefault();
 	private readonly Lock _lock = new();
 	private int _updateCount;
+	private int _saveCount;
 
 	public int UpdateCount => Volatile.Read(ref _updateCount);
+
+	public int SaveCount => Volatile.Read(ref _saveCount);
+
+	public Exception? SaveFailure { get; set; }
 
 	public bool IsLegacyConfigImported => false;
 
@@ -27,5 +32,17 @@ internal sealed class FakeConfigManager(AppConfig? config = null) : IAppConfigMa
 
 		Interlocked.Increment(ref _updateCount);
 		return ValueTask.CompletedTask;
+	}
+
+	public async ValueTask UpdateAndSaveAsync(Action<AppConfig> update, CancellationToken cancellationToken = default)
+	{
+		await UpdateAsync(update, cancellationToken);
+
+		if (SaveFailure is { } failure)
+		{
+			throw failure;
+		}
+
+		Interlocked.Increment(ref _saveCount);
 	}
 }

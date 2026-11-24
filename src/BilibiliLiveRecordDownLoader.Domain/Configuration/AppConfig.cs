@@ -24,6 +24,14 @@ public sealed record AppConfig
 
 	public string? Cookie { get; set; }
 
+	// 只有扫码登录才有，续期 Cookie 要用
+	public string? RefreshToken { get; set; }
+
+	// 扫码登录或续期时 SESSDATA 的过期时间
+	public DateTimeOffset? CookieExpiresAt { get; set; }
+
+	public bool AutoRenewCookie { get; set; } = true;
+
 	public bool UseSystemProxy { get; set; }
 
 	public RecorderType RecorderType { get; set; }
@@ -91,6 +99,7 @@ public sealed record AppConfig
 		FFmpegPath = ConfigValues.NormalizeText(FFmpegPath);
 		UserAgent = ConfigValues.NormalizeText(UserAgent);
 		Cookie = ConfigValues.NormalizeText(Cookie);
+		RefreshToken = ConfigValues.NormalizeText(RefreshToken);
 		// 枚举在配置里也能写成数字；按值分支的地方不认识未定义的值
 		Theme = DefinedOrDefault(Theme);
 		RoomSortOrder = DefinedOrDefault(RoomSortOrder);

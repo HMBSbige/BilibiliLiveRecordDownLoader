@@ -24,6 +24,8 @@ public sealed record AppSettingsDto
 
 	public required string? UserAgent { get; init; }
 
+	public required bool AutoRenewCookie { get; init; }
+
 	public required bool UseSystemProxy { get; init; }
 
 	public required RecorderType RecorderType { get; init; }

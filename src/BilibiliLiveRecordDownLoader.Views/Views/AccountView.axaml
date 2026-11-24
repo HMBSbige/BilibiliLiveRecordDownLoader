@@ -3,9 +3,15 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ic="using:FluentIcons.Avalonia"
     xmlns:vm="using:BilibiliLiveRecordDownLoader.ViewModels"
+    xmlns:ctl="using:BilibiliLiveRecordDownLoader.Views.Controls"
     xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.AccountView"
     x:DataType="vm:AccountViewModel">
+    <UserControl.Styles>
+        <Style Selector="TextBlock.expiring">
+            <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCautionBrush}" />
+        </Style>
+    </UserControl.Styles>
     <ScrollViewer>
         <StackPanel Classes="page">
             <Border Classes="card">
@@ -13,8 +19,7 @@
                     <TextBlock Classes="section" Text="{Binding LoginStatus, Source={x:Static l:AppLanguage.Current}}" />
                     <DockPanel MinHeight="32">
                         <StackPanel DockPanel.Dock="Right" Classes="toolbar">
-                            <Button Classes="accent" Command="{Binding QrCodeLoginCommand}"
-                                    IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}">
+                            <Button Classes="accent" Command="{Binding QrCodeLoginCommand}" IsVisible="{Binding OffersQrCodeLogin^}">
                                 <StackPanel Classes="iconText">
                                     <ic:FluentIcon Icon="QrCode" />
                                     <TextBlock Text="{Binding QrCodeLogin, Source={x:Static l:AppLanguage.Current}}" />
@@ -37,10 +42,14 @@
                         </StackPanel>
 
                         <Panel VerticalAlignment="Center">
-                            <StackPanel Classes="iconText" IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:True}}">
-                                <ic:FluentIcon Icon="CheckmarkCircle" IconVariant="Filled" Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
-                                <TextBlock Text="{Binding LoggedIn, Source={x:Static l:AppLanguage.Current}}" />
-                            </StackPanel>
+                            <DockPanel HorizontalSpacing="{StaticResource ToolbarSpacing}" IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:True}}">
+                                <ic:FluentIcon DockPanel.Dock="Left" Icon="CheckmarkCircle" IconVariant="Filled" FontSize="16" VerticalAlignment="Center" Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding UserText}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Classes="caption" Classes.expiring="{Binding IsExpiringSoon}" Text="{Binding ExpiryText}"
+                                               IsVisible="{Binding ExpiryText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                </StackPanel>
+                            </DockPanel>
                             <StackPanel Classes="iconText" IsVisible="{Binding IsLoggedIn, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}">
                                 <ic:FluentIcon Icon="PersonCircle" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                 <TextBlock Text="{Binding NotLoggedIn, Source={x:Static l:AppLanguage.Current}}" />
@@ -51,6 +60,15 @@
                             </StackPanel>
                         </Panel>
                     </DockPanel>
+
+                    <ctl:SettingRow Padding="0,12,0,0"
+                                    Header="{Binding AutoRenewCookie, Source={x:Static l:AppLanguage.Current}}"
+                                    Description="{Binding AutoRenewCookieHint, Source={x:Static l:AppLanguage.Current}}"
+                                    IsVisible="{Binding IsRenewable, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:True}}">
+                        <ToggleSwitch IsChecked="{Binding AutoRenewCookie}" />
+                    </ctl:SettingRow>
+                    <TextBlock Classes="caption" Text="{Binding AutoRenewRequiresQrCodeLogin, Source={x:Static l:AppLanguage.Current}}"
+                               IsVisible="{Binding IsRenewable, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:False}}" />
 
                     <Expander Classes="inline" Header="{Binding ManualCookie, Source={x:Static l:AppLanguage.Current}}">
                         <DockPanel HorizontalSpacing="8">

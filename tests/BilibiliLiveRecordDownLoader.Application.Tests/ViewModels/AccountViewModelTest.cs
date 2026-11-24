@@ -75,7 +75,7 @@ public sealed class AccountViewModelTest
 		using AccountViewModel viewModel = Create(accounts);
 		await viewModel.LoadAsync(CancellationToken.None);
 
-		viewModel.RefreshLoginStatus();
+		viewModel.StartAutoCheck();
 		viewModel.Cookie = "new";
 		TaskCompletionSource<bool>[] pending = [.. checks];
 		await Assert.That(pending).Count().IsEqualTo(2);
@@ -106,13 +106,101 @@ public sealed class AccountViewModelTest
 	}
 
 	[Test]
+	public async Task RenewedCookieIsReloadedWithoutBeingSavedBackAsync(CancellationToken cancellationToken)
+	{
+		FakeAccountAppService accounts = new() { Cookie = "old", IsLoggedIn = OnThreadPool(static _ => true) };
+		accounts.Renew = () =>
+		{
+			accounts.Cookie = "renewed";
+			return CookieRenewal.Renewed;
+		};
+		using AccountViewModel viewModel = Create(accounts);
+		await viewModel.LoadAsync(cancellationToken);
+
+		await viewModel.CheckLoginCommand.Execute().ToTask(cancellationToken);
+
+		await Assert.That((viewModel.Cookie, accounts.Saves)).IsEqualTo(("renewed", 0));
+	}
+
+	[Test]
+	public async Task AutoCheckRenewsAtStartupAndEveryHourAndRemindsOnceAsync(CancellationToken cancellationToken)
+	{
+		FakeTimeProvider time = new(new DateTimeOffset(2026, 11, 24, 0, 0, 0, TimeSpan.Zero));
+		FakeAccountAppService accounts = new() { IsLoggedIn = static (_, _) => Task.FromResult(true), ExpiresAt = time.GetUtcNow().AddDays(3) };
+		RecordingNotifications notifications = new();
+		using DialogHostViewModel dialogs = new();
+		using AccountViewModel viewModel = new(accounts, new SettingsAppService(new FakeConfigManager()), dialogs, notifications, time);
+
+		viewModel.StartAutoCheck();
+		await TestWait.UntilAsync(() => accounts.Renewals == 1 && viewModel.IsLoggedIn is true, "the startup check finishes", cancellationToken);
+		time.Advance(AccountViewModel.AutoCheckInterval);
+		await TestWait.UntilAsync(() => accounts.Renewals == 2, "the first hourly check runs", cancellationToken);
+		time.Advance(AccountViewModel.AutoCheckInterval);
+		await TestWait.UntilAsync(() => accounts.Renewals == 3, "the second hourly check runs", cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(viewModel.IsExpiringSoon).IsTrue();
+			await Assert.That(notifications.Shown.Select(static shown => shown.Message)).IsEquivalentTo([AppLanguage.Current.LoginExpiringSoon.ToString("2026-11-27")]);
+		}
+	}
+
+	[Test]
+	[Arguments(CookieRenewal.Skipped, 1, false)]
+	[Arguments(CookieRenewal.Failed, 1, false)]
+	[Arguments(CookieRenewal.Renewed, 2, false)]
+	[Arguments(CookieRenewal.LoginExpired, 2, true)]
+	public async Task HourlyCheckQueriesTheStatusOnlyWhenTheLoginMayHaveChangedAsync(CookieRenewal hourly, int checks, bool isExpiredNotified, CancellationToken cancellationToken)
+	{
+		FakeTimeProvider time = new();
+		FakeAccountAppService accounts = new() { IsLoggedIn = static (_, _) => Task.FromResult(true) };
+		RecordingNotifications notifications = new();
+		using DialogHostViewModel dialogs = new();
+		using AccountViewModel viewModel = new(accounts, new SettingsAppService(new FakeConfigManager()), dialogs, notifications, time);
+
+		viewModel.StartAutoCheck();
+		await TestWait.UntilAsync(() => accounts.Checks == 1 && viewModel.IsLoggedIn is true, "the startup check finishes", cancellationToken);
+		accounts.Renew = () =>
+		{
+			accounts.Renew = static () => CookieRenewal.Skipped;
+			return hourly;
+		};
+		time.Advance(AccountViewModel.AutoCheckInterval);
+		await TestWait.UntilAsync(() => accounts.Renewals == 2, "the first hourly check runs", cancellationToken);
+		time.Advance(AccountViewModel.AutoCheckInterval);
+		// 循环串行执行，下一小时的续期开始时上一小时的处理已经结束
+		await TestWait.UntilAsync(() => accounts.Renewals == 3, "the second hourly check runs", cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(accounts.Checks).IsEqualTo(checks);
+			await Assert.That(notifications.Shown.Any(static shown => shown.Message == AppLanguage.Current.LoginExpired)).IsEqualTo(isExpiredNotified);
+		}
+	}
+
+	[Test]
+	[Arguments(false, true, 100, true)]
+	[Arguments(true, true, 100, false)]
+	[Arguments(true, false, 100, true)]
+	[Arguments(true, true, 3, true)]
+	public async Task QrCodeLoginIsOfferedWhenTheLoginCannotLastAsync(bool isLoggedIn, bool isRenewable, int daysLeft, bool offered, CancellationToken cancellationToken)
+	{
+		FakeAccountAppService accounts = new() { IsLoggedIn = (_, _) => Task.FromResult(isLoggedIn), IsRenewable = isRenewable, ExpiresAt = DateTimeOffset.UtcNow.AddDays(daysLeft) };
+		using AccountViewModel viewModel = Create(accounts);
+
+		await viewModel.CheckLoginCommand.Execute().ToTask(cancellationToken);
+
+		await Assert.That(await viewModel.OffersQrCodeLogin.FirstAsync(cancellationToken)).IsEqualTo(offered);
+	}
+
+	[Test]
 	public async Task SuccessfulQrCodeLoginShowsANotificationAsync(CancellationToken cancellationToken)
 	{
 		FakeAccountAppService accounts = new() { IsLoggedIn = OnThreadPool(static _ => true) };
 		RecordingNotifications notifications = new();
 		FakeTimeProvider time = new();
 		using DialogHostViewModel dialogs = new();
-		using AccountViewModel viewModel = new(accounts, dialogs, notifications, time);
+		using AccountViewModel viewModel = new(accounts, new SettingsAppService(new FakeConfigManager()), dialogs, notifications, time);
 
 		Task login = viewModel.QrCodeLoginCommand.Execute().ToTask(cancellationToken);
 		// 不知道轮询的定时器何时建好，所以一直推进
@@ -128,7 +216,7 @@ public sealed class AccountViewModelTest
 
 	private static AccountViewModel Create(FakeAccountAppService accounts)
 	{
-		return new AccountViewModel(accounts, new DialogHostViewModel(), new RecordingNotifications(), TimeProvider.System);
+		return new AccountViewModel(accounts, new SettingsAppService(new FakeConfigManager()), new DialogHostViewModel(), new RecordingNotifications(), TimeProvider.System);
 	}
 
 	private static Task<bool?> WhenLoggedInAsync(AccountViewModel viewModel, bool isLoggedIn, CancellationToken cancellationToken)
@@ -145,14 +233,23 @@ public sealed class AccountViewModelTest
 	{
 		private int _saves;
 		private int _checks;
+		private int _renewals;
 
 		public required Func<string?, CancellationToken, Task<bool>> IsLoggedIn { get; init; }
+
+		public Func<CookieRenewal> Renew { get; set; } = static () => CookieRenewal.Skipped;
+
+		public DateTimeOffset? ExpiresAt { get; init; }
+
+		public bool IsRenewable { get; init; } = true;
 
 		public string? Cookie { get; set; }
 
 		public int Saves => Volatile.Read(ref _saves);
 
 		public int Checks => Volatile.Read(ref _checks);
+
+		public int Renewals => Volatile.Read(ref _renewals);
 
 		public Task<string?> GetCookieAsync(CancellationToken cancellationToken = default)
 		{
@@ -166,10 +263,17 @@ public sealed class AccountViewModelTest
 			return Task.CompletedTask;
 		}
 
-		public Task<bool> IsLoggedInAsync(CancellationToken cancellationToken = default)
+		public async Task<AccountStatus?> GetStatusAsync(CancellationToken cancellationToken = default)
 		{
 			Interlocked.Increment(ref _checks);
-			return IsLoggedIn(Cookie, cancellationToken);
+			bool isLoggedIn = await IsLoggedIn(Cookie, cancellationToken);
+			return isLoggedIn ? new AccountStatus(new CurrentUser(1, "tester"), ExpiresAt, IsRenewable) : null;
+		}
+
+		public Task<CookieRenewal> RenewCookieAsync(CancellationToken cancellationToken = default)
+		{
+			Interlocked.Increment(ref _renewals);
+			return Task.FromResult(Renew());
 		}
 
 		public Task<QrCodeLoginTicket> CreateQrCodeLoginAsync(CancellationToken cancellationToken = default)

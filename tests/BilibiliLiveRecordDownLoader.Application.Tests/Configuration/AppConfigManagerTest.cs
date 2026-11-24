@@ -142,6 +142,25 @@ public sealed class AppConfigManagerTest : IDisposable
 	}
 
 	[Test]
+	public async Task UpdateAndSaveWritesBeforeReturningAndThrowsWhenItCannotAsync(CancellationToken cancellationToken)
+	{
+		await using AppConfigManager manager = Create(TimeSpan.FromMinutes(1), time: new FakeTimeProvider());
+
+		await manager.UpdateAndSaveAsync(static config => config.Language = "zh-Hans", cancellationToken);
+		await Assert.That((await ReadSavedAsync(cancellationToken))[nameof(AppConfig.Language)]?.GetValue<string>()).IsEqualTo("zh-Hans");
+		Directory.CreateDirectory(ConfigPath + ".tmp");
+
+		Exception? exception = await Assert.ThrowsAsync<Exception>(async () => await manager.UpdateAndSaveAsync(static config => config.Language = "en", cancellationToken));
+
+		using (Assert.Multiple())
+		{
+			// 用目录占住临时文件时，各平台抛出的异常类型不同
+			await Assert.That(exception is IOException or UnauthorizedAccessException).IsTrue();
+			await Assert.That((await ReadSavedAsync(cancellationToken))[nameof(AppConfig.Language)]?.GetValue<string>()).IsEqualTo("zh-Hans");
+		}
+	}
+
+	[Test]
 	[Arguments("""{ "Theme": "Dark", "Rooms": null }""", new long[] { })]
 	[Arguments("""{ "Theme": "Dark", "Rooms": [null, { "RoomId": 1 }] }""", new long[] { 1 })]
 	public async Task NullRoomsAreSkippedAsync(string json, long[] expectedRooms, CancellationToken cancellationToken)

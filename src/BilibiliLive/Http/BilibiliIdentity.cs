@@ -27,7 +27,7 @@ public sealed class BilibiliIdentity(Func<CancellationToken, ValueTask<BilibiliR
 		return GetBuvid3(await optionsProvider(cancellationToken));
 	}
 
-	private string GetBuvid3(BilibiliRequestOptions options)
+	internal string GetBuvid3(BilibiliRequestOptions options)
 	{
 		return CookieHeader.GetValue(options.Cookie, Buvid3CookieName) ?? GeneratedBuvid3;
 	}

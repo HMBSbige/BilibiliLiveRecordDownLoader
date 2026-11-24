@@ -13,6 +13,9 @@ public sealed class BilibiliRequestHandler(BilibiliIdentity identity) : Delegati
 
 	internal static readonly HttpRequestOptionsKey<bool> AnonymousOption = new("BilibiliLive.Anonymous");
 
+	// 续期相关的请求要带表单里 csrf 所属的 Cookie，不能取请求时配置里的
+	internal static readonly HttpRequestOptionsKey<string> CookieOption = new("BilibiliLive.Cookie");
+
 	private static readonly Uri Referrer = new("https://live.bilibili.com/");
 
 	// 自动重定向会把 Cookie 请求头带到新主机，跟随重定向的管道不能发送它
@@ -34,7 +37,8 @@ public sealed class BilibiliRequestHandler(BilibiliIdentity identity) : Delegati
 		if (IncludeCookie && IsBilibiliHost(request.RequestUri))
 		{
 			bool anonymous = markedAnonymous || request.Options.TryGetValue(AnonymousOption, out bool value) && value;
-			headers.TryAddWithoutValidation("Cookie", identity.GetCookie(options, anonymous));
+			BilibiliRequestOptions cookieOptions = request.Options.TryGetValue(CookieOption, out string? cookie) ? options with { Cookie = cookie } : options;
+			headers.TryAddWithoutValidation("Cookie", identity.GetCookie(cookieOptions, anonymous));
 		}
 
 		if (headers.Accept.Count is 0)

@@ -278,16 +278,16 @@ public class BilibiliApiClientTest
 	}
 
 	[Test]
-	[Arguments("nav_logged_in.json", 12345678L, true)]
-	[Arguments("nav_anonymous.json", 0L, false)]
-	public async Task CurrentUserComesFromNavAsync(string fixture, long expectedUserId, bool expectedLoggedIn, CancellationToken cancellationToken)
+	[Arguments("nav_logged_in.json", 12345678L, "tester")]
+	[Arguments("nav_anonymous.json", 0L, null)]
+	public async Task CurrentUserComesFromNavAsync(string fixture, long expectedUserId, string? expectedUserName, CancellationToken cancellationToken)
 	{
 		using ApiClient api = Single(ApiPaths.Nav, () => Responses.Fixture(fixture));
 
 		long userId = await api.Client.GetCurrentUserIdAsync(cancellationToken);
-		bool loggedIn = await api.Client.IsLoggedInAsync(cancellationToken);
+		CurrentUser? user = await api.Client.GetCurrentUserAsync(cancellationToken);
 
-		await Assert.That((userId, loggedIn)).IsEqualTo((expectedUserId, expectedLoggedIn));
+		await Assert.That((userId, user?.UserName)).IsEqualTo((expectedUserId, expectedUserName));
 	}
 
 	[Test]
@@ -337,12 +337,12 @@ public class BilibiliApiClientTest
 	}
 
 	[Test]
-	public async Task PollQrCodeLoginBuildsCookieFromSetCookieAsync(CancellationToken cancellationToken)
+	public async Task PollQrCodeLoginReturnsTheCookieRefreshTokenAndExpiryAsync(CancellationToken cancellationToken)
 	{
 		using ApiClient api = Single(ApiPaths.QrCodePoll, static () =>
 		{
 			HttpResponseMessage response = Responses.Json("""{"code":0,"message":"0","ttl":1,"data":{"url":"https://passport.biligame.com/x/passport-login/web/crossDomain?DedeUserID=12345678","refresh_token":"r","timestamp":1,"code":0,"message":""}}""");
-			response.Headers.TryAddWithoutValidation("Set-Cookie", "SESSDATA=s%2Ce; Path=/; Domain=bilibili.com; HttpOnly; Secure");
+			response.Headers.TryAddWithoutValidation("Set-Cookie", "SESSDATA=s%2Ce; Path=/; Domain=bilibili.com; Expires=Tue, 18 May 2027 10:00:00 GMT; HttpOnly; Secure; SameSite=Lax");
 			response.Headers.TryAddWithoutValidation("Set-Cookie", "bili_jct=csrf; Path=/; Domain=bilibili.com");
 			response.Headers.TryAddWithoutValidation("Set-Cookie", "DedeUserID=12345678; Path=/; Domain=bilibili.com");
 			return response;
@@ -350,7 +350,7 @@ public class BilibiliApiClientTest
 
 		QrCodeLoginResult result = await api.Client.PollQrCodeLoginAsync("abc", cancellationToken);
 
-		await Assert.That(result).IsEqualTo(new QrCodeLoginResult.Succeeded("SESSDATA=s%2Ce; bili_jct=csrf; DedeUserID=12345678"));
+		await Assert.That(result).IsEqualTo(new QrCodeLoginResult.Succeeded(new LoginCredentials("SESSDATA=s%2Ce; bili_jct=csrf; DedeUserID=12345678", "r", new DateTimeOffset(2027, 5, 18, 10, 0, 0, TimeSpan.Zero))));
 	}
 
 	[Test]

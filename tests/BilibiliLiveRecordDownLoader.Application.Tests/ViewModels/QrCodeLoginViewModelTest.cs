@@ -97,7 +97,12 @@ public sealed class QrCodeLoginViewModelTest
 			throw new NotSupportedException();
 		}
 
-		public Task<bool> IsLoggedInAsync(CancellationToken cancellationToken = default)
+		public Task<AccountStatus?> GetStatusAsync(CancellationToken cancellationToken = default)
+		{
+			throw new NotSupportedException();
+		}
+
+		public Task<CookieRenewal> RenewCookieAsync(CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException();
 		}

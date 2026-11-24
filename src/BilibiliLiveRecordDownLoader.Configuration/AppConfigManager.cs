@@ -62,12 +62,38 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 
 		try
 		{
-			ObjectDisposedException.ThrowIf(_disposed, this);
-			AppConfig config = await GetOrLoadCoreAsync(cancellationToken).ConfigureAwait(false);
-			update(config);
-			config.ApplyDefaults();
-			_isDirty = true;
+			await UpdateCoreAsync(update, cancellationToken).ConfigureAwait(false);
 			ScheduleSave();
+		}
+		finally
+		{
+			_lock.Release();
+		}
+	}
+
+	public async ValueTask UpdateAndSaveAsync(Action<AppConfig> update, CancellationToken cancellationToken = default)
+	{
+		await _lock.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+		try
+		{
+			await UpdateCoreAsync(update, cancellationToken).ConfigureAwait(false);
+
+			// 读不到的配置不会写回，不能当作已经存下
+			if (_isReadOnly)
+			{
+				throw new IOException($"Config file {_configPath} cannot be read, changes will not be saved.");
+			}
+
+			try
+			{
+				WriteCore();
+			}
+			catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+			{
+				ScheduleSave();
+				throw;
+			}
 		}
 		finally
 		{
@@ -145,6 +171,15 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 		{
 			LogSaveFailed(logger, exception, _configPath);
 		}
+	}
+
+	private async ValueTask UpdateCoreAsync(Action<AppConfig> update, CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		AppConfig config = await GetOrLoadCoreAsync(cancellationToken).ConfigureAwait(false);
+		update(config);
+		config.ApplyDefaults();
+		_isDirty = true;
 	}
 
 	private async ValueTask<AppConfig> GetOrLoadCoreAsync(CancellationToken cancellationToken)
@@ -450,12 +485,26 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 		}
 	}
 
-	// Dispose 之后才第一次加载时，恢复或导入的内容不再写，下次启动会重新来过
 	private bool SaveCore()
+	{
+		try
+		{
+			WriteCore();
+			return true;
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+		{
+			LogSaveFailed(logger, exception, _configPath);
+			return false;
+		}
+	}
+
+	// Dispose 之后才第一次加载时，恢复或导入的内容不再写，下次启动会重新来过
+	private void WriteCore()
 	{
 		if (_config is null || _isReadOnly || !_isDirty || _disposed)
 		{
-			return true;
+			return;
 		}
 
 		// 不写默认值，以后调整默认值对老房间同样生效
@@ -470,31 +519,22 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 			}
 		}
 
-		try
-		{
-			CreateConfigDirectory();
-			File.Delete(TempPath);
-			WriteTempFile(node);
+		CreateConfigDirectory();
+		File.Delete(TempPath);
+		WriteTempFile(node);
 
-			if (File.Exists(_configPath))
-			{
-				// 原处还是损坏的文件时不拿它替换备份
-				File.Replace(TempPath, _configPath, _isCorruptFileInPlace ? null : BackupPath);
-			}
-			else
-			{
-				File.Move(TempPath, _configPath);
-			}
-
-			_isDirty = false;
-			_isCorruptFileInPlace = false;
-			return true;
-		}
-		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+		if (File.Exists(_configPath))
 		{
-			LogSaveFailed(logger, exception, _configPath);
-			return false;
+			// 原处还是损坏的文件时不拿它替换备份
+			File.Replace(TempPath, _configPath, _isCorruptFileInPlace ? null : BackupPath);
 		}
+		else
+		{
+			File.Move(TempPath, _configPath);
+		}
+
+		_isDirty = false;
+		_isCorruptFileInPlace = false;
 	}
 
 	private void WriteTempFile(JsonObject node)

@@ -9,6 +9,18 @@ internal static class RequestTimeout
 		return exception is OperationCanceledException { InnerException: TimeoutException };
 	}
 
+	public static async Task ReportAsync(Task request)
+	{
+		try
+		{
+			await request;
+		}
+		catch (OperationCanceledException exception) when (IsTimedOut(exception))
+		{
+			throw new TimeoutException(AppLanguage.Current.RequestTimedOut, exception);
+		}
+	}
+
 	public static async Task<T> ReportAsync<T>(Task<T> request)
 	{
 		try
