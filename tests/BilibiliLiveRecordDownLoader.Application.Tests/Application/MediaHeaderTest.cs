@@ -108,13 +108,15 @@ public sealed class MediaHeaderTest
 	}
 
 	[Test]
-	[Arguments(3000u, 0u, (byte)1)]
-	[Arguments(0u, 3000u, (byte)0)]
-	public async Task Fmp4FragmentSpansItsSamplesAsync(uint sampleDuration, uint defaultDuration, byte tfdtVersion)
+	[Arguments(30u, 3000u, 0u, (byte)1, 11, DisplayName = "每个样本带时长")]
+	[Arguments(30u, 0u, 3000u, (byte)0, 11, DisplayName = "样本用默认时长")]
+	[Arguments(0x8000_0000u, 0u, 3000u, (byte)1, 10, DisplayName = "默认时长的样本数大得离谱")]
+	[Arguments(1u, uint.MaxValue, 0u, (byte)1, 10, DisplayName = "样本时长大得离谱")]
+	public async Task Fmp4FragmentSpansItsSamplesAsync(uint sampleCount, uint sampleDuration, uint defaultDuration, byte tfdtVersion, int endSeconds)
 	{
 		Fmp4TrackTimes times = new([new Fmp4Track(Fmp4Samples.VideoTrack, 90_000, defaultDuration)]);
 
-		await Assert.That(times.ReadFragmentSpans(Fmp4Samples.TimedFragment(900_000, 30, sampleDuration, tfdtVersion: tfdtVersion))).IsEquivalentTo([new MediaSpan(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(11))], CollectionOrdering.Matching);
+		await Assert.That(times.ReadFragmentSpans(Fmp4Samples.TimedFragment(900_000, sampleCount, sampleDuration, tfdtVersion: tfdtVersion))).IsEquivalentTo([new MediaSpan(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(endSeconds))], CollectionOrdering.Matching);
 	}
 
 	[Test]

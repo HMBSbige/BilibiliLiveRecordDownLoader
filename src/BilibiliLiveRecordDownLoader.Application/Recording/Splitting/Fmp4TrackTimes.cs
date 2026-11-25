@@ -3,6 +3,9 @@ namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 // 按分片给出时间轴用的媒体时间；状态跟着读过的分片走，要比较的两边各用一个实例读同样的分片
 internal sealed class Fmp4TrackTimes(Fmp4Track[] tracks)
 {
+	// 一个 moof 只有几秒；trun 损坏时算出的时长可能大得离谱，样本都用默认时长时 sample_count 不受 trun 长度约束，能有几百天；按它定结尾会把之后的时间都推远
+	private const ulong MaxFragmentSeconds = 60;
+
 	// 回绕窗口外的跳变由 SegmentClock 当作重新开始
 	private readonly Fmp4DecodeTimes _decodeTimes = new(tracks);
 	private readonly bool[] _hasStarted = new bool[tracks.Length];
@@ -48,7 +51,8 @@ internal sealed class Fmp4TrackTimes(Fmp4Track[] tracks)
 				firstStart = Math.Min(firstStart ?? long.MaxValue, trackStart);
 			}
 
-			end = Math.Max(end, time.Track.ToTicks(time.DecodeTime + time.Duration));
+			ulong duration = time.Duration <= MaxFragmentSeconds * time.Track.Timescale ? time.Duration : 0;
+			end = Math.Max(end, time.Track.ToTicks(time.DecodeTime + duration));
 		}
 
 		foreach (TrackFragmentTime time in times)
