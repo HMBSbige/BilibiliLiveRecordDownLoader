@@ -6,6 +6,7 @@ using BilibiliLiveRecordDownLoader.ViewModels;
 using BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
 using ReactiveUI.Primitives;
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Windows.Input;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
@@ -126,7 +127,8 @@ public sealed class AccountViewModelTest
 	public async Task AutoCheckRenewsAtStartupAndEveryHourAndRemindsOnceAsync(CancellationToken cancellationToken)
 	{
 		FakeTimeProvider time = new(new DateTimeOffset(2026, 11, 24, 0, 0, 0, TimeSpan.Zero));
-		FakeAccountAppService accounts = new() { IsLoggedIn = static (_, _) => Task.FromResult(true), ExpiresAt = time.GetUtcNow().AddDays(3) };
+		DateTimeOffset expiresAt = time.GetUtcNow().AddDays(3);
+		FakeAccountAppService accounts = new() { IsLoggedIn = static (_, _) => Task.FromResult(true), ExpiresAt = expiresAt };
 		RecordingNotifications notifications = new();
 		using DialogHostViewModel dialogs = new();
 		using AccountViewModel viewModel = new(accounts, new SettingsAppService(new FakeConfigManager()), dialogs, notifications, time);
@@ -141,7 +143,7 @@ public sealed class AccountViewModelTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(viewModel.IsExpiringSoon).IsTrue();
-			await Assert.That(notifications.Shown.Select(static shown => shown.Message)).IsEquivalentTo([AppLanguage.Current.LoginExpiringSoon.ToString("2026-11-27")]);
+			await Assert.That(notifications.Shown.Select(static shown => shown.Message)).IsEquivalentTo([AppLanguage.Current.LoginExpiringSoon.ToString(expiresAt.ToString("G", CultureInfo.CurrentCulture))]);
 		}
 	}
 

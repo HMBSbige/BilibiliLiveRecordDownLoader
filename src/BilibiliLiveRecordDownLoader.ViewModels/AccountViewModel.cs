@@ -193,7 +193,7 @@ public sealed partial class AccountViewModel : ViewModelBase
 
 		DateTimeOffset now = _timeProvider.GetUtcNow();
 		UserText = AppLanguage.Current.LoggedInAs.ToString(status.User.UserName, status.User.UserId.ToString(CultureInfo.InvariantCulture));
-		ExpiryText = status.ExpiresAt is { } expiresAt ? AppLanguage.Current.LoginExpiresAt.ToString(FormatDate(expiresAt), Math.Max(0, (expiresAt - now).Days).ToString(CultureInfo.CurrentCulture)) : null;
+		ExpiryText = status.ExpiresAt is { } expiresAt ? AppLanguage.Current.LoginExpiresAt.ToString(FormatTime(expiresAt), Math.Max(0, ToLocalDate(expiresAt).DayNumber - ToLocalDate(now).DayNumber).ToString(CultureInfo.CurrentCulture)) : null;
 		IsExpiringSoon = LoginExpiry.IsNear(status.ExpiresAt, now);
 		IsRenewable = status.IsRenewable;
 	}
@@ -218,12 +218,22 @@ public sealed partial class AccountViewModel : ViewModelBase
 		}
 
 		_remindedExpiry = expiresAt;
-		_notifications.Show(AppLanguage.Current.Account, AppLanguage.Current.LoginExpiringSoon.ToString(FormatDate(expiresAt)), AppNotificationType.Warning);
+		_notifications.Show(AppLanguage.Current.Account, AppLanguage.Current.LoginExpiringSoon.ToString(FormatTime(expiresAt)), AppNotificationType.Warning);
 	}
 
-	private string FormatDate(DateTimeOffset time)
+	private string FormatTime(DateTimeOffset time)
 	{
-		return TimeZoneInfo.ConvertTime(time, _timeProvider.LocalTimeZone).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+		return ToLocalTime(time).ToString("G", CultureInfo.CurrentCulture);
+	}
+
+	private DateOnly ToLocalDate(DateTimeOffset time)
+	{
+		return DateOnly.FromDateTime(ToLocalTime(time).DateTime);
+	}
+
+	private DateTimeOffset ToLocalTime(DateTimeOffset time)
+	{
+		return TimeZoneInfo.ConvertTime(time, _timeProvider.LocalTimeZone);
 	}
 
 	private async Task SaveCookieAsync(string? cookie, CancellationToken cancellationToken)
