@@ -72,7 +72,8 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 			new CapturingLogger<RoomSession>(Logs)
 		);
 
-		_settings = new RoomConfig { RoomId = RoomId, IsNotificationEnabled = isNotificationEnabled, StreamReconnectDelay = ReconnectDelay };
+		// 测试里的接口数据和断言都按选了原画来写
+		_settings = new RoomConfig { RoomId = RoomId, IsNotificationEnabled = isNotificationEnabled, Quality = StreamQuality.Original, StreamReconnectDelay = ReconnectDelay };
 		Session = new RoomSession(_settings, services, static () => { });
 	}
 

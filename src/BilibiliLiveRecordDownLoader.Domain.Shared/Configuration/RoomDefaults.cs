@@ -6,7 +6,8 @@ public static class RoomDefaults
 {
 	public const bool IsRecordingEnabled = true;
 
-	public static StreamQuality Quality => StreamQuality.Original;
+	// 选流取不超过所选画质的最高一档，没有原画真彩的直播间会退到它有的较低档位
+	public static StreamQuality Quality => StreamQuality.OriginalTrueColor;
 
 	public const decimal MinStatusCheckIntervalSeconds = 10;
 

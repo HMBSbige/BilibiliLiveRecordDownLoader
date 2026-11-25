@@ -1,7 +1,6 @@
 namespace BilibiliLiveRecordDownLoader.Configuration;
 
 [JsonSerializable(typeof(AppConfig))]
-[JsonSerializable(typeof(RetiredSettings))]
 [JsonSourceGenerationOptions
 (
 	PropertyNameCaseInsensitive = true,

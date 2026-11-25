@@ -103,7 +103,7 @@ public sealed class RoomEditorViewModelTest
 			await Assert.That(editor.QualityOptions.Select(static option => option.As<StreamQuality>()?.Qn ?? -1)).IsEquivalentTo([30000L, 25000, 20000, 15000, 10000, 400, 250, 150, 80, 0L], CollectionOrdering.Matching);
 			await Assert.That(editor.QualityOptions[1].ToString()).IsEqualTo(AppLanguage.Current.QualityOriginalTrueColor);
 			await Assert.That(editor.QualityOptions[^1].ToString()).IsEqualTo(AppLanguage.Current.QualityDefault);
-			await Assert.That(editor.Quality).IsEqualTo(StreamQuality.Original);
+			await Assert.That(editor.Quality).IsEqualTo(StreamQuality.OriginalTrueColor);
 		}
 	}
 

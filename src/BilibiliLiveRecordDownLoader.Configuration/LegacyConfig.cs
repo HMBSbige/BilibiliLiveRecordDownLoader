@@ -3,7 +3,8 @@ using BilibiliLiveRecordDownLoader.Domain.Shared.Recording;
 
 namespace BilibiliLiveRecordDownLoader.Configuration;
 
-// 3.x 的 WPF 版：属性名和类里的一样，枚举写成数字，等于默认值的不写；没写的项两边默认值相同
+// 3.x 的 WPF 版：属性名和类里的一样，枚举写成数字，等于默认值的不写；没写的项除画质外两边默认值相同
+// 3.x 没写 Qn 是原画，导入后和这里没写画质的房间一样用现在的默认画质原画真彩；直播间没有原画真彩时选流会退到不超过它的最高一档
 internal static class LegacyConfig
 {
 	public static string GetBackupPath(string path)

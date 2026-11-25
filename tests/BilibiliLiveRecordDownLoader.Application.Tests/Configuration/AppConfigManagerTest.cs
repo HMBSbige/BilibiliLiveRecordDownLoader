@@ -498,6 +498,8 @@ public sealed class AppConfigManagerTest : IDisposable
 				await Assert.That(disabled.FormatPriority).IsNull();
 
 				await Assert.That(inheriting.StreamReconnectDelay).IsEqualTo(RoomDefaults.StreamReconnectDelay);
+				// 3.x 没写 Qn 是原画，导入后和没写画质的房间一样用现在的默认画质
+				await Assert.That(inheriting.Quality).IsEqualTo(StreamQuality.OriginalTrueColor);
 			}
 		}
 
@@ -592,52 +594,32 @@ public sealed class AppConfigManagerTest : IDisposable
 		using (Assert.Multiple())
 		{
 			await Assert.That(loaded).IsEquivalentTo([30000L, 20000, 25000, 12345, 400, 10000, 0], CollectionOrdering.Matching);
-			await Assert.That(rooms.Select(static room => room?[nameof(RoomConfig.Quality)]?.ToJsonString())).IsEquivalentTo(["30000", "20000", "25000", "12345", "400", null, "0"], CollectionOrdering.Matching);
+			await Assert.That(rooms.Select(static room => room?[nameof(RoomConfig.Quality)]?.ToJsonString())).IsEquivalentTo(["30000", "20000", null, "12345", "400", "10000", "0"], CollectionOrdering.Matching);
 		}
 	}
 
-	// 4.0 的实验开关，打开时原画的房间请求原画真彩
+	// 4.0 的实验开关，都已删掉：画质受限时现在总会改用主播放列表，原画真彩现在是默认画质
 	[Test]
-	[Arguments("true", new long[] { 25000, 400, 25000 }, DisplayName = "turned on")]
-	[Arguments("false", new long[] { 10000, 400, 10000 }, DisplayName = "turned off")]
-	[Arguments("\"yes\"", new long[] { 10000, 400, 10000 }, DisplayName = "unreadable")]
-	public async Task RetiredRequestTrueOriginalSettingMovesOriginalRoomsToTheOriginalTrueColorOnceAsync(string requestTrueOriginal, long[] expected, CancellationToken cancellationToken)
+	[Arguments("UseMasterPlaylistWhenRestricted", "false")]
+	[Arguments("RequestTrueOriginal", "true")]
+	public async Task RetiredExperimentalSettingIsIgnoredAndDroppedAsync(string name, string value, CancellationToken cancellationToken)
 	{
-		await WriteFileAsync(ConfigFileName, $$"""{ "RequestTrueOriginal": {{requestTrueOriginal}}, "Theme": "Dark", "Rooms": [{ "RoomId": 1 }, { "RoomId": 2, "Quality": "BluRay" }, { "RoomId": 3, "Quality": 10000 }] }""", cancellationToken);
+		await WriteFileAsync(ConfigFileName, $$"""{ "{{name}}": {{value}}, "Theme": "Dark", "Rooms": [{ "RoomId": 1 }, { "RoomId": 2, "Quality": 10000 }] }""", cancellationToken);
 
-		AppConfig loaded = await ReloadAsync(cancellationToken);
-		JsonObject saved = await ReadSavedAsync(cancellationToken);
+		AppConfig loaded;
 
 		await using (AppConfigManager manager = Create())
 		{
-			await manager.UpdateAsync(static config => config.Rooms = [.. config.Rooms.Select(static room => room.RoomId is 1 ? room with { Quality = StreamQuality.Original } : room)], cancellationToken);
-		}
-
-		AppConfig changed = await ReloadAsync(cancellationToken);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(loaded.Rooms.Select(static room => room.Quality.Qn)).IsEquivalentTo(expected, CollectionOrdering.Matching);
-			await Assert.That(loaded.Theme).IsEqualTo(AppTheme.Dark);
-			await Assert.That(saved.ContainsKey("RequestTrueOriginal")).IsEqualTo(requestTrueOriginal is not "true");
-			await Assert.That(changed.Rooms.Select(static room => room.Quality.Qn)).IsEquivalentTo([10000L, .. expected.Skip(1)], CollectionOrdering.Matching);
-			await Assert.That((await ReadSavedAsync(cancellationToken)).ContainsKey("RequestTrueOriginal")).IsFalse();
-		}
-	}
-
-	// 4.0 的实验开关，现在画质受限时总是改用主播放列表
-	[Test]
-	public async Task RetiredMasterPlaylistSettingIsIgnoredAndDroppedAsync(CancellationToken cancellationToken)
-	{
-		await WriteFileAsync(ConfigFileName, """{ "UseMasterPlaylistWhenRestricted": false, "Theme": "Dark" }""", cancellationToken);
-
-		await using (AppConfigManager manager = Create())
-		{
-			await Assert.That((await manager.GetAsync(cancellationToken)).Theme).IsEqualTo(AppTheme.Dark);
+			loaded = await manager.GetAsync(cancellationToken);
 			await manager.UpdateAsync(static config => config.RemoveFillerData = true, cancellationToken);
 		}
 
-		await Assert.That((await ReadSavedAsync(cancellationToken)).Select(static property => property.Key)).IsEquivalentTo([nameof(AppConfig.Theme), nameof(AppConfig.RemoveFillerData)], CollectionOrdering.Matching);
+		using (Assert.Multiple())
+		{
+			await Assert.That(loaded.Theme).IsEqualTo(AppTheme.Dark);
+			await Assert.That(loaded.Rooms.Select(static room => room.Quality.Qn)).IsEquivalentTo([25000L, 10000], CollectionOrdering.Matching);
+			await Assert.That((await ReadSavedAsync(cancellationToken)).Select(static property => property.Key)).IsEquivalentTo([nameof(AppConfig.Theme), nameof(AppConfig.Rooms), nameof(AppConfig.RemoveFillerData)]);
+		}
 	}
 
 	// 录制方式已经删掉，所有录制都走内置录制；旧配置里全局和房间的这一项都不影响读取
