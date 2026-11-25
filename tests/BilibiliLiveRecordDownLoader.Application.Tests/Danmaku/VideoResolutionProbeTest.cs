@@ -3,6 +3,7 @@ using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Tests.Application;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Buffers.Binary;
+using System.Text;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Danmaku;
 
@@ -18,34 +19,53 @@ public sealed class VideoResolutionProbeTest
 		await Assert.That(await VideoResolutionProbe.ReadAsync(path, cancellationToken)).IsEqualTo(new VideoResolution(1280, 720));
 	}
 
-	// 第一个视频 PES 不带 SPS 时接着往后找；失去包同步之后不再找
+	// 第一个视频 PES 不带 SPS 时接着往后找；HLS 分片开头的杂字节原样写进了录像，开头和中间都可能有
 	[Test]
-	[Arguments(false, false)]
-	[Arguments(true, false)]
-	[Arguments(false, true)]
-	public async Task TsSizeComesFromTheFirstSpsInSyncAsync(bool startsWithoutSps, bool losesSync, CancellationToken cancellationToken)
+	[Arguments(false, 0, 0)]
+	[Arguments(true, 0, 0)]
+	[Arguments(false, 1, 0)]
+	[Arguments(false, 0, 187)]
+	public async Task TsSizeComesFromTheFirstSpsAsync(bool startsWithoutSps, int leadingJunk, int junkBeforeSps, CancellationToken cancellationToken)
 	{
 		using TestDirectory directory = new();
 		string path = directory.Combine("a.ts");
 		byte[] leading = startsWithoutSps ? TsSamples.VideoFrame(TsSamples.AvcSlice) : [];
-		byte[] junk = losesSync ? [0] : [];
-		await File.WriteAllBytesAsync(path, [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. leading, .. junk, .. TsSamples.TimedVideoFrame(TsSamples.AvcIdr, 0, true, Convert.FromHexString(MediaHeaderTest.Avc480))], cancellationToken);
+		byte[] frame = TsSamples.TimedVideoFrame(TsSamples.AvcIdr, 0, true, Convert.FromHexString(MediaHeaderTest.Avc480));
+		// 杂字节里的 0x47 不能当成包头
+		byte[] content = [.. Enumerable.Repeat((byte)0x47, leadingJunk), .. TsSamples.Pat(), .. TsSamples.Pmt(), .. leading, .. new byte[junkBeforeSps], .. frame, .. TsSamples.Audio(), .. TsSamples.Audio()];
+		await File.WriteAllBytesAsync(path, content, cancellationToken);
 
-		await Assert.That(await VideoResolutionProbe.ReadAsync(path, cancellationToken)).IsEqualTo(losesSync ? null : new VideoResolution(854, 480));
+		await Assert.That(await VideoResolutionProbe.ReadAsync(path, cancellationToken)).IsEqualTo(new VideoResolution(854, 480));
 	}
 
+	// 转换后的 moov 在媒体数据之后，带着随时长增长的完整样本表；大表只占文件长度，不写内容
 	[Test]
-	[Arguments(true)]
-	public async Task Mp4SizeComesFromTheMovieBoxWhereverItIsAsync(bool isMovieLast, CancellationToken cancellationToken)
+	public async Task Mp4SizeComesFromAMovieBoxAfterLargeMediaDataAndSampleTablesAsync(CancellationToken cancellationToken)
 	{
+		const uint tableLength = 128 << 20;
 		using TestDirectory directory = new();
 		string path = directory.Combine("a.mp4");
-		byte[] init = Fmp4Samples.TimedInit(1000, 1080, 1920);
-		byte[] media = Fmp4Samples.Box("mdat", new byte[4096]);
+		byte[] entry = new byte[78];
+		BinaryPrimitives.WriteUInt16BigEndian(entry.AsSpan(24), 1080);
+		BinaryPrimitives.WriteUInt16BigEndian(entry.AsSpan(26), 1920);
+		byte[] stbl = [.. Fmp4Samples.Box("stsd", [0, 0, 0, 0, 0, 0, 0, 1, .. Fmp4Samples.Box("avc1", entry)]), .. Fmp4Samples.Box("stsz", [])];
+		byte[] video = Fmp4Samples.Box("trak", [.. Fmp4Samples.Tkhd(Fmp4Samples.VideoTrack), .. Fmp4Samples.Box("mdia", [.. Fmp4Samples.Hdlr("vide"), .. Fmp4Samples.Box("minf", Fmp4Samples.Box("stbl", stbl))])]);
+		byte[] media = [0, 0, 0, 1, .. "mdat"u8, 0, 0, 0, 0, 0, 0, 0, 0, .. new byte[4096]];
+		BinaryPrimitives.WriteUInt64BigEndian(media.AsSpan(8), (ulong)media.Length);
+		byte[] content = [.. Fmp4Samples.Box("ftyp", "isom"u8.ToArray()), .. media, .. Fmp4Samples.Box("moov", [.. Fmp4Samples.Track(Fmp4Samples.AudioTrack, "soun"), .. video])];
 
-		const int ftypLength = 8 + 4;
-		byte[] content = isMovieLast ? [.. init.AsSpan(0, ftypLength), .. media, .. init.AsSpan(ftypLength)] : [.. init, .. media];
-		await File.WriteAllBytesAsync(path, content, cancellationToken);
+		// 视频轨在最后，从 moov 到 stsz 每一层都以文件末尾结束
+		foreach (string type in (string[])["moov", "trak", "mdia", "minf", "stbl", "stsz"])
+		{
+			Span<byte> size = content.AsSpan(content.AsSpan().LastIndexOf(Encoding.ASCII.GetBytes(type)) - 4, 4);
+			BinaryPrimitives.WriteUInt32BigEndian(size, BinaryPrimitives.ReadUInt32BigEndian(size) + tableLength);
+		}
+
+		await using (FileStream file = File.Create(path))
+		{
+			await file.WriteAsync(content, cancellationToken);
+			file.SetLength(content.Length + tableLength);
+		}
 
 		await Assert.That(await VideoResolutionProbe.ReadAsync(path, cancellationToken)).IsEqualTo(new VideoResolution(1080, 1920));
 	}

@@ -183,7 +183,7 @@ internal sealed class TsHlsSplitter : HlsSplitter
 
 	// 会话用 MediaProbe.IsTransportStream 认 TS 分片，开头可以有不到一个包的杂字节；杂字节里碰巧有 0x47 很常见，开头是 0x47 也要连续三个包都对得上才算
 	// 找不到时返回 0
-	private static int FindFirstPacket(ReadOnlySpan<byte> data)
+	internal static int FindFirstPacket(ReadOnlySpan<byte> data)
 	{
 		for (int offset = 0; offset < TransportStream.PacketSize && offset + 3 * TransportStream.PacketSize <= data.Length; ++offset)
 		{
