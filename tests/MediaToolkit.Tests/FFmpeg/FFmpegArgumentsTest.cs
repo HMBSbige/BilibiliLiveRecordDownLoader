@@ -15,8 +15,14 @@ public class FFmpegArgumentsTest
 		yield return new
 		(
 			static () => (FFmpegArguments.Cut(@"in.flv", @"out.mp4", new TimeSpan(0, 1, 2, 3, 456), new TimeSpan(1, 2, 3, 4, 5)),
-				[@"-hide_banner", @"-y", @"-ss", @"01:02:03.456", @"-to", @"26:03:04.005", @"-i", @"in.flv", @"-map", @"0", @"-c", @"copy", @"-avoid_negative_ts", @"1", @"out.mp4"]),
+				[@"-hide_banner", @"-y", @"-ss", @"01:02:03.456", @"-to", @"26:03:04.005", @"-i", @"in.flv", @"-map", @"0", @"-c", @"copy", @"-copyinkf:a", @"-avoid_negative_ts", @"1", @"out.mp4"]),
 			DisplayName: "Cut seeks on the input and counts hours past a day"
+		);
+		yield return new
+		(
+			static () => (FFmpegArguments.Cut(@"in.mp4", @"out.mp4", TimeSpan.Zero, TimeSpan.FromSeconds(1)),
+				[@"-hide_banner", @"-y", @"-to", @"00:00:01.000", @"-i", @"in.mp4", @"-map", @"0", @"-c", @"copy", @"-copyinkf:a", @"-avoid_negative_ts", @"1", @"out.mp4"]),
+			DisplayName: "Cut from the start does not seek"
 		);
 		yield return new
 		(

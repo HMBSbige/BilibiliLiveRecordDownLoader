@@ -27,9 +27,9 @@ public static class FFmpegArguments
 		return
 		[
 			@"-hide_banner", @"-y",
-			@"-ss", FormatTime(start), @"-to", FormatTime(end),
+			.. Seek(start), @"-to", FormatTime(end),
 			@"-i", input,
-			@"-map", @"0", @"-c", @"copy", @"-avoid_negative_ts", @"1",
+			@"-map", @"0", .. CopyStreams, @"-avoid_negative_ts", @"1",
 			output
 		];
 	}
@@ -43,6 +43,12 @@ public static class FFmpegArguments
 	private static string[] FrameRate(double? frameRate)
 	{
 		return frameRate is { } rate and > 0 ? [@"-framerate", rate.ToString(@"0.###", CultureInfo.InvariantCulture)] : [];
+	}
+
+	// 分片 MP4 第一个分片的音频样本标成非同步时，-ss 让视频定位到第一个关键帧（从头剪，或起点落在第一个 GOP 里）就会丢掉整条音轨，加 -copyinkf:a 也没用；从头剪就不定位
+	private static string[] Seek(TimeSpan start)
+	{
+		return start > TimeSpan.Zero ? [@"-ss", FormatTime(start)] : [];
 	}
 
 	// TimeSpan 的 hh 只是小时分量，超过一天会丢掉天数

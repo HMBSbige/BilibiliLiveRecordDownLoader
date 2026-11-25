@@ -213,7 +213,7 @@ public partial class FFmpegIntegrationTest
 	}
 
 	[Test]
-	public async Task RemuxKeepsAudioBeforeTheFirstSyncSampleAsync(CancellationToken cancellationToken)
+	public async Task CopyingKeepsAudioBeforeTheFirstSyncSampleAsync(CancellationToken cancellationToken)
 	{
 		FFmpegRunner runner = CreateRunner();
 		using TestDirectory directory = new();
@@ -229,14 +229,17 @@ public partial class FFmpegIntegrationTest
 		await FFmpegMetadata.WriteChaptersFileAsync(chapters, [new FFmpegChapter(TimeSpan.Zero, SampleDuration, @"直播标题")], cancellationToken);
 		string remuxed = directory.Combine(@"remuxed.mp4");
 		string withChapters = directory.Combine(@"chapters.mp4");
+		string cut = directory.Combine(@"cut.mp4");
 		await runner.RunAsync(FFmpegArguments.Remux(fragmented, remuxed), null, cancellationToken);
 		await runner.RunAsync(FFmpegArguments.RemuxWithChapters(fragmented, chapters, withChapters), null, cancellationToken);
+		await runner.RunAsync(FFmpegArguments.Cut(fragmented, cut, TimeSpan.Zero, SampleDuration * 2), null, cancellationToken);
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(expected).IsGreaterThan(0);
 			await Assert.That(await CountAudioFramesAsync(runner, remuxed, cancellationToken)).IsEqualTo(expected);
 			await Assert.That(await CountAudioFramesAsync(runner, withChapters, cancellationToken)).IsEqualTo(expected);
+			await Assert.That(await CountAudioFramesAsync(runner, cut, cancellationToken)).IsEqualTo(expected);
 		}
 
 		// FFmpeg 用 tfhd 的默认样本标志把音频标成同步样本；改成非同步，相当于第一个分片的音频样本被标成非同步的 fMP4
