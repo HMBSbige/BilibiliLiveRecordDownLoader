@@ -1,4 +1,5 @@
 using Avalonia.Logging;
+using System.Diagnostics.CodeAnalysis;
 using AvaloniaLogLevel = Avalonia.Logging.LogEventLevel;
 using LogEventLevel = Serilog.Events.LogEventLevel;
 
@@ -19,6 +20,7 @@ internal sealed class AvaloniaLogSink : ILogSink
 		Log(level, area, source, messageTemplate, []);
 	}
 
+	[SuppressMessage("Usage", "CA2254", Justification = "转发 Avalonia 的消息模板，模板在 Avalonia 的调用处是常量")]
 	public void Log(AvaloniaLogLevel level, string area, object? source, string messageTemplate, params object?[] propertyValues)
 	{
 		if (IsEnabled(level, area))
