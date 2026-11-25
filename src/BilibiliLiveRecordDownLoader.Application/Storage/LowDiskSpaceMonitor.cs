@@ -5,8 +5,6 @@ namespace BilibiliLiveRecordDownLoader.Application.Storage;
 [SuppressMessage("Design", "CA1001", Justification = "CancellationTokenSource 由 MonitorAsync 释放，字段只用来取消")]
 internal sealed partial class LowDiskSpaceMonitor(IDiskSpaceService diskSpace, IAppConfigManager configManager, INotificationService notifications, TimeProvider timeProvider, ILogger<LowDiskSpaceMonitor> logger)
 {
-	internal const long Threshold = 1L << 30;
-
 	internal static readonly TimeSpan CheckInterval = TimeSpan.FromSeconds(30);
 
 	private readonly Lock _lock = new();
@@ -75,12 +73,12 @@ internal sealed partial class LowDiskSpaceMonitor(IDiskSpaceService diskSpace, I
 		{
 			string directory = (await configManager.GetAsync(cancellationToken)).RecordDirectory;
 
-			if (diskSpace.GetDiskSpace(directory) is not { AvailableBytes: var available })
+			if (diskSpace.GetDiskSpace(directory) is not { AvailableBytes: var available } info)
 			{
 				return;
 			}
 
-			if (available >= Threshold)
+			if (!DiskSpaceWarning.IsLow(info))
 			{
 				_isAlerted = false;
 			}

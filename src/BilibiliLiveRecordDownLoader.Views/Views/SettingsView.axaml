@@ -23,9 +23,9 @@
                                 </StackPanel>
                                 <TextBox Text="{Binding RecordDirectory, UpdateSourceTrigger=LostFocus}" />
                             </DockPanel>
-                            <StackPanel Classes="iconText" IsVisible="{Binding DiskSpaceText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                <ProgressBar Width="120" VerticalAlignment="Center" Value="{Binding DiskUsagePercent}" Maximum="100" />
-                                <TextBlock Classes="caption" Text="{Binding DiskSpaceText}" />
+                            <StackPanel Spacing="6" Margin="0,4,0,0" IsVisible="{Binding DiskSpaceText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                <ProgressBar Classes="meter" Classes.critical="{Binding IsDiskSpaceLow}" Value="{Binding DiskUsagePercent}" Maximum="100" />
+                                <TextBlock Classes="caption numeric" Text="{Binding DiskSpaceText}" />
                             </StackPanel>
                         </StackPanel>
                     </ctl:SettingRow>

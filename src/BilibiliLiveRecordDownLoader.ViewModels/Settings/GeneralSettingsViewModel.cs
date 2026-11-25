@@ -39,6 +39,9 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 	public partial double DiskUsagePercent { get; private set; }
 
 	[Reactive]
+	public partial bool IsDiskSpaceLow { get; private set; }
+
+	[Reactive]
 	public partial bool IsAutoStartEnabled { get; set; }
 
 	internal void ApplySettings(AppSettingsDto settings)
@@ -121,5 +124,6 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 	{
 		DiskSpaceText = diskSpace is null ? null : AppLanguage.Current.DiskSpace.ToString(ByteSize.Format(diskSpace.AvailableBytes), ByteSize.Format(diskSpace.TotalBytes));
 		DiskUsagePercent = (diskSpace?.UsedRatio ?? 0) * 100;
+		IsDiskSpaceLow = DiskSpaceWarning.IsLow(diskSpace);
 	}
 }

@@ -8,13 +8,6 @@
     xmlns:l="using:BilibiliLiveRecordDownLoader.Domain.Shared.Localization"
     x:Class="BilibiliLiveRecordDownLoader.Views.Views.TasksView"
     x:DataType="tasks:TaskListViewModel">
-    <UserControl.Styles>
-        <Style Selector="ProgressBar.thin">
-            <Setter Property="MinHeight" Value="4" />
-            <Setter Property="Height" Value="4" />
-        </Style>
-    </UserControl.Styles>
-
     <DockPanel Classes="page">
         <StackPanel DockPanel.Dock="Top" Classes="toolbar" HorizontalAlignment="Right" IsVisible="{Binding HasTasks}">
             <Button Command="{Binding ClearFinishedTasksCommand}">
