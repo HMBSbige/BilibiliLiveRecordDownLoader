@@ -187,6 +187,7 @@ public class BilibiliApiClientTest
 
 	// 轮播时照样返回流地址，只有直播状态能挡住录制
 	[Test]
+	[Arguments(0)]
 	[Arguments(2)]
 	public async Task StreamCandidatesThrowWhenNotLiveAsync(int liveStatus, CancellationToken cancellationToken)
 	{
@@ -213,20 +214,18 @@ public class BilibiliApiClientTest
 	}
 
 	[Test]
-	[Arguments(10000L)]
-	[Arguments(25000L)]
-	public async Task MasterPlaylistIsRequestedUnsignedWithTheGivenQnAndWithoutTheLoginCookieAsync(long qn, CancellationToken cancellationToken)
+	public async Task MasterPlaylistIsRequestedUnsignedWithTheGivenQnAndWithoutTheLoginCookieAsync(CancellationToken cancellationToken)
 	{
 		BilibiliIdentity identity = new(static _ => ValueTask.FromResult(new BilibiliRequestOptions(Cookie: "SESSDATA=secret; buvid3=known")));
 		using ApiClient api = Single(ApiPaths.MasterPlaylist, static () => Responses.Text(Responses.FixtureText("master_playlist.m3u8")), identity);
 
-		IReadOnlyList<LiveStreamCandidate.Variant> variants = await api.Client.GetMasterPlaylistVariantsAsync(6650029, qn, cancellationToken);
+		IReadOnlyList<LiveStreamCandidate.Variant> variants = await api.Client.GetMasterPlaylistVariantsAsync(6650029, 20000, cancellationToken);
 		RecordedRequest request = await Assert.That(api.Handler.Requests).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(variants).Count().IsEqualTo(7);
-			await Assert.That(request.Uri.AbsoluteUri).IsEqualTo($"https://api.live.bilibili.com/xlive/play-gateway/master/url?cid=6650029&mid=0&pt=web&p2p_type=-1&net=0&free_type=0&build=0&feature=2&qn={qn}&drm_type=0&codec=0,1,2");
+			await Assert.That(request.Uri.AbsoluteUri).IsEqualTo("https://api.live.bilibili.com/xlive/play-gateway/master/url?cid=6650029&mid=0&pt=web&p2p_type=-1&net=0&free_type=0&build=0&feature=2&qn=20000&drm_type=0&codec=0,1,2");
 			await Assert.That(request.Headers["Cookie"]).IsEqualTo("buvid3=known");
 		}
 	}

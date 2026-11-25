@@ -102,7 +102,7 @@ public sealed class BilibiliApiClient
 				await Task.Delay(FollowingPageInterval, TimeProvider, cancellationToken);
 			}
 
-			Uri uri = CreateUri($"{LiveApi}xlive/web-ucenter/user/following?page={page}&page_size={FollowingPageSize}&ignoreRecord=1&hit_ab=true");
+			Uri uri = new(string.Create(CultureInfo.InvariantCulture, $"{LiveApi}xlive/web-ucenter/user/following?page={page}&page_size={FollowingPageSize}&ignoreRecord=1&hit_ab=true"));
 			FollowingData data = await GetDataAsync(uri, BilibiliJsonContext.Default.FollowingData, cancellationToken);
 			bool hasNewRoom = false;
 
@@ -126,7 +126,7 @@ public sealed class BilibiliApiClient
 
 	public async Task<LiveStreamListing> GetStreamCandidatesAsync(long roomId, long qn, CancellationToken cancellationToken = default)
 	{
-		Uri uri = CreateUri($"{LiveApi}xlive/web-room/v2/index/getRoomPlayInfo?room_id={roomId}&no_playurl=0&mask=1&qn={qn}&platform=web&protocol=0,1&format=0,1,2&codec=0,1,2");
+		Uri uri = new(string.Create(CultureInfo.InvariantCulture, $"{LiveApi}xlive/web-room/v2/index/getRoomPlayInfo?room_id={roomId}&no_playurl=0&mask=1&qn={qn}&platform=web&protocol=0,1&format=0,1,2&codec=0,1,2"));
 		RoomPlayInfoData data = await GetDataAsync(uri, BilibiliJsonContext.Default.RoomPlayInfoData, cancellationToken);
 
 		if (ToLiveStatus(data.LiveStatus) is not LiveStatus.Live)
@@ -137,11 +137,11 @@ public sealed class BilibiliApiClient
 		return StreamCandidates.Select(data);
 	}
 
-	/// <param name="qn">原画及以下的档位总会列出；高于原画的档位要用对应的 qn 请求才会列出，例如原画真彩要用 25000</param>
+	/// <param name="qn">原画及以下的档位总会列出；高于原画的档位要用对应的 qn 请求才会列出，例如原画真彩要用 25000，实测用杜比的 30000 请求时不列它</param>
 	/// <remarks>mid 本应是请求者的 uid，但接口不拿它核对登录，所以填 0，请求也不带登录 Cookie</remarks>
 	public async Task<IReadOnlyList<LiveStreamCandidate.Variant>> GetMasterPlaylistVariantsAsync(long roomId, long qn, CancellationToken cancellationToken = default)
 	{
-		Uri uri = CreateUri($"{LiveApi}xlive/play-gateway/master/url?cid={roomId}&mid=0&pt=web&p2p_type=-1&net=0&free_type=0&build=0&feature=2&qn={qn}&drm_type=0&codec=0,1,2");
+		Uri uri = new(string.Create(CultureInfo.InvariantCulture, $"{LiveApi}xlive/play-gateway/master/url?cid={roomId}&mid=0&pt=web&p2p_type=-1&net=0&free_type=0&build=0&feature=2&qn={qn}&drm_type=0&codec=0,1,2"));
 		using HttpRequestMessage request = new(HttpMethod.Get, uri);
 		request.Options.Set(BilibiliRequestHandler.AnonymousOption, true);
 		using HttpResponseMessage response = await HttpClient.SendAsync(request, cancellationToken);
@@ -309,11 +309,6 @@ public sealed class BilibiliApiClient
 			2 => LiveStatus.Round,
 			_ => LiveStatus.Unknown
 		};
-	}
-
-	private static Uri CreateUri(FormattableString url)
-	{
-		return new Uri(url.ToString(CultureInfo.InvariantCulture));
 	}
 
 	private async ValueTask<Uri> CreateSignedUriAsync(string url, IEnumerable<KeyValuePair<string, string>> parameters, CancellationToken cancellationToken)

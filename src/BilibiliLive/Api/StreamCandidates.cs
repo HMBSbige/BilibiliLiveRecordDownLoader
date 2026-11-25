@@ -4,14 +4,15 @@ internal static class StreamCandidates
 {
 	public static LiveStreamListing Select(RoomPlayInfoData data)
 	{
-		return new LiveStreamListing(SelectCandidates(data), GetQualityNames(data));
+		PlayUrl? playUrl = data.PlayurlInfo?.Playurl;
+		return new LiveStreamListing(SelectCandidates(playUrl?.Stream ?? []), GetQualityNames(playUrl?.GQnDesc ?? []));
 	}
 
-	private static List<LiveStreamCandidate.Listed> SelectCandidates(RoomPlayInfoData data)
+	private static List<LiveStreamCandidate.Listed> SelectCandidates(IReadOnlyList<PlayStream> streams)
 	{
 		List<LiveStreamCandidate.Listed> candidates = [];
 
-		foreach (PlayStream stream in data.PlayurlInfo?.Playurl?.Stream ?? [])
+		foreach (PlayStream stream in streams)
 		{
 			if (ParseProtocol(stream.ProtocolName) is not { } protocol)
 			{
@@ -32,9 +33,9 @@ internal static class StreamCandidates
 						continue;
 					}
 
-					Uri[] urls = [.. GetUrls(codec.BaseUrl, codec.UrlInfo ?? [])];
+					List<Uri> urls = GetUrls(codec.BaseUrl, codec.UrlInfo ?? []);
 
-					if (urls.Length is not 0)
+					if (urls.Count is not 0)
 					{
 						candidates.Add(new LiveStreamCandidate.Listed(protocol, streamFormat, streamCodec, codec.CurrentQn, codec.AcceptQn ?? [], urls));
 					}
@@ -45,11 +46,11 @@ internal static class StreamCandidates
 		return candidates;
 	}
 
-	private static Dictionary<long, string> GetQualityNames(RoomPlayInfoData data)
+	private static Dictionary<long, string> GetQualityNames(IReadOnlyList<QualityDescription> descriptions)
 	{
-		Dictionary<long, string> names = [];
+		Dictionary<long, string> names = new(descriptions.Count);
 
-		foreach (QualityDescription description in data.PlayurlInfo?.Playurl?.GQnDesc ?? [])
+		foreach (QualityDescription description in descriptions)
 		{
 			if (description.Desc is { Length: > 0 } name)
 			{
@@ -60,17 +61,21 @@ internal static class StreamCandidates
 		return names;
 	}
 
-	private static IEnumerable<Uri> GetUrls(string baseUrl, IReadOnlyList<PlayUrlHost> hosts)
+	private static List<Uri> GetUrls(string baseUrl, IReadOnlyList<PlayUrlHost> hosts)
 	{
+		List<Uri> urls = new(hosts.Count);
+
 		foreach (PlayUrlHost host in hosts)
 		{
 			if (host.Host is { } origin
 				&& origin.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
 				&& Uri.TryCreate(origin + baseUrl + host.Extra, UriKind.Absolute, out Uri? uri))
 			{
-				yield return uri;
+				urls.Add(uri);
 			}
 		}
+
+		return urls;
 	}
 
 	private static StreamProtocol? ParseProtocol(string? name)

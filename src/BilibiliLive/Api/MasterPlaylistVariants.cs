@@ -5,15 +5,12 @@ namespace BilibiliLive.Api;
 
 internal static class MasterPlaylistVariants
 {
-	private const string Header = "#EXTM3U";
-	private const string StreamInfTag = "#EXT-X-STREAM-INF:";
-
 	/// <summary>每种画质和编码在每条 pathway（同一路流的另一个 CDN 主机）下各列一次，合并成一个变体</summary>
 	public static LiveStreamCandidate.Variant[] Parse(string content, Uri playlistUri)
 	{
 		bool hasHeader = false;
 		(StreamCodec Codec, long Qn, string? Name)? pending = null;
-		List<(StreamCodec Codec, long Qn, string? Name, Uri Url)> entries = [];
+		OrderedDictionary<(StreamCodec Codec, long Qn), (string? Name, List<Uri> Urls)> variants = [];
 
 		foreach (ReadOnlySpan<char> rawLine in content.AsSpan().EnumerateLines())
 		{
@@ -26,22 +23,22 @@ internal static class MasterPlaylistVariants
 
 			if (!hasHeader)
 			{
-				if (line.TrimStart('\uFEFF') is not Header)
+				if (!HlsPlaylist.IsHeader(line))
 				{
 					throw new FormatException("The response is not an HLS playlist.");
 				}
 
 				hasHeader = true;
 			}
-			else if (line.StartsWith(StreamInfTag, StringComparison.Ordinal))
+			else if (line.StartsWith(HlsPlaylist.StreamInfTag, StringComparison.Ordinal))
 			{
-				pending = ParseStreamInf(line.Slice(StreamInfTag.Length));
+				pending = ParseStreamInf(line.Slice(HlsPlaylist.StreamInfTag.Length));
 			}
 			else if (line[0] is not '#')
 			{
-				if (pending is var (codec, qn, name) && Uri.TryCreate(playlistUri, line.ToString(), out Uri? uri) && uri.Scheme == Uri.UriSchemeHttps && !entries.Exists(entry => (entry.Codec, entry.Qn, entry.Url) == (codec, qn, uri)))
+				if (pending is var (codec, qn, name) && Uri.TryCreate(playlistUri, line.ToString(), out Uri? uri) && uri.Scheme == Uri.UriSchemeHttps)
 				{
-					entries.Add((codec, qn, name, uri));
+					Add(variants, (codec, qn), name, uri);
 				}
 
 				pending = null;
@@ -53,7 +50,27 @@ internal static class MasterPlaylistVariants
 			throw new FormatException("The response is empty.");
 		}
 
-		return [.. entries.GroupBy(static entry => (entry.Codec, entry.Qn)).Select(static variant => new LiveStreamCandidate.Variant(variant.Key.Codec, variant.Key.Qn, variant.Select(static entry => entry.Name).FirstOrDefault(static name => name is not null), [.. variant.Select(static entry => entry.Url)]))];
+		return [.. variants.Select(static variant => new LiveStreamCandidate.Variant(variant.Key.Codec, variant.Key.Qn, variant.Value.Name, variant.Value.Urls))];
+	}
+
+	// 同一个地址只留一次，名称取第一个给出的
+	private static void Add(OrderedDictionary<(StreamCodec Codec, long Qn), (string? Name, List<Uri> Urls)> variants, (StreamCodec Codec, long Qn) key, string? name, Uri uri)
+	{
+		if (!variants.TryGetValue(key, out (string? Name, List<Uri> Urls) variant, out int index))
+		{
+			variants.Add(key, (name, [uri]));
+			return;
+		}
+
+		if (!variant.Urls.Contains(uri))
+		{
+			variant.Urls.Add(uri);
+		}
+
+		if (variant.Name is null)
+		{
+			variants.SetAt(index, (name, variant.Urls));
+		}
 	}
 
 	private static (StreamCodec Codec, long Qn, string? Name)? ParseStreamInf(ReadOnlySpan<char> attributes)

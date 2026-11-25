@@ -38,6 +38,24 @@ public class MasterPlaylistVariantsTest
 	}
 
 	[Test]
+	public async Task QualityNameComesFromTheFirstPathwayThatGivesOneAsync()
+	{
+		const string content = """
+			#EXTM3U
+			#EXT-X-STREAM-INF:BANDWIDTH=1,CODECS="avc1.640032",BILI-QN=250
+			https://a.test/live/index.m3u8
+			#EXT-X-STREAM-INF:BANDWIDTH=1,CODECS="avc1.640032",BILI-QN=250,BILI-DISPLAY="超清"
+			https://b.test/live/index.m3u8
+			#EXT-X-STREAM-INF:BANDWIDTH=1,CODECS="avc1.640032",BILI-QN=250,BILI-DISPLAY="其他"
+			https://c.test/live/index.m3u8
+			""";
+
+		LiveStreamCandidate.Variant variant = await Assert.That(MasterPlaylistVariants.Parse(content, PlaylistUri)).HasSingleItem();
+
+		await Assert.That((variant.QualityName, Hosts(variant))).IsEqualTo(("超清", "a.test b.test c.test"));
+	}
+
+	[Test]
 	[Arguments("avc3.640028,mp4a.40.2", StreamCodec.Avc)]
 	[Arguments("hev1.1.6.L150,mp4a.40.2", StreamCodec.Hevc)]
 	[Arguments("av01.0.08M.08,mp4a.40.2", StreamCodec.Av1)]
