@@ -29,6 +29,20 @@ public sealed class VideoResolutionProbeTest
 		await Assert.That(await VideoResolutionProbe.ReadAsync(path, cancellationToken)).IsEqualTo(new VideoResolution(854, 480));
 	}
 
+	// 和录制时一样按第一帧时的流头取尺寸：SPS 优先于 onMetaData，第一帧之后才到的序列头不算
+	[Test]
+	[Arguments(false, 854, 480)]
+	[Arguments(true, 1280, 720)]
+	public async Task FlvSequenceHeaderBeforeTheFirstFrameWinsOverTheMetadataAsync(bool hasFrameBeforeSequenceHeader, int width, int height, CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string path = directory.Combine("a.flv");
+		byte[] leading = hasFrameBeforeSequenceHeader ? FlvSamples.Audio(0) : [];
+		await File.WriteAllBytesAsync(path, [.. FlvSamples.Header, .. FlvSamples.MetadataWithSize(1280, 720), .. leading, .. FlvSamples.AvcSequenceHeader(Convert.FromHexString(MediaHeaderTest.Avc480)), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 0)], cancellationToken);
+
+		await Assert.That(await VideoResolutionProbe.ReadAsync(path, cancellationToken)).IsEqualTo(new VideoResolution(width, height));
+	}
+
 	// 第一个视频 PES 不带 SPS 时接着往后找；HLS 分片开头的杂字节原样写进了录像，开头和中间都可能有
 	[Test]
 	[Arguments(false, 0, 0)]
@@ -55,10 +69,7 @@ public sealed class VideoResolutionProbeTest
 		const uint tableLength = 128 << 20;
 		using TestDirectory directory = new();
 		string path = directory.Combine("a.mp4");
-		byte[] entry = new byte[78];
-		BinaryPrimitives.WriteUInt16BigEndian(entry.AsSpan(24), 1080);
-		BinaryPrimitives.WriteUInt16BigEndian(entry.AsSpan(26), 1920);
-		byte[] stbl = [.. Fmp4Samples.Box("stsd", [0, 0, 0, 0, 0, 0, 0, 1, .. Fmp4Samples.Box("avc1", entry)]), .. Fmp4Samples.Box("stsz", [])];
+		byte[] stbl = [.. Fmp4Samples.Stsd(1080, 1920), .. Fmp4Samples.Box("stsz", [])];
 		byte[] video = Fmp4Samples.Box("trak", [.. Fmp4Samples.Tkhd(Fmp4Samples.VideoTrack), .. Fmp4Samples.Box("mdia", [.. Fmp4Samples.Hdlr("vide"), .. Fmp4Samples.Box("minf", Fmp4Samples.Box("stbl", stbl))])]);
 		byte[] media = [0, 0, 0, 1, .. "mdat"u8, 0, 0, 0, 0, 0, 0, 0, 0, .. new byte[4096]];
 		BinaryPrimitives.WriteUInt64BigEndian(media.AsSpan(8), (ulong)media.Length);

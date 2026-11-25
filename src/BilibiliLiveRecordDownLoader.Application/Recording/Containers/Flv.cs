@@ -156,7 +156,7 @@ internal static class Flv
 		};
 	}
 
-	// 从文件开头逐个 tag 看，返回第一个读得出尺寸的视频序列头或 onMetaData；遇到不完整或认不出的 tag 就停下
+	// 和录制时 FlvSplitter 给的一致：第一帧之前读得出尺寸的视频序列头优先，其次是 onMetaData；都没有时接着往后找，遇到不完整或认不出的 tag 就停下
 	public static VideoResolution? ReadResolution(ReadOnlySpan<byte> data)
 	{
 		if (ReadFirstTagOffset(data) is not { } offset || offset > data.Length)
@@ -164,26 +164,33 @@ internal static class Flv
 			return null;
 		}
 
+		VideoResolution? metadata = null;
+
 		while (MeasureTag(data.Slice(offset)) is > 0 and var length)
 		{
-			ReadOnlySpan<byte> body = GetBody(data.Slice(offset));
+			ReadOnlySpan<byte> tag = data.Slice(offset);
+			ReadOnlySpan<byte> body = GetBody(tag);
 
-			VideoResolution? resolution = data[offset] switch
+			switch (tag[0])
 			{
-				VideoTag when IsVideoSequenceHeader(body) => ReadSequenceResolution(body),
-				ScriptTag when IsMetadata(body) => FlvMetadata.ReadResolution(body),
-				_ => null
-			};
+				case VideoTag when IsVideoSequenceHeader(body):
+					if (ReadSequenceResolution(body) is { } sequence)
+					{
+						return sequence;
+					}
 
-			if (resolution is not null)
-			{
-				return resolution;
+					break;
+				case ScriptTag when IsMetadata(body):
+					metadata = FlvMetadata.ReadResolution(body) ?? metadata;
+					break;
+				case VideoTag or AudioTag when metadata is not null && !IsSequenceHeader(tag):
+					return metadata;
 			}
 
 			offset += length;
 		}
 
-		return null;
+		return metadata;
 	}
 
 	private static int ReadDataSize(ReadOnlySpan<byte> tag)
