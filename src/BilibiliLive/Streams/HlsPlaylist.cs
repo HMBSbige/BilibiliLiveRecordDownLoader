@@ -11,7 +11,7 @@ internal sealed record HlsPlaylist(TimeSpan? TargetDuration, IReadOnlyList<HlsSe
 	private const string DiscontinuitySequenceTag = "#EXT-X-DISCONTINUITY-SEQUENCE:";
 	private const string DiscontinuityTag = "#EXT-X-DISCONTINUITY";
 	private const string EndListTag = "#EXT-X-ENDLIST";
-	private const string StreamInfTag = "#EXT-X-STREAM-INF:";
+	internal const string StreamInfTag = "#EXT-X-STREAM-INF:";
 
 	// 远大于任何真实直播流的分片时长；再大的值会让轮询间隔和静默上限长达数天，甚至让 TimeSpan 溢出
 	private const double MaxTargetDurationSeconds = 3600;
@@ -39,7 +39,7 @@ internal sealed record HlsPlaylist(TimeSpan? TargetDuration, IReadOnlyList<HlsSe
 
 			if (!hasHeader)
 			{
-				if (line.TrimStart('\uFEFF') is not Header)
+				if (!IsHeader(line))
 				{
 					throw new FormatException("The playlist does not start with #EXTM3U.");
 				}
@@ -89,6 +89,12 @@ internal sealed record HlsPlaylist(TimeSpan? TargetDuration, IReadOnlyList<HlsSe
 		}
 
 		return new HlsPlaylist(targetDuration, segments, endList);
+	}
+
+	// 第一行可能以 BOM 开头
+	internal static bool IsHeader(ReadOnlySpan<char> line)
+	{
+		return line.TrimStart('\uFEFF') is Header;
 	}
 
 	// 有的 CDN 节点返回主播放列表，指向边缘节点上同一路流的媒体播放列表

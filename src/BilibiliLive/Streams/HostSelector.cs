@@ -2,7 +2,8 @@ namespace BilibiliLive.Streams;
 
 internal static class HostSelector
 {
-	public static async Task<T> OpenAsync<T>(IReadOnlyList<Uri> urls, StreamHostSelection selection, Func<Uri, CancellationToken, Task<T>> open, Random random, CancellationToken cancellationToken) where T : class, IAsyncDisposable
+	/// <param name="open">第二个参数是其他主机，按尝试顺序从这个主机之后轮转</param>
+	public static async Task<T> OpenAsync<T>(IReadOnlyList<Uri> urls, StreamHostSelection selection, Func<Uri, IReadOnlyList<Uri>, CancellationToken, Task<T>> open, Random random, CancellationToken cancellationToken) where T : class, IAsyncDisposable
 	{
 		if (urls.Count is 0)
 		{
@@ -18,6 +19,24 @@ internal static class HostSelector
 		};
 	}
 
+	// 依次打开时，排在打开的主机之前的都打开失败过，轮转之后排到最后；接口可能重复列出同一主机，每个只试一次
+	private static List<Uri> GetFallbacks(IReadOnlyList<Uri> order, int opened)
+	{
+		List<Uri> fallbacks = new(order.Count - 1);
+
+		for (int i = 1; i < order.Count; ++i)
+		{
+			Uri uri = order[(opened + i) % order.Count];
+
+			if (uri != order[opened] && !fallbacks.Contains(uri))
+			{
+				fallbacks.Add(uri);
+			}
+		}
+
+		return fallbacks;
+	}
+
 	private static Uri[] Shuffle(IReadOnlyList<Uri> urls, Random random)
 	{
 		Uri[] shuffled = [.. urls];
@@ -25,15 +44,15 @@ internal static class HostSelector
 		return shuffled;
 	}
 
-	private static async Task<T> OpenSequentiallyAsync<T>(IReadOnlyList<Uri> urls, Func<Uri, CancellationToken, Task<T>> open, CancellationToken cancellationToken) where T : class, IAsyncDisposable
+	private static async Task<T> OpenSequentiallyAsync<T>(IReadOnlyList<Uri> order, Func<Uri, IReadOnlyList<Uri>, CancellationToken, Task<T>> open, CancellationToken cancellationToken) where T : class, IAsyncDisposable
 	{
 		List<Exception> errors = [];
 
-		foreach (Uri uri in urls)
+		for (int i = 0; i < order.Count; ++i)
 		{
 			try
 			{
-				return await open(uri, cancellationToken);
+				return await open(order[i], GetFallbacks(order, i), cancellationToken);
 			}
 			catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
 			{
@@ -44,11 +63,11 @@ internal static class HostSelector
 		throw new AggregateException("None of the stream hosts could be opened.", errors);
 	}
 
-	private static async Task<T> OpenFastestAsync<T>(IReadOnlyList<Uri> urls, Func<Uri, CancellationToken, Task<T>> open, CancellationToken cancellationToken) where T : class, IAsyncDisposable
+	private static async Task<T> OpenFastestAsync<T>(IReadOnlyList<Uri> urls, Func<Uri, IReadOnlyList<Uri>, CancellationToken, Task<T>> open, CancellationToken cancellationToken) where T : class, IAsyncDisposable
 	{
 		using CancellationTokenSource losers = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		// ReSharper disable once AccessToDisposedClosure
-		Task<T>[] attempts = [.. urls.Select(uri => open(uri, losers.Token))];
+		Task<T>[] attempts = [.. urls.Select((uri, i) => open(uri, GetFallbacks(urls, i), losers.Token))];
 
 		T? winner = null;
 		List<Exception> errors = [];

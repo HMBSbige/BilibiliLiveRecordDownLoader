@@ -1,5 +1,6 @@
 using BilibiliLive.Streams;
 using BilibiliLive.Tests.Fakes;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -22,7 +23,7 @@ public class LiveStreamReaderTest
 		using HttpClient client = new(handler);
 		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [], [BrokenHost, WorkingHost]);
 
-		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, cancellationToken: cancellationToken);
+		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, NullLogger.Instance, cancellationToken: cancellationToken);
 		using MemoryStream output = new();
 		RecordingProgress progress = new();
 		await session.CopyToAsync(output, progress, cancellationToken);
@@ -53,11 +54,40 @@ public class LiveStreamReaderTest
 		using HttpClient client = new(handler);
 		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpHls, StreamFormat.Ts, StreamCodec.Avc, 10000, [], [garbage, valid]);
 
-		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, cancellationToken: cancellationToken);
+		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, NullLogger.Instance, cancellationToken: cancellationToken);
 		using MemoryStream output = new();
 		await session.CopyToAsync(output, null, cancellationToken);
 
 		await Assert.That((session.Source, MediaSamples.Markers(output.ToArray()))).IsEqualTo((valid, "[segment]"));
+	}
+
+	[Test]
+	public async Task HlsSegmentFailingOnTheOpenedHostIsFetchedFromTheHostsAfterItFirstAsync(CancellationToken cancellationToken)
+	{
+		Uri[] hosts = [new("https://a.test/live/index.m3u8?sign=a"), new("https://b.test/live/index.m3u8?sign=b"), new("https://c.test/live/index.m3u8?sign=c")];
+		FakeHttpMessageHandler handler = new(static request => request.RequestUri switch
+		{
+			{ Host: "a.test", AbsolutePath: "/live/index.m3u8" } => Responses.NotFound(),
+			{ AbsolutePath: "/live/index.m3u8" } => Responses.Text("#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXTINF:1,\n1.ts\n#EXTINF:1,\n2.ts\n#EXT-X-ENDLIST\n"),
+			{ Host: "b.test", AbsolutePath: "/live/2.ts" } => Responses.NotFound(),
+			{ AbsolutePath: var path } => Responses.Bytes(MediaSamples.TransportStream(Path.GetFileNameWithoutExtension(path))),
+			_ => Responses.NotFound()
+		});
+		using HttpClient client = new(handler);
+		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpHls, StreamFormat.Ts, StreamCodec.Avc, 10000, [], hosts);
+		ListLogger logger = new();
+
+		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, logger, timeProvider: new ShortDelayTimeProvider(ConnectTimeout), cancellationToken: cancellationToken);
+		using MemoryStream output = new();
+		StreamEndReason reason = await session.CopyToAsync(output, null, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That((session.Source, MediaSamples.Markers(output.ToArray()), reason)).IsEqualTo((hosts[1], "[1][2]", StreamEndReason.EndOfStream));
+			await Assert.That(handler.RequestsTo("/live/2.ts").Select(static r => r.Uri.Host)).IsEquivalentTo([.. Enumerable.Repeat("b.test", HlsStreamSession.MaxAttempts), "c.test"], CollectionOrdering.Matching);
+			await Assert.That(handler.Requests.Where(static r => r.Uri.Host is "a.test")).Count().IsEqualTo(1).Because("打开时就失败的主机排在最后，c 取到后不再去试");
+			await Assert.That(logger.Entries).Contains(static entry => entry.Message.Contains("2.ts", StringComparison.Ordinal) && entry.Message.Contains("c.test", StringComparison.Ordinal));
+		}
 	}
 
 	[Test]
@@ -79,7 +109,7 @@ public class LiveStreamReaderTest
 		List<(Uri Host, Exception Error)> failures = [];
 		FakeTimeProvider time = new();
 
-		Task<LiveStreamSession> opening = LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, (failedHost, failure) => failures.Add((failedHost, failure)), time, cancellationToken);
+		Task<LiveStreamSession> opening = LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, NullLogger.Instance, (failedHost, failure) => failures.Add((failedHost, failure)), time, cancellationToken);
 		await hung.Task.WaitAsync(cancellationToken);
 		time.Advance(ConnectTimeout);
 		await using LiveStreamSession session = await opening;
@@ -102,7 +132,7 @@ public class LiveStreamReaderTest
 		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [], [WorkingHost]);
 		List<Exception> failures = [];
 
-		await Assert.ThrowsAsync<AggregateException>(() => LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, (_, error) => failures.Add(error), cancellationToken: cancellationToken));
+		await Assert.ThrowsAsync<AggregateException>(() => LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, NullLogger.Instance, (_, error) => failures.Add(error), cancellationToken: cancellationToken));
 		Exception failure = await Assert.That(failures).HasSingleItem();
 
 		await Assert.That(failure).IsTypeOf<InvalidDataException>();
@@ -117,7 +147,7 @@ public class LiveStreamReaderTest
 		List<Exception> failures = [];
 		FakeTimeProvider time = new();
 
-		Task<LiveStreamSession> opening = LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, (_, error) => failures.Add(error), time, cancellationToken);
+		Task<LiveStreamSession> opening = LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, NullLogger.Instance, (_, error) => failures.Add(error), time, cancellationToken);
 		await stalled.Task.WaitAsync(cancellationToken);
 		time.Advance(ConnectTimeout);
 
@@ -142,7 +172,7 @@ public class LiveStreamReaderTest
 		ConcurrentQueue<Exception> failures = new();
 		using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-		Task<LiveStreamSession> opening = LiveStreamReader.OpenAsync(client, candidate, selection, ConnectTimeout, (_, error) => failures.Enqueue(error), new FakeTimeProvider(), stop.Token);
+		Task<LiveStreamSession> opening = LiveStreamReader.OpenAsync(client, candidate, selection, ConnectTimeout, NullLogger.Instance, (_, error) => failures.Enqueue(error), new FakeTimeProvider(), stop.Token);
 		await hung.Task.WaitAsync(cancellationToken);
 		await stop.CancelAsync();
 		await Assert.ThrowsAsync<OperationCanceledException>(() => opening);
@@ -167,7 +197,7 @@ public class LiveStreamReaderTest
 		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [], [hung, WorkingHost]);
 		ConcurrentQueue<Exception> failures = new();
 
-		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FastestResponse, ConnectTimeout, (_, error) => failures.Enqueue(error), new FakeTimeProvider(), cancellationToken);
+		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FastestResponse, ConnectTimeout, NullLogger.Instance, (_, error) => failures.Enqueue(error), new FakeTimeProvider(), cancellationToken);
 
 		using (Assert.Multiple())
 		{

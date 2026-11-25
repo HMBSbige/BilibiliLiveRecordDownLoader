@@ -371,6 +371,34 @@ public sealed class RoomMasterPlaylistTest
 		}
 	}
 
+	// 录制器把自己的日志交给 HLS 会话，换节点取到分片时日志里才看得到
+	[Test]
+	public async Task SegmentFetchedFromAnotherHostShowsInTheRecorderLogAsync(CancellationToken cancellationToken)
+	{
+		string streams = Fmp4Codecs($$"""{"codec_name":"avc","current_qn":10000,"accept_qn":[10000],"base_url":"{{AvcOriginalPlaylist}}","url_info":[{"host":"https://a.test","extra":"?sign=$SIGN"},{"host":"https://b.test","extra":"?sign=$SIGN"}]}""");
+		int playlistRequests = 0;
+		Func<HttpRequestMessage, HttpResponseMessage> cdn = Fmp4Cdn();
+		await using RecordingLoopHarness loop = new(cancellationToken, streams: streams, respondStream: request => request.RequestUri switch
+		{
+			{ AbsolutePath: AvcOriginalPlaylist } => Text(Interlocked.Increment(ref playlistRequests) is 1 ? LivePlaylist : LivePlaylist + "#EXTINF:1,\n2.m4s\n"),
+			{ Host: "a.test", AbsolutePath: var path } when path.EndsWith("/2.m4s", StringComparison.Ordinal) => new HttpResponseMessage(HttpStatusCode.NotFound),
+			{ AbsolutePath: var path } when path.EndsWith("/2.m4s", StringComparison.Ordinal) => Bytes(Fmp4Samples.Fragment(true)),
+			_ => cdn(request)
+		});
+		loop.Settings = loop.Settings with { StreamIdleTimeout = TimeSpan.FromHours(1) };
+		loop.GoLive();
+
+		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Recording);
+
+		for (int step = 0; step < 30 && !loop.RecorderLogs.Any(static log => log.StartsWith("HLS segment ", StringComparison.Ordinal)); ++step)
+		{
+			loop.Time.Advance(TimeSpan.FromSeconds(1));
+			await Task.Delay(TimeSpan.FromMilliseconds(50), cancellationToken);
+		}
+
+		await Assert.That(loop.RecorderLogs).Contains(static log => log.StartsWith("HLS segment 2.m4s failed on a.test, fetched it from b.test ", StringComparison.Ordinal));
+	}
+
 	[Test]
 	public async Task RestrictionIsLoggedOncePerLiveAsync(CancellationToken cancellationToken)
 	{

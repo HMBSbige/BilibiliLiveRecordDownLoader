@@ -4,7 +4,7 @@ using System.Threading.Channels;
 
 namespace BilibiliLive.Streams;
 
-internal sealed class HlsStreamSession : LiveStreamSession
+internal sealed partial class HlsStreamSession : LiveStreamSession
 {
 	internal const int MaxAttempts = 3;
 
@@ -20,44 +20,50 @@ internal sealed class HlsStreamSession : LiveStreamSession
 	private static readonly TimeSpan MinTargetDuration = TimeSpan.FromSeconds(1);
 
 	private readonly HttpClient _httpClient;
+	private readonly IReadOnlyList<Uri> _fallbacks;
 	private readonly TimeSpan _requestTimeout;
 	private readonly TimeProvider _timeProvider;
 	private readonly PlaylistSnapshot _initialPlaylist;
 	private readonly FirstSegment _firstSegment;
+	private readonly ILogger _logger;
 	private long _missedSegments;
+	private long _recoveredSegments;
 
-	private HlsStreamSession(HttpClient httpClient, Uri source, TimeSpan requestTimeout, PlaylistSnapshot initialPlaylist, FirstSegment firstSegment, TimeProvider timeProvider)
+	private HlsStreamSession(HttpClient httpClient, Uri source, IReadOnlyList<Uri> fallbacks, TimeSpan requestTimeout, PlaylistSnapshot initialPlaylist, FirstSegment firstSegment, TimeProvider timeProvider, ILogger logger)
 	{
 		_httpClient = httpClient;
 		Source = source;
+		_fallbacks = fallbacks;
 		_requestTimeout = requestTimeout;
 		_initialPlaylist = initialPlaylist;
 		_firstSegment = firstSegment;
 		_timeProvider = timeProvider;
+		_logger = logger;
 	}
 
 	public override Uri Source { get; }
 
-	// 目标时长加轮询间隔，再加一次完整的故障（失败的尝试、重试间隔和重试）：空闲看门狗只是会话自身超时的后备
-	// 一次尝试至少有两个请求超时那么长，所以刷新出一次故障也盖得住
+	// 目标时长加轮询间隔，再加一次完整的故障（失败的尝试、重试间隔和重试）和换节点的时间：空闲看门狗只是会话自身超时的后备
+	// 一次尝试至少有两个请求超时那么长，所以刷新出一次故障，或者每次尝试都等不到响应头，也盖得住
 	public override TimeSpan? MaxSilence
 	{
 		get
 		{
 			HlsPlaylist playlist = _initialPlaylist.Playlist;
-			TimeSpan attempt = _requestTimeout + GetBodyTimeout(playlist);
-			return GetSegmentDuration(playlist) + GetPollInterval(playlist) + attempt * 2 + RetryDelay;
+			TimeSpan failover = _fallbacks.Count is 0 ? TimeSpan.Zero : GetFailoverTimeout(playlist);
+			return GetSegmentDuration(playlist) + GetPollInterval(playlist) + GetAttemptTimeout(playlist) * 2 + RetryDelay + failover;
 		}
 	}
 
 	public override long MissedSegments => Interlocked.Read(ref _missedSegments);
 
+	/// <param name="fallbacks">同一路流的其他节点，按尝试顺序排列；分片在 <paramref name="uri"/> 上重试用尽后到这些节点取</param>
 	/// <param name="requestTimeout">限制之后每次刷新播放列表的全程，以及每次下载分片直到收到响应头的时长</param>
-	public static async Task<LiveStreamSession> OpenAsync(HttpClient httpClient, Uri uri, TimeSpan requestTimeout, TimeProvider timeProvider, CancellationToken cancellationToken)
+	public static async Task<LiveStreamSession> OpenAsync(HttpClient httpClient, Uri uri, IReadOnlyList<Uri> fallbacks, TimeSpan requestTimeout, TimeProvider timeProvider, ILogger logger, CancellationToken cancellationToken)
 	{
 		PlaylistSnapshot snapshot = await FetchPlaylistAsync(httpClient, uri, cancellationToken).ConfigureAwait(false);
 		FirstSegment firstSegment = await PrepareFirstSegmentAsync(httpClient, snapshot, cancellationToken).ConfigureAwait(false);
-		return new HlsStreamSession(httpClient, uri, requestTimeout, snapshot, firstSegment, timeProvider);
+		return new HlsStreamSession(httpClient, uri, fallbacks, requestTimeout, snapshot, firstSegment, timeProvider, logger);
 	}
 
 	public override Task<StreamEndReason> CopyToAsync(Stream destination, IProgress<long>? progress = null, CancellationToken cancellationToken = default)
@@ -97,6 +103,19 @@ internal sealed class HlsStreamSession : LiveStreamSession
 	{
 		TimeSpan streaming = GetSegmentDuration(playlist) * 2;
 		return streaming > _requestTimeout ? streaming : _requestTimeout;
+	}
+
+	private TimeSpan GetAttemptTimeout(HlsPlaylist playlist)
+	{
+		return _requestTimeout + GetBodyTimeout(playlist);
+	}
+
+	// 卡住的分片挡着后面的下载，等得越久后面的越可能滑出窗口，所以留给备用节点的时间约为一个窗口（分片数乘目标时长）
+	// 至少一个请求超时，否则第一个备用节点会比请求自己的超时更早被放弃；至多一次完整尝试，窗口很长时 MaxSilence 才不会跟着变长
+	private TimeSpan GetFailoverTimeout(HlsPlaylist playlist)
+	{
+		TimeSpan window = GetSegmentDuration(playlist) * playlist.Segments.Count;
+		return TimeSpan.FromTicks(Math.Clamp(window.Ticks, _requestTimeout.Ticks, GetAttemptTimeout(playlist).Ticks));
 	}
 
 	// 刷新和预取阶段自己从不失败：结束它们的无论是什么，都经下载队列按顺序交给写入端，不会留下未观察的异常
@@ -244,6 +263,7 @@ internal sealed class HlsStreamSession : LiveStreamSession
 			}
 
 			TimeSpan bodyTimeout = GetBodyTimeout(playlist);
+			TimeSpan failoverTimeout = GetFailoverTimeout(playlist);
 
 			for (int i = 0; i < segments.Count; ++i)
 			{
@@ -274,7 +294,7 @@ internal sealed class HlsStreamSession : LiveStreamSession
 
 				tracker.Add(segment);
 
-				if (!listed.TryWrite(new PendingSegment(segment, new Uri(snapshot.BaseUri, segment.Uri), bodyTimeout)))
+				if (!listed.TryWrite(new PendingSegment(segment, new Uri(snapshot.BaseUri, segment.Uri), bodyTimeout, failoverTimeout)))
 				{
 					throw new UnreachableException("Only this stage completes the queue of listed segments.");
 				}
@@ -323,15 +343,112 @@ internal sealed class HlsStreamSession : LiveStreamSession
 
 	private async Task<Fetched> FetchAsync(PendingSegment segment, CancellationToken cancellationToken)
 	{
+		ExceptionDispatchInfo error;
+
 		// 每次尝试都把整个分片缓冲下来，重试就不会把残缺的内容写两遍
 		try
 		{
-			return new Fetched.Segment(await RetryAsync((timeout, ct) => DownloadAsync(segment, timeout, ct), cancellationToken).ConfigureAwait(false));
+			return new Fetched.Segment(await RetryAsync((timeout, ct) => DownloadAsync(segment, segment.Uri, timeout, ct), cancellationToken).ConfigureAwait(false));
+		}
+		catch (Exception exception)
+		{
+			error = ExceptionDispatchInfo.Capture(exception);
+		}
+
+		if (_fallbacks.Count is 0 || !IsTransient(error.SourceException) || cancellationToken.IsCancellationRequested)
+		{
+			return new Fetched.Failed(error);
+		}
+
+		// 备用节点也取不到时仍按本节点的错误结束，上层据此判断的失败原因不变
+		try
+		{
+			return await FetchFromFallbacksAsync(segment, cancellationToken).ConfigureAwait(false) is { } data ? new Fetched.Segment(data) : new Fetched.Failed(error);
 		}
 		catch (Exception exception)
 		{
 			return new Fetched.Failed(ExceptionDispatchInfo.Capture(exception));
 		}
+	}
+
+	// 各节点的分片文件名相同，但播放列表地址的签名因节点而异，所以先取备用节点自己的媒体播放列表，再相对它解析同一个分片
+	// 依次而不是同时请求各节点：失败的分片仍只占一个下载名额；每个节点只试一次，全部共用一个截止时间
+	private async Task<SegmentBuffer?> FetchFromFallbacksAsync(PendingSegment segment, CancellationToken cancellationToken)
+	{
+		using CancellationTokenSource deadline = new(segment.FailoverTimeout, _timeProvider);
+		using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
+		string name = Describe(segment.Entry.Uri);
+		int tried = 0;
+
+		foreach (Uri fallback in _fallbacks)
+		{
+			if (deadline.IsCancellationRequested)
+			{
+				break;
+			}
+
+			++tried;
+
+			try
+			{
+				PlaylistSnapshot snapshot = await WithTimeoutAsync((_, ct) => FetchPlaylistAsync(_httpClient, fallback, ct), linked.Token).ConfigureAwait(false);
+				string entry = FindEntry(snapshot.Playlist, segment.Entry) ?? throw new InvalidDataException($"The host lists the segment {name} only under another init segment.");
+				Uri uri = new(snapshot.BaseUri, entry);
+				SegmentBuffer data = await WithTimeoutAsync((timeout, ct) => DownloadAsync(segment, uri, timeout, ct), linked.Token).ConfigureAwait(false);
+				long recovered = Interlocked.Increment(ref _recoveredSegments);
+				LogFetchedFromFallback(name, segment.Uri.Host, uri.Host, tried, _fallbacks.Count, recovered);
+				return data;
+			}
+			catch (Exception exception) when (!cancellationToken.IsCancellationRequested && (IsTransient(exception) || deadline.IsCancellationRequested))
+			{
+				if (!deadline.IsCancellationRequested)
+				{
+					LogFallbackFailed(exception, fallback.Host, name);
+				}
+			}
+		}
+
+		LogEveryHostFailed(name, segment.Uri.Host, tried, _fallbacks.Count, segment.FailoverTimeout);
+		return null;
+	}
+
+	// 条目自带的查询串也可能是这个节点的签名：备用节点列出了同名分片就用它自己的条目，没列出（落后或已滑出窗口）才沿用原条目
+	// 重启可能把编号清零，同名的条目只挂在别的初始化段下时是另一个时代的分片，不能用
+	private static string? FindEntry(HlsPlaylist playlist, HlsSegment segment)
+	{
+		ReadOnlySpan<char> name = GetFileName(segment.Uri);
+		ReadOnlySpan<char> map = GetFileName(segment.MapUri);
+		string? entry = segment.Uri;
+
+		foreach (HlsSegment listed in playlist.Segments)
+		{
+			if (!GetFileName(listed.Uri).SequenceEqual(name))
+			{
+				continue;
+			}
+
+			if (GetFileName(listed.MapUri).SequenceEqual(map))
+			{
+				return listed.Uri;
+			}
+
+			entry = null;
+		}
+
+		return entry;
+	}
+
+	private static ReadOnlySpan<char> GetFileName(string? uri)
+	{
+		ReadOnlySpan<char> path = WithoutQuery(uri);
+		return path.Slice(path.LastIndexOf('/') + 1);
+	}
+
+	private static ReadOnlySpan<char> WithoutQuery(string? uri)
+	{
+		ReadOnlySpan<char> value = uri;
+		int end = value.IndexOfAny('?', '#');
+		return end < 0 ? value : value.Slice(0, end);
 	}
 
 	private static async Task<PlaylistSnapshot> FetchPlaylistAsync(HttpClient httpClient, Uri uri, CancellationToken cancellationToken)
@@ -396,8 +513,8 @@ internal sealed class HlsStreamSession : LiveStreamSession
 	// 消息会写进日志，而播放列表条目可能带有签名的查询参数
 	private static string Describe(string uri)
 	{
-		int end = uri.AsSpan().IndexOfAny('?', '#');
-		return end < 0 ? uri : uri.Substring(0, end);
+		ReadOnlySpan<char> path = WithoutQuery(uri);
+		return path.Length == uri.Length ? uri : path.ToString();
 	}
 
 	private static int GetInitialCapacity(long? contentLength)
@@ -405,9 +522,9 @@ internal sealed class HlsStreamSession : LiveStreamSession
 		return contentLength is { } length and > 0 ? (int)Math.Min(length, MaxInitialSegmentCapacity) : DefaultSegmentCapacity;
 	}
 
-	private async Task<SegmentBuffer> DownloadAsync(PendingSegment segment, CancellationTokenSource timeout, CancellationToken cancellationToken)
+	private async Task<SegmentBuffer> DownloadAsync(PendingSegment segment, Uri uri, CancellationTokenSource timeout, CancellationToken cancellationToken)
 	{
-		using HttpResponseMessage response = await _httpClient.GetAsync(segment.Uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+		using HttpResponseMessage response = await _httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
 		response.EnsureSuccessStatusCode();
 		timeout.CancelAfter(segment.BodyTimeout);
 
@@ -441,12 +558,12 @@ internal sealed class HlsStreamSession : LiveStreamSession
 				await Task.Delay(RetryDelay, _timeProvider, cancellationToken).ConfigureAwait(false);
 			}
 		}
+	}
 
-		// CDN 可能以 200 状态用错误页面回应刷新，这种情况只表现为解析失败
-		static bool IsTransient(Exception ex)
-		{
-			return ex is HttpRequestException or IOException or InvalidDataException or FormatException or TimeoutException or TaskCanceledException { InnerException: TimeoutException };
-		}
+	// CDN 可能以 200 状态用错误页面回应刷新，这种情况只表现为解析失败
+	private static bool IsTransient(Exception ex)
+	{
+		return ex is HttpRequestException or IOException or InvalidDataException or FormatException or TimeoutException or TaskCanceledException { InnerException: TimeoutException };
 	}
 
 	// 收到响应头之后，action 可以推迟截止时间
@@ -465,11 +582,21 @@ internal sealed class HlsStreamSession : LiveStreamSession
 		}
 	}
 
+	// 只记主机和不带查询串的条目，查询参数里有签名
+	[LoggerMessage(Level = LogLevel.Information, Message = "HLS segment {Segment} failed on {Host}, fetched it from {FallbackHost} after trying {Tried} of {Count} fallback hosts; {Recovered} segments fetched from fallback hosts in this session")]
+	private partial void LogFetchedFromFallback(string segment, string host, string fallbackHost, int tried, int count, long recovered);
+
+	[LoggerMessage(Level = LogLevel.Debug, Message = "Fallback host {FallbackHost} could not serve HLS segment {Segment}")]
+	private partial void LogFallbackFailed(Exception exception, string fallbackHost, string segment);
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "HLS segment {Segment} failed on {Host} and on the {Tried} of {Count} fallback hosts tried within {Timeout}")]
+	private partial void LogEveryHostFailed(string segment, string host, int tried, int count, TimeSpan timeout);
+
 	private sealed record PlaylistSnapshot(Uri Uri, Uri BaseUri, HlsPlaylist Playlist);
 
 	private sealed record FirstSegment(HlsSegment Segment, byte[]? InitData, byte[] Data);
 
-	private sealed record PendingSegment(HlsSegment Entry, Uri Uri, TimeSpan BodyTimeout);
+	private sealed record PendingSegment(HlsSegment Entry, Uri Uri, TimeSpan BodyTimeout, TimeSpan FailoverTimeout);
 
 	private closed record Fetched
 	{

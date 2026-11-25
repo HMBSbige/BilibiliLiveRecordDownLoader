@@ -1,5 +1,7 @@
 using BilibiliLive.Streams;
 using BilibiliLive.Tests.Fakes;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using System.Diagnostics;
 using System.Net;
 
@@ -13,10 +15,25 @@ public class HlsStreamSessionTest
 	private static readonly Uri PlaylistUri = new("https://cdn.test/live-bvc/1/live_2500/index.m3u8?expires=1&sign=x");
 	private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(10);
 
+	// 和 PlaylistUri 同一路径，查询串各不相同
+	private static readonly Uri[] Fallbacks =
+	[
+		new("https://fallback-a.test/live-bvc/1/live_2500/index.m3u8?expires=2&sign=a"),
+		new("https://fallback-b.test/live-bvc/1/live_2500/index.m3u8?expires=3&sign=b"),
+		new("https://fallback-c.test/live-bvc/1/live_2500/index.m3u8?expires=4&sign=c")
+	];
+
 	private static HttpResponseMessage Segment(HttpRequestMessage request)
 	{
 		string path = request.RequestUri?.AbsolutePath ?? string.Empty;
 		return Responses.Bytes(MediaSamples.ForPath(path, Path.GetFileNameWithoutExtension(path)));
+	}
+
+	private static async Task<HttpResponseMessage> HangAsync(SemaphoreSlim hung, CancellationToken cancellationToken)
+	{
+		hung.Release();
+		await Task.Delay(Timeout.Infinite, cancellationToken);
+		throw new UnreachableException();
 	}
 
 	private static FakeHttpMessageHandler Serve(params string[] playlists)
@@ -32,10 +49,25 @@ public class HlsStreamSessionTest
 		return new ShortDelayTimeProvider(RequestTimeout);
 	}
 
-	private static async Task<CopyResult> CopyAsync(HttpMessageHandler handler, ShortDelayTimeProvider time, CancellationToken cancellationToken)
+	private static Task<LiveStreamSession> OpenAsync(HttpClient client, TimeProvider time, CancellationToken cancellationToken)
+	{
+		return OpenAsync(client, time, [], NullLogger.Instance, cancellationToken);
+	}
+
+	private static Task<LiveStreamSession> OpenAsync(HttpClient client, TimeProvider time, IReadOnlyList<Uri> fallbacks, ILogger logger, CancellationToken cancellationToken)
+	{
+		return HlsStreamSession.OpenAsync(client, PlaylistUri, fallbacks, RequestTimeout, time, logger, cancellationToken);
+	}
+
+	private static Task<CopyResult> CopyAsync(HttpMessageHandler handler, ShortDelayTimeProvider time, CancellationToken cancellationToken)
+	{
+		return CopyAsync(handler, time, [], NullLogger.Instance, cancellationToken);
+	}
+
+	private static async Task<CopyResult> CopyAsync(HttpMessageHandler handler, ShortDelayTimeProvider time, IReadOnlyList<Uri> fallbacks, ILogger logger, CancellationToken cancellationToken)
 	{
 		using HttpClient client = new(handler);
-		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, time, cancellationToken);
+		await using LiveStreamSession session = await OpenAsync(client, time, fallbacks, logger, cancellationToken);
 		using MemoryStream output = new();
 		RecordingProgress progress = new();
 
@@ -77,7 +109,7 @@ public class HlsStreamSessionTest
 	public async Task ReportsEachSegmentRightBeforeWritingExactlyItsBytesAsync(string playlist, string[] expected, CancellationToken cancellationToken)
 	{
 		using HttpClient client = new(Serve(playlist));
-		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken);
+		await using LiveStreamSession session = await OpenAsync(client, NewTime(), cancellationToken);
 		using MemoryStream output = new();
 		SegmentLog segments = new(output);
 
@@ -125,7 +157,7 @@ public class HlsStreamSessionTest
 	{
 		using HttpClient client = new(Serve(playlist));
 
-		await Assert.ThrowsAsync<InvalidDataException>(() => HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken));
+		await Assert.ThrowsAsync<InvalidDataException>(() => OpenAsync(client, NewTime(), cancellationToken));
 	}
 
 	[Test]
@@ -141,7 +173,7 @@ public class HlsStreamSessionTest
 			_ => Segment(request)
 		}));
 
-		await Assert.ThrowsAsync<InvalidDataException>(() => HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken))
+		await Assert.ThrowsAsync<InvalidDataException>(() => OpenAsync(client, NewTime(), cancellationToken))
 			.WithMessageContaining(invalid)
 			.And.WithMessageNotContaining("sign");
 	}
@@ -309,7 +341,7 @@ public class HlsStreamSessionTest
 		});
 		using HttpClient client = new(handler);
 		ShortDelayTimeProvider time = NewTime();
-		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, time, cancellationToken);
+		await using LiveStreamSession session = await OpenAsync(client, time, cancellationToken);
 		using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		using MemoryStream output = new();
 
@@ -354,7 +386,7 @@ public class HlsStreamSessionTest
 		});
 		using HttpClient client = new(handler);
 		ShortDelayTimeProvider time = NewTime();
-		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, time, cancellationToken);
+		await using LiveStreamSession session = await OpenAsync(client, time, cancellationToken);
 		using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		using MemoryStream output = new();
 
@@ -388,7 +420,7 @@ public class HlsStreamSessionTest
 		});
 		using HttpClient client = new(handler);
 		ShortDelayTimeProvider time = new(requestTimeout);
-		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, requestTimeout, time, cancellationToken);
+		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, [], requestTimeout, time, NullLogger.Instance, cancellationToken);
 		using MemoryStream output = new();
 
 		Task<StreamEndReason> copying = session.CopyToAsync(output, null, cancellationToken);
@@ -409,13 +441,15 @@ public class HlsStreamSessionTest
 	}
 
 	[Test]
-	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:5\na.ts\n", 5, 38.5)]
-	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n", 5, 22.5)]
-	public async Task MaxSilenceCoversAGapAndOneFailedAttemptWithItsRetryAsync(string playlist, int requestTimeoutSeconds, double expectedSeconds, CancellationToken cancellationToken)
+	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:5\na.ts\n", 5, false, 38.5)]
+	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n", 5, false, 22.5)]
+	[Arguments("#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n", 5, true, 27.5)]
+	public async Task MaxSilenceCoversAGapOneFailedAttemptWithItsRetryAndTheFailoverAsync(string playlist, int requestTimeoutSeconds, bool hasFallback, double expectedSeconds, CancellationToken cancellationToken)
 	{
 		using HttpClient client = new(Serve(playlist));
+		Uri[] fallbacks = hasFallback ? [new Uri("https://fallback.test/live/index.m3u8")] : [];
 
-		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, TimeSpan.FromSeconds(requestTimeoutSeconds), NewTime(), cancellationToken);
+		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, fallbacks, TimeSpan.FromSeconds(requestTimeoutSeconds), NewTime(), NullLogger.Instance, cancellationToken);
 
 		await Assert.That(session.MaxSilence).IsEqualTo(TimeSpan.FromSeconds(expectedSeconds));
 	}
@@ -431,7 +465,7 @@ public class HlsStreamSessionTest
 				? new HttpResponseMessage(status) { Content = new StringContent("<html>blocked</html>") }
 				: Segment(request));
 		using HttpClient client = new(handler);
-		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken);
+		await using LiveStreamSession session = await OpenAsync(client, NewTime(), cancellationToken);
 		using MemoryStream output = new();
 
 		await Assert.ThrowsAsync(expected, () => session.CopyToAsync(output, null, cancellationToken));
@@ -440,6 +474,235 @@ public class HlsStreamSessionTest
 		{
 			await Assert.That(MediaSamples.Markers(output.ToArray())).IsEqualTo(written);
 			await Assert.That(handler.Requests.Where(static r => Path.GetFileNameWithoutExtension(r.Uri.AbsolutePath) is "bad")).Count().IsEqualTo(HlsStreamSession.MaxAttempts);
+		}
+	}
+
+	[Test]
+	[Arguments(false)]
+	[Arguments(true)]
+	public async Task SegmentFailingEveryAttemptIsFetchedFromTheFirstFallbackThatServesItAsync(bool hangs, CancellationToken cancellationToken)
+	{
+		const string playlist = Head + "#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n2.m4s\n3.m4s\n" + EndList;
+		using SemaphoreSlim hung = new(0);
+		FakeHttpMessageHandler handler = new(async (request, ct) => request.RequestUri switch
+		{
+			{ AbsolutePath: var path } when path == PlaylistUri.AbsolutePath => Responses.Text(playlist),
+			{ Host: "cdn.test", AbsolutePath: "/live-bvc/1/live_2500/2.m4s" } when hangs => await HangAsync(hung, ct),
+			{ Host: "cdn.test" or "fallback-a.test", AbsolutePath: "/live-bvc/1/live_2500/2.m4s" } => Responses.NotFound(),
+			_ => Segment(request)
+		});
+		ShortDelayTimeProvider time = NewTime();
+		ListLogger logger = new();
+		using HttpClient client = new(handler);
+		await using LiveStreamSession session = await OpenAsync(client, time, Fallbacks, logger, cancellationToken);
+		using MemoryStream output = new();
+
+		Task<StreamEndReason> copying = session.CopyToAsync(output, null, cancellationToken);
+
+		if (hangs)
+		{
+			for (int attempt = 0; attempt < HlsStreamSession.MaxAttempts; ++attempt)
+			{
+				await hung.WaitAsync(cancellationToken);
+				time.Advance(RequestTimeout);
+			}
+		}
+
+		StreamEndReason reason = await copying;
+
+		using (Assert.Multiple())
+		{
+			await Assert.That((MediaSamples.Markers(output.ToArray()), reason, session.MissedSegments)).IsEqualTo(("[h1][1][2][3]", StreamEndReason.EndOfStream, 0L));
+			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/2.m4s").Where(static r => r.Uri.Host is "cdn.test")).Count().IsEqualTo(HlsStreamSession.MaxAttempts);
+			await Assert.That(handler.Requests.Select(static r => r.Uri).Where(static uri => uri.Host is not "cdn.test"))
+				.IsEquivalentTo([Fallbacks[0], new Uri(Fallbacks[0], "2.m4s"), Fallbacks[1], new Uri(Fallbacks[1], "2.m4s")], EqualityComparer<Uri>.Default, CollectionOrdering.Matching)
+				.Because("每个备用节点只试一次，分片相对它自己的播放列表解析；取到之后不再试后面的节点");
+			await Assert.That(logger.Entries).Contains(static entry => entry.Level is LogLevel.Information && entry.Message.Contains("2.m4s", StringComparison.Ordinal) && entry.Message.Contains("fallback-b.test", StringComparison.Ordinal));
+			await Assert.That(logger.Entries).DoesNotContain(static entry => entry.Message.Contains("sign=", StringComparison.Ordinal));
+		}
+	}
+
+	[Test]
+	public async Task SegmentFailingOnEveryHostThrowsTheErrorOfTheOpenedHostAsync(CancellationToken cancellationToken)
+	{
+		FakeHttpMessageHandler handler = new(request => request.RequestUri switch
+		{
+			{ Host: "fallback-b.test", AbsolutePath: var path } when path == PlaylistUri.AbsolutePath => Responses.Text("<html>blocked</html>"),
+			{ AbsolutePath: var path } when path == PlaylistUri.AbsolutePath => Responses.Text("#EXTM3U\n#EXTINF:1,\n1.ts\n#EXTINF:1,\nbad.ts\n#EXTINF:1,\n3.ts\n" + EndList),
+			{ Host: "cdn.test", AbsolutePath: "/live-bvc/1/live_2500/bad.ts" } => Responses.Status(HttpStatusCode.ServiceUnavailable),
+			{ AbsolutePath: "/live-bvc/1/live_2500/bad.ts" } => Responses.NotFound(),
+			_ => Segment(request)
+		});
+		ListLogger logger = new();
+		using HttpClient client = new(handler);
+		await using LiveStreamSession session = await OpenAsync(client, NewTime(), Fallbacks, logger, cancellationToken);
+		using MemoryStream output = new();
+
+		await Assert.ThrowsAsync<HttpRequestException>(() => session.CopyToAsync(output, null, cancellationToken)).And.Member(static e => e.StatusCode, static status => status.IsEqualTo(HttpStatusCode.ServiceUnavailable));
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(MediaSamples.Markers(output.ToArray())).IsEqualTo("[1]");
+			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/bad.ts").Select(static r => r.Uri.Host))
+				.IsEquivalentTo([.. Enumerable.Repeat("cdn.test", HlsStreamSession.MaxAttempts), "fallback-a.test", "fallback-c.test"], CollectionOrdering.Matching);
+			await Assert.That(handler.Requests.Where(static r => r.Uri.Host is "fallback-b.test")).Count().IsEqualTo(1);
+			await Assert.That(logger.Entries).Contains(static entry => entry.Level is LogLevel.Warning && entry.Message.Contains("bad.ts", StringComparison.Ordinal));
+		}
+	}
+
+	[Test]
+	public async Task FallbackServingAMasterPlaylistResolvesTheSegmentAgainstItsVariantAsync(CancellationToken cancellationToken)
+	{
+		Uri variant = new("https://edge.test/edge/live-bvc/1/live_2500/index.m3u8?sign=edge");
+		const string playlist = Head + "#EXT-X-MAP:URI=\"h1.m4s\"\n1.m4s\n2.m4s\n" + EndList;
+		FakeHttpMessageHandler handler = new(request => request.RequestUri switch
+		{
+			{ Host: "fallback-a.test", AbsolutePath: var path } when path == PlaylistUri.AbsolutePath => Responses.Text($"#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=2560000\n{variant}\n"),
+			{ AbsolutePath: var path } when path == PlaylistUri.AbsolutePath || path == variant.AbsolutePath => Responses.Text(playlist),
+			{ Host: not "edge.test", AbsolutePath: var path } when path.EndsWith("/2.m4s", StringComparison.Ordinal) => Responses.NotFound(),
+			_ => Segment(request)
+		});
+
+		CopyResult copy = await CopyAsync(handler, NewTime(), Fallbacks, NullLogger.Instance, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That((copy.Output, copy.Reason)).IsEqualTo(("[h1][1][2]", StreamEndReason.EndOfStream));
+			await Assert.That(handler.Requests.Select(static r => r.Uri).Where(static uri => uri.Host is not "cdn.test"))
+				.IsEquivalentTo([Fallbacks[0], variant, new Uri(variant, "2.m4s")], EqualityComparer<Uri>.Default, CollectionOrdering.Matching);
+		}
+	}
+
+	[Test]
+	[Arguments("1.ts?sign=a1\n2.ts?sign=a2\n", "?sign=a2")]
+	[Arguments("1.ts?sign=a1\n", "?sign=x2")]
+	public async Task FallbackRequestsTheSegmentWithItsOwnEntryWhenItListsOneAsync(string fallbackEntries, string expectedQuery, CancellationToken cancellationToken)
+	{
+		FakeHttpMessageHandler handler = new(request => request.RequestUri switch
+		{
+			{ Host: "fallback-a.test", AbsolutePath: var path } when path == PlaylistUri.AbsolutePath => Responses.Text(Head + fallbackEntries + EndList),
+			{ AbsolutePath: var path } when path == PlaylistUri.AbsolutePath => Responses.Text(Head + "1.ts?sign=x1\n2.ts?sign=x2\n" + EndList),
+			{ Host: "cdn.test", AbsolutePath: "/live-bvc/1/live_2500/2.ts" } => Responses.NotFound(),
+			{ Host: "fallback-a.test", AbsolutePath: "/live-bvc/1/live_2500/2.ts", Query: var query } when query != expectedQuery => Responses.Status(HttpStatusCode.Forbidden),
+			_ => Segment(request)
+		});
+
+		CopyResult copy = await CopyAsync(handler, NewTime(), Fallbacks, NullLogger.Instance, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(copy.Output).IsEqualTo("[1][2]");
+			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/2.ts").Where(static r => r.Uri.Host is not "cdn.test").Select(static r => r.Uri))
+				.IsEquivalentTo([new Uri(Fallbacks[0], "2.ts" + expectedQuery)], EqualityComparer<Uri>.Default);
+		}
+	}
+
+	[Test]
+	public async Task FailoverGivesUpOncePastAboutOnePlaylistWindowAsync(CancellationToken cancellationToken)
+	{
+		// 八个两秒的分片：窗口 16 秒，比请求超时长、比一次完整尝试短，所以留给备用节点的正是一个窗口
+		string playlist = Head + string.Concat(Enumerable.Range(1, 8).Select(static i => $"{i}.ts\n")) + EndList;
+		TimeSpan window = TimeSpan.FromSeconds(16);
+		using SemaphoreSlim hung = new(0);
+		FakeHttpMessageHandler handler = new(async (request, ct) => request.RequestUri switch
+		{
+			{ Host: "cdn.test", AbsolutePath: var path } when path == PlaylistUri.AbsolutePath => Responses.Text(playlist),
+			{ Host: "cdn.test", AbsolutePath: "/live-bvc/1/live_2500/2.ts" } => Responses.NotFound(),
+			{ Host: "fallback-a.test" or "fallback-b.test" } => await HangAsync(hung, ct),
+			_ => Segment(request)
+		});
+		ShortDelayTimeProvider time = NewTime();
+		using HttpClient client = new(handler);
+		await using LiveStreamSession session = await OpenAsync(client, time, Fallbacks, NullLogger.Instance, cancellationToken);
+		using MemoryStream output = new();
+
+		Task<StreamEndReason> copying = session.CopyToAsync(output, null, cancellationToken);
+		await hung.WaitAsync(cancellationToken);
+		time.Advance(RequestTimeout);
+		await hung.WaitAsync(cancellationToken);
+		time.Advance(window - RequestTimeout);
+
+		await Assert.ThrowsAsync<HttpRequestException>(() => copying).And.Member(static e => e.StatusCode, static status => status.IsEqualTo(HttpStatusCode.NotFound));
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(MediaSamples.Markers(output.ToArray())).IsEqualTo("[1]");
+			await Assert.That(handler.Requests.Select(static r => r.Uri.Host)).DoesNotContain("fallback-c.test");
+		}
+	}
+
+	[Test]
+	public async Task SessionEndsWithItsOwnTimeoutWithinMaxSilenceWhenEveryHostHangsAsync(CancellationToken cancellationToken)
+	{
+		// 十个两秒的分片：窗口不短于一次完整尝试，留给备用节点的时间最长
+		string playlist = Head + string.Concat(Enumerable.Range(1, 10).Select(static i => $"{i}.ts\n")) + EndList;
+		using SemaphoreSlim hung = new(0);
+		FakeHttpMessageHandler handler = new(async (request, ct) => request.RequestUri switch
+		{
+			{ Host: "cdn.test", AbsolutePath: var path } when path == PlaylistUri.AbsolutePath => Responses.Text(playlist),
+			{ Host: not "cdn.test" } or { AbsolutePath: "/live-bvc/1/live_2500/2.ts" } => await HangAsync(hung, ct),
+			_ => Segment(request)
+		});
+		ShortDelayTimeProvider time = NewTime();
+		using HttpClient client = new(handler);
+		await using LiveStreamSession session = await OpenAsync(client, time, Fallbacks, NullLogger.Instance, cancellationToken);
+		using MemoryStream output = new();
+
+		DateTimeOffset start = time.GetUtcNow();
+		Task<StreamEndReason> copying = session.CopyToAsync(output, null, cancellationToken);
+
+		while (await Task.WhenAny(hung.WaitAsync(cancellationToken), copying) != copying)
+		{
+			time.Advance(RequestTimeout);
+		}
+
+		await Assert.ThrowsAsync<TimeoutException>(() => copying);
+		TimeSpan silence = time.GetUtcNow() - start + TimeSpan.FromTicks(time.Delays.Sum(static delay => delay.Ticks));
+		await Assert.That(silence).IsLessThanOrEqualTo(session.MaxSilence ?? TimeSpan.Zero).Because("空闲看门狗只是后备，所有节点都不回应时会话应先按自己的超时结束");
+	}
+
+	[Test]
+	[Arguments("#EXT-X-MAP:URI=\"old/h1.m4s\"\nold/1.m4s\nold/2.m4s\n", "fallback-b.test")]
+	[Arguments("#EXT-X-MAP:URI=\"old/h1.m4s\"\nold/2.m4s\n#EXT-X-MAP:URI=\"h2.m4s\"\n1.m4s\n2.m4s\n", "fallback-a.test")]
+	public async Task FallbackNeverServesASegmentOfTheSameNameFromAnotherEraAsync(string fallbackEntries, string servedBy, CancellationToken cancellationToken)
+	{
+		FakeHttpMessageHandler handler = new(request => request.RequestUri switch
+		{
+			{ Host: "fallback-a.test", AbsolutePath: var path } when path == PlaylistUri.AbsolutePath => Responses.Text(Head + fallbackEntries + EndList),
+			{ AbsolutePath: var path } when path == PlaylistUri.AbsolutePath => Responses.Text(Head + "#EXT-X-MAP:URI=\"h2.m4s\"\n1.m4s\n2.m4s\n" + EndList),
+			{ Host: "cdn.test", AbsolutePath: "/live-bvc/1/live_2500/2.m4s" } => Responses.NotFound(),
+			{ AbsolutePath: var path } when path.Contains("/old/", StringComparison.Ordinal) => Responses.Bytes(MediaSamples.Fmp4Fragment("old")),
+			_ => Segment(request)
+		});
+
+		CopyResult copy = await CopyAsync(handler, NewTime(), Fallbacks, NullLogger.Instance, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(copy.Output).IsEqualTo("[h2][1][2]");
+			await Assert.That(handler.RequestsTo("/live-bvc/1/live_2500/2.m4s").Select(static r => r.Uri.Host).Where(static host => host is not "cdn.test")).IsEquivalentTo([servedBy]);
+		}
+	}
+
+	[Test]
+	public async Task SegmentRecoveringOnARetryNeverTouchesTheFallbacksAsync(CancellationToken cancellationToken)
+	{
+		int attempts = 0;
+		FakeHttpMessageHandler handler = new(request => request.RequestUri switch
+		{
+			_ when request.RequestUri == PlaylistUri => Responses.Text(Head + "a.ts\nb.ts\nc.ts\n" + EndList),
+			{ AbsolutePath: var path } when path.EndsWith("/b.ts", StringComparison.Ordinal) && Interlocked.Increment(ref attempts) < HlsStreamSession.MaxAttempts => Responses.Status(HttpStatusCode.ServiceUnavailable),
+			_ => Segment(request)
+		});
+		ListLogger logger = new();
+
+		CopyResult copy = await CopyAsync(handler, NewTime(), Fallbacks, logger, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That((copy.Output, copy.Reason, attempts)).IsEqualTo(("[a][b][c]", StreamEndReason.EndOfStream, HlsStreamSession.MaxAttempts));
+			await Assert.That(handler.Requests).All(static r => r.Uri.Host is "cdn.test");
+			await Assert.That(logger.Entries).IsEmpty();
 		}
 	}
 
@@ -619,7 +882,7 @@ public class HlsStreamSessionTest
 		using HttpClient client = new(new FakeHttpMessageHandler(async (request, ct) => request.RequestUri == PlaylistUri
 			? Responses.Text("#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:1\n1.ts\n2.ts\n3.ts\n4.ts\n" + EndList)
 			: await gates.PassAsync(request, ct)));
-		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken);
+		await using LiveStreamSession session = await OpenAsync(client, NewTime(), cancellationToken);
 		using MemoryStream output = new();
 		SegmentLog segments = new(output);
 
@@ -678,7 +941,7 @@ public class HlsStreamSessionTest
 			return await gates.PassAsync(request, ct);
 		});
 		using HttpClient client = new(handler);
-		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken);
+		await using LiveStreamSession session = await OpenAsync(client, NewTime(), cancellationToken);
 		using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		using MemoryStream output = new();
 
@@ -723,7 +986,7 @@ public class HlsStreamSessionTest
 			return await gates.PassAsync(request, ct);
 		});
 		using HttpClient client = new(handler);
-		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken);
+		await using LiveStreamSession session = await OpenAsync(client, NewTime(), cancellationToken);
 		FailingOnSecondWrite output = new(!observerFails);
 		FailingObserver segments = new(observerFails);
 
@@ -745,7 +1008,7 @@ public class HlsStreamSessionTest
 			? Interlocked.Increment(ref refreshes) is 1 ? Responses.Text(Head + "a.ts\nb.ts\n") : Responses.Status(HttpStatusCode.ServiceUnavailable)
 			: Segment(request));
 		using HttpClient client = new(handler);
-		await using LiveStreamSession session = await HlsStreamSession.OpenAsync(client, PlaylistUri, RequestTimeout, NewTime(), cancellationToken);
+		await using LiveStreamSession session = await OpenAsync(client, NewTime(), cancellationToken);
 		using MemoryStream output = new();
 
 		await Assert.ThrowsAsync<HttpRequestException>(() => session.CopyToAsync(output, null, cancellationToken));

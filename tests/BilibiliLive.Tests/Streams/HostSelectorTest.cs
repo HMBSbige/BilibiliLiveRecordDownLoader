@@ -22,11 +22,13 @@ public class HostSelectorTest
 
 	private sealed class Opener(Func<Uri, CancellationToken, Task<FakeSession>> open)
 	{
-		public ConcurrentQueue<Uri> Attempts { get; } = new();
+		public ConcurrentQueue<(Uri Uri, IReadOnlyList<Uri> Fallbacks)> Calls { get; } = new();
 
-		public Task<FakeSession> OpenAsync(Uri uri, CancellationToken cancellationToken)
+		public IEnumerable<Uri> Attempts => Calls.Select(static call => call.Uri);
+
+		public Task<FakeSession> OpenAsync(Uri uri, IReadOnlyList<Uri> fallbacks, CancellationToken cancellationToken)
 		{
-			Attempts.Enqueue(uri);
+			Calls.Enqueue((uri, fallbacks));
 			return open(uri, cancellationToken);
 		}
 	}
@@ -64,6 +66,38 @@ public class HostSelectorTest
 		await Assert.ThrowsAsync<AggregateException>(() => HostSelector.OpenAsync(Hosts, selection, opener.OpenAsync, Random.Shared, cancellationToken))
 			.And.Member(static e => e.InnerExceptions, static errors => errors.Count().IsEqualTo(Hosts.Length).And.All(static e => e is HttpRequestException));
 		await Assert.That(opener.Attempts).IsEquivalentTo(Hosts, EqualityComparer<Uri>.Default);
+	}
+
+	[Test]
+	[MatrixDataSource]
+	public async Task EachHostGetsTheHostsTriedAfterItAndThenThoseBeforeItAsFallbacksAsync([Matrix] StreamHostSelection selection, CancellationToken cancellationToken)
+	{
+		Random random = new(20261121);
+		int rounds = selection is StreamHostSelection.Random ? 8 : 1;
+
+		for (int round = 0; round < rounds; ++round)
+		{
+			Opener opener = new(static (uri, _) => Fail(uri));
+
+			await Assert.ThrowsAsync<AggregateException>(() => HostSelector.OpenAsync(Hosts, selection, opener.OpenAsync, random, cancellationToken));
+			Uri[] order = [.. opener.Attempts];
+
+			foreach ((int opened, (_, IReadOnlyList<Uri> fallbacks)) in opener.Calls.Index())
+			{
+				await Assert.That(fallbacks).IsEquivalentTo([.. order.Skip(opened + 1), .. order.Take(opened)], EqualityComparer<Uri>.Default, CollectionOrdering.Matching);
+			}
+		}
+	}
+
+	[Test]
+	[MatrixDataSource]
+	public async Task HostListedTwiceIsAFallbackAtMostOnceAndNeverForItselfAsync([Matrix] StreamHostSelection selection, CancellationToken cancellationToken)
+	{
+		Opener opener = new(static (uri, _) => Fail(uri));
+
+		await Assert.ThrowsAsync<AggregateException>(() => HostSelector.OpenAsync([Hosts[0], Hosts[1], Hosts[0]], selection, opener.OpenAsync, Random.Shared, cancellationToken));
+
+		await Assert.That(opener.Calls).All(static call => !call.Fallbacks.Contains(call.Uri) && call.Fallbacks.Distinct().Count() == call.Fallbacks.Count);
 	}
 
 	[Test]
