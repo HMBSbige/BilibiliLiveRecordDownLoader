@@ -1,6 +1,7 @@
 using BilibiliLive.Streams;
 using BilibiliLive.Tests.Fakes;
 using Microsoft.Extensions.Time.Testing;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 
 namespace BilibiliLive.Tests.Streams;
@@ -127,8 +128,8 @@ public class LiveStreamReaderTest
 	}
 
 	[Test]
-	[Arguments(StreamProtocol.HttpStream)]
-	public async Task CancelledOpenIsNotReportedAsAHostFailureAsync(StreamProtocol protocol, CancellationToken cancellationToken)
+	[MatrixDataSource]
+	public async Task CancelledOpenIsNotReportedAsAHostFailureAsync([Matrix] StreamHostSelection selection, CancellationToken cancellationToken)
 	{
 		TaskCompletionSource hung = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		using HttpClient client = new(new FakeHttpMessageHandler(async (_, ct) =>
@@ -137,16 +138,42 @@ public class LiveStreamReaderTest
 			await Task.Delay(Timeout.Infinite, ct);
 			throw new UnreachableException();
 		}));
-		LiveStreamCandidate.Listed candidate = new(protocol, StreamFormat.Ts, StreamCodec.Avc, 10000, [], [WorkingHost]);
-		List<Exception> failures = [];
+		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [], [WorkingHost]);
+		ConcurrentQueue<Exception> failures = new();
 		using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-		Task<LiveStreamSession> opening = LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FirstResponse, ConnectTimeout, (_, error) => failures.Add(error), new FakeTimeProvider(), stop.Token);
+		Task<LiveStreamSession> opening = LiveStreamReader.OpenAsync(client, candidate, selection, ConnectTimeout, (_, error) => failures.Enqueue(error), new FakeTimeProvider(), stop.Token);
 		await hung.Task.WaitAsync(cancellationToken);
 		await stop.CancelAsync();
 		await Assert.ThrowsAsync<OperationCanceledException>(() => opening);
 
 		await Assert.That(failures).IsEmpty();
+	}
+
+	[Test]
+	public async Task FastestResponseLosersAreNotReportedAsHostFailuresAsync(CancellationToken cancellationToken)
+	{
+		Uri hung = new("https://hung.test/live.flv");
+		using HttpClient client = new(new FakeHttpMessageHandler(async (request, ct) =>
+		{
+			if (request.RequestUri == hung)
+			{
+				await Task.Delay(Timeout.Infinite, ct);
+				throw new UnreachableException();
+			}
+
+			return Responses.Bytes([.. "FLV"u8]);
+		}));
+		LiveStreamCandidate.Listed candidate = new(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc, 10000, [], [hung, WorkingHost]);
+		ConcurrentQueue<Exception> failures = new();
+
+		await using LiveStreamSession session = await LiveStreamReader.OpenAsync(client, candidate, StreamHostSelection.FastestResponse, ConnectTimeout, (_, error) => failures.Enqueue(error), new FakeTimeProvider(), cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(session.Source).IsEqualTo(WorkingHost);
+			await Assert.That(failures).IsEmpty();
+		}
 	}
 
 	private sealed class StalledStream(TaskCompletionSource stalled) : Stream

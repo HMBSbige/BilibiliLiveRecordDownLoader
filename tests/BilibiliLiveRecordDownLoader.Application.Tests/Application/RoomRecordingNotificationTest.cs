@@ -191,6 +191,46 @@ public sealed class RoomRecordingNotificationTest
 	}
 
 	[Test]
+	public async Task DiskFillingUpDuringALongRecordingNotifiesAgainAsync(CancellationToken cancellationToken)
+	{
+		FakeDisk disk = new();
+		await using RecordingLoopHarness loop = new(cancellationToken, disk.CreateFile);
+		loop.GoLive();
+		disk.Fill();
+
+		StreamRequest next = await loop.NextStreamAsync();
+		await next.AcceptAsync();
+		(next, _) = await loop.AdvanceUntilNextStreamAsync(RecordingLoopHarness.ReconnectDelay);
+		await Assert.That(loop.Notifications.Shown).HasSingleItem();
+
+		disk.Free();
+		await loop.ReceiveForAsync(next, RecordingAttempt.QuickFailureThreshold + TimeSpan.FromSeconds(1));
+		disk.Fill();
+		await next.SendAsync();
+		await loop.AdvanceUntilNextStreamAsync(RecordingLoopHarness.ReconnectDelay);
+
+		await Assert.That(loop.Notifications.Shown).Count().IsEqualTo(2);
+	}
+
+	[Test]
+	public async Task StalledDiskNotifiesOnceEvenIfTheNetworkKeepsReceivingAsync(CancellationToken cancellationToken)
+	{
+		await using RecordingLoopHarness loop = new(cancellationToken, static _ => new FakeFile(static ct => new ValueTask(Task.Delay(Timeout.Infinite, ct))));
+		loop.GoLive();
+
+		StreamRequest next = await loop.NextStreamAsync();
+
+		for (int round = 0; round < 2; ++round)
+		{
+			await loop.ReceiveForAsync(next, RecordingAttempt.QuickFailureThreshold + TimeSpan.FromSeconds(1));
+			await next.EndAsync();
+			(next, _) = await loop.AdvanceUntilNextStreamAsync();
+		}
+
+		await Assert.That(loop.Notifications.Shown).HasSingleItem();
+	}
+
+	[Test]
 	public async Task RecordingFileThatCannotBeCreatedIsAWriteFailureAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken, static _ => throw new IOException("the network drive is gone"));
@@ -251,10 +291,10 @@ public sealed class RoomRecordingNotificationTest
 		}
 	}
 
-	// 全是 404 会被当成主播没在推流，不提醒
+	// 全是 404 会被当成主播没在推流而不提醒，403 会让录满过的一批立即重新请求，都不是这里要测的
 	private static Task FailEveryStreamAsync(RecordingLoopHarness loop, StreamRequest first)
 	{
-		return FailEveryStreamAsync(loop, first, HttpStatusCode.Forbidden);
+		return FailEveryStreamAsync(loop, first, HttpStatusCode.ServiceUnavailable);
 	}
 
 	private static async Task SendOnlyTheHeaderAsync(RecordingLoopHarness loop, StreamRequest first)
@@ -267,7 +307,7 @@ public sealed class RoomRecordingNotificationTest
 		}
 	}
 
-	private static async Task FailForAsync(RecordingLoopHarness loop, StreamRequest next, TimeSpan duration, HttpStatusCode status = HttpStatusCode.Forbidden)
+	private static async Task FailForAsync(RecordingLoopHarness loop, StreamRequest next, TimeSpan duration, HttpStatusCode status = HttpStatusCode.ServiceUnavailable)
 	{
 		DateTimeOffset start = loop.Time.GetUtcNow();
 
@@ -298,7 +338,7 @@ public sealed class RoomRecordingNotificationTest
 		DateTimeOffset start = loop.Time.GetUtcNow();
 		TimeSpan quiet = TimeSpan.Zero;
 
-		while (true)
+		while (loop.Time.GetUtcNow() - start < RecordingFaultTracker.StallThreshold * 3)
 		{
 			TimeSpan failedAt = loop.Time.GetUtcNow() - start;
 			await failRound(loop, next);
@@ -311,5 +351,7 @@ public sealed class RoomRecordingNotificationTest
 
 			quiet = failedAt;
 		}
+
+		throw new TimeoutException($"No notification #{count} within {RecordingFaultTracker.StallThreshold * 3} of failures.");
 	}
 }

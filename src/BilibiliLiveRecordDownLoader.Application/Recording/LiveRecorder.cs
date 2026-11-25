@@ -30,7 +30,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		}
 
 		AppConfig config = await configManager.GetAsync(cancellationToken);
-		(LiveStreamSession session, LiveStreamCandidate candidate, CandidateBatch batch) = await OpenAsync(roomId, streamerUid, profile, config.Cookie is not null, liveSession, cancellationToken);
+		(LiveStreamSession session, LiveStreamCandidate candidate, CandidateBatch batch) = await OpenAsync(roomId, streamerUid, profile, config.Cookie is not null, liveSession.CandidatePool, cancellationToken);
 		Uri endpoint = session.Source;
 
 		try
@@ -57,7 +57,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 			}
 
 			(RecordingEnd end, TimeSpan activeDuration) = await RecordToFileAsync(session, candidate, stream, recorderType, path, Reserve, idleTimeout, observer, split, cancellationToken);
-			return new RecordingAttempt(candidate, endpoint, activeDuration, end);
+			return new RecordingAttempt(candidate, endpoint, stream.Restriction, activeDuration, end);
 		}
 		finally
 		{
@@ -115,25 +115,28 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		}
 	}
 
-	private async Task<(LiveStreamSession Session, LiveStreamCandidate Candidate, CandidateBatch Batch)> OpenAsync(long roomId, long streamerUid, RecordingProfile profile, bool hasCookie, LiveRecordingSession liveSession, CancellationToken cancellationToken)
+	private async Task<(LiveStreamSession Session, LiveStreamCandidate Candidate, CandidateBatch Batch)> OpenAsync(long roomId, long streamerUid, RecordingProfile profile, bool hasCookie, CandidatePool pool, CancellationToken cancellationToken)
 	{
 		// FastestResponse 同时打开各个主机，失败回调可能并发
 		Lock failureLock = new();
-		(string Log, string Display)? lastFailure = null;
+		(LiveStreamCandidate Candidate, Uri Uri, Exception Exception)? lastFailure = null;
 
 		// 主播没在推流时 CDN 返回 404
 		bool isEveryFailureNotFound = true;
+		CandidateBatch? lastBatch = null;
 		CandidateRequest request = CandidateRequest.Create(profile, hasCookie);
-
-		if (liveSession.Candidates is not { } batch || batch.Request != request)
-		{
-			batch = liveSession.Candidates = await GetCandidatesAsync(roomId, streamerUid, profile, request, cancellationToken);
-		}
-
 		HttpClient httpClient = httpClientFactory.CreateClient(HttpClientNames.BilibiliStream);
 
-		foreach (LiveStreamCandidate candidate in liveSession.GetUntriedCandidates(batch.Candidates))
+		await foreach ((CandidateBatch batch, LiveStreamCandidate candidate) in pool.GetCandidatesAsync(request, ct => RequestCandidatesAsync(roomId, streamerUid, profile, request, ct), cancellationToken))
 		{
+			// 换了一批说明旧签名地址全部打不开，结果只看新的一批：旧地址 403、新地址 404 是主播没在推流
+			if (!ReferenceEquals(batch, lastBatch))
+			{
+				lastBatch = batch;
+				lastFailure = null;
+				isEveryFailureNotFound = true;
+			}
+
 			try
 			{
 				return (await LiveStreamReader.OpenAsync(httpClient, candidate, profile.HostSelection, profile.StreamConnectTimeout, (uri, exception) => OnHostFailed(candidate, uri, exception), timeProvider, cancellationToken), candidate, batch);
@@ -143,18 +146,17 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 			}
 		}
 
-		liveSession.Reset();
-
-		if (lastFailure is not ({ } log, { } display))
+		if (lastFailure is not ({ } failed, { } host, { } error))
 		{
 			throw new StreamUnavailableException("No live stream endpoint is left to try.", AppLanguage.Current.RecordingNoStreamLeft, false);
 		}
 
-		throw new StreamUnavailableException($"None of the live stream endpoints could be opened, the last one failed with {log}", AppLanguage.Current.RecordingStreamsUnavailable.ToString(display), isEveryFailureNotFound);
+		string endpointFailed = AppLanguage.Current.RecordingEndpointFailed.ToString(failed.DisplayName, host.Host, RecordingEnd.GetDisplayText(error));
+		throw new StreamUnavailableException($"None of the live stream endpoints could be opened, the last one failed with {failed.Name} {host.Host}: {error.Message}", AppLanguage.Current.RecordingStreamsUnavailable.ToString(endpointFailed), isEveryFailureNotFound);
 
 		void OnHostFailed(LiveStreamCandidate candidate, Uri uri, Exception exception)
 		{
-			liveSession.MarkFailed(candidate, uri);
+			pool.MarkFailed(candidate, uri, exception is HttpRequestException { StatusCode: HttpStatusCode.Forbidden });
 
 			if (candidate is LiveStreamCandidate.Variant)
 			{
@@ -164,7 +166,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 			lock (failureLock)
 			{
-				lastFailure = ($"{candidate.Name} {uri.Host}: {exception.Message}", AppLanguage.Current.RecordingEndpointFailed.ToString(candidate.Name, uri.Host, RecordingEnd.GetDisplayText(exception)));
+				lastFailure = (candidate, uri, exception);
 				isEveryFailureNotFound &= exception is HttpRequestException { StatusCode: HttpStatusCode.NotFound };
 			}
 
@@ -172,7 +174,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		}
 	}
 
-	private async Task<CandidateBatch> GetCandidatesAsync(long roomId, long streamerUid, RecordingProfile profile, CandidateRequest request, CancellationToken cancellationToken)
+	private async Task<CandidateBatch> RequestCandidatesAsync(long roomId, long streamerUid, RecordingProfile profile, CandidateRequest request, CancellationToken cancellationToken)
 	{
 		IReadOnlyList<LiveStreamCandidate.Listed> listed = MasterPlaylistCandidates.PreferTrueOriginal(await apiClient.GetStreamCandidatesAsync(roomId, profile.RequestQuality, profile.CodecPriority, profile.FormatPriority, cancellationToken), profile);
 
@@ -191,15 +193,13 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 	private async Task<IReadOnlyList<LiveStreamCandidate.Variant>> GetVariantsAsync(long roomId, long mid, long[] qualities, IReadOnlyList<StreamCodec> codecPriority, CancellationToken cancellationToken)
 	{
-		string wanted = string.Join(", ", qualities);
-
 		try
 		{
 			IReadOnlyList<LiveStreamCandidate.Variant> variants = MasterPlaylistCandidates.Select(await apiClient.GetMasterPlaylistVariantsAsync(roomId, mid, cancellationToken), qualities, codecPriority);
 
 			if (variants.Count is 0)
 			{
-				LogMasterPlaylistUnavailable(logger, wanted, "no variant of these qualities is listed");
+				LogMasterPlaylistUnavailable(logger, qualities, "no variant of these qualities is listed");
 			}
 
 			return variants;
@@ -208,11 +208,11 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		{
 			if (IsRemoteFailure(exception))
 			{
-				LogMasterPlaylistUnavailable(logger, wanted, exception.Message);
+				LogMasterPlaylistUnavailable(logger, qualities, exception.Message);
 			}
 			else
 			{
-				LogMasterPlaylistFailed(logger, exception, wanted);
+				LogMasterPlaylistFailed(logger, exception, qualities);
 			}
 
 			return [];
@@ -478,10 +478,10 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 	private static partial void LogEndpointFailed(ILogger logger, Exception exception, string stream, string host);
 
 	[LoggerMessage(Level = LogLevel.Information, Message = "The master playlist offers no stream of quality {Qualities}: {Error}")]
-	private static partial void LogMasterPlaylistUnavailable(ILogger logger, string qualities, string error);
+	private static partial void LogMasterPlaylistUnavailable(ILogger logger, long[] qualities, string error);
 
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to read the master playlist for quality {Qualities}")]
-	private static partial void LogMasterPlaylistFailed(ILogger logger, Exception exception, string qualities);
+	private static partial void LogMasterPlaylistFailed(ILogger logger, Exception exception, long[] qualities);
 
 	[LoggerMessage(Level = LogLevel.Information, Message = "{Stream} is not available from {Host}: {Error}")]
 	private static partial void LogVariantUnavailable(ILogger logger, string stream, string host, string error);

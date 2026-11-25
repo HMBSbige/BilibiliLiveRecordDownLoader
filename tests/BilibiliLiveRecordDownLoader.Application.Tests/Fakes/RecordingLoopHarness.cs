@@ -246,6 +246,9 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		RoomSnapshot recording = Snapshot;
 		Time.Advance(duration);
 
+		// 推进的终点也送一块数据，录到的时长才不依赖看门狗的采样时刻
+		await request.SendAndWaitAsync(new byte[1024]);
+
 		// 时钟一次跨过多个采样周期时速度会是 NaN，所以不等正数
 		await WaitUntilAsync(static snapshot => snapshot.BytesPerSecond is not 0);
 		return recording;

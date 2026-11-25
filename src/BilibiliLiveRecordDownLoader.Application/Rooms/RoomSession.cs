@@ -607,7 +607,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
 		using IDisposable? scope = _logger.BeginRoomScope(RoomId);
 		using IDisposable diskSpaceWatch = services.DiskSpaceMonitor.Watch();
-		LiveRecordingSession liveSession = new();
+		LiveRecordingSession liveSession = new(_logger);
 		RecordingFaultTracker faults = new(services.TimeProvider);
 		SetLastError(null);
 
@@ -622,7 +622,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 				try
 				{
 					RecordingAttempt attempt = await RecordAttemptAsync(config, profile, liveSession, cancellationToken);
-					await HandleAttemptEndAsync(attempt, liveSession, faults, config, profile, cancellationToken);
+					await HandleAttemptEndAsync(attempt, liveSession.CandidatePool, faults, config, profile, cancellationToken);
 				}
 				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 				{
@@ -696,7 +696,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 	}
 
-	private async Task HandleAttemptEndAsync(RecordingAttempt attempt, LiveRecordingSession liveSession, RecordingFaultTracker faults, AppConfig config, RecordingProfile profile, CancellationToken cancellationToken)
+	private async Task HandleAttemptEndAsync(RecordingAttempt attempt, CandidatePool pool, RecordingFaultTracker faults, AppConfig config, RecordingProfile profile, CancellationToken cancellationToken)
 	{
 		// 流结束时尽快确认是否已下播，下播造成的断流不算线路故障
 		bool isRefreshed = await TryRefreshAsync(cancellationToken);
@@ -707,26 +707,31 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 		else
 		{
-			faults.OnRecorded();
+			// 磁盘卡住时网络端照样能收满，那次录制不能算写盘已恢复
+			if (attempt.End is not RecordingEnd.WriteFailed { Exception.IsStalled: true })
+			{
+				faults.OnRecorded();
+			}
+
 			SetLastError(null);
 		}
 
-		if (ShouldKeepRecording(cancellationToken) && attempt.End is RecordingEnd.WriteFailed { Exception: var writeFailure })
+		if (!ShouldKeepRecording(cancellationToken))
 		{
-			// 写盘失败不怪线路，不标记失败也不换线
-			if (!attempt.IsQuickFailure)
-			{
-				liveSession.Reset();
-			}
+			LogRecordingEnded(_logger, attempt.End.Description);
+			return;
+		}
 
+		if (attempt.End is RecordingEnd.WriteFailed { Exception: var writeFailure })
+		{
+			pool.OnAttemptEnded(attempt);
 			ReportWriteFailure(faults, config, writeFailure);
 			await WaitAfterFailureAsync(writeFailure, profile.StreamReconnectDelay, cancellationToken);
 		}
-		else if (ShouldKeepRecording(cancellationToken) && attempt.IsQuickFailure)
+		else if (attempt.IsQuickFailure)
 		{
-			liveSession.MarkFailed(attempt.Candidate, attempt.Endpoint);
 			LogAttemptFailed(attempt);
-			SetLastError(AppLanguage.Current.RecordingEndpointFailed.ToString(attempt.Candidate.Name, attempt.Endpoint.Host, attempt.End.DisplayText));
+			SetLastError(AppLanguage.Current.RecordingEndpointFailed.ToString(attempt.Candidate.DisplayName, attempt.Endpoint.Host, attempt.End.DisplayText));
 
 			// 连上之后等不到数据，而接口照常访问得到、仍是直播中：主播端停了推流
 			if (isRefreshed && attempt.End is RecordingEnd.Idle)
@@ -734,9 +739,8 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 				faults.OnStreamerSilent();
 			}
 
-			if (!liveSession.HasUntriedEndpoint)
+			if (pool.OnAttemptEnded(attempt) is AttemptVerdict.WaitBeforeReconnect)
 			{
-				liveSession.Reset();
 				LogAllEndpointsFailed(_logger, profile.StreamReconnectDelay);
 				ReportStall(faults, config);
 				await Task.Delay(profile.StreamReconnectDelay, services.TimeProvider, cancellationToken);
@@ -744,8 +748,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 		else
 		{
-			// 之前失败的线路可能已经恢复，从首选流重新请求签名地址
-			liveSession.Reset();
+			pool.OnAttemptEnded(attempt);
 			LogRecordingEnded(_logger, attempt.End.Description);
 		}
 	}
@@ -953,10 +956,10 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	[LoggerMessage(Level = LogLevel.Information, Message = "Recording ended: {Reason}")]
 	private static partial void LogRecordingEnded(ILogger logger, string reason);
 
-	[LoggerMessage(Level = LogLevel.Warning, Message = "{Stream} stream from {Host} failed after {Duration} of data, switching to the next stream")]
+	[LoggerMessage(Level = LogLevel.Warning, Message = "{Stream} stream from {Host} failed after {Duration} of data")]
 	private static partial void LogAttemptFaulted(ILogger logger, Exception exception, string stream, string host, TimeSpan duration);
 
-	[LoggerMessage(Level = LogLevel.Warning, Message = "{Stream} stream from {Host} ended after {Duration} of data ({Reason}), switching to the next stream")]
+	[LoggerMessage(Level = LogLevel.Warning, Message = "{Stream} stream from {Host} ended after {Duration} of data ({Reason})")]
 	private static partial void LogAttemptEnded(ILogger logger, string stream, string host, TimeSpan duration, string reason);
 
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Recording stopped before the file was finished")]

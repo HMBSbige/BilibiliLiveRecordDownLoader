@@ -53,12 +53,12 @@ internal static class RecordingWriteBuffer
 					Dispose(receiving, draining);
 					return task.Exception;
 				}, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-				throw new RecordingWriteException($"Writing the buffered recording data did not finish within {drainTimeout}.", AppLanguage.Current.RecordingWriteDrainTimedOut.ToString(drainTimeout.TotalSeconds.ToString("0.#", CultureInfo.CurrentCulture)), exception);
+				throw new RecordingWriteException($"Writing the buffered recording data did not finish within {drainTimeout}.", AppLanguage.Current.RecordingWriteDrainTimedOut.ToString(drainTimeout.TotalSeconds.ToString("0.#", CultureInfo.CurrentCulture)), exception, isStalled: true);
 			}
 
 			if (writer.IsStalled && receiveError is { SourceException: var stopped })
 			{
-				throw new RecordingWriteException($"The recording was stopped while {PauseThreshold >> 20} MiB of received data was waiting for the disk.", AppLanguage.Current.RecordingWriteStalledOnStop.ToString((PauseThreshold >> 20).ToString(CultureInfo.CurrentCulture)), stopped);
+				throw new RecordingWriteException($"The recording was stopped while {PauseThreshold >> 20} MiB of received data was waiting for the disk.", AppLanguage.Current.RecordingWriteStalledOnStop.ToString((PauseThreshold >> 20).ToString(CultureInfo.CurrentCulture)), stopped, isStalled: true);
 			}
 
 			receiveError?.Throw();

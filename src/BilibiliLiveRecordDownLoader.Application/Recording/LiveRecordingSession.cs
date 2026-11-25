@@ -1,16 +1,12 @@
 namespace BilibiliLiveRecordDownLoader.Application.Recording;
 
-internal sealed class LiveRecordingSession
+internal sealed class LiveRecordingSession(ILogger logger)
 {
 	private readonly Lock _lock = new();
 	private readonly HashSet<string> _reservedStems = new(StringComparer.OrdinalIgnoreCase);
-	private readonly HashSet<StreamEndpoint> _failedEndpoints = [];
 	private QualityRestriction? _restriction;
 
-	// 长时间正常录制后签名地址可能已过期，要重新请求
-	public CandidateBatch? Candidates { get; set; }
-
-	public bool HasUntriedEndpoint => Candidates is not { } batch || GetUntriedCandidates(batch.Candidates).Count > 0;
+	public CandidatePool CandidatePool { get; } = new(logger);
 
 	// 后处理会在后台删除或转封装上一次的文件，只看磁盘会把同一个主干分给两次录制
 	public bool TryReserveStem(string stem)
@@ -18,19 +14,6 @@ internal sealed class LiveRecordingSession
 		lock (_lock)
 		{
 			return _reservedStems.Add(stem);
-		}
-	}
-
-	public IReadOnlyList<LiveStreamCandidate> GetUntriedCandidates(IReadOnlyList<LiveStreamCandidate> candidates)
-	{
-		lock (_lock)
-		{
-			return
-			[
-				.. candidates
-					.Select(candidate => candidate with { Urls = [.. candidate.Urls.Where(uri => !_failedEndpoints.Contains(StreamEndpoint.From(candidate, uri)))] })
-					.Where(static candidate => candidate.Urls.Count > 0)
-			];
 		}
 	}
 
@@ -45,39 +28,6 @@ internal sealed class LiveRecordingSession
 
 			_restriction = restriction;
 			return true;
-		}
-	}
-
-	public void MarkFailed(LiveStreamCandidate candidate, Uri endpoint)
-	{
-		lock (_lock)
-		{
-			_failedEndpoints.Add(StreamEndpoint.From(candidate, endpoint));
-		}
-	}
-
-	public void Reset()
-	{
-		lock (_lock)
-		{
-			_failedEndpoints.Clear();
-		}
-
-		Candidates = null;
-	}
-
-	// 重新请求后签名会变，只用主机区分线路；变体和接口给的流、不同档位的变体都在同一主机上，要分开记
-	private readonly record struct StreamEndpoint(StreamProtocol Protocol, StreamFormat Format, StreamCodec Codec, long? VariantQn, string Authority)
-	{
-		public static StreamEndpoint From(LiveStreamCandidate candidate, Uri uri)
-		{
-			long? variantQn = candidate switch
-			{
-				LiveStreamCandidate.Listed => null,
-				LiveStreamCandidate.Variant variant => variant.Qn
-			};
-
-			return new StreamEndpoint(candidate.Protocol, candidate.Format, candidate.Codec, variantQn, uri.Authority);
 		}
 	}
 }

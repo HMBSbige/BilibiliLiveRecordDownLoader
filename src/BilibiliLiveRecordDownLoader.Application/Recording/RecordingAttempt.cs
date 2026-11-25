@@ -1,12 +1,15 @@
 namespace BilibiliLiveRecordDownLoader.Application.Recording;
 
-internal sealed record RecordingAttempt(LiveStreamCandidate Candidate, Uri Endpoint, TimeSpan ActiveDuration, RecordingEnd End)
+internal sealed record RecordingAttempt(LiveStreamCandidate Candidate, Uri Endpoint, QualityRestriction? Restriction, TimeSpan ActiveDuration, RecordingEnd End)
 {
-	// 远长于 FLV 关键帧间隔和 HLS 分片时长；持续送过这么久数据之后的断流按 CDN 偶发故障处理，回到首选流
+	// 远长于 FLV 关键帧间隔和 HLS 分片时长
 	public static readonly TimeSpan QuickFailureThreshold = TimeSpan.FromSeconds(30);
 
-	// ActiveDuration 只计到最后一次收到数据；HLS 换时间线是正常分段，不是线路故障
-	public bool IsQuickFailure => End is not RecordingEnd.Completed { Reason: StreamEndReason.Discontinuity } && ActiveDuration < QuickFailureThreshold;
+	// ActiveDuration 只计到最后一次收到数据
+	public bool IsSustained => ActiveDuration >= QuickFailureThreshold;
+
+	// HLS 换时间线是正常分段，不是线路故障
+	public bool IsQuickFailure => !IsSustained && End is not RecordingEnd.Completed { Reason: StreamEndReason.Discontinuity };
 }
 
 internal closed record RecordingEnd

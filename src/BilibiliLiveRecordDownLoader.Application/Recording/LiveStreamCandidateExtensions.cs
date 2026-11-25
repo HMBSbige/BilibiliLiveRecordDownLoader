@@ -9,5 +9,11 @@ internal static class LiveStreamCandidateExtensions
 			LiveStreamCandidate.Listed listed => $"{listed.Format}/{listed.Codec}",
 			LiveStreamCandidate.Variant variant => string.Create(CultureInfo.InvariantCulture, $"{variant.Format}/{variant.Codec} {variant.Qn} from the master playlist")
 		};
+
+		public string DisplayName => candidate switch
+		{
+			LiveStreamCandidate.Listed => candidate.Name,
+			LiveStreamCandidate.Variant variant => AppLanguage.Current.RecordingVariantStream.ToString(variant.Format, variant.Codec, variant.Qn)
+		};
 	}
 }
