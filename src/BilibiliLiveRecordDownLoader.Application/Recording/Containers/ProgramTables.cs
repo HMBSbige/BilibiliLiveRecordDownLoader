@@ -1,4 +1,4 @@
-namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
+namespace BilibiliLiveRecordDownLoader.Application.Recording.Containers;
 
 internal sealed class ProgramTables
 {

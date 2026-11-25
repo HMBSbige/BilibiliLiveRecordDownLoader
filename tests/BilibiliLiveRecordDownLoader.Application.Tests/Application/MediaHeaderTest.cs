@@ -1,7 +1,7 @@
 using BilibiliLiveRecordDownLoader.Application.Recording;
+using BilibiliLiveRecordDownLoader.Application.Recording.Containers;
 using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
-using System.Buffers.Binary;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
@@ -169,15 +169,7 @@ public sealed class MediaHeaderTest
 	[Test]
 	public async Task EmptyMdhdLeavesTheTrackOutButKeepsTheSampleEntrySizeAsync()
 	{
-		byte[] tkhd = new byte[24];
-		BinaryPrimitives.WriteUInt32BigEndian(tkhd.AsSpan(12), Fmp4Samples.VideoTrack);
-		byte[] hdlr = new byte[24];
-		"vide"u8.CopyTo(hdlr.AsSpan(8));
-		byte[] entry = new byte[78];
-		BinaryPrimitives.WriteUInt16BigEndian(entry.AsSpan(24), 1280);
-		BinaryPrimitives.WriteUInt16BigEndian(entry.AsSpan(26), 720);
-		byte[] stsd = [0, 0, 0, 0, 0, 0, 0, 1, .. Fmp4Samples.Box("avc1", entry)];
-		byte[] trak = Fmp4Samples.Box("trak", [.. Fmp4Samples.Box("tkhd", tkhd), .. Fmp4Samples.Box("mdia", [.. Fmp4Samples.Box("mdhd", []), .. Fmp4Samples.Box("hdlr", hdlr), .. Fmp4Samples.Box("minf", Fmp4Samples.Box("stbl", Fmp4Samples.Box("stsd", stsd)))])]);
+		byte[] trak = Fmp4Samples.Box("trak", [.. Fmp4Samples.Tkhd(Fmp4Samples.VideoTrack), .. Fmp4Samples.Box("mdia", [.. Fmp4Samples.Box("mdhd", []), .. Fmp4Samples.Hdlr("vide"), .. Fmp4Samples.Box("minf", Fmp4Samples.Box("stbl", Fmp4Samples.Stsd(1280, 720)))])]);
 
 		byte[] init = Fmp4Samples.Box("moov", trak);
 		bool hasMovie = IsoBmff.TryReadMovie(init, out Fmp4VideoTrack? video);
@@ -193,9 +185,7 @@ public sealed class MediaHeaderTest
 	[Test]
 	public async Task EmptyTfdtGivesNoFragmentTimeAsync()
 	{
-		byte[] tfhd = new byte[8];
-		BinaryPrimitives.WriteUInt32BigEndian(tfhd.AsSpan(4), Fmp4Samples.VideoTrack);
-		byte[] fragment = Fmp4Samples.Box("moof", Fmp4Samples.Box("traf", [.. Fmp4Samples.Box("tfhd", tfhd), .. Fmp4Samples.Box("tfdt", [])]));
+		byte[] fragment = Fmp4Samples.Box("moof", Fmp4Samples.Box("traf", [.. Fmp4Samples.Box("tfhd", Fmp4Samples.Words(0, Fmp4Samples.VideoTrack)), .. Fmp4Samples.Box("tfdt", [])]));
 
 		await Assert.That(new Fmp4TrackTimes([new Fmp4Track(Fmp4Samples.VideoTrack, 90_000, 3000)]).ReadFragmentSpans(fragment)).IsEmpty();
 	}
@@ -213,7 +203,7 @@ public sealed class MediaHeaderTest
 
 	private static Fmp4Track[] ReadTracks(byte[] init)
 	{
-		return IsoBmff.TryFindBox(init, "moov"u8, out ReadOnlySpan<byte> moov) ? IsoBmff.ReadTracks(moov) : [];
+		return IsoBmff.TryFindBox(init, BoxType.Moov, out ReadOnlySpan<byte> moov) ? IsoBmff.ReadTracks(moov) : [];
 	}
 
 	private static void Scan(MediaSplitter splitter, byte[] data)

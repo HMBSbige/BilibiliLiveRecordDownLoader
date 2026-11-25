@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
 
-namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
+namespace BilibiliLiveRecordDownLoader.Application.Recording.Containers;
 
 internal static class TransportStream
 {
@@ -11,13 +11,28 @@ internal static class TransportStream
 	public const int NullPid = 0x1FFF;
 
 	// SPS 一般紧跟在访问单元分隔符后面，SEI 再长也不会把它推到 PES 的这么多字节以外
-	public const int ParameterSetCapacity = 4096;
+	private const int ParameterSetCapacity = 4096;
 
 	private const byte PatTableId = 0x00;
 	private const byte PmtTableId = 0x02;
 	private const int CrcSize = 4;
 
 	private static ReadOnlySpan<byte> StartCode => [0, 0, 1];
+
+	// data 开头可以有不到一个包的杂字节：HLS 会话用 MediaProbe.IsTransportStream 认 TS 分片时容许，录像里也原样保留；杂字节里碰巧有 0x47 很常见，开头是 0x47 也要连续三个包都对得上才算
+	// 找不到时返回 0
+	public static int FindFirstPacket(ReadOnlySpan<byte> data)
+	{
+		for (int offset = 0; offset < PacketSize && offset + 3 * PacketSize <= data.Length; ++offset)
+		{
+			if (data[offset] is SyncByte && data[offset + PacketSize] is SyncByte && data[offset + 2 * PacketSize] is SyncByte)
+			{
+				return offset;
+			}
+		}
+
+		return 0;
+	}
 
 	public static int GetPid(ReadOnlySpan<byte> packet)
 	{
@@ -222,7 +237,15 @@ internal static class TransportStream
 		field[4] = (byte)(value << 1 | 1);
 	}
 
-	public static int CopyFirstPes(ReadOnlySpan<byte> data, int videoPid, Span<byte> destination)
+	// data 从包边界开始，在其中第一个视频 PES 的开头找 SPS；SPS 只跟在关键帧前面，找不到或被截断时返回 null
+	public static VideoResolution? ReadResolution(ReadOnlySpan<byte> data, int videoPid, NalSyntax syntax)
+	{
+		Span<byte> pes = stackalloc byte[ParameterSetCapacity];
+		int length = CopyFirstPes(data, videoPid, pes);
+		return ParameterSets.ReadAnnexB(SkipPesHeader(pes.Slice(0, length)), syntax);
+	}
+
+	private static int CopyFirstPes(ReadOnlySpan<byte> data, int videoPid, Span<byte> destination)
 	{
 		int length = 0;
 		bool started = false;
@@ -260,7 +283,7 @@ internal static class TransportStream
 		return length;
 	}
 
-	public static ReadOnlySpan<byte> SkipPesHeader(ReadOnlySpan<byte> payload)
+	private static ReadOnlySpan<byte> SkipPesHeader(ReadOnlySpan<byte> payload)
 	{
 		return GetPesHeaderLength(payload) is var length and >= 0 ? payload.Slice(length) : payload;
 	}

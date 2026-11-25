@@ -1,4 +1,4 @@
-namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
+namespace BilibiliLiveRecordDownLoader.Application.Recording.Containers;
 
 // 跳过防竞争字节（00 00 03 里的 03）；读过头之后一直返回 0，由调用方最后检查 IsOverrun
 internal ref struct RbspReader(ReadOnlySpan<byte> nal)

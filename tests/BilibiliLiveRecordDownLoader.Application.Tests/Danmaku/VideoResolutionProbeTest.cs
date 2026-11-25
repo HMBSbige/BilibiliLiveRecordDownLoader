@@ -19,6 +19,16 @@ public sealed class VideoResolutionProbeTest
 		await Assert.That(await VideoResolutionProbe.ReadAsync(path, cancellationToken)).IsEqualTo(new VideoResolution(1280, 720));
 	}
 
+	[Test]
+	public async Task FlvWithoutMetadataTakesTheSizeFromTheSequenceHeaderAsync(CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string path = directory.Combine("a.flv");
+		await File.WriteAllBytesAsync(path, [.. FlvSamples.Header, .. FlvSamples.AudioSequenceHeader(), .. FlvSamples.AvcSequenceHeader(Convert.FromHexString(MediaHeaderTest.Avc480))], cancellationToken);
+
+		await Assert.That(await VideoResolutionProbe.ReadAsync(path, cancellationToken)).IsEqualTo(new VideoResolution(854, 480));
+	}
+
 	// 第一个视频 PES 不带 SPS 时接着往后找；HLS 分片开头的杂字节原样写进了录像，开头和中间都可能有
 	[Test]
 	[Arguments(false, 0, 0)]

@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
 
-namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
+namespace BilibiliLiveRecordDownLoader.Application.Recording.Containers;
 
 internal static class ParameterSets
 {

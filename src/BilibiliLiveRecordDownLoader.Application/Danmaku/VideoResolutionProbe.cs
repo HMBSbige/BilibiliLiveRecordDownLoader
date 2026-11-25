@@ -1,6 +1,5 @@
 using Microsoft.Win32.SafeHandles;
 using System.Buffers.Binary;
-using System.Text;
 
 namespace BilibiliLiveRecordDownLoader.Application.Danmaku;
 
@@ -16,7 +15,7 @@ internal static class VideoResolutionProbe
 		return Path.GetExtension(path).ToLowerInvariant() switch
 		{
 			@".mp4" => await new Mp4Reader(file, cancellationToken).ReadAsync(),
-			@".flv" => ReadFlv((await ReadHeadAsync(file, cancellationToken)).Span),
+			@".flv" => Flv.ReadResolution((await ReadHeadAsync(file, cancellationToken)).Span),
 			@".ts" => ReadTransportStream((await ReadHeadAsync(file, cancellationToken)).Span),
 			_ => null
 		};
@@ -28,31 +27,17 @@ internal static class VideoResolutionProbe
 		return head.AsMemory(0, await RandomAccess.ReadAsync(file, head, 0, cancellationToken));
 	}
 
-	private static VideoResolution? ReadFlv(ReadOnlySpan<byte> head)
-	{
-		FlvSplitter splitter = new();
-		int position = 0;
-
-		// 遇到切分点时停在它前面，再调用一次就越过它；返回 false 时完整的元素都看过了
-		while (splitter.Resolution is null && splitter.TryFindSplit(head, ref position))
-		{
-		}
-
-		return splitter.Resolution;
-	}
-
 	// HLS 分片开头不到一个包的杂字节也原样写进了录像，开头和失去包同步之后都要重新找包边界；SPS 在关键帧前面，挨个看视频 PES 的开头
 	private static VideoResolution? ReadTransportStream(ReadOnlySpan<byte> head)
 	{
 		ProgramTables tables = new();
-		Span<byte> pes = stackalloc byte[TransportStream.ParameterSetCapacity];
 
-		for (int offset = TsHlsSplitter.FindFirstPacket(head); offset + TransportStream.PacketSize <= head.Length; offset += TransportStream.PacketSize)
+		for (int offset = TransportStream.FindFirstPacket(head); offset + TransportStream.PacketSize <= head.Length; offset += TransportStream.PacketSize)
 		{
 			if (head[offset] is not TransportStream.SyncByte)
 			{
 				// 当前位置不是包头，返回 0 只能是没找到
-				if (TsHlsSplitter.FindFirstPacket(head.Slice(offset)) is not (> 0 and var skipped))
+				if (TransportStream.FindFirstPacket(head.Slice(offset)) is not (> 0 and var skipped))
 				{
 					return null;
 				}
@@ -67,9 +52,7 @@ internal static class VideoResolutionProbe
 				continue;
 			}
 
-			int length = TransportStream.CopyFirstPes(head.Slice(offset), videoPid, pes);
-
-			if (ParameterSets.ReadAnnexB(TransportStream.SkipPesHeader(pes.Slice(0, length)), syntax) is { } resolution)
+			if (TransportStream.ReadResolution(head.Slice(offset), videoPid, syntax) is { } resolution)
 			{
 				return resolution;
 			}
@@ -88,42 +71,27 @@ internal static class VideoResolutionProbe
 
 		public async Task<VideoResolution?> ReadAsync()
 		{
-			if (await FindAsync(new Box(0, RandomAccess.GetLength(file)), @"moov") is not { } moov)
+			if (await FindAsync(new Box(0, RandomAccess.GetLength(file)), BoxType.Moov) is not { } moov)
 			{
 				return null;
 			}
 
-			for (Box rest = moov; await FindAsync(rest, @"trak") is { } trak; rest = rest with { Start = trak.End })
+			for (Box rest = moov; await FindAsync(rest, BoxType.Trak) is { } trak; rest = rest with { Start = trak.End })
 			{
-				if (await FindAsync(trak, @"mdia") is not { } mdia || await FindAsync(mdia, @"hdlr") is not { } hdlr || !IsVideo(await ReadContentAsync(hdlr)))
+				if (await FindAsync(trak, BoxType.Mdia) is not { } mdia || await FindAsync(mdia, BoxType.Hdlr) is not { } hdlr || IsoBmff.ReadHandlerType(await ReadContentAsync(hdlr)) is not BoxType.Vide)
 				{
 					continue;
 				}
 
 				// 只看第一条视频轨
-				return await FindAsync(mdia, @"minf") is { } minf && await FindAsync(minf, @"stbl") is { } stbl && await FindAsync(stbl, @"stsd") is { } stsd ? ReadSampleEntrySize(await ReadContentAsync(stsd)) : null;
+				return await FindAsync(mdia, BoxType.Minf) is { } minf && await FindAsync(minf, BoxType.Stbl) is { } stbl && await FindAsync(stbl, BoxType.Stsd) is { } stsd ? IsoBmff.ReadVisualSampleEntrySize(await ReadContentAsync(stsd)) : null;
 			}
 
 			return null;
 		}
 
-		private static bool IsVideo(ReadOnlySpan<byte> hdlr)
-		{
-			return hdlr.Length >= 12 && hdlr.Slice(8, 4).SequenceEqual("vide"u8);
-		}
-
-		// stsd 是 FullBox，版本、标志和 entry_count 之后是样本项；VisualSampleEntry 的保留字段、数据引用索引和预定义字段之后是 16 位的宽和高
-		private static VideoResolution? ReadSampleEntrySize(ReadOnlySpan<byte> stsd)
-		{
-			int offset = 8;
-
-			return stsd.Length >= 8 && BinaryPrimitives.ReadUInt32BigEndian(stsd.Slice(4)) > 0 && IsoBmff.TryReadBox(stsd, ref offset, out _, out ReadOnlySpan<byte> entry) && entry.Length >= 28
-				? VideoResolution.Create(BinaryPrimitives.ReadUInt16BigEndian(entry.Slice(24)), BinaryPrimitives.ReadUInt16BigEndian(entry.Slice(26)))
-				: null;
-		}
-
 		// 返回 parent 里第一个 type 盒子的内容范围
-		private async Task<Box?> FindAsync(Box parent, string type)
+		private async Task<Box?> FindAsync(Box parent, uint type)
 		{
 			for (long offset = parent.Start; offset + 8 <= parent.End;)
 			{
@@ -156,7 +124,7 @@ internal static class VideoResolutionProbe
 					return null;
 				}
 
-				if (Ascii.Equals(_header.AsSpan(4, 4), type))
+				if (BinaryPrimitives.ReadUInt32BigEndian(_header.AsSpan(4)) == type)
 				{
 					return new Box(offset + headerSize, offset + size);
 				}

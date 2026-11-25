@@ -1,16 +1,10 @@
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-// tfdt 版本 0 只有 32 位，90 kHz 下约 13 小时回绕一次，timescale 不同的轨道回绕时刻也不同，要按轨道展开
-// 展开的状态跟着读过的分片走，要比较的两边各用一个实例读同样的分片
+// 按分片给出时间轴用的媒体时间；状态跟着读过的分片走，要比较的两边各用一个实例读同样的分片
 internal sealed class Fmp4TrackTimes(Fmp4Track[] tracks)
 {
-	// 跨过回绕的相邻分片只差一个分片左右，放宽到一分钟，漏掉几个分片也认得出；差得更多的当作源时间线重新开始，交给 SegmentClock
-	// 不按最近的值展开：源在半个周期之后重新开始时会变成往前跳几个小时，SegmentClock 不处理往前跳
-	private const ulong WrapWindowSeconds = 60;
-
-	private const ulong Period = 1UL << 32;
-
-	private readonly Wrap[] _wraps = new Wrap[tracks.Length];
+	// 回绕窗口外的跳变由 SegmentClock 当作重新开始
+	private readonly Fmp4DecodeTimes _decodeTimes = new(tracks);
 	private readonly bool[] _hasStarted = new bool[tracks.Length];
 	private readonly List<TrackFragmentTime> _fragment = [];
 	private readonly List<MediaSpan> _spans = [];
@@ -20,9 +14,9 @@ internal sealed class Fmp4TrackTimes(Fmp4Track[] tracks)
 		_spans.Clear();
 		int offset = 0;
 
-		while (IsoBmff.TryReadBox(fragment, ref offset, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> moof))
+		while (IsoBmff.TryReadBox(fragment, ref offset, out uint type, out ReadOnlySpan<byte> moof))
 		{
-			if (type.SequenceEqual("moof"u8) && ReadMovieFragment(moof, _fragment) is { } span)
+			if (type is BoxType.Moof && ReadMovieFragment(moof, _fragment) is { } span)
 			{
 				_spans.Add(span);
 			}
@@ -32,29 +26,17 @@ internal sealed class Fmp4TrackTimes(Fmp4Track[] tracks)
 	}
 
 	// times 里每个带 tfdt 的 traf 一条，DecodeTime 是展开过的；用解码时间，不看合成时间偏移，只差几帧
-	// FFmpeg 输出分片 MP4 时不写编辑列表，比最早的轨道晚开始的轨道，第一个样本挪到 0、时长拉长到下一个样本；按它定开头会被当作源时间线重新开始
+	// 没有编辑列表的分片 MP4 里，比最早的轨道晚开始的轨道可能把第一个样本挪到 0、时长拉长到下一个样本；按它定开头会被当作源时间线重新开始
 	// 所以第一次出现的轨道只在分片里没有已经出现过的轨道时才参与定开头
 	public MediaSpan? ReadMovieFragment(ReadOnlySpan<byte> moof, List<TrackFragmentTime> times)
 	{
-		times.Clear();
+		_decodeTimes.ReadMovieFragment(moof, times);
 		long? start = null;
 		long? firstStart = null;
 		long end = long.MinValue;
-		int offset = 0;
 
-		while (IsoBmff.TryReadBox(moof, ref offset, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> traf))
+		foreach (TrackFragmentTime time in times)
 		{
-			if (!type.SequenceEqual("traf"u8) || IsoBmff.ReadTrackFragmentTime(traf, offset - traf.Length, tracks) is not { } time)
-			{
-				continue;
-			}
-
-			if (moof[time.TfdtOffset] is not 1)
-			{
-				time = time with { DecodeTime = Unwrap(time.TrackIndex, (uint)time.DecodeTime) };
-			}
-
-			times.Add(time);
 			long trackStart = time.Track.ToTicks(time.DecodeTime);
 
 			if (_hasStarted[time.TrackIndex])
@@ -75,25 +57,5 @@ internal sealed class Fmp4TrackTimes(Fmp4Track[] tracks)
 		}
 
 		return (start ?? firstStart) is { } value ? new MediaSpan(TimeSpan.FromTicks(value), TimeSpan.FromTicks(end)) : null;
-	}
-
-	private ulong Unwrap(int track, uint value)
-	{
-		ref Wrap wrap = ref _wraps[track];
-
-		// 32 位无符号相减按模 2³² 回绕，得到的就是向前的差
-		if (wrap.Last is { } last && value < last && value - last <= WrapWindowSeconds * tracks[track].Timescale)
-		{
-			wrap.Base += Period;
-		}
-
-		wrap.Last = value;
-		return wrap.Base + value;
-	}
-
-	private struct Wrap
-	{
-		public uint? Last;
-		public ulong Base;
 	}
 }

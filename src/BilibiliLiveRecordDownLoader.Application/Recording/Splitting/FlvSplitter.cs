@@ -1,24 +1,9 @@
 using System.Buffers.Binary;
-using System.Numerics;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
 internal sealed class FlvSplitter : MediaSplitter
 {
-	private const int FileHeaderSize = 9;
-	private const int TagHeaderSize = 11;
-	private const int PreviousTagSizeLength = 4;
-	private const uint MaxDataSize = 0xFF_FFFF;
-	private const byte AudioTag = 8;
-	private const byte VideoTag = 9;
-	private const byte ScriptTag = 18;
-	private const byte AacFormat = 10;
-	private const byte ExAudioFormat = 9;
-	private const byte AvcCodec = 7;
-	private const byte HevcCodec = 12;
-	private const byte KeyFrame = 1;
-	private const byte CommandFrame = 5;
-
 	private byte _fileFlags;
 	private bool _hasFileHeader;
 	private byte[]? _metadata;
@@ -54,10 +39,10 @@ internal sealed class FlvSplitter : MediaSplitter
 		int end = (int)Math.Clamp(_unparsableAt - _removed - start, 0, elements.Length);
 		int offset = FindFirstTag(elements, start, end);
 
-		while (MeasureTag(elements.Slice(offset, end - offset)) is > 0 and var length)
+		while (Flv.MeasureTag(elements.Slice(offset, end - offset)) is > 0 and var length)
 		{
 			Span<byte> tag = elements.Slice(offset, length);
-			WriteTimestamp(tag, Retime(tag));
+			Flv.WriteTimestamp(tag, Retime(tag));
 			offset += length;
 		}
 	}
@@ -70,13 +55,13 @@ internal sealed class FlvSplitter : MediaSplitter
 		int read = FindFirstTag(elements, start, end);
 		int write = read;
 
-		while (MeasureTag(elements.Slice(read, end - read)) is > 0 and var length)
+		while (Flv.MeasureTag(elements.Slice(read, end - read)) is > 0 and var length)
 		{
-			write += elements[read] is VideoTag ? FilterVideoTag(elements, read, write, length, isEnabled) : FillerNalUnits.Keep(elements, read, write, length);
+			write += elements[read] is Flv.VideoTag ? FilterVideoTag(elements, read, write, length, isEnabled) : Compaction.Keep(elements, read, write, length);
 			read += length;
 		}
 
-		write += FillerNalUnits.Keep(elements, read, write, elements.Length - read);
+		write += Compaction.Keep(elements, read, write, elements.Length - read);
 		_removed += elements.Length - write;
 		return write;
 	}
@@ -93,37 +78,29 @@ internal sealed class FlvSplitter : MediaSplitter
 		// 签名对不上时马上放弃，不等凑够文件头
 		if (!_hasFileHeader)
 		{
-			ReadOnlySpan<byte> signature = "FLV"u8;
-
-			if (!signature.StartsWith(data.Slice(0, Math.Min(data.Length, signature.Length))))
+			if (!Flv.Signature.StartsWith(data.Slice(0, Math.Min(data.Length, Flv.Signature.Length))))
 			{
 				return GiveUp(data);
 			}
 
-			if (data.Length < FileHeaderSize)
-			{
-				return 0;
-			}
-
-			uint dataOffset = BinaryPrimitives.ReadUInt32BigEndian(data.Slice(5));
-			return dataOffset is >= FileHeaderSize and <= ushort.MaxValue ? (int)dataOffset + PreviousTagSizeLength : GiveUp(data);
+			return data.Length < Flv.FileHeaderSize ? 0 : Flv.ReadFirstTagOffset(data) ?? GiveUp(data);
 		}
 
 		// 加密的 tag 和认不出的类型之后再也找不到 tag 的边界，只能不再切
-		if (!IsTagType(data[0]))
+		if (!Flv.IsTagType(data[0]))
 		{
 			return GiveUp(data);
 		}
 
-		int length = MeasureTag(data);
+		int length = Flv.MeasureTag(data);
 
 		if (length is 0)
 		{
 			return 0;
 		}
 
-		ReadOnlySpan<byte> body = GetBody(data);
-		isSplit = data[0] is VideoTag && IsKeyFrame(body) && (_videoSequence is not null || !NeedsSequenceHeader(body));
+		ReadOnlySpan<byte> body = Flv.GetBody(data);
+		isSplit = data[0] is Flv.VideoTag && Flv.IsKeyFrame(body) && (_videoSequence is not null || !Flv.NeedsSequenceHeader(body));
 		return length;
 	}
 
@@ -142,26 +119,26 @@ internal sealed class FlvSplitter : MediaSplitter
 			return;
 		}
 
-		ReadOnlySpan<byte> body = GetBody(element);
+		ReadOnlySpan<byte> body = Flv.GetBody(element);
 
 		switch (element[0])
 		{
-			case VideoTag when IsVideoSequenceHeader(body):
+			case Flv.VideoTag when Flv.IsVideoSequenceHeader(body):
 				Store(ref _videoSequence, element);
-				_sequenceResolution = ReadSequenceResolution(body);
+				_sequenceResolution = Flv.ReadSequenceResolution(body);
 				Resolution = _sequenceResolution ?? _metadataResolution;
 				break;
-			case AudioTag when IsAudioSequenceHeader(body):
+			case Flv.AudioTag when Flv.IsAudioSequenceHeader(body):
 				Store(ref _audioSequence, element);
 				break;
-			case ScriptTag when IsMetadata(body):
+			case Flv.ScriptTag when Flv.IsMetadata(body):
 				Store(ref _metadata, element);
 				_metadataResolution = FlvMetadata.ReadResolution(body);
 				Resolution = _sequenceResolution ?? _metadataResolution;
 				break;
 			// 序列头和脚本 tag 不报告：FFmpeg 不把序列头输出成帧，中途重发的 onMetaData 时间戳又常是 0，都不能当作文件第一帧
-			case VideoTag or AudioTag:
-				ReportMediaTime(MediaSpan.At(TimeSpan.FromMilliseconds(ReadTimestamp(element))));
+			case Flv.VideoTag or Flv.AudioTag:
+				ReportMediaTime(MediaSpan.At(TimeSpan.FromMilliseconds(Flv.ReadTimestamp(element))));
 				break;
 		}
 	}
@@ -171,175 +148,49 @@ internal sealed class FlvSplitter : MediaSplitter
 	{
 		if (_header.IsEmpty)
 		{
-			_header = (byte[])[.. "FLV"u8, 1, _fileFlags, 0, 0, 0, FileHeaderSize, 0, 0, 0, 0, .. _metadata ?? [], .. _videoSequence ?? [], .. _audioSequence ?? []];
+			_header = (byte[])[.. Flv.Signature, 1, _fileFlags, 0, 0, 0, Flv.FileHeaderSize, 0, 0, 0, 0, .. _metadata ?? [], .. _videoSequence ?? [], .. _audioSequence ?? []];
 		}
 
 		return _header;
 	}
 
-	// SPS 里的尺寸是实际编码的，比编码器写进 onMetaData 的可靠；AV1 等认不出的编码只能用 onMetaData
-	// 传统格式的帧头之后是包类型和 3 字节合成时间，Enhanced FLV 的帧头之后是 FourCC，配置记录都从第 6 字节开始
-	private static VideoResolution? ReadSequenceResolution(ReadOnlySpan<byte> body)
-	{
-		return body.Length <= 5 ? null : GetSyntax(body) switch
-		{
-			NalSyntax.Avc => ParameterSets.ReadAvcConfiguration(body.Slice(5)),
-			NalSyntax.Hevc => ParameterSets.ReadHevcConfiguration(body.Slice(5)),
-			_ => null
-		};
-	}
-
 	// 流开头的文件头是第一次提交的第一个元素；文件头无效时已经放弃解析，end 为 0
 	private static int FindFirstTag(ReadOnlySpan<byte> elements, long start, int end)
 	{
-		return start is 0 && end >= FileHeaderSize ? (int)BinaryPrimitives.ReadUInt32BigEndian(elements.Slice(5)) + PreviousTagSizeLength : 0;
-	}
-
-	private static int MeasureTag(ReadOnlySpan<byte> data)
-	{
-		return data.Length >= TagHeaderSize && IsTagType(data[0]) && TagHeaderSize + ReadDataSize(data) + PreviousTagSizeLength is var length && length <= data.Length ? length : 0;
-	}
-
-	// 传统格式按编码 ID，Enhanced FLV 按 FourCC；body 至少 5 字节
-	private static NalSyntax? GetSyntax(ReadOnlySpan<byte> body)
-	{
-		if ((body[0] & 0x80) is 0)
-		{
-			return (body[0] & 0x0F) switch
-			{
-				AvcCodec => NalSyntax.Avc,
-				HevcCodec => NalSyntax.Hevc,
-				_ => null
-			};
-		}
-
-		ReadOnlySpan<byte> fourCc = body.Slice(1, 4);
-
-		if (fourCc.SequenceEqual("avc1"u8))
-		{
-			return NalSyntax.Avc;
-		}
-
-		return fourCc.SequenceEqual("hvc1"u8) ? NalSyntax.Hevc : null;
-	}
-
-	// 帧类型在高 4 位；Enhanced FLV 用最高位标记扩展头，低 4 位换成包类型，后面跟 FourCC
-	private static bool IsKeyFrame(ReadOnlySpan<byte> body)
-	{
-		return body switch
-		{
-			[var first, ..] when (first & 0x80) is not 0 => (first >> 4 & 0x07) is KeyFrame && (first & 0x0F) is 1 or 3,
-			[var first, var packetType, ..] when (first & 0x0F) is AvcCodec or HevcCodec => first >> 4 is KeyFrame && packetType is 1,
-			[var first, ..] => first >> 4 is KeyFrame && (first & 0x0F) is not (AvcCodec or HevcCodec),
-			_ => false
-		};
-	}
-
-	private static bool IsVideoSequenceHeader(ReadOnlySpan<byte> body)
-	{
-		return body switch
-		{
-			[var first, ..] when (first & 0x80) is not 0 => (first & 0x0F) is 0,
-			[var first, 0, ..] => (first & 0x0F) is AvcCodec or HevcCodec,
-			_ => false
-		};
-	}
-
-	private static bool NeedsSequenceHeader(ReadOnlySpan<byte> body)
-	{
-		return body is [var first, ..] && ((first & 0x80) is not 0 || (first & 0x0F) is AvcCodec or HevcCodec);
-	}
-
-	private static bool IsAudioSequenceHeader(ReadOnlySpan<byte> body)
-	{
-		return body switch
-		{
-			[var first, 0, ..] when first >> 4 is AacFormat => true,
-			[var first, ..] => first >> 4 is ExAudioFormat && (first & 0x0F) is 0,
-			_ => false
-		};
-	}
-
-	// AMF0 字符串 "onMetaData"：类型 2，2 字节长度 10
-	private static bool IsMetadata(ReadOnlySpan<byte> body)
-	{
-		return body is [2, 0, 10, ..] && body.Slice(3).StartsWith("onMetaData"u8);
-	}
-
-	private static bool IsTagType(byte type)
-	{
-		return type is AudioTag or VideoTag or ScriptTag;
-	}
-
-	private static ReadOnlySpan<byte> GetBody(ReadOnlySpan<byte> tag)
-	{
-		return tag.Slice(TagHeaderSize, ReadDataSize(tag));
-	}
-
-	private static int ReadDataSize(ReadOnlySpan<byte> tag)
-	{
-		return (int)(BinaryPrimitives.ReadUInt32BigEndian(tag) & MaxDataSize);
-	}
-
-	private static void WriteDataSize(Span<byte> tag, int size)
-	{
-		BinaryPrimitives.WriteUInt32BigEndian(tag, (uint)tag[0] << 24 | (uint)size);
-	}
-
-	// 低 24 位在前，扩展的高 8 位在后
-	private static uint ReadTimestamp(ReadOnlySpan<byte> tag)
-	{
-		return BitOperations.RotateRight(BinaryPrimitives.ReadUInt32BigEndian(tag.Slice(4)), 8);
-	}
-
-	private static void WriteTimestamp(Span<byte> tag, uint timestamp)
-	{
-		BinaryPrimitives.WriteUInt32BigEndian(tag.Slice(4), BitOperations.RotateLeft(timestamp, 8));
+		return start is 0 && end >= Flv.FileHeaderSize && Flv.ReadFirstTagOffset(elements) is { } offset ? offset : 0;
 	}
 
 	// 和 Accept 一样只按音视频帧推进，否则和时间轴放弹幕的位置对不上
 	// 音视频交错时紧跟第一帧的 tag 可能比它早一点，算出负数，夹到 0
 	private uint Retime(ReadOnlySpan<byte> tag)
 	{
-		uint timestamp = ReadTimestamp(tag);
-		long output = tag[0] is VideoTag or AudioTag && !IsSequenceHeader(tag) ? timestamp - _clock.Advance(timestamp, timestamp) : _clock.Place(timestamp);
+		uint timestamp = Flv.ReadTimestamp(tag);
+		long output = tag[0] is Flv.VideoTag or Flv.AudioTag && !Flv.IsSequenceHeader(tag) ? timestamp - _clock.Advance(timestamp, timestamp) : _clock.Place(timestamp);
 		return (uint)Math.Max(output, 0);
-	}
-
-	private static bool IsSequenceHeader(ReadOnlySpan<byte> tag)
-	{
-		ReadOnlySpan<byte> body = GetBody(tag);
-
-		return tag[0] switch
-		{
-			VideoTag => IsVideoSequenceHeader(body),
-			AudioTag => IsAudioSequenceHeader(body),
-			_ => false
-		};
 	}
 
 	// 序列头不管开关都要记下，打开之后才知道后面的帧怎么拆
 	private int FilterVideoTag(Span<byte> elements, int read, int write, int length, bool isEnabled)
 	{
-		int dataSize = length - TagHeaderSize - PreviousTagSizeLength;
-		int nalStart = FindNalUnits(elements.Slice(read + TagHeaderSize, dataSize));
+		int dataSize = length - Flv.TagHeaderSize - Flv.PreviousTagSizeLength;
+		int nalStart = FindNalUnits(elements.Slice(read + Flv.TagHeaderSize, dataSize));
 		int nalLength = dataSize - nalStart;
-		int kept = isEnabled && nalStart > 0 ? FillerNalUnits.Measure(elements.Slice(read + TagHeaderSize + nalStart, nalLength), _nalLengthSize, _sequenceSyntax) : -1;
+		int kept = isEnabled && nalStart > 0 ? FillerNalUnits.Measure(elements.Slice(read + Flv.TagHeaderSize + nalStart, nalLength), _nalLengthSize, _sequenceSyntax) : -1;
 
 		if (kept < 0 || kept == nalLength)
 		{
-			return FillerNalUnits.Keep(elements, read, write, length);
+			return Compaction.Keep(elements, read, write, length);
 		}
 
-		int prefix = TagHeaderSize + nalStart;
-		FillerNalUnits.Keep(elements, read, write, prefix);
-		FillerNalUnits.Move(elements, read + prefix, nalLength, write + prefix, kept, _nalLengthSize, _sequenceSyntax);
+		int prefix = Flv.TagHeaderSize + nalStart;
+		Compaction.Keep(elements, read, write, prefix);
+		FillerNalUnits.Move(elements, read + prefix, nalLength, write + prefix, _nalLengthSize, _sequenceSyntax);
 
 		Span<byte> tag = elements.Slice(write);
 		int newDataSize = nalStart + kept;
-		WriteDataSize(tag, newDataSize);
-		BinaryPrimitives.WriteUInt32BigEndian(tag.Slice(TagHeaderSize + newDataSize), (uint)(TagHeaderSize + newDataSize));
-		return TagHeaderSize + newDataSize + PreviousTagSizeLength;
+		Flv.WriteDataSize(tag, newDataSize);
+		BinaryPrimitives.WriteUInt32BigEndian(tag.Slice(Flv.TagHeaderSize + newDataSize), (uint)(Flv.TagHeaderSize + newDataSize));
+		return Flv.TagHeaderSize + newDataSize + Flv.PreviousTagSizeLength;
 	}
 
 	// 返回 NAL 数据在 tag 正文里的偏移，不是能按记下的宽度拆开的 AVC 或 HEVC 编码帧时返回 0；遇到序列头时记下 NAL 长度字段的宽度
@@ -352,17 +203,15 @@ internal sealed class FlvSplitter : MediaSplitter
 			return 0;
 		}
 
-		byte first = body[0];
-		bool isEnhanced = (first & 0x80) is not 0;
-
-		if ((isEnhanced ? first >> 4 & 0x07 : first >> 4) is CommandFrame)
+		if (Flv.IsCommandFrame(body))
 		{
 			return 0;
 		}
 
-		int packetType = isEnhanced ? first & 0x0F : body[1];
+		bool isEnhanced = (body[0] & 0x80) is not 0;
+		int packetType = isEnhanced ? body[0] & 0x0F : body[1];
 
-		if (GetSyntax(body) is not { } syntax)
+		if (Flv.GetSyntax(body) is not { } syntax)
 		{
 			// 多轨和 ModEx 的这个位置不是 FourCC
 			if (isEnhanced && packetType is not (1 or 2 or 3 or 4))
@@ -409,7 +258,7 @@ internal sealed class FlvSplitter : MediaSplitter
 		}
 
 		cached = tag.ToArray();
-		WriteTimestamp(cached, 0);
+		Flv.WriteTimestamp(cached, 0);
 		_header = default;
 	}
 }

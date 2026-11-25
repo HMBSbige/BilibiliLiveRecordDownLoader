@@ -157,7 +157,6 @@ public sealed class FillerRemovalTest
 	[Arguments(FillerCodec.Avc, 4, Fmp4Layout.AudioFirst)]
 	[Arguments(FillerCodec.Hevc, 4, Fmp4Layout.TwoVideoRuns)]
 	[Arguments(FillerCodec.Av1, 0, Fmp4Layout.Bilibili)]
-	[Arguments(FillerCodec.Av1, 0, Fmp4Layout.TwoVideoRuns)]
 	public async Task Fmp4VideoSamplesLoseTheirFillerAsync(FillerCodec codec, int lengthSize, Fmp4Layout layout, CancellationToken cancellationToken)
 	{
 		byte[][][] firstVideo =

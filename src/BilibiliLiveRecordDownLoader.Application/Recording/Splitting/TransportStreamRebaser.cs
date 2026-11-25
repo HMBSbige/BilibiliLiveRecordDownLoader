@@ -113,7 +113,7 @@ internal sealed class TransportStreamRebaser
 	}
 
 	// PCR 比 DTS 早一个复用延迟（FFmpeg 的 -muxdelay，命令行默认 0.7 秒），超过判断重新开始的容差，所以不拿它判断，只减去当前的起点
-	// 代价是每个文件开头这段 PCR 夹成 0，FFmpeg 系的播放器和转封装不靠 PCR 计时；加 -muxdelay 0 会让 PCR 全程没有余量，更糟
+	// 代价是每个文件开头这段 PCR 夹成 0，FFmpeg 系的播放器和转封装不靠 PCR 计时
 	private void RebasePcr(Span<byte> packet)
 	{
 		if (!TransportStream.HasPcr(packet))

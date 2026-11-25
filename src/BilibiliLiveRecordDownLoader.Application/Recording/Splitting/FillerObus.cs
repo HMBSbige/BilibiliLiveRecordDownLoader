@@ -4,7 +4,7 @@ namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 internal static class FillerObus
 {
 	private const int PaddingType = 15;
-	private const int MaxSizeFieldShift = 7 * 8;
+	private const int MaxSizeFieldLength = 8;
 
 	public static int Measure(ReadOnlySpan<byte> sample)
 	{
@@ -28,15 +28,9 @@ internal static class FillerObus
 		return kept > 0 ? kept : sample.Length;
 	}
 
-	// keptLength 是 Measure 的结果；destination 不能在 source 之后，否则写出会覆盖还没读的数据
-	public static void Move(Span<byte> buffer, int source, int length, int destination, int keptLength)
+	// 只用于 Measure 判定有填充可删的样本；destination 不能在 source 之后，否则写出会覆盖还没读的数据
+	public static void Move(Span<byte> buffer, int source, int length, int destination)
 	{
-		if (keptLength == length)
-		{
-			buffer.Slice(source, length).CopyTo(buffer.Slice(destination));
-			return;
-		}
-
 		for (int offset = source, end = source + length; offset < end;)
 		{
 			// 不带大小字段的 OBU 到样本末尾为止，不能读到样本外面
@@ -77,15 +71,15 @@ internal static class FillerObus
 
 		ulong size = 0;
 
-		for (int shift = 0; ; shift += 7)
+		for (int index = 0; ; ++index)
 		{
-			if (shift is MaxSizeFieldShift || position == data.Length)
+			if (index is MaxSizeFieldLength || position == data.Length)
 			{
 				return false;
 			}
 
 			byte value = data[position++];
-			size |= (ulong)(value & 0x7F) << shift;
+			size |= (ulong)(value & 0x7F) << 7 * index;
 
 			if ((value & 0x80) is 0)
 			{

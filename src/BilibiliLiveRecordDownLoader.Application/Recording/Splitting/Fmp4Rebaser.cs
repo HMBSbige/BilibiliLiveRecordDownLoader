@@ -21,13 +21,13 @@ internal sealed class Fmp4Rebaser
 	{
 		int offset = 0;
 
-		while (IsoBmff.TryReadBox(elements, ref offset, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> content))
+		while (IsoBmff.TryReadBox(elements, ref offset, out uint type, out ReadOnlySpan<byte> content))
 		{
-			if (type.SequenceEqual("moov"u8))
+			if (type is BoxType.Moov)
 			{
 				_times = new Fmp4TrackTimes(IsoBmff.ReadTracks(content));
 			}
-			else if (type.SequenceEqual("moof"u8) && _times.ReadMovieFragment(content, _fragment) is { } span)
+			else if (type is BoxType.Moof && _times.ReadMovieFragment(content, _fragment) is { } span)
 			{
 				RebaseMovieFragment(elements.Slice(offset - content.Length, content.Length), _clock.Advance(span.Start.Ticks, span.End.Ticks));
 			}

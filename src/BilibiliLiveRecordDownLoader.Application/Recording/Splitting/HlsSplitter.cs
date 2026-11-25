@@ -68,7 +68,7 @@ internal sealed class Fmp4HlsSplitter : HlsSplitter
 	{
 		_init = data.ToArray();
 		_hasMovie = IsoBmff.TryReadMovie(data, out _video);
-		_times = new Fmp4TrackTimes(IsoBmff.TryFindBox(data, "moov"u8, out ReadOnlySpan<byte> moov) ? IsoBmff.ReadTracks(moov) : []);
+		_times = new Fmp4TrackTimes(IsoBmff.TryFindBox(data, BoxType.Moov, out ReadOnlySpan<byte> moov) ? IsoBmff.ReadTracks(moov) : []);
 		Resolution = _video?.Resolution;
 		Add(data.Length, false, default, []);
 	}
@@ -119,7 +119,7 @@ internal sealed class TsHlsSplitter : HlsSplitter
 		while (offset < elements.Length)
 		{
 			Span<byte> segment = elements.Slice(offset, _unrebased.Dequeue());
-			_rebaser.Rebase(segment.Slice(FindFirstPacket(segment)));
+			_rebaser.Rebase(segment.Slice(TransportStream.FindFirstPacket(segment)));
 			offset += segment.Length;
 		}
 	}
@@ -133,7 +133,7 @@ internal sealed class TsHlsSplitter : HlsSplitter
 	// FFmpeg 把 SDT 写在 PAT 和 PMT 前面，排在它们之前的 PSI、SI 表（PID 0x1F 以内）和空包不影响判断
 	public override void OnMediaSegment(ReadOnlySpan<byte> data)
 	{
-		int start = FindFirstPacket(data);
+		int start = TransportStream.FindFirstPacket(data);
 		ReadOnlySpan<byte> packets = data.Slice(start);
 		ReadOnlyMemory<byte> previousTables = _tables.Header;
 		bool isAligned = start is 0;
@@ -181,31 +181,12 @@ internal sealed class TsHlsSplitter : HlsSplitter
 		_unrebased.Enqueue(element.Length);
 	}
 
-	// 会话用 MediaProbe.IsTransportStream 认 TS 分片，开头可以有不到一个包的杂字节；杂字节里碰巧有 0x47 很常见，开头是 0x47 也要连续三个包都对得上才算
-	// 找不到时返回 0
-	internal static int FindFirstPacket(ReadOnlySpan<byte> data)
-	{
-		for (int offset = 0; offset < TransportStream.PacketSize && offset + 3 * TransportStream.PacketSize <= data.Length; ++offset)
-		{
-			if (data[offset] is TransportStream.SyncByte && data[offset + TransportStream.PacketSize] is TransportStream.SyncByte && data[offset + 2 * TransportStream.PacketSize] is TransportStream.SyncByte)
-			{
-				return offset;
-			}
-		}
-
-		return 0;
-	}
-
 	private void ReadResolution(ReadOnlySpan<byte> packets)
 	{
-		if (_tables is not { VideoPid: >= 0 and var videoPid, VideoSyntax: { } syntax })
+		if (_tables is { VideoPid: >= 0 and var videoPid, VideoSyntax: { } syntax })
 		{
-			return;
+			Resolution = TransportStream.ReadResolution(packets, videoPid, syntax) ?? Resolution;
 		}
-
-		Span<byte> pes = stackalloc byte[TransportStream.ParameterSetCapacity];
-		int length = TransportStream.CopyFirstPes(packets, videoPid, pes);
-		Resolution = ParameterSets.ReadAnnexB(TransportStream.SkipPesHeader(pes.Slice(0, length)), syntax) ?? Resolution;
 	}
 
 	private bool StartsWithRandomAccess(ReadOnlySpan<byte> packets)

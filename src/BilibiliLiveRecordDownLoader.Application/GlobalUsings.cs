@@ -22,6 +22,7 @@ global using BilibiliLiveRecordDownLoader.Application.Http;
 global using BilibiliLiveRecordDownLoader.Application.Lifecycle;
 global using BilibiliLiveRecordDownLoader.Application.Media;
 global using BilibiliLiveRecordDownLoader.Application.Recording;
+global using BilibiliLiveRecordDownLoader.Application.Recording.Containers;
 global using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 global using BilibiliLiveRecordDownLoader.Application.Rooms;
 global using BilibiliLiveRecordDownLoader.Application.Settings;

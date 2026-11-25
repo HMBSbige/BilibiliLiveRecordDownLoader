@@ -467,25 +467,13 @@ public sealed class RecordingTimestampTest
 
 	private static byte[] Fmp4Init(uint audioTimescale = AudioTimescale)
 	{
-		return [.. Fmp4Samples.Box("ftyp", "isom"u8.ToArray()), .. Fmp4Samples.Box("moov", [.. Track(Fmp4Samples.VideoTrack, "vide", VideoTimescale), .. Track(Fmp4Samples.AudioTrack, "soun", audioTimescale), .. Fmp4Samples.Box("mvex", [.. Trex(Fmp4Samples.VideoTrack), .. Trex(Fmp4Samples.AudioTrack)])])];
+		return [.. Fmp4Samples.Box("ftyp", "isom"u8.ToArray()), .. Fmp4Samples.Box("moov", [.. Track(Fmp4Samples.VideoTrack, "vide", VideoTimescale), .. Track(Fmp4Samples.AudioTrack, "soun", audioTimescale), .. Fmp4Samples.Box("mvex", [.. Fmp4Samples.Trex(Fmp4Samples.VideoTrack, defaultFlags: Fmp4Samples.SyncFlags), .. Fmp4Samples.Trex(Fmp4Samples.AudioTrack, defaultFlags: Fmp4Samples.SyncFlags)])])];
 
 		static byte[] Track(uint trackId, string handler, uint timescale)
 		{
-			byte[] tkhd = new byte[24];
-			BinaryPrimitives.WriteUInt32BigEndian(tkhd.AsSpan(12), trackId);
 			byte[] mdhd = new byte[24];
 			BinaryPrimitives.WriteUInt32BigEndian(mdhd.AsSpan(12), timescale);
-			byte[] hdlr = new byte[24];
-			Encoding.ASCII.GetBytes(handler, hdlr.AsSpan(8));
-			return Fmp4Samples.Box("trak", [.. Fmp4Samples.Box("tkhd", tkhd), .. Fmp4Samples.Box("mdia", [.. Fmp4Samples.Box("mdhd", mdhd), .. Fmp4Samples.Box("hdlr", hdlr)])]);
-		}
-
-		static byte[] Trex(uint trackId)
-		{
-			byte[] trex = new byte[24];
-			BinaryPrimitives.WriteUInt32BigEndian(trex.AsSpan(4), trackId);
-			BinaryPrimitives.WriteUInt32BigEndian(trex.AsSpan(20), Fmp4Samples.SyncFlags);
-			return Fmp4Samples.Box("trex", trex);
+			return Fmp4Samples.Box("trak", [.. Fmp4Samples.Tkhd(trackId), .. Fmp4Samples.Box("mdia", [.. Fmp4Samples.Box("mdhd", mdhd), .. Fmp4Samples.Hdlr(handler)])]);
 		}
 	}
 
@@ -503,13 +491,13 @@ public sealed class RecordingTimestampTest
 	// trun 0x104 带首样本标志和样本时长
 	private static byte[] VideoTraf(ulong decodeTime, byte version, uint samples, uint sampleDuration = 3000)
 	{
-		byte[] trun = [.. Words(0x104, samples, Fmp4Samples.SyncFlags), .. Enumerable.Repeat(Words(sampleDuration), (int)samples).SelectMany(static word => word)];
-		return Fmp4Samples.Box("traf", [.. Fmp4Samples.Box("tfhd", Words(0, Fmp4Samples.VideoTrack)), .. Tfdt(decodeTime, version), .. Fmp4Samples.Box("trun", trun)]);
+		byte[] trun = [.. Fmp4Samples.Words(0x104, samples, Fmp4Samples.SyncFlags), .. Fmp4Samples.Words([.. Enumerable.Repeat(sampleDuration, (int)samples)])];
+		return Fmp4Samples.Box("traf", [.. Fmp4Samples.Box("tfhd", Fmp4Samples.Words(0, Fmp4Samples.VideoTrack)), .. Tfdt(decodeTime, version), .. Fmp4Samples.Box("trun", trun)]);
 	}
 
 	private static byte[] AudioTraf(ulong decodeTime, byte version, uint duration)
 	{
-		return Fmp4Samples.Box("traf", [.. Fmp4Samples.Box("tfhd", Words(0, Fmp4Samples.AudioTrack)), .. Tfdt(decodeTime, version), .. Fmp4Samples.Box("trun", Words(0x100, 1, duration))]);
+		return Fmp4Samples.Box("traf", [.. Fmp4Samples.Box("tfhd", Fmp4Samples.Words(0, Fmp4Samples.AudioTrack)), .. Tfdt(decodeTime, version), .. Fmp4Samples.Box("trun", Fmp4Samples.Words(0x100, 1, duration))]);
 	}
 
 	// 版本 0 只写低 32 位，超出部分回绕
@@ -528,18 +516,6 @@ public sealed class RecordingTimestampTest
 		}
 
 		return Fmp4Samples.Box("tfdt", tfdt);
-	}
-
-	private static byte[] Words(params uint[] values)
-	{
-		byte[] bytes = new byte[values.Length * 4];
-
-		for (int index = 0; index < values.Length; ++index)
-		{
-			BinaryPrimitives.WriteUInt32BigEndian(bytes.AsSpan(index * 4), values[index]);
-		}
-
-		return bytes;
 	}
 
 	private static string[] DescribeDecodeTimes(byte[] file)

@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
@@ -47,52 +48,19 @@ internal static class Fmp4Samples
 		byte[] mdhd = new byte[mdhdVersion is 1 ? 36 : 24];
 		mdhd[0] = mdhdVersion;
 		BinaryPrimitives.WriteUInt32BigEndian(mdhd.AsSpan(mdhdVersion is 1 ? 20 : 12), timescale);
-		byte[] entry = new byte[78];
-		BinaryPrimitives.WriteUInt16BigEndian(entry.AsSpan(24), width);
-		BinaryPrimitives.WriteUInt16BigEndian(entry.AsSpan(26), height);
-		byte[] stsd = [0, 0, 0, 0, 0, 0, 0, 1, .. Box("avc1", entry)];
-		byte[] video = Box("trak", [.. Tkhd(VideoTrack), .. Box("mdia", [.. Box("mdhd", mdhd), .. Hdlr("vide"), .. Box("minf", Box("stbl", Box("stsd", stsd)))])]);
+		byte[] video = Box("trak", [.. Tkhd(VideoTrack), .. Box("mdia", [.. Box("mdhd", mdhd), .. Hdlr("vide"), .. Box("minf", Box("stbl", Stsd(width, height)))])]);
 		return [.. Box("ftyp", "isom"u8.ToArray()), .. Box("moov", [.. Track(AudioTrack, "soun"), .. video, .. Box("mvex", [.. Trex(AudioTrack, defaultFlags: SyncFlags), .. Trex(VideoTrack, defaultDuration: defaultDuration, defaultFlags: NonSyncFlags)])])];
 	}
 
 	// 音频 traf 在前；sampleDuration 为 0 时用 trex 的默认值
 	public static byte[] TimedFragment(ulong decodeTime, uint sampleCount, uint sampleDuration, bool isKeyFrame = true, byte tfdtVersion = 1)
 	{
-		byte[] tfdt = tfdtVersion is 1 ? new byte[12] : new byte[8];
-		tfdt[0] = tfdtVersion;
-
-		if (tfdtVersion is 1)
-		{
-			BinaryPrimitives.WriteUInt64BigEndian(tfdt.AsSpan(4), decodeTime);
-		}
-		else
-		{
-			BinaryPrimitives.WriteUInt32BigEndian(tfdt.AsSpan(4), (uint)decodeTime);
-		}
-
+		byte[] tfdt = tfdtVersion is 1 ? Words(0x0100_0000, (uint)(decodeTime >> 32), (uint)decodeTime) : Words(0, (uint)decodeTime);
 		uint trunFlags = 0x04 | (sampleDuration is 0 ? 0u : 0x100);
-		List<byte> trun = [];
-		Append(trunFlags);
-		Append(sampleCount);
-		Append(isKeyFrame ? SyncFlags : NonSyncFlags);
-
-		for (uint sample = 0; sample < sampleCount && sampleDuration is not 0; ++sample)
-		{
-			Append(sampleDuration);
-		}
-
-		byte[] tfhd = new byte[8];
-		BinaryPrimitives.WriteUInt32BigEndian(tfhd.AsSpan(4), VideoTrack);
+		byte[] trun = [.. Words(trunFlags, sampleCount, isKeyFrame ? SyncFlags : NonSyncFlags), .. sampleDuration is 0 ? [] : Words([.. Enumerable.Repeat(sampleDuration, (int)sampleCount)])];
 		byte[] audio = Box("traf", [.. Tfhd(AudioTrack, SyncFlags), .. Trun(0x04, 3, NonSyncFlags)]);
-		byte[] video = Box("traf", [.. Box("tfhd", tfhd), .. Box("tfdt", tfdt), .. Box("trun", [.. trun])]);
+		byte[] video = Box("traf", [.. Box("tfhd", Words(0, VideoTrack)), .. Box("tfdt", tfdt), .. Box("trun", trun)]);
 		return [.. Box("moof", [.. audio, .. video]), .. Box("mdat", "[timed]"u8.ToArray())];
-
-		void Append(uint value)
-		{
-			byte[] bytes = new byte[4];
-			BinaryPrimitives.WriteUInt32BigEndian(bytes, value);
-			trun.AddRange(bytes);
-		}
 	}
 
 	public static byte[] Box(string type, byte[] payload)
@@ -102,6 +70,18 @@ internal static class Fmp4Samples
 		Encoding.ASCII.GetBytes(type, box.AsSpan(4));
 		payload.CopyTo(box.AsSpan(8));
 		return box;
+	}
+
+	public static byte[] Words(params ReadOnlySpan<uint> values)
+	{
+		byte[] bytes = new byte[values.Length * 4];
+
+		for (int index = 0; index < values.Length; ++index)
+		{
+			BinaryPrimitives.WriteUInt32BigEndian(bytes.AsSpan(index * 4), values[index]);
+		}
+
+		return bytes;
 	}
 
 	public static byte[] Tkhd(uint trackId, byte version = 0)
@@ -117,6 +97,14 @@ internal static class Fmp4Samples
 		byte[] hdlr = new byte[24];
 		Encoding.ASCII.GetBytes(handler, hdlr.AsSpan(8));
 		return Box("hdlr", hdlr);
+	}
+
+	public static byte[] Stsd(ushort width, ushort height)
+	{
+		byte[] entry = new byte[78];
+		BinaryPrimitives.WriteUInt16BigEndian(entry.AsSpan(24), width);
+		BinaryPrimitives.WriteUInt16BigEndian(entry.AsSpan(26), height);
+		return Box("stsd", [0, 0, 0, 0, 0, 0, 0, 1, .. Box("avc1", entry)]);
 	}
 
 	public static byte[] Trex(uint trackId, uint defaultDescriptionIndex = 0, uint defaultDuration = 0, uint defaultFlags = 0)
@@ -153,46 +141,37 @@ internal static class Fmp4Samples
 
 	private static byte[] Trun(uint flags, uint samples, uint sampleFlags)
 	{
-		List<byte> trun = [];
-		Append(flags);
-		Append(samples);
+		List<uint> trun = [flags, samples];
 
 		if ((flags & 0x01) is not 0)
 		{
-			Append(0);
+			trun.Add(0);
 		}
 
 		if ((flags & 0x04) is not 0)
 		{
-			Append(sampleFlags);
+			trun.Add(sampleFlags);
 		}
 
 		for (uint sample = 0; sample < samples; ++sample)
 		{
 			if ((flags & 0x100) is not 0)
 			{
-				Append(1500);
+				trun.Add(1500);
 			}
 
 			if ((flags & 0x200) is not 0)
 			{
-				Append(100);
+				trun.Add(100);
 			}
 
 			if ((flags & 0x400) is not 0)
 			{
-				Append(sample is 0 ? sampleFlags : NonSyncFlags);
+				trun.Add(sample is 0 ? sampleFlags : NonSyncFlags);
 			}
 		}
 
-		return Box("trun", [.. trun]);
-
-		void Append(uint value)
-		{
-			byte[] bytes = new byte[4];
-			BinaryPrimitives.WriteUInt32BigEndian(bytes, value);
-			trun.AddRange(bytes);
-		}
+		return Box("trun", Words(CollectionsMarshal.AsSpan(trun)));
 	}
 }
 

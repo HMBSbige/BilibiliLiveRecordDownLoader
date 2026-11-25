@@ -1,31 +1,33 @@
 using System.Buffers.Binary;
 using System.Numerics;
 
-namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
+namespace BilibiliLiveRecordDownLoader.Application.Recording.Containers;
 
 internal static class IsoBmff
 {
 	private const int BoxHeaderSize = 8;
 	private const int LargeBoxHeaderSize = 16;
-	private const uint NonSyncSampleFlag = 0x0001_0000;
+
+	// sample_is_non_sync_sample 为 1，或 sample_depends_on 为 1（要参考别的样本，不是 I 帧）；FFmpeg 读分片时也是这样认关键帧的
+	private const uint NonSyncSampleFlags = 0x0101_0000;
 
 	// 返回 false 表示 init 段里没有 moov；有 moov 而没有视频轨时 video 为 null
 	public static bool TryReadMovie(ReadOnlySpan<byte> init, out Fmp4VideoTrack? video)
 	{
 		video = null;
 
-		if (!TryFindBox(init, "moov"u8, out ReadOnlySpan<byte> moov))
+		if (!TryFindBox(init, BoxType.Moov, out ReadOnlySpan<byte> moov))
 		{
 			return false;
 		}
 
 		int offset = 0;
 
-		while (TryReadBox(moov, ref offset, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> trak))
+		while (TryReadBox(moov, ref offset, out uint type, out ReadOnlySpan<byte> trak))
 		{
-			if (type.SequenceEqual("trak"u8) && IsVideoTrack(trak, out uint trackId))
+			if (type is BoxType.Trak && IsVideoTrack(trak, out uint trackId))
 			{
-				video = new Fmp4VideoTrack(trackId, FindTrackExtends(moov, trackId)?.DefaultSampleFlags ?? 0, ReadSampleEntrySize(trak));
+				video = new Fmp4VideoTrack(trackId, ReadTrackExtends(moov).GetValueOrDefault(trackId).DefaultSampleFlags, ReadVisualSampleEntrySize(FindSampleDescriptions(trak)));
 				break;
 			}
 		}
@@ -38,25 +40,30 @@ internal static class IsoBmff
 	{
 		int offset = 0;
 
-		while (TryReadBox(fragment, ref offset, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> moof))
+		while (TryReadBox(fragment, ref offset, out uint type, out ReadOnlySpan<byte> moof))
 		{
-			if (!type.SequenceEqual("moof"u8))
+			if (type is not BoxType.Moof)
 			{
 				continue;
 			}
 
 			int trafOffset = 0;
 
-			while (TryReadBox(moof, ref trafOffset, out ReadOnlySpan<byte> trafType, out ReadOnlySpan<byte> traf))
+			while (TryReadBox(moof, ref trafOffset, out uint trafType, out ReadOnlySpan<byte> traf))
 			{
-				if (trafType.SequenceEqual("traf"u8) && ReadFirstSampleFlags(traf, video.TrackId, video.DefaultSampleFlags) is { } flags)
+				if (trafType is BoxType.Traf && ReadFirstSampleFlags(traf, video.TrackId, video.DefaultSampleFlags) is { } flags)
 				{
-					return (flags & NonSyncSampleFlag) is 0;
+					return IsSyncSample(flags);
 				}
 			}
 		}
 
 		return false;
+	}
+
+	public static bool IsSyncSample(uint sampleFlags)
+	{
+		return (sampleFlags & NonSyncSampleFlags) is 0;
 	}
 
 	private static uint? ReadFirstSampleFlags(ReadOnlySpan<byte> traf, uint videoTrackId, uint trexSampleFlags)
@@ -65,9 +72,9 @@ internal static class IsoBmff
 		bool isVideo = false;
 		int offset = 0;
 
-		while (TryReadBox(traf, ref offset, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> content))
+		while (TryReadBox(traf, ref offset, out uint type, out ReadOnlySpan<byte> content))
 		{
-			if (type.SequenceEqual("tfhd"u8))
+			if (type is BoxType.Tfhd)
 			{
 				if (content.Length < 8 || BinaryPrimitives.ReadUInt32BigEndian(content.Slice(4)) != videoTrackId)
 				{
@@ -88,7 +95,7 @@ internal static class IsoBmff
 					defaultFlags = BinaryPrimitives.ReadUInt32BigEndian(content.Slice(field));
 				}
 			}
-			else if (type.SequenceEqual("trun"u8) && isVideo && content.Length >= 8 && BinaryPrimitives.ReadUInt32BigEndian(content.Slice(4)) > 0)
+			else if (type is BoxType.Trun && isVideo && content.Length >= 8 && BinaryPrimitives.ReadUInt32BigEndian(content.Slice(4)) > 0)
 			{
 				uint flags = ReadFlags(content);
 				uint source = (flags & TrackRunFlags.FirstSampleFlagsPresent) is not 0 ? TrackRunFlags.FirstSampleFlagsPresent : TrackRunFlags.SampleFlagsPresent;
@@ -107,9 +114,9 @@ internal static class IsoBmff
 	}
 
 	// mdhd 版本 1 的创建和修改时间是 64 位
-	private static uint? ReadTimescale(ReadOnlySpan<byte> trak)
+	public static uint? ReadTimescale(ReadOnlySpan<byte> trak)
 	{
-		if (!TryFindBox(trak, "mdia"u8, out ReadOnlySpan<byte> mdia) || !TryFindBox(mdia, "mdhd"u8, out ReadOnlySpan<byte> mdhd))
+		if (!TryFindBox(trak, BoxType.Mdia, out ReadOnlySpan<byte> mdia) || !TryFindBox(mdia, BoxType.Mdhd, out ReadOnlySpan<byte> mdhd))
 		{
 			return null;
 		}
@@ -118,29 +125,24 @@ internal static class IsoBmff
 		return mdhd.Length >= field + 4 && BinaryPrimitives.ReadUInt32BigEndian(mdhd.Slice(field)) is var timescale and not 0 ? timescale : null;
 	}
 
-	// VisualSampleEntry 的保留字段、数据引用索引和预定义字段之后是 16 位的宽和高
-	private static VideoResolution? ReadSampleEntrySize(ReadOnlySpan<byte> trak)
-	{
-		return TryReadSampleEntry(trak, out _, out ReadOnlySpan<byte> entry, out _) && entry.Length >= 28 ? VideoResolution.Create(BinaryPrimitives.ReadUInt16BigEndian(entry.Slice(24)), BinaryPrimitives.ReadUInt16BigEndian(entry.Slice(26))) : null;
-	}
-
 	public static Fmp4Track[] ReadTracks(ReadOnlySpan<byte> moov)
 	{
+		Dictionary<uint, TrackExtends> extends = ReadTrackExtends(moov);
 		List<Fmp4Track> tracks = [];
 		int offset = 0;
 
-		while (TryReadBox(moov, ref offset, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> trak))
+		while (TryReadBox(moov, ref offset, out uint type, out ReadOnlySpan<byte> trak))
 		{
-			if (type.SequenceEqual("trak"u8) && TryReadTrackId(trak, out uint trackId) && ReadTimescale(trak) is { } timescale)
+			if (type is BoxType.Trak && TryReadTrackId(trak, out uint trackId) && ReadTimescale(trak) is { } timescale)
 			{
-				tracks.Add(new Fmp4Track(trackId, timescale, FindTrackExtends(moov, trackId)?.DefaultSampleDuration ?? 0));
+				tracks.Add(new Fmp4Track(trackId, timescale, extends.GetValueOrDefault(trackId).DefaultSampleDuration));
 			}
 		}
 
 		return [.. tracks];
 	}
 
-	// trafOffset 是 traf 内容在 moof 内容里的位置；版本 0 的 tfdt 给的是 32 位原值，由 Fmp4TrackTimes 展开
+	// trafOffset 是 traf 内容在 moof 内容里的位置；版本 0 的 tfdt 给的是 32 位原值，由 Fmp4DecodeTimes 展开
 	public static TrackFragmentTime? ReadTrackFragmentTime(ReadOnlySpan<byte> traf, int trafOffset, ReadOnlySpan<Fmp4Track> tracks)
 	{
 		int track = -1;
@@ -150,9 +152,9 @@ internal static class IsoBmff
 		ulong duration = 0;
 		int offset = 0;
 
-		while (TryReadBox(traf, ref offset, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> content))
+		while (TryReadBox(traf, ref offset, out uint type, out ReadOnlySpan<byte> content))
 		{
-			if (type.SequenceEqual("tfhd"u8))
+			if (type is BoxType.Tfhd)
 			{
 				track = content.Length < 8 ? -1 : Find(tracks, BinaryPrimitives.ReadUInt32BigEndian(content.Slice(4)));
 
@@ -171,12 +173,12 @@ internal static class IsoBmff
 					defaultDuration = BinaryPrimitives.ReadUInt32BigEndian(content.Slice(field));
 				}
 			}
-			else if (type.SequenceEqual("tfdt"u8) && content.Length >= (content is [1, ..] ? 12 : 8))
+			else if (type is BoxType.Tfdt && ReadDecodeTime(content) is { } time)
 			{
-				decodeTime = content is [1, ..] ? BinaryPrimitives.ReadUInt64BigEndian(content.Slice(4)) : BinaryPrimitives.ReadUInt32BigEndian(content.Slice(4));
+				decodeTime = time;
 				tfdtOffset = trafOffset + offset - content.Length;
 			}
-			else if (type.SequenceEqual("trun"u8) && content.Length >= 8)
+			else if (type is BoxType.Trun && content.Length >= 8)
 			{
 				duration += ReadRunDuration(content, defaultDuration);
 			}
@@ -196,6 +198,16 @@ internal static class IsoBmff
 
 			return -1;
 		}
+	}
+
+	// 版本 1 的 baseMediaDecodeTime 是 64 位
+	private static ulong? ReadDecodeTime(ReadOnlySpan<byte> tfdt)
+	{
+		return tfdt switch
+		{
+			[1, ..] => tfdt.Length >= 12 ? BinaryPrimitives.ReadUInt64BigEndian(tfdt.Slice(4)) : null,
+			_ => tfdt.Length >= 8 ? BinaryPrimitives.ReadUInt32BigEndian(tfdt.Slice(4)) : null
+		};
 	}
 
 	private static ulong ReadRunDuration(ReadOnlySpan<byte> trun, uint defaultDuration)
@@ -220,60 +232,59 @@ internal static class IsoBmff
 		return duration;
 	}
 
-	// version/flags 之后依次是 track_ID、default_sample_description_index、default_sample_duration、default_sample_size、default_sample_flags
-	internal static TrackExtends? ReadTrackExtends(ReadOnlySpan<byte> trex)
+	// mvex 里各轨道的 trex，按 track_ID 查；和找盒子一样，重复的只认第一个
+	// trex 的版本和标志之后依次是 track_ID、default_sample_description_index、default_sample_duration、default_sample_size、default_sample_flags
+	public static Dictionary<uint, TrackExtends> ReadTrackExtends(ReadOnlySpan<byte> moov)
 	{
-		return trex.Length < 24 ? null : new TrackExtends(BinaryPrimitives.ReadUInt32BigEndian(trex.Slice(4)), BinaryPrimitives.ReadUInt32BigEndian(trex.Slice(12)), BinaryPrimitives.ReadUInt32BigEndian(trex.Slice(16)), BinaryPrimitives.ReadUInt32BigEndian(trex.Slice(20)));
-	}
+		Dictionary<uint, TrackExtends> extends = [];
 
-	private static TrackExtends? FindTrackExtends(ReadOnlySpan<byte> moov, uint trackId)
-	{
-		if (!TryFindBox(moov, "mvex"u8, out ReadOnlySpan<byte> mvex))
+		if (!TryFindBox(moov, BoxType.Mvex, out ReadOnlySpan<byte> mvex))
 		{
-			return null;
+			return extends;
 		}
 
 		int offset = 0;
 
-		while (TryReadBox(mvex, ref offset, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> trex))
+		while (TryReadBox(mvex, ref offset, out uint type, out ReadOnlySpan<byte> trex))
 		{
-			if (type.SequenceEqual("trex"u8) && ReadTrackExtends(trex) is { } defaults && defaults.TrackId == trackId)
+			if (type is BoxType.Trex && trex.Length >= 24)
 			{
-				return defaults;
+				uint trackId = BinaryPrimitives.ReadUInt32BigEndian(trex.Slice(4));
+				extends.TryAdd(trackId, new TrackExtends(trackId, BinaryPrimitives.ReadUInt32BigEndian(trex.Slice(8)), BinaryPrimitives.ReadUInt32BigEndian(trex.Slice(12)), BinaryPrimitives.ReadUInt32BigEndian(trex.Slice(16)), BinaryPrimitives.ReadUInt32BigEndian(trex.Slice(20))));
 			}
 		}
 
-		return null;
+		return extends;
 	}
 
-	// stsd 是 FullBox，版本和标志之后是 entry_count，接着才是各个样本项
-	internal static bool TryReadSampleEntry(ReadOnlySpan<byte> trak, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> entry, out uint entryCount)
+	public static bool TryReadSampleEntry(ReadOnlySpan<byte> trak, out uint type, out ReadOnlySpan<byte> entry, out uint entryCount)
 	{
-		type = default;
-		entry = default;
-		entryCount = 0;
-
-		if (!TryFindBox(trak, "mdia"u8, out ReadOnlySpan<byte> mdia) || !TryFindBox(mdia, "minf"u8, out ReadOnlySpan<byte> minf) || !TryFindBox(minf, "stbl"u8, out ReadOnlySpan<byte> stbl) || !TryFindBox(stbl, "stsd"u8, out ReadOnlySpan<byte> stsd) || stsd.Length < 8)
-		{
-			return false;
-		}
-
-		entryCount = BinaryPrimitives.ReadUInt32BigEndian(stsd.Slice(4));
-		int offset = 8;
-		return entryCount > 0 && TryReadBox(stsd, ref offset, out type, out entry);
+		return TryReadFirstSampleEntry(FindSampleDescriptions(trak), out type, out entry, out entryCount);
 	}
 
-	internal static bool IsVideoTrack(ReadOnlySpan<byte> trak, out uint trackId)
+	// stsd 内容里的第一个样本项按 VisualSampleEntry 读：保留字段、数据引用索引和预定义字段之后是 16 位的宽和高
+	public static VideoResolution? ReadVisualSampleEntrySize(ReadOnlySpan<byte> stsd)
 	{
-		return TryReadTrackId(trak, out trackId) && TryFindBox(trak, "mdia"u8, out ReadOnlySpan<byte> mdia) && TryFindBox(mdia, "hdlr"u8, out ReadOnlySpan<byte> hdlr) && hdlr.Length >= 12 && hdlr.Slice(8, 4).SequenceEqual("vide"u8);
+		return TryReadFirstSampleEntry(stsd, out _, out ReadOnlySpan<byte> entry, out _) && entry.Length >= 28 ? VideoResolution.Create(BinaryPrimitives.ReadUInt16BigEndian(entry.Slice(24)), BinaryPrimitives.ReadUInt16BigEndian(entry.Slice(26))) : null;
 	}
 
-	private static bool TryReadTrackId(ReadOnlySpan<byte> trak, out uint trackId)
+	// hdlr 内容里版本、标志和预定义字段之后是处理类型；内容不完整时返回 null
+	public static uint? ReadHandlerType(ReadOnlySpan<byte> hdlr)
+	{
+		return hdlr.Length >= 12 ? BinaryPrimitives.ReadUInt32BigEndian(hdlr.Slice(8)) : null;
+	}
+
+	public static bool IsVideoTrack(ReadOnlySpan<byte> trak, out uint trackId)
+	{
+		return TryReadTrackId(trak, out trackId) && TryFindBox(trak, BoxType.Mdia, out ReadOnlySpan<byte> mdia) && TryFindBox(mdia, BoxType.Hdlr, out ReadOnlySpan<byte> hdlr) && ReadHandlerType(hdlr) is BoxType.Vide;
+	}
+
+	public static bool TryReadTrackId(ReadOnlySpan<byte> trak, out uint trackId)
 	{
 		trackId = 0;
 
 		// tkhd 版本 1 的创建和修改时间是 64 位
-		if (!TryFindBox(trak, "tkhd"u8, out ReadOnlySpan<byte> tkhd) || tkhd.Length < (tkhd is [1, ..] ? 24 : 16))
+		if (!TryFindBox(trak, BoxType.Tkhd, out ReadOnlySpan<byte> tkhd) || tkhd.Length < (tkhd is [1, ..] ? 24 : 16))
 		{
 			return false;
 		}
@@ -282,18 +293,18 @@ internal static class IsoBmff
 		return true;
 	}
 
-	internal static uint ReadFlags(ReadOnlySpan<byte> fullBox)
+	public static uint ReadFlags(ReadOnlySpan<byte> fullBox)
 	{
 		return BinaryPrimitives.ReadUInt32BigEndian(fullBox) & 0x00FF_FFFF;
 	}
 
-	internal static bool TryFindBox(ReadOnlySpan<byte> data, ReadOnlySpan<byte> wanted, out ReadOnlySpan<byte> content)
+	public static bool TryFindBox(ReadOnlySpan<byte> data, uint wanted, out ReadOnlySpan<byte> content)
 	{
 		int offset = 0;
 
-		while (TryReadBox(data, ref offset, out ReadOnlySpan<byte> type, out content))
+		while (TryReadBox(data, ref offset, out uint type, out content))
 		{
-			if (type.SequenceEqual(wanted))
+			if (type == wanted)
 			{
 				return true;
 			}
@@ -303,9 +314,9 @@ internal static class IsoBmff
 		return false;
 	}
 
-	internal static bool TryReadBox(ReadOnlySpan<byte> data, scoped ref int offset, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> content)
+	public static bool TryReadBox(ReadOnlySpan<byte> data, scoped ref int offset, out uint type, out ReadOnlySpan<byte> content)
 	{
-		type = default;
+		type = 0;
 		content = default;
 		ReadOnlySpan<byte> rest = data.Slice(offset);
 
@@ -337,10 +348,33 @@ internal static class IsoBmff
 			return false;
 		}
 
-		type = rest.Slice(4, 4);
+		type = BinaryPrimitives.ReadUInt32BigEndian(rest.Slice(4));
 		content = rest.Slice(headerSize, (int)size - headerSize);
 		offset += (int)size;
 		return true;
+	}
+
+	// trak 里 stsd 的内容，找不到时为空
+	private static ReadOnlySpan<byte> FindSampleDescriptions(ReadOnlySpan<byte> trak)
+	{
+		return TryFindBox(trak, BoxType.Mdia, out ReadOnlySpan<byte> mdia) && TryFindBox(mdia, BoxType.Minf, out ReadOnlySpan<byte> minf) && TryFindBox(minf, BoxType.Stbl, out ReadOnlySpan<byte> stbl) && TryFindBox(stbl, BoxType.Stsd, out ReadOnlySpan<byte> stsd) ? stsd : default;
+	}
+
+	// stsd 是 FullBox，版本和标志之后是 entry_count，接着才是各个样本项
+	private static bool TryReadFirstSampleEntry(ReadOnlySpan<byte> stsd, out uint type, out ReadOnlySpan<byte> entry, out uint entryCount)
+	{
+		type = 0;
+		entry = default;
+		entryCount = 0;
+
+		if (stsd.Length < 8)
+		{
+			return false;
+		}
+
+		entryCount = BinaryPrimitives.ReadUInt32BigEndian(stsd.Slice(4));
+		int offset = 8;
+		return entryCount > 0 && TryReadBox(stsd, ref offset, out type, out entry);
 	}
 }
 
@@ -357,21 +391,20 @@ internal readonly record struct Fmp4Track(uint TrackId, uint Timescale, uint Def
 	// 向上取整，按它减去起点不会减出负数
 	public long FromTicksCeiling(long ticks)
 	{
-		(Int128 quotient, Int128 remainder) = Int128.DivRem((Int128)ticks * Timescale, TimeSpan.TicksPerSecond);
-		return (long)(remainder > 0 ? quotient + 1 : quotient);
+		return TimeRescale.Ceiling(ticks, Timescale, TimeSpan.TicksPerSecond);
 	}
 }
 
 // 时间按轨道的 timescale 计；TfdtOffset 是 tfdt 内容在 moof 内容里的位置
 internal readonly record struct TrackFragmentTime(int TrackIndex, Fmp4Track Track, ulong DecodeTime, ulong Duration, int TfdtOffset);
 
-internal readonly record struct TrackExtends(uint TrackId, uint DefaultSampleDuration, uint DefaultSampleSize, uint DefaultSampleFlags);
+internal readonly record struct TrackExtends(uint TrackId, uint DefaultSampleDescriptionIndex, uint DefaultSampleDuration, uint DefaultSampleSize, uint DefaultSampleFlags);
 
 // track_ID 之后的可选字段按标志位从低到高的顺序出现，base_data_offset 占 8 字节，其余各占 4 字节
 internal static class TrackFragmentFlags
 {
 	public const uint BaseDataOffsetPresent = 0x00_0001;
-	private const uint SampleDescriptionIndexPresent = 0x00_0002;
+	public const uint SampleDescriptionIndexPresent = 0x00_0002;
 	public const uint DefaultSampleDurationPresent = 0x00_0008;
 	public const uint DefaultSampleSizePresent = 0x00_0010;
 	public const uint DefaultSampleFlagsPresent = 0x00_0020;
@@ -385,6 +418,12 @@ internal static class TrackFragmentFlags
 		uint preceding = flags & OptionalFields & field - 1;
 		return 8 + 4 * BitOperations.PopCount(preceding) + ((preceding & BaseDataOffsetPresent) is 0 ? 0 : 4);
 	}
+
+	// 带齐 flags 选中的所有可选字段时 tfhd 内容的长度
+	public static int ContentLength(uint flags)
+	{
+		return OffsetOf(flags, DefaultSampleFlagsPresent << 1);
+	}
 }
 
 // sample_count 之后的字段按标志位从低到高的顺序出现，各占 4 字节：可选的 data_offset 和 first_sample_flags，然后每个样本依次带标志选中的那几个
@@ -395,7 +434,7 @@ internal static class TrackRunFlags
 	public const uint SampleDurationPresent = 0x00_0100;
 	public const uint SampleSizePresent = 0x00_0200;
 	public const uint SampleFlagsPresent = 0x00_0400;
-	private const uint SampleCompositionTimeOffsetPresent = 0x00_0800;
+	public const uint SampleCompositionTimeOffsetPresent = 0x00_0800;
 
 	private const uint SampleFields = SampleDurationPresent | SampleSizePresent | SampleFlagsPresent | SampleCompositionTimeOffsetPresent;
 

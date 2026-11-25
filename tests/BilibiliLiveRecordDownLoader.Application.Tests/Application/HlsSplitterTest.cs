@@ -25,6 +25,7 @@ public sealed class HlsSplitterTest
 	[Test]
 	[Arguments(Fmp4Samples.SyncFlags, 2, DisplayName = "trex 默认同步样本")]
 	[Arguments(Fmp4Samples.NonSyncFlags, 1, DisplayName = "trex 默认非同步样本")]
+	[Arguments(0x0100_0000u, 1, DisplayName = "trex 默认只标了依赖别的样本")]
 	public async Task Fmp4FallsBackToTheTrackExtendsDefaultFlagsAsync(uint videoTrexFlags, int files, CancellationToken cancellationToken)
 	{
 		byte[] init = Fmp4Samples.Init(videoTrexFlags: videoTrexFlags, tkhdVersion: 1);
@@ -47,10 +48,9 @@ public sealed class HlsSplitterTest
 		await Assert.That(recording.Files).Count().IsEqualTo(2);
 	}
 
-	// startsWithSdt 时分片开头先是一个 SDT，再是 PAT 和 PMT
 	[Test]
-	[Arguments(false)]
-	[Arguments(true)]
+	[Arguments(false, DisplayName = "分片以 PAT 开头")]
+	[Arguments(true, DisplayName = "PAT 之前有 SDT")]
 	public async Task TsSegmentsThatCarryTheirOwnTablesAreNotGivenMoreAsync(bool startsWithSdt, CancellationToken cancellationToken)
 	{
 		byte[] sdt = startsWithSdt ? TsSamples.Packet(0x11, true, [0, 0x42]) : [];

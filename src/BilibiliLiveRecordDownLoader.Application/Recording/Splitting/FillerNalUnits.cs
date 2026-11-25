@@ -46,25 +46,9 @@ internal static class FillerNalUnits
 		return kept > 0 ? kept : sample.Length;
 	}
 
-	public static int Keep(Span<byte> buffer, int source, int destination, int length)
+	// 只用于 Measure 判定有填充可删的样本；destination 不能在 source 之后，否则写出会覆盖还没读的数据
+	public static void Move(Span<byte> buffer, int source, int length, int destination, int lengthSize, NalSyntax syntax)
 	{
-		if (source != destination)
-		{
-			buffer.Slice(source, length).CopyTo(buffer.Slice(destination));
-		}
-
-		return length;
-	}
-
-	// keptLength 是 Measure 的结果；destination 不能在 source 之后，否则写出会覆盖还没读的数据
-	public static void Move(Span<byte> buffer, int source, int length, int destination, int keptLength, int lengthSize, NalSyntax syntax)
-	{
-		if (keptLength == length)
-		{
-			buffer.Slice(source, length).CopyTo(buffer.Slice(destination));
-			return;
-		}
-
 		for (int offset = source, end = source + length; offset < end;)
 		{
 			int unitLength = lengthSize + (int)ReadLength(buffer.Slice(offset), lengthSize);
@@ -103,10 +87,4 @@ internal static class FillerNalUnits
 
 		return length;
 	}
-}
-
-internal enum NalSyntax
-{
-	Avc,
-	Hevc
 }

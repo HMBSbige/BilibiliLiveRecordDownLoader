@@ -228,64 +228,35 @@ internal static class FillerSamples
 		};
 		uint videoTrunFlags = layout is Fmp4Layout.VideoDefaultSampleSize ? 0x905u : 0xb05u;
 
-		List<byte> videoTfhd = [.. Word(videoTfhdFlags), .. Word(Fmp4Samples.VideoTrack)];
-
-		if (layout is Fmp4Layout.BaseDataOffset)
-		{
-			videoTfhd.AddRange([0, 0, 0, 0, .. Word(0)]);
-		}
-
-		videoTfhd.AddRange(Word(1));
-
-		if (layout is Fmp4Layout.VideoDefaultSampleSize)
-		{
-			videoTfhd.AddRange(Word((uint)video[0].Length));
-		}
-
-		videoTfhd.AddRange(Word(Fmp4Samples.SyncFlags));
+		byte[] videoTfhd =
+		[
+			.. Fmp4Samples.Words(videoTfhdFlags, Fmp4Samples.VideoTrack),
+			.. layout is Fmp4Layout.BaseDataOffset ? Fmp4Samples.Words(0, 0) : [],
+			.. Fmp4Samples.Words(1),
+			.. layout is Fmp4Layout.VideoDefaultSampleSize ? Fmp4Samples.Words((uint)video[0].Length) : [],
+			.. Fmp4Samples.Words(Fmp4Samples.SyncFlags)
+		];
 
 		int half = layout is Fmp4Layout.TwoVideoRuns ? (video.Length + 1) / 2 : video.Length;
 		byte[] videoTruns = [.. VideoTrun(video[..half], videoOffset), .. half < video.Length ? VideoTrun(video[half..], videoOffset + video[..half].Sum(static sample => sample.Length)) : []];
 
 		byte[] VideoTrun(byte[][] samples, int dataOffset)
 		{
-			List<byte> trun = [.. Word(videoTrunFlags), .. Word((uint)samples.Length), .. Word((uint)dataOffset), .. Word(Fmp4Samples.SyncFlags)];
-
-			foreach (byte[] sample in samples)
-			{
-				trun.AddRange(Word(1500));
-
-				if ((videoTrunFlags & 0x200) is not 0)
-				{
-					trun.AddRange(Word((uint)sample.Length));
-				}
-
-				trun.AddRange(Word(0));
-			}
-
-			return Fmp4Samples.Box("trun", [.. trun]);
+			byte[] fields = [.. samples.SelectMany(sample => (videoTrunFlags & 0x200) is not 0 ? Fmp4Samples.Words(1500, (uint)sample.Length, 0) : Fmp4Samples.Words(1500, 0))];
+			return Fmp4Samples.Box("trun", [.. Fmp4Samples.Words(videoTrunFlags, (uint)samples.Length, (uint)dataOffset, Fmp4Samples.SyncFlags), .. fields]);
 		}
 
 		// 样本数大得离谱的音频 trun 只带 data_offset，样本大小取 tfhd 里的默认值
 		bool isHugeAudioRun = layout is Fmp4Layout.HugeAudioSampleCount;
-		List<byte> audioTrun = isHugeAudioRun ? [.. Word(0x001), .. Word(0x8000_0000), .. Word((uint)audioOffset)] : [.. Word(0x205), .. Word((uint)audio.Length), .. Word((uint)audioOffset), .. Word(Fmp4Samples.SyncFlags)];
-
-		if (!isHugeAudioRun)
-		{
-			foreach (byte[] sample in audio)
-			{
-				audioTrun.AddRange(Word((uint)sample.Length));
-			}
-		}
-
-		byte[] audioTfhd = isHugeAudioRun ? [.. Word(0x02_003a), .. Word(Fmp4Samples.AudioTrack), .. Word(1), .. Word(1024), .. Word(1), .. Word(Fmp4Samples.SyncFlags)] : [.. Word(0x02_002a), .. Word(Fmp4Samples.AudioTrack), .. Word(1), .. Word(1024), .. Word(Fmp4Samples.SyncFlags)];
+		byte[] audioTrun = isHugeAudioRun ? Fmp4Samples.Words(0x001, 0x8000_0000, (uint)audioOffset) : [.. Fmp4Samples.Words(0x205, (uint)audio.Length, (uint)audioOffset, Fmp4Samples.SyncFlags), .. audio.SelectMany(static sample => Fmp4Samples.Words((uint)sample.Length))];
+		byte[] audioTfhd = isHugeAudioRun ? Fmp4Samples.Words(0x02_003a, Fmp4Samples.AudioTrack, 1, 1024, 1, Fmp4Samples.SyncFlags) : Fmp4Samples.Words(0x02_002a, Fmp4Samples.AudioTrack, 1, 1024, Fmp4Samples.SyncFlags);
 
 		byte[] videoTraf = Fmp4Samples.Box
 		(
 			"traf",
 			[
-				.. Fmp4Samples.Box("tfhd", [.. videoTfhd]),
-				.. Fmp4Samples.Box("tfdt", [.. Word(0), .. Word(videoDecodeTime)]),
+				.. Fmp4Samples.Box("tfhd", videoTfhd),
+				.. Fmp4Samples.Box("tfdt", Fmp4Samples.Words(0, videoDecodeTime)),
 				.. videoTruns,
 				.. layout is Fmp4Layout.Encrypted ? Fmp4Samples.Box("senc", new byte[8]) : []
 			]
@@ -296,18 +267,11 @@ internal static class FillerSamples
 			[
 				.. Fmp4Samples.Box("tfhd", audioTfhd),
 				.. Fmp4Samples.Box("tfdt", new byte[8]),
-				.. Fmp4Samples.Box("trun", [.. audioTrun])
+				.. Fmp4Samples.Box("trun", audioTrun)
 			]
 		);
 
-		return Fmp4Samples.Box("moof", [.. Fmp4Samples.Box("mfhd", [.. Word(0), .. Word(1)]), .. videoTraf, .. audioTraf]);
-	}
-
-	private static byte[] Word(uint value)
-	{
-		byte[] bytes = new byte[4];
-		BinaryPrimitives.WriteUInt32BigEndian(bytes, value);
-		return bytes;
+		return Fmp4Samples.Box("moof", [.. Fmp4Samples.Box("mfhd", Fmp4Samples.Words(0, 1)), .. videoTraf, .. audioTraf]);
 	}
 }
 
