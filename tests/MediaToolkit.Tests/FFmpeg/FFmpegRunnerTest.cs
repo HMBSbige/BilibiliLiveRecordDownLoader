@@ -1,23 +1,11 @@
 using MediaToolkit.FFmpeg;
 using System.Collections.Concurrent;
 using System.Globalization;
-using System.Text;
 
 namespace MediaToolkit.Tests.FFmpeg;
 
 public class FFmpegRunnerTest
 {
-	[Test]
-	public async Task ProxyFromTheEnvironmentIsDroppedWithoutTheProxyArgumentAsync()
-	{
-		ProcessStartInfo startInfo = new(@"ffmpeg", [@"-i", @"https://example.com/live.flv"]);
-		startInfo.Environment[@"http_proxy"] = @"http://127.0.0.1:7890/";
-
-		FFmpegRunner.RemoveUnrequestedProxy(startInfo);
-
-		await Assert.That(startInfo.Environment).DoesNotContainKey(@"http_proxy");
-	}
-
 	[Test]
 	public async Task CancellationSendsQuitAndWaitsForGracefulExitAsync(CancellationToken cancellationToken)
 	{
@@ -89,83 +77,6 @@ public class FFmpegRunnerTest
 	}
 
 	[Test]
-	public async Task CancellationLetsTheReaderReceiveOutputWrittenAfterQuitAsync(CancellationToken cancellationToken)
-	{
-		FFmpegRunner runner = new(FakeProcess.Executable) { GracefulExitTimeout = TimeSpan.FromSeconds(30) };
-		IReadOnlyList<string> arguments = FakeProcess.Arguments
-		(
-			"""
-			[Console]::Out.Write('ready')
-			[Console]::Out.Flush()
-			$c = [Console]::In.Read()
-			[Console]::Out.Write('|stdin=' + [char]$c)
-			exit 0
-			""",
-			"""
-			printf ready
-			c=$(head -c 1)
-			printf "|stdin=$c"
-			exit 0
-			"""
-		);
-		using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		StringBuilder output = new();
-
-		await Assert.That(() => runner.RunAsync(arguments, ReadAsync, null, cts.Token)).Throws<OperationCanceledException>();
-
-		await Assert.That(output.ToString()).IsEqualTo(@"ready|stdin=q");
-
-		async Task ReadAsync(Stream stdout)
-		{
-			byte[] buffer = new byte[64];
-
-			while (await stdout.ReadAsync(buffer, cancellationToken) is var read and > 0)
-			{
-				output.Append(Encoding.ASCII.GetString(buffer, 0, read));
-
-				if (output.ToString() is @"ready")
-				{
-					await cts.CancelAsync();
-				}
-			}
-		}
-	}
-
-	[Test]
-	public async Task ReaderFailureStopsTheProcessAndSurfacesAsync(CancellationToken cancellationToken)
-	{
-		FFmpegRunner runner = new(FakeProcess.Executable) { GracefulExitTimeout = TimeSpan.FromMilliseconds(500) };
-		IReadOnlyList<string> arguments = FakeProcess.Arguments
-		(
-			"""
-			[Console]::Error.WriteLine("pid=$PID")
-			while ($true) { [Console]::Out.Write('x' * 4096) }
-			""",
-			"""
-			echo "pid=$$" >&2
-			exec yes
-			"""
-		);
-		TaskCompletionSource<int> started = new(TaskCreationOptions.RunContinuationsAsynchronously);
-		SyncProgress<FFmpegProgress> progress = new(p =>
-		{
-			if (p.Message.StartsWith(@"pid=", StringComparison.Ordinal))
-			{
-				started.TrySetResult(int.Parse(p.Message.AsSpan(4), CultureInfo.InvariantCulture));
-			}
-		});
-
-		await Assert.That(() => runner.RunAsync(arguments, FailAsync, progress, cancellationToken)).Throws<IOException>().WithMessage(@"disk full");
-		await Assert.That(FakeProcess.IsRunning(await started.Task)).IsFalse();
-
-		async Task FailAsync(Stream _)
-		{
-			await started.Task.WaitAsync(cancellationToken);
-			throw new IOException(@"disk full");
-		}
-	}
-
-	[Test]
 	public async Task AlreadyCancelledTokenDoesNotStartProcessAsync()
 	{
 		FFmpegRunner runner = new(@"this-executable-does-not-exist");
@@ -225,34 +136,6 @@ public class FFmpegRunnerTest
 		await Assert.That(() => runner.RunAsync(arguments, null, cancellationToken))
 			.Throws<FFmpegException>()
 			.And.Member(static e => e.LastMessage, static last => last.IsEqualTo(@"Stream #0:0 -> #0:0 (copy) | [wav @ 0001] wav muxer does not support any stream of type video | [out#0/wav @ 0002] Could not write header: Invalid argument"));
-	}
-
-	[Test]
-	public async Task SignedUrlQueriesAreRedactedFromFailuresAndProgressAsync(CancellationToken cancellationToken)
-	{
-		FFmpegRunner runner = new(FakeProcess.Executable);
-		IReadOnlyList<string> arguments = FakeProcess.Arguments
-		(
-			"""
-			[Console]::Error.WriteLine("[hls @ 0001] Opening 'https://cdn.test/live/1.m4s?sign=abc&uid=42' for reading")
-			[Console]::Error.WriteLine('Error opening input file https://cdn.test/live/a.flv?expires=1&sign=abc&uid=42.')
-			exit 1
-			""",
-			"""
-			echo "[hls @ 0001] Opening 'https://cdn.test/live/1.m4s?sign=abc&uid=42' for reading" >&2
-			echo 'Error opening input file https://cdn.test/live/a.flv?expires=1&sign=abc&uid=42.' >&2
-			exit 1
-			"""
-		);
-		List<string> messages = [];
-
-		await Assert.That(() => runner.RunAsync(arguments, new SyncProgress<FFmpegProgress>(p => messages.Add(p.Message)), cancellationToken))
-			.Throws<FFmpegException>()
-			.WithMessageContaining(@"https://cdn.test/live/a.flv?…")
-			.And.WithMessageContaining(@"'https://cdn.test/live/1.m4s?…' for reading")
-			.And.WithMessageNotContaining(@"sign=")
-			.And.WithMessageNotContaining(@"uid=");
-		await Assert.That(messages).IsNotEmpty().And.All(static message => !message.Contains(@"sign=", StringComparison.Ordinal));
 	}
 
 	[Test]

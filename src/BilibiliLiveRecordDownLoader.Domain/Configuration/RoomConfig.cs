@@ -15,8 +15,6 @@ public sealed record RoomConfig
 
 	public StreamQuality Quality { get; init; } = RoomDefaults.Quality;
 
-	public RecorderType? RecorderType { get; init; }
-
 	public IReadOnlyList<StreamCodec>? CodecPriority { get; init; }
 
 	public IReadOnlyList<StreamFormat>? FormatPriority { get; init; }
@@ -57,7 +55,6 @@ public sealed record RoomConfig
 			SplitDuration = SplitDuration is { } duration ? ConfigValues.ClampSplitDuration(duration) : null,
 			SplitSizeMebibytes = SplitSizeMebibytes is { } size ? ConfigValues.ClampSplitSize(size) : null,
 			DanmakuOffset = DanmakuOffset is { } offset ? ConfigValues.ClampDanmakuOffset(offset) : null,
-			RecorderType = DefinedOrInherit(RecorderType),
 			SplitMode = DefinedOrInherit(SplitMode)
 		};
 

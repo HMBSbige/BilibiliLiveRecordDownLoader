@@ -28,7 +28,7 @@ public sealed class AppConfigManagerTest : IDisposable
 			{
 				config.RecordDirectory = "录播";
 				config.Theme = AppTheme.Dark;
-				config.Rooms = [.. config.Rooms, new RoomConfig { RoomId = 732, RecorderType = RecorderType.FFmpeg }];
+				config.Rooms = [.. config.Rooms, new RoomConfig { RoomId = 732, SplitMode = RecordingSplitMode.Size }];
 			}, cancellationToken);
 		}
 
@@ -40,12 +40,12 @@ public sealed class AppConfigManagerTest : IDisposable
 		using (Assert.Multiple())
 		{
 			await Assert.That(saved.Select(static property => property.Key)).IsEquivalentTo([nameof(AppConfig.Theme), nameof(AppConfig.RecordDirectory), nameof(AppConfig.Rooms)], CollectionOrdering.Matching);
-			await Assert.That(SavedRoom(saved).Select(static property => property.Key)).IsEquivalentTo([nameof(RoomConfig.RoomId), nameof(RoomConfig.RecorderType)], CollectionOrdering.Matching);
+			await Assert.That(SavedRoom(saved).Select(static property => property.Key)).IsEquivalentTo([nameof(RoomConfig.RoomId), nameof(RoomConfig.SplitMode)], CollectionOrdering.Matching);
 			await Assert.That(saved[nameof(AppConfig.Theme)]?.GetValue<string>()).IsEqualTo(nameof(AppTheme.Dark));
-			await Assert.That(SavedRoom(saved)[nameof(RoomConfig.RecorderType)]?.GetValue<string>()).IsEqualTo(nameof(RecorderType.FFmpeg));
+			await Assert.That(SavedRoom(saved)[nameof(RoomConfig.SplitMode)]?.GetValue<string>()).IsEqualTo(nameof(RecordingSplitMode.Size));
 			await Assert.That(text).Contains("\"录播\"");
 			await Assert.That((config.RecordDirectory, config.Theme)).IsEqualTo(("录播", AppTheme.Dark));
-			await Assert.That(room).IsEqualTo(new RoomConfig { RoomId = 732, RecorderType = RecorderType.FFmpeg });
+			await Assert.That(room).IsEqualTo(new RoomConfig { RoomId = 732, SplitMode = RecordingSplitMode.Size });
 		}
 	}
 
@@ -481,7 +481,6 @@ public sealed class AppConfigManagerTest : IDisposable
 				await Assert.That((config.WindowWidth, config.WindowHeight)).IsEqualTo((1600d, 900d));
 				await Assert.That(config.Cookie).IsEqualTo("SESSDATA=x");
 				await Assert.That(config.Theme).IsEqualTo(AppTheme.Dark);
-				await Assert.That(config.RecorderType).IsEqualTo(RecorderType.FFmpeg);
 				await Assert.That(config.StreamHostSelection).IsEqualTo(StreamHostSelection.Random);
 				await Assert.That(config.CodecPriority).IsEquivalentTo(StreamPriority.DefaultCodecs, CollectionOrdering.Matching);
 				await Assert.That(config.FormatPriority).IsEquivalentTo([StreamFormat.Flv, StreamFormat.Ts], CollectionOrdering.Matching);
@@ -489,7 +488,6 @@ public sealed class AppConfigManagerTest : IDisposable
 
 				await Assert.That((room.IsRecordingEnabled, room.IsNotificationEnabled, room.ConvertToMp4, room.DeleteAfterConvert)).IsEqualTo((true, true, true, null));
 				await Assert.That(room.Quality).IsEqualTo(StreamQuality.BluRay);
-				await Assert.That(room.RecorderType).IsEqualTo(RecorderType.FFmpeg);
 				await Assert.That(room.CodecPriority).IsEquivalentTo([StreamCodec.Hevc, StreamCodec.Avc], CollectionOrdering.Matching);
 				await Assert.That(room.StatusCheckInterval).IsEqualTo(TimeSpan.FromSeconds(60));
 				await Assert.That(room.StreamIdleTimeout).IsEqualTo(TimeSpan.FromSeconds(30.5));
@@ -497,10 +495,8 @@ public sealed class AppConfigManagerTest : IDisposable
 
 				await Assert.That(disabled.IsRecordingEnabled).IsFalse();
 				await Assert.That(disabled.Quality).IsEqualTo(new StreamQuality(12345));
-				await Assert.That(disabled.RecorderType).IsEqualTo(RecorderType.BuiltIn);
 				await Assert.That(disabled.FormatPriority).IsNull();
 
-				await Assert.That(inheriting.RecorderType).IsNull();
 				await Assert.That(inheriting.StreamReconnectDelay).IsEqualTo(RoomDefaults.StreamReconnectDelay);
 			}
 		}
@@ -642,6 +638,28 @@ public sealed class AppConfigManagerTest : IDisposable
 		}
 
 		await Assert.That((await ReadSavedAsync(cancellationToken)).Select(static property => property.Key)).IsEquivalentTo([nameof(AppConfig.Theme), nameof(AppConfig.RemoveFillerData)], CollectionOrdering.Matching);
+	}
+
+	// 录制方式已经删掉，所有录制都走内置录制；旧配置里全局和房间的这一项都不影响读取
+	[Test]
+	public async Task RetiredRecorderTypeSettingIsIgnoredAndDroppedAsync(CancellationToken cancellationToken)
+	{
+		await WriteFileAsync(ConfigFileName, """{ "RecorderType": "FFmpeg", "Theme": "Dark", "Rooms": [{ "RoomId": 1, "RecorderType": "FFmpeg" }] }""", cancellationToken);
+
+		await using (AppConfigManager manager = Create())
+		{
+			AppConfig config = await manager.GetAsync(cancellationToken);
+			await Assert.That((config.Theme, RoomIds(config).Single())).IsEqualTo((AppTheme.Dark, 1L));
+			await manager.UpdateAsync(static config => config.RemoveFillerData = true, cancellationToken);
+		}
+
+		JsonObject saved = await ReadSavedAsync(cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(saved.Select(static property => property.Key)).IsEquivalentTo([nameof(AppConfig.Theme), nameof(AppConfig.Rooms), nameof(AppConfig.RemoveFillerData)]);
+			await Assert.That(SavedRoom(saved).Select(static property => property.Key)).IsEquivalentTo([nameof(RoomConfig.RoomId)]);
+		}
 	}
 
 	private static JsonObject SavedRoom(JsonObject saved)

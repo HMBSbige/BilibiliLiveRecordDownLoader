@@ -45,24 +45,6 @@ public sealed class RoomStreamRequestTest
 	}
 
 	[Test]
-	public async Task FFmpegFailureShowsItsLastOutputInTheAppLanguageWithoutTheQueryAsync(CancellationToken cancellationToken)
-	{
-		await using RecordingLoopHarness loop = new(cancellationToken, recorderType: RecorderType.FFmpeg);
-		loop.FailFFmpeg("[http @ 0] Opening 'https://a.test/live/avc.flv?sign=1' for reading");
-		loop.GoLive();
-
-		StreamRequest request = await loop.NextStreamAsync();
-		await request.AcceptAsync();
-		await loop.WaitUntilAsync(static snapshot => snapshot.LastError is not null);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(loop.Snapshot.LastError).IsEqualTo(AppLanguage.Current.RecordingEndpointFailed.ToString("Flv/Avc", "a.test", AppLanguage.Current.FFmpegFailed.ToString(1, "[http @ 0] Opening 'https://a.test/live/avc.flv?…' for reading")));
-			await Assert.That(loop.Logs.Where(static log => $"{log.Message} {log.Exception}".Contains("sign=", StringComparison.Ordinal))).IsEmpty();
-		}
-	}
-
-	[Test]
 	public async Task ConnectionTimeoutIsShownInTheAppLanguageAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = new(cancellationToken);

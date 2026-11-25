@@ -13,11 +13,6 @@ public static class Labels
 			true => AppLanguage.Current.Enabled,
 			false => AppLanguage.Current.Disabled,
 			StreamQuality quality => StreamLabels.Of(quality),
-			RecorderType recorderType => recorderType switch
-			{
-				RecorderType.BuiltIn => AppLanguage.Current.RecorderBuiltIn,
-				RecorderType.FFmpeg => AppLanguage.Current.RecorderFFmpeg
-			},
 			RecordingSplitMode mode => mode switch
 			{
 				RecordingSplitMode.Duration => AppLanguage.Current.SplitByDuration,

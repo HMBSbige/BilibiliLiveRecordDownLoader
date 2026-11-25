@@ -66,17 +66,6 @@ public class FFmpegOutputParserTest
 	}
 
 	[Test]
-	[Arguments(@"Error opening input file https://cdn.test/live/a.flv?expires=1&sign=abc%2F&uid=42.", @"Error opening input file https://cdn.test/live/a.flv?….")]
-	[Arguments(@"https://cdn.test/live/a.flv?sign=abc&uid=42: Server returned 403 Forbidden", @"https://cdn.test/live/a.flv?…: Server returned 403 Forbidden")]
-	[Arguments(@"[hls @ 0000020] Opening 'https://cdn.test/live/1.m4s?sign=abc' for reading", @"[hls @ 0000020] Opening 'https://cdn.test/live/1.m4s?…' for reading")]
-	[Arguments(@"Input #0, flv, from ""http://cdn.test/a.flv?sign=a.b:c"":", @"Input #0, flv, from ""http://cdn.test/a.flv?…"":")]
-	[Arguments(@"Is this a question?", @"Is this a question?")]
-	public async Task RedactUrlQueriesKeepsOnlySchemeHostAndPathAsync(string line, string expected)
-	{
-		await Assert.That(FFmpegOutputParser.RedactUrlQueries(line)).IsEqualTo(expected);
-	}
-
-	[Test]
 	[Arguments(@"frame=   20 fps=0.0 q=-1.0 Lsize=N/A time=N/A bitrate=N/A speed=N/A", false)]
 	[Arguments(@"size=       0KiB time=00:00:01.00 bitrate=   0.0kbits/s speed=1x", false)]
 	[Arguments(@"Conversion failed!", false)]

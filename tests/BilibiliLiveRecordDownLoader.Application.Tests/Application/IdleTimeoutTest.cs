@@ -24,16 +24,9 @@ public sealed class IdleTimeoutTest
 	}
 
 	[Test]
-	[Arguments(RecorderType.BuiltIn)]
-	[Arguments(RecorderType.FFmpeg)]
-	public async Task StalledHlsStreamWaitsTheSilenceBetweenSegmentsAsync(RecorderType recorderType, CancellationToken cancellationToken)
+	public async Task StalledHlsStreamWaitsTheSilenceBetweenSegmentsAsync(CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = new(cancellationToken, recorderType: recorderType, streams: HlsStreams, respondStream: RespondHls);
-
-		if (recorderType is RecorderType.FFmpeg)
-		{
-			WriteFFmpegThatWaitsForQuit(loop);
-		}
+		await using RecordingLoopHarness loop = new(cancellationToken, streams: HlsStreams, respondStream: RespondHls);
 
 		// 分片间隔 2 秒加 1 秒刷新；请求超时 2 秒、正文超时 4 秒，用满两段超时再重试一次要 13 秒：MaxSilence 是 16 秒，空闲超时 17 秒
 		loop.Settings = loop.Settings with { StreamConnectTimeout = TimeSpan.FromSeconds(2), StreamIdleTimeout = TimeSpan.FromSeconds(3) };
@@ -60,11 +53,5 @@ public sealed class IdleTimeoutTest
 			"/live/1.m4s" => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Fmp4Samples.Fragment(true)) },
 			_ => new HttpResponseMessage(HttpStatusCode.NotFound)
 		};
-	}
-
-	private static void WriteFFmpegThatWaitsForQuit(RecordingLoopHarness loop)
-	{
-		string path = loop.Config.FFmpegPath ?? throw new InvalidOperationException("The harness is not recording with FFmpeg.");
-		File.WriteAllText(path, OperatingSystem.IsWindows() ? "@echo ts-data\r\n@pause >nul\r\n" : "#!/bin/sh\necho ts-data\nhead -c 1 >/dev/null\n");
 	}
 }

@@ -255,11 +255,9 @@ public sealed class RoomRecordingLoopTest
 	}
 
 	[Test]
-	[Arguments(RecorderType.BuiltIn)]
-	[Arguments(RecorderType.FFmpeg)]
-	public async Task QuickDiskWriteFailureWaitsAndRetriesTheSameHostAsync(RecorderType recorderType, CancellationToken cancellationToken)
+	public async Task QuickDiskWriteFailureWaitsAndRetriesTheSameHostAsync(CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = new(cancellationToken, static _ => new FakeFile(static _ => ValueTask.FromException(new IOException("disk full"))), recorderType);
+		await using RecordingLoopHarness loop = new(cancellationToken, static _ => new FakeFile(static _ => ValueTask.FromException(new IOException("disk full"))));
 		loop.GoLive();
 
 		StreamRequest first = await loop.NextStreamAsync();

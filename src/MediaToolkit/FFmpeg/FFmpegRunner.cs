@@ -82,20 +82,7 @@ public sealed class FFmpegRunner(string executablePath)
 		}
 	}
 
-	public Task RunAsync(IReadOnlyList<string> arguments, IProgress<FFmpegProgress>? progress = null, CancellationToken cancellationToken = default)
-	{
-		return RunCoreAsync(arguments, null, progress, cancellationToken);
-	}
-
-	// readOutput 要读到流结束，取消后 FFmpeg 收尾期间的输出也交给它
-	public Task RunAsync(IReadOnlyList<string> arguments, Func<Stream, Task> readOutput, IProgress<FFmpegProgress>? progress = null, CancellationToken cancellationToken = default)
-	{
-		ArgumentNullException.ThrowIfNull(readOutput);
-
-		return RunCoreAsync(arguments, readOutput, progress, cancellationToken);
-	}
-
-	private async Task RunCoreAsync(IReadOnlyList<string> arguments, Func<Stream, Task>? readOutput, IProgress<FFmpegProgress>? progress, CancellationToken cancellationToken)
+	public async Task RunAsync(IReadOnlyList<string> arguments, IProgress<FFmpegProgress>? progress = null, CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(arguments);
 		cancellationToken.ThrowIfCancellationRequested();
@@ -105,18 +92,15 @@ public sealed class FFmpegRunner(string executablePath)
 		{
 			CreateNoWindow = true,
 			RedirectStandardInput = true,
-			RedirectStandardOutput = readOutput is not null,
 			RedirectStandardError = true,
 			StandardErrorEncoding = Encoding.UTF8
 		};
-		RemoveUnrequestedProxy(startInfo);
 		using Process process = ChildProcessTracker.Start(startInfo);
 
 		// 读取不能依赖调用方的同步上下文，UI 线程一忙 stderr 管道就会写满，把 FFmpeg 卡住
 		// 取消后也要把管道读完，所以不传取消令牌
 		// ReSharper disable AccessToDisposedClosure
 		Task<string?> readError = Task.Run(() => ReadStandardErrorAsync(process.StandardError, progress, stopping), CancellationToken.None);
-		Task readingOutput = readOutput is null ? Task.CompletedTask : Task.Run(() => ReadStandardOutputAsync(process.StandardOutput.BaseStream, readOutput, stopping), CancellationToken.None);
 		// ReSharper restore AccessToDisposedClosure
 
 		try
@@ -130,26 +114,16 @@ public sealed class FFmpegRunner(string executablePath)
 		}
 		finally
 		{
-			// 两边读取都用着 process 和 stopping，一边失败时另一边可能还没读完，等都结束才能释放
-			await Task.WhenAll(readError, readingOutput).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+			// 读取用着 process 和 stopping，等它结束才能释放
+			await ((Task)readError).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 		}
 
 		// 不是调用方取消时，stopping 只会由读取失败触发，这里重新抛出那个异常
-		await readingOutput;
 		string? failureMessage = await readError;
 
 		if (process.ExitCode is not 0)
 		{
 			throw new FFmpegException(process.ExitCode, failureMessage);
-		}
-	}
-
-	// 没传代理时不能让 FFmpeg 改读环境变量；只删小写名就够：Windows 上不区分大小写，其他系统 FFmpeg 只读小写
-	internal static void RemoveUnrequestedProxy(ProcessStartInfo startInfo)
-	{
-		if (!startInfo.ArgumentList.Contains(@"-http_proxy"))
-		{
-			startInfo.Environment.Remove(@"http_proxy");
 		}
 	}
 
@@ -178,14 +152,12 @@ public sealed class FFmpegRunner(string executablePath)
 		try
 		{
 			// 统计行以 \r 结尾，ReadLine 会把它当作一行
-			while (await reader.ReadLineAsync(CancellationToken.None) is { } rawLine)
+			while (await reader.ReadLineAsync(CancellationToken.None) is { } line)
 			{
-				if (string.IsNullOrWhiteSpace(rawLine))
+				if (string.IsNullOrWhiteSpace(line))
 				{
 					continue;
 				}
-
-				string line = FFmpegOutputParser.RedactUrlQueries(rawLine);
 
 				if (FFmpegOutputParser.IsDiagnostic(line))
 				{
@@ -209,21 +181,6 @@ public sealed class FFmpegRunner(string executablePath)
 		}
 
 		return failureLines.Count is 0 ? null : string.Join(@" | ", failureLines);
-	}
-
-	// 出错后也要排空管道，否则 FFmpeg 卡在写满的 stdout 上不退出
-	private static async Task ReadStandardOutputAsync(Stream output, Func<Stream, Task> readOutput, CancellationTokenSource stopping)
-	{
-		try
-		{
-			await readOutput(output);
-		}
-		catch
-		{
-			await stopping.CancelAsync();
-			await output.CopyToAsync(Stream.Null, CancellationToken.None);
-			throw;
-		}
 	}
 
 	private async Task StopAsync(Process process)

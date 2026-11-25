@@ -47,7 +47,7 @@ public sealed class HlsSplitterTest
 		await Assert.That(recording.Files).Count().IsEqualTo(2);
 	}
 
-	// FFmpeg 把 SDT 写在 PAT 和 PMT 前面
+	// startsWithSdt 时分片开头先是一个 SDT，再是 PAT 和 PMT
 	[Test]
 	[Arguments(false)]
 	[Arguments(true)]

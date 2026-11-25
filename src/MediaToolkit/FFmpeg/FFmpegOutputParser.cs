@@ -18,18 +18,9 @@ internal static partial class FFmpegOutputParser
 	[GeneratedRegex(@"^\s*(?:frame|size)=.*?\btime=\s*" + TimePattern)]
 	private static partial Regex PositionRegex { get; }
 
-	// HLS 的 Opening '<url>' 用单引号括住地址，打开失败时地址后面紧跟句号
-	[GeneratedRegex(@"(?<url>[A-Za-z][A-Za-z0-9+.\-]*://[^\s'""?]*)\?[^\s'""]*?(?=[.,:;]?(?:[\s'""]|$))")]
-	private static partial Regex UrlQueryRegex { get; }
-
 	public static string? ParseVersion(string output)
 	{
 		return VersionRegex.Match(output) is { Success: true } match ? match.Groups[@"version"].Value : null;
-	}
-
-	public static string RedactUrlQueries(string line)
-	{
-		return UrlQueryRegex.Replace(line, @"${url}?…");
 	}
 
 	// 统计行可能是 time=N/A，只能按开头判断

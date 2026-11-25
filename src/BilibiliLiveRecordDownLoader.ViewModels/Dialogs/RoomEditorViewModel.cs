@@ -21,7 +21,6 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 		// 手改配置或以后新增的画质不在选项里，也要能显示、能保留
 		IEnumerable<StreamQuality> qualities = StreamQuality.Selectable.Contains(Quality) ? StreamQuality.Selectable : StreamQuality.Selectable.Append(Quality).OrderByDescending(static quality => quality.Qn);
 		QualityOptions = [.. qualities.Select(static quality => new ChoiceOption(quality))];
-		RecorderType = _original.RecorderType is { } recorderType ? new ChoiceOption(recorderType) : ChoiceOption.Inherit;
 		ConvertToMp4 = new ChoiceOption(_original.ConvertToMp4);
 		DeleteAfterConvert = new ChoiceOption(_original.DeleteAfterConvert);
 		SplitMode = _original.SplitMode is { } splitMode ? new ChoiceOption(splitMode) : ChoiceOption.Inherit;
@@ -64,8 +63,6 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 
 	public IReadOnlyList<ChoiceOption> QualityOptions { get; }
 
-	public IReadOnlyList<ChoiceOption> RecorderTypeOptions { get; } = ChoiceOption.InheritOr<RecorderType>();
-
 	public IReadOnlyList<ChoiceOption> SplitModeOptions { get; } = ChoiceOption.InheritOr<RecordingSplitMode>();
 
 	public IReadOnlyList<ChoiceOption> ToggleOptions { get; } = ChoiceOption.Toggles;
@@ -101,9 +98,6 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 
 	[Reactive]
 	public partial StreamQuality Quality { get; set; }
-
-	[Reactive]
-	public partial ChoiceOption RecorderType { get; set; }
 
 	[Reactive]
 	public partial ChoiceOption ConvertToMp4 { get; set; }
@@ -166,7 +160,6 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 			IsDanmakuEnabled = IsDanmakuEnabled,
 			DanmakuOffset = DanmakuOffsetSeconds is { } seconds ? ConfigValues.DanmakuOffsetFromSeconds(seconds) : null,
 			Quality = Quality,
-			RecorderType = RecorderType.As<RecorderType>(),
 			CodecPriority = OverrideCodecPriority ? CodecPriority.GetValues<StreamCodec>() : null,
 			FormatPriority = OverrideFormatPriority ? FormatPriority.GetValues<StreamFormat>() : null,
 			ConvertToMp4 = ConvertToMp4.As<bool>(),

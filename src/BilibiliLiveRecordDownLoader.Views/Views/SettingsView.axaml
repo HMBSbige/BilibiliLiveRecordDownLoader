@@ -45,10 +45,6 @@
             <Border Classes="card settings" DataContext="{Binding Recording}">
                 <StackPanel x:DataType="settings:RecordingSettingsViewModel">
                     <TextBlock Classes="section" Text="{Binding RecordingDefaults, Source={x:Static l:AppLanguage.Current}}" />
-                    <ctl:SettingRow Header="{Binding RecorderType, Source={x:Static l:AppLanguage.Current}}">
-                        <ComboBox ItemsSource="{Binding RecorderTypeOptions}" SelectedValue="{Binding RecorderType}"
-                                  SelectedValueBinding="{Binding Value}" ItemTemplate="{StaticResource LocalizedLabel}" />
-                    </ctl:SettingRow>
                     <ctl:SettingRow Header="{Binding StreamHostSelection, Source={x:Static l:AppLanguage.Current}}">
                         <ComboBox ItemsSource="{Binding HostSelectionOptions}" SelectedValue="{Binding HostSelection}"
                                   SelectedValueBinding="{Binding Value}" ItemTemplate="{StaticResource LocalizedLabel}" />

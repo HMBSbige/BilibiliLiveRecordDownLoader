@@ -34,8 +34,6 @@ public sealed record AppConfig
 
 	public bool UseSystemProxy { get; set; }
 
-	public RecorderType RecorderType { get; set; }
-
 	public IReadOnlyList<StreamCodec> CodecPriority { get; set; } = [];
 
 	public IReadOnlyList<StreamFormat> FormatPriority { get; set; } = [];
@@ -99,7 +97,6 @@ public sealed record AppConfig
 		// 枚举在配置里也能写成数字；按值分支的地方不认识未定义的值
 		Theme = DefinedOrDefault(Theme);
 		RoomSortOrder = DefinedOrDefault(RoomSortOrder);
-		RecorderType = DefinedOrDefault(RecorderType);
 		StreamHostSelection = DefinedOrDefault(StreamHostSelection);
 		SplitMode = DefinedOrDefault(SplitMode);
 		GiftMode = DefinedOrDefault(GiftMode);

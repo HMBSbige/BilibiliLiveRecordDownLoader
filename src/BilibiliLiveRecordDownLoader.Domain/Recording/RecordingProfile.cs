@@ -3,7 +3,6 @@ namespace BilibiliLiveRecordDownLoader.Domain.Recording;
 public sealed record RecordingProfile
 (
 	string RecordDirectory,
-	RecorderType RecorderType,
 	StreamQuality Quality,
 	IReadOnlyList<StreamCodec> CodecPriority,
 	IReadOnlyList<StreamFormat> FormatPriority,
@@ -20,7 +19,6 @@ public sealed record RecordingProfile
 		return new RecordingProfile
 		(
 			app.RecordDirectory,
-			room.RecorderType ?? app.RecorderType,
 			room.Quality,
 			StreamPriority.Normalize(room.CodecPriority ?? app.CodecPriority, StreamPriority.DefaultCodecs),
 			StreamPriority.Normalize(room.FormatPriority ?? app.FormatPriority, StreamPriority.DefaultFormats),

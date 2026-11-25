@@ -2,33 +2,16 @@ using System.Text.Json;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording;
 
-internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpClientFactory httpClientFactory, SwitchableWebProxy proxy, FFmpegProvider ffmpegProvider, IAppConfigManager configManager, TimeProvider timeProvider, ILogger<LiveRecorder> logger)
+internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpClientFactory httpClientFactory, IAppConfigManager configManager, TimeProvider timeProvider, ILogger<LiveRecorder> logger)
 {
-	private static readonly Uri Referrer = new(AppConsts.LiveRoomUrlPrefix);
 	private static readonly TimeSpan SampleInterval = TimeSpan.FromSeconds(1);
 
 	internal Func<string, Stream> CreateFile { get; init; } = CreateRecordingFile;
 
 	internal TimeSpan DrainTimeout { get; init; } = RecordingWriteBuffer.DrainTimeout;
 
-	internal Func<FFmpegRunner, IReadOnlyList<string>, Uri, LiveStreamSession> CreateFFmpegSession { get; init; } = static (ffmpeg, arguments, source) => new FFmpegStreamSession(ffmpeg, arguments, source);
-
 	public async Task<RecordingAttempt> RecordAsync(long roomId, RecordingProfile profile, LiveRecordingSession liveSession, IRecordingObserver observer, SplitControl split, Func<string?> getFileTitle, CancellationToken cancellationToken)
 	{
-		FFmpegRunner? ffmpeg = null;
-		RecorderType recorderType = profile.RecorderType;
-
-		if (recorderType is RecorderType.FFmpeg)
-		{
-			ffmpeg = await ffmpegProvider.GetRunnerAsync(cancellationToken);
-
-			if (ffmpeg is null)
-			{
-				LogFFmpegFallback(logger);
-				recorderType = RecorderType.BuiltIn;
-			}
-		}
-
 		AppConfig config = await configManager.GetAsync(cancellationToken);
 		(LiveStreamSession session, LiveStreamCandidate candidate, CandidateBatch batch) = await OpenAsync(roomId, profile, config.Cookie is not null, liveSession.CandidatePool, cancellationToken);
 		Uri endpoint = session.Source;
@@ -36,15 +19,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		try
 		{
 			RecordingStream stream = new(candidate.Format, candidate.Codec, candidate.Qn, QualityRestrictions.Evaluate(candidate, batch.Candidates, profile, batch.Request.HasCookie), batch.QualityNames);
-			// 换成 FFmpeg 之前取：FFmpeg 拉的是同一条流，数据同样按段到达
 			TimeSpan idleTimeout = GetIdleTimeout(profile.StreamIdleTimeout, session.MaxSilence);
-
-			if (ffmpeg is not null)
-			{
-				string userAgent = BilibiliRequestHandler.ResolveUserAgent(config.UserAgent);
-				await session.DisposeAsync();
-				session = CreateFFmpegSession(ffmpeg, FFmpegArguments.Record(endpoint, GetFFmpegVideoCodec(stream.Codec), userAgent, Referrer, profile.StreamConnectTimeout, GetFFmpegProxy(endpoint), stream.Format is StreamFormat.Ts), endpoint);
-			}
 
 			_ = CreateOnDisk(() => Directory.CreateDirectory(RecordingFileLayout.GetRoomDirectory(profile.RecordDirectory, roomId)));
 			string path = Reserve(timeProvider.GetLocalNow());
@@ -56,7 +31,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 				LogQualityRestricted(logger, stream.Quality, restriction.Highest, Explain(restriction));
 			}
 
-			(RecordingEnd end, TimeSpan activeDuration) = await RecordToFileAsync(session, candidate, stream, recorderType, path, Reserve, idleTimeout, observer, split, cancellationToken);
+			(RecordingEnd end, TimeSpan activeDuration) = await RecordToFileAsync(session, candidate, stream, path, Reserve, idleTimeout, observer, split, cancellationToken);
 			return new RecordingAttempt(candidate, endpoint, stream.Restriction, activeDuration, end);
 		}
 		finally
@@ -81,7 +56,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 				if (RecordingFileLayout.IsStemAvailable(stem, File.Exists) && liveSession.TryReserveStem(stem))
 				{
-					return RecordingFileLayout.GetRecordingPath(stem, candidate.Format, recorderType);
+					return RecordingFileLayout.GetRecordingPath(stem, candidate.Format);
 				}
 			}
 		}
@@ -252,10 +227,10 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		return maxSilence + SampleInterval is { } silence && silence > configured ? silence : configured;
 	}
 
-	private async Task<(RecordingEnd End, TimeSpan ActiveDuration)> RecordToFileAsync(LiveStreamSession session, LiveStreamCandidate candidate, RecordingStream stream, RecorderType recorderType, string path, Func<DateTimeOffset, string> reservePath, TimeSpan idleTimeout, IRecordingObserver observer, SplitControl split, CancellationToken cancellationToken)
+	private async Task<(RecordingEnd End, TimeSpan ActiveDuration)> RecordToFileAsync(LiveStreamSession session, LiveStreamCandidate candidate, RecordingStream stream, string path, Func<DateTimeOffset, string> reservePath, TimeSpan idleTimeout, IRecordingObserver observer, SplitControl split, CancellationToken cancellationToken)
 	{
 		// 录制中途也可能打开分段，所以不分段时同样按容器解析
-		MediaSplitter splitter = CreateSplitter(candidate, recorderType);
+		MediaSplitter splitter = CreateSplitter(candidate);
 		TransferMeter meter = new();
 		AttemptGate gate = new();
 
@@ -308,40 +283,13 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		}
 	}
 
-	private Uri? GetFFmpegProxy(Uri endpoint)
+	internal static MediaSplitter CreateSplitter(LiveStreamCandidate candidate)
 	{
-		if (proxy.IsBypassed(endpoint) || proxy.GetProxy(endpoint) is not { } address)
+		return (candidate.Protocol, candidate.Format) switch
 		{
-			return null;
-		}
-
-		if (address is { IsAbsoluteUri: true, Scheme: "http" })
-		{
-			return address;
-		}
-
-		LogFFmpegProxyUnsupported(logger, address.Scheme, endpoint.Host);
-		return null;
-	}
-
-	private static VideoCodec GetFFmpegVideoCodec(StreamCodec codec)
-	{
-		return codec switch
-		{
-			StreamCodec.Avc => VideoCodec.Avc,
-			StreamCodec.Hevc => VideoCodec.Hevc,
-			StreamCodec.Av1 => VideoCodec.Av1
-		};
-	}
-
-	internal static MediaSplitter CreateSplitter(LiveStreamCandidate candidate, RecorderType recorderType)
-	{
-		return (recorderType, candidate.Protocol, candidate.Format) switch
-		{
-			(RecorderType.FFmpeg, _, _) => new Fmp4Splitter(),
-			(RecorderType.BuiltIn, StreamProtocol.HttpHls, StreamFormat.Fmp4) => new Fmp4HlsSplitter(),
-			(RecorderType.BuiltIn, StreamProtocol.HttpHls, _) => new TsHlsSplitter(),
-			(RecorderType.BuiltIn, StreamProtocol.HttpStream, _) => new FlvSplitter()
+			(StreamProtocol.HttpHls, StreamFormat.Fmp4) => new Fmp4HlsSplitter(),
+			(StreamProtocol.HttpHls, _) => new TsHlsSplitter(),
+			(StreamProtocol.HttpStream, _) => new FlvSplitter()
 		};
 	}
 
@@ -466,12 +414,6 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 			}
 		}
 	}
-
-	[LoggerMessage(Level = LogLevel.Warning, Message = "FFmpeg is not available, falling back to the built-in recorder")]
-	private static partial void LogFFmpegFallback(ILogger logger);
-
-	[LoggerMessage(Level = LogLevel.Warning, Message = "FFmpeg cannot use a {Scheme} proxy, connecting to {Host} directly")]
-	private static partial void LogFFmpegProxyUnsupported(ILogger logger, string scheme, string host);
 
 	[LoggerMessage(Level = LogLevel.Information, Message = "Recording {Format}/{Codec} at quality {Quality} offered by {Source} from {Host}{StreamPath} to {Path}")]
 	private static partial void LogStreamSelected(ILogger logger, StreamFormat format, StreamCodec codec, long quality, string source, string host, string streamPath, string path);

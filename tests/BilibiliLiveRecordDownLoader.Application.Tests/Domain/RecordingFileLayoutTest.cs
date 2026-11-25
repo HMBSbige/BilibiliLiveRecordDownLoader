@@ -5,15 +5,12 @@ public sealed class RecordingFileLayoutTest
 	private static readonly DateTimeOffset StartTime = new(2026, 1, 2, 3, 4, 5, TimeSpan.FromHours(8));
 
 	[Test]
-	[Arguments(RecorderType.BuiltIn, StreamFormat.Flv, "20260102_030405.flv")]
-	[Arguments(RecorderType.BuiltIn, StreamFormat.Ts, "20260102_030405.ts")]
-	[Arguments(RecorderType.BuiltIn, StreamFormat.Fmp4, "20260102_030405_fmp4.mp4")]
-	[Arguments(RecorderType.FFmpeg, StreamFormat.Flv, "20260102_030405_fmp4.mp4")]
-	[Arguments(RecorderType.FFmpeg, StreamFormat.Ts, "20260102_030405_fmp4.mp4")]
-	[Arguments(RecorderType.FFmpeg, StreamFormat.Fmp4, "20260102_030405_fmp4.mp4")]
-	public async Task RecordingPathUsesRoomDirectoryAndFormatExtensionAsync(RecorderType recorderType, StreamFormat format, string expectedFileName)
+	[Arguments(StreamFormat.Flv, "20260102_030405.flv")]
+	[Arguments(StreamFormat.Ts, "20260102_030405.ts")]
+	[Arguments(StreamFormat.Fmp4, "20260102_030405_fmp4.mp4")]
+	public async Task RecordingPathUsesRoomDirectoryAndFormatExtensionAsync(StreamFormat format, string expectedFileName)
 	{
-		string path = RecordingFileLayout.GetRecordingPath(RecordingFileLayout.GetRecordingStem("records", 123, StartTime, null), format, recorderType);
+		string path = RecordingFileLayout.GetRecordingPath(RecordingFileLayout.GetRecordingStem("records", 123, StartTime, null), format);
 
 		await Assert.That(path).IsEqualTo(Path.Combine("records", "123", expectedFileName));
 	}
@@ -22,7 +19,7 @@ public sealed class RecordingFileLayoutTest
 	[Arguments("今晚唱歌", "20260102_030405_今晚唱歌_2")]
 	public async Task SequenceFollowsTheTitleAndPrecedesTheFmp4SuffixAsync(string? title, string expectedStem)
 	{
-		string path = RecordingFileLayout.GetRecordingPath(RecordingFileLayout.GetRecordingStem("records", 123, StartTime, title, 2), StreamFormat.Fmp4, RecorderType.BuiltIn);
+		string path = RecordingFileLayout.GetRecordingPath(RecordingFileLayout.GetRecordingStem("records", 123, StartTime, title, 2), StreamFormat.Fmp4);
 		string stem = Path.Combine("records", "123", expectedStem);
 
 		using (Assert.Multiple())
@@ -76,8 +73,8 @@ public sealed class RecordingFileLayoutTest
 		const string stem = "20260102_030405";
 		string[] produced =
 		[
-			.. Enum.GetValues<RecorderType>()
-				.SelectMany(static _ => Enum.GetValues<StreamFormat>(), static (recorderType, format) => RecordingFileLayout.GetRecordingPath(stem, format, recorderType))
+			.. Enum.GetValues<StreamFormat>()
+				.Select(static format => RecordingFileLayout.GetRecordingPath(stem, format))
 				.SelectMany(static path => new[] { path, RecordingFileLayout.GetMp4ConversionPath(path) })
 				.OfType<string>()
 				.Distinct()
@@ -93,9 +90,9 @@ public sealed class RecordingFileLayoutTest
 	public async Task RecordingsWhoseConversionLandsOnTheFmp4FileMakeTheStemUnavailableAsync()
 	{
 		string stem = RecordingFileLayout.GetRecordingStem("records", 123, StartTime, "a");
-		string fmp4 = RecordingFileLayout.GetRecordingPath(stem, StreamFormat.Fmp4, RecorderType.BuiltIn);
+		string fmp4 = RecordingFileLayout.GetRecordingPath(stem, StreamFormat.Fmp4);
 		string titledStem = RecordingFileLayout.GetRecordingStem("records", 123, StartTime, "a_fmp4");
-		string[] recordings = [.. Enum.GetValues<StreamFormat>().Select(format => RecordingFileLayout.GetRecordingPath(titledStem, format, RecorderType.BuiltIn)).Distinct()];
+		string[] recordings = [.. Enum.GetValues<StreamFormat>().Select(format => RecordingFileLayout.GetRecordingPath(titledStem, format))];
 
 		foreach (string recording in recordings)
 		{

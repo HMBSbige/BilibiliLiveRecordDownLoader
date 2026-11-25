@@ -46,14 +46,12 @@ public sealed class RecordingTimestampTest
 	}
 
 	[Test]
-	[Arguments(false, DisplayName = "HLS 分片")]
-	[Arguments(true, DisplayName = "FFmpeg 输出的分片 MP4")]
-	public async Task Fmp4TracksShareOneStartInEveryFileAsync(bool isStream, CancellationToken cancellationToken)
+	public async Task Fmp4TracksShareOneStartInEveryFileAsync(CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
 		List<long> times = [];
 
-		await recording.RunAsync(isStream ? new Fmp4Splitter() : new Fmp4HlsSplitter(), OneMinute, async session =>
+		await recording.RunAsync(new Fmp4HlsSplitter(), OneMinute, async session =>
 		{
 			await session.InitAsync(Fmp4Init());
 
@@ -73,9 +71,9 @@ public sealed class RecordingTimestampTest
 		}
 	}
 
-	// 按 FFmpeg 拉 HLS 时的实际输出：关键帧之前的音频单独成分片，视频轨的第一个样本挪到 0、时长拉长到下一个样本
+	// 前两个分片只有音频；视频轨从第三个分片才出现，第一个样本的解码时间是 0，时长一直拉到下一个样本
 	[Test]
-	public async Task Fmp4StreamTrackStartingLaterKeepsItsTimesAsync(CancellationToken cancellationToken)
+	public async Task Fmp4TrackStartingLaterKeepsItsTimesAsync(CancellationToken cancellationToken)
 	{
 		byte[][] fragments =
 		[
@@ -87,13 +85,13 @@ public sealed class RecordingTimestampTest
 		SplitRecording recording = new();
 		List<long> times = [];
 
-		await recording.RunAsync(new Fmp4Splitter(), OneMinute, async session =>
+		await recording.RunAsync(new Fmp4HlsSplitter(), OneMinute, async session =>
 		{
-			await session.WriteAsync(Fmp4Init());
+			await session.InitAsync(Fmp4Init());
 
 			foreach (byte[] fragment in fragments)
 			{
-				await session.WriteAsync(fragment);
+				await session.SegmentAsync(fragment);
 				times.Add(session.Now);
 				session.Advance(TimeSpan.FromSeconds(1));
 			}

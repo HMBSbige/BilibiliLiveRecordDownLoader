@@ -54,13 +54,13 @@ public static class RecordingFileLayout
 		return Path.Combine(GetRoomDirectory(recordDirectory, roomId), fileName.ToString());
 	}
 
-	public static string GetRecordingPath(string stem, StreamFormat format, RecorderType recorderType)
+	public static string GetRecordingPath(string stem, StreamFormat format)
 	{
-		string extension = (recorderType, format) switch
+		string extension = format switch
 		{
-			(RecorderType.FFmpeg, _) or (_, StreamFormat.Fmp4) => Fmp4Suffix + Mp4Extension,
-			(_, StreamFormat.Flv) => ".flv",
-			_ => ".ts"
+			StreamFormat.Flv => ".flv",
+			StreamFormat.Ts => ".ts",
+			StreamFormat.Fmp4 => Fmp4Suffix + Mp4Extension
 		};
 
 		return stem + extension;

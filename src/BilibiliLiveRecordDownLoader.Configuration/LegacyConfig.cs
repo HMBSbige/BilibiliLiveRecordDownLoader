@@ -28,7 +28,6 @@ internal static class LegacyConfig
 		Copy(legacy, "StreamHostRule", config, nameof(AppConfig.StreamHostSelection));
 		Copy(legacy, "IsAutoConvertMp4", config, nameof(AppConfig.ConvertToMp4));
 		Copy(legacy, "IsDeleteAfterConvert", config, nameof(AppConfig.DeleteAfterConvert));
-		Set(config, nameof(AppConfig.RecorderType), GetRecorderType(legacy));
 		Set(config, nameof(AppConfig.CodecPriority), GetPriority<StreamCodec>(legacy, "AutoRecordCodecOrder"));
 		Set(config, nameof(AppConfig.FormatPriority), GetPriority<StreamFormat>(legacy, "AutoRecordFormatOrder"));
 
@@ -54,7 +53,6 @@ internal static class LegacyConfig
 		CopySeconds(legacy, "StreamReconnectLatency", room, nameof(RoomConfig.StreamReconnectDelay));
 		CopySeconds(legacy, "StreamConnectTimeout", room, nameof(RoomConfig.StreamConnectTimeout));
 		CopySeconds(legacy, "StreamTimeout", room, nameof(RoomConfig.StreamIdleTimeout));
-		Set(room, nameof(RoomConfig.RecorderType), GetRecorderType(legacy));
 		Set(room, nameof(RoomConfig.CodecPriority), GetPriority<StreamCodec>(legacy, "AutoRecordCodecOrder"));
 		Set(room, nameof(RoomConfig.FormatPriority), GetPriority<StreamFormat>(legacy, "AutoRecordFormatOrder"));
 
@@ -86,22 +84,6 @@ internal static class LegacyConfig
 		{
 			to[toName] = JsonValue.Create(TimeSpan.FromSeconds(Math.Clamp(seconds, 0, RoomDefaults.MaxInterval.TotalSeconds)).ToString("c", CultureInfo.InvariantCulture));
 		}
-	}
-
-	// 旧版 0 是跟随全局设置（全局时等于内置录制），1 是内置录制，3 是 FFmpeg
-	private static JsonValue? GetRecorderType(JsonObject legacy)
-	{
-		if (legacy["RecorderType"] is not JsonValue value || !value.TryGetValue(out long type))
-		{
-			return null;
-		}
-
-		return type switch
-		{
-			1 => JsonValue.Create(nameof(RecorderType.BuiltIn)),
-			3 => JsonValue.Create(nameof(RecorderType.FFmpeg)),
-			_ => null
-		};
 	}
 
 	private static JsonArray? GetPriority<T>(JsonObject legacy, string name) where T : struct, Enum

@@ -49,7 +49,7 @@ public sealed class BilibiliRequestHandler(BilibiliIdentity identity) : Delegati
 		return await base.SendAsync(request, cancellationToken);
 	}
 
-	public static string ResolveUserAgent(string? userAgent)
+	internal static string ResolveUserAgent(string? userAgent)
 	{
 		return userAgent?.Trim() is { Length: > 0 } value ? value : DefaultUserAgent;
 	}

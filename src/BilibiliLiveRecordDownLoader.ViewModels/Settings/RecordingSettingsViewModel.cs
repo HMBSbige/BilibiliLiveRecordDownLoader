@@ -5,8 +5,6 @@ public sealed partial class RecordingSettingsViewModel(ISettingsAppService setti
 	// 数字框每按一个键就改一次值，录制中途会读分段设置，不能存输到一半的数
 	internal static readonly TimeSpan NumberInputQuietPeriod = TimeSpan.FromSeconds(1);
 
-	public IReadOnlyList<ChoiceOption> RecorderTypeOptions { get; } = ChoiceOption.Of<RecorderType>();
-
 	public IReadOnlyList<ChoiceOption> HostSelectionOptions { get; } = ChoiceOption.Of<StreamHostSelection>();
 
 	public IReadOnlyList<ChoiceOption> SplitModeOptions { get; } = ChoiceOption.Of<RecordingSplitMode>();
@@ -14,9 +12,6 @@ public sealed partial class RecordingSettingsViewModel(ISettingsAppService setti
 	public PriorityListViewModel CodecPriority { get; } = new();
 
 	public PriorityListViewModel FormatPriority { get; } = new();
-
-	[Reactive]
-	public partial RecorderType RecorderType { get; set; }
 
 	[Reactive]
 	public partial StreamHostSelection HostSelection { get; set; }
@@ -50,7 +45,6 @@ public sealed partial class RecordingSettingsViewModel(ISettingsAppService setti
 
 	internal void ApplySettings(AppSettingsDto settings)
 	{
-		RecorderType = settings.RecorderType;
 		HostSelection = settings.StreamHostSelection;
 		ConvertToMp4 = settings.ConvertToMp4;
 		DeleteAfterConvert = settings.DeleteAfterConvert;
@@ -72,7 +66,6 @@ public sealed partial class RecordingSettingsViewModel(ISettingsAppService setti
 			)
 			.DisposeWith(Disposables);
 
-		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.RecorderType), static (current, value) => current with { RecorderType = value });
 		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.HostSelection), static (current, value) => current with { StreamHostSelection = value });
 		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.ConvertToMp4), static (current, value) => current with { ConvertToMp4 = value });
 		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.DeleteAfterConvert), static (current, value) => current with { DeleteAfterConvert = value });

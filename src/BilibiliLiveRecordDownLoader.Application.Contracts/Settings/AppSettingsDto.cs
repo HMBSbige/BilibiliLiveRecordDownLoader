@@ -28,8 +28,6 @@ public sealed record AppSettingsDto
 
 	public required bool UseSystemProxy { get; init; }
 
-	public required RecorderType RecorderType { get; init; }
-
 	public required IReadOnlyList<StreamCodec> CodecPriority { get; init; }
 
 	public required IReadOnlyList<StreamFormat> FormatPriority { get; init; }

@@ -9,7 +9,6 @@ public sealed class ConfigDefaultsTest
 		{
 			Theme = (AppTheme)99,
 			RoomSortOrder = (RoomSortOrder)99,
-			RecorderType = (RecorderType)99,
 			StreamHostSelection = (StreamHostSelection)99,
 			SplitMode = (RecordingSplitMode)99,
 			GiftMode = (DanmakuGiftMode)99
@@ -17,17 +16,17 @@ public sealed class ConfigDefaultsTest
 
 		config.ApplyDefaults();
 
-		await Assert.That((config.Theme, config.RoomSortOrder, config.RecorderType, config.StreamHostSelection, config.SplitMode, config.GiftMode)).IsEqualTo((AppTheme.FollowSystem, RoomSortOrder.Status, RecorderType.BuiltIn, StreamHostSelection.FirstResponse, RecordingSplitMode.None, DanmakuGiftMode.None));
+		await Assert.That((config.Theme, config.RoomSortOrder, config.StreamHostSelection, config.SplitMode, config.GiftMode)).IsEqualTo((AppTheme.FollowSystem, RoomSortOrder.Status, StreamHostSelection.FirstResponse, RecordingSplitMode.None, DanmakuGiftMode.None));
 	}
 
 	[Test]
-	[Arguments((RecorderType)99, (RecordingSplitMode)99, null, null)]
-	[Arguments(RecorderType.FFmpeg, RecordingSplitMode.None, RecorderType.FFmpeg, RecordingSplitMode.None)]
-	public async Task RoomEnumOverridesInheritTheAppSettingsOnlyWhenUndefinedAsync(RecorderType recorderType, RecordingSplitMode splitMode, RecorderType? expectedRecorderType, RecordingSplitMode? expectedSplitMode)
+	[Arguments((RecordingSplitMode)99, null)]
+	[Arguments(RecordingSplitMode.None, RecordingSplitMode.None)]
+	public async Task RoomEnumOverridesInheritTheAppSettingsOnlyWhenUndefinedAsync(RecordingSplitMode splitMode, RecordingSplitMode? expected)
 	{
-		RoomConfig room = new RoomConfig { RoomId = 1, RecorderType = recorderType, SplitMode = splitMode }.Normalize();
+		RoomConfig room = new RoomConfig { RoomId = 1, SplitMode = splitMode }.Normalize();
 
-		await Assert.That((room.RecorderType, room.SplitMode)).IsEqualTo((expectedRecorderType, expectedSplitMode));
+		await Assert.That(room.SplitMode).IsEqualTo(expected);
 	}
 
 	[Test]

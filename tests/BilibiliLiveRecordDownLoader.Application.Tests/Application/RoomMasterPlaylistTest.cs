@@ -77,9 +77,9 @@ public sealed class RoomMasterPlaylistTest
 		return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(data) };
 	}
 
-	private static RecordingLoopHarness Loop(CancellationToken cancellationToken, string? streams = null, Func<string, HttpResponseMessage?>? respond = null, string? master = MasterPlaylist, RecorderType recorderType = RecorderType.BuiltIn)
+	private static RecordingLoopHarness Loop(CancellationToken cancellationToken, string? streams = null, Func<string, HttpResponseMessage?>? respond = null, string? master = MasterPlaylist)
 	{
-		RecordingLoopHarness loop = new(cancellationToken, recorderType: recorderType, streams: streams ?? Fmp4Streams(), respondStream: Fmp4Cdn(respond));
+		RecordingLoopHarness loop = new(cancellationToken, streams: streams ?? Fmp4Streams(), respondStream: Fmp4Cdn(respond));
 
 		if (master is not null)
 		{
@@ -334,21 +334,6 @@ public sealed class RoomMasterPlaylistTest
 			await Assert.That(loop.Snapshot.Recording?.Restriction).IsEqualTo(new QualityRestriction.LoginMayHaveExpired(10000));
 			await Assert.That(loop.RecorderLogs).Contains("Recording at quality 250 while 10000 is available: the login may have expired");
 		}
-	}
-
-	[Test]
-	[Arguments(new[] { StreamCodec.Avc, StreamCodec.Hevc, StreamCodec.Av1 }, AvcOriginalPlaylist)]
-	[Arguments(new[] { StreamCodec.Hevc, StreamCodec.Avc, StreamCodec.Av1 }, HevcOriginalPlaylist)]
-	public async Task FFmpegRecordsTheVariantOfThePreferredCodecAsync(StreamCodec[] codecPriority, string playlist, CancellationToken cancellationToken)
-	{
-		await using RecordingLoopHarness loop = Loop(cancellationToken, recorderType: RecorderType.FFmpeg);
-		loop.Config.CodecPriority = [.. codecPriority];
-		loop.GoLive();
-
-		await loop.WaitUntilAsync(() => !loop.FFmpegRuns.IsEmpty, "FFmpeg is started");
-		string[] arguments = [.. loop.FFmpegRuns.First()];
-
-		await Assert.That(arguments[Array.IndexOf(arguments, "-i") + 1]).IsEqualTo($"https://a.test{playlist}?sign=master");
 	}
 
 	// 录制器把自己的日志交给 HLS 会话，换节点取到分片时日志里才看得到

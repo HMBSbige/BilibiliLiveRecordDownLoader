@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-// 元素指 FLV tag、HLS 分片或分片 MP4 的顶层盒子
+// 元素指 FLV tag 或 HLS 分片
 internal abstract class MediaSplitter
 {
 	private readonly List<MediaMark> _mediaMarks = [];

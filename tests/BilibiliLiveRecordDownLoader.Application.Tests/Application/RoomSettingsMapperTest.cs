@@ -13,7 +13,6 @@ public sealed class RoomSettingsMapperTest
 			IsDanmakuEnabled = true,
 			DanmakuOffset = TimeSpan.FromSeconds(-1.5),
 			Quality = StreamQuality.UltraHd4K,
-			RecorderType = RecorderType.FFmpeg,
 			CodecPriority = [StreamCodec.Hevc],
 			FormatPriority = [StreamFormat.Ts, StreamFormat.Flv],
 			ConvertToMp4 = true,

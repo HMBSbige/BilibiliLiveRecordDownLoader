@@ -27,7 +27,6 @@ public sealed class SettingsAppServiceTest
 			UserAgent = "agent",
 			AutoRenewCookie = false,
 			UseSystemProxy = true,
-			RecorderType = RecorderType.FFmpeg,
 			CodecPriority = [StreamCodec.Hevc, StreamCodec.Avc, StreamCodec.Av1],
 			FormatPriority = [StreamFormat.Flv, StreamFormat.Ts, StreamFormat.Fmp4],
 			StreamHostSelection = StreamHostSelection.Random,

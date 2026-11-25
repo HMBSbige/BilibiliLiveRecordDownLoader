@@ -5,7 +5,6 @@ public sealed class RecordingProfileTest
 	private static readonly AppConfig Global = new()
 	{
 		RecordDirectory = "records",
-		RecorderType = RecorderType.FFmpeg,
 		CodecPriority = [StreamCodec.Hevc, StreamCodec.Avc],
 		FormatPriority = [StreamFormat.Flv],
 		StreamHostSelection = StreamHostSelection.Random,
@@ -21,7 +20,6 @@ public sealed class RecordingProfileTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(profile.RecordDirectory).IsEqualTo("records");
-			await Assert.That(profile.RecorderType).IsEqualTo(RecorderType.FFmpeg);
 			await Assert.That(profile.Quality).IsEqualTo(StreamQuality.BluRay);
 			await Assert.That(profile.CodecPriority).IsEquivalentTo([StreamCodec.Hevc, StreamCodec.Avc], CollectionOrdering.Matching);
 			await Assert.That(profile.FormatPriority).IsEquivalentTo([StreamFormat.Flv], CollectionOrdering.Matching);
@@ -36,7 +34,6 @@ public sealed class RecordingProfileTest
 		RoomConfig room = new()
 		{
 			RoomId = 1,
-			RecorderType = RecorderType.BuiltIn,
 			CodecPriority = [StreamCodec.Av1],
 			FormatPriority = [StreamFormat.Ts, StreamFormat.Fmp4],
 			ConvertToMp4 = false,
@@ -48,7 +45,6 @@ public sealed class RecordingProfileTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(profile.RecorderType).IsEqualTo(RecorderType.BuiltIn);
 			await Assert.That(profile.CodecPriority).IsEquivalentTo([StreamCodec.Av1], CollectionOrdering.Matching);
 			await Assert.That(profile.FormatPriority).IsEquivalentTo([StreamFormat.Ts, StreamFormat.Fmp4], CollectionOrdering.Matching);
 			await Assert.That((profile.ConvertToMp4, profile.DeleteAfterConvert)).IsEqualTo((false, false));

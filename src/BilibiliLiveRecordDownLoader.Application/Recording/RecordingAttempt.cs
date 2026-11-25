@@ -40,13 +40,11 @@ internal closed record RecordingEnd
 		WriteFailed writeFailed => writeFailed.Exception.DisplayText
 	};
 
-	// FFmpeg 的最后几行输出是唯一的诊断信息，要保留
 	public static string GetDisplayText(Exception exception)
 	{
 		return exception switch
 		{
 			TimeoutException => AppLanguage.Current.RecordingConnectionTimedOut,
-			FFmpegException ffmpeg => AppLanguage.Current.FFmpegFailed.ToString(ffmpeg.ExitCode, ffmpeg.LastMessage ?? string.Empty),
 			_ => exception.Message
 		};
 	}

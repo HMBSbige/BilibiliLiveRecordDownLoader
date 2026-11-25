@@ -20,7 +20,6 @@ internal static class SettingsMapper
 				UserAgent = config.UserAgent,
 				AutoRenewCookie = config.AutoRenewCookie,
 				UseSystemProxy = config.UseSystemProxy,
-				RecorderType = config.RecorderType,
 				CodecPriority = config.CodecPriority,
 				FormatPriority = config.FormatPriority,
 				StreamHostSelection = config.StreamHostSelection,
@@ -60,7 +59,6 @@ internal static class SettingsMapper
 			config.UserAgent = settings.UserAgent;
 			config.AutoRenewCookie = settings.AutoRenewCookie;
 			config.UseSystemProxy = settings.UseSystemProxy;
-			config.RecorderType = settings.RecorderType;
 			config.CodecPriority = settings.CodecPriority;
 			config.FormatPriority = settings.FormatPriority;
 			config.StreamHostSelection = settings.StreamHostSelection;

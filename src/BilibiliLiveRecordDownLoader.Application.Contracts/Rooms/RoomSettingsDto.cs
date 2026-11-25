@@ -14,8 +14,6 @@ public sealed record RoomSettingsDto
 
 	public StreamQuality Quality { get; init; } = RoomDefaults.Quality;
 
-	public RecorderType? RecorderType { get; init; }
-
 	public IReadOnlyList<StreamCodec>? CodecPriority { get; init; }
 
 	public IReadOnlyList<StreamFormat>? FormatPriority { get; init; }

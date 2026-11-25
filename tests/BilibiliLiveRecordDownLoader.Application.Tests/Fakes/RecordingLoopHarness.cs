@@ -2,8 +2,6 @@ using BilibiliLive;
 using BilibiliLive.Models;
 using BilibiliLiveRecordDownLoader.Application.Contracts.Media;
 using BilibiliLiveRecordDownLoader.Application.Contracts.Storage;
-using BilibiliLiveRecordDownLoader.Application.Http;
-using BilibiliLiveRecordDownLoader.Application.Media;
 using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Storage;
 using Microsoft.Extensions.Logging;
@@ -43,32 +41,19 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	private RoomConfig _settings;
 
 	/// <param name="streams">其中的 $SIGN 换成第几次请求候选流</param>
-	public RecordingLoopHarness(CancellationToken cancellationToken, Func<string, Stream>? createFile = null, RecorderType recorderType = RecorderType.BuiltIn, bool isNotificationEnabled = false, IMediaToolAppService? mediaTools = null, string streams = DefaultStreams, Func<HttpRequestMessage, HttpResponseMessage>? respondStream = null, IWebProxy? systemProxy = null)
+	public RecordingLoopHarness(CancellationToken cancellationToken, Func<string, Stream>? createFile = null, bool isNotificationEnabled = false, IMediaToolAppService? mediaTools = null, string streams = DefaultStreams, Func<HttpRequestMessage, HttpResponseMessage>? respondStream = null)
 	{
-		SwitchableWebProxy proxy = new(systemProxy ?? new WebProxy());
-		proxy.Follow(Config);
 		_lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		Streams = streams;
 		_respondStream = respondStream;
 		Config.RecordDirectory = _directory.Root;
-		Config.RecorderType = recorderType;
-
-		if (recorderType is RecorderType.FFmpeg)
-		{
-			Config.FFmpegPath = CreateFakeFFmpeg();
-		}
 
 		FakeConfigManager configManager = new(Config);
 
 		BilibiliApiClient apiClient = new(new HttpClient(new Handler(RespondApiAsync)), Time);
-		LiveRecorder recorder = new(apiClient, new StreamClientFactory(new Handler(RespondStreamAsync)), proxy, new FFmpegProvider(configManager), configManager, Time, new CapturingLogger<LiveRecorder>(Logs, RecorderLogs))
+		LiveRecorder recorder = new(apiClient, new StreamClientFactory(new Handler(RespondStreamAsync)), configManager, Time, new CapturingLogger<LiveRecorder>(Logs, RecorderLogs))
 		{
 			CreateFile = createFile ?? LiveRecorder.CreateRecordingFile,
-			CreateFFmpegSession = (ffmpeg, arguments, source) =>
-			{
-				FFmpegRuns.Enqueue(arguments);
-				return new FFmpegStreamSession(ffmpeg, arguments, source);
-			},
 			DrainTimeout = TimeSpan.FromSeconds(1)
 		};
 
@@ -135,8 +120,6 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 	public ConcurrentQueue<HarnessLog> Logs { get; } = new();
 
-	public ConcurrentQueue<IReadOnlyList<string>> FFmpegRuns { get; } = new();
-
 	public ConcurrentQueue<Uri> StreamRequests { get; } = new();
 
 	public void GoLive()
@@ -153,13 +136,6 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	public void StartStreaming()
 	{
 		_isLive = true;
-	}
-
-	// standardError 里不能有 cmd 的特殊字符
-	public void FailFFmpeg(string standardError)
-	{
-		string path = Config.FFmpegPath ?? throw new InvalidOperationException("The harness is not recording with FFmpeg.");
-		File.WriteAllText(path, OperatingSystem.IsWindows() ? $"@echo {standardError} 1>&2\r\n@exit /b 1\r\n" : $"#!/bin/sh\necho \"{standardError}\" >&2\nexit 1\n");
 	}
 
 	public Task<StreamRequest> NextStreamAsync()
@@ -269,21 +245,6 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		await _lifetime.CancelAsync();
 		_lifetime.Dispose();
 		_directory.Dispose();
-	}
-
-	private string CreateFakeFFmpeg()
-	{
-		if (OperatingSystem.IsWindows())
-		{
-			string script = _directory.Combine("ffmpeg.cmd");
-			File.WriteAllText(script, "@echo fmp4-data\r\n");
-			return script;
-		}
-
-		string path = _directory.Combine("ffmpeg");
-		File.WriteAllText(path, "#!/bin/sh\necho fmp4-data\n");
-		File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-		return path;
 	}
 
 	private async Task<StreamRequest?> WaitForStreamAsync(TimeSpan timeout)
