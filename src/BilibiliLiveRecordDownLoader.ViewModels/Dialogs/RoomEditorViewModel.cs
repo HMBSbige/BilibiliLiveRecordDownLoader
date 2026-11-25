@@ -17,10 +17,9 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 		IsDanmakuEnabled = _original.IsDanmakuEnabled;
 		DanmakuOffsetSeconds = _original.DanmakuOffset is { } offset ? (decimal)offset.TotalSeconds : null;
 		DanmakuOffsetPlaceholder = AppLanguage.Current.InheritValue.ToString(((decimal)globalSettings.DanmakuOffset.TotalSeconds).ToString("0.###", CultureInfo.CurrentCulture));
-		Quality = _original.Quality;
-		// 手改配置或以后新增的画质不在选项里，也要能显示、能保留
-		IEnumerable<StreamQuality> qualities = StreamQuality.Selectable.Contains(Quality) ? StreamQuality.Selectable : StreamQuality.Selectable.Append(Quality).OrderByDescending(static quality => quality.Qn);
-		QualityOptions = [.. qualities.Select(static quality => new ChoiceOption(quality))];
+		// 手改配置或以后新增的画质不在选项里，按自定义显示它的 qn
+		SelectedQuality = QualityOptions.FirstOrDefault(option => option.Quality == _original.Quality) ?? QualityOption.Custom;
+		CustomQnText = SelectedQuality.Quality is null ? _original.Quality.Qn.ToString(CultureInfo.InvariantCulture) : string.Empty;
 		ConvertToMp4 = new ChoiceOption(_original.ConvertToMp4);
 		DeleteAfterConvert = new ChoiceOption(_original.DeleteAfterConvert);
 		SplitMode = _original.SplitMode is { } splitMode ? new ChoiceOption(splitMode) : ChoiceOption.Inherit;
@@ -38,8 +37,34 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 		StreamConnectTimeoutSeconds = (decimal)_original.StreamConnectTimeout.TotalSeconds;
 		StreamIdleTimeoutSeconds = (decimal)_original.StreamIdleTimeout.TotalSeconds;
 
-		CanSave = this.WhenChanged(static viewModel => viewModel.RoomIdText).Map(static text => TryParseRoomId(text, out _));
+		CanSave = this.WhenChanged(static viewModel => viewModel.RoomIdText, static viewModel => viewModel.SelectedQuality, static viewModel => viewModel.CustomQnText, static (text, quality, qn) => TryParseRoomId(text, out _) && ParseQuality(quality, qn) is not null);
 		SaveCommand.DisposeWith(Disposables);
+
+		StreamQuality lastQuality = _original.Quality;
+		string? prefilledQn = null;
+
+		this.WhenChanged(static viewModel => viewModel.SelectedQuality)
+			.Subscribe
+			(option =>
+				{
+					IsCustomQuality = option.Quality is null;
+
+					if (option.Quality is { } quality)
+					{
+						lastQuality = quality;
+					}
+					// 从刚才选的画质的 qn 改起，改过的不动
+					else if (string.IsNullOrWhiteSpace(CustomQnText) || CustomQnText == prefilledQn)
+					{
+						CustomQnText = prefilledQn = lastQuality.Qn.ToString(CultureInfo.InvariantCulture);
+					}
+				}
+			)
+			.DisposeWith(Disposables);
+
+		this.WhenChanged(static viewModel => viewModel.IsCustomQuality, static viewModel => viewModel.CustomQnText, static (isCustom, text) => isCustom && !string.IsNullOrWhiteSpace(text) && !TryParseQn(text, out _))
+			.Subscribe(isInvalid => CustomQnError = isInvalid ? AppLanguage.Current.InvalidQn : null)
+			.DisposeWith(Disposables);
 
 		this.WhenChanged(static viewModel => viewModel.SplitMode)
 			.Map(static mode => mode.As<RecordingSplitMode>())
@@ -61,7 +86,7 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 
 	public override string Title => IsNew ? AppLanguage.Current.AddRoom : AppLanguage.Current.EditRoom;
 
-	public IReadOnlyList<ChoiceOption> QualityOptions { get; }
+	public IReadOnlyList<QualityOption> QualityOptions { get; } = [.. StreamQuality.Selectable.Select(static quality => new QualityOption(quality)), QualityOption.Custom];
 
 	public IReadOnlyList<ChoiceOption> SplitModeOptions { get; } = ChoiceOption.InheritOr<RecordingSplitMode>();
 
@@ -97,7 +122,16 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 	public string DanmakuOffsetPlaceholder { get; }
 
 	[Reactive]
-	public partial StreamQuality Quality { get; set; }
+	public partial QualityOption SelectedQuality { get; set; }
+
+	[Reactive]
+	public partial string CustomQnText { get; set; }
+
+	[Reactive]
+	public partial bool IsCustomQuality { get; private set; }
+
+	[Reactive]
+	public partial string? CustomQnError { get; private set; }
 
 	[Reactive]
 	public partial ChoiceOption ConvertToMp4 { get; set; }
@@ -147,7 +181,7 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 	[ReactiveCommand(CanExecute = nameof(CanSave))]
 	private async Task SaveAsync(CancellationToken cancellationToken)
 	{
-		if (!TryParseRoomId(RoomIdText, out long roomId))
+		if (!TryParseRoomId(RoomIdText, out long roomId) || ParseQuality(SelectedQuality, CustomQnText) is not { } quality)
 		{
 			return;
 		}
@@ -159,7 +193,7 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 			IsNotificationEnabled = IsNotificationEnabled,
 			IsDanmakuEnabled = IsDanmakuEnabled,
 			DanmakuOffset = DanmakuOffsetSeconds is { } seconds ? ConfigValues.DanmakuOffsetFromSeconds(seconds) : null,
-			Quality = Quality,
+			Quality = quality,
 			CodecPriority = OverrideCodecPriority ? CodecPriority.GetValues<StreamCodec>() : null,
 			FormatPriority = OverrideFormatPriority ? FormatPriority.GetValues<StreamFormat>() : null,
 			ConvertToMp4 = ConvertToMp4.As<bool>(),
@@ -196,5 +230,16 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 	private static bool TryParseRoomId(string? text, out long roomId)
 	{
 		return long.TryParse(text?.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out roomId) && roomId > 0;
+	}
+
+	private static StreamQuality? ParseQuality(QualityOption option, string? customQn)
+	{
+		return option.Quality ?? (TryParseQn(customQn, out long qn) ? new StreamQuality(qn) : null);
+	}
+
+	// 只认非负整数，0 是 B 站默认
+	private static bool TryParseQn(string? text, out long qn)
+	{
+		return long.TryParse(text?.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out qn);
 	}
 }

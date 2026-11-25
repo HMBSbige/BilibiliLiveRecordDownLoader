@@ -29,8 +29,8 @@ public readonly record struct StreamQuality(long Qn)
 
 	public static StreamQuality Dolby { get; } = new(30000);
 
-	// 房间编辑器里的选项；接口里没见过 401，不列出
-	public static IReadOnlyList<StreamQuality> Selectable { get; } = [Dolby, OriginalTrueColor, UltraHd4K, Qhd2K, Original, BluRay, SuperHigh, High, Smooth, Default];
+	// 房间编辑器里的选项
+	public static IReadOnlyList<StreamQuality> Selectable { get; } = [Dolby, OriginalTrueColor, UltraHd4K, Qhd2K, Original, BluRayDolby, BluRay, SuperHigh, High, Smooth, Default];
 
 	// 接口没给名称时用；同一 qn 在不同直播间可能叫法不同，注释里是见过的其他名称
 	public string? KnownName => Qn switch

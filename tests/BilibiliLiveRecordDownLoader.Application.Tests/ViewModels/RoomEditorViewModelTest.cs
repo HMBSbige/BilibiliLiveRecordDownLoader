@@ -94,40 +94,113 @@ public sealed class RoomEditorViewModelTest
 	}
 
 	[Test]
-	public async Task QualityOptionsGoFromBestToTheBilibiliDefaultAsync()
+	public async Task QualityOptionsGoFromBestToTheBilibiliDefaultThenCustomAsync()
 	{
-		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1 }, out _);
+		using RoomEditorViewModel editor = Open(null, out _);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(editor.QualityOptions.Select(static option => option.As<StreamQuality>()?.Qn ?? -1)).IsEquivalentTo([30000L, 25000, 20000, 15000, 10000, 400, 250, 150, 80, 0L], CollectionOrdering.Matching);
+			await Assert.That(editor.QualityOptions.Select(static option => option.Quality?.Qn ?? -1)).IsEquivalentTo([30000L, 25000, 20000, 15000, 10000, 401, 400, 250, 150, 80, 0, -1], CollectionOrdering.Matching);
 			await Assert.That(editor.QualityOptions[1].ToString()).IsEqualTo(AppLanguage.Current.QualityOriginalTrueColor);
-			await Assert.That(editor.QualityOptions[^1].ToString()).IsEqualTo(AppLanguage.Current.QualityDefault);
-			await Assert.That(editor.Quality).IsEqualTo(StreamQuality.OriginalTrueColor);
+			await Assert.That(editor.QualityOptions[^2].ToString()).IsEqualTo(AppLanguage.Current.QualityDefault);
+			await Assert.That(editor.QualityOptions[^1].ToString()).IsEqualTo(AppLanguage.Current.QualityCustom);
+			await Assert.That((editor.SelectedQuality, editor.IsCustomQuality)).IsEqualTo((new QualityOption(StreamQuality.OriginalTrueColor), false));
 		}
 	}
 
-	// 手改配置或以后新增的画质
+	// 列出的 qn 再打开时显示为它的选项；其他 qn，包括手改配置或以后新增的画质，显示为自定义并原样保留
 	[Test]
-	[Arguments(12345L, 4, "12345")]
-	[Arguments(401L, 5, null)]
-	public async Task QualityOutsideTheOptionsIsListedInPlaceAndKeptAsync(long qn, int index, string? label, CancellationToken cancellationToken)
+	[Arguments("12345", 12345L, true)]
+	[Arguments(" 007 ", 7L, true)]
+	[Arguments("\u30007\u3000", 7L, true)]
+	[Arguments("401", 401L, false)]
+	[Arguments("25000", 25000L, false)]
+	[Arguments("0", 0L, false)]
+	public async Task CustomQnIsSavedAndReopenedAsync(string text, long qn, bool reopensAsCustom, CancellationToken cancellationToken)
 	{
-		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1, Quality = new StreamQuality(qn) }, out Task<RoomSettingsDto> submitted);
+		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1, Quality = StreamQuality.Smooth }, out Task<RoomSettingsDto> submitted);
 
-		IReadOnlyList<ChoiceOption> options = editor.QualityOptions;
+		editor.SelectedQuality = QualityOption.Custom;
+		editor.CustomQnText = text;
+		string? error = editor.CustomQnError;
+		RoomSettingsDto saved = await SaveAsync(editor, submitted, cancellationToken);
+		using RoomEditorViewModel reopened = Open(saved, out Task<RoomSettingsDto> resubmitted);
+		(QualityOption selected, bool isCustom, string reopenedText) = (reopened.SelectedQuality, reopened.IsCustomQuality, reopened.CustomQnText);
+		RoomSettingsDto resaved = await SaveAsync(reopened, resubmitted, cancellationToken);
+		StreamQuality expected = new(qn);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(error).IsNull();
+			await Assert.That((saved.Quality, resaved.Quality)).IsEqualTo((expected, expected));
+			await Assert.That((selected, isCustom, reopenedText)).IsEqualTo(reopensAsCustom ? (QualityOption.Custom, true, qn.ToString(CultureInfo.InvariantCulture)) : (new QualityOption(expected), false, string.Empty));
+		}
+	}
+
+	// 空着时和房间号一样只是不能保存，不提示错误
+	[Test]
+	[Arguments("-1", true)]
+	[Arguments("+1", true)]
+	[Arguments("1.5", true)]
+	[Arguments("1e4", true)]
+	[Arguments("abc", true)]
+	[Arguments("99999999999999999999", true)]
+	[Arguments("", false)]
+	[Arguments(" ", false)]
+	public async Task OnlyANonNegativeIntegerCanBeSavedAsTheCustomQnAsync(string text, bool isError)
+	{
+		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1 }, out _);
+
+		editor.SelectedQuality = QualityOption.Custom;
+		editor.CustomQnText = text;
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(editor.CustomQnError).IsEqualTo(isError ? AppLanguage.Current.InvalidQn : null);
+			await Assert.That(((ICommand)editor.SaveCommand).CanExecute(null)).IsFalse();
+		}
+	}
+
+	// 没改过的 qn 跟着刚选的画质变，改过的保留
+	[Test]
+	[Arguments(null, "10000")]
+	[Arguments("12345", "12345")]
+	public async Task SwitchingToCustomStartsFromTheChosenQnUnlessItWasEditedAsync(string? typed, string expected)
+	{
+		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1, Quality = StreamQuality.BluRay }, out _);
+
+		editor.SelectedQuality = QualityOption.Custom;
+		(bool isCustom, string prefilled) = (editor.IsCustomQuality, editor.CustomQnText);
+		editor.CustomQnText = typed ?? prefilled;
+		editor.SelectedQuality = new QualityOption(StreamQuality.Original);
+		editor.SelectedQuality = QualityOption.Custom;
+
+		using (Assert.Multiple())
+		{
+			await Assert.That((isCustom, prefilled)).IsEqualTo((true, "400"));
+			await Assert.That(editor.CustomQnText).IsEqualTo(expected);
+		}
+	}
+
+	[Test]
+	public async Task UnfinishedCustomQnIsIgnoredOnceAnOptionIsChosenAsync(CancellationToken cancellationToken)
+	{
+		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1 }, out Task<RoomSettingsDto> submitted);
+
+		editor.SelectedQuality = QualityOption.Custom;
+		editor.CustomQnText = "abc";
+		editor.SelectedQuality = new QualityOption(StreamQuality.Original);
+		(bool isCustom, string? error) = (editor.IsCustomQuality, editor.CustomQnError);
 		RoomSettingsDto settings = await SaveAsync(editor, submitted, cancellationToken);
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(options).Count().IsEqualTo(StreamQuality.Selectable.Count + 1);
-			await Assert.That(options[index].As<StreamQuality>()).IsEqualTo(new StreamQuality(qn));
-			await Assert.That(options[index].ToString()).IsEqualTo(label ?? AppLanguage.Current.QualityBluRayDolby);
-			await Assert.That(settings.Quality).IsEqualTo(new StreamQuality(qn));
+			await Assert.That((isCustom, error)).IsEqualTo((false, null));
+			await Assert.That(settings.Quality).IsEqualTo(StreamQuality.Original);
 		}
 	}
 
-	private static RoomEditorViewModel Open(RoomSettingsDto existing, out Task<RoomSettingsDto> submitted, AppSettingsDto? global = null)
+	private static RoomEditorViewModel Open(RoomSettingsDto? existing, out Task<RoomSettingsDto> submitted, AppSettingsDto? global = null)
 	{
 		TaskCompletionSource<RoomSettingsDto> submission = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		submitted = submission.Task;

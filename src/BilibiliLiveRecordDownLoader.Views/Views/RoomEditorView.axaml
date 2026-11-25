@@ -56,13 +56,24 @@
                     <CheckBox IsChecked="{Binding IsDanmakuEnabled}" Content="{Binding RecordDanmaku, Source={x:Static l:AppLanguage.Current}}" />
                     <CheckBox IsChecked="{Binding IsNotificationEnabled}" Content="{Binding NotificationEnabled, Source={x:Static l:AppLanguage.Current}}" />
                 </StackPanel>
-                <Grid Classes="form" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="4">
+                <Grid Classes="form" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="{StaticResource FieldSpacing}">
                     <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Quality, Source={x:Static l:AppLanguage.Current}}" />
-                    <ComboBox Grid.Row="1" Grid.Column="0" ItemsSource="{Binding QualityOptions}" SelectedValue="{Binding Quality}"
-                              SelectedValueBinding="{Binding Value}"
-                              AutomationProperties.Name="{Binding Quality, Source={x:Static l:AppLanguage.Current}}" />
+                    <StackPanel Grid.Row="1" Grid.Column="0" Spacing="{StaticResource FieldSpacing}">
+                        <!-- 下拉框写在前面，Tab 和读屏顺序才与左右顺序一致；Grid 的列间距在 qn 框隐藏时也会留着，所以间距写在外边距里 -->
+                        <Grid ColumnDefinitions="*,Auto">
+                            <ComboBox ItemsSource="{Binding QualityOptions}" SelectedItem="{Binding SelectedQuality}"
+                                      AutomationProperties.Name="{Binding Quality, Source={x:Static l:AppLanguage.Current}}" />
+                            <TextBox Grid.Column="1" Width="120" Margin="8,0,0,0" Text="{Binding CustomQnText}" PlaceholderText="qn"
+                                     IsVisible="{Binding IsCustomQuality}"
+                                     ToolTip.Tip="{Binding CustomQnTip, Source={x:Static l:AppLanguage.Current}}"
+                                     AutomationProperties.Name="{Binding CustomQn, Source={x:Static l:AppLanguage.Current}}"
+                                     AutomationProperties.HelpText="{Binding CustomQnTip, Source={x:Static l:AppLanguage.Current}}" />
+                        </Grid>
+                        <TextBlock Classes="error" Text="{Binding CustomQnError}"
+                                   IsVisible="{Binding CustomQnError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
                     <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}" />
-                    <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding DanmakuOffsetSeconds}" Increment="0.1" FormatString="0.###"
+                    <NumericUpDown Grid.Row="1" Grid.Column="1" VerticalAlignment="Top" Value="{Binding DanmakuOffsetSeconds}" Increment="0.1" FormatString="0.###"
                                    Minimum="{x:Static cfg:DanmakuDefaults.MinOffsetSeconds}" Maximum="{x:Static cfg:DanmakuDefaults.MaxOffsetSeconds}"
                                    PlaceholderText="{Binding DanmakuOffsetPlaceholder}"
                                    AutomationProperties.Name="{Binding DanmakuOffset, Source={x:Static l:AppLanguage.Current}}" />
