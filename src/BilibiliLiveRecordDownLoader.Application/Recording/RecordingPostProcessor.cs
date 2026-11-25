@@ -85,9 +85,8 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 			}
 
 			string? destination = profile.ConvertToMp4 ? RecordingFileLayout.GetMp4ConversionPath(path) : null;
-
 			bool writeChapters = danmakuProfile.WriteChapters && destination is not null;
-			string? chapters = null;
+			IReadOnlyList<MediaChapter>? chapters = null;
 
 			if (danmaku is { } segment && (danmakuProfile.GenerateSubtitle || writeChapters) && await ReadDanmakuAsync(segment.Path) is { } records)
 			{
@@ -98,9 +97,8 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 
 				if (writeChapters)
 				{
-					chaptersFile = Path.Combine(Path.GetTempPath(), $"{Guid.CreateVersion7():N}.ffmetadata");
 					string liveTitle = records.Source is DanmakuFileSource.Native { Header.Title: { Length: > 0 } title } ? title : Path.GetFileNameWithoutExtension(stem);
-					chapters = await TryWriteChaptersAsync(chaptersFile, liveTitle, records, segment.Duration) ? chaptersFile : null;
+					chapters = BuildChapters(liveTitle, records, segment.Duration);
 				}
 			}
 
@@ -109,7 +107,19 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 				return null;
 			}
 
-			Task<BackgroundTaskSnapshot> remux = await mediaTools.QueueRemuxAsync(new RemuxInput(path, destination, profile.DeleteAfterConvert, chapters is null ? new RemuxMode.Plain() : new RemuxMode.WithChapters(chapters)));
+			RemuxMode mode = new RemuxMode.Plain();
+
+			if (chapters is not null)
+			{
+				chaptersFile = Path.Combine(Path.GetTempPath(), $"{Guid.CreateVersion7():N}.ffmetadata");
+
+				if (await TryWriteChaptersAsync(chaptersFile, chapters))
+				{
+					mode = new RemuxMode.WithChapters(chaptersFile);
+				}
+			}
+
+			Task<BackgroundTaskSnapshot> remux = await mediaTools.QueueRemuxAsync(new RemuxInput(path, destination, profile.DeleteAfterConvert, mode));
 			return await remux is { Status: BackgroundTaskStatus.Failed } failed ? failed.Message ?? string.Empty : null;
 		}
 		catch (Exception exception)
@@ -152,11 +162,14 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 	}
 
 	// duration 来自时间轴，不按最后一条弹幕推，免得最后一章结束在视频结束之前
-	private async Task<bool> TryWriteChaptersAsync(string path, string liveTitle, DanmakuFile danmaku, TimeSpan? duration)
+	private static IReadOnlyList<MediaChapter> BuildChapters(string liveTitle, DanmakuFile danmaku, TimeSpan? duration)
 	{
 		IReadOnlyList<DanmakuHighlight> highlights = DanmakuHighlightDetector.Detect(danmaku.Records, duration);
-		IReadOnlyList<MediaChapter> chapters = DanmakuChapterBuilder.Build(liveTitle, danmaku.Records, highlights, duration, DanmakuTexts.ChapterNames);
+		return DanmakuChapterBuilder.Build(liveTitle, danmaku.Records, highlights, duration, DanmakuTexts.ChapterNames);
+	}
 
+	private async Task<bool> TryWriteChaptersAsync(string path, IReadOnlyList<MediaChapter> chapters)
+	{
 		try
 		{
 			await WriteChaptersFile(path, chapters, CancellationToken.None);

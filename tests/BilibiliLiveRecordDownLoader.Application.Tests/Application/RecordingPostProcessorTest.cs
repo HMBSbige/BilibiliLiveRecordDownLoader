@@ -93,27 +93,17 @@ public sealed class RecordingPostProcessorTest
 	}
 
 	[Test]
-	public async Task CanceledConversionIsNotNotifiedAsync()
-	{
-		using TestDirectory directory = new();
-		string path = CreateRecording(directory, RecordingPostProcessor.MinimumLength);
-		RecordingNotifications notifications = new();
-
-		await Create(new QueuedRemuxes(BackgroundTaskStatus.Canceled), notifications).ProcessAsync(path, CreateProfile(directory), Streamer, null, NoDanmaku);
-
-		await Assert.That(notifications.Shown).IsEmpty();
-	}
-
-	[Test]
-	public async Task FailedConversionIsNotNotifiedWhenRecordingErrorNotificationsAreOffAsync()
+	[Arguments(BackgroundTaskStatus.Canceled, true)]
+	[Arguments(BackgroundTaskStatus.Failed, false)]
+	public async Task ConversionIsNotNotifiedWhenCanceledOrTurnedOffAsync(BackgroundTaskStatus status, bool notifyOnRecordingError)
 	{
 		using TestDirectory directory = new();
 		string path = CreateRecording(directory, RecordingPostProcessor.MinimumLength);
 		RecordingNotifications notifications = new();
 		AppConfig config = AppConfig.CreateDefault();
-		config.NotifyOnRecordingError = false;
+		config.NotifyOnRecordingError = notifyOnRecordingError;
 
-		await Create(new QueuedRemuxes(BackgroundTaskStatus.Failed, "boom"), notifications, config).ProcessAsync(path, CreateProfile(directory), Streamer, null, NoDanmaku);
+		await Create(new QueuedRemuxes(status, "boom"), notifications, config).ProcessAsync(path, CreateProfile(directory), Streamer, null, NoDanmaku);
 
 		await Assert.That(notifications.Shown).IsEmpty();
 	}
@@ -185,16 +175,23 @@ public sealed class RecordingPostProcessorTest
 		string path = CreateRecording(directory, RecordingPostProcessor.MinimumLength);
 		string danmaku = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)], cancellationToken);
 		RecordingMediaTools mediaTools = new();
-		AppConfig config = AppConfig.CreateDefault();
-		config.RecordDirectory = directory.Root;
+		bool wroteChaptersFile = false;
+		RecordingPostProcessor processor = new(mediaTools, new FakeConfigManager(), new RecordingNotifications(), NullLogger<RecordingPostProcessor>.Instance)
+		{
+			WriteChaptersFile = (_, _, _) =>
+			{
+				wroteChaptersFile = true;
+				return Task.CompletedTask;
+			}
+		};
 
-		await Create(mediaTools).ProcessAsync(path, RecordingProfile.Create(config, new RoomConfig { RoomId = 1 }), Streamer, new DanmakuSegment(danmaku, null, null), CreateDanmakuProfile(writeChapters: true));
+		await processor.ProcessAsync(path, CreateProfile(directory, convertToMp4: false), Streamer, new DanmakuSegment(danmaku, null, null), CreateDanmakuProfile(writeChapters: true));
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(mediaTools.Remuxes).IsEmpty();
 			await Assert.That(File.Exists(directory.Combine(Stem + ".ass"))).IsTrue();
-			await Assert.That(Directory.GetFiles(directory.Root, "*.ffmetadata")).IsEmpty();
+			await Assert.That(wroteChaptersFile).IsFalse();
 		}
 	}
 
@@ -206,11 +203,13 @@ public sealed class RecordingPostProcessorTest
 		string danmaku = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10)], cancellationToken);
 		RecordingMediaTools mediaTools = new();
 		RecordingNotifications notifications = new();
+		string? chaptersFile = null;
 		RecordingPostProcessor processor = new(mediaTools, new FakeConfigManager(), notifications, NullLogger<RecordingPostProcessor>.Instance)
 		{
-			WriteChaptersFile = static async (file, _, cancellationToken) =>
+			WriteChaptersFile = async (file, _, ct) =>
 			{
-				await File.WriteAllTextAsync(file, ";FFMETADATA1\n", cancellationToken);
+				chaptersFile = file;
+				await File.WriteAllTextAsync(file, ";FFMETADATA1\n", ct);
 				throw new IOException("disk full");
 			}
 		};
@@ -223,7 +222,8 @@ public sealed class RecordingPostProcessorTest
 		{
 			await Assert.That(remux.Mode).IsEqualTo(new RemuxMode.Plain());
 			await Assert.That(File.Exists(directory.Combine(Stem + ".ass"))).IsTrue();
-			await Assert.That(Directory.GetFiles(directory.Root, "*.ffmetadata")).IsEmpty();
+			await Assert.That(chaptersFile).IsNotNull();
+			await Assert.That(File.Exists(chaptersFile)).IsFalse();
 			await Assert.That(notifications.Shown).IsEmpty();
 		}
 	}
@@ -253,11 +253,11 @@ public sealed class RecordingPostProcessorTest
 		return path;
 	}
 
-	private static RecordingProfile CreateProfile(TestDirectory directory)
+	private static RecordingProfile CreateProfile(TestDirectory directory, bool convertToMp4 = true)
 	{
 		AppConfig config = AppConfig.CreateDefault();
 		config.RecordDirectory = directory.Root;
-		config.ConvertToMp4 = true;
+		config.ConvertToMp4 = convertToMp4;
 		return RecordingProfile.Create(config, new RoomConfig { RoomId = 1 });
 	}
 
