@@ -141,7 +141,7 @@ public sealed class BilibiliApiClient
 	/// <param name="mid">本应是请求者的 uid，但接口不拿它核对登录，所以请求不带登录 Cookie</param>
 	public async Task<IReadOnlyList<LiveStreamCandidate.Variant>> GetMasterPlaylistVariantsAsync(long roomId, long mid, CancellationToken cancellationToken = default)
 	{
-		Uri uri = CreateUri($"{LiveApi}xlive/play-gateway/master/url?cid={roomId}&mid={mid}&pt=web&p2p_type=-1&net=0&free_type=0&build=0&feature=2&qn=10000&drm_type=0&codec=0,1");
+		Uri uri = CreateUri($"{LiveApi}xlive/play-gateway/master/url?cid={roomId}&mid={mid}&pt=web&p2p_type=-1&net=0&free_type=0&build=0&feature=2&qn=10000&drm_type=0&codec=0,1,2");
 		using HttpRequestMessage request = new(HttpMethod.Get, uri);
 		request.Options.Set(BilibiliRequestHandler.AnonymousOption, true);
 		using HttpResponseMessage response = await HttpClient.SendAsync(request, cancellationToken);

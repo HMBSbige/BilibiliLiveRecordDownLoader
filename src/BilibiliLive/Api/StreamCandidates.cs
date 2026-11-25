@@ -27,12 +27,6 @@ internal static class StreamCandidates
 						continue;
 					}
 
-					// FLV 里的 HEVC 靠非标准的编码 ID，多数播放器和转封装工具都不认
-					if (streamCodec is StreamCodec.Hevc && streamFormat is StreamFormat.Flv)
-					{
-						continue;
-					}
-
 					Uri[] urls = [.. GetUrls(codec.BaseUrl, codec.UrlInfo ?? [])];
 
 					if (urls.Length is not 0)

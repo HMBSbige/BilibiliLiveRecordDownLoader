@@ -157,13 +157,14 @@ public class BilibiliApiClientTest
 
 		IReadOnlyList<LiveStreamCandidate.Listed> candidates = await api.Client.GetStreamCandidatesAsync(732, 10000, [StreamCodec.Hevc, StreamCodec.Avc], [StreamFormat.Fmp4, StreamFormat.Flv], cancellationToken);
 		RecordedRequest request = await Assert.That(api.Handler.Requests).HasSingleItem();
-		LiveStreamCandidate.Listed flv = await Assert.That(candidates).HasSingleItem(static c => c.Format is StreamFormat.Flv);
+		LiveStreamCandidate.Listed flv = await Assert.That(candidates).HasSingleItem(static c => c is { Format: StreamFormat.Flv, Codec: StreamCodec.Avc });
 		LiveStreamCandidate.Listed fmp4Hevc = await Assert.That(candidates).HasSingleItem(static c => c is { Format: StreamFormat.Fmp4, Codec: StreamCodec.Hevc });
 		LiveStreamCandidate.Listed fmp4Avc = await Assert.That(candidates).HasSingleItem(static c => c is { Format: StreamFormat.Fmp4, Codec: StreamCodec.Avc });
 
 		(StreamProtocol, StreamFormat, StreamCodec)[] expected =
 		[
 			(StreamProtocol.HttpHls, StreamFormat.Fmp4, StreamCodec.Hevc),
+			(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Hevc),
 			(StreamProtocol.HttpHls, StreamFormat.Ts, StreamCodec.Hevc),
 			(StreamProtocol.HttpHls, StreamFormat.Fmp4, StreamCodec.Avc),
 			(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc),
@@ -192,6 +193,7 @@ public class BilibiliApiClientTest
 		(StreamFormat, StreamCodec)[] expected =
 		[
 			(StreamFormat.Flv, StreamCodec.Avc),
+			(StreamFormat.Flv, StreamCodec.Hevc),
 			(StreamFormat.Ts, StreamCodec.Avc),
 			(StreamFormat.Ts, StreamCodec.Hevc),
 			(StreamFormat.Fmp4, StreamCodec.Avc),
@@ -234,7 +236,7 @@ public class BilibiliApiClientTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(variants).Count().IsEqualTo(7);
-			await Assert.That(request.Uri.AbsoluteUri).IsEqualTo("https://api.live.bilibili.com/xlive/play-gateway/master/url?cid=6650029&mid=105022844&pt=web&p2p_type=-1&net=0&free_type=0&build=0&feature=2&qn=10000&drm_type=0&codec=0,1");
+			await Assert.That(request.Uri.AbsoluteUri).IsEqualTo("https://api.live.bilibili.com/xlive/play-gateway/master/url?cid=6650029&mid=105022844&pt=web&p2p_type=-1&net=0&free_type=0&build=0&feature=2&qn=10000&drm_type=0&codec=0,1,2");
 			await Assert.That(request.Headers["Cookie"]).IsEqualTo("buvid3=known");
 		}
 	}
