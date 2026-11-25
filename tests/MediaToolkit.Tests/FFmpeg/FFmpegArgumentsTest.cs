@@ -13,7 +13,7 @@ public class FFmpegArgumentsTest
 		yield return new
 		(
 			static () => (FFmpegArguments.RemuxWithChapters(@"in put.flv", @"chap ters.txt", @"out put.mp4"),
-				[@"-hide_banner", @"-y", @"-i", @"in put.flv", @"-f", @"ffmetadata", @"-i", @"chap ters.txt", @"-map", @"0", @"-map_chapters", @"1", @"-c", @"copy", @"out put.mp4"]),
+				[@"-hide_banner", @"-y", @"-i", @"in put.flv", @"-f", @"ffmetadata", @"-i", @"chap ters.txt", @"-map", @"0", @"-map_chapters", @"1", @"-c", @"copy", @"-copyinkf:a", @"out put.mp4"]),
 			DisplayName: "Remux with chapters takes streams from the first input and chapters from the second"
 		);
 		yield return new
@@ -31,7 +31,7 @@ public class FFmpegArgumentsTest
 		yield return new
 		(
 			static () => (FFmpegArguments.Remux(@"v.h264", @"out.mp4", 30),
-				[@"-hide_banner", @"-y", @"-framerate", @"30", @"-i", @"v.h264", @"-map", @"0", @"-c", @"copy", @"out.mp4"]),
+				[@"-hide_banner", @"-y", @"-framerate", @"30", @"-i", @"v.h264", @"-map", @"0", @"-c", @"copy", @"-copyinkf:a", @"out.mp4"]),
 			DisplayName: "Remux passes the frame rate before the raw video input"
 		);
 		yield return new

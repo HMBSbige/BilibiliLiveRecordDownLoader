@@ -24,6 +24,9 @@ public partial class FFmpegIntegrationTest
 	[GeneratedRegex(@" s:(?<size>\d+x\d+) ")]
 	private static partial Regex FrameSizeRegex { get; }
 
+	[GeneratedRegex(@"\] n:\s*\d+ pts:")]
+	private static partial Regex AudioFrameRegex { get; }
+
 	private static FFmpegRunner CreateRunner()
 	{
 		string path = FFmpegRunner.Locate(null) ?? string.Empty;
@@ -276,6 +279,103 @@ public partial class FFmpegIntegrationTest
 			await Assert.That(metadata.Split(@"[CHAPTER]")).Count().IsEqualTo(3);
 			await Assert.That(metadata).Contains("START=0\nEND=1000\ntitle=orz\\\\ \n").And.Contains("START=1000\nEND=2000\ntitle=end\\\\ \n");
 		}
+	}
+
+	[Test]
+	public async Task RemuxKeepsAudioBeforeTheFirstSyncSampleAsync(CancellationToken cancellationToken)
+	{
+		FFmpegRunner runner = CreateRunner();
+		using TestDirectory directory = new();
+		string mp4 = directory.Combine(@"sample.mp4");
+		await GenerateAsync(runner, mp4, @"mp4", cancellationToken);
+
+		string fragmented = directory.Combine(@"fragmented.mp4");
+		await runner.RunAsync([@"-hide_banner", @"-y", @"-i", mp4, @"-c", @"copy", @"-movflags", @"frag_keyframe+empty_moov+default_base_moof", @"-frag_duration", @"500000", fragmented], null, cancellationToken);
+		await File.WriteAllBytesAsync(fragmented, MarkFirstAudioFragmentNonSync(await File.ReadAllBytesAsync(fragmented, cancellationToken)), cancellationToken);
+		int expected = await CountAudioFramesAsync(runner, fragmented, cancellationToken);
+
+		string chapters = directory.Combine(@"chapters.txt");
+		await FFmpegMetadata.WriteChaptersFileAsync(chapters, [new FFmpegChapter(TimeSpan.Zero, SampleDuration, @"直播标题")], cancellationToken);
+		string remuxed = directory.Combine(@"remuxed.mp4");
+		string withChapters = directory.Combine(@"chapters.mp4");
+		await runner.RunAsync(FFmpegArguments.Remux(fragmented, remuxed), null, cancellationToken);
+		await runner.RunAsync(FFmpegArguments.RemuxWithChapters(fragmented, chapters, withChapters), null, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(expected).IsGreaterThan(0);
+			await Assert.That(await CountAudioFramesAsync(runner, remuxed, cancellationToken)).IsEqualTo(expected);
+			await Assert.That(await CountAudioFramesAsync(runner, withChapters, cancellationToken)).IsEqualTo(expected);
+		}
+
+		// FFmpeg 用 tfhd 的默认样本标志把音频标成同步样本；改成非同步，相当于第一个分片的音频样本被标成非同步的 fMP4
+		static byte[] MarkFirstAudioFragmentNonSync(byte[] data)
+		{
+			// 先输入视频再输入音频，音频是第 2 条轨
+			const uint audioTrackId = 2;
+			const uint defaultSampleFlagsPresent = 0x20;
+			const uint nonSyncSample = 0x01010000;
+
+			(int moof, int moofSize) = Children(data, 0, data.Length, @"moof")[0];
+
+			foreach ((int traf, int trafSize) in Children(data, moof + 8, moof + moofSize, @"traf"))
+			{
+				(int tfhd, _) = Children(data, traf + 8, traf + trafSize, @"tfhd")[0];
+				uint flags = BinaryPrimitives.ReadUInt32BigEndian(data.AsSpan(tfhd + 8)) & 0xFFFFFF;
+
+				if (BinaryPrimitives.ReadUInt32BigEndian(data.AsSpan(tfhd + 12)) != audioTrackId)
+				{
+					continue;
+				}
+
+				if ((flags & defaultSampleFlagsPresent) is 0)
+				{
+					throw new InvalidDataException(@"FFmpeg no longer writes default sample flags for the audio fragment.");
+				}
+
+				// default_sample_flags 之前依次是 8 字节的 base_data_offset，以及 sample_description_index、default_sample_duration、default_sample_size 各 4 字节，都是有对应标志才出现
+				int offset = tfhd + 16 + ((flags & 0x1) is 0 ? 0 : 8) + BitOperations.PopCount(flags & 0x1A) * 4;
+				BinaryPrimitives.WriteUInt32BigEndian(data.AsSpan(offset), nonSyncSample);
+				return data;
+			}
+
+			throw new InvalidDataException(@"The first fragment has no audio track.");
+		}
+
+		static List<(int Offset, int Size)> Children(byte[] data, int start, int end, string type)
+		{
+			List<(int Offset, int Size)> boxes = [];
+
+			for (int offset = start; offset + 8 <= end;)
+			{
+				int size = (int)BinaryPrimitives.ReadUInt32BigEndian(data.AsSpan(offset));
+
+				if (data.AsSpan(offset + 4, 4).SequenceEqual(System.Text.Encoding.ASCII.GetBytes(type)))
+				{
+					boxes.Add((offset, size));
+				}
+
+				offset += size;
+			}
+
+			return boxes;
+		}
+	}
+
+	// 解码后逐帧计数：转封装丢掉的音频包解码时也不会出现
+	private static async Task<int> CountAudioFramesAsync(FFmpegRunner runner, string input, CancellationToken cancellationToken)
+	{
+		int frames = 0;
+
+		await runner.RunAsync([@"-hide_banner", @"-i", input, @"-map", @"0:a", @"-af", @"ashowinfo", @"-f", @"null", @"-"], new SyncProgress<FFmpegProgress>(progress =>
+		{
+			if (AudioFrameRegex.IsMatch(progress.Message))
+			{
+				++frames;
+			}
+		}), cancellationToken);
+
+		return frames;
 	}
 
 	// TS 里的 AAC 带 ADTS 头，要去掉才能写进 MP4
