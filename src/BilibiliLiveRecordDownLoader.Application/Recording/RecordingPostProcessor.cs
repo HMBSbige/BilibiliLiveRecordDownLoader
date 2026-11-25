@@ -8,7 +8,7 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 	private readonly Lock _lock = new();
 	private readonly HashSet<Task> _pending = [];
 
-	internal Func<string, IReadOnlyList<FFmpegChapter>, CancellationToken, Task> WriteChaptersFile { get; init; } = FFmpegMetadata.WriteChaptersFileAsync;
+	internal Func<string, IReadOnlyList<MediaChapter>, CancellationToken, Task> WriteChaptersFile { get; init; } = FFmpegMetadata.WriteChaptersFileAsync;
 
 	internal void Track(Task task)
 	{
@@ -155,7 +155,7 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 	private async Task<bool> TryWriteChaptersAsync(string path, string liveTitle, DanmakuFile danmaku, TimeSpan? duration)
 	{
 		IReadOnlyList<DanmakuHighlight> highlights = DanmakuHighlightDetector.Detect(danmaku.Records, duration);
-		IReadOnlyList<FFmpegChapter> chapters = DanmakuChapterBuilder.Build(liveTitle, danmaku.Records, highlights, duration, DanmakuTexts.ChapterNames);
+		IReadOnlyList<MediaChapter> chapters = DanmakuChapterBuilder.Build(liveTitle, danmaku.Records, highlights, duration, DanmakuTexts.ChapterNames);
 
 		try
 		{

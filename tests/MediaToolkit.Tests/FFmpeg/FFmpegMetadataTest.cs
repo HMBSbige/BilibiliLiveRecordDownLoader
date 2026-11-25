@@ -22,7 +22,7 @@ public class FFmpegMetadataTest
 	[Test]
 	public async Task FormatsChaptersInMillisecondsAsync()
 	{
-		FFmpegChapter[] chapters =
+		MediaChapter[] chapters =
 		[
 			new(TimeSpan.Zero, TimeSpan.FromMilliseconds(12345.6), @"开场"),
 			new(TimeSpan.FromMilliseconds(12345.6), TimeSpan.FromHours(2), @"标题：a=b;c")
@@ -38,7 +38,7 @@ public class FFmpegMetadataTest
 	{
 		using TestDirectory directory = new();
 		string path = directory.Combine(@"chapters.txt");
-		FFmpegChapter[] chapters = [new(TimeSpan.Zero, TimeSpan.FromSeconds(1), @"章节")];
+		MediaChapter[] chapters = [new(TimeSpan.Zero, TimeSpan.FromSeconds(1), @"章节")];
 
 		await FFmpegMetadata.WriteChaptersFileAsync(path, chapters, CancellationToken.None);
 

@@ -158,8 +158,8 @@ public partial class FFmpegIntegrationTest
 		(
 			chapters,
 			[
-				new FFmpegChapter(TimeSpan.Zero, TimeSpan.FromSeconds(1), @"直播标题"),
-				new FFmpegChapter(TimeSpan.FromSeconds(1), SampleDuration, @"高能：a=b;c#d\e")
+				new MediaChapter(TimeSpan.Zero, TimeSpan.FromSeconds(1), @"直播标题"),
+				new MediaChapter(TimeSpan.FromSeconds(1), SampleDuration, @"高能：a=b;c#d\e")
 			],
 			cancellationToken
 		);
@@ -192,8 +192,8 @@ public partial class FFmpegIntegrationTest
 		(
 			chapters,
 			[
-				new FFmpegChapter(TimeSpan.Zero, TimeSpan.FromSeconds(1), @"orz\"),
-				new FFmpegChapter(TimeSpan.FromSeconds(1), SampleDuration, @"end\")
+				new MediaChapter(TimeSpan.Zero, TimeSpan.FromSeconds(1), @"orz\"),
+				new MediaChapter(TimeSpan.FromSeconds(1), SampleDuration, @"end\")
 			],
 			cancellationToken
 		);
@@ -226,7 +226,7 @@ public partial class FFmpegIntegrationTest
 		int expected = await CountAudioFramesAsync(runner, fragmented, cancellationToken);
 
 		string chapters = directory.Combine(@"chapters.txt");
-		await FFmpegMetadata.WriteChaptersFileAsync(chapters, [new FFmpegChapter(TimeSpan.Zero, SampleDuration, @"直播标题")], cancellationToken);
+		await FFmpegMetadata.WriteChaptersFileAsync(chapters, [new MediaChapter(TimeSpan.Zero, SampleDuration, @"直播标题")], cancellationToken);
 		string remuxed = directory.Combine(@"remuxed.mp4");
 		string withChapters = directory.Combine(@"chapters.mp4");
 		string cut = directory.Combine(@"cut.mp4");

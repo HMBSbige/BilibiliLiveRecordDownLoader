@@ -5,18 +5,17 @@ namespace MediaToolkit.FFmpeg;
 
 public static class FFmpegMetadata
 {
-	// 带 BOM 时 FFmpeg 探测不出格式，WriteAllTextAsync 默认不写 BOM
-	public static Task WriteChaptersFileAsync(string path, IReadOnlyList<FFmpegChapter> chapters, CancellationToken cancellationToken)
+	public static Task WriteChaptersFileAsync(string path, IReadOnlyList<MediaChapter> chapters, CancellationToken cancellationToken)
 	{
 		return File.WriteAllTextAsync(path, FormatChapters(chapters), cancellationToken);
 	}
 
 	// FFmpeg 按顺序逐行读 TIMEBASE、START、END
-	internal static string FormatChapters(IReadOnlyList<FFmpegChapter> chapters)
+	internal static string FormatChapters(IReadOnlyList<MediaChapter> chapters)
 	{
 		StringBuilder builder = new(";FFMETADATA1\n");
 
-		foreach (FFmpegChapter chapter in chapters)
+		foreach (MediaChapter chapter in chapters)
 		{
 			ArgumentOutOfRangeException.ThrowIfLessThan(chapter.Start, TimeSpan.Zero);
 			ArgumentOutOfRangeException.ThrowIfLessThan(chapter.End, chapter.Start);

@@ -14,7 +14,7 @@ internal static class DanmakuChapterBuilder
 	private static readonly TimeSpan MinimumSpacing = TimeSpan.FromSeconds(15);
 
 	// duration 为空时最后一章结束于最后一条记录之后一秒
-	public static IReadOnlyList<FFmpegChapter> Build(string liveTitle, IEnumerable<DanmakuRecord> records, IEnumerable<DanmakuHighlight> highlights, TimeSpan? duration, DanmakuChapterNames names)
+	public static IReadOnlyList<MediaChapter> Build(string liveTitle, IEnumerable<DanmakuRecord> records, IEnumerable<DanmakuHighlight> highlights, TimeSpan? duration, DanmakuChapterNames names)
 	{
 		List<(TimeSpan Start, string Title)> candidates = [];
 		TimeSpan lastRecord = TimeSpan.Zero;
@@ -54,12 +54,12 @@ internal static class DanmakuChapterBuilder
 		}
 
 		TimeSpan finish = duration ?? lastRecord + TimeSpan.FromSeconds(1);
-		FFmpegChapter[] result = new FFmpegChapter[chapters.Count];
+		MediaChapter[] result = new MediaChapter[chapters.Count];
 
 		for (int i = 0; i < chapters.Count; ++i)
 		{
 			TimeSpan end = i + 1 < chapters.Count ? chapters[i + 1].Start : finish;
-			result[i] = new FFmpegChapter(chapters[i].Start, end > chapters[i].Start ? end : chapters[i].Start + TimeSpan.FromMilliseconds(1), chapters[i].Title);
+			result[i] = new MediaChapter(chapters[i].Start, end > chapters[i].Start ? end : chapters[i].Start + TimeSpan.FromMilliseconds(1), chapters[i].Title);
 		}
 
 		return result;

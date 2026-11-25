@@ -12,6 +12,7 @@ global using BilibiliLiveRecordDownLoader.Domain.Recording;
 global using BilibiliLiveRecordDownLoader.Domain.Shared;
 global using BilibiliLiveRecordDownLoader.Domain.Shared.Configuration;
 global using BilibiliLiveRecordDownLoader.Domain.Shared.Recording;
+global using MediaToolkit;
 global using MediaToolkit.FFmpeg;
 global using Microsoft.Extensions.Logging.Abstractions;
 global using Microsoft.Extensions.Options;

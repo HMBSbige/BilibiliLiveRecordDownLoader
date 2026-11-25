@@ -34,6 +34,7 @@ global using BilibiliLiveRecordDownLoader.Domain.Shared;
 global using BilibiliLiveRecordDownLoader.Domain.Shared.Configuration;
 global using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 global using BilibiliLiveRecordDownLoader.Domain.Shared.Recording;
+global using MediaToolkit;
 global using MediaToolkit.FFmpeg;
 global using MediaToolkit.Flv;
 global using Microsoft.Extensions.DependencyInjection;
