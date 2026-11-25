@@ -157,7 +157,9 @@ public sealed class FillerRemovalTest
 	[Arguments(FillerCodec.Avc, 2, Fmp4Layout.LargeMdat)]
 	[Arguments(FillerCodec.Avc, 4, Fmp4Layout.AudioFirst)]
 	[Arguments(FillerCodec.Hevc, 4, Fmp4Layout.TwoVideoRuns)]
-	public async Task Fmp4VideoSamplesLoseTheirFillerNalUnitsAsync(FillerCodec codec, int lengthSize, Fmp4Layout layout, CancellationToken cancellationToken)
+	[Arguments(FillerCodec.Av1, 0, Fmp4Layout.Bilibili)]
+	[Arguments(FillerCodec.Av1, 0, Fmp4Layout.TwoVideoRuns)]
+	public async Task Fmp4VideoSamplesLoseTheirFillerAsync(FillerCodec codec, int lengthSize, Fmp4Layout layout, CancellationToken cancellationToken)
 	{
 		byte[][][] firstVideo =
 		[
@@ -188,6 +190,69 @@ public sealed class FillerRemovalTest
 		}, cancellationToken);
 
 		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. init, .. styp, .. Fragment(firstVideo, true), .. Fragment(secondVideo, true), .. Fragment(thirdVideo, true)]], CollectionOrdering.Matching);
+	}
+
+	// 样本里最后一个 OBU 可以不带大小字段；大小字段可以比需要的长，B 站的样本还以大小为 0 的时序分隔符开头
+	// 不带大小的画面放在最前面：它后面的数据比前面删掉的多，搬移时多搬了样本外的数据就会盖掉后面的样本
+	[Test]
+	public async Task Fmp4Av1SamplesLosePaddingObusInEveryFormAsync(CancellationToken cancellationToken)
+	{
+		byte[] delimiter = FillerSamples.Obu(2, []);
+		byte[][][] video =
+		[
+			[delimiter, FillerSamples.Filler(FillerCodec.Av1, 7), FillerSamples.Obu(FillerSamples.AvFrameObu, "k1"u8.ToArray(), sizeLength: 0)],
+			[delimiter, FillerSamples.Picture(FillerCodec.Av1, false, "p1"), FillerSamples.Obu(FillerSamples.AvPaddingObu, new byte[30], sizeLength: 0)],
+			[FillerSamples.Obu(FillerSamples.AvPaddingObu, new byte[5], sizeLength: 4), FillerSamples.Obu(FillerSamples.AvFrameObu, "p2"u8.ToArray(), extension: 0x10, sizeLength: 8)],
+			[delimiter, FillerSamples.Obu(FillerSamples.AvPaddingObu, new byte[9], extension: 0x08, sizeLength: 0)]
+		];
+		byte[] init = FillerSamples.Init(FillerCodec.Av1, 0);
+		byte[] Fragment(bool removeFiller)
+		{
+			return FillerSamples.Fragment([.. video.Select(obus => FillerSamples.Sample(0, removeFiller ? FillerSamples.WithoutFiller(FillerCodec.Av1, obus) : obus))], ["aac"u8.ToArray()]);
+		}
+
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new Fmp4HlsSplitter(), SplitRecording.Fixed(new RecordingSplit.None(), removeFiller: true), async session =>
+		{
+			await session.InitAsync(init);
+			await session.SegmentAsync(Fragment(false));
+		}, cancellationToken);
+
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. init, .. Fragment(true)]], CollectionOrdering.Matching);
+	}
+
+	[Test]
+	[Arguments(Av1SampleCase.ForbiddenBitSet)]
+	[Arguments(Av1SampleCase.SizeBeyondSample)]
+	[Arguments(Av1SampleCase.SizeFieldTooLong)]
+	[Arguments(Av1SampleCase.SizeFieldCutOff)]
+	[Arguments(Av1SampleCase.ExtensionCutOff)]
+	public async Task Fmp4Av1SamplesThatCannotBeTakenApartAreWrittenUnchangedAsync(Av1SampleCase sampleCase, CancellationToken cancellationToken)
+	{
+		byte[] padding = FillerSamples.Filler(FillerCodec.Av1, 20);
+		byte[] picture = FillerSamples.Picture(FillerCodec.Av1, true, "k1");
+		byte[] broken = sampleCase switch
+		{
+			Av1SampleCase.ForbiddenBitSet => [(byte)(picture[0] | 0x80), .. picture.AsSpan(1)],
+			Av1SampleCase.SizeBeyondSample => [picture[0], (byte)(picture[1] + 1), .. picture.AsSpan(2)],
+			Av1SampleCase.SizeFieldTooLong => [picture[0], .. Enumerable.Repeat((byte)0x80, 8), 0],
+			Av1SampleCase.SizeFieldCutOff => [picture[0], 0x80],
+			Av1SampleCase.ExtensionCutOff => [(byte)(picture[0] | 0x04)]
+		};
+		byte[] init = FillerSamples.Init(FillerCodec.Av1, 0);
+		byte[] fragment = FillerSamples.Fragment([[.. padding, .. picture], [.. padding, .. broken]], ["aac"u8.ToArray()]);
+		byte[] next = FillerSamples.Fragment([[.. padding, .. picture]], ["aac"u8.ToArray()]);
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new Fmp4HlsSplitter(), SplitRecording.Fixed(new RecordingSplit.None(), removeFiller: true), async session =>
+		{
+			await session.InitAsync(init);
+			await session.SegmentAsync(fragment);
+			await session.SegmentAsync(next);
+		}, cancellationToken);
+
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. init, .. fragment, .. FillerSamples.Fragment([picture], ["aac"u8.ToArray()])]], CollectionOrdering.Matching);
 	}
 
 	// 大小为 0 的样本和下一个样本起点相同；样本多于 16 个时排序不稳定，零长样本放在分区中点附近最容易被排到后面
@@ -294,7 +359,7 @@ public sealed class FillerRemovalTest
 	[Test]
 	[Arguments(true, StreamCodec.Avc, FillerRemoval.Avc)]
 	[Arguments(true, StreamCodec.Hevc, FillerRemoval.Hevc)]
-	[Arguments(true, StreamCodec.Av1, FillerRemoval.None)]
+	[Arguments(true, StreamCodec.Av1, FillerRemoval.Av1)]
 	[Arguments(false, StreamCodec.Avc, FillerRemoval.None)]
 	public async Task FFmpegRecordingRemovesFillerByTheSettingAndCodecAsync(bool removeFiller, StreamCodec codec, FillerRemoval expected)
 	{
@@ -312,4 +377,13 @@ public enum FlvTagCase
 	TruncatedSequenceHeader,
 	MultitrackPacket,
 	UnknownFourCc
+}
+
+public enum Av1SampleCase
+{
+	ForbiddenBitSet,
+	SizeBeyondSample,
+	SizeFieldTooLong,
+	SizeFieldCutOff,
+	ExtensionCutOff
 }

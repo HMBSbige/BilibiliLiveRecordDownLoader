@@ -56,6 +56,12 @@ public class FFmpegArgumentsTest
 				[@"-hide_banner", @"-i", @"https://example.com/live.flv", @"-c", @"copy", @"-bsf:v", @"filter_units=remove_types=38", @"-f", @"mpegts", @"pipe:1"]),
 			DisplayName: "Record removes HEVC filler after the codec"
 		);
+		yield return new
+		(
+			static () => (FFmpegArguments.Record(Source, null, null, Timeout.InfiniteTimeSpan, FillerRemoval.Av1),
+				[@"-hide_banner", @"-i", @"https://example.com/live.flv", @"-c", @"copy", @"-bsf:v", @"filter_units=remove_types=15", @"-f", @"mpegts", @"pipe:1"]),
+			DisplayName: "Record removes AV1 padding after the codec"
+		);
 	}
 
 	[Test]

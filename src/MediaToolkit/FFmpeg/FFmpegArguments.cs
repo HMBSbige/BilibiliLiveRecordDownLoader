@@ -75,12 +75,13 @@ public static class FFmpegArguments
 		// 签名过的直播地址必须原样传递，AbsoluteUri 会重新规范化转义
 		arguments.AddRange([@"-i", source.OriginalString, @"-c", @"copy"]);
 
-		// 12 和 38 分别是 H.264 和 HEVC 填充数据的 NAL 类型
+		// 12 和 38 分别是 H.264 和 HEVC 填充数据的 NAL 类型，15 是 AV1 填充 OBU 的类型
 		// 不用 h264_metadata 的 delete_filler：它完整解析每个 NAL，遇到解析不了的 SEI 会丢掉整帧
 		string? fillerFilter = fillerRemoval switch
 		{
 			FillerRemoval.Avc => @"filter_units=remove_types=12",
 			FillerRemoval.Hevc => @"filter_units=remove_types=38",
+			FillerRemoval.Av1 => @"filter_units=remove_types=15",
 			_ => null
 		};
 

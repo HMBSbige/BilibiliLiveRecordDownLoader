@@ -344,6 +344,7 @@ internal sealed class FlvSplitter : MediaSplitter
 
 	// 返回 NAL 数据在 tag 正文里的偏移，不是能按记下的宽度拆开的 AVC 或 HEVC 编码帧时返回 0；遇到序列头时记下 NAL 长度字段的宽度
 	// 多轨和 ModEx 里可能装着改了宽度的序列头，认不出的包之后不再按旧的宽度拆，等下一个认得出的序列头
+	// AV1 不去填充：B 站只在 fMP4 里提供 AV1
 	private int FindNalUnits(ReadOnlySpan<byte> body)
 	{
 		if (body.Length < 5)

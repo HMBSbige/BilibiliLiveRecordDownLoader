@@ -4,5 +4,6 @@ public enum FillerRemoval
 {
 	None,
 	Avc,
-	Hevc
+	Hevc,
+	Av1
 }

@@ -319,7 +319,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 			(false, _) => FillerRemoval.None,
 			(true, StreamCodec.Avc) => FillerRemoval.Avc,
 			(true, StreamCodec.Hevc) => FillerRemoval.Hevc,
-			(true, StreamCodec.Av1) => FillerRemoval.None
+			(true, StreamCodec.Av1) => FillerRemoval.Av1
 		};
 	}
 

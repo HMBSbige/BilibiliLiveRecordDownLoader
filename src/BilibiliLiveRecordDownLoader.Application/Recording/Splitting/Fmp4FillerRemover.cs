@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
@@ -13,8 +14,7 @@ internal sealed class Fmp4FillerRemover
 	private readonly List<Run> _runs = [];
 	private readonly List<Sample> _samples = [];
 	private uint? _videoTrackId;
-	private NalSyntax _syntax;
-	private int _nalLengthSize;
+	private VideoUnits? _videoUnits;
 	private bool _hasSegmentIndex;
 
 	// isEnabled 为 false 时也要看 moov 和 sidx
@@ -58,11 +58,16 @@ internal sealed class Fmp4FillerRemover
 	}
 
 	// 有多个样本项时分片可能换着用，长度字段宽度不一定相同
-	private static (NalSyntax Syntax, int LengthSize) ReadSampleEntry(ReadOnlySpan<byte> trak)
+	private static VideoUnits? ReadSampleEntry(ReadOnlySpan<byte> trak)
 	{
 		if (!IsoBmff.TryReadSampleEntry(trak, out ReadOnlySpan<byte> type, out ReadOnlySpan<byte> entry, out uint entryCount) || entryCount is not 1 || entry.Length < VisualSampleEntrySize)
 		{
-			return default;
+			return null;
+		}
+
+		if (type.SequenceEqual("av01"u8))
+		{
+			return new VideoUnits.Obu();
 		}
 
 		NalSyntax syntax;
@@ -81,21 +86,46 @@ internal sealed class Fmp4FillerRemover
 		else
 		{
 			// encv 等加密的样本项拿不到长度字段宽度
-			return default;
+			return null;
 		}
 
 		if (!IsoBmff.TryFindBox(entry.Slice(VisualSampleEntrySize), configType, out ReadOnlySpan<byte> config))
 		{
-			return default;
+			return null;
 		}
 
-		return (syntax, FillerNalUnits.ReadLengthSize(config, syntax));
+		int lengthSize = FillerNalUnits.ReadLengthSize(config, syntax);
+		return lengthSize > 0 ? new VideoUnits.Nal(syntax, lengthSize) : null;
+	}
+
+	private static int Measure(ReadOnlySpan<byte> sample, VideoUnits units)
+	{
+		return units switch
+		{
+			VideoUnits.Nal(var syntax, var lengthSize) => FillerNalUnits.Measure(sample, lengthSize, syntax),
+			VideoUnits.Obu => FillerObus.Measure(sample)
+		};
+	}
+
+	private static void Move(Span<byte> buffer, int source, int length, int destination, int keptLength, VideoUnits units)
+	{
+		switch (units)
+		{
+			case VideoUnits.Nal(var syntax, var lengthSize):
+				FillerNalUnits.Move(buffer, source, length, destination, keptLength, lengthSize, syntax);
+				break;
+			case VideoUnits.Obu:
+				FillerObus.Move(buffer, source, length, destination, keptLength);
+				break;
+			default:
+				throw new UnreachableException();
+		}
 	}
 
 	private void ReadMovie(ReadOnlySpan<byte> moov)
 	{
 		_videoTrackId = null;
-		_nalLengthSize = 0;
+		_videoUnits = null;
 		_defaultSampleSizes.Clear();
 		int offset = 0;
 
@@ -104,7 +134,7 @@ internal sealed class Fmp4FillerRemover
 			if (type.SequenceEqual("trak"u8) && _videoTrackId is null && IsoBmff.IsVideoTrack(content, out uint trackId))
 			{
 				_videoTrackId = trackId;
-				(_syntax, _nalLengthSize) = ReadSampleEntry(content);
+				_videoUnits = ReadSampleEntry(content);
 			}
 			else if (type.SequenceEqual("mvex"u8))
 			{
@@ -127,7 +157,7 @@ internal sealed class Fmp4FillerRemover
 		int mdatEnd = read + moofLength;
 
 		// 大小为 0 的 mdat 一直延伸到文件末尾，改不了大小
-		if (_videoTrackId is not { } videoTrackId || _nalLengthSize is 0 || elements.Length - mdatEnd < 8 || BinaryPrimitives.ReadUInt32BigEndian(elements.Slice(mdatEnd)) is 0 || !IsoBmff.TryReadBox(elements, ref mdatEnd, out ReadOnlySpan<byte> mdatType, out ReadOnlySpan<byte> payload) || !mdatType.SequenceEqual("mdat"u8))
+		if (_videoTrackId is not { } videoTrackId || _videoUnits is not { } units || elements.Length - mdatEnd < 8 || BinaryPrimitives.ReadUInt32BigEndian(elements.Slice(mdatEnd)) is 0 || !IsoBmff.TryReadBox(elements, ref mdatEnd, out ReadOnlySpan<byte> mdatType, out ReadOnlySpan<byte> payload) || !mdatType.SequenceEqual("mdat"u8))
 		{
 			return false;
 		}
@@ -135,7 +165,7 @@ internal sealed class Fmp4FillerRemover
 		Span<byte> fragment = elements.Slice(read, mdatEnd - read);
 		int payloadStart = fragment.Length - payload.Length;
 
-		if (!TryPlan(fragment, moofLength, videoTrackId) || !TryMeasure(fragment, payloadStart, out int removed) || removed is 0)
+		if (!TryPlan(fragment, moofLength, videoTrackId) || !TryMeasure(fragment, payloadStart, units, out int removed) || removed is 0)
 		{
 			return false;
 		}
@@ -172,7 +202,7 @@ internal sealed class Fmp4FillerRemover
 		foreach (Sample sample in _samples)
 		{
 			destination += FillerNalUnits.Keep(elements, read + cursor, write + destination, sample.Offset - cursor);
-			FillerNalUnits.Move(elements, read + sample.Offset, sample.Length, write + destination, sample.KeptLength, _nalLengthSize, _syntax);
+			Move(elements, read + sample.Offset, sample.Length, write + destination, sample.KeptLength, units);
 			destination += sample.KeptLength;
 			cursor = sample.Offset + sample.Length;
 		}
@@ -330,7 +360,7 @@ internal sealed class Fmp4FillerRemover
 	}
 
 	// 各 trun 的数据互不重叠，里面的样本也就不重叠，按位置排好就能一个接一个地搬
-	private bool TryMeasure(ReadOnlySpan<byte> fragment, int payloadStart, out int removed)
+	private bool TryMeasure(ReadOnlySpan<byte> fragment, int payloadStart, VideoUnits units, out int removed)
 	{
 		removed = 0;
 		_runs.Sort(static (x, y) => x.DataOffset.CompareTo(y.DataOffset));
@@ -350,7 +380,7 @@ internal sealed class Fmp4FillerRemover
 
 		foreach (ref Sample sample in CollectionsMarshal.AsSpan(_samples))
 		{
-			int kept = FillerNalUnits.Measure(fragment.Slice(sample.Offset, sample.Length), _nalLengthSize, _syntax);
+			int kept = Measure(fragment.Slice(sample.Offset, sample.Length), units);
 
 			if (kept < 0)
 			{
@@ -384,4 +414,12 @@ internal sealed class Fmp4FillerRemover
 	private readonly record struct Run(int OffsetField, int DataOffset, long Length);
 
 	private readonly record struct Sample(int SizeField, int Offset, int Length, int KeptLength);
+
+	// AVC 和 HEVC 的样本是带长度前缀的 NAL，AV1 的样本是自带大小的 OBU
+	private closed record VideoUnits
+	{
+		public sealed record Nal(NalSyntax Syntax, int LengthSize) : VideoUnits;
+
+		public sealed record Obu : VideoUnits;
+	}
 }
