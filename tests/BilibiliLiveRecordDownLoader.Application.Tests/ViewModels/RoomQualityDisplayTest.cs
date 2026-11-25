@@ -38,7 +38,6 @@ public sealed class RoomQualityDisplayTest
 		yield return static () => (new QualityRestriction.NotLoggedIn(10000), AppLanguage.Current.QualityRestrictedNotLoggedIn.ToString(AppLanguage.Current.QualitySuperHigh, AppLanguage.Current.QualityOriginal));
 		yield return static () => (new QualityRestriction.LoginMayHaveExpired(10000), AppLanguage.Current.QualityRestrictedLoginMayHaveExpired.ToString(AppLanguage.Current.QualityOriginal, AppLanguage.Current.QualitySuperHigh));
 		yield return static () => (new QualityRestriction.OtherCodecUnavailable(10000, StreamCodec.Av1, 10000), AppLanguage.Current.QualityRestrictedByCodecUnavailable.ToString("AV1", AppLanguage.Current.QualityOriginal));
-		yield return static () => (new QualityRestriction.OtherCodec(10000, StreamCodec.Av1, 400), AppLanguage.Current.QualityRestrictedByCodec.ToString("AV1", AppLanguage.Current.QualityBluRay));
 	}
 
 	[Test]
@@ -138,11 +137,11 @@ public sealed class RoomQualityDisplayTest
 	public static IEnumerable<TestDataRow<Func<(RoomSnapshot[] Rooms, string? Cookie, string? Expected)>>> BannerCases()
 	{
 		QualityRestriction notLoggedIn = new QualityRestriction.NotLoggedIn(10000);
-		QualityRestriction otherCodec = new QualityRestriction.OtherCodec(10000, StreamCodec.Av1, 10000);
+		QualityRestriction otherCodec = new QualityRestriction.OtherCodecUnavailable(10000, StreamCodec.Av1, 10000);
 		QualityRestriction expired = new QualityRestriction.LoginMayHaveExpired(10000);
 		RoomSnapshot danmakuOnly = Idle(2) with { Danmaku = new RoomDanmakuSnapshot(true) };
 
-		yield return new(() => ([Recording(1, notLoggedIn), Recording(2, notLoggedIn), Recording(3, otherCodec), Recording(4, expired), Recording(5, null), Idle(6), Recording(7, new QualityRestriction.OtherCodecUnavailable(10000, StreamCodec.Av1, 10000))], null, AppLanguage.Current.QualityRestrictedBanner.ToString(2.ToString(CultureInfo.CurrentCulture))), DisplayName: "only rooms restricted for not being logged in are counted");
+		yield return new(() => ([Recording(1, notLoggedIn), Recording(2, notLoggedIn), Recording(3, otherCodec), Recording(4, expired), Recording(5, null), Idle(6)], null, AppLanguage.Current.QualityRestrictedBanner.ToString(2.ToString(CultureInfo.CurrentCulture))), DisplayName: "only rooms restricted for not being logged in are counted");
 		yield return new(() => ([Recording(1, notLoggedIn), danmakuOnly], null, AppLanguage.Current.QualityRestrictedAndDanmakuMaskedBanner.ToString(1.ToString(CultureInfo.CurrentCulture))), DisplayName: "restricted quality and masked danmaku names");
 		yield return new(() => ([danmakuOnly, Idle(3)], null, AppLanguage.Current.DanmakuMaskedBanner), DisplayName: "masked danmaku names only");
 		yield return new(() => ([Recording(1, otherCodec), Recording(2, expired), Idle(3)], null, null), DisplayName: "nothing that logging in would fix");

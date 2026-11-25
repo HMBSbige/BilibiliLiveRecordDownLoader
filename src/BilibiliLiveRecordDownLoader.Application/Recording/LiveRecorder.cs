@@ -151,20 +151,21 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 	private async Task<CandidateBatch> RequestCandidatesAsync(long roomId, RecordingProfile profile, CandidateRequest request, CancellationToken cancellationToken)
 	{
-		LiveStreamListing listing = await apiClient.GetStreamCandidatesAsync(roomId, profile.Quality.Qn, profile.CodecPriority, profile.FormatPriority, cancellationToken);
-		IReadOnlyList<LiveStreamCandidate.Listed> listed = MasterPlaylistCandidates.PreferOriginalTrueColor(listing.Candidates, profile);
+		LiveStreamListing listing = await apiClient.GetStreamCandidatesAsync(roomId, profile.Quality.Qn, cancellationToken);
+		IReadOnlyList<LiveStreamCandidate.Listed> listed = CandidateOrder.Sort(listing.Candidates, profile);
 
-		if (listed.Count is 0)
+		if (listed is not [var best, ..])
 		{
 			throw new StreamUnavailableException($"Room {roomId} has no usable stream.", AppLanguage.Current.RecordingNoStreamOffered, true);
 		}
 
-		if (MasterPlaylistCandidates.GetQualities(listed, profile, request.HasCookie) is not { Length: > 0 } qualities)
+		// 接口的 accept_qn 不一定列出高于原画的档位，所以不看它是否受限，接口最好的那路低于所选画质就去主播放列表找
+		if (profile.Quality == StreamQuality.Default || best.Qn >= profile.Quality.Qn)
 		{
 			return new CandidateBatch(listed, listing.QualityNames, request);
 		}
 
-		IReadOnlyList<LiveStreamCandidate.Variant> variants = await GetVariantsAsync(roomId, MasterPlaylistCandidates.GetPlaylistQuality(profile), qualities, profile.CodecPriority, cancellationToken);
+		IReadOnlyList<LiveStreamCandidate.Variant> variants = await GetVariantsAsync(roomId, profile, best.Qn, cancellationToken);
 		Dictionary<long, string> qualityNames = new(listing.QualityNames);
 
 		foreach (LiveStreamCandidate.Variant variant in variants)
@@ -178,15 +179,15 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		return new CandidateBatch([.. variants, .. listed], qualityNames, request);
 	}
 
-	private async Task<IReadOnlyList<LiveStreamCandidate.Variant>> GetVariantsAsync(long roomId, long playlistQuality, long[] qualities, IReadOnlyList<StreamCodec> codecPriority, CancellationToken cancellationToken)
+	private async Task<IReadOnlyList<LiveStreamCandidate.Variant>> GetVariantsAsync(long roomId, RecordingProfile profile, long listedBest, CancellationToken cancellationToken)
 	{
 		try
 		{
-			IReadOnlyList<LiveStreamCandidate.Variant> variants = MasterPlaylistCandidates.Select(await apiClient.GetMasterPlaylistVariantsAsync(roomId, playlistQuality, cancellationToken), qualities, codecPriority);
+			IReadOnlyList<LiveStreamCandidate.Variant> variants = MasterPlaylistCandidates.Select(await apiClient.GetMasterPlaylistVariantsAsync(roomId, MasterPlaylistCandidates.GetPlaylistQuality(profile), cancellationToken), listedBest, profile);
 
 			if (variants.Count is 0)
 			{
-				LogMasterPlaylistUnavailable(logger, qualities, "no variant of these qualities is listed");
+				LogMasterPlaylistUnavailable(logger, listedBest, profile.Quality.Qn, "no variant of these qualities is listed");
 			}
 
 			return variants;
@@ -195,11 +196,11 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		{
 			if (IsRemoteFailure(exception))
 			{
-				LogMasterPlaylistUnavailable(logger, qualities, exception.Message);
+				LogMasterPlaylistUnavailable(logger, listedBest, profile.Quality.Qn, exception.Message);
 			}
 			else
 			{
-				LogMasterPlaylistFailed(logger, exception, qualities);
+				LogMasterPlaylistFailed(logger, exception, listedBest, profile.Quality.Qn);
 			}
 
 			return [];
@@ -215,7 +216,6 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 	{
 		return restriction switch
 		{
-			QualityRestriction.OtherCodec other => string.Create(CultureInfo.InvariantCulture, $"the {other.Codec} stream offers quality {other.Quality}"),
 			QualityRestriction.OtherCodecUnavailable other => string.Create(CultureInfo.InvariantCulture, $"the {other.Codec} stream offers quality {other.Quality} but could not be opened"),
 			QualityRestriction.NotLoggedIn => "not logged in",
 			QualityRestriction.LoginMayHaveExpired => "the login may have expired"
@@ -430,11 +430,11 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to open {Stream} stream from {Host}")]
 	private static partial void LogEndpointFailed(ILogger logger, Exception exception, string stream, string host);
 
-	[LoggerMessage(Level = LogLevel.Information, Message = "The master playlist offers no stream of quality {Qualities}: {Error}")]
-	private static partial void LogMasterPlaylistUnavailable(ILogger logger, long[] qualities, string error);
+	[LoggerMessage(Level = LogLevel.Information, Message = "The master playlist offers no stream above quality {ListedBest} up to {Quality}: {Error}")]
+	private static partial void LogMasterPlaylistUnavailable(ILogger logger, long listedBest, long quality, string error);
 
-	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to read the master playlist for quality {Qualities}")]
-	private static partial void LogMasterPlaylistFailed(ILogger logger, Exception exception, long[] qualities);
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to read the master playlist for a stream above quality {ListedBest} up to {Quality}")]
+	private static partial void LogMasterPlaylistFailed(ILogger logger, Exception exception, long listedBest, long quality);
 
 	[LoggerMessage(Level = LogLevel.Information, Message = "{Stream} is not available from {Host}: {Error}")]
 	private static partial void LogVariantUnavailable(ILogger logger, string stream, string host, string error);

@@ -5,104 +5,20 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
 public sealed class MasterPlaylistCandidatesTest
 {
-	private static LiveStreamCandidate.Listed Listed(StreamCodec codec, long qn, params long[] accept)
-	{
-		return new LiveStreamCandidate.Listed(StreamProtocol.HttpHls, StreamFormat.Fmp4, codec, qn, accept, [new Uri($"https://cdn.test/live-bvc/1/live_a_b_c_{codec}/index.m3u8")]);
-	}
-
 	private static LiveStreamCandidate.Variant Variant(StreamCodec codec, long qn)
 	{
 		return new LiveStreamCandidate.Variant(codec, qn, null, [new Uri($"https://cdn.test/live-bvc/1/{codec}_{qn}/index.m3u8")]);
 	}
 
-	private static RecordingProfile Profile(long quality = 10000)
+	private static RecordingProfile Profile(long quality, params StreamCodec[] codecPriority)
 	{
-		return RecordingProfile.Create(AppConfig.CreateDefault(), new RoomConfig { RoomId = 1, Quality = new StreamQuality(quality) });
-	}
-
-	private static long[] Qualities(IReadOnlyList<LiveStreamCandidate.Listed> listed, RecordingProfile profile, bool hasCookie = false)
-	{
-		return MasterPlaylistCandidates.GetQualities(listed, profile, hasCookie);
+		RecordingProfile profile = RecordingProfile.Create(AppConfig.CreateDefault(), new RoomConfig { RoomId = 1, Quality = new StreamQuality(quality) });
+		return codecPriority.Length is 0 ? profile : profile with { CodecPriority = codecPriority };
 	}
 
 	private static string Describe(IEnumerable<LiveStreamCandidate> candidates)
 	{
 		return string.Join(' ', candidates.Select(static candidate => $"{candidate.Codec}@{candidate.Qn}"));
-	}
-
-	[Test]
-	[Arguments(false)]
-	[Arguments(true)]
-	public async Task RestrictedPreferredStreamAsksForTheTargetAsync(bool hasCookie)
-	{
-		LiveStreamCandidate.Listed[] listed = [Listed(StreamCodec.Avc, 250, 10000, 250), Listed(StreamCodec.Hevc, 250, 10000, 250)];
-
-		await Assert.That(Qualities(listed, Profile(), hasCookie)).IsEquivalentTo([10000L], CollectionOrdering.Matching);
-	}
-
-	[Test]
-	public async Task UnrestrictedPreferredStreamDoesNotAskAsync()
-	{
-		await Assert.That(Qualities([Listed(StreamCodec.Avc, 10000, 10000, 400, 250), Listed(StreamCodec.Hevc, 250, 10000, 400, 250)], Profile())).IsEmpty();
-	}
-
-	[Test]
-	public async Task DefaultQualityNeverAsksAsync()
-	{
-		await Assert.That(Qualities([Listed(StreamCodec.Avc, 250, 10000, 250)], Profile(0))).IsEmpty();
-	}
-
-	[Test]
-	[Arguments(false)]
-	[Arguments(true)]
-	public async Task OriginalTrueColorMissingFromTheApiIsAskedForAsync(bool hasCookie)
-	{
-		LiveStreamCandidate.Listed[] listed = [Listed(StreamCodec.Avc, 10000, 10000, 250)];
-
-		await Assert.That(Qualities(listed, Profile(25000), hasCookie)).IsEquivalentTo([25000L], CollectionOrdering.Matching);
-	}
-
-	[Test]
-	public async Task OriginalTrueColorFromTheApiIsNotAskedForAgainAsync()
-	{
-		LiveStreamCandidate.Listed[] listed = [Listed(StreamCodec.Hevc, 25000, 25000, 10000), Listed(StreamCodec.Avc, 10000, 10000)];
-
-		await Assert.That(Qualities(listed, Profile(25000), true)).IsEmpty();
-	}
-
-	[Test]
-	public async Task OriginalTrueColorFromTheApiIsTriedBeforeThePreferredCodecAsync()
-	{
-		LiveStreamCandidate.Listed[] listed = [Listed(StreamCodec.Avc, 10000, 10000, 250), Listed(StreamCodec.Hevc, 25000, 25000, 10000), Listed(StreamCodec.Av1, 10000, 10000)];
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(Describe(MasterPlaylistCandidates.PreferOriginalTrueColor(listed, Profile(25000)))).IsEqualTo("Hevc@25000 Avc@10000 Av1@10000");
-			await Assert.That(Describe(MasterPlaylistCandidates.PreferOriginalTrueColor(listed, Profile()))).IsEqualTo("Avc@10000 Hevc@25000 Av1@10000");
-		}
-	}
-
-	// 受限时原画真彩也可能拿不到，再要接口所列低于它的最高一档
-	[Test]
-	[Arguments(new long[] { 10000, 250 }, new long[] { 25000, 10000 })]
-	[Arguments(new long[] { 25000, 10000, 250 }, new long[] { 25000, 10000 })]
-	[Arguments(new long[] { 25000, 20000, 10000, 250 }, new long[] { 25000, 20000 })]
-	[Arguments(new long[] { 25000, 250 }, new long[] { 25000 })]
-	public async Task RestrictedOriginalTrueColorAlsoAsksForTheBestBelowItAsync(long[] accept, long[] expected)
-	{
-		LiveStreamCandidate.Listed[] listed = [Listed(StreamCodec.Avc, 250, accept)];
-
-		await Assert.That(Qualities(listed, Profile(25000))).IsEquivalentTo(expected, CollectionOrdering.Matching);
-	}
-
-	[Test]
-	public async Task OriginalTrueColorIsOnlyWantedWhenSelectedAsync()
-	{
-		using (Assert.Multiple())
-		{
-			await Assert.That(Qualities([Listed(StreamCodec.Avc, 10000, 25000, 10000)], Profile())).IsEmpty();
-			await Assert.That(Qualities([Listed(StreamCodec.Avc, 250, 10000, 400, 250)], Profile(400))).IsEquivalentTo([400L], CollectionOrdering.Matching);
-		}
 	}
 
 	[Test]
@@ -119,17 +35,14 @@ public sealed class MasterPlaylistCandidatesTest
 	}
 
 	[Test]
-	public async Task VariantsAreOrderedByQualityThenCodecPriorityAsync()
+	[Arguments(25000L, 400L, new StreamCodec[0], "Hevc@25000 Avc@10000 Hevc@10000", DisplayName = "画质高的排前面，同一画质按编码优先级")]
+	[Arguments(10000L, 250L, new StreamCodec[0], "Avc@10000 Hevc@10000 Avc@400 Hevc@400", DisplayName = "低于所选画质的档位也要")]
+	[Arguments(10000L, 400L, new[] { StreamCodec.Hevc, StreamCodec.Avc, StreamCodec.Av1 }, "Hevc@10000 Avc@10000", DisplayName = "不要不高于接口最好那路的档位")]
+	[Arguments(20000L, 10000L, new StreamCodec[0], "", DisplayName = "不要高于所选画质的档位")]
+	public async Task VariantsAboveTheListedBestUpToTheSelectionAreOrderedByQualityThenCodecAsync(long quality, long listedBest, StreamCodec[] codecPriority, string expected)
 	{
-		LiveStreamCandidate.Variant[] variants = [Variant(StreamCodec.Hevc, 10000), Variant(StreamCodec.Avc, 10000), Variant(StreamCodec.Hevc, 400), Variant(StreamCodec.Avc, 400), Variant(StreamCodec.Hevc, 25000)];
+		LiveStreamCandidate.Variant[] variants = [Variant(StreamCodec.Hevc, 10000), Variant(StreamCodec.Avc, 10000), Variant(StreamCodec.Hevc, 400), Variant(StreamCodec.Avc, 400), Variant(StreamCodec.Hevc, 25000), Variant(StreamCodec.Avc, 250)];
 
-		IReadOnlyList<LiveStreamCandidate.Variant> selected = MasterPlaylistCandidates.Select(variants, [25000, 10000], [StreamCodec.Avc, StreamCodec.Hevc, StreamCodec.Av1]);
-		IReadOnlyList<LiveStreamCandidate.Variant> hevcFirst = MasterPlaylistCandidates.Select(variants, [10000], [StreamCodec.Hevc, StreamCodec.Avc, StreamCodec.Av1]);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(Describe(selected)).IsEqualTo("Hevc@25000 Avc@10000 Hevc@10000");
-			await Assert.That(Describe(hevcFirst)).IsEqualTo("Hevc@10000 Avc@10000");
-		}
+		await Assert.That(Describe(MasterPlaylistCandidates.Select(variants, listedBest, Profile(quality, codecPriority)))).IsEqualTo(expected);
 	}
 }

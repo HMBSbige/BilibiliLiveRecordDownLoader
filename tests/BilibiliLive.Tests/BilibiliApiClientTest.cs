@@ -151,11 +151,11 @@ public class BilibiliApiClientTest
 	}
 
 	[Test]
-	public async Task StreamCandidatesAreFilteredAndSortedByPriorityAsync(CancellationToken cancellationToken)
+	public async Task StreamCandidatesAreFilteredInTheApiOrderAsync(CancellationToken cancellationToken)
 	{
 		using ApiClient api = Single(ApiPaths.RoomPlayInfo, static () => Responses.Fixture("room_play_info.json"));
 
-		LiveStreamListing listing = await api.Client.GetStreamCandidatesAsync(732, 10000, [StreamCodec.Hevc, StreamCodec.Avc], [StreamFormat.Fmp4, StreamFormat.Flv], cancellationToken);
+		LiveStreamListing listing = await api.Client.GetStreamCandidatesAsync(732, 10000, cancellationToken);
 		IReadOnlyList<LiveStreamCandidate.Listed> candidates = listing.Candidates;
 		RecordedRequest request = await Assert.That(api.Handler.Requests).HasSingleItem();
 		LiveStreamCandidate.Listed flv = await Assert.That(candidates).HasSingleItem(static c => c is { Format: StreamFormat.Flv, Codec: StreamCodec.Avc });
@@ -164,12 +164,12 @@ public class BilibiliApiClientTest
 
 		(StreamProtocol, StreamFormat, StreamCodec)[] expected =
 		[
-			(StreamProtocol.HttpHls, StreamFormat.Fmp4, StreamCodec.Hevc),
+			(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc),
 			(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Hevc),
+			(StreamProtocol.HttpHls, StreamFormat.Ts, StreamCodec.Avc),
 			(StreamProtocol.HttpHls, StreamFormat.Ts, StreamCodec.Hevc),
 			(StreamProtocol.HttpHls, StreamFormat.Fmp4, StreamCodec.Avc),
-			(StreamProtocol.HttpStream, StreamFormat.Flv, StreamCodec.Avc),
-			(StreamProtocol.HttpHls, StreamFormat.Ts, StreamCodec.Avc)
+			(StreamProtocol.HttpHls, StreamFormat.Fmp4, StreamCodec.Hevc)
 		];
 
 		using (Assert.Multiple())
@@ -185,26 +185,6 @@ public class BilibiliApiClientTest
 		}
 	}
 
-	[Test]
-	public async Task StreamCandidatesKeepApiOrderWithoutPriorityAsync(CancellationToken cancellationToken)
-	{
-		using ApiClient api = Single(ApiPaths.RoomPlayInfo, static () => Responses.Fixture("room_play_info.json"));
-
-		IReadOnlyList<LiveStreamCandidate.Listed> candidates = (await api.Client.GetStreamCandidatesAsync(732, 10000, [], [], cancellationToken)).Candidates;
-
-		(StreamFormat, StreamCodec)[] expected =
-		[
-			(StreamFormat.Flv, StreamCodec.Avc),
-			(StreamFormat.Flv, StreamCodec.Hevc),
-			(StreamFormat.Ts, StreamCodec.Avc),
-			(StreamFormat.Ts, StreamCodec.Hevc),
-			(StreamFormat.Fmp4, StreamCodec.Avc),
-			(StreamFormat.Fmp4, StreamCodec.Hevc)
-		];
-
-		await Assert.That(candidates.Select(static c => (c.Format, c.Codec))).IsEquivalentTo(expected, CollectionOrdering.Matching);
-	}
-
 	// 轮播时照样返回流地址，只有直播状态能挡住录制
 	[Test]
 	[Arguments(2)]
@@ -215,7 +195,7 @@ public class BilibiliApiClientTest
 		data["live_status"] = liveStatus;
 		using ApiClient api = Single(ApiPaths.RoomPlayInfo, () => Responses.Json(root.ToJsonString()));
 
-		await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetStreamCandidatesAsync(1, 10000, [], [], cancellationToken)).WithMessageContaining("is not live");
+		await Assert.ThrowsAsync<BilibiliApiException>(() => api.Client.GetStreamCandidatesAsync(1, 10000, cancellationToken)).WithMessageContaining("is not live");
 	}
 
 	[Test]
@@ -223,7 +203,7 @@ public class BilibiliApiClientTest
 	{
 		using ApiClient api = Single(ApiPaths.RoomPlayInfo, static () => Responses.Json("""{"code":0,"message":"OK","data":{"room_id":5440,"short_id":1,"live_status":1,"playurl_info":null}}"""));
 
-		LiveStreamListing listing = await api.Client.GetStreamCandidatesAsync(1, 10000, [], [], cancellationToken);
+		LiveStreamListing listing = await api.Client.GetStreamCandidatesAsync(1, 10000, cancellationToken);
 
 		using (Assert.Multiple())
 		{

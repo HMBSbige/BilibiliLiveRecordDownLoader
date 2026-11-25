@@ -138,7 +138,6 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 	{
 		return restriction switch
 		{
-			QualityRestriction.OtherCodec other => AppLanguage.Current.QualityRestrictedByCodec.ToString(StreamLabels.Of(other.Codec), Name(other.Quality)),
 			QualityRestriction.OtherCodecUnavailable other => AppLanguage.Current.QualityRestrictedByCodecUnavailable.ToString(StreamLabels.Of(other.Codec), Name(other.Quality)),
 			// 录制没断就不会重新请求候选流，登录之后仍是登录前的画质
 			QualityRestriction.NotLoggedIn notLoggedIn when hasCookie => AppLanguage.Current.QualityRestrictedLoggedIn.ToString(Name(notLoggedIn.Highest)),

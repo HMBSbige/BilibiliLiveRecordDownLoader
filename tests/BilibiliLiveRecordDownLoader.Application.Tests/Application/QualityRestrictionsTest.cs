@@ -15,10 +15,9 @@ public sealed class QualityRestrictionsTest
 		return new LiveStreamCandidate.Listed(StreamProtocol.HttpHls, StreamFormat.Fmp4, codec, qn, accept, [new Uri($"https://cdn.test/live-bvc/1/live_a_b_c_{codec}/index.m3u8")]);
 	}
 
-	private static RecordingProfile Profile(long quality, params StreamCodec[] codecPriority)
+	private static RecordingProfile Profile(long quality)
 	{
-		RecordingProfile profile = RecordingProfile.Create(AppConfig.CreateDefault(), new RoomConfig { RoomId = 1, Quality = new StreamQuality(quality) });
-		return codecPriority.Length is 0 ? profile : profile with { CodecPriority = codecPriority };
+		return RecordingProfile.Create(AppConfig.CreateDefault(), new RoomConfig { RoomId = 1, Quality = new StreamQuality(quality) });
 	}
 
 	[Test]
@@ -29,7 +28,7 @@ public sealed class QualityRestrictionsTest
 		await Assert.That(QualityRestrictions.Evaluate(avc, [avc], Profile(10000), true)).IsEqualTo(new QualityRestriction.LoginMayHaveExpired(10000));
 	}
 
-	// 3990387 匿名时 AVC 和 HEVC 是超清，AV1 却是原画
+	// 3990387 匿名时 AVC 和 HEVC 是超清，AV1 却是原画；AV1 排在前面，录到 AVC 说明它没打开
 	[Test]
 	public async Task AnotherCodecAtAHigherQualityComesBeforeTheLoginAsync()
 	{
@@ -38,7 +37,7 @@ public sealed class QualityRestrictionsTest
 		LiveStreamCandidate.Listed av1Transcoded = Listed(StreamCodec.Av1, 400, 10000, 400);
 		LiveStreamCandidate.Listed av1 = Listed(StreamCodec.Av1, 10000, 10000, 400);
 
-		await Assert.That(QualityRestrictions.Evaluate(avc, [avc, hevc, av1Transcoded, av1], Profile(10000), false)).IsEqualTo(new QualityRestriction.OtherCodec(10000, StreamCodec.Av1, 10000));
+		await Assert.That(QualityRestrictions.Evaluate(avc, [av1, av1Transcoded, avc, hevc], Profile(10000), false)).IsEqualTo(new QualityRestriction.OtherCodecUnavailable(10000, StreamCodec.Av1, 10000));
 	}
 
 	[Test]
@@ -51,16 +50,22 @@ public sealed class QualityRestrictionsTest
 	}
 
 	[Test]
-	[Arguments(false)]
-	public async Task OtherCodecOffersItsOwnQualityBelowTheTargetAsync(bool isOtherCodecPreferred)
+	public async Task OtherCodecOffersItsOwnQualityBelowTheTargetAsync()
 	{
 		LiveStreamCandidate.Listed avc = Listed(StreamCodec.Avc, 250, 10000, 250);
 		LiveStreamCandidate.Listed av1 = Listed(StreamCodec.Av1, 400, 10000, 400);
-		RecordingProfile profile = isOtherCodecPreferred ? Profile(10000, StreamCodec.Av1, StreamCodec.Avc) : Profile(10000);
-		LiveStreamCandidate.Listed[] response = isOtherCodecPreferred ? [av1, avc] : [avc, av1];
-		QualityRestriction expected = isOtherCodecPreferred ? new QualityRestriction.OtherCodecUnavailable(10000, StreamCodec.Av1, 400) : new QualityRestriction.OtherCodec(10000, StreamCodec.Av1, 400);
 
-		await Assert.That(QualityRestrictions.Evaluate(avc, response, profile, false)).IsEqualTo(expected);
+		await Assert.That(QualityRestrictions.Evaluate(avc, [av1, avc], Profile(10000), false)).IsEqualTo(new QualityRestriction.OtherCodecUnavailable(10000, StreamCodec.Av1, 400));
+	}
+
+	// 所选画质是蓝光时，超过它的原画排在超清之后，没有试过
+	[Test]
+	public async Task OtherCodecAboveTheTargetIsNotReportedAsync()
+	{
+		LiveStreamCandidate.Listed avc = Listed(StreamCodec.Avc, 250, 10000, 400, 250);
+		LiveStreamCandidate.Listed av1 = Listed(StreamCodec.Av1, 10000, 10000, 400);
+
+		await Assert.That(QualityRestrictions.Evaluate(avc, [avc, av1], Profile(400), false)).IsEqualTo(new QualityRestriction.NotLoggedIn(400));
 	}
 
 	[Test]
@@ -135,18 +140,5 @@ public sealed class QualityRestrictionsTest
 	public async Task QualitiesAreRankedByTheirQnAsync(long[] accept, long selected, long expected)
 	{
 		await Assert.That(QualityRestrictions.Target([Listed(StreamCodec.Avc, 250, accept)], new StreamQuality(selected))).IsEqualTo(expected);
-	}
-
-	[Test]
-	[Arguments(true)]
-	[Arguments(false)]
-	public async Task CodecsOutsideThePriorityAreTriedInTheOrderListedAsync(bool isOtherCodecListedFirst)
-	{
-		LiveStreamCandidate.Listed avc = Listed(StreamCodec.Avc, 250, 10000, 250);
-		LiveStreamCandidate.Listed av1 = Listed(StreamCodec.Av1, 10000, 10000, 400);
-		LiveStreamCandidate.Listed[] response = isOtherCodecListedFirst ? [av1, avc] : [avc, av1];
-		QualityRestriction expected = isOtherCodecListedFirst ? new QualityRestriction.OtherCodecUnavailable(10000, StreamCodec.Av1, 10000) : new QualityRestriction.OtherCodec(10000, StreamCodec.Av1, 10000);
-
-		await Assert.That(QualityRestrictions.Evaluate(avc, response, Profile(10000, StreamCodec.Hevc), false)).IsEqualTo(expected);
 	}
 }

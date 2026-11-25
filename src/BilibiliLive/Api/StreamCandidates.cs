@@ -2,12 +2,12 @@ namespace BilibiliLive.Api;
 
 internal static class StreamCandidates
 {
-	public static LiveStreamListing Select(RoomPlayInfoData data, IReadOnlyList<StreamCodec> codecPriority, IReadOnlyList<StreamFormat> formatPriority)
+	public static LiveStreamListing Select(RoomPlayInfoData data)
 	{
-		return new LiveStreamListing(SelectCandidates(data, codecPriority, formatPriority), GetQualityNames(data));
+		return new LiveStreamListing(SelectCandidates(data), GetQualityNames(data));
 	}
 
-	private static LiveStreamCandidate.Listed[] SelectCandidates(RoomPlayInfoData data, IReadOnlyList<StreamCodec> codecPriority, IReadOnlyList<StreamFormat> formatPriority)
+	private static List<LiveStreamCandidate.Listed> SelectCandidates(RoomPlayInfoData data)
 	{
 		List<LiveStreamCandidate.Listed> candidates = [];
 
@@ -42,7 +42,7 @@ internal static class StreamCandidates
 			}
 		}
 
-		return [.. candidates.OrderBy(c => Rank(codecPriority, c.Codec)).ThenBy(c => Rank(formatPriority, c.Format))];
+		return candidates;
 	}
 
 	private static Dictionary<long, string> GetQualityNames(RoomPlayInfoData data)
@@ -71,19 +71,6 @@ internal static class StreamCandidates
 				yield return uri;
 			}
 		}
-	}
-
-	private static int Rank<T>(IReadOnlyList<T> priority, T value) where T : struct, Enum
-	{
-		for (int i = 0; i < priority.Count; ++i)
-		{
-			if (EqualityComparer<T>.Default.Equals(priority[i], value))
-			{
-				return i;
-			}
-		}
-
-		return int.MaxValue;
 	}
 
 	private static StreamProtocol? ParseProtocol(string? name)

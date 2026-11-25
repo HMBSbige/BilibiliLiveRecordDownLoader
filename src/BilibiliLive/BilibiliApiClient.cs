@@ -124,7 +124,7 @@ public sealed class BilibiliApiClient
 		}
 	}
 
-	public async Task<LiveStreamListing> GetStreamCandidatesAsync(long roomId, long qn, IReadOnlyList<StreamCodec> codecPriority, IReadOnlyList<StreamFormat> formatPriority, CancellationToken cancellationToken = default)
+	public async Task<LiveStreamListing> GetStreamCandidatesAsync(long roomId, long qn, CancellationToken cancellationToken = default)
 	{
 		Uri uri = CreateUri($"{LiveApi}xlive/web-room/v2/index/getRoomPlayInfo?room_id={roomId}&no_playurl=0&mask=1&qn={qn}&platform=web&protocol=0,1&format=0,1,2&codec=0,1,2");
 		RoomPlayInfoData data = await GetDataAsync(uri, BilibiliJsonContext.Default.RoomPlayInfoData, cancellationToken);
@@ -134,7 +134,7 @@ public sealed class BilibiliApiClient
 			throw new BilibiliApiException($"Room {roomId} is not live.");
 		}
 
-		return StreamCandidates.Select(data, codecPriority, formatPriority);
+		return StreamCandidates.Select(data);
 	}
 
 	/// <param name="qn">原画及以下的档位总会列出；高于原画的档位要用对应的 qn 请求才会列出，例如原画真彩要用 25000</param>
