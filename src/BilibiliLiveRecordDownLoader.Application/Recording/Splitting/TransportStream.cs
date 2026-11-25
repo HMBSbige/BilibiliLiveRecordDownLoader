@@ -29,11 +29,6 @@ internal static class TransportStream
 		return (packet[1] & 0x40) is not 0;
 	}
 
-	public static bool IsRandomAccess(ReadOnlySpan<byte> packet)
-	{
-		return (packet[3] & 0x20) is not 0 && packet[4] > 0 && (packet[5] & 0x40) is not 0;
-	}
-
 	public static ReadOnlySpan<byte> GetPayload(ReadOnlySpan<byte> packet)
 	{
 		return GetPayloadOffset(packet) is var offset and >= 0 ? packet.Slice(offset) : default;
@@ -270,7 +265,12 @@ internal static class TransportStream
 		return GetPesHeaderLength(payload) is var length and >= 0 ? payload.Slice(length) : payload;
 	}
 
-	public static int Append(ReadOnlySpan<byte> source, Span<byte> destination)
+	private static bool IsRandomAccess(ReadOnlySpan<byte> packet)
+	{
+		return (packet[3] & 0x20) is not 0 && packet[4] > 0 && (packet[5] & 0x40) is not 0;
+	}
+
+	private static int Append(ReadOnlySpan<byte> source, Span<byte> destination)
 	{
 		int count = Math.Min(source.Length, destination.Length);
 		source.Slice(0, count).CopyTo(destination);

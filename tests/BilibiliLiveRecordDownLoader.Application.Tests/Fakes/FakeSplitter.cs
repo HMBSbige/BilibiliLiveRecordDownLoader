@@ -7,11 +7,9 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 /// <summary>
 /// 元素是 [类型][长度][标记][填充]：K 是切分点，S 是序列头，D 是普通数据。新段的头是 "H" 加上已经过去的序列头个数和冒号。填充里的 F 是可以去掉的填充数据。
 /// </summary>
-internal sealed class FakeSplitter(bool holdsFirstUnit = false) : MediaSplitter
+internal sealed class FakeSplitter : MediaSplitter
 {
 	private int _sequences;
-
-	public override bool HoldsFirstUnit => holdsFirstUnit;
 
 	public static byte[] Unit(string marker, int length, int filler = 0)
 	{

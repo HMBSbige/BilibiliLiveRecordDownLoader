@@ -8,7 +8,9 @@ public sealed class RecordingFileLayoutTest
 	[Arguments(RecorderType.BuiltIn, StreamFormat.Flv, "20260102_030405.flv")]
 	[Arguments(RecorderType.BuiltIn, StreamFormat.Ts, "20260102_030405.ts")]
 	[Arguments(RecorderType.BuiltIn, StreamFormat.Fmp4, "20260102_030405_fmp4.mp4")]
-	[Arguments(RecorderType.FFmpeg, StreamFormat.Fmp4, "20260102_030405.ts")]
+	[Arguments(RecorderType.FFmpeg, StreamFormat.Flv, "20260102_030405_fmp4.mp4")]
+	[Arguments(RecorderType.FFmpeg, StreamFormat.Ts, "20260102_030405_fmp4.mp4")]
+	[Arguments(RecorderType.FFmpeg, StreamFormat.Fmp4, "20260102_030405_fmp4.mp4")]
 	public async Task RecordingPathUsesRoomDirectoryAndFormatExtensionAsync(RecorderType recorderType, StreamFormat format, string expectedFileName)
 	{
 		string path = RecordingFileLayout.GetRecordingPath(RecordingFileLayout.GetRecordingStem("records", 123, StartTime, null), format, recorderType);

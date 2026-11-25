@@ -3,7 +3,7 @@ using System.Buffers.Binary;
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
 // 各轨道用同一个起点，按 TimeSpan 的刻度计时再按各自的 timescale 换算，各自归零的话音画会错开
-// 每个 moof 推进一次，和 Fmp4HlsSplitter 报告给时间轴的媒体时间一一对应
+// 每个 moof 推进一次，和 fMP4 分割器报告给时间轴的媒体时间一一对应
 internal sealed class Fmp4Rebaser
 {
 	private const long Tolerance = MediaSpan.TimelineRestartToleranceMilliseconds * TimeSpan.TicksPerMillisecond;

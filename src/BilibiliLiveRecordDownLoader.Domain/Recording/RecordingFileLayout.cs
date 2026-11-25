@@ -58,9 +58,8 @@ public static class RecordingFileLayout
 	{
 		string extension = (recorderType, format) switch
 		{
-			(RecorderType.FFmpeg, _) => ".ts",
+			(RecorderType.FFmpeg, _) or (_, StreamFormat.Fmp4) => Fmp4Suffix + Mp4Extension,
 			(_, StreamFormat.Flv) => ".flv",
-			(_, StreamFormat.Fmp4) => Fmp4Suffix + Mp4Extension,
 			_ => ".ts"
 		};
 

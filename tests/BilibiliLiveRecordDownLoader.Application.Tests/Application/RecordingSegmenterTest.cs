@@ -252,13 +252,12 @@ public sealed class RecordingSegmenterTest
 	}
 
 	[Test]
-	[Arguments(true, false, new[] { "x", "x", "xa", "xa" })]
-	[Arguments(false, false, new[] { "x", "xa", "xab", "xaby" })]
-	[Arguments(false, true, new[] { "x", "x", "xab", "xaby" })]
-	public async Task OnlyUnitsThatMayStartANewFileOrSetTheStartAreHeldBackAsync(bool isSplitting, bool holdsFirstUnit, string[] expected, CancellationToken cancellationToken)
+	[Arguments(true, new[] { "x", "x", "xa", "xa" })]
+	[Arguments(false, new[] { "x", "xa", "xab", "xaby" })]
+	public async Task OnlyUnitsThatMayStartANewFileAreHeldBackAsync(bool isSplitting, string[] expected, CancellationToken cancellationToken)
 	{
 		Pipe pipe = new();
-		await using RecordingSegmenter segmenter = new(new SegmentStarts().CreateWriter(pipe.Writer), new FakeSplitter(holdsFirstUnit), SplitRecording.Fixed(isSplitting ? OneMinute : new RecordingSplit.None()), TimeProvider.System, NullLogger.Instance, new RecordingTimeline(string.Empty, TimeProvider.System, RoomDefaults.StreamIdleTimeout));
+		await using RecordingSegmenter segmenter = new(new SegmentStarts().CreateWriter(pipe.Writer), new FakeSplitter(), SplitRecording.Fixed(isSplitting ? OneMinute : new RecordingSplit.None()), TimeProvider.System, NullLogger.Instance, new RecordingTimeline(string.Empty, TimeProvider.System, RoomDefaults.StreamIdleTimeout));
 		List<string> written = [];
 
 		foreach (byte[] element in (byte[][])[FakeSplitter.Data("x", 10), FakeSplitter.Unit("a", 10), FakeSplitter.Unit("b", 10), FakeSplitter.Data("y", 10)])

@@ -148,9 +148,12 @@ internal static class FillerSamples
 		};
 	}
 
-	public static byte[] Init(FillerCodec codec, int lengthSize, string? sampleEntry = null)
+	// videoTimescale 为 0 时视频轨不带 mdhd，读不出分片的时间，改写时间戳时原样留下
+	public static byte[] Init(FillerCodec codec, int lengthSize, string? sampleEntry = null, uint videoTimescale = 0)
 	{
 		byte[] entry = new byte[78];
+		byte[] mdhd = new byte[24];
+		BinaryPrimitives.WriteUInt32BigEndian(mdhd.AsSpan(12), videoTimescale);
 		(string defaultEntry, string configType) = codec switch
 		{
 			FillerCodec.Avc => ("avc1", "avcC"),
@@ -159,7 +162,7 @@ internal static class FillerSamples
 		};
 		byte[] config = Fmp4Samples.Box(configType, DecoderConfiguration(codec, lengthSize));
 		byte[] stsd = [0, 0, 0, 0, 0, 0, 0, 1, .. Fmp4Samples.Box(sampleEntry ?? defaultEntry, [.. entry, .. config])];
-		byte[] videoMedia = [.. Fmp4Samples.Hdlr("vide"), .. Fmp4Samples.Box("minf", Fmp4Samples.Box("stbl", Fmp4Samples.Box("stsd", stsd)))];
+		byte[] videoMedia = [.. videoTimescale is 0 ? [] : Fmp4Samples.Box("mdhd", mdhd), .. Fmp4Samples.Hdlr("vide"), .. Fmp4Samples.Box("minf", Fmp4Samples.Box("stbl", Fmp4Samples.Box("stsd", stsd)))];
 
 		return
 		[
@@ -177,12 +180,12 @@ internal static class FillerSamples
 	}
 
 	// 和 B 站的分片一样：mfhd 加两个 traf，视频 tfhd 0x020022、trun 0xb05，音频 tfhd 0x02002a、trun 0x205；mdat 紧跟 moof，视频数据在前
-	public static byte[] Fragment(byte[][] video, byte[][] audio, Fmp4Layout layout = Fmp4Layout.Bilibili)
+	public static byte[] Fragment(byte[][] video, byte[][] audio, Fmp4Layout layout = Fmp4Layout.Bilibili, uint videoDecodeTime = 0)
 	{
 		bool isLarge = layout is Fmp4Layout.LargeMdat;
 		bool isAudioFirst = layout is Fmp4Layout.AudioFirst;
 		int mdatHeaderSize = isLarge ? 16 : 8;
-		int moofLength = Moof(video, audio, layout, 0, 0).Length;
+		int moofLength = Moof(video, audio, layout, videoDecodeTime, 0, 0).Length;
 		int audioLength = audio.Sum(static sample => sample.Length);
 		int videoOffset = moofLength + mdatHeaderSize + (isAudioFirst ? audioLength : 0);
 		int videoLength = video.Sum(static sample => sample.Length);
@@ -211,10 +214,10 @@ internal static class FillerSamples
 		}
 
 		payload.CopyTo(mdat.AsSpan(mdatHeaderSize));
-		return [.. Moof(video, audio, layout, videoOffset, audioOffset), .. mdat];
+		return [.. Moof(video, audio, layout, videoDecodeTime, videoOffset, audioOffset), .. mdat];
 	}
 
-	private static byte[] Moof(byte[][] video, byte[][] audio, Fmp4Layout layout, int videoOffset, int audioOffset)
+	private static byte[] Moof(byte[][] video, byte[][] audio, Fmp4Layout layout, uint videoDecodeTime, int videoOffset, int audioOffset)
 	{
 		uint videoTfhdFlags = layout switch
 		{
@@ -282,7 +285,7 @@ internal static class FillerSamples
 			"traf",
 			[
 				.. Fmp4Samples.Box("tfhd", [.. videoTfhd]),
-				.. Fmp4Samples.Box("tfdt", new byte[8]),
+				.. Fmp4Samples.Box("tfdt", [.. Word(0), .. Word(videoDecodeTime)]),
 				.. videoTruns,
 				.. layout is Fmp4Layout.Encrypted ? Fmp4Samples.Box("senc", new byte[8]) : []
 			]

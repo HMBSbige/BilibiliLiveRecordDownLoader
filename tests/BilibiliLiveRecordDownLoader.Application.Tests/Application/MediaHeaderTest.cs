@@ -148,29 +148,39 @@ public sealed class MediaHeaderTest
 	}
 
 	[Test]
-	public async Task FFmpegTransportStreamReportsEveryTimedPesByDecodeTimeAndTheSpsSizeAsync()
+	public async Task TsSegmentMarksItsTimesWithTheSizeOfItsOwnSpsAsync()
 	{
-		TransportStreamSplitter splitter = new();
-		byte[] stream = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedVideoFrame(TsSamples.AvcIdr, 133_200, true, Convert.FromHexString(Avc480), dts: 126_000), .. TsSamples.TimedPes(TsSamples.AudioPid, 124_200), .. TsSamples.TimedVideoFrame(TsSamples.AvcSlice, 129_600)];
+		TsHlsSplitter splitter = new();
+		byte[][] segments =
+		[
+			[.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedVideoFrame(TsSamples.AvcIdr, 126_000, true, Convert.FromHexString(Avc480)), .. TsSamples.TimedVideoFrame(TsSamples.AvcSlice, 129_000)],
+			TsSamples.TimedVideoFrame(TsSamples.AvcIdr, 132_000, true, Convert.FromHexString(Avc1080))
+		];
 
-		Scan(splitter, stream);
-
-		using (Assert.Multiple())
+		foreach (byte[] segment in segments)
 		{
-			await Assert.That(splitter.Resolution).IsEqualTo(new VideoResolution(854, 480));
-			await Assert.That(splitter.MediaMarks.ToArray().Select(static mark => mark.Span)).IsEquivalentTo([MediaSpan.At(TimeSpan.FromMilliseconds(1400)), MediaSpan.At(TimeSpan.FromMilliseconds(1380)), MediaSpan.At(TimeSpan.FromMilliseconds(1440))], CollectionOrdering.Matching);
+			splitter.OnMediaSegment(segment);
+			Scan(splitter, segment);
 		}
+
+		await Assert.That(splitter.MediaMarks.ToArray().Select(static mark => mark.Resolution)).IsEquivalentTo((VideoResolution?[])[new VideoResolution(854, 480), new VideoResolution(854, 480), new VideoResolution(1920, 1080)], CollectionOrdering.Matching);
 	}
 
 	[Test]
-	public async Task FFmpegTransportStreamMarksAKeyFrameWithTheSizeOfItsOwnSpsAsync()
+	public async Task Fmp4StreamReportsEveryMoofAndTheSampleEntrySizeAsync()
 	{
-		TransportStreamSplitter splitter = new();
-		byte[] stream = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedVideoFrame(TsSamples.AvcIdr, 126_000, true, Convert.FromHexString(Avc480)), .. TsSamples.TimedVideoFrame(TsSamples.AvcSlice, 129_000), .. TsSamples.TimedVideoFrame(TsSamples.AvcIdr, 132_000, true, Convert.FromHexString(Avc1080))];
+		Fmp4Splitter splitter = new();
+		byte[] init = Fmp4Samples.TimedInit(90_000, 1920, 1080, 3000);
+		byte[] first = Fmp4Samples.TimedFragment(900_000, 30, 3000);
+		byte[] second = Fmp4Samples.TimedFragment(990_000, 30, 0, false);
 
-		Scan(splitter, stream);
+		Scan(splitter, [.. init, .. first, .. second]);
 
-		await Assert.That(splitter.MediaMarks.ToArray().Select(static mark => mark.Resolution)).IsEquivalentTo((VideoResolution?[])[new VideoResolution(854, 480), new VideoResolution(854, 480), new VideoResolution(1920, 1080)], CollectionOrdering.Matching);
+		using (Assert.Multiple())
+		{
+			await Assert.That(splitter.Resolution).IsEqualTo(new VideoResolution(1920, 1080));
+			await Assert.That(splitter.MediaMarks.ToArray().Select(static mark => (mark.End, mark.Span))).IsEquivalentTo([((long)init.Length + first.Length, new MediaSpan(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(11))), ((long)init.Length + first.Length + second.Length, new MediaSpan(TimeSpan.FromSeconds(11), TimeSpan.FromSeconds(12)))], CollectionOrdering.Matching);
+		}
 	}
 
 	[Test]

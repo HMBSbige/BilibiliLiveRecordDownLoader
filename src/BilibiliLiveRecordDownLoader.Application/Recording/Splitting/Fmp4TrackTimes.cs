@@ -11,6 +11,7 @@ internal sealed class Fmp4TrackTimes(Fmp4Track[] tracks)
 	private const ulong Period = 1UL << 32;
 
 	private readonly Wrap[] _wraps = new Wrap[tracks.Length];
+	private readonly bool[] _hasStarted = new bool[tracks.Length];
 	private readonly List<TrackFragmentTime> _fragment = [];
 	private readonly List<MediaSpan> _spans = [];
 
@@ -31,10 +32,13 @@ internal sealed class Fmp4TrackTimes(Fmp4Track[] tracks)
 	}
 
 	// times 里每个带 tfdt 的 traf 一条，DecodeTime 是展开过的；用解码时间，不看合成时间偏移，只差几帧
+	// FFmpeg 输出分片 MP4 时不写编辑列表，比最早的轨道晚开始的轨道，第一个样本挪到 0、时长拉长到下一个样本；按它定开头会被当作源时间线重新开始
+	// 所以第一次出现的轨道只在分片里没有已经出现过的轨道时才参与定开头
 	public MediaSpan? ReadMovieFragment(ReadOnlySpan<byte> moof, List<TrackFragmentTime> times)
 	{
 		times.Clear();
 		long? start = null;
+		long? firstStart = null;
 		long end = long.MinValue;
 		int offset = 0;
 
@@ -51,11 +55,26 @@ internal sealed class Fmp4TrackTimes(Fmp4Track[] tracks)
 			}
 
 			times.Add(time);
-			start = Math.Min(start ?? long.MaxValue, time.Track.ToTicks(time.DecodeTime));
+			long trackStart = time.Track.ToTicks(time.DecodeTime);
+
+			if (_hasStarted[time.TrackIndex])
+			{
+				start = Math.Min(start ?? long.MaxValue, trackStart);
+			}
+			else
+			{
+				firstStart = Math.Min(firstStart ?? long.MaxValue, trackStart);
+			}
+
 			end = Math.Max(end, time.Track.ToTicks(time.DecodeTime + time.Duration));
 		}
 
-		return start is { } value ? new MediaSpan(TimeSpan.FromTicks(value), TimeSpan.FromTicks(end)) : null;
+		foreach (TrackFragmentTime time in times)
+		{
+			_hasStarted[time.TrackIndex] = true;
+		}
+
+		return (start ?? firstStart) is { } value ? new MediaSpan(TimeSpan.FromTicks(value), TimeSpan.FromTicks(end)) : null;
 	}
 
 	private ulong Unwrap(int track, uint value)

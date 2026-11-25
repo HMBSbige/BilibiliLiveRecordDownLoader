@@ -352,23 +352,18 @@ public sealed class RoomMasterPlaylistTest
 	}
 
 	[Test]
-	[Arguments(new[] { StreamCodec.Avc, StreamCodec.Hevc, StreamCodec.Av1 }, AvcOriginalPlaylist, "filter_units=remove_types=12")]
-	[Arguments(new[] { StreamCodec.Hevc, StreamCodec.Avc, StreamCodec.Av1 }, HevcOriginalPlaylist, "filter_units=remove_types=38")]
-	public async Task FFmpegRemovesFillerByTheCodecOfTheVariantAsync(StreamCodec[] codecPriority, string playlist, string filter, CancellationToken cancellationToken)
+	[Arguments(new[] { StreamCodec.Avc, StreamCodec.Hevc, StreamCodec.Av1 }, AvcOriginalPlaylist)]
+	[Arguments(new[] { StreamCodec.Hevc, StreamCodec.Avc, StreamCodec.Av1 }, HevcOriginalPlaylist)]
+	public async Task FFmpegRecordsTheVariantOfThePreferredCodecAsync(StreamCodec[] codecPriority, string playlist, CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Loop(cancellationToken, recorderType: RecorderType.FFmpeg);
 		loop.Config.CodecPriority = [.. codecPriority];
-		loop.Config.RemoveFillerData = true;
 		loop.GoLive();
 
 		await loop.WaitUntilAsync(() => !loop.FFmpegRuns.IsEmpty, "FFmpeg is started");
 		string[] arguments = [.. loop.FFmpegRuns.First()];
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(arguments[Array.IndexOf(arguments, "-i") + 1]).IsEqualTo($"https://a.test{playlist}?sign=master");
-			await Assert.That(arguments[Array.IndexOf(arguments, "-bsf:v") + 1]).IsEqualTo(filter);
-		}
+		await Assert.That(arguments[Array.IndexOf(arguments, "-i") + 1]).IsEqualTo($"https://a.test{playlist}?sign=master");
 	}
 
 	// 录制器把自己的日志交给 HLS 会话，换节点取到分片时日志里才看得到

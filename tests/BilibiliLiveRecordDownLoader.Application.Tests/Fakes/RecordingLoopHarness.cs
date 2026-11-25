@@ -274,12 +274,12 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		if (OperatingSystem.IsWindows())
 		{
 			string script = _directory.Combine("ffmpeg.cmd");
-			File.WriteAllText(script, "@echo ts-data\r\n");
+			File.WriteAllText(script, "@echo fmp4-data\r\n");
 			return script;
 		}
 
 		string path = _directory.Combine("ffmpeg");
-		File.WriteAllText(path, "#!/bin/sh\necho ts-data\n");
+		File.WriteAllText(path, "#!/bin/sh\necho fmp4-data\n");
 		File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
 		return path;
 	}

@@ -286,14 +286,13 @@ public sealed class RecordingTimelineTest
 		SplitRecording recording = new();
 		List<long> times = [];
 
-		await recording.RunAsync(new TransportStreamSplitter(), new RecordingSplit.ByDuration(TimeSpan.FromHours(1)), async session =>
+		await recording.RunAsync(new TsHlsSplitter(), new RecordingSplit.ByDuration(TimeSpan.FromHours(1)), async session =>
 		{
-			await session.WriteAsync([.. TsSamples.Pat(), .. TsSamples.Pmt()]);
-
 			foreach (long pts in (long[])[PtsPeriod - 180_000, PtsPeriod - 90_000, 0, 90_000])
 			{
 				bool isFirst = pts is PtsPeriod - 180_000;
-				await session.WriteAsync(TsSamples.TimedVideoFrame(isFirst ? TsSamples.AvcIdr : TsSamples.AvcSlice, pts, isFirst, isFirst ? Convert.FromHexString(MediaHeaderTest.Avc480) : null));
+				byte[] frame = TsSamples.TimedVideoFrame(isFirst ? TsSamples.AvcIdr : TsSamples.AvcSlice, pts, isFirst, isFirst ? Convert.FromHexString(MediaHeaderTest.Avc480) : null);
+				await session.SegmentAsync(isFirst ? [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. frame] : frame);
 				times.Add(session.Now);
 				session.Advance(TimeSpan.FromSeconds(1));
 			}
@@ -407,11 +406,9 @@ public sealed class RecordingTimelineTest
 		byte[] init = Fmp4Samples.TimedInit(90_000, 1920, 1080, 3000);
 		byte[][] fragments = [Fmp4Samples.TimedFragment(0, 30, 3000), Fmp4Samples.TimedFragment(90_000, 30, 0, false), Fmp4Samples.TimedFragment(180_000, 30, 3000)];
 		byte[][] tsSegments = [TsSegment(0, 4, MediaHeaderTest.Avc1080), TsSegment(360_000, 4, null)];
-		byte[] ts = [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedVideoFrame(TsSamples.AvcIdr, 0, true, Convert.FromHexString(MediaHeaderTest.Avc480)), .. TsSamples.Audio(), .. TsSamples.TimedVideoFrame(TsSamples.AvcSlice, 3000)];
 		SplitRecording flvRecording = new();
 		SplitRecording fmp4Recording = new();
 		SplitRecording tsHlsRecording = new();
-		SplitRecording tsRecording = new();
 
 		await flvRecording.RunAsync(new FlvSplitter(), new RecordingSplit.None(), session => session.WriteInChunksAsync(flv, 7), cancellationToken);
 		await fmp4Recording.RunAsync(new Fmp4HlsSplitter(), new RecordingSplit.None(), async session =>
@@ -430,21 +427,18 @@ public sealed class RecordingTimelineTest
 				await session.SegmentAsync(segment);
 			}
 		}, cancellationToken);
-		await tsRecording.RunAsync(new TransportStreamSplitter(), new RecordingSplit.None(), session => session.WriteInChunksAsync(ts, 100), cancellationToken);
 
 		byte[] fmp4 = [.. init, .. fragments.SelectMany(static fragment => fragment)];
 		byte[] tsHls = [.. tsSegments.SelectMany(static segment => segment)];
 		byte[] flvFile = await Assert.That(flvRecording.Files).HasSingleItem();
 		byte[] fmp4File = await Assert.That(fmp4Recording.Files).HasSingleItem();
 		byte[] tsHlsFile = await Assert.That(tsHlsRecording.Files).HasSingleItem();
-		byte[] tsFile = await Assert.That(tsRecording.Files).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
 			await Assert.That((flvFile.Length, flvFile.AsSpan().CommonPrefixLength(flv))).IsEqualTo((flv.Length, flv.Length));
 			await Assert.That((fmp4File.Length, fmp4File.AsSpan().CommonPrefixLength(fmp4))).IsEqualTo((fmp4.Length, fmp4.Length));
 			await Assert.That((tsHlsFile.Length, tsHlsFile.AsSpan().CommonPrefixLength(tsHls))).IsEqualTo((tsHls.Length, tsHls.Length));
-			await Assert.That((tsFile.Length, tsFile.AsSpan().CommonPrefixLength(ts))).IsEqualTo((ts.Length, ts.Length));
 		}
 	}
 

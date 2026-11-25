@@ -1,5 +1,6 @@
 using BilibiliLiveRecordDownLoader.Application.Danmaku;
 using BilibiliLiveRecordDownLoader.Application.Recording;
+using BilibiliLiveRecordDownLoader.Application.Tests.Application;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 using System.Buffers.Binary;
 
@@ -15,6 +16,22 @@ public sealed class VideoResolutionProbeTest
 		await File.WriteAllBytesAsync(path, [.. FlvSamples.Header, .. FlvSamples.MetadataWithSize(1280, 720), .. FlvSamples.Video(VideoStyle.Avc, VideoPacket.KeyFrame, 0)], cancellationToken);
 
 		await Assert.That(await VideoResolutionProbe.ReadAsync(path, cancellationToken)).IsEqualTo(new VideoResolution(1280, 720));
+	}
+
+	// 第一个视频 PES 不带 SPS 时接着往后找；失去包同步之后不再找
+	[Test]
+	[Arguments(false, false)]
+	[Arguments(true, false)]
+	[Arguments(false, true)]
+	public async Task TsSizeComesFromTheFirstSpsInSyncAsync(bool startsWithoutSps, bool losesSync, CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string path = directory.Combine("a.ts");
+		byte[] leading = startsWithoutSps ? TsSamples.VideoFrame(TsSamples.AvcSlice) : [];
+		byte[] junk = losesSync ? [0] : [];
+		await File.WriteAllBytesAsync(path, [.. TsSamples.Pat(), .. TsSamples.Pmt(), .. leading, .. junk, .. TsSamples.TimedVideoFrame(TsSamples.AvcIdr, 0, true, Convert.FromHexString(MediaHeaderTest.Avc480))], cancellationToken);
+
+		await Assert.That(await VideoResolutionProbe.ReadAsync(path, cancellationToken)).IsEqualTo(losesSync ? null : new VideoResolution(854, 480));
 	}
 
 	[Test]

@@ -1,8 +1,7 @@
 namespace MediaToolkit.FFmpeg;
 
-public enum FillerRemoval
+public enum VideoCodec
 {
-	None,
 	Avc,
 	Hevc,
 	Av1

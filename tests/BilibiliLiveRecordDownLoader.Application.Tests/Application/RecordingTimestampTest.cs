@@ -46,12 +46,14 @@ public sealed class RecordingTimestampTest
 	}
 
 	[Test]
-	public async Task Fmp4TracksShareOneStartInEveryFileAsync(CancellationToken cancellationToken)
+	[Arguments(false, DisplayName = "HLS 分片")]
+	[Arguments(true, DisplayName = "FFmpeg 输出的分片 MP4")]
+	public async Task Fmp4TracksShareOneStartInEveryFileAsync(bool isStream, CancellationToken cancellationToken)
 	{
 		SplitRecording recording = new();
 		List<long> times = [];
 
-		await recording.RunAsync(new Fmp4HlsSplitter(), OneMinute, async session =>
+		await recording.RunAsync(isStream ? new Fmp4Splitter() : new Fmp4HlsSplitter(), OneMinute, async session =>
 		{
 			await session.InitAsync(Fmp4Init());
 
@@ -68,6 +70,39 @@ public sealed class RecordingTimestampTest
 			await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. Fmp4Init(), .. Fmp4Fragment(900, 0)], [.. Fmp4Init(), .. Fmp4Fragment(900, 0), .. Fmp4Fragment(181_800, 96_480)]], CollectionOrdering.Matching);
 			await Assert.That(recording.Files.Select(DescribeDecodeTimes)).IsEquivalentTo((string[][])[["V900", "A0"], ["V900", "A0", "V181800", "A96480"]], CollectionOrdering.Matching);
 			await Assert.That(Place(recording, times)).IsEquivalentTo(["0@2010", "1@2010", "1@4020"], CollectionOrdering.Matching);
+		}
+	}
+
+	// 按 FFmpeg 拉 HLS 时的实际输出：关键帧之前的音频单独成分片，视频轨的第一个样本挪到 0、时长拉长到下一个样本
+	[Test]
+	public async Task Fmp4StreamTrackStartingLaterKeepsItsTimesAsync(CancellationToken cancellationToken)
+	{
+		byte[][] fragments =
+		[
+			Fmp4MovieFragment(AudioTraf(0, 1, 48_000)),
+			Fmp4MovieFragment(AudioTraf(48_000, 1, 48_000)),
+			Fmp4MovieFragment(VideoTraf(0, 1, 1, 198_000), AudioTraf(96_000, 1, 9_600)),
+			Fmp4MovieFragment(VideoTraf(198_000, 1, 30), AudioTraf(105_600, 1, 48_000))
+		];
+		SplitRecording recording = new();
+		List<long> times = [];
+
+		await recording.RunAsync(new Fmp4Splitter(), OneMinute, async session =>
+		{
+			await session.WriteAsync(Fmp4Init());
+
+			foreach (byte[] fragment in fragments)
+			{
+				await session.WriteAsync(fragment);
+				times.Add(session.Now);
+				session.Advance(TimeSpan.FromSeconds(1));
+			}
+		}, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. Fmp4Init(), .. fragments.SelectMany(static fragment => fragment)]], CollectionOrdering.Matching);
+			await Assert.That(Place(recording, times)).IsEquivalentTo(["0@1000", "0@2000", "0@2200", "0@3200"], CollectionOrdering.Matching);
 		}
 	}
 
@@ -186,11 +221,12 @@ public sealed class RecordingTimestampTest
 		SplitRecording recording = new();
 		List<long> times = [];
 
-		await recording.RunAsync(new TransportStreamSplitter(), OneMinute, async session =>
+		await recording.RunAsync(new TsHlsSplitter(), OneMinute, async session =>
 		{
-			await session.WriteAsync([.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedPes(TsSamples.VideoPid, start + 3003, start, start - 9000, true), .. TsSamples.TimedPes(TsSamples.AudioPid, start - 900), .. TsSamples.TimedPes(TsSamples.VideoPid, start + 9009, start + 3003, start + 1001)]);
+			await session.SegmentAsync([.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedPes(TsSamples.VideoPid, start + 3003, start, start - 9000, true), .. TsSamples.TimedPes(TsSamples.AudioPid, start - 900), .. TsSamples.TimedPes(TsSamples.VideoPid, start + 9009, start + 3003, start + 1001)]);
 			session.Advance(TimeSpan.FromMinutes(1));
-			await session.WriteAsync([.. TsSamples.TimedPes(TsSamples.VideoPid, next + 3003, next, next - 9000, true), .. TsSamples.TimedPes(TsSamples.AudioPid, next - 900), .. TsSamples.TimedPes(TsSamples.VideoPid, next + 93_003, next + 90_000, null, true)]);
+			await session.SegmentAsync([.. TsSamples.TimedPes(TsSamples.VideoPid, next + 3003, next, next - 9000, true), .. TsSamples.TimedPes(TsSamples.AudioPid, next - 900)]);
+			await session.SegmentAsync(TsSamples.TimedPes(TsSamples.VideoPid, next + 93_003, next + 90_000, null, true));
 			times.Add(session.Now);
 		}, cancellationToken);
 
@@ -210,12 +246,13 @@ public sealed class RecordingTimestampTest
 		SplitRecording recording = new();
 		List<long> times = [];
 
-		await recording.RunAsync(new TransportStreamSplitter(), OneMinute, async session =>
+		await recording.RunAsync(new TsHlsSplitter(), OneMinute, async session =>
 		{
-			await session.WriteAsync([.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedPes(TsSamples.VideoPid, start + 3_600, start, null, true), .. TsSamples.TimedPes(TsSamples.AudioPid, start - 900), .. TsSamples.TimedPes(TsSamples.VideoPid, start + 7_200, start + 3_600)]);
+			await session.SegmentAsync([.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedPes(TsSamples.VideoPid, start + 3_600, start, null, true), .. TsSamples.TimedPes(TsSamples.AudioPid, start - 900), .. TsSamples.TimedPes(TsSamples.VideoPid, start + 7_200, start + 3_600)]);
 			times.Add(session.Now);
 			session.Advance(TimeSpan.FromMinutes(1));
-			await session.WriteAsync([.. TsSamples.TimedPes(TsSamples.VideoPid, next + 3_600, next, null, true), .. TsSamples.TimedPes(TsSamples.AudioPid, next - 900), .. TsSamples.TimedPes(TsSamples.VideoPid, next + 93_600, next + 90_000, null, true)]);
+			await session.SegmentAsync([.. TsSamples.TimedPes(TsSamples.VideoPid, next + 3_600, next, null, true), .. TsSamples.TimedPes(TsSamples.AudioPid, next - 900)]);
+			await session.SegmentAsync(TsSamples.TimedPes(TsSamples.VideoPid, next + 93_600, next + 90_000, null, true));
 			times.Add(session.Now);
 		}, cancellationToken);
 
@@ -234,9 +271,9 @@ public sealed class RecordingTimestampTest
 		SplitRecording recording = new();
 		List<long> times = [];
 
-		await recording.RunAsync(new TransportStreamSplitter(), new RecordingSplit.None(), async session =>
+		await recording.RunAsync(new TsHlsSplitter(), new RecordingSplit.None(), async session =>
 		{
-			await session.WriteAsync([.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedPes(TsSamples.VideoPid, decode, null, null, true), .. TsSamples.TimedPes(TsSamples.VideoPid, decode + 45_000), .. TsSamples.TimedPes(TsSamples.VideoPid, decode - 180_000), .. TsSamples.TimedPes(TsSamples.VideoPid, decode - 135_000)]);
+			await session.SegmentAsync([.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedPes(TsSamples.VideoPid, decode, null, null, true), .. TsSamples.TimedPes(TsSamples.VideoPid, decode + 45_000), .. TsSamples.TimedPes(TsSamples.VideoPid, decode - 180_000), .. TsSamples.TimedPes(TsSamples.VideoPid, decode - 135_000)]);
 			times.Add(session.Now);
 		}, cancellationToken);
 
@@ -256,9 +293,9 @@ public sealed class RecordingTimestampTest
 		SplitRecording recording = new();
 		List<long> times = [];
 
-		await recording.RunAsync(new TransportStreamSplitter(), new RecordingSplit.None(), async session =>
+		await recording.RunAsync(new TsHlsSplitter(), new RecordingSplit.None(), async session =>
 		{
-			await session.WriteAsync([.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedPes(TsSamples.VideoPid, decode + 7_200, decode, decode - 135_000, true), .. TsSamples.TimedPes(TsSamples.VideoPid, decode + 187_200, decode + 180_000, decode + 45_000), .. TsSamples.TimedPes(TsSamples.VideoPid, 3_600, 0, null, true), .. TsSamples.TimedPes(TsSamples.VideoPid, 7_200, 3_600)]);
+			await session.SegmentAsync([.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedPes(TsSamples.VideoPid, decode + 7_200, decode, decode - 135_000, true), .. TsSamples.TimedPes(TsSamples.VideoPid, decode + 187_200, decode + 180_000, decode + 45_000), .. TsSamples.TimedPes(TsSamples.VideoPid, 3_600, 0, null, true), .. TsSamples.TimedPes(TsSamples.VideoPid, 7_200, 3_600)]);
 			times.Add(session.Now);
 		}, cancellationToken);
 
@@ -268,31 +305,6 @@ public sealed class RecordingTimestampTest
 		{
 			await Assert.That(DescribeTimestamps(file)).IsEquivalentTo(["V:c0,p7200,d0", "V:c45000,p187200,d180000", "V:p183600,d180000", "V:p187200,d183600"], CollectionOrdering.Matching);
 			await Assert.That(Place(recording, times)).IsEquivalentTo(["0@2040"], CollectionOrdering.Matching);
-		}
-	}
-
-	[Test]
-	public async Task FFmpegTransportStreamWithoutSplittingStartsAtTheEarliestPesOfItsFirstUnitAsync(CancellationToken cancellationToken)
-	{
-		const long decode = 900_000;
-		SplitRecording recording = new();
-		List<long> times = [];
-
-		await recording.RunAsync(new TransportStreamSplitter(), new RecordingSplit.None(), async session =>
-		{
-			await session.WriteAsync([.. TsSamples.Pat(), .. TsSamples.Pmt(), .. TsSamples.TimedPes(TsSamples.VideoPid, decode + 3_600, decode, null, true)]);
-			times.Add(session.Now);
-			session.Advance(TimeSpan.FromSeconds(1));
-			await session.WriteAsync([.. TsSamples.TimedPes(TsSamples.AudioPid, decode - 3_600), .. TsSamples.TimedPes(TsSamples.VideoPid, decode + 7_200, decode + 3_600)]);
-			times.Add(session.Now);
-		}, cancellationToken);
-
-		byte[] file = await Assert.That(recording.Files).HasSingleItem();
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(DescribeTimestamps(file)).IsEquivalentTo(["V:p7200,d3600", "A:p0", "V:p10800,d7200"], CollectionOrdering.Matching);
-			await Assert.That(Place(recording, times)).IsEquivalentTo(["0@40", "0@80"], CollectionOrdering.Matching);
 		}
 	}
 
@@ -491,9 +503,9 @@ public sealed class RecordingTimestampTest
 	}
 
 	// trun 0x104 带首样本标志和样本时长
-	private static byte[] VideoTraf(ulong decodeTime, byte version, uint samples)
+	private static byte[] VideoTraf(ulong decodeTime, byte version, uint samples, uint sampleDuration = 3000)
 	{
-		byte[] trun = [.. Words(0x104, samples, Fmp4Samples.SyncFlags), .. Enumerable.Repeat(Words(3000), (int)samples).SelectMany(static word => word)];
+		byte[] trun = [.. Words(0x104, samples, Fmp4Samples.SyncFlags), .. Enumerable.Repeat(Words(sampleDuration), (int)samples).SelectMany(static word => word)];
 		return Fmp4Samples.Box("traf", [.. Fmp4Samples.Box("tfhd", Words(0, Fmp4Samples.VideoTrack)), .. Tfdt(decodeTime, version), .. Fmp4Samples.Box("trun", trun)]);
 	}
 

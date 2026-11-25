@@ -43,7 +43,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 			{
 				string userAgent = BilibiliRequestHandler.ResolveUserAgent(config.UserAgent);
 				await session.DisposeAsync();
-				session = CreateFFmpegSession(ffmpeg, FFmpegArguments.Record(endpoint, userAgent, Referrer, profile.StreamConnectTimeout, GetFillerRemoval(config, stream.Codec), GetFFmpegProxy(endpoint)), endpoint);
+				session = CreateFFmpegSession(ffmpeg, FFmpegArguments.Record(endpoint, GetFFmpegVideoCodec(stream.Codec), userAgent, Referrer, profile.StreamConnectTimeout, GetFFmpegProxy(endpoint), stream.Format is StreamFormat.Ts), endpoint);
 			}
 
 			_ = CreateOnDisk(() => Directory.CreateDirectory(RecordingFileLayout.GetRoomDirectory(profile.RecordDirectory, roomId)));
@@ -312,14 +312,13 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		return null;
 	}
 
-	internal static FillerRemoval GetFillerRemoval(AppConfig config, StreamCodec codec)
+	private static VideoCodec GetFFmpegVideoCodec(StreamCodec codec)
 	{
-		return (config.RemoveFillerData, codec) switch
+		return codec switch
 		{
-			(false, _) => FillerRemoval.None,
-			(true, StreamCodec.Avc) => FillerRemoval.Avc,
-			(true, StreamCodec.Hevc) => FillerRemoval.Hevc,
-			(true, StreamCodec.Av1) => FillerRemoval.Av1
+			StreamCodec.Avc => VideoCodec.Avc,
+			StreamCodec.Hevc => VideoCodec.Hevc,
+			StreamCodec.Av1 => VideoCodec.Av1
 		};
 	}
 
@@ -327,7 +326,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 	{
 		return (recorderType, candidate.Protocol, candidate.Format) switch
 		{
-			(RecorderType.FFmpeg, _, _) => new TransportStreamSplitter(),
+			(RecorderType.FFmpeg, _, _) => new Fmp4Splitter(),
 			(RecorderType.BuiltIn, StreamProtocol.HttpHls, StreamFormat.Fmp4) => new Fmp4HlsSplitter(),
 			(RecorderType.BuiltIn, StreamProtocol.HttpHls, _) => new TsHlsSplitter(),
 			(RecorderType.BuiltIn, StreamProtocol.HttpStream, _) => new FlvSplitter()

@@ -1,4 +1,3 @@
-using BilibiliLiveRecordDownLoader.Application.Recording;
 using BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 using BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 
@@ -356,17 +355,56 @@ public sealed class FillerRemovalTest
 		}
 	}
 
+	// 分片 MP4 流里盒子会跨写入，新文件开头补的 ftyp 和 moov 不经过去填充
 	[Test]
-	[Arguments(true, StreamCodec.Avc, FillerRemoval.Avc)]
-	[Arguments(true, StreamCodec.Hevc, FillerRemoval.Hevc)]
-	[Arguments(true, StreamCodec.Av1, FillerRemoval.Av1)]
-	[Arguments(false, StreamCodec.Avc, FillerRemoval.None)]
-	public async Task FFmpegRecordingRemovesFillerByTheSettingAndCodecAsync(bool removeFiller, StreamCodec codec, FillerRemoval expected)
+	[Arguments(FillerCodec.Avc, 4, Fmp4Layout.Bilibili)]
+	[Arguments(FillerCodec.Hevc, 4, Fmp4Layout.Bilibili)]
+	[Arguments(FillerCodec.Av1, 0, Fmp4Layout.Bilibili)]
+	[Arguments(FillerCodec.Avc, 2, Fmp4Layout.LargeMdat)]
+	public async Task Fmp4StreamVideoSamplesLoseTheirFillerInEveryFileAsync(FillerCodec codec, int lengthSize, Fmp4Layout layout, CancellationToken cancellationToken)
 	{
-		AppConfig config = AppConfig.CreateDefault();
-		config.RemoveFillerData = removeFiller;
+		byte[][][] firstVideo = [[FillerSamples.Picture(codec, true, "k1"), FillerSamples.Filler(codec, 50)], [FillerSamples.Filler(codec, 5), FillerSamples.Picture(codec, false, "p1"), FillerSamples.Lookalike(codec, "l1"), FillerSamples.Filler(codec, 300)]];
+		byte[][][] secondVideo = [[FillerSamples.Picture(codec, true, "k2"), FillerSamples.Filler(codec, 10)], [FillerSamples.Filler(codec, 20)]];
+		byte[][][] thirdVideo = [[FillerSamples.Picture(codec, true, "k3"), FillerSamples.Filler(codec, 15)]];
+		byte[] init = FillerSamples.Init(codec, lengthSize);
+		byte[] mfra = Fmp4Samples.Box("mfra", Fmp4Samples.Box("mfro", new byte[8]));
 
-		await Assert.That(LiveRecorder.GetFillerRemoval(config, codec)).IsEqualTo(expected);
+		byte[] Fragment(byte[][][] video, bool removeFiller)
+		{
+			return FillerSamples.Fragment([.. video.Select(nals => FillerSamples.Sample(lengthSize, removeFiller ? FillerSamples.WithoutFiller(codec, nals) : nals))], ["aac-1"u8.ToArray(), "aac-2"u8.ToArray()], layout);
+		}
+
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new Fmp4Splitter(), SplitRecording.Fixed(OneMinute, removeFiller: true), async session =>
+		{
+			await session.WriteInChunksAsync([.. init, .. Fragment(firstVideo, false)], 100);
+			session.Advance(TimeSpan.FromMinutes(1));
+			await session.WriteInChunksAsync([.. Fragment(secondVideo, false), .. Fragment(thirdVideo, false), .. mfra], 100);
+		}, cancellationToken);
+
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. init, .. Fragment(firstVideo, true)], [.. init, .. Fragment(secondVideo, true), .. Fragment(thirdVideo, true), .. mfra]], CollectionOrdering.Matching);
+	}
+
+	[Test]
+	public async Task TurningFillerRemovalOnAndOffTakesEffectFromTheNextFragmentOfAnFmp4StreamAsync(CancellationToken cancellationToken)
+	{
+		byte[][] nals = [FillerSamples.Picture(FillerCodec.Hevc, true, "k"), FillerSamples.Filler(FillerCodec.Hevc, 30)];
+		byte[] init = FillerSamples.Init(FillerCodec.Hevc, 4);
+		byte[] fragment = FillerSamples.Fragment([FillerSamples.Sample(4, nals)], ["aac"u8.ToArray()]);
+		bool removeFiller = false;
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new Fmp4Splitter(), new SplitControl(static () => new RecordingSplitPolicy(new RecordingSplit.None(), false), () => removeFiller), async session =>
+		{
+			await session.WriteAsync([.. init, .. fragment]);
+			removeFiller = true;
+			await session.WriteAsync(fragment);
+			removeFiller = false;
+			await session.WriteAsync(fragment);
+		}, cancellationToken);
+
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. init, .. fragment, .. FillerSamples.Fragment([FillerSamples.Sample(4, [nals[0]])], ["aac"u8.ToArray()]), .. fragment]], CollectionOrdering.Matching);
 	}
 }
 

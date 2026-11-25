@@ -74,6 +74,41 @@ public sealed class HlsSplitterTest
 	}
 
 	[Test]
+	public async Task ChangedTsProgramMapReplacesTheCachedOneAsync(CancellationToken cancellationToken)
+	{
+		byte[] changedPmt = TsSamples.Pmt(version: 1);
+		byte[][] segments = [TsSegment("1", true, TsSamples.AvcIdr), [.. TsSamples.Pat(), .. changedPmt, .. TsSegment("2", false, TsSamples.AvcSlice)], TsSegment("3", false, TsSamples.AvcIdr), TsSegment("4", false, TsSamples.AvcIdr)];
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new TsHlsSplitter(), EverySegment, session => SendAsync(session, null, segments), cancellationToken);
+
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[[.. segments[0], .. segments[1]], [.. TsSamples.Pat(), .. changedPmt, .. segments[2], .. segments[3]]], CollectionOrdering.Matching);
+	}
+
+	[Test]
+	public async Task TsSegmentsBeforeTheTablesAreNotSplitPointsAsync(CancellationToken cancellationToken)
+	{
+		byte[][] segments = [TsSegment("1", false, TsSamples.AvcIdr), TsSegment("2", false, TsSamples.AvcIdr), TsSegment("3", false, TsSamples.AvcIdr)];
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new TsHlsSplitter(), EverySegment, session => SendAsync(session, null, segments), cancellationToken);
+
+		await Assert.That(recording.Files).Count().IsEqualTo(1);
+	}
+
+	[Test]
+	public async Task AudioOnlyTsSegmentsAreAllSplitPointsAsync(CancellationToken cancellationToken)
+	{
+		byte[] tables = [.. TsSamples.Pat(), .. TsSamples.Pmt(hasVideo: false)];
+		byte[][] segments = [[.. tables, .. TsSamples.Audio("1")], TsSamples.Audio("2"), TsSamples.Audio("3"), TsSamples.Audio("4")];
+		SplitRecording recording = new();
+
+		await recording.RunAsync(new TsHlsSplitter(), EverySegment, session => SendAsync(session, null, segments), cancellationToken);
+
+		await Assert.That(recording.Files).IsEquivalentTo((byte[][])[segments[0], [.. tables, .. segments[1]], [.. tables, .. segments[2], .. segments[3]]], CollectionOrdering.Matching);
+	}
+
+	[Test]
 	[Arguments(TsSamples.HevcStreamType, false, DisplayName = "HEVC 按 NAL 类型")]
 	[Arguments(TsSamples.AvcStreamType, true, DisplayName = "AVC 按随机访问标志")]
 	public async Task TsKeyFramesAreFoundByNalTypeOrRandomAccessFlagAsync(byte streamType, bool randomAccessOnly, CancellationToken cancellationToken)

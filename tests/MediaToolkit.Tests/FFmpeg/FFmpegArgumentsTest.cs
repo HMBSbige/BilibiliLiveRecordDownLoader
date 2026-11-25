@@ -6,6 +6,8 @@ public class FFmpegArgumentsTest
 {
 	private static readonly Uri Source = new(@"https://example.com/live.flv");
 
+	private static readonly string[] RecordOutput = [@"-f", @"mp4", @"-movflags", @"frag_keyframe+empty_moov+default_base_moof+skip_trailer", @"-frag_duration", @"1000000", @"pipe:1"];
+
 	public static IEnumerable<TestDataRow<Func<(IReadOnlyList<string> Arguments, string[] Expected)>>> Commands()
 	{
 		yield return new
@@ -34,33 +36,33 @@ public class FFmpegArgumentsTest
 		);
 		yield return new
 		(
-			static () => (FFmpegArguments.Record(new Uri(@"https://cn-gotcha.bilivideo.com/live/x.flv?expires=1&sign=a%2Fb~c"), @"Mozilla/5.0 (Test)", new Uri(@"https://live.bilibili.com/"), TimeSpan.FromSeconds(10.5)),
-				[@"-hide_banner", @"-user_agent", @"Mozilla/5.0 (Test)", @"-headers", "Referer: https://live.bilibili.com/\r\n", @"-rw_timeout", @"10500000", @"-i", @"https://cn-gotcha.bilivideo.com/live/x.flv?expires=1&sign=a%2Fb~c", @"-c", @"copy", @"-f", @"mpegts", @"pipe:1"]),
+			static () => (FFmpegArguments.Record(new Uri(@"https://cn-gotcha.bilivideo.com/live/x.flv?expires=1&sign=a%2Fb~c"), VideoCodec.Av1, @"Mozilla/5.0 (Test)", new Uri(@"https://live.bilibili.com/"), TimeSpan.FromSeconds(10.5)),
+				[@"-hide_banner", @"-user_agent", @"Mozilla/5.0 (Test)", @"-headers", "Referer: https://live.bilibili.com/\r\n", @"-rw_timeout", @"10500000", @"-i", @"https://cn-gotcha.bilivideo.com/live/x.flv?expires=1&sign=a%2Fb~c", @"-c", @"copy", .. RecordOutput]),
 			DisplayName: "Record passes HTTP options before the signed input"
 		);
 		yield return new
 		(
-			static () => (FFmpegArguments.Record(Source, null, null, Timeout.InfiniteTimeSpan, FillerRemoval.None, new Uri(@"http://127.0.0.1:7890")),
-				[@"-hide_banner", @"-http_proxy", @"http://127.0.0.1:7890/", @"-i", @"https://example.com/live.flv", @"-c", @"copy", @"-f", @"mpegts", @"pipe:1"]),
+			static () => (FFmpegArguments.Record(Source, VideoCodec.Av1, null, null, Timeout.InfiniteTimeSpan, new Uri(@"http://127.0.0.1:7890")),
+				[@"-hide_banner", @"-http_proxy", @"http://127.0.0.1:7890/", @"-i", @"https://example.com/live.flv", @"-c", @"copy", .. RecordOutput]),
 			DisplayName: "Record passes the HTTP proxy before the input"
 		);
 		yield return new
 		(
-			static () => (FFmpegArguments.Record(Source, null, null, Timeout.InfiniteTimeSpan, FillerRemoval.Avc),
-				[@"-hide_banner", @"-i", @"https://example.com/live.flv", @"-c", @"copy", @"-bsf:v", @"filter_units=remove_types=12", @"-f", @"mpegts", @"pipe:1"]),
-			DisplayName: "Record removes H.264 filler after the codec"
+			static () => (FFmpegArguments.Record(Source, VideoCodec.Av1, null, null, Timeout.InfiniteTimeSpan, isTransportStream: true),
+				[@"-hide_banner", @"-i", @"https://example.com/live.flv", @"-c", @"copy", @"-bsf:a", @"aac_adtstoasc", .. RecordOutput]),
+			DisplayName: "Record strips the ADTS headers of AAC from a transport stream"
 		);
 		yield return new
 		(
-			static () => (FFmpegArguments.Record(Source, null, null, Timeout.InfiniteTimeSpan, FillerRemoval.Hevc),
-				[@"-hide_banner", @"-i", @"https://example.com/live.flv", @"-c", @"copy", @"-bsf:v", @"filter_units=remove_types=38", @"-f", @"mpegts", @"pipe:1"]),
-			DisplayName: "Record removes HEVC filler after the codec"
+			static () => (FFmpegArguments.Record(Source, VideoCodec.Avc, null, null, Timeout.InfiniteTimeSpan),
+				[@"-hide_banner", @"-i", @"https://example.com/live.flv", @"-c", @"copy", @"-bsf:v", @"h264_mp4toannexb", @"-tag:v", @"avc3", .. RecordOutput]),
+			DisplayName: "Record keeps H.264 parameter sets in the samples"
 		);
 		yield return new
 		(
-			static () => (FFmpegArguments.Record(Source, null, null, Timeout.InfiniteTimeSpan, FillerRemoval.Av1),
-				[@"-hide_banner", @"-i", @"https://example.com/live.flv", @"-c", @"copy", @"-bsf:v", @"filter_units=remove_types=15", @"-f", @"mpegts", @"pipe:1"]),
-			DisplayName: "Record removes AV1 padding after the codec"
+			static () => (FFmpegArguments.Record(Source, VideoCodec.Hevc, null, null, Timeout.InfiniteTimeSpan, isTransportStream: true),
+				[@"-hide_banner", @"-i", @"https://example.com/live.flv", @"-c", @"copy", @"-bsf:v", @"hevc_mp4toannexb", @"-tag:v", @"hev1", @"-bsf:a", @"aac_adtstoasc", .. RecordOutput]),
+			DisplayName: "Record keeps HEVC parameter sets in the samples"
 		);
 	}
 
@@ -74,6 +76,6 @@ public class FFmpegArgumentsTest
 	[Test]
 	public async Task RecordRejectsAProxyFFmpegWouldIgnoreAsync()
 	{
-		await Assert.That(static () => FFmpegArguments.Record(Source, null, null, Timeout.InfiniteTimeSpan, FillerRemoval.None, new Uri(@"https://127.0.0.1:7890"))).Throws<ArgumentException>();
+		await Assert.That(static () => FFmpegArguments.Record(Source, VideoCodec.Av1, null, null, Timeout.InfiniteTimeSpan, new Uri(@"https://127.0.0.1:7890"))).Throws<ArgumentException>();
 	}
 }

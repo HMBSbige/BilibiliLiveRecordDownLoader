@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace BilibiliLiveRecordDownLoader.Application.Recording.Splitting;
 
-// 元素指 FLV tag、TS 包或 HLS 分片
+// 元素指 FLV tag、HLS 分片或分片 MP4 的顶层盒子
 internal abstract class MediaSplitter
 {
 	private readonly List<MediaMark> _mediaMarks = [];
@@ -11,9 +11,6 @@ internal abstract class MediaSplitter
 	public ReadOnlyMemory<byte> Header { get; private set; }
 
 	public virtual bool CanSplit => true;
-
-	// 一次写入可能只有单元的开头，而 Rebase 要在文件的第一次提交里看到从关键帧起的整个单元才定得准起点
-	public virtual bool HoldsFirstUnit => false;
 
 	// 按收到的字节计，即下一个元素在收到的数据里的起点
 	public long AcceptedLength { get; private set; }
