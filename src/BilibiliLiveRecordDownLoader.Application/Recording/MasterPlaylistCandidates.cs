@@ -16,7 +16,7 @@ internal static class MasterPlaylistCandidates
 			return [];
 		}
 
-		long? target = profile.UseMasterPlaylistWhenRestricted && QualityRestrictions.Evaluate(preferred, listed, profile, hasCookie) is { Highest: var highest } ? highest : null;
+		long? target = QualityRestrictions.Evaluate(preferred, listed, profile, hasCookie)?.Highest;
 
 		if (profile.Quality != StreamQuality.OriginalTrueColor)
 		{
@@ -35,10 +35,10 @@ internal static class MasterPlaylistCandidates
 		return target is not null && fallback is { } below && below > preferred.Qn ? [trueColor, below] : [trueColor];
 	}
 
-	// 原画真彩要用 25000 请求才会列出；其他画质用 10000 请求，匿名时也会列出原画
+	// 原画及以下的档位不论请求哪个 qn 都会列出，匿名时也一样；高于原画的档位要用对应的 qn 请求才会列出（原画真彩实测如此，4K、杜比按同样规律处理）
 	public static long GetPlaylistQuality(RecordingProfile profile)
 	{
-		return (profile.Quality == StreamQuality.OriginalTrueColor ? StreamQuality.OriginalTrueColor : StreamQuality.Original).Qn;
+		return profile.Quality.Qn;
 	}
 
 	public static IReadOnlyList<LiveStreamCandidate.Variant> Select(IEnumerable<LiveStreamCandidate.Variant> variants, long[] qualities, IReadOnlyList<StreamCodec> codecPriority)

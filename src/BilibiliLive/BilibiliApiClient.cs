@@ -137,7 +137,7 @@ public sealed class BilibiliApiClient
 		return StreamCandidates.Select(data, codecPriority, formatPriority);
 	}
 
-	/// <param name="qn">原画真彩要用 25000 请求才会列出</param>
+	/// <param name="qn">原画及以下的档位总会列出；高于原画的档位要用对应的 qn 请求才会列出，例如原画真彩要用 25000</param>
 	/// <remarks>mid 本应是请求者的 uid，但接口不拿它核对登录，所以填 0，请求也不带登录 Cookie</remarks>
 	public async Task<IReadOnlyList<LiveStreamCandidate.Variant>> GetMasterPlaylistVariantsAsync(long roomId, long qn, CancellationToken cancellationToken = default)
 	{

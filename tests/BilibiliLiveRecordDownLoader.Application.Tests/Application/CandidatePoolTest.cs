@@ -276,7 +276,7 @@ public sealed class CandidatePoolTest
 		private readonly CandidatePool _pool = new(NullLogger.Instance);
 		private (LiveStreamCandidate Candidate, Uri Endpoint)? _opened;
 
-		public CandidateRequest Request { get; set; } = new(false, default, false, [], []);
+		public CandidateRequest Request { get; set; } = new(false, default, [], []);
 
 		public int Requests { get; private set; }
 

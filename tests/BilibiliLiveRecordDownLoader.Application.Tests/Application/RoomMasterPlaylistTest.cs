@@ -121,25 +121,8 @@ public sealed class RoomMasterPlaylistTest
 			await Assert.That(Playlists(loop)).IsEquivalentTo([AvcOriginalPlaylist], CollectionOrdering.Matching);
 			await Assert.That(loop.StreamRequests.First().Query).IsEqualTo("?sign=master");
 			await Assert.That(masterQuery).StartsWith($"?cid={RecordingLoopHarness.RoomId}&mid=0&").And.Contains("&qn=10000&");
-			await Assert.That(loop.RecorderLogs).Contains(log => log.StartsWith($"Recording Fmp4/Avc at quality 10000 from a.test{AvcOriginalPlaylist} to ", StringComparison.Ordinal));
+			await Assert.That(loop.RecorderLogs).Contains(log => log.StartsWith($"Recording Fmp4/Avc at quality 10000 offered by the master playlist from a.test{AvcOriginalPlaylist} to ", StringComparison.Ordinal));
 			await Assert.That(loop.RecorderLogs).DoesNotContain(static log => log.Contains(" is available: ", StringComparison.Ordinal));
-		}
-	}
-
-	[Test]
-	public async Task MasterPlaylistIsNotRequestedWhenTurnedOffAsync(CancellationToken cancellationToken)
-	{
-		await using RecordingLoopHarness loop = Loop(cancellationToken);
-		loop.Config.UseMasterPlaylistWhenRestricted = false;
-		loop.GoLive();
-
-		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Recording);
-
-		using (Assert.Multiple())
-		{
-			await Assert.That(loop.MasterPlaylistQueries).IsEmpty();
-			await Assert.That(Playlists(loop)).IsEquivalentTo([AvcPlaylist], CollectionOrdering.Matching);
-			await Assert.That(loop.Snapshot.Recording?.Restriction?.GetType().Name).IsEqualTo(nameof(QualityRestriction.NotLoggedIn));
 		}
 	}
 
@@ -178,6 +161,7 @@ public sealed class RoomMasterPlaylistTest
 		{
 			await Assert.That(Recorded(loop)).IsEqualTo((StreamCodec.Avc, 250L, new QualityRestriction.NotLoggedIn(10000)));
 			await Assert.That(Playlists(loop)).IsEquivalentTo([AvcOriginalPlaylist, HevcOriginalPlaylist, AvcPlaylist], CollectionOrdering.Matching);
+			await Assert.That(loop.RecorderLogs).Contains(static log => log.StartsWith($"Recording Fmp4/Avc at quality 250 offered by getRoomPlayInfo from a.test{AvcPlaylist} to ", StringComparison.Ordinal));
 			await Assert.That(loop.PlayInfoRequests).IsEqualTo(1);
 			await Assert.That(loop.RecorderLogs).HasSingleItem(static log => log == "Recording at quality 250 while 10000 is available: not logged in");
 			await Assert.That(loop.RecorderLogs).HasSingleItem(static log => log.StartsWith("Fmp4/Avc 10000 from the master playlist is not available from a.test: ", StringComparison.Ordinal));
@@ -229,7 +213,6 @@ public sealed class RoomMasterPlaylistTest
 	{
 		await using RecordingLoopHarness loop = Loop(cancellationToken, Fmp4Streams(10000, 10000, 250));
 		loop.Config.Cookie = "SESSDATA=x";
-		loop.Config.UseMasterPlaylistWhenRestricted = false;
 		loop.QualityDescriptions = """[{"qn":10000,"desc":"原画"},{"qn":250,"desc":"超清"}]""";
 		loop.Settings = loop.Settings with { Quality = StreamQuality.OriginalTrueColor };
 		loop.GoLive();

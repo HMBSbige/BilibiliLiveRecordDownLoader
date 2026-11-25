@@ -56,8 +56,6 @@ public sealed record AppSettingsDto
 
 	public required bool RemoveFillerData { get; init; }
 
-	public required bool UseMasterPlaylistWhenRestricted { get; init; }
-
 	public required bool RecordSuperChats { get; init; }
 
 	public required DanmakuGiftMode GiftMode { get; init; }

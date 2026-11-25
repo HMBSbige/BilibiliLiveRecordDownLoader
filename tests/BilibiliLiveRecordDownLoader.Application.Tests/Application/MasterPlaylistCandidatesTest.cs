@@ -15,11 +15,9 @@ public sealed class MasterPlaylistCandidatesTest
 		return new LiveStreamCandidate.Variant(codec, qn, null, [new Uri($"https://cdn.test/live-bvc/1/{codec}_{qn}/index.m3u8")]);
 	}
 
-	private static RecordingProfile Profile(long quality = 10000, bool useMasterPlaylist = true)
+	private static RecordingProfile Profile(long quality = 10000)
 	{
-		AppConfig config = AppConfig.CreateDefault();
-		config.UseMasterPlaylistWhenRestricted = useMasterPlaylist;
-		return RecordingProfile.Create(config, new RoomConfig { RoomId = 1, Quality = new StreamQuality(quality) });
+		return RecordingProfile.Create(AppConfig.CreateDefault(), new RoomConfig { RoomId = 1, Quality = new StreamQuality(quality) });
 	}
 
 	private static long[] Qualities(IReadOnlyList<LiveStreamCandidate.Listed> listed, RecordingProfile profile, bool hasCookie = false)
@@ -39,11 +37,7 @@ public sealed class MasterPlaylistCandidatesTest
 	{
 		LiveStreamCandidate.Listed[] listed = [Listed(StreamCodec.Avc, 250, 10000, 250), Listed(StreamCodec.Hevc, 250, 10000, 250)];
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(Qualities(listed, Profile(), hasCookie)).IsEquivalentTo([10000L], CollectionOrdering.Matching);
-			await Assert.That(Qualities(listed, Profile(useMasterPlaylist: false), hasCookie)).IsEmpty();
-		}
+		await Assert.That(Qualities(listed, Profile(), hasCookie)).IsEquivalentTo([10000L], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -59,13 +53,13 @@ public sealed class MasterPlaylistCandidatesTest
 	}
 
 	[Test]
-	[Arguments(false, false)]
-	[Arguments(true, true)]
-	public async Task OriginalTrueColorMissingFromTheApiIsAskedForAsync(bool hasCookie, bool useMasterPlaylist)
+	[Arguments(false)]
+	[Arguments(true)]
+	public async Task OriginalTrueColorMissingFromTheApiIsAskedForAsync(bool hasCookie)
 	{
 		LiveStreamCandidate.Listed[] listed = [Listed(StreamCodec.Avc, 10000, 10000, 250)];
 
-		await Assert.That(Qualities(listed, Profile(25000, useMasterPlaylist), hasCookie)).IsEquivalentTo([25000L], CollectionOrdering.Matching);
+		await Assert.That(Qualities(listed, Profile(25000), hasCookie)).IsEquivalentTo([25000L], CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -98,11 +92,7 @@ public sealed class MasterPlaylistCandidatesTest
 	{
 		LiveStreamCandidate.Listed[] listed = [Listed(StreamCodec.Avc, 250, accept)];
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(Qualities(listed, Profile(25000))).IsEquivalentTo(expected, CollectionOrdering.Matching);
-			await Assert.That(Qualities(listed, Profile(25000, useMasterPlaylist: false))).IsEquivalentTo([25000L], CollectionOrdering.Matching);
-		}
+		await Assert.That(Qualities(listed, Profile(25000))).IsEquivalentTo(expected, CollectionOrdering.Matching);
 	}
 
 	[Test]
@@ -116,11 +106,14 @@ public sealed class MasterPlaylistCandidatesTest
 	}
 
 	[Test]
+	[Arguments(30000L, 30000L)]
 	[Arguments(25000L, 25000L)]
+	[Arguments(20000L, 20000L)]
 	[Arguments(10000L, 10000L)]
-	[Arguments(30000L, 10000L)]
-	[Arguments(0L, 10000L)]
-	public async Task MasterPlaylistIsRequestedAt25000OnlyForTheOriginalTrueColorAsync(long quality, long expected)
+	[Arguments(401L, 401L)]
+	[Arguments(250L, 250L)]
+	[Arguments(0L, 0L)]
+	public async Task MasterPlaylistIsRequestedAtTheSelectedQualityAsync(long quality, long expected)
 	{
 		await Assert.That(MasterPlaylistCandidates.GetPlaylistQuality(Profile(quality))).IsEqualTo(expected);
 	}

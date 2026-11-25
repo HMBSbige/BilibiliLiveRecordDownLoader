@@ -7,13 +7,11 @@ public sealed class ExperimentalSettingsViewModelTest
 {
 	public enum Setting
 	{
-		RemoveFillerData,
-		UseMasterPlaylistWhenRestricted
+		RemoveFillerData
 	}
 
 	[Test]
 	[Arguments(Setting.RemoveFillerData)]
-	[Arguments(Setting.UseMasterPlaylistWhenRestricted)]
 	public async Task SettingIsRestoredFromAndSavedToTheConfigAsync(Setting setting, CancellationToken cancellationToken)
 	{
 		(Func<AppConfig, bool> readConfig, Action<AppConfig, bool> writeConfig, Func<ExperimentalSettingsViewModel, bool> readViewModel, Action<ExperimentalSettingsViewModel, bool> writeViewModel) = Accessors(setting);
@@ -41,8 +39,7 @@ public sealed class ExperimentalSettingsViewModelTest
 	{
 		return setting switch
 		{
-			Setting.RemoveFillerData => (static config => config.RemoveFillerData, static (config, value) => config.RemoveFillerData = value, static viewModel => viewModel.RemoveFillerData, static (viewModel, value) => viewModel.RemoveFillerData = value),
-			Setting.UseMasterPlaylistWhenRestricted => (static config => config.UseMasterPlaylistWhenRestricted, static (config, value) => config.UseMasterPlaylistWhenRestricted = value, static viewModel => viewModel.UseMasterPlaylistWhenRestricted, static (viewModel, value) => viewModel.UseMasterPlaylistWhenRestricted = value)
+			Setting.RemoveFillerData => (static config => config.RemoveFillerData, static (config, value) => config.RemoveFillerData = value, static viewModel => viewModel.RemoveFillerData, static (viewModel, value) => viewModel.RemoveFillerData = value)
 		};
 	}
 }

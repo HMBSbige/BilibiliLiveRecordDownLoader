@@ -629,6 +629,21 @@ public sealed class AppConfigManagerTest : IDisposable
 		}
 	}
 
+	// 4.0 的实验开关，现在画质受限时总是改用主播放列表
+	[Test]
+	public async Task RetiredMasterPlaylistSettingIsIgnoredAndDroppedAsync(CancellationToken cancellationToken)
+	{
+		await WriteFileAsync(ConfigFileName, """{ "UseMasterPlaylistWhenRestricted": false, "Theme": "Dark" }""", cancellationToken);
+
+		await using (AppConfigManager manager = Create())
+		{
+			await Assert.That((await manager.GetAsync(cancellationToken)).Theme).IsEqualTo(AppTheme.Dark);
+			await manager.UpdateAsync(static config => config.RemoveFillerData = true, cancellationToken);
+		}
+
+		await Assert.That((await ReadSavedAsync(cancellationToken)).Select(static property => property.Key)).IsEquivalentTo([nameof(AppConfig.Theme), nameof(AppConfig.RemoveFillerData)], CollectionOrdering.Matching);
+	}
+
 	private static JsonObject SavedRoom(JsonObject saved)
 	{
 		return saved[nameof(AppConfig.Rooms)]?[0] as JsonObject ?? [];

@@ -34,7 +34,6 @@ internal static class SettingsMapper
 				NotifyOnRecordingError = config.NotifyOnRecordingError,
 				NotifyOnTitleChange = config.NotifyOnTitleChange,
 				RemoveFillerData = config.RemoveFillerData,
-				UseMasterPlaylistWhenRestricted = config.UseMasterPlaylistWhenRestricted,
 				RecordSuperChats = config.RecordSuperChats,
 				GiftMode = config.GiftMode,
 				RecordGuards = config.RecordGuards,
@@ -75,7 +74,6 @@ internal static class SettingsMapper
 			config.NotifyOnRecordingError = settings.NotifyOnRecordingError;
 			config.NotifyOnTitleChange = settings.NotifyOnTitleChange;
 			config.RemoveFillerData = settings.RemoveFillerData;
-			config.UseMasterPlaylistWhenRestricted = settings.UseMasterPlaylistWhenRestricted;
 			config.RecordSuperChats = settings.RecordSuperChats;
 			config.GiftMode = settings.GiftMode;
 			config.RecordGuards = settings.RecordGuards;
