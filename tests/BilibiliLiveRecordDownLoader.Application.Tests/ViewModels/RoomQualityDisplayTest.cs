@@ -9,9 +9,9 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
 
 public sealed class RoomQualityDisplayTest
 {
-	private static RoomSnapshot Recording(long roomId, QualityRestriction? restriction, StreamCodec codec = StreamCodec.Avc, long quality = 250)
+	private static RoomSnapshot Recording(long roomId, QualityRestriction? restriction, StreamCodec codec = StreamCodec.Avc, long quality = 250, IReadOnlyDictionary<long, string>? qualityNames = null)
 	{
-		return new RoomSnapshot(new RoomSettingsDto { RoomId = roomId }, 0, $"主播{roomId}", null, LiveStatus.Live, RecordStatus.Recording, 0, new ActiveRecordingDto(StreamFormat.Fmp4, codec, quality, restriction, DateTimeOffset.UtcNow), null);
+		return new RoomSnapshot(new RoomSettingsDto { RoomId = roomId }, 0, $"主播{roomId}", null, LiveStatus.Live, RecordStatus.Recording, 0, new ActiveRecordingDto(StreamFormat.Fmp4, codec, quality, restriction, qualityNames ?? new Dictionary<long, string>(), DateTimeOffset.UtcNow), null);
 	}
 
 	private static RoomSnapshot Idle(long roomId)
@@ -74,7 +74,7 @@ public sealed class RoomQualityDisplayTest
 	}
 
 	[Test]
-	public async Task RestrictionIsClearedOnceTheRoomRecordsTheTrueOriginalAsync()
+	public async Task RestrictionIsClearedOnceTheRoomRecordsTheOriginalTrueColorAsync()
 	{
 		using RoomItemViewModel room = Row(Recording(1, new QualityRestriction.NotLoggedIn(10000)));
 
@@ -83,10 +83,36 @@ public sealed class RoomQualityDisplayTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(room.StreamInfo).IsEqualTo("fMP4 · HEVC (H.265)");
-			await Assert.That(room.QualityText).IsEqualTo(AppLanguage.Current.QualityTrueOriginal);
+			await Assert.That(room.QualityText).IsEqualTo(AppLanguage.Current.QualityOriginalTrueColor);
 			await Assert.That(room.IsQualityRestricted).IsFalse();
 			await Assert.That(room.QualityRestrictionTip).IsNull();
 			await Assert.That(room.HelpText).IsNull();
+		}
+	}
+
+	public static IEnumerable<Func<(string Culture, long Quality, string Expected)>> NameCases()
+	{
+		yield return static () => ("zh-CN", 25000, "2K 原画");
+		yield return static () => ("en", 25000, AppLanguage.Current.QualityOriginalTrueColor);
+		yield return static () => ("en", 12345, "新画质");
+		yield return static () => ("zh-CN", 54321, "54321");
+	}
+
+	// 接口给的名称是中文：中文界面先用它，其他语言先用翻译过的已知名称
+	[Test]
+	[MethodDataSource(nameof(NameCases))]
+	public async Task QualityIsNamedAsTheApiNamesItForTheRoomAsync(string culture, long quality, string expected)
+	{
+		Dictionary<long, string> names = new() { [25000] = "2K 原画", [12345] = "新画质", [10000] = "1080P 高码率" };
+		CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(culture);
+		using RoomItemViewModel restricted = Row(Recording(1, new QualityRestriction.NotLoggedIn(quality), quality: 10000, qualityNames: names));
+		using RoomItemViewModel recording = Row(Recording(2, null, quality: quality, qualityNames: names));
+		string original = culture is "en" ? AppLanguage.Current.QualityOriginal : "1080P 高码率";
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(recording.QualityText).IsEqualTo(expected);
+			await Assert.That(restricted.QualityRestrictionTip).IsEqualTo(AppLanguage.Current.QualityRestrictedNotLoggedIn.ToString(original, expected));
 		}
 	}
 

@@ -155,7 +155,8 @@ public class BilibiliApiClientTest
 	{
 		using ApiClient api = Single(ApiPaths.RoomPlayInfo, static () => Responses.Fixture("room_play_info.json"));
 
-		IReadOnlyList<LiveStreamCandidate.Listed> candidates = await api.Client.GetStreamCandidatesAsync(732, 10000, [StreamCodec.Hevc, StreamCodec.Avc], [StreamFormat.Fmp4, StreamFormat.Flv], cancellationToken);
+		LiveStreamListing listing = await api.Client.GetStreamCandidatesAsync(732, 10000, [StreamCodec.Hevc, StreamCodec.Avc], [StreamFormat.Fmp4, StreamFormat.Flv], cancellationToken);
+		IReadOnlyList<LiveStreamCandidate.Listed> candidates = listing.Candidates;
 		RecordedRequest request = await Assert.That(api.Handler.Requests).HasSingleItem();
 		LiveStreamCandidate.Listed flv = await Assert.That(candidates).HasSingleItem(static c => c is { Format: StreamFormat.Flv, Codec: StreamCodec.Avc });
 		LiveStreamCandidate.Listed fmp4Hevc = await Assert.That(candidates).HasSingleItem(static c => c is { Format: StreamFormat.Fmp4, Codec: StreamCodec.Hevc });
@@ -180,6 +181,7 @@ public class BilibiliApiClientTest
 			await Assert.That(fmp4Avc.AcceptQualities).IsEmpty();
 			await Assert.That(flv.Urls.Select(static u => u.AbsoluteUri)).IsEquivalentTo(["https://a.bilivideo.com/live-bvc/1/live_2500.flv?expires=1&sign=a", "https://c.bilivideo.com/live-bvc/1/live_2500.flv?expires=1&sign=c"], CollectionOrdering.Matching);
 			await Assert.That(request.Uri.Query).Contains("room_id=732").And.Contains("qn=10000").And.Contains("protocol=0,1&format=0,1,2&codec=0,1,2");
+			await Assert.That(listing.QualityNames).IsEquivalentTo(new Dictionary<long, string> { [30000] = "杜比", [20000] = "4K", [10000] = "原画", [400] = "蓝光" });
 		}
 	}
 
@@ -188,7 +190,7 @@ public class BilibiliApiClientTest
 	{
 		using ApiClient api = Single(ApiPaths.RoomPlayInfo, static () => Responses.Fixture("room_play_info.json"));
 
-		IReadOnlyList<LiveStreamCandidate.Listed> candidates = await api.Client.GetStreamCandidatesAsync(732, 10000, [], [], cancellationToken);
+		IReadOnlyList<LiveStreamCandidate.Listed> candidates = (await api.Client.GetStreamCandidatesAsync(732, 10000, [], [], cancellationToken)).Candidates;
 
 		(StreamFormat, StreamCodec)[] expected =
 		[
@@ -221,22 +223,30 @@ public class BilibiliApiClientTest
 	{
 		using ApiClient api = Single(ApiPaths.RoomPlayInfo, static () => Responses.Json("""{"code":0,"message":"OK","data":{"room_id":5440,"short_id":1,"live_status":1,"playurl_info":null}}"""));
 
-		await Assert.That(await api.Client.GetStreamCandidatesAsync(1, 10000, [], [], cancellationToken)).IsEmpty();
+		LiveStreamListing listing = await api.Client.GetStreamCandidatesAsync(1, 10000, [], [], cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(listing.Candidates).IsEmpty();
+			await Assert.That(listing.QualityNames).IsEmpty();
+		}
 	}
 
 	[Test]
-	public async Task MasterPlaylistIsRequestedUnsignedWithTheGivenMidAndWithoutTheLoginCookieAsync(CancellationToken cancellationToken)
+	[Arguments(10000L)]
+	[Arguments(25000L)]
+	public async Task MasterPlaylistIsRequestedUnsignedWithTheGivenQnAndWithoutTheLoginCookieAsync(long qn, CancellationToken cancellationToken)
 	{
 		BilibiliIdentity identity = new(static _ => ValueTask.FromResult(new BilibiliRequestOptions(Cookie: "SESSDATA=secret; buvid3=known")));
 		using ApiClient api = Single(ApiPaths.MasterPlaylist, static () => Responses.Text(Responses.FixtureText("master_playlist.m3u8")), identity);
 
-		IReadOnlyList<LiveStreamCandidate.Variant> variants = await api.Client.GetMasterPlaylistVariantsAsync(6650029, 105022844, cancellationToken);
+		IReadOnlyList<LiveStreamCandidate.Variant> variants = await api.Client.GetMasterPlaylistVariantsAsync(6650029, qn, cancellationToken);
 		RecordedRequest request = await Assert.That(api.Handler.Requests).HasSingleItem();
 
 		using (Assert.Multiple())
 		{
 			await Assert.That(variants).Count().IsEqualTo(7);
-			await Assert.That(request.Uri.AbsoluteUri).IsEqualTo("https://api.live.bilibili.com/xlive/play-gateway/master/url?cid=6650029&mid=105022844&pt=web&p2p_type=-1&net=0&free_type=0&build=0&feature=2&qn=10000&drm_type=0&codec=0,1,2");
+			await Assert.That(request.Uri.AbsoluteUri).IsEqualTo($"https://api.live.bilibili.com/xlive/play-gateway/master/url?cid=6650029&mid=0&pt=web&p2p_type=-1&net=0&free_type=0&build=0&feature=2&qn={qn}&drm_type=0&codec=0,1,2");
 			await Assert.That(request.Headers["Cookie"]).IsEqualTo("buvid3=known");
 		}
 	}

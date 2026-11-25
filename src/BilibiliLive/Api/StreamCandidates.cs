@@ -2,7 +2,12 @@ namespace BilibiliLive.Api;
 
 internal static class StreamCandidates
 {
-	public static LiveStreamCandidate.Listed[] Select(RoomPlayInfoData data, IReadOnlyList<StreamCodec> codecPriority, IReadOnlyList<StreamFormat> formatPriority)
+	public static LiveStreamListing Select(RoomPlayInfoData data, IReadOnlyList<StreamCodec> codecPriority, IReadOnlyList<StreamFormat> formatPriority)
+	{
+		return new LiveStreamListing(SelectCandidates(data, codecPriority, formatPriority), GetQualityNames(data));
+	}
+
+	private static LiveStreamCandidate.Listed[] SelectCandidates(RoomPlayInfoData data, IReadOnlyList<StreamCodec> codecPriority, IReadOnlyList<StreamFormat> formatPriority)
 	{
 		List<LiveStreamCandidate.Listed> candidates = [];
 
@@ -38,6 +43,21 @@ internal static class StreamCandidates
 		}
 
 		return [.. candidates.OrderBy(c => Rank(codecPriority, c.Codec)).ThenBy(c => Rank(formatPriority, c.Format))];
+	}
+
+	private static Dictionary<long, string> GetQualityNames(RoomPlayInfoData data)
+	{
+		Dictionary<long, string> names = [];
+
+		foreach (QualityDescription description in data.PlayurlInfo?.Playurl?.GQnDesc ?? [])
+		{
+			if (description.Desc is { Length: > 0 } name)
+			{
+				names.TryAdd(description.Qn, name);
+			}
+		}
+
+		return names;
 	}
 
 	private static IEnumerable<Uri> GetUrls(string baseUrl, IReadOnlyList<PlayUrlHost> hosts)

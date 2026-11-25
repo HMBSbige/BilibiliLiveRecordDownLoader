@@ -12,15 +12,14 @@ public sealed class MasterPlaylistCandidatesTest
 
 	private static LiveStreamCandidate.Variant Variant(StreamCodec codec, long qn)
 	{
-		return new LiveStreamCandidate.Variant(codec, qn, [new Uri($"https://cdn.test/live-bvc/1/{codec}_{qn}/index.m3u8")]);
+		return new LiveStreamCandidate.Variant(codec, qn, null, [new Uri($"https://cdn.test/live-bvc/1/{codec}_{qn}/index.m3u8")]);
 	}
 
-	private static RecordingProfile Profile(StreamQuality quality = StreamQuality.Original, bool useMasterPlaylist = true, bool requestTrueOriginal = false)
+	private static RecordingProfile Profile(long quality = 10000, bool useMasterPlaylist = true)
 	{
 		AppConfig config = AppConfig.CreateDefault();
 		config.UseMasterPlaylistWhenRestricted = useMasterPlaylist;
-		config.RequestTrueOriginal = requestTrueOriginal;
-		return RecordingProfile.Create(config, new RoomConfig { RoomId = 1, Quality = quality });
+		return RecordingProfile.Create(config, new RoomConfig { RoomId = 1, Quality = new StreamQuality(quality) });
 	}
 
 	private static long[] Qualities(IReadOnlyList<LiveStreamCandidate.Listed> listed, RecordingProfile profile, bool hasCookie = false)
@@ -48,69 +47,82 @@ public sealed class MasterPlaylistCandidatesTest
 	}
 
 	[Test]
-	[Arguments(StreamQuality.Original, 10000L)]
-	public async Task UnrestrictedPreferredStreamDoesNotAskAsync(StreamQuality quality, long qn)
+	public async Task UnrestrictedPreferredStreamDoesNotAskAsync()
 	{
-		await Assert.That(Qualities([Listed(StreamCodec.Avc, qn, 10000, 400, 250), Listed(StreamCodec.Hevc, 250, 10000, 400, 250)], Profile(quality))).IsEmpty();
+		await Assert.That(Qualities([Listed(StreamCodec.Avc, 10000, 10000, 400, 250), Listed(StreamCodec.Hevc, 250, 10000, 400, 250)], Profile())).IsEmpty();
+	}
+
+	[Test]
+	public async Task DefaultQualityNeverAsksAsync()
+	{
+		await Assert.That(Qualities([Listed(StreamCodec.Avc, 250, 10000, 250)], Profile(0))).IsEmpty();
 	}
 
 	[Test]
 	[Arguments(false, false)]
-	public async Task TrueOriginalMissingFromTheApiIsAskedForAsync(bool hasCookie, bool useMasterPlaylist)
+	[Arguments(true, true)]
+	public async Task OriginalTrueColorMissingFromTheApiIsAskedForAsync(bool hasCookie, bool useMasterPlaylist)
 	{
 		LiveStreamCandidate.Listed[] listed = [Listed(StreamCodec.Avc, 10000, 10000, 250)];
 
-		await Assert.That(Qualities(listed, Profile(useMasterPlaylist: useMasterPlaylist, requestTrueOriginal: true), hasCookie)).IsEquivalentTo([25000L], CollectionOrdering.Matching);
+		await Assert.That(Qualities(listed, Profile(25000, useMasterPlaylist), hasCookie)).IsEquivalentTo([25000L], CollectionOrdering.Matching);
 	}
 
 	[Test]
-	public async Task TrueOriginalFromTheApiIsNotAskedForAgainAsync()
+	public async Task OriginalTrueColorFromTheApiIsNotAskedForAgainAsync()
 	{
 		LiveStreamCandidate.Listed[] listed = [Listed(StreamCodec.Hevc, 25000, 25000, 10000), Listed(StreamCodec.Avc, 10000, 10000)];
 
-		await Assert.That(Qualities(listed, Profile(requestTrueOriginal: true), true)).IsEmpty();
+		await Assert.That(Qualities(listed, Profile(25000), true)).IsEmpty();
 	}
 
 	[Test]
-	public async Task TrueOriginalFromTheApiIsTriedBeforeThePreferredCodecAsync()
+	public async Task OriginalTrueColorFromTheApiIsTriedBeforeThePreferredCodecAsync()
 	{
 		LiveStreamCandidate.Listed[] listed = [Listed(StreamCodec.Avc, 10000, 10000, 250), Listed(StreamCodec.Hevc, 25000, 25000, 10000), Listed(StreamCodec.Av1, 10000, 10000)];
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(Describe(MasterPlaylistCandidates.PreferTrueOriginal(listed, Profile(requestTrueOriginal: true)))).IsEqualTo("Hevc@25000 Avc@10000 Av1@10000");
-			await Assert.That(Describe(MasterPlaylistCandidates.PreferTrueOriginal(listed, Profile()))).IsEqualTo("Avc@10000 Hevc@25000 Av1@10000");
+			await Assert.That(Describe(MasterPlaylistCandidates.PreferOriginalTrueColor(listed, Profile(25000)))).IsEqualTo("Hevc@25000 Avc@10000 Av1@10000");
+			await Assert.That(Describe(MasterPlaylistCandidates.PreferOriginalTrueColor(listed, Profile()))).IsEqualTo("Avc@10000 Hevc@25000 Av1@10000");
 		}
 	}
 
+	// 受限时原画真彩也可能拿不到，再要接口所列低于它的最高一档
 	[Test]
-	public async Task RestrictedTrueOriginalAsksForBothAsync()
+	[Arguments(new long[] { 10000, 250 }, new long[] { 25000, 10000 })]
+	[Arguments(new long[] { 25000, 10000, 250 }, new long[] { 25000, 10000 })]
+	[Arguments(new long[] { 25000, 20000, 10000, 250 }, new long[] { 25000, 20000 })]
+	[Arguments(new long[] { 25000, 250 }, new long[] { 25000 })]
+	public async Task RestrictedOriginalTrueColorAlsoAsksForTheBestBelowItAsync(long[] accept, long[] expected)
 	{
-		LiveStreamCandidate.Listed[] listed = [Listed(StreamCodec.Avc, 250, 10000, 250)];
+		LiveStreamCandidate.Listed[] listed = [Listed(StreamCodec.Avc, 250, accept)];
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(Qualities(listed, Profile(requestTrueOriginal: true))).IsEquivalentTo([25000L, 10000], CollectionOrdering.Matching);
-			await Assert.That(Qualities(listed, Profile(useMasterPlaylist: false, requestTrueOriginal: true))).IsEquivalentTo([25000L], CollectionOrdering.Matching);
+			await Assert.That(Qualities(listed, Profile(25000))).IsEquivalentTo(expected, CollectionOrdering.Matching);
+			await Assert.That(Qualities(listed, Profile(25000, useMasterPlaylist: false))).IsEquivalentTo([25000L], CollectionOrdering.Matching);
 		}
 	}
 
 	[Test]
-	public async Task TrueOriginalIsOnlyWantedAtTheOriginalAsync()
+	public async Task OriginalTrueColorIsOnlyWantedWhenSelectedAsync()
 	{
 		using (Assert.Multiple())
 		{
-			await Assert.That(Qualities([Listed(StreamCodec.Avc, 400, 10000, 400)], Profile(StreamQuality.BluRay, requestTrueOriginal: true))).IsEmpty();
-			await Assert.That(Qualities([Listed(StreamCodec.Avc, 250, 10000, 400, 250)], Profile(StreamQuality.BluRay, requestTrueOriginal: true))).IsEquivalentTo([400L], CollectionOrdering.Matching);
+			await Assert.That(Qualities([Listed(StreamCodec.Avc, 10000, 25000, 10000)], Profile())).IsEmpty();
+			await Assert.That(Qualities([Listed(StreamCodec.Avc, 250, 10000, 400, 250)], Profile(400))).IsEquivalentTo([400L], CollectionOrdering.Matching);
 		}
 	}
 
 	[Test]
-	[Arguments(StreamQuality.Original, true, 42L)]
-	[Arguments(StreamQuality.Original, false, 0L)]
-	public async Task MidIsTheStreamerOnlyForTheTrueOriginalAsync(StreamQuality quality, bool requestTrueOriginal, long expected)
+	[Arguments(25000L, 25000L)]
+	[Arguments(10000L, 10000L)]
+	[Arguments(30000L, 10000L)]
+	[Arguments(0L, 10000L)]
+	public async Task MasterPlaylistIsRequestedAt25000OnlyForTheOriginalTrueColorAsync(long quality, long expected)
 	{
-		await Assert.That(MasterPlaylistCandidates.GetMid(Profile(quality, requestTrueOriginal: requestTrueOriginal), 42)).IsEqualTo(expected);
+		await Assert.That(MasterPlaylistCandidates.GetPlaylistQuality(Profile(quality))).IsEqualTo(expected);
 	}
 
 	[Test]

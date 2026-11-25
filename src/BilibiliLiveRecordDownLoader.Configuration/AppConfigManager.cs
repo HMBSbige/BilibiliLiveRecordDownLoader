@@ -33,6 +33,7 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 	private bool _isSaveScheduled;
 	private bool _isReadOnly;
 	private bool _isCorruptFileInPlace;
+	private bool _isMigrated;
 	private bool _disposed;
 	private AppConfig? _config;
 
@@ -254,7 +255,8 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 		config.ApplyDefaults();
 		RestrictPermissions();
 
-		return (config, unsaved);
+		// 迁移之后立即写回，已删掉的设置不再留在文件里
+		return (config, unsaved || _isMigrated);
 	}
 
 	private async ValueTask<AppConfig?> ReadWithRetryAsync(string path, CancellationToken cancellationToken)
@@ -272,7 +274,7 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 		}
 	}
 
-	private static async ValueTask<AppConfig?> ReadAsync(string path, CancellationToken cancellationToken)
+	private async ValueTask<AppConfig?> ReadAsync(string path, CancellationToken cancellationToken)
 	{
 		if (!File.Exists(path))
 		{
@@ -281,8 +283,29 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 
 		await using FileStream stream = File.OpenRead(path);
 		// 顶层的 null 反序列化不报错；不按损坏处理就会当成没有配置，下次保存还会拿它替换掉好的备份
-		return await JsonSerializer.DeserializeAsync(stream, AppConfigJsonContext.Default.AppConfig, cancellationToken).ConfigureAwait(false)
+		AppConfig config = await JsonSerializer.DeserializeAsync(stream, AppConfigJsonContext.Default.AppConfig, cancellationToken).ConfigureAwait(false)
 			?? throw new JsonException("The config is not a JSON object.");
+
+		stream.Position = 0;
+		Migrate(config, () => JsonSerializer.Deserialize(stream, AppConfigJsonContext.Default.RetiredSettings));
+		return config;
+	}
+
+	// 已经删掉的设置读不出来时当作没写，不影响其他设置
+	private void Migrate(AppConfig config, Func<RetiredSettings?> read)
+	{
+		RetiredSettings? retired;
+
+		try
+		{
+			retired = read();
+		}
+		catch (JsonException)
+		{
+			return;
+		}
+
+		_isMigrated |= retired?.ApplyTo(config) is true;
 	}
 
 	private async ValueTask<AppConfig?> TryReadSkippingInvalidValuesAsync(CancellationToken cancellationToken)
@@ -345,7 +368,14 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 	private AppConfig? DeserializeSkippingInvalidValues(JsonObject root, string path)
 	{
 		RemoveInvalidValues(root, AppConfigJsonContext.Default.AppConfig, string.Empty, path);
-		return root.Deserialize(AppConfigJsonContext.Default.AppConfig);
+		AppConfig? config = root.Deserialize(AppConfigJsonContext.Default.AppConfig);
+
+		if (config is not null)
+		{
+			Migrate(config, () => root.Deserialize(AppConfigJsonContext.Default.RetiredSettings));
+		}
+
+		return config;
 	}
 
 	private void RemoveInvalidValues(JsonObject node, JsonTypeInfo typeInfo, string prefix, string path)

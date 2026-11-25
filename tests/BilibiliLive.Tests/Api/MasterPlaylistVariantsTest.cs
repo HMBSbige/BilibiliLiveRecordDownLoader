@@ -17,15 +17,15 @@ public class MasterPlaylistVariantsTest
 	{
 		LiveStreamCandidate.Variant[] variants = MasterPlaylistVariants.Parse(Responses.FixtureText("master_playlist.m3u8"), PlaylistUri);
 
-		(StreamCodec, long)[] expected = [(StreamCodec.Hevc, 10000), (StreamCodec.Avc, 10000), (StreamCodec.Hevc, 400), (StreamCodec.Avc, 400), (StreamCodec.Hevc, 250), (StreamCodec.Avc, 250), (StreamCodec.Hevc, 25000)];
-		LiveStreamCandidate.Variant trueOriginal = variants[^1];
+		(StreamCodec, long, string?)[] expected = [(StreamCodec.Hevc, 10000, "原画"), (StreamCodec.Avc, 10000, "原画"), (StreamCodec.Hevc, 400, "蓝光"), (StreamCodec.Avc, 400, "蓝光"), (StreamCodec.Hevc, 250, "超清"), (StreamCodec.Avc, 250, "超清"), (StreamCodec.Hevc, 25000, "原画真彩")];
+		LiveStreamCandidate.Variant originalTrueColor = variants[^1];
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(variants.Select(static variant => (variant.Codec, variant.Qn))).IsEquivalentTo(expected, CollectionOrdering.Matching);
+			await Assert.That(variants.Select(static variant => (variant.Codec, variant.Qn, variant.QualityName))).IsEquivalentTo(expected, CollectionOrdering.Matching);
 			await Assert.That(variants).All(static variant => variant is { Protocol: StreamProtocol.HttpHls, Format: StreamFormat.Fmp4 });
 			await Assert.That(variants.Select(Hosts)).All(static hosts => hosts == "d1--cn-gotcha208.bilivideo.com d1--cn-gotcha208b.bilivideo.com");
-			await Assert.That(trueOriginal.Urls[0].AbsoluteUri).IsEqualTo("https://d1--cn-gotcha208.bilivideo.com/live-bvc/495069/live_6650029_bs_9162320/index.m3u8?expires=1700000000&mid=0&sign=fake");
+			await Assert.That(originalTrueColor.Urls[0].AbsoluteUri).IsEqualTo("https://d1--cn-gotcha208.bilivideo.com/live-bvc/495069/live_6650029_bs_9162320/index.m3u8?expires=1700000000&mid=0&sign=fake");
 		}
 	}
 
@@ -75,7 +75,7 @@ public class MasterPlaylistVariantsTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That((variant.Codec, variant.Qn)).IsEqualTo((StreamCodec.Avc, 250));
+			await Assert.That((variant.Codec, variant.Qn, variant.QualityName)).IsEqualTo((StreamCodec.Avc, 250, null));
 			await Assert.That(variant.Urls.Select(static uri => uri.AbsoluteUri)).IsEquivalentTo(["https://api.live.bilibili.com/xlive/play-gateway/master/relative/index.m3u8?sign=x"], CollectionOrdering.Matching).Because("相对地址按播放列表的地址解析，同一个地址只保留一次");
 		}
 	}

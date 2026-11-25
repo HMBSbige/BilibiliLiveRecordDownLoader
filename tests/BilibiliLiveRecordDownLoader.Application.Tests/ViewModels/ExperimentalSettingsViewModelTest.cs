@@ -8,13 +8,11 @@ public sealed class ExperimentalSettingsViewModelTest
 	public enum Setting
 	{
 		RemoveFillerData,
-		RequestTrueOriginal,
 		UseMasterPlaylistWhenRestricted
 	}
 
 	[Test]
 	[Arguments(Setting.RemoveFillerData)]
-	[Arguments(Setting.RequestTrueOriginal)]
 	[Arguments(Setting.UseMasterPlaylistWhenRestricted)]
 	public async Task SettingIsRestoredFromAndSavedToTheConfigAsync(Setting setting, CancellationToken cancellationToken)
 	{
@@ -44,7 +42,6 @@ public sealed class ExperimentalSettingsViewModelTest
 		return setting switch
 		{
 			Setting.RemoveFillerData => (static config => config.RemoveFillerData, static (config, value) => config.RemoveFillerData = value, static viewModel => viewModel.RemoveFillerData, static (viewModel, value) => viewModel.RemoveFillerData = value),
-			Setting.RequestTrueOriginal => (static config => config.RequestTrueOriginal, static (config, value) => config.RequestTrueOriginal = value, static viewModel => viewModel.RequestTrueOriginal, static (viewModel, value) => viewModel.RequestTrueOriginal = value),
 			Setting.UseMasterPlaylistWhenRestricted => (static config => config.UseMasterPlaylistWhenRestricted, static (config, value) => config.UseMasterPlaylistWhenRestricted = value, static viewModel => viewModel.UseMasterPlaylistWhenRestricted, static (viewModel, value) => viewModel.UseMasterPlaylistWhenRestricted = value)
 		};
 	}

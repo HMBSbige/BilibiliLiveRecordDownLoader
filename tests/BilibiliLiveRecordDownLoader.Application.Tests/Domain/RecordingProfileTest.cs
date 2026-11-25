@@ -55,17 +55,4 @@ public sealed class RecordingProfileTest
 			await Assert.That(profile.StreamIdleTimeout).IsEqualTo(TimeSpan.FromSeconds(30));
 		}
 	}
-
-	[Test]
-	[Arguments(StreamQuality.Original, true, 25000L)]
-	[Arguments(StreamQuality.Original, false, 10000L)]
-	[Arguments(StreamQuality.UltraHd4K, true, 20000L)]
-	public async Task TrueOriginalIsRequestedOnlyForTheOriginalQualityAsync(StreamQuality roomQuality, bool requestTrueOriginal, long expected)
-	{
-		AppConfig app = Global with { RequestTrueOriginal = requestTrueOriginal };
-
-		RecordingProfile profile = RecordingProfile.Create(app, new RoomConfig { RoomId = 1, Quality = roomQuality });
-
-		await Assert.That(profile.RequestQuality).IsEqualTo(expected);
-	}
 }

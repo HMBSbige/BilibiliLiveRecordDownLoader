@@ -4,7 +4,9 @@ internal sealed record RoomPlayInfoData(int LiveStatus, PlayUrlInfo? PlayurlInfo
 
 internal sealed record PlayUrlInfo(PlayUrl? Playurl);
 
-internal sealed record PlayUrl(IReadOnlyList<PlayStream>? Stream);
+internal sealed record PlayUrl(IReadOnlyList<PlayStream>? Stream, IReadOnlyList<QualityDescription>? GQnDesc);
+
+internal sealed record QualityDescription(long Qn, string? Desc);
 
 internal sealed record PlayStream(string? ProtocolName, IReadOnlyList<PlayFormat>? Format);
 

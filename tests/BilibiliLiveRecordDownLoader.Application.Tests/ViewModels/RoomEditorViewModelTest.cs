@@ -93,6 +93,40 @@ public sealed class RoomEditorViewModelTest
 		}
 	}
 
+	[Test]
+	public async Task QualityOptionsGoFromBestToTheBilibiliDefaultAsync()
+	{
+		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1 }, out _);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(editor.QualityOptions.Select(static option => option.As<StreamQuality>()?.Qn ?? -1)).IsEquivalentTo([30000L, 25000, 20000, 15000, 10000, 400, 250, 150, 80, 0L], CollectionOrdering.Matching);
+			await Assert.That(editor.QualityOptions[1].ToString()).IsEqualTo(AppLanguage.Current.QualityOriginalTrueColor);
+			await Assert.That(editor.QualityOptions[^1].ToString()).IsEqualTo(AppLanguage.Current.QualityDefault);
+			await Assert.That(editor.Quality).IsEqualTo(StreamQuality.Original);
+		}
+	}
+
+	// 手改配置或以后新增的画质
+	[Test]
+	[Arguments(12345L, 4, "12345")]
+	[Arguments(401L, 5, null)]
+	public async Task QualityOutsideTheOptionsIsListedInPlaceAndKeptAsync(long qn, int index, string? label, CancellationToken cancellationToken)
+	{
+		using RoomEditorViewModel editor = Open(new RoomSettingsDto { RoomId = 1, Quality = new StreamQuality(qn) }, out Task<RoomSettingsDto> submitted);
+
+		IReadOnlyList<ChoiceOption> options = editor.QualityOptions;
+		RoomSettingsDto settings = await SaveAsync(editor, submitted, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(options).Count().IsEqualTo(StreamQuality.Selectable.Count + 1);
+			await Assert.That(options[index].As<StreamQuality>()).IsEqualTo(new StreamQuality(qn));
+			await Assert.That(options[index].ToString()).IsEqualTo(label ?? AppLanguage.Current.QualityBluRayDolby);
+			await Assert.That(settings.Quality).IsEqualTo(new StreamQuality(qn));
+		}
+	}
+
 	private static RoomEditorViewModel Open(RoomSettingsDto existing, out Task<RoomSettingsDto> submitted, AppSettingsDto? global = null)
 	{
 		TaskCompletionSource<RoomSettingsDto> submission = new(TaskCreationOptions.RunContinuationsAsynchronously);

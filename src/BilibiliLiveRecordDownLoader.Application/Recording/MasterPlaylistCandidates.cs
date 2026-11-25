@@ -2,33 +2,43 @@ namespace BilibiliLiveRecordDownLoader.Application.Recording;
 
 internal static class MasterPlaylistCandidates
 {
-	// 接口可能只在一个编码上给真原画，所以先比画质再比编码
-	public static IReadOnlyList<LiveStreamCandidate.Listed> PreferTrueOriginal(IReadOnlyList<LiveStreamCandidate.Listed> listed, RecordingProfile profile)
+	// 接口可能只在一个编码上给原画真彩，所以先比画质再比编码
+	public static IReadOnlyList<LiveStreamCandidate.Listed> PreferOriginalTrueColor(IReadOnlyList<LiveStreamCandidate.Listed> listed, RecordingProfile profile)
 	{
-		return profile.RequestQuality is StreamQualityConsts.TrueOriginal ? [.. listed.OrderByDescending(static candidate => candidate.Qn is StreamQualityConsts.TrueOriginal)] : listed;
+		return profile.Quality == StreamQuality.OriginalTrueColor ? [.. listed.OrderByDescending(static candidate => candidate.Qn == StreamQuality.OriginalTrueColor.Qn)] : listed;
 	}
 
 	public static long[] GetQualities(IReadOnlyList<LiveStreamCandidate.Listed> listed, RecordingProfile profile, bool hasCookie)
 	{
-		bool trueOriginal = profile.RequestQuality is StreamQualityConsts.TrueOriginal;
-
 		// 只按首选的流判断，免得每次取候选流都多请求一次主播放列表
-		long? restrictedTarget = profile.UseMasterPlaylistWhenRestricted && listed is [var preferred, ..] && QualityRestrictions.Evaluate(preferred, listed, profile, hasCookie) is { Highest: var highest } ? highest : null;
-
-		return (restrictedTarget, trueOriginal) switch
+		if (listed is not [var preferred, ..])
 		{
-			({ } target and not StreamQualityConsts.TrueOriginal, true) => [StreamQualityConsts.TrueOriginal, target],
-			({ } target, _) => [target],
-			// 主播放列表里可能有真原画，和是否登录无关
-			(null, true) when listed is not [{ Qn: StreamQualityConsts.TrueOriginal }, ..] => [StreamQualityConsts.TrueOriginal],
-			_ => []
-		};
+			return [];
+		}
+
+		long? target = profile.UseMasterPlaylistWhenRestricted && QualityRestrictions.Evaluate(preferred, listed, profile, hasCookie) is { Highest: var highest } ? highest : null;
+
+		if (profile.Quality != StreamQuality.OriginalTrueColor)
+		{
+			return target is { } restricted ? [restricted] : [];
+		}
+
+		long trueColor = StreamQuality.OriginalTrueColor.Qn;
+
+		if (preferred.Qn == trueColor)
+		{
+			return [];
+		}
+
+		// 主播放列表里可能有原画真彩，和是否登录无关；受限时它也拿不到就退回接口所列低于它的最高一档
+		long? fallback = listed.SelectMany(static candidate => candidate.AcceptQualities).Where(qn => qn < trueColor).Max(static qn => (long?)qn);
+		return target is not null && fallback is { } below && below > preferred.Qn ? [trueColor, below] : [trueColor];
 	}
 
-	// mid 本应是请求者的 uid，接口目前不校验；只在要真原画时填主播的 uid，免得以后开始校验时被风控
-	public static long GetMid(RecordingProfile profile, long streamerUid)
+	// 原画真彩要用 25000 请求才会列出；其他画质用 10000 请求，匿名时也会列出原画
+	public static long GetPlaylistQuality(RecordingProfile profile)
 	{
-		return profile.RequestQuality is StreamQualityConsts.TrueOriginal ? streamerUid : 0;
+		return (profile.Quality == StreamQuality.OriginalTrueColor ? StreamQuality.OriginalTrueColor : StreamQuality.Original).Qn;
 	}
 
 	public static IReadOnlyList<LiveStreamCandidate.Variant> Select(IEnumerable<LiveStreamCandidate.Variant> variants, long[] qualities, IReadOnlyList<StreamCodec> codecPriority)

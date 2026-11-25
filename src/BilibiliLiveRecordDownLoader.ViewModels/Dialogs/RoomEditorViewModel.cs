@@ -18,6 +18,9 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 		DanmakuOffsetSeconds = _original.DanmakuOffset is { } offset ? (decimal)offset.TotalSeconds : null;
 		DanmakuOffsetPlaceholder = AppLanguage.Current.InheritValue.ToString(((decimal)globalSettings.DanmakuOffset.TotalSeconds).ToString("0.###", CultureInfo.CurrentCulture));
 		Quality = _original.Quality;
+		// 手改配置或以后新增的画质不在选项里，也要能显示、能保留
+		IEnumerable<StreamQuality> qualities = StreamQuality.Selectable.Contains(Quality) ? StreamQuality.Selectable : StreamQuality.Selectable.Append(Quality).OrderByDescending(static quality => quality.Qn);
+		QualityOptions = [.. qualities.Select(static quality => new ChoiceOption(quality))];
 		RecorderType = _original.RecorderType is { } recorderType ? new ChoiceOption(recorderType) : ChoiceOption.Inherit;
 		ConvertToMp4 = new ChoiceOption(_original.ConvertToMp4);
 		DeleteAfterConvert = new ChoiceOption(_original.DeleteAfterConvert);
@@ -59,7 +62,7 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 
 	public override string Title => IsNew ? AppLanguage.Current.AddRoom : AppLanguage.Current.EditRoom;
 
-	public IReadOnlyList<ChoiceOption> QualityOptions { get; } = ChoiceOption.Of(StreamQuality.Dolby, StreamQuality.UltraHd4K, StreamQuality.Original, StreamQuality.BluRay, StreamQuality.SuperHigh, StreamQuality.High, StreamQuality.Smooth);
+	public IReadOnlyList<ChoiceOption> QualityOptions { get; }
 
 	public IReadOnlyList<ChoiceOption> RecorderTypeOptions { get; } = ChoiceOption.InheritOr<RecorderType>();
 

@@ -11,6 +11,13 @@
       "conf_json": "{\"cdn_rate\":10000,\"report_interval_sec\":150}",
       "playurl": {
         "cid": 6154037,
+        "g_qn_desc": [
+          { "qn": 30000, "desc": "杜比", "hdr_desc": "", "attr_desc": null },
+          { "qn": 20000, "desc": "4K", "hdr_desc": "", "attr_desc": null },
+          { "qn": 10000, "desc": "原画", "hdr_desc": "", "attr_desc": null },
+          { "qn": 400, "desc": "蓝光", "hdr_desc": "", "attr_desc": null },
+          { "qn": 250, "desc": "", "hdr_desc": "", "attr_desc": null }
+        ],
         "stream": [
           {
             "protocol_name": "http_stream",

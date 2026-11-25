@@ -12,8 +12,8 @@ internal static class MasterPlaylistVariants
 	public static LiveStreamCandidate.Variant[] Parse(string content, Uri playlistUri)
 	{
 		bool hasHeader = false;
-		(StreamCodec Codec, long Qn)? pending = null;
-		List<((StreamCodec Codec, long Qn) Key, Uri Url)> entries = [];
+		(StreamCodec Codec, long Qn, string? Name)? pending = null;
+		List<(StreamCodec Codec, long Qn, string? Name, Uri Url)> entries = [];
 
 		foreach (ReadOnlySpan<char> rawLine in content.AsSpan().EnumerateLines())
 		{
@@ -39,9 +39,9 @@ internal static class MasterPlaylistVariants
 			}
 			else if (line[0] is not '#')
 			{
-				if (pending is { } key && Uri.TryCreate(playlistUri, line.ToString(), out Uri? uri) && uri.Scheme == Uri.UriSchemeHttps && !entries.Contains((key, uri)))
+				if (pending is var (codec, qn, name) && Uri.TryCreate(playlistUri, line.ToString(), out Uri? uri) && uri.Scheme == Uri.UriSchemeHttps && !entries.Exists(entry => (entry.Codec, entry.Qn, entry.Url) == (codec, qn, uri)))
 				{
-					entries.Add((key, uri));
+					entries.Add((codec, qn, name, uri));
 				}
 
 				pending = null;
@@ -53,12 +53,18 @@ internal static class MasterPlaylistVariants
 			throw new FormatException("The response is empty.");
 		}
 
-		return [.. entries.GroupBy(static entry => entry.Key, static entry => entry.Url).Select(static variant => new LiveStreamCandidate.Variant(variant.Key.Codec, variant.Key.Qn, [.. variant]))];
+		return [.. entries.GroupBy(static entry => (entry.Codec, entry.Qn)).Select(static variant => new LiveStreamCandidate.Variant(variant.Key.Codec, variant.Key.Qn, variant.Select(static entry => entry.Name).FirstOrDefault(static name => name is not null), [.. variant.Select(static entry => entry.Url)]))];
 	}
 
-	private static (StreamCodec Codec, long Qn)? ParseStreamInf(ReadOnlySpan<char> attributes)
+	private static (StreamCodec Codec, long Qn, string? Name)? ParseStreamInf(ReadOnlySpan<char> attributes)
 	{
-		return long.TryParse(HlsPlaylist.GetAttribute(attributes, "BILI-QN"), NumberStyles.None, CultureInfo.InvariantCulture, out long qn) && ParseVideoCodec(HlsPlaylist.GetAttribute(attributes, "CODECS")) is { } codec ? (codec, qn) : null;
+		if (!long.TryParse(HlsPlaylist.GetAttribute(attributes, "BILI-QN"), NumberStyles.None, CultureInfo.InvariantCulture, out long qn) || ParseVideoCodec(HlsPlaylist.GetAttribute(attributes, "CODECS")) is not { } codec)
+		{
+			return null;
+		}
+
+		ReadOnlySpan<char> name = HlsPlaylist.GetAttribute(attributes, "BILI-DISPLAY").Trim();
+		return (codec, qn, name.IsEmpty ? null : name.ToString());
 	}
 
 	// 有的条目把视频编码写两遍而不写音频编码，其实初始化分片里音视频都有，所以只看第一个编码

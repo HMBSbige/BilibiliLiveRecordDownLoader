@@ -6,7 +6,7 @@ public static class RoomDefaults
 {
 	public const bool IsRecordingEnabled = true;
 
-	public const StreamQuality Quality = StreamQuality.Original;
+	public static StreamQuality Quality => StreamQuality.Original;
 
 	public const decimal MinStatusCheckIntervalSeconds = 10;
 

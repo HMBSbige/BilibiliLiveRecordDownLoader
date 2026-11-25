@@ -124,8 +124,7 @@ public sealed class BilibiliApiClient
 		}
 	}
 
-	/// <returns>房间在直播但没有可录制的流时为空</returns>
-	public async Task<IReadOnlyList<LiveStreamCandidate.Listed>> GetStreamCandidatesAsync(long roomId, long qn, IReadOnlyList<StreamCodec> codecPriority, IReadOnlyList<StreamFormat> formatPriority, CancellationToken cancellationToken = default)
+	public async Task<LiveStreamListing> GetStreamCandidatesAsync(long roomId, long qn, IReadOnlyList<StreamCodec> codecPriority, IReadOnlyList<StreamFormat> formatPriority, CancellationToken cancellationToken = default)
 	{
 		Uri uri = CreateUri($"{LiveApi}xlive/web-room/v2/index/getRoomPlayInfo?room_id={roomId}&no_playurl=0&mask=1&qn={qn}&platform=web&protocol=0,1&format=0,1,2&codec=0,1,2");
 		RoomPlayInfoData data = await GetDataAsync(uri, BilibiliJsonContext.Default.RoomPlayInfoData, cancellationToken);
@@ -138,10 +137,11 @@ public sealed class BilibiliApiClient
 		return StreamCandidates.Select(data, codecPriority, formatPriority);
 	}
 
-	/// <param name="mid">本应是请求者的 uid，但接口不拿它核对登录，所以请求不带登录 Cookie</param>
-	public async Task<IReadOnlyList<LiveStreamCandidate.Variant>> GetMasterPlaylistVariantsAsync(long roomId, long mid, CancellationToken cancellationToken = default)
+	/// <param name="qn">原画真彩要用 25000 请求才会列出</param>
+	/// <remarks>mid 本应是请求者的 uid，但接口不拿它核对登录，所以填 0，请求也不带登录 Cookie</remarks>
+	public async Task<IReadOnlyList<LiveStreamCandidate.Variant>> GetMasterPlaylistVariantsAsync(long roomId, long qn, CancellationToken cancellationToken = default)
 	{
-		Uri uri = CreateUri($"{LiveApi}xlive/play-gateway/master/url?cid={roomId}&mid={mid}&pt=web&p2p_type=-1&net=0&free_type=0&build=0&feature=2&qn=10000&drm_type=0&codec=0,1,2");
+		Uri uri = CreateUri($"{LiveApi}xlive/play-gateway/master/url?cid={roomId}&mid=0&pt=web&p2p_type=-1&net=0&free_type=0&build=0&feature=2&qn={qn}&drm_type=0&codec=0,1,2");
 		using HttpRequestMessage request = new(HttpMethod.Get, uri);
 		request.Options.Set(BilibiliRequestHandler.AnonymousOption, true);
 		using HttpResponseMessage response = await HttpClient.SendAsync(request, cancellationToken);

@@ -13,7 +13,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 	internal Func<FFmpegRunner, IReadOnlyList<string>, Uri, LiveStreamSession> CreateFFmpegSession { get; init; } = static (ffmpeg, arguments, source) => new FFmpegStreamSession(ffmpeg, arguments, source);
 
-	public async Task<RecordingAttempt> RecordAsync(long roomId, long streamerUid, RecordingProfile profile, LiveRecordingSession liveSession, IRecordingObserver observer, SplitControl split, Func<string?> getFileTitle, CancellationToken cancellationToken)
+	public async Task<RecordingAttempt> RecordAsync(long roomId, RecordingProfile profile, LiveRecordingSession liveSession, IRecordingObserver observer, SplitControl split, Func<string?> getFileTitle, CancellationToken cancellationToken)
 	{
 		FFmpegRunner? ffmpeg = null;
 		RecorderType recorderType = profile.RecorderType;
@@ -30,12 +30,12 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		}
 
 		AppConfig config = await configManager.GetAsync(cancellationToken);
-		(LiveStreamSession session, LiveStreamCandidate candidate, CandidateBatch batch) = await OpenAsync(roomId, streamerUid, profile, config.Cookie is not null, liveSession.CandidatePool, cancellationToken);
+		(LiveStreamSession session, LiveStreamCandidate candidate, CandidateBatch batch) = await OpenAsync(roomId, profile, config.Cookie is not null, liveSession.CandidatePool, cancellationToken);
 		Uri endpoint = session.Source;
 
 		try
 		{
-			RecordingStream stream = new(candidate.Format, candidate.Codec, candidate.Qn, QualityRestrictions.Evaluate(candidate, batch.Candidates, profile, batch.Request.HasCookie));
+			RecordingStream stream = new(candidate.Format, candidate.Codec, candidate.Qn, QualityRestrictions.Evaluate(candidate, batch.Candidates, profile, batch.Request.HasCookie), batch.QualityNames);
 			// 换成 FFmpeg 之前取：FFmpeg 拉的是同一条流，数据同样按段到达
 			TimeSpan idleTimeout = GetIdleTimeout(profile.StreamIdleTimeout, session.MaxSilence);
 
@@ -115,7 +115,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		}
 	}
 
-	private async Task<(LiveStreamSession Session, LiveStreamCandidate Candidate, CandidateBatch Batch)> OpenAsync(long roomId, long streamerUid, RecordingProfile profile, bool hasCookie, CandidatePool pool, CancellationToken cancellationToken)
+	private async Task<(LiveStreamSession Session, LiveStreamCandidate Candidate, CandidateBatch Batch)> OpenAsync(long roomId, RecordingProfile profile, bool hasCookie, CandidatePool pool, CancellationToken cancellationToken)
 	{
 		// FastestResponse 同时打开各个主机，失败回调可能并发
 		Lock failureLock = new();
@@ -127,7 +127,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		CandidateRequest request = CandidateRequest.Create(profile, hasCookie);
 		HttpClient httpClient = httpClientFactory.CreateClient(HttpClientNames.BilibiliStream);
 
-		await foreach ((CandidateBatch batch, LiveStreamCandidate candidate) in pool.GetCandidatesAsync(request, ct => RequestCandidatesAsync(roomId, streamerUid, profile, request, ct), cancellationToken))
+		await foreach ((CandidateBatch batch, LiveStreamCandidate candidate) in pool.GetCandidatesAsync(request, ct => RequestCandidatesAsync(roomId, profile, request, ct), cancellationToken))
 		{
 			// 换了一批说明旧签名地址全部打不开，结果只看新的一批：旧地址 403、新地址 404 是主播没在推流
 			if (!ReferenceEquals(batch, lastBatch))
@@ -174,9 +174,10 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		}
 	}
 
-	private async Task<CandidateBatch> RequestCandidatesAsync(long roomId, long streamerUid, RecordingProfile profile, CandidateRequest request, CancellationToken cancellationToken)
+	private async Task<CandidateBatch> RequestCandidatesAsync(long roomId, RecordingProfile profile, CandidateRequest request, CancellationToken cancellationToken)
 	{
-		IReadOnlyList<LiveStreamCandidate.Listed> listed = MasterPlaylistCandidates.PreferTrueOriginal(await apiClient.GetStreamCandidatesAsync(roomId, profile.RequestQuality, profile.CodecPriority, profile.FormatPriority, cancellationToken), profile);
+		LiveStreamListing listing = await apiClient.GetStreamCandidatesAsync(roomId, profile.Quality.Qn, profile.CodecPriority, profile.FormatPriority, cancellationToken);
+		IReadOnlyList<LiveStreamCandidate.Listed> listed = MasterPlaylistCandidates.PreferOriginalTrueColor(listing.Candidates, profile);
 
 		if (listed.Count is 0)
 		{
@@ -185,17 +186,28 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 		if (MasterPlaylistCandidates.GetQualities(listed, profile, request.HasCookie) is not { Length: > 0 } qualities)
 		{
-			return new CandidateBatch(listed, request);
+			return new CandidateBatch(listed, listing.QualityNames, request);
 		}
 
-		return new CandidateBatch([.. await GetVariantsAsync(roomId, MasterPlaylistCandidates.GetMid(profile, streamerUid), qualities, profile.CodecPriority, cancellationToken), .. listed], request);
+		IReadOnlyList<LiveStreamCandidate.Variant> variants = await GetVariantsAsync(roomId, MasterPlaylistCandidates.GetPlaylistQuality(profile), qualities, profile.CodecPriority, cancellationToken);
+		Dictionary<long, string> qualityNames = new(listing.QualityNames);
+
+		foreach (LiveStreamCandidate.Variant variant in variants)
+		{
+			if (variant.QualityName is { } name)
+			{
+				qualityNames.TryAdd(variant.Qn, name);
+			}
+		}
+
+		return new CandidateBatch([.. variants, .. listed], qualityNames, request);
 	}
 
-	private async Task<IReadOnlyList<LiveStreamCandidate.Variant>> GetVariantsAsync(long roomId, long mid, long[] qualities, IReadOnlyList<StreamCodec> codecPriority, CancellationToken cancellationToken)
+	private async Task<IReadOnlyList<LiveStreamCandidate.Variant>> GetVariantsAsync(long roomId, long playlistQuality, long[] qualities, IReadOnlyList<StreamCodec> codecPriority, CancellationToken cancellationToken)
 	{
 		try
 		{
-			IReadOnlyList<LiveStreamCandidate.Variant> variants = MasterPlaylistCandidates.Select(await apiClient.GetMasterPlaylistVariantsAsync(roomId, mid, cancellationToken), qualities, codecPriority);
+			IReadOnlyList<LiveStreamCandidate.Variant> variants = MasterPlaylistCandidates.Select(await apiClient.GetMasterPlaylistVariantsAsync(roomId, playlistQuality, cancellationToken), qualities, codecPriority);
 
 			if (variants.Count is 0)
 			{

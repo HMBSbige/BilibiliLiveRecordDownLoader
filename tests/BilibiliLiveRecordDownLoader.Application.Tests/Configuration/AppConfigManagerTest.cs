@@ -496,7 +496,7 @@ public sealed class AppConfigManagerTest : IDisposable
 				await Assert.That(room.DanmuReconnectDelay).IsEqualTo(RoomDefaults.DanmuReconnectDelay);
 
 				await Assert.That(disabled.IsRecordingEnabled).IsFalse();
-				await Assert.That(disabled.Quality).IsEqualTo(RoomDefaults.Quality);
+				await Assert.That(disabled.Quality).IsEqualTo(new StreamQuality(12345));
 				await Assert.That(disabled.RecorderType).IsEqualTo(RecorderType.BuiltIn);
 				await Assert.That(disabled.FormatPriority).IsNull();
 
@@ -558,6 +558,74 @@ public sealed class AppConfigManagerTest : IDisposable
 			await Assert.That(File.Exists(ConfigPath)).IsEqualTo(expectedRoomId is not null);
 			await Assert.That(config.Rooms.Select(static room => (long?)room.RoomId).SingleOrDefault()).IsEqualTo(expectedRoomId);
 			await Assert.That(config.RecordDirectory).IsEqualTo(expectedRoomId is null ? ConfigurationConsts.DefaultRecordDirectory : LegacyDefaultRecordDirectory());
+		}
+	}
+
+	[Test]
+	public async Task RoomQualityIsReadFromEnumNamesAndNumbersAndSavedAsTheQnAsync(CancellationToken cancellationToken)
+	{
+		await WriteFileAsync
+		(
+			ConfigFileName,
+			"""
+			{
+				"Rooms": [
+					{ "RoomId": 1, "Quality": "Dolby" },
+					{ "RoomId": 2, "Quality": "ultraHd4K" },
+					{ "RoomId": 3, "Quality": 25000 },
+					{ "RoomId": 4, "Quality": 12345 },
+					{ "RoomId": 5, "Quality": "400" },
+					{ "RoomId": 6, "Quality": "Original" },
+					{ "RoomId": 7, "Quality": 0 }
+				]
+			}
+			""",
+			cancellationToken
+		);
+
+		IEnumerable<long> loaded;
+
+		await using (AppConfigManager manager = Create())
+		{
+			loaded = (await manager.GetAsync(cancellationToken)).Rooms.Select(static room => room.Quality.Qn);
+			await manager.UpdateAsync(static config => config.Theme = AppTheme.Dark, cancellationToken);
+		}
+
+		JsonArray rooms = (await ReadSavedAsync(cancellationToken))[nameof(AppConfig.Rooms)] as JsonArray ?? [];
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(loaded).IsEquivalentTo([30000L, 20000, 25000, 12345, 400, 10000, 0], CollectionOrdering.Matching);
+			await Assert.That(rooms.Select(static room => room?[nameof(RoomConfig.Quality)]?.ToJsonString())).IsEquivalentTo(["30000", "20000", "25000", "12345", "400", null, "0"], CollectionOrdering.Matching);
+		}
+	}
+
+	// 4.0 的实验开关，打开时原画的房间请求原画真彩
+	[Test]
+	[Arguments("true", new long[] { 25000, 400, 25000 }, DisplayName = "turned on")]
+	[Arguments("false", new long[] { 10000, 400, 10000 }, DisplayName = "turned off")]
+	[Arguments("\"yes\"", new long[] { 10000, 400, 10000 }, DisplayName = "unreadable")]
+	public async Task RetiredRequestTrueOriginalSettingMovesOriginalRoomsToTheOriginalTrueColorOnceAsync(string requestTrueOriginal, long[] expected, CancellationToken cancellationToken)
+	{
+		await WriteFileAsync(ConfigFileName, $$"""{ "RequestTrueOriginal": {{requestTrueOriginal}}, "Theme": "Dark", "Rooms": [{ "RoomId": 1 }, { "RoomId": 2, "Quality": "BluRay" }, { "RoomId": 3, "Quality": 10000 }] }""", cancellationToken);
+
+		AppConfig loaded = await ReloadAsync(cancellationToken);
+		JsonObject saved = await ReadSavedAsync(cancellationToken);
+
+		await using (AppConfigManager manager = Create())
+		{
+			await manager.UpdateAsync(static config => config.Rooms = [.. config.Rooms.Select(static room => room.RoomId is 1 ? room with { Quality = StreamQuality.Original } : room)], cancellationToken);
+		}
+
+		AppConfig changed = await ReloadAsync(cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(loaded.Rooms.Select(static room => room.Quality.Qn)).IsEquivalentTo(expected, CollectionOrdering.Matching);
+			await Assert.That(loaded.Theme).IsEqualTo(AppTheme.Dark);
+			await Assert.That(saved.ContainsKey("RequestTrueOriginal")).IsEqualTo(requestTrueOriginal is not "true");
+			await Assert.That(changed.Rooms.Select(static room => room.Quality.Qn)).IsEquivalentTo([10000L, .. expected.Skip(1)], CollectionOrdering.Matching);
+			await Assert.That((await ReadSavedAsync(cancellationToken)).ContainsKey("RequestTrueOriginal")).IsFalse();
 		}
 	}
 

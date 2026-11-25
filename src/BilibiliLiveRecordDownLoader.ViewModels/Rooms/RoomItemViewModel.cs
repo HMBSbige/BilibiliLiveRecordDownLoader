@@ -119,9 +119,9 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 			IsRecordingDanmaku = snapshot.Danmaku.IsRecording;
 			IsRecordingDanmakuOnly = IsRecordingDanmaku && !IsRecording;
 			(StreamInfo, QualityText, RecordingInfo) = snapshot.Recording is { } recording
-				? ($"{StreamLabels.Of(recording.Format)} · {StreamLabels.Of(recording.Codec)}", StreamLabels.OfQuality(recording.Quality), $"{ByteSize.Format(snapshot.BytesPerSecond)}/s · {FormatDuration(recording.StartedAt)}")
+				? ($"{StreamLabels.Of(recording.Format)} · {StreamLabels.Of(recording.Codec)}", StreamLabels.OfQuality(recording.Quality, recording.QualityNames), $"{ByteSize.Format(snapshot.BytesPerSecond)}/s · {FormatDuration(recording.StartedAt)}")
 				: (string.Empty, string.Empty, string.Empty);
-			QualityRestrictionTip = snapshot.Recording is { Restriction: { } restriction } restricted ? DescribeRestriction(restriction, restricted.Quality, hasCookie) : null;
+			QualityRestrictionTip = snapshot.Recording is { Restriction: { } restriction } restricted ? DescribeRestriction(restriction, restricted, hasCookie) : null;
 			IsQualityRestricted = QualityRestrictionTip is not null;
 			HelpText = StatusTip ?? QualityRestrictionTip;
 			IsRecordingEnabled = snapshot.Settings.IsRecordingEnabled;
@@ -134,17 +134,22 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 		}
 	}
 
-	private static string DescribeRestriction(QualityRestriction restriction, long quality, bool hasCookie)
+	private static string DescribeRestriction(QualityRestriction restriction, ActiveRecordingDto recording, bool hasCookie)
 	{
 		return restriction switch
 		{
-			QualityRestriction.OtherCodec other => AppLanguage.Current.QualityRestrictedByCodec.ToString(StreamLabels.Of(other.Codec), StreamLabels.OfQuality(other.Quality)),
-			QualityRestriction.OtherCodecUnavailable other => AppLanguage.Current.QualityRestrictedByCodecUnavailable.ToString(StreamLabels.Of(other.Codec), StreamLabels.OfQuality(other.Quality)),
+			QualityRestriction.OtherCodec other => AppLanguage.Current.QualityRestrictedByCodec.ToString(StreamLabels.Of(other.Codec), Name(other.Quality)),
+			QualityRestriction.OtherCodecUnavailable other => AppLanguage.Current.QualityRestrictedByCodecUnavailable.ToString(StreamLabels.Of(other.Codec), Name(other.Quality)),
 			// 录制没断就不会重新请求候选流，登录之后仍是登录前的画质
-			QualityRestriction.NotLoggedIn notLoggedIn when hasCookie => AppLanguage.Current.QualityRestrictedLoggedIn.ToString(StreamLabels.OfQuality(notLoggedIn.Highest)),
-			QualityRestriction.NotLoggedIn notLoggedIn => AppLanguage.Current.QualityRestrictedNotLoggedIn.ToString(StreamLabels.OfQuality(quality), StreamLabels.OfQuality(notLoggedIn.Highest)),
-			QualityRestriction.LoginMayHaveExpired expired => AppLanguage.Current.QualityRestrictedLoginMayHaveExpired.ToString(StreamLabels.OfQuality(expired.Highest), StreamLabels.OfQuality(quality))
+			QualityRestriction.NotLoggedIn notLoggedIn when hasCookie => AppLanguage.Current.QualityRestrictedLoggedIn.ToString(Name(notLoggedIn.Highest)),
+			QualityRestriction.NotLoggedIn notLoggedIn => AppLanguage.Current.QualityRestrictedNotLoggedIn.ToString(Name(recording.Quality), Name(notLoggedIn.Highest)),
+			QualityRestriction.LoginMayHaveExpired expired => AppLanguage.Current.QualityRestrictedLoginMayHaveExpired.ToString(Name(expired.Highest), Name(recording.Quality))
 		};
+
+		string Name(long qn)
+		{
+			return StreamLabels.OfQuality(qn, recording.QualityNames);
+		}
 	}
 
 	private string FormatDuration(DateTimeOffset startedAt)

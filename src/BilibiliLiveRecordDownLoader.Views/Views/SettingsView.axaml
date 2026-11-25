@@ -181,10 +181,6 @@
                                     Description="{Binding RemoveFillerDataHint, Source={x:Static l:AppLanguage.Current}}">
                         <ToggleSwitch IsChecked="{Binding RemoveFillerData}" />
                     </ctl:SettingRow>
-                    <ctl:SettingRow Header="{Binding RequestTrueOriginal, Source={x:Static l:AppLanguage.Current}}"
-                                    Description="{Binding RequestTrueOriginalHint, Source={x:Static l:AppLanguage.Current}}">
-                        <ToggleSwitch IsChecked="{Binding RequestTrueOriginal}" />
-                    </ctl:SettingRow>
                     <ctl:SettingRow Header="{Binding UseMasterPlaylistWhenRestricted, Source={x:Static l:AppLanguage.Current}}"
                                     Description="{Binding UseMasterPlaylistWhenRestrictedHint, Source={x:Static l:AppLanguage.Current}}">
                         <ToggleSwitch IsChecked="{Binding UseMasterPlaylistWhenRestricted}" />

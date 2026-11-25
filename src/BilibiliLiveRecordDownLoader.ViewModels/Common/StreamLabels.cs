@@ -12,20 +12,20 @@ public static class StreamLabels
 			StreamFormat.Fmp4 => "fMP4",
 			StreamFormat.Ts => "MPEG-TS",
 			StreamFormat.Flv => "FLV",
-			StreamQuality.Smooth => AppLanguage.Current.QualitySmooth,
-			StreamQuality.High => AppLanguage.Current.QualityHigh,
-			StreamQuality.SuperHigh => AppLanguage.Current.QualitySuperHigh,
-			StreamQuality.BluRay => AppLanguage.Current.QualityBluRay,
-			StreamQuality.Original => AppLanguage.Current.QualityOriginal,
-			StreamQuality.UltraHd4K => AppLanguage.Current.QualityUltraHd4K,
-			StreamQuality.Dolby => AppLanguage.Current.QualityDolby,
-			(StreamQuality)StreamQualityConsts.TrueOriginal => AppLanguage.Current.QualityTrueOriginal,
 			_ => value.ToString()
 		};
 	}
 
-	public static string OfQuality(long quality)
+	public static string Of(StreamQuality quality)
 	{
-		return Of((StreamQuality)quality);
+		return quality.KnownName ?? quality.Qn.ToString(CultureInfo.InvariantCulture);
+	}
+
+	// 接口给的名称是中文，界面是其他语言时先用翻译过的已知名称
+	public static string OfQuality(long qn, IReadOnlyDictionary<long, string> roomNames)
+	{
+		StreamQuality quality = new(qn);
+
+		return roomNames.GetValueOrDefault(qn) is { } roomName && (quality.KnownName is null || CultureInfo.CurrentUICulture.TwoLetterISOLanguageName is "zh") ? roomName : Of(quality);
 	}
 }

@@ -62,8 +62,6 @@ public sealed record AppConfig
 
 	public bool RemoveFillerData { get; set; }
 
-	public bool RequestTrueOriginal { get; set; }
-
 	public bool UseMasterPlaylistWhenRestricted { get; set; } = true;
 
 	public bool RecordSuperChats { get; set; } = true;

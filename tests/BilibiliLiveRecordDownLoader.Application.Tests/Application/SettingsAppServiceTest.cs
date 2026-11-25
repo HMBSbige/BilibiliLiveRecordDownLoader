@@ -41,7 +41,6 @@ public sealed class SettingsAppServiceTest
 			NotifyOnRecordingError = false,
 			NotifyOnTitleChange = true,
 			RemoveFillerData = true,
-			RequestTrueOriginal = true,
 			UseMasterPlaylistWhenRestricted = false,
 			RecordSuperChats = false,
 			GiftMode = DanmakuGiftMode.Paid,

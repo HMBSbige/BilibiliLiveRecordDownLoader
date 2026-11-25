@@ -24,7 +24,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 	private const string RoomInfoTemplate = """{"code":0,"data":{"by_room_ids":{"$ROOM":{"room_id":$ROOM,"uid":1,"live_status":$LIVE,"title":"$TITLE","short_id":0,"uname":"streamer","area_name":"area","parent_area_name":"parent area","live_time":"2026-01-01 07:59:00","live_id_str":"745"}}}}""";
 
-	private const string PlayInfoTemplate = """{"code":0,"data":{"room_id":$ROOM,"live_status":$LIVE,"playurl_info":{"playurl":{"stream":$STREAMS}}}}""";
+	private const string PlayInfoTemplate = """{"code":0,"data":{"room_id":$ROOM,"live_status":$LIVE,"playurl_info":{"playurl":{"stream":$STREAMS,"g_qn_desc":$QN_DESC}}}}""";
 
 	private const string DefaultStreams = """
 		[{"protocol_name":"http_stream","format":[{"format_name":"flv","codec":[
@@ -96,6 +96,8 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	public AppConfig Config { get; } = AppConfig.CreateDefault();
 
 	public string Streams { get => Volatile.Read(ref field); set => Volatile.Write(ref field, value); }
+
+	public string QualityDescriptions { get => Volatile.Read(ref field); set => Volatile.Write(ref field, value); } = "[]";
 
 	public string Title { get => Volatile.Read(ref field); set => Volatile.Write(ref field, value); } = "title";
 
@@ -319,7 +321,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 
 		string template = request.RequestUri?.AbsolutePath switch
 		{
-			"/xlive/web-room/v2/index/getRoomPlayInfo" => PlayInfoTemplate.Replace("$STREAMS", Streams, StringComparison.Ordinal).Replace("$SIGN", Interlocked.Increment(ref _playInfoRequests).ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal),
+			"/xlive/web-room/v2/index/getRoomPlayInfo" => PlayInfoTemplate.Replace("$STREAMS", Streams, StringComparison.Ordinal).Replace("$QN_DESC", QualityDescriptions, StringComparison.Ordinal).Replace("$SIGN", Interlocked.Increment(ref _playInfoRequests).ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal),
 			"/xlive/web-room/v1/index/getRoomBaseInfo" => RoomInfoTemplate,
 			var path => throw new InvalidOperationException($"Unexpected API request {path}.")
 		};

@@ -75,8 +75,8 @@ public sealed class CandidatePoolTest
 	{
 		Pool pool = new(static sign =>
 		[
-			new LiveStreamCandidate.Variant(StreamCodec.Avc, 25000, [new Uri($"https://a.test/live-bvc/1/live_a_b_c/index.m3u8?sign={sign}")]),
-			new LiveStreamCandidate.Variant(StreamCodec.Avc, 10000, [new Uri($"https://a.test/live-bvc/1/live_a_b_c_bluray/index.m3u8?sign={sign}")]),
+			new LiveStreamCandidate.Variant(StreamCodec.Avc, 25000, null, [new Uri($"https://a.test/live-bvc/1/live_a_b_c/index.m3u8?sign={sign}")]),
+			new LiveStreamCandidate.Variant(StreamCodec.Avc, 10000, null, [new Uri($"https://a.test/live-bvc/1/live_a_b_c_bluray/index.m3u8?sign={sign}")]),
 			Candidate(StreamFormat.Fmp4, sign, "a.test")
 		]);
 
@@ -276,7 +276,7 @@ public sealed class CandidatePoolTest
 		private readonly CandidatePool _pool = new(NullLogger.Instance);
 		private (LiveStreamCandidate Candidate, Uri Endpoint)? _opened;
 
-		public CandidateRequest Request { get; set; } = new(false, 0, default, false, [], []);
+		public CandidateRequest Request { get; set; } = new(false, default, false, [], []);
 
 		public int Requests { get; private set; }
 
@@ -321,7 +321,7 @@ public sealed class CandidatePoolTest
 		private Task<CandidateBatch> FetchAsync(CancellationToken cancellationToken)
 		{
 			string sign = (++Requests).ToString(CultureInfo.InvariantCulture);
-			return Task.FromResult(new CandidateBatch(create(sign), Request));
+			return Task.FromResult(new CandidateBatch(create(sign), new Dictionary<long, string>(), Request));
 		}
 	}
 }

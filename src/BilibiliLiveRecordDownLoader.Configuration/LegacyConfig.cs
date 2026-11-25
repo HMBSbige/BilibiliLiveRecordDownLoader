@@ -59,7 +59,7 @@ internal static class LegacyConfig
 		Set(room, nameof(RoomConfig.FormatPriority), GetPriority<StreamFormat>(legacy, "AutoRecordFormatOrder"));
 
 		// 画质会原样拿去请求，加载时不检查
-		if (legacy["Qn"] is JsonValue qn && qn.TryGetValue(out long quality) && Enum.IsDefined((StreamQuality)quality))
+		if (legacy["Qn"] is JsonValue qn && qn.TryGetValue(out long quality))
 		{
 			room[nameof(RoomConfig.Quality)] = JsonValue.Create(quality);
 		}

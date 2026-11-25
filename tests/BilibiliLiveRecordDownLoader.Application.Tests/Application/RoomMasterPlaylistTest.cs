@@ -13,7 +13,7 @@ public sealed class RoomMasterPlaylistTest
 	private const string AvcOriginalPlaylist = "/live-bvc/1/live_a_b_c_bluray/index.m3u8";
 	private const string HevcOriginalPlaylist = "/live-bvc/1/live_a_b_c_prohevc/index.m3u8";
 	private const string AvcBluRayPlaylist = "/live-bvc/1/live_a_b_c_4000/index.m3u8";
-	private const string TrueOriginalPlaylist = "/live-bvc/1/live_a_b_c/index.m3u8";
+	private const string OriginalTrueColorPlaylist = "/live-bvc/1/live_a_b_c/index.m3u8";
 
 	private const string Av1Playlist = "/live-bvc/1/live_a_b_c_proav1/index.m3u8";
 
@@ -31,8 +31,8 @@ public sealed class RoomMasterPlaylistTest
 		https://a.test{AvcBluRayPlaylist}?sign=master
 		#EXT-X-STREAM-INF:BANDWIDTH=2100000,CODECS="avc1.4d401f,mp4a.40.2",BILI-QN=250,PATHWAY-ID="https://a.test"
 		https://a.test{AvcPlaylist}?sign=master
-		#EXT-X-STREAM-INF:BANDWIDTH=29000000,CODECS="hvc1.1.2.H150,mp4a.40.2",BILI-QN=25000,PATHWAY-ID="https://a.test"
-		https://a.test{TrueOriginalPlaylist}?sign=master
+		#EXT-X-STREAM-INF:BANDWIDTH=29000000,CODECS="hvc1.1.2.H150,mp4a.40.2",BILI-DISPLAY="原画真彩",BILI-QN=25000,PATHWAY-ID="https://a.test"
+		https://a.test{OriginalTrueColorPlaylist}?sign=master
 
 		""";
 
@@ -60,7 +60,7 @@ public sealed class RoomMasterPlaylistTest
 		return request => request.RequestUri?.AbsolutePath switch
 		{
 			{ } path when respond?.Invoke(path) is { } response => response,
-			AvcPlaylist or HevcPlaylist or AvcOriginalPlaylist or HevcOriginalPlaylist or AvcBluRayPlaylist or TrueOriginalPlaylist => Text(LivePlaylist),
+			AvcPlaylist or HevcPlaylist or AvcOriginalPlaylist or HevcOriginalPlaylist or AvcBluRayPlaylist or OriginalTrueColorPlaylist => Text(LivePlaylist),
 			{ } path when path.EndsWith("/h1.m4s", StringComparison.Ordinal) => Bytes(FillerSamples.Init(path.Contains("hevc", StringComparison.Ordinal) || path.StartsWith("/live-bvc/1/live_a_b_c/", StringComparison.Ordinal) ? FillerCodec.Hevc : FillerCodec.Avc, 4)),
 			{ } path when path.EndsWith("/1.m4s", StringComparison.Ordinal) => Bytes(Fmp4Samples.Fragment(true)),
 			_ => new HttpResponseMessage(HttpStatusCode.NotFound)
@@ -120,7 +120,7 @@ public sealed class RoomMasterPlaylistTest
 			await Assert.That(loop.Snapshot.Recording?.Format).IsEqualTo(StreamFormat.Fmp4);
 			await Assert.That(Playlists(loop)).IsEquivalentTo([AvcOriginalPlaylist], CollectionOrdering.Matching);
 			await Assert.That(loop.StreamRequests.First().Query).IsEqualTo("?sign=master");
-			await Assert.That(masterQuery).StartsWith($"?cid={RecordingLoopHarness.RoomId}&mid=0&");
+			await Assert.That(masterQuery).StartsWith($"?cid={RecordingLoopHarness.RoomId}&mid=0&").And.Contains("&qn=10000&");
 			await Assert.That(loop.RecorderLogs).Contains(log => log.StartsWith($"Recording Fmp4/Avc at quality 10000 from a.test{AvcOriginalPlaylist} to ", StringComparison.Ordinal));
 			await Assert.That(loop.RecorderLogs).DoesNotContain(static log => log.Contains(" is available: ", StringComparison.Ordinal));
 		}
@@ -225,12 +225,13 @@ public sealed class RoomMasterPlaylistTest
 	}
 
 	[Test]
-	public async Task MissingTrueOriginalIsTakenFromTheMasterPlaylistAsync(CancellationToken cancellationToken)
+	public async Task MissingOriginalTrueColorIsTakenFromTheMasterPlaylistAsync(CancellationToken cancellationToken)
 	{
 		await using RecordingLoopHarness loop = Loop(cancellationToken, Fmp4Streams(10000, 10000, 250));
 		loop.Config.Cookie = "SESSDATA=x";
-		loop.Config.RequestTrueOriginal = true;
 		loop.Config.UseMasterPlaylistWhenRestricted = false;
+		loop.QualityDescriptions = """[{"qn":10000,"desc":"原画"},{"qn":250,"desc":"超清"}]""";
+		loop.Settings = loop.Settings with { Quality = StreamQuality.OriginalTrueColor };
 		loop.GoLive();
 
 		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Recording);
@@ -239,19 +240,20 @@ public sealed class RoomMasterPlaylistTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(loop.PlayInfoQuery).Contains("&qn=25000&");
-			await Assert.That(masterQuery).StartsWith($"?cid={RecordingLoopHarness.RoomId}&mid=1&");
+			await Assert.That(masterQuery).StartsWith($"?cid={RecordingLoopHarness.RoomId}&mid=0&").And.Contains("&qn=25000&");
 			await Assert.That(Recorded(loop)).IsEqualTo((StreamCodec.Hevc, 25000L, null));
-			await Assert.That(Playlists(loop)).IsEquivalentTo([TrueOriginalPlaylist], CollectionOrdering.Matching);
+			await Assert.That(Playlists(loop)).IsEquivalentTo([OriginalTrueColorPlaylist], CollectionOrdering.Matching);
+			await Assert.That(loop.Snapshot.Recording?.QualityNames).IsEquivalentTo(new Dictionary<long, string> { [10000] = "原画", [250] = "超清", [25000] = "原画真彩" });
 		}
 	}
 
 	[Test]
-	[Arguments(10000L, new[] { TrueOriginalPlaylist, AvcPlaylist }, DisplayName = "接口给的是原画")]
-	[Arguments(250L, new[] { TrueOriginalPlaylist, AvcOriginalPlaylist }, DisplayName = "接口给的画质受限")]
-	public async Task UnavailableTrueOriginalVariantFallsBackToTheOriginalAsync(long qn, string[] playlists, CancellationToken cancellationToken)
+	[Arguments(10000L, new[] { OriginalTrueColorPlaylist, AvcPlaylist }, DisplayName = "接口给的是原画")]
+	[Arguments(250L, new[] { OriginalTrueColorPlaylist, AvcOriginalPlaylist }, DisplayName = "接口给的画质受限")]
+	public async Task UnavailableOriginalTrueColorVariantFallsBackToTheOriginalAsync(long qn, string[] playlists, CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = Loop(cancellationToken, Fmp4Streams(qn), respond: static path => path is TrueOriginalPlaylist ? new HttpResponseMessage(HttpStatusCode.Forbidden) : null);
-		loop.Config.RequestTrueOriginal = true;
+		await using RecordingLoopHarness loop = Loop(cancellationToken, Fmp4Streams(qn), respond: static path => path is OriginalTrueColorPlaylist ? new HttpResponseMessage(HttpStatusCode.Forbidden) : null);
+		loop.Settings = loop.Settings with { Quality = StreamQuality.OriginalTrueColor };
 		loop.GoLive();
 
 		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Recording);
@@ -259,18 +261,18 @@ public sealed class RoomMasterPlaylistTest
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(masterQuery).StartsWith($"?cid={RecordingLoopHarness.RoomId}&mid=1&");
+			await Assert.That(masterQuery).StartsWith($"?cid={RecordingLoopHarness.RoomId}&mid=0&").And.Contains("&qn=25000&");
 			await Assert.That(Playlists(loop)).IsEquivalentTo(playlists, CollectionOrdering.Matching);
 			await Assert.That(Recorded(loop)).IsEqualTo((StreamCodec.Avc, 10000L, null));
 		}
 	}
 
-	// 接口只在 HEVC 上给真原画
+	// 接口只在 HEVC 上给原画真彩
 	[Test]
-	public async Task TrueOriginalFromTheApiIsTriedBeforeThePreferredCodecAsync(CancellationToken cancellationToken)
+	public async Task OriginalTrueColorFromTheApiIsTriedBeforeThePreferredCodecAsync(CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = Loop(cancellationToken, Fmp4Codecs(Codec("avc", AvcPlaylist, 10000, 10000, 250), Codec("hevc", TrueOriginalPlaylist, 25000, 25000, 10000)));
-		loop.Config.RequestTrueOriginal = true;
+		await using RecordingLoopHarness loop = Loop(cancellationToken, Fmp4Codecs(Codec("avc", AvcPlaylist, 10000, 10000, 250), Codec("hevc", OriginalTrueColorPlaylist, 25000, 25000, 10000)));
+		loop.Settings = loop.Settings with { Quality = StreamQuality.OriginalTrueColor };
 		loop.GoLive();
 
 		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Recording);
@@ -278,7 +280,7 @@ public sealed class RoomMasterPlaylistTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(loop.MasterPlaylistQueries).IsEmpty();
-			await Assert.That(Playlists(loop)).IsEquivalentTo([TrueOriginalPlaylist], CollectionOrdering.Matching);
+			await Assert.That(Playlists(loop)).IsEquivalentTo([OriginalTrueColorPlaylist], CollectionOrdering.Matching);
 			await Assert.That(Recorded(loop)).IsEqualTo((StreamCodec.Hevc, 25000L, null));
 		}
 	}

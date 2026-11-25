@@ -14,7 +14,6 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	private readonly ILogger _logger = services.Logger.WithRoomScope(settings.RoomId);
 	private RoomConfig _settings = settings;
 	private long _shortId;
-	private long _userId;
 	private string? _userName;
 	private string? _title;
 	private string _area = string.Empty;
@@ -190,7 +189,6 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		lock (_lock)
 		{
 			_shortId = info.ShortId;
-			_userId = info.UserId;
 			_userName = info.UserName;
 
 			if (IsCurrent(_titleVersion, danmuVersion))
@@ -257,7 +255,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		{
 			_recordingPath = path;
 			_recordingClosed = closed;
-			_activeRecording = new ActiveRecordingDto(stream.Format, stream.Codec, stream.Quality, stream.Restriction, services.TimeProvider.GetUtcNow());
+			_activeRecording = new ActiveRecordingDto(stream.Format, stream.Codec, stream.Quality, stream.Restriction, stream.QualityNames, services.TimeProvider.GetUtcNow());
 			_recordStatus = RecordStatus.Recording;
 			Danmaku.OnVideoStarted(timeline, path, CreateDanmakuRun());
 		}
@@ -680,7 +678,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 
 		try
 		{
-			return await services.Recorder.RecordAsync(RoomId, Volatile.Read(ref _userId), profile, liveSession, this, split, () => config.IncludeTitleInFileName ? Title : null, cancellationToken);
+			return await services.Recorder.RecordAsync(RoomId, profile, liveSession, this, split, () => config.IncludeTitleInFileName ? Title : null, cancellationToken);
 		}
 		finally
 		{

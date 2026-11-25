@@ -2,18 +2,17 @@ namespace BilibiliLiveRecordDownLoader.Application.Recording;
 
 internal static class QualityRestrictions
 {
-	// 各编码列出的画质可能不同，要合起来；按所选画质而不是请求的画质算，开了真原画时拿到普通原画不算受限
+	// 各编码列出的画质可能不同，要合起来；所选画质拿不到时以不超过它的最高一档为准，选哔哩哔哩默认时给什么都不算受限
 	public static long? Target(IEnumerable<LiveStreamCandidate> response, StreamQuality quality)
 	{
 		long[] offered = [.. response.OfType<LiveStreamCandidate.Listed>().SelectMany(static candidate => candidate.AcceptQualities)];
 
-		if (offered.Length is 0)
+		if (offered.Length is 0 || quality == StreamQuality.Default)
 		{
 			return null;
 		}
 
-		long selected = (long)quality;
-		return offered.Where(qn => qn <= selected).DefaultIfEmpty(offered.Min()).Max();
+		return offered.Where(qn => qn <= quality.Qn).DefaultIfEmpty(offered.Min()).Max();
 	}
 
 	public static QualityRestriction? Evaluate(LiveStreamCandidate recorded, IEnumerable<LiveStreamCandidate> response, RecordingProfile profile, bool hasCookie)
