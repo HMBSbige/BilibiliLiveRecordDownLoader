@@ -644,7 +644,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 		catch (Exception exception)
 		{
-			LogRecordingFailed(_logger, exception, TimeSpan.Zero);
+			LogRecordingLoopFailed(_logger, exception);
 		}
 		finally
 		{
@@ -747,6 +747,18 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		{
 			pool.OnAttemptEnded(attempt);
 			LogRecordingEnded(_logger, attempt.End.Description);
+		}
+	}
+
+	private void LogAttemptFailed(RecordingAttempt attempt)
+	{
+		if (attempt.End is RecordingEnd.Faulted { Exception: var exception })
+		{
+			LogAttemptFaulted(_logger, exception, attempt.Candidate.Name, attempt.Endpoint.Host, attempt.ActiveDuration);
+		}
+		else
+		{
+			LogAttemptEnded(_logger, attempt.Candidate.Name, attempt.Endpoint.Host, attempt.ActiveDuration, attempt.End.Description);
 		}
 	}
 
@@ -933,20 +945,6 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 	[LoggerMessage(Level = LogLevel.Information, Message = "Live status: {Status}")]
 	private static partial void LogLiveStatusChanged(ILogger logger, LiveStatus status);
 
-	private void LogAttemptFailed(RecordingAttempt attempt)
-	{
-		(string stream, string host) = (attempt.Candidate.Name, attempt.Endpoint.Host);
-
-		if (attempt.End is RecordingEnd.Faulted { Exception: var exception })
-		{
-			LogAttemptFaulted(_logger, exception, stream, host, attempt.ActiveDuration);
-		}
-		else
-		{
-			LogAttemptEnded(_logger, stream, host, attempt.ActiveDuration, attempt.End.Description);
-		}
-	}
-
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Every stream failed, retrying in {Delay}")]
 	private static partial void LogAllEndpointsFailed(ILogger logger, TimeSpan delay);
 
@@ -967,4 +965,8 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 
 	[LoggerMessage(Level = LogLevel.Error, Message = "Recording failed, retrying in {Delay}")]
 	private static partial void LogRecordingFailed(ILogger logger, Exception exception, TimeSpan delay);
+
+	// 仍在直播且开着录制时，循环结束后会立即重新开始
+	[LoggerMessage(Level = LogLevel.Error, Message = "The recording loop failed unexpectedly")]
+	private static partial void LogRecordingLoopFailed(ILogger logger, Exception exception);
 }
