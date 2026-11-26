@@ -77,7 +77,7 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 		Session = new RoomSession(_settings, services, static () => { });
 	}
 
-	public FakeTimeProvider Time { get; } = new();
+	public DelayTrackingTimeProvider Time { get; } = new();
 
 	public AppConfig Config { get; } = AppConfig.CreateDefault();
 
@@ -167,6 +167,43 @@ internal sealed class RecordingLoopHarness : IAsyncDisposable
 	public Task WaitUntilAsync(Func<bool> condition, string because)
 	{
 		return TestWait.UntilAsync(condition, because, _lifetime.Token);
+	}
+
+	public async Task AdvanceThroughReconnectDelayAsync()
+	{
+		PendingDelay delay = await Time.WaitForDelayAsync(ReconnectDelay, _lifetime.Token);
+		await Time.AdvanceThroughAsync(delay, _lifetime.Token);
+	}
+
+	public async Task<StreamRequest> NextStreamAfterReconnectDelayAsync()
+	{
+		await AdvanceThroughReconnectDelayAsync();
+		return await NextStreamAsync();
+	}
+
+	public async Task<StreamRequest> NextStreamAfterPossibleReconnectDelayAsync()
+	{
+		using CancellationTokenSource waiting = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+		Task<StreamRequest> stream = NextStreamAsync();
+		Task<PendingDelay> delay = Time.WaitForDelayAsync(ReconnectDelay, waiting.Token);
+
+		if (await Task.WhenAny(stream, delay) == delay)
+		{
+			await Time.AdvanceThroughAsync(await delay, _lifetime.Token);
+		}
+
+		await waiting.CancelAsync();
+		return await stream;
+	}
+
+	public async Task GoIdleAsync(StreamRequest request)
+	{
+		await request.AcceptAsync([.. "FLV"u8, .. new byte[1024]]);
+
+		// 看门狗先在一次采样里取走这块数据，之后的采样才累计空闲
+		Time.Advance(TimeSpan.FromSeconds(1));
+		await WaitUntilAsync(static snapshot => snapshot.BytesPerSecond is not 0);
+		Time.Advance(Settings.StreamIdleTimeout);
 	}
 
 	// 按步推进，不依赖重连等待何时注册定时器

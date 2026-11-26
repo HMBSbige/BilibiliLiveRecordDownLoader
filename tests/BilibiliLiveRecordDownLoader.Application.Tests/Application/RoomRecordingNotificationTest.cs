@@ -106,10 +106,11 @@ public sealed class RoomRecordingNotificationTest
 			case StreamerSilence.NoStreamListed:
 				while (loop.Time.GetUtcNow() - start < TimeSpan.FromMinutes(2))
 				{
-					await AdvanceUntilCandidatesRequestedAsync(loop);
+					await loop.AdvanceThroughReconnectDelayAsync();
 				}
 
-				await AdvanceUntilCandidatesRequestedAsync(loop);
+				// 开始等重连时，这一轮是否提醒已经定了
+				await loop.Time.WaitForDelayAsync(RecordingLoopHarness.ReconnectDelay, cancellationToken);
 				break;
 			case StreamerSilence.EveryStreamNotFound:
 				await FailForAsync(loop, await loop.NextStreamAsync(), TimeSpan.FromMinutes(2), HttpStatusCode.NotFound);
@@ -119,8 +120,11 @@ public sealed class RoomRecordingNotificationTest
 
 				while (loop.Time.GetUtcNow() - start < TimeSpan.FromMinutes(2))
 				{
-					await next.AcceptAsync();
-					(next, _) = await loop.AdvanceUntilNextStreamAsync();
+					for (int line = 0; line < 3; ++line)
+					{
+						await loop.GoIdleAsync(next);
+						next = line < 2 ? await loop.NextStreamAsync() : await loop.NextStreamAfterReconnectDelayAsync();
+					}
 				}
 
 				break;
@@ -144,7 +148,7 @@ public sealed class RoomRecordingNotificationTest
 			for (int line = 0; line < 3; ++line)
 			{
 				await loop.RecordForAsync(next, TimeSpan.FromSeconds(20));
-				next = line < 2 ? await loop.NextStreamAsync() : (await loop.AdvanceUntilNextStreamAsync(RecordingLoopHarness.ReconnectDelay)).Request;
+				next = line < 2 ? await loop.NextStreamAsync() : await loop.NextStreamAfterReconnectDelayAsync();
 			}
 		}
 
@@ -180,7 +184,7 @@ public sealed class RoomRecordingNotificationTest
 		while (loop.Time.GetUtcNow() - failingSince < TimeSpan.FromMinutes(2))
 		{
 			await next.AcceptAsync();
-			(next, _) = await loop.AdvanceUntilNextStreamAsync(RecordingLoopHarness.ReconnectDelay);
+			next = await loop.NextStreamAfterReconnectDelayAsync();
 		}
 
 		ShownNotification first = await Assert.That(loop.Notifications.Shown).HasSingleItem();
@@ -192,7 +196,7 @@ public sealed class RoomRecordingNotificationTest
 		next = await loop.NextStreamAsync();
 		disk.Fill();
 		await next.AcceptAsync();
-		await loop.AdvanceUntilNextStreamAsync(RecordingLoopHarness.ReconnectDelay);
+		await loop.NextStreamAfterReconnectDelayAsync();
 
 		using (Assert.Multiple())
 		{
@@ -215,7 +219,7 @@ public sealed class RoomRecordingNotificationTest
 
 		StreamRequest next = await loop.NextStreamAsync();
 		await next.AcceptAsync();
-		(next, _) = await loop.AdvanceUntilNextStreamAsync(RecordingLoopHarness.ReconnectDelay);
+		next = await loop.NextStreamAfterReconnectDelayAsync();
 		await Assert.That(loop.Notifications.Shown).HasSingleItem();
 
 		disk.Free();
@@ -239,7 +243,7 @@ public sealed class RoomRecordingNotificationTest
 
 		await next.SendAsync();
 		await next.EndAsync();
-		await loop.AdvanceUntilNextStreamAsync(RecordingLoopHarness.ReconnectDelay);
+		await loop.NextStreamAfterReconnectDelayAsync();
 
 		await Assert.That(loop.Notifications.Shown).Count().IsEqualTo(2);
 	}
@@ -267,7 +271,7 @@ public sealed class RoomRecordingNotificationTest
 			}
 
 			await next.EndAsync();
-			(next, _) = await loop.AdvanceUntilNextStreamAsync();
+			next = await loop.NextStreamAfterReconnectDelayAsync();
 		}
 
 		await Assert.That(loop.Notifications.Shown).HasSingleItem();
@@ -285,7 +289,7 @@ public sealed class RoomRecordingNotificationTest
 		while (loop.Time.GetUtcNow() - failingSince < TimeSpan.FromMinutes(2))
 		{
 			await next.AcceptAsync();
-			(next, _) = await loop.AdvanceUntilNextStreamAsync(RecordingLoopHarness.ReconnectDelay);
+			next = await loop.NextStreamAfterReconnectDelayAsync();
 		}
 
 		ShownNotification shown = await Assert.That(loop.Notifications.Shown).HasSingleItem();
@@ -314,7 +318,7 @@ public sealed class RoomRecordingNotificationTest
 		{
 			disk.Fill();
 			await next.AcceptAsync();
-			await loop.AdvanceUntilNextStreamAsync(RecordingLoopHarness.ReconnectDelay);
+			await loop.NextStreamAfterReconnectDelayAsync();
 		}
 		else
 		{
@@ -357,21 +361,8 @@ public sealed class RoomRecordingNotificationTest
 		while (loop.Time.GetUtcNow() - start < duration)
 		{
 			await FailEveryStreamAsync(loop, next, status);
-			(next, _) = await loop.AdvanceUntilNextStreamAsync(RecordingLoopHarness.ReconnectDelay);
+			next = await loop.NextStreamAfterReconnectDelayAsync();
 		}
-	}
-
-	private static async Task AdvanceUntilCandidatesRequestedAsync(RecordingLoopHarness loop)
-	{
-		int requested = loop.PlayInfoRequests;
-
-		for (int step = 0; step < 60 && loop.PlayInfoRequests == requested; ++step)
-		{
-			await Task.Delay(20);
-			loop.Time.Advance(TimeSpan.FromSeconds(1));
-		}
-
-		await loop.WaitUntilAsync(_ => loop.PlayInfoRequests > requested);
 	}
 
 	// 返回最后一轮没有提醒和出现提醒的那一轮距开始的时长
@@ -385,7 +376,9 @@ public sealed class RoomRecordingNotificationTest
 		{
 			TimeSpan failedAt = loop.Time.GetUtcNow() - start;
 			await failRound(loop, next);
-			(next, _) = await loop.AdvanceUntilNextStreamAsync(RecordingLoopHarness.ReconnectDelay);
+
+			// 录满过的一批全部失败时会立即重新请求，不等重连
+			next = await loop.NextStreamAfterPossibleReconnectDelayAsync();
 
 			if (loop.Notifications.Shown.Count >= count)
 			{
