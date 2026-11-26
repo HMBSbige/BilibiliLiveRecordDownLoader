@@ -36,13 +36,12 @@ flowchart TD
 
     Application --> ApplicationContracts["Application.Contracts"]
     Application --> Domain["Domain"]
-    Application --> BilibiliLive["BilibiliLive"]
     Application --> MediaToolkit["MediaToolkit"]
     Configuration --> Domain
     ViewModels --> ApplicationContracts
 
     ApplicationContracts --> DomainShared["Domain.Shared"]
-    ApplicationContracts --> BilibiliLive
+    ApplicationContracts --> BilibiliLive["BilibiliLive"]
     Domain --> DomainShared
     Domain --> BilibiliLive
 ```

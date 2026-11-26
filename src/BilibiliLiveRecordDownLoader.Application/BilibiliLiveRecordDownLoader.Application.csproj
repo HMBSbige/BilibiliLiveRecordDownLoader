@@ -10,7 +10,6 @@
     <PackageReference Include="ThisAssembly.AssemblyInfo" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\BilibiliLive\BilibiliLive.csproj" />
     <ProjectReference Include="..\MediaToolkit\MediaToolkit.csproj" />
     <ProjectReference Include="..\BilibiliLiveRecordDownLoader.Application.Contracts\BilibiliLiveRecordDownLoader.Application.Contracts.csproj" />
     <ProjectReference Include="..\BilibiliLiveRecordDownLoader.Domain\BilibiliLiveRecordDownLoader.Domain.csproj" />
