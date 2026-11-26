@@ -12,7 +12,6 @@ public static class Labels
 			null => AppLanguage.Current.Inherit,
 			true => AppLanguage.Current.Enabled,
 			false => AppLanguage.Current.Disabled,
-			StreamQuality quality => StreamLabels.Of(quality),
 			RecordingSplitMode mode => mode switch
 			{
 				RecordingSplitMode.Duration => AppLanguage.Current.SplitByDuration,

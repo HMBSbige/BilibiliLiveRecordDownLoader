@@ -3,6 +3,7 @@ using BilibiliLiveRecordDownLoader.Domain.Shared.Localization;
 using BilibiliLiveRecordDownLoader.ViewModels.Dialogs;
 using BilibiliLiveRecordDownLoader.ViewModels.Rooms;
 using ReactiveUI.Primitives.Signals;
+using System.Collections.ObjectModel;
 using System.Globalization;
 
 namespace BilibiliLiveRecordDownLoader.Application.Tests.ViewModels;
@@ -11,7 +12,7 @@ public sealed class RoomQualityDisplayTest
 {
 	private static RoomSnapshot Recording(long roomId, QualityRestriction? restriction, StreamCodec codec = StreamCodec.Avc, long quality = 250, IReadOnlyDictionary<long, string>? qualityNames = null)
 	{
-		return new RoomSnapshot(new RoomSettingsDto { RoomId = roomId }, 0, $"主播{roomId}", null, LiveStatus.Live, RecordStatus.Recording, 0, new ActiveRecordingDto(StreamFormat.Fmp4, codec, quality, restriction, qualityNames ?? new Dictionary<long, string>(), DateTimeOffset.UtcNow), null);
+		return new RoomSnapshot(new RoomSettingsDto { RoomId = roomId }, 0, $"主播{roomId}", null, LiveStatus.Live, RecordStatus.Recording, 0, new ActiveRecordingDto(StreamFormat.Fmp4, codec, new StreamQuality(quality), restriction, qualityNames ?? ReadOnlyDictionary<long, string>.Empty, DateTimeOffset.UtcNow), null);
 	}
 
 	private static RoomSnapshot Idle(long roomId)
@@ -35,9 +36,9 @@ public sealed class RoomQualityDisplayTest
 
 	public static IEnumerable<Func<(QualityRestriction Restriction, string Expected)>> RestrictionCases()
 	{
-		yield return static () => (new QualityRestriction.NotLoggedIn(10000), AppLanguage.Current.QualityRestrictedNotLoggedIn.ToString(AppLanguage.Current.QualitySuperHigh, AppLanguage.Current.QualityOriginal));
-		yield return static () => (new QualityRestriction.LoginMayHaveExpired(10000), AppLanguage.Current.QualityRestrictedLoginMayHaveExpired.ToString(AppLanguage.Current.QualityOriginal, AppLanguage.Current.QualitySuperHigh));
-		yield return static () => (new QualityRestriction.OtherCodecUnavailable(10000, StreamCodec.Av1, 10000), AppLanguage.Current.QualityRestrictedByCodecUnavailable.ToString("AV1", AppLanguage.Current.QualityOriginal));
+		yield return static () => (new QualityRestriction.NotLoggedIn(StreamQuality.Original), AppLanguage.Current.QualityRestrictedNotLoggedIn.ToString(AppLanguage.Current.QualitySuperHigh, AppLanguage.Current.QualityOriginal));
+		yield return static () => (new QualityRestriction.LoginMayHaveExpired(StreamQuality.Original), AppLanguage.Current.QualityRestrictedLoginMayHaveExpired.ToString(AppLanguage.Current.QualityOriginal, AppLanguage.Current.QualitySuperHigh));
+		yield return static () => (new QualityRestriction.OtherCodecUnavailable(StreamQuality.Original, StreamCodec.Av1, StreamQuality.Original), AppLanguage.Current.QualityRestrictedByCodecUnavailable.ToString("AV1", AppLanguage.Current.QualityOriginal));
 	}
 
 	[Test]
@@ -63,7 +64,7 @@ public sealed class RoomQualityDisplayTest
 		using RoomItemViewModel room = Row(connecting);
 		string? failing = room.HelpText;
 
-		room.Apply(Recording(1, new QualityRestriction.NotLoggedIn(10000)), false);
+		room.Apply(Recording(1, new QualityRestriction.NotLoggedIn(StreamQuality.Original)), false);
 
 		using (Assert.Multiple())
 		{
@@ -75,7 +76,7 @@ public sealed class RoomQualityDisplayTest
 	[Test]
 	public async Task RestrictionIsClearedOnceTheRoomRecordsTheOriginalTrueColorAsync()
 	{
-		using RoomItemViewModel room = Row(Recording(1, new QualityRestriction.NotLoggedIn(10000)));
+		using RoomItemViewModel room = Row(Recording(1, new QualityRestriction.NotLoggedIn(StreamQuality.Original)));
 
 		room.Apply(Recording(1, null, StreamCodec.Hevc, 25000), false);
 
@@ -104,7 +105,7 @@ public sealed class RoomQualityDisplayTest
 	{
 		Dictionary<long, string> names = new() { [25000] = "2K 原画", [12345] = "新画质", [10000] = "1080P 高码率" };
 		CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(culture);
-		using RoomItemViewModel restricted = Row(Recording(1, new QualityRestriction.NotLoggedIn(quality), quality: 10000, qualityNames: names));
+		using RoomItemViewModel restricted = Row(Recording(1, new QualityRestriction.NotLoggedIn(new StreamQuality(quality)), quality: 10000, qualityNames: names));
 		using RoomItemViewModel recording = Row(Recording(2, null, quality: quality, qualityNames: names));
 		string original = culture is "en" ? AppLanguage.Current.QualityOriginal : "1080P 高码率";
 
@@ -119,7 +120,7 @@ public sealed class RoomQualityDisplayTest
 	public async Task NotLoggedInAfterConfiguringACookieAsksForAReconnectAsync()
 	{
 		using BehaviorSignal<string?> cookie = new(null);
-		FakeRoomAppService rooms = new(Recording(1, new QualityRestriction.NotLoggedIn(10000)));
+		FakeRoomAppService rooms = new(Recording(1, new QualityRestriction.NotLoggedIn(StreamQuality.Original)));
 		using RoomListViewModel viewModel = CreateList(rooms, cookie);
 		string? before = viewModel.Rooms.Single().QualityRestrictionTip;
 
@@ -136,9 +137,9 @@ public sealed class RoomQualityDisplayTest
 
 	public static IEnumerable<TestDataRow<Func<(RoomSnapshot[] Rooms, string? Cookie, string? Expected)>>> BannerCases()
 	{
-		QualityRestriction notLoggedIn = new QualityRestriction.NotLoggedIn(10000);
-		QualityRestriction otherCodec = new QualityRestriction.OtherCodecUnavailable(10000, StreamCodec.Av1, 10000);
-		QualityRestriction expired = new QualityRestriction.LoginMayHaveExpired(10000);
+		QualityRestriction notLoggedIn = new QualityRestriction.NotLoggedIn(StreamQuality.Original);
+		QualityRestriction otherCodec = new QualityRestriction.OtherCodecUnavailable(StreamQuality.Original, StreamCodec.Av1, StreamQuality.Original);
+		QualityRestriction expired = new QualityRestriction.LoginMayHaveExpired(StreamQuality.Original);
 		RoomSnapshot danmakuOnly = Idle(2) with { Danmaku = new RoomDanmakuSnapshot(true) };
 
 		yield return new(() => ([Recording(1, notLoggedIn), Recording(2, notLoggedIn), Recording(3, otherCodec), Recording(4, expired), Recording(5, null), Idle(6)], null, AppLanguage.Current.QualityRestrictedBanner.ToString(2.ToString(CultureInfo.CurrentCulture))), DisplayName: "only rooms restricted for not being logged in are counted");

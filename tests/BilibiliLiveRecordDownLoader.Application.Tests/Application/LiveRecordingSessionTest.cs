@@ -9,9 +9,9 @@ public sealed class LiveRecordingSessionTest
 	{
 		LiveRecordingSession session = new(NullLogger.Instance);
 		bool unrestricted = session.TryUpdateRestriction(null);
-		bool first = session.TryUpdateRestriction(new QualityRestriction.NotLoggedIn(10000));
-		bool same = session.TryUpdateRestriction(new QualityRestriction.NotLoggedIn(10000));
-		bool other = session.TryUpdateRestriction(new QualityRestriction.LoginMayHaveExpired(10000));
+		bool first = session.TryUpdateRestriction(new QualityRestriction.NotLoggedIn(StreamQuality.Original));
+		bool same = session.TryUpdateRestriction(new QualityRestriction.NotLoggedIn(StreamQuality.Original));
+		bool other = session.TryUpdateRestriction(new QualityRestriction.LoginMayHaveExpired(StreamQuality.Original));
 
 		using (Assert.Multiple())
 		{

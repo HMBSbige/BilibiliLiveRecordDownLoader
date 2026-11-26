@@ -13,7 +13,7 @@ internal static class LiveStreamCandidateExtensions
 		public string DisplayName => candidate switch
 		{
 			LiveStreamCandidate.Listed => candidate.Name,
-			LiveStreamCandidate.Variant variant => AppLanguage.Current.RecordingVariantStream.ToString(variant.Format, variant.Codec, variant.Qn)
+			LiveStreamCandidate.Variant variant => AppLanguage.Current.RecordingVariantStream.ToString(variant.Format, variant.Codec, new StreamQuality(variant.Qn).GetDisplayName(variant.QualityName))
 		};
 
 		public string Source => candidate switch

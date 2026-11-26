@@ -119,7 +119,7 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 			IsRecordingDanmaku = snapshot.Danmaku.IsRecording;
 			IsRecordingDanmakuOnly = IsRecordingDanmaku && !IsRecording;
 			(StreamInfo, QualityText, RecordingInfo) = snapshot.Recording is { } recording
-				? ($"{StreamLabels.Of(recording.Format)} · {StreamLabels.Of(recording.Codec)}", StreamLabels.OfQuality(recording.Quality, recording.QualityNames), $"{ByteSize.Format(snapshot.BytesPerSecond)}/s · {FormatDuration(recording.StartedAt)}")
+				? ($"{StreamLabels.Of(recording.Format)} · {StreamLabels.Of(recording.Codec)}", StreamLabels.Of(recording.Quality, recording.QualityNames), $"{ByteSize.Format(snapshot.BytesPerSecond)}/s · {FormatDuration(recording.StartedAt)}")
 				: (string.Empty, string.Empty, string.Empty);
 			QualityRestrictionTip = snapshot.Recording is { Restriction: { } restriction } restricted ? DescribeRestriction(restriction, restricted, hasCookie) : null;
 			IsQualityRestricted = QualityRestrictionTip is not null;
@@ -145,9 +145,9 @@ public sealed partial class RoomItemViewModel : ViewModelBase
 			QualityRestriction.LoginMayHaveExpired expired => AppLanguage.Current.QualityRestrictedLoginMayHaveExpired.ToString(Name(expired.Highest), Name(recording.Quality))
 		};
 
-		string Name(long qn)
+		string Name(StreamQuality quality)
 		{
-			return StreamLabels.OfQuality(qn, recording.QualityNames);
+			return StreamLabels.Of(quality, recording.QualityNames);
 		}
 	}
 

@@ -18,17 +18,17 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 		try
 		{
-			RecordingStream stream = new(candidate.Format, candidate.Codec, candidate.Qn, QualityRestrictions.Evaluate(candidate, batch.Candidates, profile, batch.Request.HasCookie), batch.QualityNames);
+			RecordingStream stream = new(candidate.Format, candidate.Codec, new StreamQuality(candidate.Qn), QualityRestrictions.Evaluate(candidate, batch.Candidates, profile, batch.Request.HasCookie), batch.QualityNames);
 			TimeSpan idleTimeout = GetIdleTimeout(profile.StreamIdleTimeout, session.MaxSilence);
 
 			_ = CreateOnDisk(() => Directory.CreateDirectory(RecordingFileLayout.GetRoomDirectory(profile.RecordDirectory, roomId)));
 			string path = Reserve(timeProvider.GetLocalNow());
 			// 查询参数里有用户的 uid 和签名，只记路径
-			LogStreamSelected(logger, stream.Format, stream.Codec, stream.Quality, candidate.Source, endpoint.Host, endpoint.AbsolutePath, path);
+			LogStreamSelected(logger, stream.Format, stream.Codec, stream.Quality.Qn, candidate.Source, endpoint.Host, endpoint.AbsolutePath, path);
 
 			if (liveSession.TryUpdateRestriction(stream.Restriction) && stream.Restriction is { } restriction)
 			{
-				LogQualityRestricted(logger, stream.Quality, restriction.Highest, Explain(restriction));
+				LogQualityRestricted(logger, stream.Quality.Qn, restriction.Highest.Qn, Explain(restriction));
 			}
 
 			(RecordingEnd end, TimeSpan activeDuration) = await RecordToFileAsync(session, candidate, stream, path, Reserve, idleTimeout, observer, split, cancellationToken);
@@ -216,7 +216,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 	{
 		return restriction switch
 		{
-			QualityRestriction.OtherCodecUnavailable other => string.Create(CultureInfo.InvariantCulture, $"the {other.Codec} stream offers quality {other.Quality} but could not be opened"),
+			QualityRestriction.OtherCodecUnavailable other => string.Create(CultureInfo.InvariantCulture, $"the {other.Codec} stream offers quality {other.Quality.Qn} but could not be opened"),
 			QualityRestriction.NotLoggedIn => "not logged in",
 			QualityRestriction.LoginMayHaveExpired => "the login may have expired"
 		};

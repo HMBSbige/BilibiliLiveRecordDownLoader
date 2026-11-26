@@ -90,7 +90,7 @@ public sealed class CandidatePoolTest
 		}
 	}
 
-	// RecordingEnd 和 QualityRestriction 是 internal 类型，不能做 public 测试方法的参数
+	// RecordingEnd 是 internal 类型，不能做 public 测试方法的参数；QualityRestriction 的实例不能写进特性参数
 	[Test]
 	[Arguments(true, false, false, "Fmp4@a.test?sign=1", 1, DisplayName = "Long recording keeps the batch and starts over from the preferred host")]
 	[Arguments(true, true, false, "Fmp4@a.test?sign=1", 1, DisplayName = "Long recording ending in a write failure starts over from the preferred host")]
@@ -101,7 +101,7 @@ public sealed class CandidatePoolTest
 		Pool pool = new(TwoHosts);
 
 		await pool.OpenAsync(OnlyB);
-		pool.End(isSustained ? Long : Short, writeFailed ? DiskFull : null, isRestricted ? new QualityRestriction.NotLoggedIn(25000) : null);
+		pool.End(isSustained ? Long : Short, writeFailed ? DiskFull : null, isRestricted ? new QualityRestriction.NotLoggedIn(StreamQuality.OriginalTrueColor) : null);
 		string next = await pool.OpenAsync(Always);
 
 		using (Assert.Multiple())
@@ -135,7 +135,7 @@ public sealed class CandidatePoolTest
 	[Arguments(true)]
 	public async Task QuickFailureMarksTheHostAndWaitsOnceEveryHostFailedAsync(bool isRestricted)
 	{
-		QualityRestriction? restriction = isRestricted ? new QualityRestriction.NotLoggedIn(25000) : null;
+		QualityRestriction? restriction = isRestricted ? new QualityRestriction.NotLoggedIn(StreamQuality.OriginalTrueColor) : null;
 		Pool pool = new(TwoHosts);
 
 		string first = await pool.OpenAsync(Always);

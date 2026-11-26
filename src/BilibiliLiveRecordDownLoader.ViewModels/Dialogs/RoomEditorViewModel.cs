@@ -62,7 +62,7 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 			)
 			.DisposeWith(Disposables);
 
-		this.WhenChanged(static viewModel => viewModel.IsCustomQuality, static viewModel => viewModel.CustomQnText, static (isCustom, text) => isCustom && !string.IsNullOrWhiteSpace(text) && !TryParseQn(text, out _))
+		this.WhenChanged(static viewModel => viewModel.IsCustomQuality, static viewModel => viewModel.CustomQnText, static (isCustom, text) => isCustom && !string.IsNullOrWhiteSpace(text) && !StreamQuality.TryParse(TrimInput(text), out _))
 			.Subscribe(isInvalid => CustomQnError = isInvalid ? AppLanguage.Current.InvalidQn : null)
 			.DisposeWith(Disposables);
 
@@ -86,7 +86,7 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 
 	public override string Title => IsNew ? AppLanguage.Current.AddRoom : AppLanguage.Current.EditRoom;
 
-	public IReadOnlyList<QualityOption> QualityOptions { get; } = [.. StreamQuality.Selectable.Select(static quality => new QualityOption(quality)), QualityOption.Custom];
+	public IReadOnlyList<QualityOption> QualityOptions { get; } = QualityOption.All;
 
 	public IReadOnlyList<ChoiceOption> SplitModeOptions { get; } = ChoiceOption.InheritOr<RecordingSplitMode>();
 
@@ -229,17 +229,17 @@ public sealed partial class RoomEditorViewModel : DialogViewModel<RoomSettingsDt
 
 	private static bool TryParseRoomId(string? text, out long roomId)
 	{
-		return long.TryParse(text?.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out roomId) && roomId > 0;
+		return long.TryParse(TrimInput(text), NumberStyles.None, CultureInfo.InvariantCulture, out roomId) && roomId > 0;
 	}
 
 	private static StreamQuality? ParseQuality(QualityOption option, string? customQn)
 	{
-		return option.Quality ?? (TryParseQn(customQn, out long qn) ? new StreamQuality(qn) : null);
+		return option.Quality ?? (StreamQuality.TryParse(TrimInput(customQn), out StreamQuality quality) ? quality : null);
 	}
 
-	// 只认非负整数，0 是 B 站默认
-	private static bool TryParseQn(string? text, out long qn)
+	// 不用 NumberStyles 的空白选项：它不认全角空格
+	private static ReadOnlySpan<char> TrimInput(string? text)
 	{
-		return long.TryParse(text?.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out qn);
+		return text.AsSpan().Trim();
 	}
 }
