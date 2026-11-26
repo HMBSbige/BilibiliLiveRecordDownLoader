@@ -131,7 +131,7 @@ public sealed class MediaToolAppServiceTest
 		string source = WriteFile(directory, "in.flv", "source"u8.ToArray());
 		string destination = directory.Combine("out.mp4");
 		BackgroundTaskAppService tasks = CreateTasks();
-		MediaToolAppService service = CreateService(directory, exitCode: 0, tasks, hangs: true);
+		MediaToolAppService service = CreateService(directory, exitCode: 0, tasks, waitsForQuit: true);
 
 		Task<BackgroundTaskSnapshot> completion = await service.QueueRemuxAsync(new RemuxInput(source, destination, true, new RemuxMode.Plain()), cancellationToken);
 		string output = await WaitForOutputPathAsync(directory, cancellationToken);
@@ -317,10 +317,10 @@ public sealed class MediaToolAppServiceTest
 		}
 	}
 
-	private static MediaToolAppService CreateService(TestDirectory directory, int exitCode, BackgroundTaskAppService? tasks = null, bool hangs = false)
+	private static MediaToolAppService CreateService(TestDirectory directory, int exitCode, BackgroundTaskAppService? tasks = null, bool waitsForQuit = false)
 	{
 		AppConfig config = AppConfig.CreateDefault();
-		config.FFmpegPath = CreateFakeFFmpeg(directory, exitCode, hangs);
+		config.FFmpegPath = CreateFakeFFmpeg(directory, exitCode, waitsForQuit);
 		return new MediaToolAppService(new FFmpegProvider(new FakeConfigManager(config)), tasks ?? CreateTasks(), NullLogger<MediaToolAppService>.Instance);
 	}
 
@@ -334,16 +334,17 @@ public sealed class MediaToolAppServiceTest
 		return new BackgroundTaskAppService(TimeProvider.System, NullLogger<BackgroundTaskAppService>.Instance);
 	}
 
-	private static string CreateFakeFFmpeg(TestDirectory directory, int exitCode, bool hangs)
+	private static string CreateFakeFFmpeg(TestDirectory directory, int exitCode, bool waitsForQuit)
 	{
 		if (OperatingSystem.IsWindows())
 		{
-			string wait = hangs ? "ping -n 60 127.0.0.1 >nul\r\n" : string.Empty;
+			// set /p 读到管道里已有的字节就返回，不等换行
+			string wait = waitsForQuit ? "set /p quit=\r\n" : string.Empty;
 			return WriteFile(directory, "ffmpeg.cmd", Encoding.ASCII.GetBytes($"@echo off\r\nfor %%a in (%*) do set \"last=%%~a\"\r\n>\"%last%\" echo partial\r\n>\"%~dp0{OutputPathFile}\" echo %last%\r\n>&2 echo {FailureReason}\r\n{wait}exit /b {exitCode}\r\n"));
 		}
 
-		string sleep = hangs ? "sleep 60\n" : string.Empty;
-		string path = WriteFile(directory, "ffmpeg", Encoding.ASCII.GetBytes($"#!/bin/sh\nfor last; do :; done\necho partial > \"$last\"\necho \"$last\" > \"$(dirname \"$0\")/{OutputPathFile}\"\necho '{FailureReason}' >&2\n{sleep}exit {exitCode}\n"));
+		string readQuit = waitsForQuit ? "head -c 1 >/dev/null\n" : string.Empty;
+		string path = WriteFile(directory, "ffmpeg", Encoding.ASCII.GetBytes($"#!/bin/sh\nfor last; do :; done\necho partial > \"$last\"\necho \"$last\" > \"$(dirname \"$0\")/{OutputPathFile}\"\necho '{FailureReason}' >&2\n{readQuit}exit {exitCode}\n"));
 		File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
 		return path;
 	}
