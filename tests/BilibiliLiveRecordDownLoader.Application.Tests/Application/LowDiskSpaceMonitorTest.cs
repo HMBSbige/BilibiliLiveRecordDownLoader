@@ -32,6 +32,39 @@ public sealed class LowDiskSpaceMonitorTest
 		}
 	}
 
+	// 停止监控期间空间可能恢复过又被占满
+	[Test]
+	public async Task AlertsAgainWhenMonitoringRestartsWhileLowAsync(CancellationToken cancellationToken)
+	{
+		(LowDiskSpaceMonitor monitor, FakeDiskSpace disk, RecordingNotifications notifications, _) = Create();
+		disk.Available = Low;
+
+		using (monitor.Watch())
+		{
+			await TestWait.UntilAsync(() => notifications.Shown.Count is 1, "the first round alerts", cancellationToken);
+		}
+
+		using (monitor.Watch())
+		{
+			await TestWait.UntilAsync(() => notifications.Shown.Count is 2, "the next round alerts again", cancellationToken);
+		}
+	}
+
+	[Test]
+	public async Task AlertsAgainWhenTheRecordDirectoryChangesWhileLowAsync(CancellationToken cancellationToken)
+	{
+		FakeConfigManager configManager = new();
+		(LowDiskSpaceMonitor monitor, FakeDiskSpace disk, RecordingNotifications notifications, FakeTimeProvider time) = Create(configManager);
+		disk.Available = Low;
+		using IDisposable watch = monitor.Watch();
+		await disk.WaitForCheckAsync(cancellationToken);
+
+		await configManager.UpdateAsync(static config => config.RecordDirectory = "another disk", cancellationToken);
+		time.Advance(LowDiskSpaceMonitor.CheckInterval);
+
+		await TestWait.UntilAsync(() => notifications.Shown.Count is 2, "the new record directory is alerted", cancellationToken);
+	}
+
 	[Test]
 	public async Task UnknownFreeSpaceIsSkippedQuietlyAsync(CancellationToken cancellationToken)
 	{
@@ -75,7 +108,7 @@ public sealed class LowDiskSpaceMonitorTest
 	public async Task MonitoringDoesNotCarryTheLogScopeOfTheFirstWatcherAsync(CancellationToken cancellationToken)
 	{
 		ScopeCapturingLogger logger = new();
-		(LowDiskSpaceMonitor monitor, FakeDiskSpace disk, _, _) = Create(logger);
+		(LowDiskSpaceMonitor monitor, FakeDiskSpace disk, _, _) = Create(logger: logger);
 		disk.Available = Low;
 		IDisposable watch;
 
@@ -90,12 +123,12 @@ public sealed class LowDiskSpaceMonitorTest
 		}
 	}
 
-	private static (LowDiskSpaceMonitor, FakeDiskSpace, RecordingNotifications, FakeTimeProvider) Create(ILogger<LowDiskSpaceMonitor>? logger = null)
+	private static (LowDiskSpaceMonitor, FakeDiskSpace, RecordingNotifications, FakeTimeProvider) Create(FakeConfigManager? config = null, ILogger<LowDiskSpaceMonitor>? logger = null)
 	{
 		FakeDiskSpace disk = new();
 		RecordingNotifications notifications = new();
 		FakeTimeProvider time = new();
-		return (new LowDiskSpaceMonitor(disk, new FakeConfigManager(), notifications, time, logger ?? NullLogger<LowDiskSpaceMonitor>.Instance), disk, notifications, time);
+		return (new LowDiskSpaceMonitor(disk, config ?? new FakeConfigManager(), notifications, time, logger ?? NullLogger<LowDiskSpaceMonitor>.Instance), disk, notifications, time);
 	}
 
 	[SuppressMessage("Design", "CA1001", Justification = "只用 WaitAsync 和 Release，不会创建需要释放的等待句柄")]

@@ -11,7 +11,8 @@ internal sealed partial class LowDiskSpaceMonitor(IDiskSpaceService diskSpace, I
 	private int _watchers;
 	private CancellationTokenSource? _cancellation;
 	private Task _monitoring = Task.CompletedTask;
-	private bool _isAlerted;
+	// 提醒过且空间还没恢复的录制目录；换成别的目录要重新判断
+	private string? _alertedDirectory;
 
 	public IDisposable Watch()
 	{
@@ -48,6 +49,8 @@ internal sealed partial class LowDiskSpaceMonitor(IDiskSpaceService diskSpace, I
 	{
 		// 上一轮停止后才开始新一轮，提醒状态只由一个循环读写；previous 已完成时也要让出，否则第一次检查会在 Watch 持锁时同步执行
 		await previous.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+		// 停止监控期间空间可能恢复过又被占满，不沿用上一轮的提醒状态
+		_alertedDirectory = null;
 		using PeriodicTimer timer = new(CheckInterval, timeProvider);
 
 		try
@@ -73,19 +76,19 @@ internal sealed partial class LowDiskSpaceMonitor(IDiskSpaceService diskSpace, I
 		{
 			string directory = (await configManager.GetAsync(cancellationToken)).RecordDirectory;
 
-			if (diskSpace.GetDiskSpace(directory) is not { AvailableBytes: var available } info)
+			if (diskSpace.GetDiskSpace(directory) is not { } info)
 			{
 				return;
 			}
 
 			if (!info.IsLow)
 			{
-				_isAlerted = false;
+				_alertedDirectory = null;
 			}
-			else if (!_isAlerted)
+			else if (directory != _alertedDirectory)
 			{
-				_isAlerted = true;
-				LogLowDiskSpace(logger, directory, available);
+				_alertedDirectory = directory;
+				LogLowDiskSpace(logger, directory, info.AvailableBytes);
 				notifications.Show(AppLanguage.Current.LowDiskSpace, AppLanguage.Current.LowDiskSpaceMessage.ToString(directory), AppNotificationType.Warning);
 			}
 		}
