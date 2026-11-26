@@ -120,10 +120,10 @@ public sealed partial class GeneralSettingsViewModel : ViewModelBase
 		}
 	}
 
-	private void ApplyDiskSpace(DiskSpaceInfo? diskSpace)
+	internal void ApplyDiskSpace(DiskSpaceInfo? diskSpace)
 	{
 		DiskSpaceText = diskSpace is null ? null : AppLanguage.Current.DiskSpace.ToString(ByteSize.Format(diskSpace.AvailableBytes), ByteSize.Format(diskSpace.TotalBytes));
 		DiskUsagePercent = (diskSpace?.UsedRatio ?? 0) * 100;
-		IsDiskSpaceLow = DiskSpaceWarning.IsLow(diskSpace);
+		IsDiskSpaceLow = diskSpace is { IsLow: true };
 	}
 }

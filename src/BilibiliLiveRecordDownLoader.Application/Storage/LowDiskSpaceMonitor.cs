@@ -78,7 +78,7 @@ internal sealed partial class LowDiskSpaceMonitor(IDiskSpaceService diskSpace, I
 				return;
 			}
 
-			if (!DiskSpaceWarning.IsLow(info))
+			if (!info.IsLow)
 			{
 				_isAlerted = false;
 			}

@@ -8,8 +8,8 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
 public sealed class LowDiskSpaceMonitorTest
 {
-	private const long Low = DiskSpaceWarning.Threshold - 1;
-	private const long Enough = DiskSpaceWarning.Threshold;
+	private const long Low = DiskSpaceInfo.LowThreshold - 1;
+	private const long Enough = DiskSpaceInfo.LowThreshold;
 
 	[Test]
 	public async Task AlertsOnceWhileLowAndAgainOnlyAfterRecoveringAsync(CancellationToken cancellationToken)
