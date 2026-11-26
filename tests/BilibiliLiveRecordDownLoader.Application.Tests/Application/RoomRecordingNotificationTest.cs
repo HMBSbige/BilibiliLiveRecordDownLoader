@@ -219,7 +219,11 @@ public sealed class RoomRecordingNotificationTest
 		await Assert.That(loop.Notifications.Shown).HasSingleItem();
 
 		disk.Free();
+		int writes = disk.Writes;
 		await loop.ReceiveForAsync(next, RecordingAttempt.QuickFailureThreshold + TimeSpan.FromSeconds(1));
+
+		// 写盘在后台进行，收到的数据写进去之后磁盘再出错，这次录制才算写盘正常过
+		await loop.WaitUntilAsync(() => disk.Writes > writes, "the recording reaches the disk");
 
 		switch (failure)
 		{

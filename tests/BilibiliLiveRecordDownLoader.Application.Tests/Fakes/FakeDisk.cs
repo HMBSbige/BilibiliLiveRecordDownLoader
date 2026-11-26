@@ -7,6 +7,9 @@ internal sealed class FakeDisk
 	private readonly Lock _lock = new();
 	private TaskCompletionSource? _stall;
 	private bool _isFull;
+	private int _writes;
+
+	public int Writes => Volatile.Read(ref _writes);
 
 	public void Fill()
 	{
@@ -68,6 +71,8 @@ internal sealed class FakeDisk
 				throw new IOException("disk full");
 			}
 		}
+
+		Interlocked.Increment(ref _writes);
 	}
 }
 
