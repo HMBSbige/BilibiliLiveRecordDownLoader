@@ -123,7 +123,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 		if (lastFailure is not ({ } failed, { } host, { } error))
 		{
-			throw new StreamUnavailableException("No live stream endpoint is left to try.", AppLanguage.Current.RecordingNoStreamLeft, false);
+			throw new StreamUnavailableException("No live stream endpoint is left to try.", AppLanguage.Current.RecordingNoStreamLeft, isStreamerSilent: false);
 		}
 
 		string endpointFailed = AppLanguage.Current.RecordingEndpointFailed.ToString(failed.DisplayName, host.Host, RecordingEnd.GetDisplayText(error));
@@ -154,18 +154,22 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		LiveStreamListing listing = await apiClient.GetStreamCandidatesAsync(roomId, profile.Quality.Qn, cancellationToken);
 		IReadOnlyList<LiveStreamCandidate.Listed> listed = CandidateOrder.Sort(listing.Candidates, profile);
 
-		if (listed is not [var best, ..])
+		if (listed is [])
 		{
-			throw new StreamUnavailableException($"Room {roomId} has no usable stream.", AppLanguage.Current.RecordingNoStreamOffered, true);
+			throw new StreamUnavailableException($"Room {roomId} has no usable stream.", AppLanguage.Current.RecordingNoStreamOffered, isStreamerSilent: true);
 		}
 
-		// 接口的 accept_qn 不一定列出高于原画的档位，所以不看它是否受限，接口最好的那路低于所选画质就去主播放列表找
-		if (profile.Quality == StreamQuality.Default || best.Qn >= profile.Quality.Qn)
+		// 接口有低于所选画质的流就去主播放列表找：accept_qn 不一定列出高于原画的档位，不能凭它判断是否受限
+		// 匿名时所选画质可能只有一种编码，它打不开时还能试其他编码的同一档；配了 Cookie 也可能已经失效，所以不看是否登录
+		IReadOnlyList<LiveStreamCandidate.Variant> variants = profile.Quality != StreamQuality.Default && listed.Any(candidate => candidate.Qn < profile.Quality.Qn)
+			? await GetVariantsAsync(roomId, profile, listed, cancellationToken)
+			: [];
+
+		if (variants is [])
 		{
 			return new CandidateBatch(listed, listing.QualityNames, request);
 		}
 
-		IReadOnlyList<LiveStreamCandidate.Variant> variants = await GetVariantsAsync(roomId, profile, best.Qn, cancellationToken);
 		Dictionary<long, string> qualityNames = new(listing.QualityNames);
 
 		foreach (LiveStreamCandidate.Variant variant in variants)
@@ -176,34 +180,45 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 			}
 		}
 
-		return new CandidateBatch([.. variants, .. listed], qualityNames, request);
+		// 直播间列表按合并后的名称显示画质，变体的错误提示也用它，两边叫法才一致
+		// 选出的变体可能比接口给的流高、低或同一画质，要合起来一起排
+		IEnumerable<LiveStreamCandidate> candidates = listed.Concat<LiveStreamCandidate>(variants.Select(variant => variant with { QualityName = qualityNames.GetValueOrDefault(variant.Qn) }));
+		return new CandidateBatch(CandidateOrder.Sort(candidates, profile), qualityNames, request);
 	}
 
-	private async Task<IReadOnlyList<LiveStreamCandidate.Variant>> GetVariantsAsync(long roomId, RecordingProfile profile, long listedBest, CancellationToken cancellationToken)
+	private async Task<IReadOnlyList<LiveStreamCandidate.Variant>> GetVariantsAsync(long roomId, RecordingProfile profile, IReadOnlyList<LiveStreamCandidate.Listed> listed, CancellationToken cancellationToken)
 	{
-		try
+		IReadOnlyList<LiveStreamCandidate.Variant> fetched = await MasterPlaylistCandidates.FetchAsync(TryFetchAsync, profile.Quality, cancellationToken);
+		IReadOnlyList<LiveStreamCandidate.Variant> variants = MasterPlaylistCandidates.Select(fetched, listed, profile);
+
+		// 请求失败时已经记过原因
+		if (variants is [] && fetched is not [])
 		{
-			IReadOnlyList<LiveStreamCandidate.Variant> variants = MasterPlaylistCandidates.Select(await apiClient.GetMasterPlaylistVariantsAsync(roomId, MasterPlaylistCandidates.GetPlaylistQuality(profile), cancellationToken), listedBest, profile);
-
-			if (variants.Count is 0)
-			{
-				LogMasterPlaylistUnavailable(logger, listedBest, profile.Quality.Qn, "no variant of these qualities is listed");
-			}
-
-			return variants;
+			long lowest = listed.Min(static candidate => candidate.Qn);
+			LogMasterPlaylistAddsNothing(logger, lowest, profile.Quality.Qn);
 		}
-		catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
-		{
-			if (IsRemoteFailure(exception))
-			{
-				LogMasterPlaylistUnavailable(logger, listedBest, profile.Quality.Qn, exception.Message);
-			}
-			else
-			{
-				LogMasterPlaylistFailed(logger, exception, listedBest, profile.Quality.Qn);
-			}
 
-			return [];
+		return variants;
+
+		async Task<IReadOnlyList<LiveStreamCandidate.Variant>> TryFetchAsync(long qn, CancellationToken ct)
+		{
+			try
+			{
+				return await apiClient.GetMasterPlaylistVariantsAsync(roomId, qn, ct);
+			}
+			catch (Exception exception) when (!ct.IsCancellationRequested)
+			{
+				if (IsRemoteFailure(exception))
+				{
+					LogMasterPlaylistUnavailable(logger, qn, exception.Message);
+				}
+				else
+				{
+					LogMasterPlaylistFailed(logger, exception, qn);
+				}
+
+				return [];
+			}
 		}
 
 		static bool IsRemoteFailure(Exception exception)
@@ -430,11 +445,14 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to open {Stream} stream from {Host}")]
 	private static partial void LogEndpointFailed(ILogger logger, Exception exception, string stream, string host);
 
-	[LoggerMessage(Level = LogLevel.Information, Message = "The master playlist offers no stream above quality {ListedBest} up to {Quality}: {Error}")]
-	private static partial void LogMasterPlaylistUnavailable(ILogger logger, long listedBest, long quality, string error);
+	[LoggerMessage(Level = LogLevel.Information, Message = "The master playlist requested at quality {Quality} is unavailable: {Error}")]
+	private static partial void LogMasterPlaylistUnavailable(ILogger logger, long quality, string error);
 
-	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to read the master playlist for a stream above quality {ListedBest} up to {Quality}")]
-	private static partial void LogMasterPlaylistFailed(ILogger logger, Exception exception, long listedBest, long quality);
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to read the master playlist requested at quality {Quality}")]
+	private static partial void LogMasterPlaylistFailed(ILogger logger, Exception exception, long quality);
+
+	[LoggerMessage(Level = LogLevel.Information, Message = "The master playlist offers no stream from quality {Lowest} to {Quality} besides those from getRoomPlayInfo")]
+	private static partial void LogMasterPlaylistAddsNothing(ILogger logger, long lowest, long quality);
 
 	[LoggerMessage(Level = LogLevel.Information, Message = "{Stream} is not available from {Host}: {Error}")]
 	private static partial void LogVariantUnavailable(ILogger logger, string stream, string host, string error);

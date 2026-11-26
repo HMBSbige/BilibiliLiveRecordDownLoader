@@ -29,9 +29,9 @@ internal sealed partial class CandidatePool(ILogger logger)
 		{
 			CandidateBatch batch = _batch ?? Adopt(await fetch(cancellationToken));
 
-			foreach (LiveStreamCandidate listed in batch.Candidates)
+			foreach (LiveStreamCandidate offered in batch.Candidates)
 			{
-				if (WithoutFailedHosts(listed) is not { } candidate)
+				if (WithoutFailedHosts(offered) is not { } candidate)
 				{
 					continue;
 				}

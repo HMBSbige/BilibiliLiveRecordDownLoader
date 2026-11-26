@@ -13,8 +13,7 @@ public sealed class CandidateOrderTest
 
 	private static RecordingProfile Profile(long quality, StreamCodec[]? codecPriority = null, StreamFormat[]? formatPriority = null)
 	{
-		RecordingProfile profile = RecordingProfile.Create(AppConfig.CreateDefault(), new RoomConfig { RoomId = 1, Quality = new StreamQuality(quality) });
-		return profile with { CodecPriority = codecPriority ?? profile.CodecPriority, FormatPriority = formatPriority ?? profile.FormatPriority };
+		return RecordingProfile.Create(AppConfig.CreateDefault(), new RoomConfig { RoomId = 1, Quality = new StreamQuality(quality), CodecPriority = codecPriority, FormatPriority = formatPriority });
 	}
 
 	private static string Describe(IEnumerable<LiveStreamCandidate> candidates)
@@ -36,7 +35,7 @@ public sealed class CandidateOrderTest
 	[Test]
 	public async Task SameQualityIsOrderedByCodecThenFormatPriorityAsync()
 	{
-		LiveStreamCandidate.Listed[] listed = [Listed(StreamCodec.Avc, 10000, StreamFormat.Flv), Listed(StreamCodec.Hevc, 10000, StreamFormat.Ts), Listed(StreamCodec.Avc, 10000, StreamFormat.Fmp4), Listed(StreamCodec.Hevc, 10000, StreamFormat.Flv), Listed(StreamCodec.Avc, 400, StreamFormat.Fmp4)];
+		LiveStreamCandidate.Listed[] listed = [Listed(StreamCodec.Avc, 10000, StreamFormat.Flv), Listed(StreamCodec.Hevc, 10000, StreamFormat.Ts), Listed(StreamCodec.Avc, 10000), Listed(StreamCodec.Hevc, 10000, StreamFormat.Flv), Listed(StreamCodec.Avc, 400)];
 
 		IReadOnlyList<LiveStreamCandidate.Listed> sorted = CandidateOrder.Sort(listed, Profile(10000, [StreamCodec.Hevc, StreamCodec.Avc, StreamCodec.Av1], [StreamFormat.Flv, StreamFormat.Fmp4, StreamFormat.Ts]));
 
