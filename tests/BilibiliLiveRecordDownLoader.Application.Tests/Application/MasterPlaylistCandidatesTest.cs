@@ -82,8 +82,8 @@ public sealed class MasterPlaylistCandidatesTest
 	}
 
 	[Test]
-	[Arguments(25000L, "Hevc@25000 api:Av1@10000 Avc@10000 Hevc@10000 Avc@400 api:Avc@250 api:Hevc@250")]
-	[Arguments(10000L, "api:Av1@10000 Avc@10000 Hevc@10000 Avc@400 api:Avc@250 api:Hevc@250", DisplayName = "接口已有所选画质")]
+	[Arguments(25000L, "Hevc@25000 Avc@10000 Hevc@10000 api:Av1@10000 Avc@400 api:Avc@250 api:Hevc@250")]
+	[Arguments(10000L, "Avc@10000 Hevc@10000 api:Av1@10000 Avc@400 api:Avc@250 api:Hevc@250", DisplayName = "接口已有所选画质")]
 	public async Task VariantsFillTheQualitiesSomeListedCodecsLackAsync(long quality, string expected)
 	{
 		LiveStreamCandidate.Listed[] listed = [Listed(StreamCodec.Av1, 10000), Listed(StreamCodec.Avc, 250), Listed(StreamCodec.Hevc, 250)];

@@ -297,7 +297,7 @@ public sealed class RoomMasterPlaylistTest
 	[Arguments(new[] { StreamCodec.Hevc, StreamCodec.Avc, StreamCodec.Av1 })]
 	public async Task HigherQualityFromTheApiIsRecordedWhateverTheCodecPriorityAsync(StreamCodec[] codecPriority, CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = Loop(cancellationToken, Fmp4Codecs(Codec("avc", AvcPlaylist, 250, 10000, 250), Codec("hevc", HevcOriginalPlaylist, 10000, 10000, 250)));
+		await using RecordingLoopHarness loop = Loop(cancellationToken, Fmp4Codecs(Codec("avc", AvcPlaylist, 250, 10000, 250), Codec("hevc", HevcOriginalPlaylist, 10000, 10000, 250)), master: null);
 		loop.Config.CodecPriority = codecPriority;
 		loop.GoLive();
 
@@ -378,6 +378,7 @@ public sealed class RoomMasterPlaylistTest
 			Av1Playlist => new HttpResponseMessage(HttpStatusCode.NotFound),
 			_ => null
 		});
+		loop.Config.CodecPriority = [StreamCodec.Av1, StreamCodec.Avc, StreamCodec.Hevc];
 		loop.Settings = loop.Settings with { Quality = new StreamQuality(quality) };
 		loop.GoLive();
 
