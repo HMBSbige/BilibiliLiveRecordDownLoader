@@ -22,7 +22,7 @@ public sealed class MasterPlaylistCandidatesTest
 
 	private static string Batch(LiveStreamCandidate.Listed[] listed, LiveStreamCandidate.Variant[] variants, RecordingProfile profile)
 	{
-		IReadOnlyList<LiveStreamCandidate> batch = CandidateOrder.Sort(listed.Concat<LiveStreamCandidate>(MasterPlaylistCandidates.Select(variants, listed, profile)), profile);
+		IReadOnlyList<LiveStreamCandidate> batch = CandidateOrder.Sort<LiveStreamCandidate>([.. listed, .. MasterPlaylistCandidates.Select(variants, listed, profile)], profile);
 		return string.Join(' ', batch.Select(static candidate => $"{(candidate is LiveStreamCandidate.Listed ? "api:" : "")}{candidate.Codec}@{candidate.Qn}"));
 	}
 

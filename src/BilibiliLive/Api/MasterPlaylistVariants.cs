@@ -50,7 +50,7 @@ internal static class MasterPlaylistVariants
 			throw new FormatException("The response is empty.");
 		}
 
-		return [.. variants.Select(static variant => new LiveStreamCandidate.Variant(variant.Key.Codec, variant.Key.Qn, variant.Value.Name, variant.Value.Urls))];
+		return [.. variants.Select(static variant => new LiveStreamCandidate.Variant(variant.Key.Codec, variant.Key.Qn, variant.Value.Name, variant.Value.Urls) { StreamName = LiveStreamName.Parse(variant.Value.Urls[0].AbsolutePath) })];
 	}
 
 	// 同一个地址只留一次，名称取第一个给出的

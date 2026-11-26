@@ -5,10 +5,15 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Application;
 
 public sealed class CandidateOrderTest
 {
-	private static LiveStreamCandidate.Listed Listed(StreamCodec codec, long qn, StreamFormat format = StreamFormat.Fmp4)
+	private static LiveStreamCandidate.Listed Listed(StreamCodec codec, long qn, StreamFormat format = StreamFormat.Fmp4, string? streamName = null)
 	{
 		StreamProtocol protocol = format is StreamFormat.Flv ? StreamProtocol.HttpStream : StreamProtocol.HttpHls;
-		return new LiveStreamCandidate.Listed(protocol, format, codec, qn, [], [new Uri($"https://cdn.test/live-bvc/1/live_a_b_c_{codec}_{format}/index.m3u8")]);
+		return new LiveStreamCandidate.Listed(protocol, format, codec, qn, [], [new Uri($"https://cdn.test/live-bvc/1/live_a_b_c_{codec}_{format}/index.m3u8")]) { StreamName = streamName };
+	}
+
+	private static LiveStreamCandidate.Variant Variant(StreamCodec codec, long qn, string streamName)
+	{
+		return new LiveStreamCandidate.Variant(codec, qn, null, [new Uri($"https://cdn.test/live-bvc/1/{streamName}/index.m3u8")]) { StreamName = streamName };
 	}
 
 	private static RecordingProfile Profile(long quality, StreamCodec[]? codecPriority = null, StreamFormat[]? formatPriority = null)
@@ -69,5 +74,21 @@ public sealed class CandidateOrderTest
 		LiveStreamCandidate.Listed[] listed = [Listed(StreamCodec.Av1, 10000), Listed(StreamCodec.Avc, 10000), Listed(StreamCodec.Hevc, 10000)];
 
 		await Assert.That(Describe(CandidateOrder.Sort(listed, Profile(10000, [StreamCodec.Hevc])))).IsEqualTo("Fmp4/Hevc@10000 Fmp4/Av1@10000 Fmp4/Avc@10000");
+	}
+
+	[Test]
+	public async Task SourceComesFirstAmongTheSameQualityAsync()
+	{
+		LiveStreamCandidate[] candidates = [Listed(StreamCodec.Avc, 10000, StreamFormat.Flv, "live_a_b_c_bluray"), Variant(StreamCodec.Hevc, 10000, "live_a_b_c")];
+
+		await Assert.That(Describe(CandidateOrder.Sort(candidates, Profile(10000, [StreamCodec.Avc, StreamCodec.Hevc, StreamCodec.Av1], [StreamFormat.Flv, StreamFormat.Fmp4, StreamFormat.Ts])))).IsEqualTo("Fmp4/Hevc@10000 Flv/Avc@10000");
+	}
+
+	[Test]
+	public async Task SourceDoesNotOutrankQualityAsync()
+	{
+		LiveStreamCandidate[] candidates = [Variant(StreamCodec.Avc, 25000, "live_a_b_c"), Variant(StreamCodec.Hevc, 10000, "live_a_b_c_prohevc"), Listed(StreamCodec.Avc, 10000, StreamFormat.Flv, "live_a_b_c_bluray")];
+
+		await Assert.That(Describe(CandidateOrder.Sort(candidates, Profile(10000)))).IsEqualTo("Flv/Avc@10000 Fmp4/Hevc@10000 Fmp4/Avc@25000");
 	}
 }

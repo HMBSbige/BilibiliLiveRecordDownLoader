@@ -124,6 +124,30 @@ public sealed class RoomMasterPlaylistTest
 	}
 
 	[Test]
+	public async Task SourceStreamIsRecordedBeforeATranscodeOfTheSameQualityAsync(CancellationToken cancellationToken)
+	{
+		const string master = $"""
+			#EXTM3U
+			#EXT-X-STREAM-INF:BANDWIDTH=4200000,CODECS="hvc1.1.6.L123,mp4a.40.2",BILI-QN=10000,PATHWAY-ID="https://a.test"
+			https://a.test{OriginalTrueColorPlaylist}?sign=master
+			#EXT-X-STREAM-INF:BANDWIDTH=5000000,CODECS="avc1.640032,avc1.640032",BILI-QN=10000,PATHWAY-ID="https://a.test"
+			https://a.test{AvcOriginalPlaylist}?sign=master
+
+			""";
+		await using RecordingLoopHarness loop = Loop(cancellationToken, master: master);
+		loop.Config.CodecPriority = [StreamCodec.Avc, StreamCodec.Hevc, StreamCodec.Av1];
+		loop.GoLive();
+
+		await loop.WaitUntilAsync(static snapshot => snapshot.RecordStatus is RecordStatus.Recording);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(Recorded(loop)).IsEqualTo((StreamCodec.Hevc, StreamQuality.Original, null));
+			await Assert.That(loop.RecorderLogs).Contains(static log => log.EndsWith(" (identified as the source stream: True)", StringComparison.Ordinal));
+		}
+	}
+
+	[Test]
 	[Arguments(null, "The master playlist requested at quality 10000 is unavailable: ")]
 	[Arguments("""{"code":-400,"message":"请求错误","ttl":1}""", "The master playlist requested at quality 10000 is unavailable: ")]
 	[Arguments("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1,CODECS=\"avc1.4d401f\",BILI-QN=250\nhttps://a.test/live-bvc/1/live_a_b_c_2500/index.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=1,CODECS=\"hvc1.1.2.H150\",BILI-QN=25000\nhttps://a.test/live-bvc/1/live_a_b_c/index.m3u8\n", "The master playlist offers no stream from quality 250 to 10000 besides those from getRoomPlayInfo")]

@@ -37,7 +37,7 @@ internal static class StreamCandidates
 
 					if (urls.Count is not 0)
 					{
-						candidates.Add(new LiveStreamCandidate.Listed(protocol, streamFormat, streamCodec, codec.CurrentQn, codec.AcceptQn ?? [], urls));
+						candidates.Add(new LiveStreamCandidate.Listed(protocol, streamFormat, streamCodec, codec.CurrentQn, codec.AcceptQn ?? [], urls) { StreamName = LiveStreamName.Parse(urls[0].AbsolutePath) });
 					}
 				}
 			}

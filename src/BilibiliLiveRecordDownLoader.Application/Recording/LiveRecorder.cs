@@ -23,8 +23,9 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 			_ = CreateOnDisk(() => Directory.CreateDirectory(RecordingFileLayout.GetRoomDirectory(profile.RecordDirectory, roomId)));
 			string path = Reserve(timeProvider.GetLocalNow());
+			bool isSource = CandidateOrder.IsSource(candidate, batch.Candidates);
 			// 查询参数里有用户的 uid 和签名，只记路径
-			LogStreamSelected(logger, stream.Format, stream.Codec, stream.Quality.Qn, candidate.Source, endpoint.Host, endpoint.AbsolutePath, path);
+			LogStreamSelected(logger, stream.Format, stream.Codec, stream.Quality.Qn, candidate.Provider, endpoint.Host, endpoint.AbsolutePath, path, isSource);
 
 			if (liveSession.TryUpdateRestriction(stream.Restriction) && stream.Restriction is { } restriction)
 			{
@@ -182,7 +183,7 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 
 		// 直播间列表按合并后的名称显示画质，变体的错误提示也用它，两边叫法才一致
 		// 选出的变体可能比接口给的流高、低或同一画质，要合起来一起排
-		IEnumerable<LiveStreamCandidate> candidates = listed.Concat<LiveStreamCandidate>(variants.Select(variant => variant with { QualityName = qualityNames.GetValueOrDefault(variant.Qn) }));
+		LiveStreamCandidate[] candidates = [.. listed, .. variants.Select(variant => variant with { QualityName = qualityNames.GetValueOrDefault(variant.Qn) })];
 		return new CandidateBatch(CandidateOrder.Sort(candidates, profile), qualityNames, request);
 	}
 
@@ -460,8 +461,8 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		}
 	}
 
-	[LoggerMessage(Level = LogLevel.Information, Message = "Recording {Format}/{Codec} at quality {Quality} offered by {Source} from {Host}{StreamPath} to {Path}")]
-	private static partial void LogStreamSelected(ILogger logger, StreamFormat format, StreamCodec codec, long quality, string source, string host, string streamPath, string path);
+	[LoggerMessage(Level = LogLevel.Information, Message = "Recording {Format}/{Codec} at quality {Quality} offered by {Provider} from {Host}{StreamPath} to {Path} (identified as the source stream: {IsSource})")]
+	private static partial void LogStreamSelected(ILogger logger, StreamFormat format, StreamCodec codec, long quality, string provider, string host, string streamPath, string path, bool isSource);
 
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Recording at quality {Quality} while {Highest} is available: {Reason}")]
 	private static partial void LogQualityRestricted(ILogger logger, long quality, long highest, string reason);

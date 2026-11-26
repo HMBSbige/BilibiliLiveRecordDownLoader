@@ -16,7 +16,7 @@ internal static class LiveStreamCandidateExtensions
 			LiveStreamCandidate.Variant variant => AppLanguage.Current.RecordingVariantStream.ToString(variant.Format, variant.Codec, new StreamQuality(variant.Qn).GetDisplayName(variant.QualityName))
 		};
 
-		public string Source => candidate switch
+		public string Provider => candidate switch
 		{
 			LiveStreamCandidate.Listed => "getRoomPlayInfo",
 			LiveStreamCandidate.Variant => "the master playlist"

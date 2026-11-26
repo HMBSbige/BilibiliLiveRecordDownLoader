@@ -26,6 +26,7 @@ public class MasterPlaylistVariantsTest
 			await Assert.That(variants).All(static variant => variant is { Protocol: StreamProtocol.HttpHls, Format: StreamFormat.Fmp4 });
 			await Assert.That(variants.Select(Hosts)).All(static hosts => hosts == "d1--cn-gotcha208.bilivideo.com d1--cn-gotcha208b.bilivideo.com");
 			await Assert.That(originalTrueColor.Urls[0].AbsoluteUri).IsEqualTo("https://d1--cn-gotcha208.bilivideo.com/live-bvc/495069/live_6650029_bs_9162320/index.m3u8?expires=1700000000&mid=0&sign=fake");
+			await Assert.That(originalTrueColor.StreamName).IsEqualTo("live_6650029_bs_9162320");
 		}
 	}
 

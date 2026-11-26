@@ -175,6 +175,7 @@ public class BilibiliApiClientTest
 		using (Assert.Multiple())
 		{
 			await Assert.That(candidates.Select(static c => (c.Protocol, c.Format, c.Codec))).IsEquivalentTo(expected, CollectionOrdering.Matching);
+			await Assert.That(flv.StreamName).IsEqualTo("live_2500");
 			await Assert.That(flv.Qn).IsEqualTo(10000);
 			await Assert.That(flv.AcceptQualities).IsEquivalentTo([10000L, 400, 250], CollectionOrdering.Matching);
 			await Assert.That(fmp4Hevc.AcceptQualities).IsEquivalentTo([250L], CollectionOrdering.Matching);
