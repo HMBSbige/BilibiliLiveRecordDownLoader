@@ -1,10 +1,9 @@
 using BilibiliLive.Enums;
-using BilibiliLiveRecordDownLoader.Domain.Shared.Recording;
 
 namespace BilibiliLiveRecordDownLoader.Configuration;
 
 // 3.x 的 WPF 版：属性名和类里的一样，枚举写成数字，等于默认值的不写；没写的项除画质外两边默认值相同
-// 3.x 没写 Qn 是原画，导入后和这里没写画质的房间一样用现在的默认画质原画真彩；直播间没有原画真彩时选流会退到不超过它的最高一档
+// 3.x 没写 Qn 是原画；导入后按没写画质处理，用现在的默认画质
 internal static class LegacyConfig
 {
 	public static string GetBackupPath(string path)
@@ -47,6 +46,7 @@ internal static class LegacyConfig
 		Copy(legacy, "RoomId", room, nameof(RoomConfig.RoomId));
 		Copy(legacy, "IsEnable", room, nameof(RoomConfig.IsRecordingEnabled));
 		Copy(legacy, "IsNotify", room, nameof(RoomConfig.IsNotificationEnabled));
+		Copy(legacy, "Qn", room, nameof(RoomConfig.Quality));
 		Copy(legacy, "IsAutoConvertMp4", room, nameof(RoomConfig.ConvertToMp4));
 		Copy(legacy, "IsDeleteAfterConvert", room, nameof(RoomConfig.DeleteAfterConvert));
 		CopySeconds(legacy, "HttpCheckLatency", room, nameof(RoomConfig.StatusCheckInterval));
@@ -56,12 +56,6 @@ internal static class LegacyConfig
 		CopySeconds(legacy, "StreamTimeout", room, nameof(RoomConfig.StreamIdleTimeout));
 		Set(room, nameof(RoomConfig.CodecPriority), GetPriority<StreamCodec>(legacy, "AutoRecordCodecOrder"));
 		Set(room, nameof(RoomConfig.FormatPriority), GetPriority<StreamFormat>(legacy, "AutoRecordFormatOrder"));
-
-		// 画质会原样拿去请求，加载时不检查
-		if (legacy["Qn"] is JsonValue qn && qn.TryGetValue(out long quality))
-		{
-			room[nameof(RoomConfig.Quality)] = JsonValue.Create(quality);
-		}
 
 		return room;
 	}

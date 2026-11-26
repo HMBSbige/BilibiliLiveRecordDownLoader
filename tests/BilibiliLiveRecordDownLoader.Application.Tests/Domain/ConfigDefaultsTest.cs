@@ -30,6 +30,17 @@ public sealed class ConfigDefaultsTest
 	}
 
 	[Test]
+	[Arguments(-1L, false)]
+	[Arguments(0L, true)]
+	[Arguments(12345L, true)]
+	public async Task RoomQualityIsKeptUnlessNegativeAsync(long qn, bool isKept)
+	{
+		RoomConfig room = new RoomConfig { RoomId = 1, Quality = new StreamQuality(qn) }.Normalize();
+
+		await Assert.That(room.Quality).IsEqualTo(isKept ? new StreamQuality(qn) : RoomDefaults.Quality);
+	}
+
+	[Test]
 	public async Task RoomDefaultsClampTimingsToLowerBoundsAsync()
 	{
 		RoomConfig room = new RoomConfig

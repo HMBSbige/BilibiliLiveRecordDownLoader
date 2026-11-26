@@ -18,6 +18,7 @@ internal sealed class StreamQualityJsonConverter : JsonConverter<StreamQuality>
 
 	public override StreamQuality Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
 	{
+		// 负数 qn 也照样读出来，和其他越界的房间设置一样交给 RoomConfig.Normalize 改回默认画质
 		if (reader.TokenType is JsonTokenType.Number && reader.TryGetInt64(out long qn))
 		{
 			return new StreamQuality(qn);

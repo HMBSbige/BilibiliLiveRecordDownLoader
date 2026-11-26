@@ -578,7 +578,7 @@ public sealed class AppConfigManagerTest : IDisposable
 
 				await Assert.That(inheriting.StreamReconnectDelay).IsEqualTo(RoomDefaults.StreamReconnectDelay);
 				// 3.x 没写 Qn 是原画，导入后和没写画质的房间一样用现在的默认画质
-				await Assert.That(inheriting.Quality).IsEqualTo(StreamQuality.OriginalTrueColor);
+				await Assert.That(inheriting.Quality).IsEqualTo(RoomDefaults.Quality);
 			}
 		}
 
@@ -653,7 +653,9 @@ public sealed class AppConfigManagerTest : IDisposable
 					{ "RoomId": 4, "Quality": 12345 },
 					{ "RoomId": 5, "Quality": "400" },
 					{ "RoomId": 6, "Quality": "Original" },
-					{ "RoomId": 7, "Quality": 0 }
+					{ "RoomId": 7, "Quality": 0 },
+					{ "RoomId": 8, "Quality": -1 },
+					{ "RoomId": 9, "Quality": "-1" }
 				]
 			}
 			""",
@@ -672,8 +674,8 @@ public sealed class AppConfigManagerTest : IDisposable
 
 		using (Assert.Multiple())
 		{
-			await Assert.That(loaded).IsEquivalentTo([30000L, 20000, 25000, 12345, 400, 10000, 0], CollectionOrdering.Matching);
-			await Assert.That(rooms.Select(static room => room?[nameof(RoomConfig.Quality)]?.ToJsonString())).IsEquivalentTo(["30000", "20000", null, "12345", "400", "10000", "0"], CollectionOrdering.Matching);
+			await Assert.That(loaded).IsEquivalentTo([30000L, 20000, 25000, 12345, 400, 10000, 0, RoomDefaults.Quality.Qn, RoomDefaults.Quality.Qn], CollectionOrdering.Matching);
+			await Assert.That(rooms.Select(static room => room?[nameof(RoomConfig.Quality)]?.ToJsonString())).IsEquivalentTo(["30000", "20000", null, "12345", "400", "10000", "0", null, null], CollectionOrdering.Matching);
 		}
 	}
 

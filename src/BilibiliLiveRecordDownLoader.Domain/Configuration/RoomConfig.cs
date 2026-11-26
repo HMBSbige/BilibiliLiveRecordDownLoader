@@ -45,6 +45,7 @@ public sealed record RoomConfig
 	{
 		return this with
 		{
+			Quality = Quality.IsValid ? Quality : RoomDefaults.Quality,
 			StatusCheckInterval = ConfigValues.ClampRoomInterval(StatusCheckInterval, RoomDefaults.MinStatusCheckIntervalSeconds),
 			DanmuReconnectDelay = ConfigValues.ClampRoomInterval(DanmuReconnectDelay, RoomDefaults.MinDanmuReconnectDelaySeconds),
 			StreamReconnectDelay = ConfigValues.ClampRoomInterval(StreamReconnectDelay, RoomDefaults.MinStreamReconnectDelaySeconds),

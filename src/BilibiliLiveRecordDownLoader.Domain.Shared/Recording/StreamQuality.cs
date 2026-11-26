@@ -27,6 +27,9 @@ public readonly record struct StreamQuality(long Qn)
 
 	public static StreamQuality Dolby { get; } = new(30000);
 
+	// 负数拿去请求时选流会退到最低画质
+	public bool IsValid => Qn >= 0;
+
 	public static bool TryParse(ReadOnlySpan<char> text, out StreamQuality quality)
 	{
 		// NumberStyles.None 不接受正负号，解析出来的都是合法的 qn
