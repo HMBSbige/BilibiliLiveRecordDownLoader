@@ -283,6 +283,65 @@ public sealed class AppConfigManagerTest : IDisposable
 	}
 
 	[Test]
+	public async Task UnreadableValuesInTheBackupFallBackToTheirDefaultsWithoutDiscardingTheRestAsync(CancellationToken cancellationToken)
+	{
+		await WriteFileAsync(ConfigFileName, "{ truncated", cancellationToken);
+		await WriteFileAsync(ConfigFileName + ".bak", """{ "Theme": "Future", "Cookie": "a=1", "Rooms": [{ "RoomId": 1, "Quality": "Future" }] }""", cancellationToken);
+
+		AppConfig config = await ReloadAsync(cancellationToken);
+		RoomConfig room = await Assert.That(config.Rooms).HasSingleItem();
+
+		using (Assert.Multiple())
+		{
+			await Assert.That((config.Theme, config.Cookie)).IsEqualTo((AppConfig.CreateDefault().Theme, "a=1"));
+			await Assert.That((room.RoomId, room.Quality)).IsEqualTo((1L, RoomDefaults.Quality));
+		}
+	}
+
+	[Test]
+	[Arguments("{ truncated")]
+	[Arguments("null")]
+	[Arguments("[]")]
+	public async Task CorruptedBackupIsNotRestoredAsync(string backup, CancellationToken cancellationToken)
+	{
+		await WriteFileAsync(ConfigFileName, "{ truncated", cancellationToken);
+		await WriteFileAsync(ConfigFileName + ".bak", backup, cancellationToken);
+
+		AppConfig config = await ReloadAsync(cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(config).IsEquivalentTo(AppConfig.CreateDefault());
+			await Assert.That(CorruptedFiles()).Count().IsEqualTo(1);
+		}
+	}
+
+	[Test]
+	public async Task BackupLockedForAMomentIsStillRestoredAsync(CancellationToken cancellationToken)
+	{
+		await WriteFileAsync(ConfigFileName, "{ truncated", cancellationToken);
+		await WriteFileAsync(ConfigFileName + ".bak", """{ "Rooms": [{ "RoomId": 1 }] }""", cancellationToken);
+		TimerSignalingTimeProvider time = new();
+		await using AppConfigManager manager = Create(time: time);
+		Task<AppConfig> loading;
+
+		await using (new FileStream(ConfigPath + ".bak", FileMode.Open, FileAccess.Read, FileShare.None))
+		{
+			loading = manager.GetAsync(cancellationToken).AsTask();
+			await time.TimerCreated.Task.WaitAsync(TestWait.DefaultTimeout, cancellationToken);
+		}
+
+		time.Advance(TimeSpan.FromSeconds(1));
+		AppConfig config = await loading.WaitAsync(TestWait.DefaultTimeout, cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(RoomIds(config)).IsEquivalentTo([1L], CollectionOrdering.Matching);
+			await Assert.That(RoomIds(await ReloadAsync(cancellationToken))).IsEquivalentTo([1L], CollectionOrdering.Matching);
+		}
+	}
+
+	[Test]
 	public async Task CorruptedFileIsStillRestoredAfterTheRestoreWasCanceledAsync(CancellationToken cancellationToken)
 	{
 		await WriteFileAsync(ConfigFileName, "{ truncated", cancellationToken);
@@ -360,9 +419,29 @@ public sealed class AppConfigManagerTest : IDisposable
 	}
 
 	[Test]
-	public async Task InterruptedSaveWithAnUnreadableTempFileIsRestoredFromTheBackupAsync(CancellationToken cancellationToken)
+	public async Task InterruptedSaveWithUnreadableValuesIsRestoredFromTheTempFileAndCleanedAsync(CancellationToken cancellationToken)
 	{
-		await WriteFileAsync(ConfigFileName + ".tmp", "{ truncated", cancellationToken);
+		await WriteFileAsync(ConfigFileName + ".tmp", """{ "Theme": "Future", "Rooms": [{ "RoomId": 732 }] }""", cancellationToken);
+		await WriteFileAsync(ConfigFileName + ".bak", """{ "Rooms": [{ "RoomId": 1 }] }""", cancellationToken);
+
+		AppConfig config = await ReloadAsync(cancellationToken);
+		JsonObject saved = await ReadSavedAsync(cancellationToken);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(RoomIds(config)).IsEquivalentTo([732L], CollectionOrdering.Matching);
+			await Assert.That(saved.Select(static property => property.Key)).IsEquivalentTo([nameof(AppConfig.Rooms)]);
+			await Assert.That(File.Exists(ConfigPath + ".tmp")).IsFalse();
+		}
+	}
+
+	[Test]
+	[Arguments("{ truncated")]
+	[Arguments("null")]
+	[Arguments("[]")]
+	public async Task InterruptedSaveWithAnUnreadableTempFileIsRestoredFromTheBackupAsync(string temp, CancellationToken cancellationToken)
+	{
+		await WriteFileAsync(ConfigFileName + ".tmp", temp, cancellationToken);
 		await WriteFileAsync(ConfigFileName + ".bak", """{ "Rooms": [{ "RoomId": 1 }] }""", cancellationToken);
 
 		AppConfig config = await ReloadAsync(cancellationToken);

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Encodings.Web;
 using System.Text.Json.Serialization.Metadata;
@@ -204,16 +205,19 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 
 		try
 		{
-			config = await ReadWithRetryAsync(_configPath, cancellationToken).ConfigureAwait(false);
-
+			// 丢掉了读不出的值时马上写回清理后的内容
+			if (await ReadWithRetryAsync(_configPath, cancellationToken).ConfigureAwait(false) is { } read)
+			{
+				(config, unsaved) = read;
+			}
 			// 上次保存在替换文件时中断，新内容还留在临时文件里；只剩备份时视为用户删除配置来重置
-			if (config is null && File.Exists(TempPath))
+			else if (File.Exists(TempPath))
 			{
 				if (await TryRestoreTempFileAsync(cancellationToken).ConfigureAwait(false) is { } restored)
 				{
-					config = restored;
-					// 临时文件已经完整写好，放回原处就行；重写要先删掉这份唯一的最新内容，写不成就只剩更旧的备份
-					unsaved = !TryMoveTempFileBack();
+					config = restored.Config;
+					// 临时文件已经完整写好，先放回原处：重写要先删掉这份唯一的最新内容，写不成就只剩更旧的备份
+					unsaved = !TryMoveTempFileBack() || restored.HasInvalidValues;
 				}
 				else
 				{
@@ -232,15 +236,9 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 		}
 		catch (JsonException exception)
 		{
-			config = await TryReadSkippingInvalidValuesAsync(cancellationToken).ConfigureAwait(false);
-
-			if (config is null)
-			{
-				LogConfigCorrupted(logger, exception, _configPath);
-				config = await TryRestoreAsync(BackupPath, cancellationToken).ConfigureAwait(false);
-				PreserveCorruptedFile(config is not null);
-			}
-
+			LogConfigCorrupted(logger, exception, _configPath);
+			config = await TryRestoreAsync(BackupPath, cancellationToken).ConfigureAwait(false);
+			PreserveCorruptedFile(config is not null);
 			unsaved = config is not null;
 		}
 		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -257,7 +255,7 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 		return (config, unsaved);
 	}
 
-	private async ValueTask<AppConfig?> ReadWithRetryAsync(string path, CancellationToken cancellationToken)
+	private async ValueTask<ReadResult?> ReadWithRetryAsync(string path, CancellationToken cancellationToken)
 	{
 		for (int attempt = 1; ; ++attempt)
 		{
@@ -272,29 +270,31 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 		}
 	}
 
-	private static async ValueTask<AppConfig?> ReadAsync(string path, CancellationToken cancellationToken)
+	// 配置、临时文件和备份都这样读：新版本可能新增了枚举名，手改也可能写错一个值，只让读不出的值回到默认值，不是能逐项清理的 JSON 对象才算损坏
+	private async ValueTask<ReadResult?> ReadAsync(string path, CancellationToken cancellationToken)
 	{
 		if (!File.Exists(path))
 		{
 			return null;
 		}
 
-		await using FileStream stream = File.OpenRead(path);
-		// 顶层的 null 反序列化不报错；不按损坏处理就会当成没有配置，下次保存还会拿它替换掉好的备份
-		return await JsonSerializer.DeserializeAsync(stream, AppConfigJsonContext.Default.AppConfig, cancellationToken).ConfigureAwait(false)
-			?? throw new JsonException("The config is not a JSON object.");
-	}
-
-	private async ValueTask<AppConfig?> TryReadSkippingInvalidValuesAsync(CancellationToken cancellationToken)
-	{
 		try
 		{
-			return await ReadObjectAsync(_configPath, cancellationToken).ConfigureAwait(false) is { } root ? DeserializeSkippingInvalidValues(root, _configPath) : null;
+			await using FileStream stream = File.OpenRead(path);
+
+			if (await JsonSerializer.DeserializeAsync(stream, AppConfigJsonContext.Default.AppConfig, cancellationToken).ConfigureAwait(false) is { } config)
+			{
+				return new ReadResult(config, false);
+			}
 		}
-		catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
+		catch (JsonException)
 		{
-			return null;
+			// 整份读不出时才逐项清理，正常的配置不多解析一遍
 		}
+
+		// 顶层的 null 反序列化不报错；不按损坏处理就会当成没有配置，下次保存还会拿它替换掉好的备份
+		JsonObject root = await ReadObjectAsync(path, cancellationToken).ConfigureAwait(false) ?? throw new JsonException("The config is not a JSON object.");
+		return new ReadResult(DeserializeSkippingInvalidValues(root, path), true);
 	}
 
 	private async ValueTask<AppConfig?> TryImportLegacyAsync(CancellationToken cancellationToken)
@@ -342,10 +342,10 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 		return await JsonNode.ParseAsync(stream, documentOptions: DocumentOptions, cancellationToken: cancellationToken).ConfigureAwait(false) as JsonObject;
 	}
 
-	private AppConfig? DeserializeSkippingInvalidValues(JsonObject root, string path)
+	private AppConfig DeserializeSkippingInvalidValues(JsonObject root, string path)
 	{
 		RemoveInvalidValues(root, AppConfigJsonContext.Default.AppConfig, string.Empty, path);
-		return root.Deserialize(AppConfigJsonContext.Default.AppConfig);
+		return root.Deserialize(AppConfigJsonContext.Default.AppConfig) ?? throw new UnreachableException();
 	}
 
 	private void RemoveInvalidValues(JsonObject node, JsonTypeInfo typeInfo, string prefix, string path)
@@ -402,7 +402,7 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 	{
 		try
 		{
-			AppConfig? config = await ReadAsync(path, cancellationToken).ConfigureAwait(false);
+			AppConfig? config = (await ReadWithRetryAsync(path, cancellationToken).ConfigureAwait(false))?.Config;
 
 			if (config is not null)
 			{
@@ -411,26 +411,32 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 
 			return config;
 		}
-		catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
+		catch (JsonException exception)
 		{
 			LogConfigCorrupted(logger, exception, path);
+			return null;
+		}
+		// 一直读不到也按没有备份处理，不改成只读：否则备份始终读不到时配置再也存不了
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+		{
+			LogBackupUnreadable(logger, exception, path);
 			return null;
 		}
 	}
 
 	// 只有内容损坏才退回备份：暂时读不到时退回备份再写盘会删掉这份唯一的最新内容
-	private async ValueTask<AppConfig?> TryRestoreTempFileAsync(CancellationToken cancellationToken)
+	private async ValueTask<ReadResult?> TryRestoreTempFileAsync(CancellationToken cancellationToken)
 	{
 		try
 		{
-			AppConfig? config = await ReadWithRetryAsync(TempPath, cancellationToken).ConfigureAwait(false);
+			ReadResult? read = await ReadWithRetryAsync(TempPath, cancellationToken).ConfigureAwait(false);
 
-			if (config is not null)
+			if (read is not null)
 			{
 				LogRestored(logger, TempPath);
 			}
 
-			return config;
+			return read;
 		}
 		catch (JsonException exception)
 		{
@@ -632,6 +638,9 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 	[LoggerMessage(Level = LogLevel.Error, Message = "Config file {Path} cannot be read, changes will not be saved")]
 	private static partial void LogConfigUnreadable(ILogger logger, Exception exception, string path);
 
+	[LoggerMessage(Level = LogLevel.Error, Message = "Config backup {Path} cannot be read")]
+	private static partial void LogBackupUnreadable(ILogger logger, Exception exception, string path);
+
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Config value {Name} in {Path} is invalid and was reset to its default")]
 	private static partial void LogInvalidValue(ILogger logger, string name, string path);
 
@@ -649,4 +658,6 @@ internal sealed partial class AppConfigManager(IOptions<AppConfigStorageOptions>
 
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Cannot restrict the permissions of {Path}")]
 	private static partial void LogPermissionsNotRestricted(ILogger logger, Exception exception, string path);
+
+	private readonly record struct ReadResult(AppConfig Config, bool HasInvalidValues);
 }
