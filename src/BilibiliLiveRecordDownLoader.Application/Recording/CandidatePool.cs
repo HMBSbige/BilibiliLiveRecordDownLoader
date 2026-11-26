@@ -170,12 +170,13 @@ internal sealed partial class CandidatePool(ILogger logger)
 	[LoggerMessage(Level = LogLevel.Information, Message = "The stream URLs that recorded before stopped working, requesting new ones")]
 	private static partial void LogVerifiedBatchFailed(ILogger logger);
 
-	// 重新请求后签名会变，只用主机区分线路；变体和接口给的流、不同档位的变体都在同一主机上，要分开记
-	private readonly record struct StreamEndpoint(StreamProtocol Protocol, StreamFormat Format, StreamCodec Codec, long? VariantQn, string Authority)
+	// 重新请求后签名会变，只用主机和端口区分线路；变体和接口给的流、不同档位的变体都在同一主机上，要分开记
+	// Uri 缓存了 Host 和 Port，Authority 每次都要拼新字符串
+	private readonly record struct StreamEndpoint(StreamProtocol Protocol, StreamFormat Format, StreamCodec Codec, long? VariantQn, string Host, int Port)
 	{
 		public static StreamEndpoint From(LiveStreamCandidate candidate, Uri uri)
 		{
-			return new StreamEndpoint(candidate.Protocol, candidate.Format, candidate.Codec, (candidate as LiveStreamCandidate.Variant)?.Qn, uri.Authority);
+			return new StreamEndpoint(candidate.Protocol, candidate.Format, candidate.Codec, (candidate as LiveStreamCandidate.Variant)?.Qn, uri.Host, uri.Port);
 		}
 	}
 }
