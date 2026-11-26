@@ -14,6 +14,13 @@ internal sealed class TestDirectory : IDisposable
 		return Path.Combine(Root, relativePath);
 	}
 
+	public string WriteAllBytes(string relativePath, byte[] content)
+	{
+		string path = Combine(relativePath);
+		File.WriteAllBytes(path, content);
+		return path;
+	}
+
 	public void Dispose()
 	{
 		Directory.Delete(Root, true);

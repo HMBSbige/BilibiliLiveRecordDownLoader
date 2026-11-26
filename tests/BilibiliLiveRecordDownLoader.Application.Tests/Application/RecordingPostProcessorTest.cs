@@ -228,6 +228,132 @@ public sealed class RecordingPostProcessorTest
 		}
 	}
 
+	[Test]
+	[Arguments(false)]
+	[Arguments(true)]
+	public async Task Fmp4RecordingIsConvertedInPlaceAndRenamedWithoutFFmpegAsync(bool convertToMp4, CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string path = WriteFmp4(directory, HybridSamples.Recording());
+		RecordingMediaTools mediaTools = new();
+		RecordingNotifications notifications = new();
+
+		await Create(mediaTools, notifications).ProcessAsync(path, CreateProfile(directory, convertToMp4), Streamer, null, NoDanmaku);
+
+		string destination = directory.Combine(Stem + ".mp4");
+
+		using (Assert.Multiple())
+		{
+			await Assert.That((File.Exists(path), File.Exists(destination))).IsEqualTo((false, true));
+			await Assert.That(await ReadTopLevelTypesAsync(destination, cancellationToken)).IsEquivalentTo(["ftyp", "mdat", "moov"], CollectionOrdering.Matching);
+			await Assert.That(mediaTools.Remuxes).IsEmpty();
+			await Assert.That(notifications.Shown).IsEmpty();
+		}
+	}
+
+	// 转换后的文件已经能播放，只是名字还带着 _fmp4
+	[Test]
+	public async Task Fmp4RecordingKeepsItsNameWhenTheMp4NameIsTakenAsync(CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string path = WriteFmp4(directory, HybridSamples.Recording());
+		string destination = directory.Combine(Stem + ".mp4");
+		await File.WriteAllTextAsync(destination, "existing", cancellationToken);
+		RecordingNotifications notifications = new();
+
+		await Create(new RecordingMediaTools(), notifications).ProcessAsync(path, CreateProfile(directory), Streamer, null, NoDanmaku);
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(await File.ReadAllTextAsync(destination, cancellationToken)).IsEqualTo("existing");
+			await Assert.That(await ReadTopLevelTypesAsync(path, cancellationToken)).IsEquivalentTo(["ftyp", "mdat", "moov"], CollectionOrdering.Matching);
+			await Assert.That(notifications.Shown).IsEmpty();
+		}
+	}
+
+	[Test]
+	public async Task Fmp4RecordingThatCannotBeConvertedIsNotifiedAndLeftAsRecordedAsync(CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		byte[] recording = HybridSamples.Recording();
+		int movieStart = HybridSamples.FileType().Length;
+		int initLength = HybridSamples.Init().Length;
+		byte[] movie = Fmp4Samples.Box("moov", [.. recording.AsSpan(movieStart + 8, initLength - movieStart - 8), .. HybridSamples.FullBox("pssh", 0, 0, new byte[20])]);
+		byte[] original = [.. HybridSamples.FileType(), .. movie, .. recording.AsSpan(initLength)];
+		string path = WriteFmp4(directory, original);
+		RecordingNotifications notifications = new();
+
+		await Create(new RecordingMediaTools(), notifications).ProcessAsync(path, CreateProfile(directory), Streamer, null, NoDanmaku);
+
+		ShownNotification shown = await Assert.That(notifications.Shown).HasSingleItem();
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(shown.Message).Contains(Path.GetFileName(path)).And.Contains(AppLanguage.Current.InPlaceConversionRejected.ToString("encrypted content"));
+			await Assert.That(await File.ReadAllBytesAsync(path, cancellationToken)).IsEquivalentTo(original, CollectionOrdering.Matching);
+			await Assert.That(File.Exists(directory.Combine(Stem + ".mp4"))).IsFalse();
+		}
+	}
+
+	[Test]
+	[RunOn(OS.Windows)]
+	public async Task Fmp4RecordingOpenElsewhereIsNotifiedAndLeftAsRecordedAsync(CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		byte[] original = HybridSamples.Recording();
+		string path = WriteFmp4(directory, original);
+		RecordingNotifications notifications = new();
+
+		await using (new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.Read))
+		{
+			await Create(new RecordingMediaTools(), notifications).ProcessAsync(path, CreateProfile(directory), Streamer, null, NoDanmaku);
+		}
+
+		ShownNotification shown = await Assert.That(notifications.Shown).HasSingleItem();
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(shown.Message).Contains(Path.GetFileName(path));
+			await Assert.That(await File.ReadAllBytesAsync(path, cancellationToken)).IsEquivalentTo(original, CollectionOrdering.Matching);
+			await Assert.That(File.Exists(directory.Combine(Stem + ".mp4"))).IsFalse();
+		}
+	}
+
+	// fMP4 的章节直接写进转换后的文件，不生成章节文件，也不看转封装设置
+	[Test]
+	public async Task Fmp4RecordingGetsChaptersWithoutTheConversionSettingAsync(CancellationToken cancellationToken)
+	{
+		using TestDirectory directory = new();
+		string path = WriteFmp4(directory, HybridSamples.Recording());
+		string danmaku = await WriteDanmakuAsync(directory, [DanmakuSamples.Comment(10), new DanmakuRecord.TitleChange(TimeSpan.FromSeconds(100), "新标题")], cancellationToken);
+		bool wroteChaptersFile = false;
+		RecordingPostProcessor processor = new(new RecordingMediaTools(), new FakeConfigManager(), new RecordingNotifications(), NullLogger<RecordingPostProcessor>.Instance)
+		{
+			WriteChaptersFile = (_, _, _) =>
+			{
+				wroteChaptersFile = true;
+				return Task.CompletedTask;
+			}
+		};
+
+		await processor.ProcessAsync(path, CreateProfile(directory, convertToMp4: false), Streamer, new DanmakuSegment(danmaku, new VideoResolution(1280, 720), TimeSpan.FromSeconds(200)), CreateDanmakuProfile(writeChapters: true));
+
+		byte[] movie = Mp4Inspector.ReadMovie(await File.ReadAllBytesAsync(directory.Combine(Stem + ".mp4"), cancellationToken));
+
+		using (Assert.Multiple())
+		{
+			await Assert.That(Mp4Inspector.ReadTracksFromMovie(movie).Single(static track => track.Handler is "text").Samples).Count().IsEqualTo(2);
+			await Assert.That(Mp4Inspector.Find(movie, "udta", "chpl")?[8]).IsEqualTo((byte)2);
+			await Assert.That(wroteChaptersFile).IsFalse();
+			await Assert.That(File.Exists(directory.Combine(Stem + ".ass"))).IsTrue();
+		}
+	}
+
+	private static async Task<IEnumerable<string>> ReadTopLevelTypesAsync(string path, CancellationToken cancellationToken)
+	{
+		return Mp4Inspector.ReadTopLevel(await File.ReadAllBytesAsync(path, cancellationToken)).Select(static box => box.Type);
+	}
+
 	private static RecordingPostProcessor Create(IMediaToolAppService mediaTools, RecordingNotifications? notifications = null, AppConfig? config = null)
 	{
 		return new RecordingPostProcessor(mediaTools, new FakeConfigManager(config), notifications ?? new RecordingNotifications(), NullLogger<RecordingPostProcessor>.Instance);
@@ -250,6 +376,13 @@ public sealed class RecordingPostProcessorTest
 		string path = directory.Combine(Stem + ".flv");
 		using FileStream file = File.Create(path);
 		file.SetLength(length);
+		return path;
+	}
+
+	private static string WriteFmp4(TestDirectory directory, byte[] content)
+	{
+		string path = directory.Combine(Stem + "_fmp4.mp4");
+		File.WriteAllBytes(path, content);
 		return path;
 	}
 

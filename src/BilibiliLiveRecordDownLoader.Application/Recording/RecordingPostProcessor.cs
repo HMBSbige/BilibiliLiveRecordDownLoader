@@ -1,3 +1,6 @@
+using BilibiliLiveRecordDownLoader.Application.Recording.Hybrid;
+using System.Diagnostics;
+
 namespace BilibiliLiveRecordDownLoader.Application.Recording;
 
 internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaTools, IAppConfigManager configManager, INotificationService notifications, ILogger<RecordingPostProcessor> logger)
@@ -57,6 +60,7 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 	}
 
 	// 返回失败原因；转封装任务自身的失败已由任务队列记录
+	// fMP4 总是原地转成普通 MP4，不需要 FFmpeg，转换和删除原文件的设置只管 FLV 和 TS
 	private async Task<string?> ProcessCoreAsync(string path, RecordingProfile profile, DanmakuSegment? danmaku, DanmakuProfile danmakuProfile)
 	{
 		// 写之前就记下路径，写到一半失败也要删
@@ -84,7 +88,8 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 				return null;
 			}
 
-			string? destination = profile.ConvertToMp4 ? RecordingFileLayout.GetMp4ConversionPath(path) : null;
+			bool isFmp4 = RecordingFileLayout.IsFmp4Recording(path);
+			string? destination = isFmp4 || profile.ConvertToMp4 ? RecordingFileLayout.GetMp4ConversionPath(path) : null;
 			bool writeChapters = danmakuProfile.WriteChapters && destination is not null;
 			IReadOnlyList<MediaChapter>? chapters = null;
 
@@ -100,6 +105,11 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 					string liveTitle = records.Source is DanmakuFileSource.Native { Header.Title: { Length: > 0 } title } ? title : Path.GetFileNameWithoutExtension(stem);
 					chapters = BuildChapters(liveTitle, records, segment.Duration);
 				}
+			}
+
+			if (isFmp4 && destination is not null)
+			{
+				return await ConvertInPlaceAsync(path, destination, chapters ?? []);
 			}
 
 			if (destination is null)
@@ -161,6 +171,38 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 		}
 	}
 
+	// 转换后的文件已经能正常播放，改不了名也不算失败
+	private async Task<string?> ConvertInPlaceAsync(string path, string destination, IReadOnlyList<MediaChapter> chapters)
+	{
+		// 要读遍所有 moof，长录像在机械硬盘上要一会儿，不占用调用方的线程
+		HybridConversionResult result = await Task.Run(() => HybridMp4Converter.Convert(path, chapters));
+
+		switch (result)
+		{
+			case HybridConversionResult.Rejected { Reason: var reason }:
+				LogInPlaceConversionRejected(logger, path, reason);
+				return AppLanguage.Current.InPlaceConversionRejected.ToString(reason);
+			case HybridConversionResult.AlreadyPlain:
+				return null;
+			case HybridConversionResult.Converted { WrittenBytes: var written, DroppedSamples: var dropped, RetimedSamples: var retimed }:
+				LogInPlaceConversionDone(logger, path, written, dropped, retimed);
+				break;
+			default:
+				throw new UnreachableException();
+		}
+
+		try
+		{
+			File.Move(path, destination);
+		}
+		catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+		{
+			LogRenameFailed(logger, exception, path, destination);
+		}
+
+		return null;
+	}
+
 	// duration 来自时间轴，不按最后一条弹幕推，免得最后一章结束在视频结束之前
 	private static IReadOnlyList<MediaChapter> BuildChapters(string liveTitle, DanmakuFile danmaku, TimeSpan? duration)
 	{
@@ -193,4 +235,13 @@ internal sealed partial class RecordingPostProcessor(IMediaToolAppService mediaT
 
 	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to write {Path}, converting without chapters")]
 	private static partial void LogChaptersFailed(ILogger logger, Exception exception, string path);
+
+	[LoggerMessage(Level = LogLevel.Information, Message = "Converted {Path} into a regular MP4 in place, writing {Bytes} bytes, dropping {Dropped} samples and retiming {Retimed} samples that went back in time")]
+	private static partial void LogInPlaceConversionDone(ILogger logger, string path, long bytes, long dropped, long retimed);
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Left {Path} as fragmented MP4: {Reason}")]
+	private static partial void LogInPlaceConversionRejected(ILogger logger, string path, string reason);
+
+	[LoggerMessage(Level = LogLevel.Warning, Message = "Failed to rename {Path} to {Destination}, keeping the recorded name")]
+	private static partial void LogRenameFailed(ILogger logger, Exception exception, string path, string destination);
 }
