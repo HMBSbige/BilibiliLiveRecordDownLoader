@@ -16,11 +16,10 @@ public sealed class RecordingFileLayoutTest
 	}
 
 	[Test]
-	[Arguments("今晚唱歌", "20260102_030405_今晚唱歌_2")]
-	public async Task SequenceFollowsTheTitleAndPrecedesTheFmp4SuffixAsync(string? title, string expectedStem)
+	public async Task SequenceFollowsTheTitleAndPrecedesTheFmp4SuffixAsync()
 	{
-		string path = RecordingFileLayout.GetRecordingPath(RecordingFileLayout.GetRecordingStem("records", 123, StartTime, title, 2), StreamFormat.Fmp4);
-		string stem = Path.Combine("records", "123", expectedStem);
+		string path = RecordingFileLayout.GetRecordingPath(RecordingFileLayout.GetRecordingStem("records", 123, StartTime, "今晚唱歌", 2), StreamFormat.Fmp4);
+		string stem = Path.Combine("records", "123", "20260102_030405_今晚唱歌_2");
 
 		using (Assert.Multiple())
 		{
