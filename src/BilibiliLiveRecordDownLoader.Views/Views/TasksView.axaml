@@ -53,7 +53,7 @@
                                            TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding PathsTip}"
                                            IsVisible="{Binding Paths, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 <ProgressBar Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Classes="thin" Margin="0,6,0,2"
-                                             Value="{Binding Progress}" Maximum="100" IsIndeterminate="{Binding IsIndeterminate}"
+                                             Value="{Binding Progress}" Maximum="100" IsIndeterminate="{Binding IsIndeterminate}" AutomationProperties.Name="{Binding Title}"
                                              IsVisible="{Binding Status, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static taskContracts:BackgroundTaskStatus.Running}}" />
                                 <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Classes="error" Text="{Binding Message}"
                                            MaxLines="2" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Message}"

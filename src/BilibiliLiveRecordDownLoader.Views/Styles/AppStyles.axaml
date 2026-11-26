@@ -321,17 +321,16 @@
         <Setter Property="MinHeight" Value="4" />
         <Setter Property="Height" Value="4" />
     </Style>
+    <!-- 模板把 CornerRadius 传给指示条、Background 传给轨道；轨道的高度和圆角是模板自己定的，只能改模板部件 -->
     <Style Selector="ProgressBar.meter">
         <Setter Property="MinHeight" Value="6" />
         <Setter Property="Height" Value="6" />
+        <Setter Property="CornerRadius" Value="3" />
+        <Setter Property="Background" Value="{DynamicResource ControlStrongFillColorDisabledBrush}" />
     </Style>
     <Style Selector="ProgressBar.meter /template/ Border#ProgressBarTrack">
         <Setter Property="Height" Value="NaN" />
         <Setter Property="VerticalAlignment" Value="Stretch" />
-        <Setter Property="CornerRadius" Value="3" />
-        <Setter Property="Background" Value="{DynamicResource ControlStrongFillColorDisabledBrush}" />
-    </Style>
-    <Style Selector="ProgressBar.meter /template/ Border#PART_Indicator">
         <Setter Property="CornerRadius" Value="3" />
     </Style>
     <Style Selector="ProgressBar.critical">

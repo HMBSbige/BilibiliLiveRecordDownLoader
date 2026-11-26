@@ -15,22 +15,23 @@
                 <StackPanel x:DataType="settings:GeneralSettingsViewModel">
                     <TextBlock Classes="section" Text="{Binding General, Source={x:Static l:AppLanguage.Current}}" />
                     <ctl:SettingRow Classes="stacked" Header="{Binding RecordDirectory, Source={x:Static l:AppLanguage.Current}}">
-                        <StackPanel Spacing="8">
-                            <DockPanel HorizontalSpacing="8">
+                        <StackPanel Spacing="{StaticResource FormSpacing}">
+                            <DockPanel HorizontalSpacing="{StaticResource ToolbarSpacing}">
                                 <StackPanel DockPanel.Dock="Right" Classes="toolbar">
                                     <Button Command="{Binding BrowseRecordDirectoryCommand}" Content="{Binding Browse, Source={x:Static l:AppLanguage.Current}}" />
                                     <Button Command="{Binding OpenRecordDirectoryCommand}" Content="{Binding Open, Source={x:Static l:AppLanguage.Current}}" />
                                 </StackPanel>
                                 <TextBox Text="{Binding RecordDirectory, UpdateSourceTrigger=LostFocus}" />
                             </DockPanel>
-                            <StackPanel Spacing="6" Margin="0,4,0,0" IsVisible="{Binding DiskSpaceText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                <ProgressBar Classes="meter" Classes.critical="{Binding IsDiskSpaceLow}" Value="{Binding DiskUsagePercent}" Maximum="100" />
+                            <StackPanel Spacing="6" IsVisible="{Binding DiskSpaceText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                <ProgressBar Classes="meter" Classes.critical="{Binding IsDiskSpaceLow}" Value="{Binding DiskUsagePercent}" Maximum="100"
+                                             AutomationProperties.Name="{Binding DiskUsage, Source={x:Static l:AppLanguage.Current}}" />
                                 <TextBlock Classes="caption numeric" Text="{Binding DiskSpaceText}" />
                             </StackPanel>
                         </StackPanel>
                     </ctl:SettingRow>
                     <ctl:SettingRow Classes="stacked" Header="{Binding FFmpegPath, Source={x:Static l:AppLanguage.Current}}">
-                        <DockPanel HorizontalSpacing="8">
+                        <DockPanel HorizontalSpacing="{StaticResource ToolbarSpacing}">
                             <Button DockPanel.Dock="Right" Command="{Binding BrowseFFmpegPathCommand}"
                                     Content="{Binding Browse, Source={x:Static l:AppLanguage.Current}}" />
                             <TextBox Text="{Binding FFmpegPath, UpdateSourceTrigger=LostFocus}" PlaceholderText="{Binding AutoDetect, Source={x:Static l:AppLanguage.Current}}" />
@@ -184,7 +185,7 @@
                 <StackPanel x:DataType="settings:UpdateSettingsViewModel">
                     <TextBlock Classes="section" Text="{Binding About, Source={x:Static l:AppLanguage.Current}}" />
                     <ctl:SettingRow Classes="stacked">
-                        <DockPanel HorizontalSpacing="12">
+                        <DockPanel HorizontalSpacing="{StaticResource FormSpacing}">
                             <Button DockPanel.Dock="Right" Command="{Binding CheckUpdateCommand}">
                                 <StackPanel Classes="iconText">
                                     <ic:FluentIcon Icon="ArrowSync" />
