@@ -10,6 +10,9 @@ internal sealed record RecordingAttempt(LiveStreamCandidate Candidate, Uri Endpo
 
 	// HLS 换时间线是正常分段，不是线路故障
 	public bool IsQuickFailure => !IsSustained && End is not RecordingEnd.Completed { Reason: StreamEndReason.Discontinuity };
+
+	// 磁盘卡住时网络端照样能收满缓冲，所以写盘失败时看的是写盘端最后一次写出离开始有多久
+	public bool HasDiskWorked => End is not RecordingEnd.WriteFailed failed || failed.WrittenDuration >= QuickFailureThreshold;
 }
 
 internal closed record RecordingEnd
@@ -20,7 +23,7 @@ internal closed record RecordingEnd
 
 	public sealed record Faulted(Exception Exception) : RecordingEnd;
 
-	public sealed record WriteFailed(RecordingWriteException Exception) : RecordingEnd;
+	public sealed record WriteFailed(RecordingWriteException Exception, TimeSpan WrittenDuration) : RecordingEnd;
 
 	public string Description => this switch
 	{
@@ -42,10 +45,6 @@ internal closed record RecordingEnd
 
 	public static string GetDisplayText(Exception exception)
 	{
-		return exception switch
-		{
-			TimeoutException => AppLanguage.Current.RecordingConnectionTimedOut,
-			_ => exception.Message
-		};
+		return exception is TimeoutException ? AppLanguage.Current.RecordingConnectionTimedOut : exception.Message;
 	}
 }

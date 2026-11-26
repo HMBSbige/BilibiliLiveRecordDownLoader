@@ -20,6 +20,19 @@ public sealed class RoomRecordingNotificationTest
 		ConnectedWithoutData
 	}
 
+	public enum DiskFailure
+	{
+		Full,
+		Stalled
+	}
+
+	// 卡住的写入一直等到排空超时，或者过一阵以 IO 错误结束
+	public enum StuckWrite
+	{
+		Hangs,
+		FailsLater
+	}
+
 	[Test]
 	public async Task EveryStreamFailingForAMinuteNotifiesOnceAsync(CancellationToken cancellationToken)
 	{
@@ -191,7 +204,9 @@ public sealed class RoomRecordingNotificationTest
 	}
 
 	[Test]
-	public async Task DiskFillingUpDuringALongRecordingNotifiesAgainAsync(CancellationToken cancellationToken)
+	[Arguments(DiskFailure.Full)]
+	[Arguments(DiskFailure.Stalled)]
+	public async Task DiskFailingDuringALongRecordingNotifiesAgainAsync(DiskFailure failure, CancellationToken cancellationToken)
 	{
 		FakeDisk disk = new();
 		await using RecordingLoopHarness loop = new(cancellationToken, disk.CreateFile);
@@ -205,17 +220,34 @@ public sealed class RoomRecordingNotificationTest
 
 		disk.Free();
 		await loop.ReceiveForAsync(next, RecordingAttempt.QuickFailureThreshold + TimeSpan.FromSeconds(1));
-		disk.Fill();
+
+		switch (failure)
+		{
+			case DiskFailure.Full:
+				disk.Fill();
+				break;
+			case DiskFailure.Stalled:
+				disk.Stall();
+				break;
+			default:
+				throw new UnreachableException();
+		}
+
 		await next.SendAsync();
+		await next.EndAsync();
 		await loop.AdvanceUntilNextStreamAsync(RecordingLoopHarness.ReconnectDelay);
 
 		await Assert.That(loop.Notifications.Shown).Count().IsEqualTo(2);
 	}
 
 	[Test]
-	public async Task StalledDiskNotifiesOnceEvenIfTheNetworkKeepsReceivingAsync(CancellationToken cancellationToken)
+	[Arguments(StuckWrite.Hangs)]
+	[Arguments(StuckWrite.FailsLater)]
+	public async Task StuckDiskNotifiesOnceEvenIfTheNetworkKeepsReceivingAsync(StuckWrite write, CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = new(cancellationToken, static _ => new FakeFile(static ct => new ValueTask(Task.Delay(Timeout.Infinite, ct))));
+		FakeDisk disk = new();
+		await using RecordingLoopHarness loop = new(cancellationToken, disk.CreateFile);
+		disk.Stall();
 		loop.GoLive();
 
 		StreamRequest next = await loop.NextStreamAsync();
@@ -223,6 +255,13 @@ public sealed class RoomRecordingNotificationTest
 		for (int round = 0; round < 2; ++round)
 		{
 			await loop.ReceiveForAsync(next, RecordingAttempt.QuickFailureThreshold + TimeSpan.FromSeconds(1));
+
+			if (write is StuckWrite.FailsLater)
+			{
+				disk.Fill();
+				disk.Stall();
+			}
+
 			await next.EndAsync();
 			(next, _) = await loop.AdvanceUntilNextStreamAsync();
 		}

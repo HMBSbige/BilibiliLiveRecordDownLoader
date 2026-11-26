@@ -705,8 +705,7 @@ internal sealed partial class RoomSession(RoomConfig settings, RoomSessionServic
 		}
 		else
 		{
-			// 磁盘卡住时网络端照样能收满，那次录制不能算写盘已恢复
-			if (attempt.End is not RecordingEnd.WriteFailed { Exception.IsStalled: true })
+			if (attempt.HasDiskWorked)
 			{
 				faults.OnRecorded();
 			}

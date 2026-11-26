@@ -133,7 +133,7 @@ public sealed class RecordingWriteBufferTest
 
 	private static Task<StreamEndReason> CopyAsync(LiveStreamSession session, Stream file, IProgress<long> progress, TimeSpan drainTimeout, CancellationToken cancellationToken)
 	{
-		return RecordingWriteBuffer.CopyAsync(session, new SingleFileOutput(file), progress, drainTimeout, cancellationToken);
+		return RecordingWriteBuffer.CopyAsync(session, new SingleFileOutput(file), progress, new Progress(), drainTimeout, cancellationToken);
 	}
 
 	private sealed class SingleFileOutput(Stream file) : RecordingOutput
@@ -143,7 +143,7 @@ public sealed class RecordingWriteBufferTest
 			return session.CopyToAsync(writer.AsStream(), progress, cancellationToken);
 		}
 
-		public override async Task WriteAsync(PipeReader reader, CancellationToken cancellationToken)
+		public override async Task WriteAsync(PipeReader reader, IProgress<long> progress, CancellationToken cancellationToken)
 		{
 			await reader.CopyToAsync(file, cancellationToken);
 			await file.DisposeAsync();

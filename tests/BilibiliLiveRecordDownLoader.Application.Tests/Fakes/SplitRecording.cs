@@ -71,7 +71,7 @@ internal sealed class SplitRecording
 
 		try
 		{
-			return await RecordingWriteBuffer.CopyAsync(session, output, new Progress<long>(), DrainTimeout, cancellationToken);
+			return await RecordingWriteBuffer.CopyAsync(session, output, new Progress<long>(), new Progress<long>(), DrainTimeout, cancellationToken);
 		}
 		finally
 		{

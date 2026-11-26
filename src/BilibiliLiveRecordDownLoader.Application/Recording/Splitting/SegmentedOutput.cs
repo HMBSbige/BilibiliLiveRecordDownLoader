@@ -29,7 +29,7 @@ internal sealed class SegmentedOutput(Stream firstFile, string firstPath, Func<S
 		}
 	}
 
-	public override async Task WriteAsync(PipeReader reader, CancellationToken cancellationToken)
+	public override async Task WriteAsync(PipeReader reader, IProgress<long> progress, CancellationToken cancellationToken)
 	{
 		long position = 0;
 
@@ -41,13 +41,13 @@ internal sealed class SegmentedOutput(Stream firstFile, string firstPath, Func<S
 			while (_starts.TryTake(position + buffer.Length, out SegmentStart start))
 			{
 				ReadOnlySequence<byte> previous = buffer.Slice(0, start.Offset - position);
-				await WriteAsync(previous, cancellationToken);
+				await WriteAsync(previous, progress, cancellationToken);
 				buffer = buffer.Slice(previous.End);
 				position = start.Offset;
 				await SwitchAsync(start, cancellationToken);
 			}
 
-			await WriteAsync(buffer, cancellationToken);
+			await WriteAsync(buffer, progress, cancellationToken);
 			position += buffer.Length;
 			reader.AdvanceTo(result.Buffer.End);
 
@@ -76,13 +76,14 @@ internal sealed class SegmentedOutput(Stream firstFile, string firstPath, Func<S
 		}
 	}
 
-	private async ValueTask WriteAsync(ReadOnlySequence<byte> data, CancellationToken cancellationToken)
+	private async ValueTask WriteAsync(ReadOnlySequence<byte> data, IProgress<long> progress, CancellationToken cancellationToken)
 	{
 		Stream file = _file ?? throw new InvalidOperationException("No recording file is open.");
 
 		foreach (ReadOnlyMemory<byte> segment in data)
 		{
 			await file.WriteAsync(segment, cancellationToken);
+			progress.Report(segment.Length);
 		}
 	}
 

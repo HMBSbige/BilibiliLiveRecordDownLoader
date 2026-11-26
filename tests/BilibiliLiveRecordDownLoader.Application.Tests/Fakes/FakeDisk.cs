@@ -4,22 +4,70 @@ namespace BilibiliLiveRecordDownLoader.Application.Tests.Fakes;
 
 internal sealed class FakeDisk
 {
-	private volatile bool _isFull;
+	private readonly Lock _lock = new();
+	private TaskCompletionSource? _stall;
+	private bool _isFull;
 
 	public void Fill()
 	{
-		_isFull = true;
+		Release(isFull: true);
 	}
 
 	public void Free()
 	{
-		_isFull = false;
+		Release(isFull: false);
+	}
+
+	// 卡住的写入等到 Fill 或 Free 才失败或写完，就像网络盘断开后过一阵才报错或恢复
+	public void Stall()
+	{
+		lock (_lock)
+		{
+			_stall ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		}
 	}
 
 	[SuppressMessage("Style", "IDE0060", Justification = "签名要对上 LiveRecorder.CreateFile")]
 	public Stream CreateFile(string path)
 	{
-		return new FakeFile(_ => _isFull ? ValueTask.FromException(new IOException("disk full")) : ValueTask.CompletedTask);
+		return new FakeFile(WriteAsync);
+	}
+
+	private void Release(bool isFull)
+	{
+		TaskCompletionSource? stall;
+
+		lock (_lock)
+		{
+			_isFull = isFull;
+			stall = _stall;
+			_stall = null;
+		}
+
+		stall?.TrySetResult();
+	}
+
+	private async ValueTask WriteAsync(CancellationToken cancellationToken)
+	{
+		Task? stall;
+
+		lock (_lock)
+		{
+			stall = _stall?.Task;
+		}
+
+		if (stall is not null)
+		{
+			await stall.WaitAsync(cancellationToken);
+		}
+
+		lock (_lock)
+		{
+			if (_isFull)
+			{
+				throw new IOException("disk full");
+			}
+		}
 	}
 }
 

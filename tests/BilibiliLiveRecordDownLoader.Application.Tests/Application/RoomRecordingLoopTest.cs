@@ -301,7 +301,9 @@ public sealed class RoomRecordingLoopTest
 	[Test]
 	public async Task DiskStallingUntilTheStreamLooksIdleIsAWriteFailureAsync(CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = new(cancellationToken, static _ => new FakeFile(static ct => new ValueTask(Task.Delay(Timeout.Infinite, ct))));
+		FakeDisk disk = new();
+		disk.Stall();
+		await using RecordingLoopHarness loop = new(cancellationToken, disk.CreateFile);
 		loop.GoLive();
 
 		StreamRequest stalled = await loop.NextStreamAsync();
@@ -377,7 +379,9 @@ public sealed class RoomRecordingLoopTest
 	[Test]
 	public async Task StoppingWhileTheDiskIsStuckIsNotAFailureAsync(CancellationToken cancellationToken)
 	{
-		await using RecordingLoopHarness loop = new(cancellationToken, static _ => new FakeFile(static ct => new ValueTask(Task.Delay(Timeout.Infinite, ct))));
+		FakeDisk disk = new();
+		disk.Stall();
+		await using RecordingLoopHarness loop = new(cancellationToken, disk.CreateFile);
 		loop.GoLive();
 
 		StreamRequest stuck = await loop.NextStreamAsync();

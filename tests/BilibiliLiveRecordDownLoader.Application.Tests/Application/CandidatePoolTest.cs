@@ -10,7 +10,7 @@ public sealed class CandidatePoolTest
 
 	private static readonly TimeSpan Short = TimeSpan.FromSeconds(1);
 
-	private static readonly RecordingEnd DiskFull = new RecordingEnd.WriteFailed(new RecordingWriteException(new IOException("disk full")));
+	private static readonly RecordingEnd DiskFull = new RecordingEnd.WriteFailed(new RecordingWriteException(new IOException("disk full")), TimeSpan.Zero);
 
 	private enum Open
 	{

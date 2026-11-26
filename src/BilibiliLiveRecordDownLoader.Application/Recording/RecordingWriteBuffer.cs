@@ -5,14 +5,16 @@ namespace BilibiliLiveRecordDownLoader.Application.Recording;
 
 internal static class RecordingWriteBuffer
 {
-	private const long PauseThreshold = 64L << 20;
+	private const int PauseThresholdMiB = 64;
+
+	private const long PauseThreshold = (long)PauseThresholdMiB << 20;
 
 	public static readonly TimeSpan DrainTimeout = TimeSpan.FromSeconds(15);
 
 	private static readonly PipeOptions Options = new(pauseWriterThreshold: PauseThreshold, resumeWriterThreshold: PauseThreshold / 2, minimumSegmentSize: 64 << 10, useSynchronizationContext: false);
 
 	// 缓冲写满后会话停在写入上，这时被停下算作写盘失败
-	public static async Task<StreamEndReason> CopyAsync(LiveStreamSession session, RecordingOutput output, IProgress<long> progress, TimeSpan drainTimeout, CancellationToken cancellationToken)
+	public static async Task<StreamEndReason> CopyAsync(LiveStreamSession session, RecordingOutput output, IProgress<long> received, IProgress<long> written, TimeSpan drainTimeout, CancellationToken cancellationToken)
 	{
 		Pipe pipe = new(Options);
 		StallTrackingWriter writer = new(pipe.Writer);
@@ -24,13 +26,13 @@ internal static class RecordingWriteBuffer
 
 		try
 		{
-			Task writing = WriteToDiskAsync(pipe.Reader, output, receiving, draining.Token);
+			Task writing = WriteToDiskAsync(pipe.Reader, output, written, receiving, draining.Token);
 			StreamEndReason reason = default;
 			ExceptionDispatchInfo? receiveError = null;
 
 			try
 			{
-				reason = await output.ReceiveAsync(session, writer, progress, receiving.Token);
+				reason = await output.ReceiveAsync(session, writer, received, receiving.Token);
 			}
 			catch (Exception exception)
 			{
@@ -51,14 +53,16 @@ internal static class RecordingWriteBuffer
 				_ = writing.ContinueWith(task =>
 				{
 					Dispose(receiving, draining);
+
+					// 读取 Exception 把写盘端之后的失败标记为已观察
 					return task.Exception;
 				}, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-				throw new RecordingWriteException($"Writing the buffered recording data did not finish within {drainTimeout}.", AppLanguage.Current.RecordingWriteDrainTimedOut.ToString(drainTimeout.TotalSeconds.ToString("0.#", CultureInfo.CurrentCulture)), exception, isStalled: true);
+				throw new RecordingWriteException($"Writing the buffered recording data did not finish within {drainTimeout}.", AppLanguage.Current.RecordingWriteDrainTimedOut.ToString(drainTimeout.TotalSeconds.ToString("0.#", CultureInfo.CurrentCulture)), exception);
 			}
 
 			if (writer.IsStalled && receiveError is { SourceException: var stopped })
 			{
-				throw new RecordingWriteException($"The recording was stopped while {PauseThreshold >> 20} MiB of received data was waiting for the disk.", AppLanguage.Current.RecordingWriteStalledOnStop.ToString((PauseThreshold >> 20).ToString(CultureInfo.CurrentCulture)), stopped, isStalled: true);
+				throw new RecordingWriteException($"The recording was stopped while {PauseThresholdMiB} MiB of received data was waiting for the disk.", AppLanguage.Current.RecordingWriteStalledOnStop.ToString(PauseThresholdMiB.ToString(CultureInfo.CurrentCulture)), stopped);
 			}
 
 			receiveError?.Throw();
@@ -79,11 +83,11 @@ internal static class RecordingWriteBuffer
 		draining.Dispose();
 	}
 
-	private static async Task WriteToDiskAsync(PipeReader reader, RecordingOutput output, CancellationTokenSource receiving, CancellationToken cancellationToken)
+	private static async Task WriteToDiskAsync(PipeReader reader, RecordingOutput output, IProgress<long> written, CancellationTokenSource receiving, CancellationToken cancellationToken)
 	{
 		try
 		{
-			await output.WriteAsync(reader, cancellationToken);
+			await output.WriteAsync(reader, written, cancellationToken);
 		}
 		catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 		{

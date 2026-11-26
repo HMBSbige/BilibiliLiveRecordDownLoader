@@ -246,7 +246,8 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 	{
 		// 录制中途也可能打开分段，所以不分段时同样按容器解析
 		MediaSplitter splitter = CreateSplitter(candidate);
-		TransferMeter meter = new();
+		TransferMeter received = new();
+		TransferMeter written = new();
 		AttemptGate gate = new();
 
 		// 文件由写缓冲关闭，建好之后到交给写缓冲之前不能再有会出错的步骤
@@ -255,13 +256,13 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		SegmentedOutput output = new(file, path, writer => new RecordingSegmenter(writer, splitter, split, timeProvider, logger, timeline), OpenNext, completed => gate.TryRun(() => observer.OnSegmentCompleted(completed)));
 		observer.OnRecordingStarted(path, stream, timeline, output.Closed);
 
-		return await TransferAsync(CopyAsync, meter, idleTimeout, observer, cancellationToken);
+		return await TransferAsync(CopyAsync, received, written, idleTimeout, observer, cancellationToken);
 
 		async Task<StreamEndReason> CopyAsync(CancellationToken ct)
 		{
 			try
 			{
-				return await RecordingWriteBuffer.CopyAsync(session, output, meter, DrainTimeout, ct);
+				return await RecordingWriteBuffer.CopyAsync(session, output, received, written, DrainTimeout, ct);
 			}
 			finally
 			{
@@ -308,38 +309,47 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 		};
 	}
 
-	private async Task<(RecordingEnd End, TimeSpan ActiveDuration)> TransferAsync(Func<CancellationToken, Task<StreamEndReason>> transfer, TransferMeter meter, TimeSpan idleTimeout, IRecordingObserver observer, CancellationToken cancellationToken)
+	private async Task<(RecordingEnd End, TimeSpan ActiveDuration)> TransferAsync(Func<CancellationToken, Task<StreamEndReason>> transfer, TransferMeter received, TransferMeter written, TimeSpan idleTimeout, IRecordingObserver observer, CancellationToken cancellationToken)
 	{
 		using CancellationTokenSource transferCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		Task<(bool IsIdle, TimeSpan ActiveDuration)> watchdog = WatchAsync(meter, idleTimeout, observer, transferCancellation);
-		RecordingEnd end;
-		bool isIdle;
-		TimeSpan activeDuration;
+		Task<(bool IsIdle, TimeSpan ActiveDuration, TimeSpan WrittenDuration)> watchdog = WatchAsync(received, written, idleTimeout, observer, transferCancellation);
+		StreamEndReason reason = default;
+		Exception? failure = null;
+		(bool IsIdle, TimeSpan ActiveDuration, TimeSpan WrittenDuration) watched;
 
 		try
 		{
-			end = new RecordingEnd.Completed(await transfer(transferCancellation.Token));
+			reason = await transfer(transferCancellation.Token);
 		}
 		catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
 		{
-			end = exception is RecordingWriteException writeFailure ? new RecordingEnd.WriteFailed(writeFailure) : new RecordingEnd.Faulted(exception);
+			failure = exception;
 		}
 		finally
 		{
 			await transferCancellation.CancelAsync();
-			(isIdle, activeDuration) = await watchdog;
+			watched = await watchdog;
 		}
 
 		// 磁盘卡住时网络读取也会停下而触发空闲超时，这时写盘失败才是原因
-		return (isIdle && end is not RecordingEnd.WriteFailed ? new RecordingEnd.Idle(idleTimeout) : end, activeDuration);
+		RecordingEnd end = (failure, watched.IsIdle) switch
+		{
+			(RecordingWriteException writeFailure, _) => new RecordingEnd.WriteFailed(writeFailure, watched.WrittenDuration),
+			(_, true) => new RecordingEnd.Idle(idleTimeout),
+			(null, false) => new RecordingEnd.Completed(reason),
+			({ } exception, false) => new RecordingEnd.Faulted(exception)
+		};
+
+		return (end, watched.ActiveDuration);
 	}
 
-	private async Task<(bool IsIdle, TimeSpan ActiveDuration)> WatchAsync(TransferMeter meter, TimeSpan idleTimeout, IRecordingObserver observer, CancellationTokenSource transfer)
+	private async Task<(bool IsIdle, TimeSpan ActiveDuration, TimeSpan WrittenDuration)> WatchAsync(TransferMeter received, TransferMeter written, TimeSpan idleTimeout, IRecordingObserver observer, CancellationTokenSource transfer)
 	{
 		using PeriodicTimer timer = new(SampleInterval, timeProvider);
 		long startTimestamp = timeProvider.GetTimestamp();
 		long lastTimestamp = startTimestamp;
-		long? lastDataTimestamp = null;
+		long? lastReceivedTimestamp = null;
+		long? lastWrittenTimestamp = null;
 		TimeSpan idle = TimeSpan.Zero;
 		bool isIdle = false;
 
@@ -351,13 +361,18 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 				TimeSpan elapsed = timeProvider.GetElapsedTime(lastTimestamp, timestamp);
 				lastTimestamp = timestamp;
 
-				long bytes = meter.TakePending();
+				long bytes = received.TakePending();
 				observer.OnSpeedChanged(bytes / elapsed.TotalSeconds);
+
+				if (written.TakePending() > 0)
+				{
+					lastWrittenTimestamp = timestamp;
+				}
 
 				if (bytes > 0)
 				{
 					idle = TimeSpan.Zero;
-					lastDataTimestamp = timestamp;
+					lastReceivedTimestamp = timestamp;
 				}
 				else
 				{
@@ -380,12 +395,27 @@ internal sealed partial class LiveRecorder(BilibiliApiClient apiClient, IHttpCli
 			observer.OnSpeedChanged(0);
 		}
 
-		if (!isIdle && meter.TakePending() > 0)
+		if (!isIdle)
 		{
-			lastDataTimestamp = timeProvider.GetTimestamp();
+			long timestamp = timeProvider.GetTimestamp();
+
+			if (received.TakePending() > 0)
+			{
+				lastReceivedTimestamp = timestamp;
+			}
+
+			if (written.TakePending() > 0)
+			{
+				lastWrittenTimestamp = timestamp;
+			}
 		}
 
-		return (isIdle, lastDataTimestamp is { } last ? timeProvider.GetElapsedTime(startTimestamp, last) : TimeSpan.Zero);
+		return (isIdle, ElapsedUntil(lastReceivedTimestamp), ElapsedUntil(lastWrittenTimestamp));
+
+		TimeSpan ElapsedUntil(long? timestamp)
+		{
+			return timestamp is { } end ? timeProvider.GetElapsedTime(startTimestamp, end) : TimeSpan.Zero;
+		}
 	}
 
 	// 排空超时后写盘端还在后台换文件，尝试结束之后它不能再通知观察者；检查和通知在同一把锁里
