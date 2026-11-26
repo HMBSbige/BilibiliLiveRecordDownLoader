@@ -517,7 +517,6 @@ public sealed class AppConfigManagerTest : IDisposable
 			      "StreamTimeout": 30.5,
 			      "ClientType": 1,
 			      "Qn": 400,
-			      "RecorderType": 3,
 			      "IsAutoConvertMp4": true,
 			      "AutoRecordCodecOrder": "hevc;unknown;avc"
 			    },
@@ -525,12 +524,10 @@ public sealed class AppConfigManagerTest : IDisposable
 			      "IsEnable": false,
 			      "RoomId": 6,
 			      "Qn": 12345,
-			      "RecorderType": 1,
 			      "AutoRecordFormatOrder": "unknown"
 			    },
 			    {
 			      "RoomId": 7,
-			      "RecorderType": 0,
 			      "StreamReconnectLatency": "6"
 			    }
 			  ],
@@ -538,7 +535,6 @@ public sealed class AppConfigManagerTest : IDisposable
 			  "IsDeleteAfterConvert": true,
 			  "IsUseProxy": true,
 			  "Theme": 2,
-			  "RecorderType": 3,
 			  "AutoRecordFormatOrder": " flv ; ts ",
 			  "StreamHostRule": 2
 			}
@@ -679,13 +675,14 @@ public sealed class AppConfigManagerTest : IDisposable
 		}
 	}
 
-	// 4.0 的实验开关，都已删掉：画质受限时现在总会改用主播放列表，原画真彩现在是默认画质
+	// 4.0 的实验开关和录制方式都已删掉：画质受限时总会改用主播放列表，原画真彩是默认画质，所有录制都走内置录制
 	[Test]
 	[Arguments("UseMasterPlaylistWhenRestricted", "false")]
 	[Arguments("RequestTrueOriginal", "true")]
-	public async Task RetiredExperimentalSettingIsIgnoredAndDroppedAsync(string name, string value, CancellationToken cancellationToken)
+	[Arguments("RecorderType", "\"FFmpeg\"")]
+	public async Task RetiredSettingIsIgnoredAndDroppedAsync(string name, string value, CancellationToken cancellationToken)
 	{
-		await WriteFileAsync(ConfigFileName, $$"""{ "{{name}}": {{value}}, "Theme": "Dark", "Rooms": [{ "RoomId": 1 }, { "RoomId": 2, "Quality": 10000 }] }""", cancellationToken);
+		await WriteFileAsync(ConfigFileName, $$"""{ "{{name}}": {{value}}, "Theme": "Dark", "Rooms": [{ "RoomId": 1, "{{name}}": {{value}} }, { "RoomId": 2, "Quality": 10000 }] }""", cancellationToken);
 
 		AppConfig loaded;
 
@@ -695,31 +692,12 @@ public sealed class AppConfigManagerTest : IDisposable
 			await manager.UpdateAsync(static config => config.RemoveFillerData = true, cancellationToken);
 		}
 
-		using (Assert.Multiple())
-		{
-			await Assert.That(loaded.Theme).IsEqualTo(AppTheme.Dark);
-			await Assert.That(loaded.Rooms.Select(static room => room.Quality.Qn)).IsEquivalentTo([25000L, 10000], CollectionOrdering.Matching);
-			await Assert.That((await ReadSavedAsync(cancellationToken)).Select(static property => property.Key)).IsEquivalentTo([nameof(AppConfig.Theme), nameof(AppConfig.Rooms), nameof(AppConfig.RemoveFillerData)]);
-		}
-	}
-
-	// 录制方式已经删掉，所有录制都走内置录制；旧配置里全局和房间的这一项都不影响读取
-	[Test]
-	public async Task RetiredRecorderTypeSettingIsIgnoredAndDroppedAsync(CancellationToken cancellationToken)
-	{
-		await WriteFileAsync(ConfigFileName, """{ "RecorderType": "FFmpeg", "Theme": "Dark", "Rooms": [{ "RoomId": 1, "RecorderType": "FFmpeg" }] }""", cancellationToken);
-
-		await using (AppConfigManager manager = Create())
-		{
-			AppConfig config = await manager.GetAsync(cancellationToken);
-			await Assert.That((config.Theme, RoomIds(config).Single())).IsEqualTo((AppTheme.Dark, 1L));
-			await manager.UpdateAsync(static config => config.RemoveFillerData = true, cancellationToken);
-		}
-
 		JsonObject saved = await ReadSavedAsync(cancellationToken);
 
 		using (Assert.Multiple())
 		{
+			await Assert.That(loaded.Theme).IsEqualTo(AppTheme.Dark);
+			await Assert.That(loaded.Rooms.Select(static room => room.Quality.Qn)).IsEquivalentTo([25000L, 10000], CollectionOrdering.Matching);
 			await Assert.That(saved.Select(static property => property.Key)).IsEquivalentTo([nameof(AppConfig.Theme), nameof(AppConfig.Rooms), nameof(AppConfig.RemoveFillerData)]);
 			await Assert.That(SavedRoom(saved).Select(static property => property.Key)).IsEquivalentTo([nameof(RoomConfig.RoomId)]);
 		}

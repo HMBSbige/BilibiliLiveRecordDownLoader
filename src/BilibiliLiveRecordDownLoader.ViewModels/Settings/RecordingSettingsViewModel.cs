@@ -57,13 +57,7 @@ public sealed partial class RecordingSettingsViewModel(ISettingsAppService setti
 		FormatPriority.Reset(settings.FormatPriority);
 
 		this.WhenChanged(static viewModel => viewModel.SplitMode)
-			.Subscribe
-			(mode =>
-				{
-					IsSplitByDuration = mode is RecordingSplitMode.Duration;
-					IsSplitBySize = mode is RecordingSplitMode.Size;
-				}
-			)
+			.Subscribe(mode => (IsSplitByDuration, IsSplitBySize) = (mode is RecordingSplitMode.Duration, mode is RecordingSplitMode.Size))
 			.DisposeWith(Disposables);
 
 		PersistSetting(settingsAppService, this.WhenChanged(static viewModel => viewModel.HostSelection), static (current, value) => current with { StreamHostSelection = value });

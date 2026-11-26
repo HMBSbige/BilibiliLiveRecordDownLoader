@@ -193,9 +193,17 @@ public sealed partial class AccountViewModel : ViewModelBase
 
 		DateTimeOffset now = _timeProvider.GetUtcNow();
 		UserText = AppLanguage.Current.LoggedInAs.ToString(status.User.UserName, status.User.UserId.ToString(CultureInfo.InvariantCulture));
-		ExpiryText = status.ExpiresAt is { } expiresAt ? AppLanguage.Current.LoginExpiresAt.ToString(FormatTime(expiresAt), Math.Max(0, ToLocalDate(expiresAt).DayNumber - ToLocalDate(now).DayNumber).ToString(CultureInfo.CurrentCulture)) : null;
+		ExpiryText = status.ExpiresAt is { } expiresAt ? DescribeExpiry(expiresAt, now) : null;
 		IsExpiringSoon = LoginExpiry.IsNear(status.ExpiresAt, now);
 		IsRenewable = status.IsRenewable;
+	}
+
+	// 剩余天数按本地日期计算，与显示的到期时间一致，而不是按相差几个 24 小时计算
+	private string DescribeExpiry(DateTimeOffset expiresAt, DateTimeOffset now)
+	{
+		int daysLeft = Math.Max(0, ToLocalDate(expiresAt).DayNumber - ToLocalDate(now).DayNumber);
+
+		return AppLanguage.Current.LoginExpiresAt.ToString(FormatTime(expiresAt), daysLeft.ToString(CultureInfo.CurrentCulture));
 	}
 
 	// 已登录时，不能续期或快过期也要能直接扫码换掉当前 Cookie；检查中状态未定，不显示

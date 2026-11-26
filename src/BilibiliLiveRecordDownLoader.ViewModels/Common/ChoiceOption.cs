@@ -6,14 +6,9 @@ public sealed record ChoiceOption(object? Value)
 
 	public static IReadOnlyList<ChoiceOption> Toggles { get; } = [Inherit, new(true), new(false)];
 
-	public static IReadOnlyList<ChoiceOption> Of<T>(params IEnumerable<T> values) where T : struct, Enum
-	{
-		return [.. values.Select(static value => new ChoiceOption(value))];
-	}
-
 	public static IReadOnlyList<ChoiceOption> Of<T>() where T : struct, Enum
 	{
-		return Of(Enum.GetValues<T>());
+		return [.. Enum.GetValues<T>().Select(static value => new ChoiceOption(value))];
 	}
 
 	public static IReadOnlyList<ChoiceOption> InheritOr<T>() where T : struct, Enum

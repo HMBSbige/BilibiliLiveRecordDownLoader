@@ -147,6 +147,26 @@ public sealed class AccountViewModelTest
 		}
 	}
 
+	// 现在是本地时间 23:30，一小时后到期就已是次日
+	[Test]
+	[Arguments(1, 1)]
+	[Arguments(25, 2)]
+	[Arguments(-24, 0)]
+	public async Task LoginDaysLeftCountLocalDatesAsync(int hoursLeft, int daysLeft, CancellationToken cancellationToken)
+	{
+		TimeZoneInfo zone = TimeZoneInfo.CreateCustomTimeZone("UTC+8", TimeSpan.FromHours(8), "UTC+8", "UTC+8");
+		FakeTimeProvider time = new(new DateTimeOffset(2026, 11, 24, 15, 30, 0, TimeSpan.Zero));
+		time.SetLocalTimeZone(zone);
+		DateTimeOffset expiresAt = time.GetUtcNow().AddHours(hoursLeft);
+		FakeAccountAppService accounts = new() { IsLoggedIn = static (_, _) => Task.FromResult(true), ExpiresAt = expiresAt };
+		using DialogHostViewModel dialogs = new();
+		using AccountViewModel viewModel = new(accounts, new SettingsAppService(new FakeConfigManager()), dialogs, new RecordingNotifications(), time);
+
+		await viewModel.CheckLoginCommand.Execute().ToTask(cancellationToken);
+
+		await Assert.That(viewModel.ExpiryText).IsEqualTo(AppLanguage.Current.LoginExpiresAt.ToString(TimeZoneInfo.ConvertTime(expiresAt, zone).ToString("G", CultureInfo.CurrentCulture), daysLeft.ToString(CultureInfo.CurrentCulture)));
+	}
+
 	[Test]
 	[Arguments(CookieRenewal.Skipped, 1, false)]
 	[Arguments(CookieRenewal.Failed, 1, false)]
