@@ -23,7 +23,6 @@ public sealed class QualityRestrictionsTest
 		await Assert.That(QualityRestrictions.Evaluate(avc, [avc], Profile(10000), true)).IsEqualTo(new QualityRestriction.LoginMayHaveExpired(StreamQuality.Original));
 	}
 
-	// 3990387 匿名时 AVC 和 HEVC 是超清，AV1 却是原画；AV1 排在前面，录到 AVC 说明它没打开
 	[Test]
 	public async Task AnotherCodecAtAHigherQualityComesBeforeTheLoginAsync()
 	{
@@ -63,7 +62,6 @@ public sealed class QualityRestrictionsTest
 		await Assert.That(QualityRestrictions.Evaluate(avc, [avc, av1], Profile(400), false)).IsEqualTo(new QualityRestriction.NotLoggedIn(StreamQuality.BluRay));
 	}
 
-	// 32378653：AVC 列出原画和超清，HEVC 只列超清
 	[Test]
 	public async Task HighestQualityComesFromTheAcceptListsOfEveryCodecAsync()
 	{

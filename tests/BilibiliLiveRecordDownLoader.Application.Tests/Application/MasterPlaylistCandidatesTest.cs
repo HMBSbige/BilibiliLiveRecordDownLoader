@@ -26,7 +26,7 @@ public sealed class MasterPlaylistCandidatesTest
 		return string.Join(' ', batch.Select(static candidate => $"{(candidate is LiveStreamCandidate.Listed ? "api:" : "")}{candidate.Codec}@{candidate.Qn}"));
 	}
 
-	// 高于原画的档位只在用对应的 qn 请求时才列出：21622811 用杜比的 qn 请求时不列原画真彩
+	// 高于原画的档位只在用对应的 qn 请求时才列出
 	[Test]
 	[Arguments(20000L, 25000L, "20000", 10000L)]
 	[Arguments(25000L, 30000L, "25000", 10000L, DisplayName = "原画真彩及以下只请求一次")]
@@ -81,7 +81,6 @@ public sealed class MasterPlaylistCandidatesTest
 		await Assert.That(Batch(listed, variants, Profile(quality, codecPriority))).IsEqualTo(expected);
 	}
 
-	// 21622811 匿名时只有 AV1 是原画，AVC 和 HEVC 是超清，主播放列表里却有它们的原画：AV1 打不开时先试这些，再降画质
 	[Test]
 	[Arguments(25000L, "Hevc@25000 api:Av1@10000 Avc@10000 Hevc@10000 Avc@400 api:Avc@250 api:Hevc@250")]
 	[Arguments(10000L, "api:Av1@10000 Avc@10000 Hevc@10000 Avc@400 api:Avc@250 api:Hevc@250", DisplayName = "接口已有所选画质")]

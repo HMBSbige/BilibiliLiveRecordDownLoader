@@ -231,7 +231,6 @@ public sealed class RoomMasterPlaylistTest
 		}
 	}
 
-	// 23197314 匿名用 qn=25000 请求时 accept_qn 是 [10000, 400, 250]，主播放列表里却有 25000
 	[Test]
 	public async Task QualityMissingFromTheAcceptListIsTakenFromTheMasterPlaylistAsync(CancellationToken cancellationToken)
 	{
@@ -293,7 +292,6 @@ public sealed class RoomMasterPlaylistTest
 		}
 	}
 
-	// 21622811 匿名时 AV1 是原画、AVC 是超清，这里用 HEVC 代替 AV1
 	[Test]
 	[Arguments(new[] { StreamCodec.Avc, StreamCodec.Hevc, StreamCodec.Av1 })]
 	[Arguments(new[] { StreamCodec.Hevc, StreamCodec.Avc, StreamCodec.Av1 })]
@@ -349,7 +347,6 @@ public sealed class RoomMasterPlaylistTest
 		}
 	}
 
-	// 3990387 匿名时 AV1 是原画；编码优先级里 AVC 在前，也先试 AV1
 	[Test]
 	public async Task HigherQualityOfACodecThatFailedToOpenIsReportedAsUnavailableAsync(CancellationToken cancellationToken)
 	{
@@ -369,7 +366,6 @@ public sealed class RoomMasterPlaylistTest
 		}
 	}
 
-	// 21622811 匿名时只有 AV1 是原画，AVC 和 HEVC 是超清：接口给的 AV1 打不开时先试主播放列表里其他编码的原画，再降画质
 	[Test]
 	[Arguments(25000L, new[] { OriginalTrueColorPlaylist, Av1Playlist, AvcOriginalPlaylist })]
 	[Arguments(10000L, new[] { Av1Playlist, AvcOriginalPlaylist }, DisplayName = "接口已有所选画质")]

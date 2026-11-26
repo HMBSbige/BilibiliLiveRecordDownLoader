@@ -26,7 +26,6 @@ public sealed class CandidateOrderTest
 		return string.Join(' ', candidates.Select(static candidate => $"{candidate.Format}/{candidate.Codec}@{candidate.Qn}"));
 	}
 
-	// 21622811 匿名时 AV1 是原画，AVC 是超清
 	[Test]
 	[Arguments(new[] { StreamCodec.Avc, StreamCodec.Hevc, StreamCodec.Av1 })]
 	[Arguments(new[] { StreamCodec.Av1, StreamCodec.Avc, StreamCodec.Hevc })]
