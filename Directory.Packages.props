@@ -10,10 +10,10 @@
     <PackageVersion Include="ChsBuffer.Avalonia.Native.Static" Version="12.2.0.1" />
     <PackageVersion Include="ChsBuffer.SkiaSharp.Static" Version="4.157.0.3" />
     <PackageVersion Include="FluentIcons.Avalonia" Version="2.1.345" />
-    <PackageVersion Include="HarfBuzzSharp" Version="14.4.0.200" />
-    <PackageVersion Include="HarfBuzzSharp.NativeAssets.Linux" Version="14.4.0.200" />
-    <PackageVersion Include="SkiaSharp" Version="4.157.0" />
-    <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="4.157.0" />
+    <PackageVersion Include="HarfBuzzSharp" Version="15.0.0" />
+    <PackageVersion Include="HarfBuzzSharp.NativeAssets.Linux" Version="15.0.0" />
+    <PackageVersion Include="SkiaSharp" Version="4.158.0" />
+    <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="4.158.0" />
   </ItemGroup>
   <ItemGroup>
     <PackageVersion Include="ReactiveUI" Version="28.0.0" />
