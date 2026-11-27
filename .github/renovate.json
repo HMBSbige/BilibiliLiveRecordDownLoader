@@ -14,13 +14,16 @@
     ":automergeMinor",
     ":disableRateLimiting"
   ],
+  "schedule": [
+    "* 0-3 8-14 * 3"
+  ],
+  "separateMajorMinor": false,
   "packageRules": [
     {
       "matchSourceUrls": [
         "https://github.com/reactiveui/**"
       ],
-      "groupName": "ReactiveUI",
-      "separateMajorMinor": false
+      "groupName": "ReactiveUI"
     },
     {
       "matchPackageNames": [
